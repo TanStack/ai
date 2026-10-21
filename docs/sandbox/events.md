@@ -2,154 +2,102 @@
 title: Events
 id: events
 order: 9
-description: "Everything a harness agent does inside a sandbox (text, tool calls, reasoning, session ids, and file edits) streams back as AG-UI chunks plus namespaced CUSTOM events."
+description: "Everything a harness agent does inside a sandbox (text, tool calls, reasoning, session ids, and file edits) streams back as AG-UI chunks plus named CUSTOM events. Read them, show them, and choose what to store."
 ---
 
-When a harness adapter runs inside a [sandbox](./overview), everything it does is
-observable on the `chat()` stream: the same AG-UI `StreamChunk`s any `chat()` run
-produces, plus namespaced `CUSTOM` events for sandbox- and harness-specifics.
+You want to show the user what the agent is doing: its text, the tools it calls, and the files it edits. A spinner for ten minutes is not enough.
 
-This page is about the **stream the client reads**. To run server-side callbacks
-on file changes, or to log sandbox internals, see [Observability](./observability).
+Everything a harness does in a sandbox comes back on the `chat()` stream. You get the normal AG-UI chunks, plus `CUSTOM` events with a `name` for sandbox-specific things such as file edits.
+
+## Read the events
+
+This sample prints the agent's text and every file it touches:
+
+```ts
+import { chat } from '@tanstack/ai'
+import { GROK_CLI_INSTALL_COMMAND, grokBuildText } from '@tanstack/ai-grok-build'
+import {
+  createSecrets,
+  defineSandbox,
+  defineWorkspace,
+  githubRepo,
+  withSandbox,
+} from '@tanstack/ai-sandbox'
+import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+
+const repoSandbox = defineSandbox({
+  id: 'repo-agent',
+  provider: dockerSandbox({ image: 'node:22' }),
+  workspace: defineWorkspace({
+    source: githubRepo({ repo: 'owner/app' }),
+    setup: [GROK_CLI_INSTALL_COMMAND],
+    secrets: createSecrets({ XAI_API_KEY: process.env.XAI_API_KEY ?? '' }),
+  }),
+  fileEvents: { diff: true }, // also send sandbox.file.diff for each change
+})
+
+const stream = chat({
+  threadId: 'thread-1',
+  adapter: grokBuildText('grok-build'),
+  messages: [{ role: 'user', content: 'Add a README section on testing.' }],
+  middleware: [withSandbox(repoSandbox)],
+})
+
+for await (const chunk of stream) {
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+    process.stdout.write(chunk.delta)
+  } else if (chunk.type === 'CUSTOM' && chunk.name === 'sandbox.file') {
+    console.log(chunk.value.type, chunk.value.path)
+  } else if (chunk.type === 'CUSTOM' && chunk.name === 'sandbox.file.diff') {
+    console.log(chunk.value.path, chunk.value.diff)
+  } else if (chunk.type === 'CUSTOM' && chunk.name === 'file.changed') {
+    console.log(chunk.value.diff)
+  }
+}
+```
+
+You see `create`, `change`, and `delete` lines while the agent works. When the run ends, you see the full `git diff`.
+
+Compare `chunk.name` to a literal string, and TypeScript types `chunk.value` for you. You need no helper and no cast.
 
 ## The stream
 
-A harness run produces standard AG-UI `StreamChunk`s:
+A harness run sends the standard AG-UI `StreamChunk`s:
 
-- **Text**: incremental assistant output.
-- **Tool calls**, including bridged [tools](./tools), which surface as ordinary
-  tool-call chunks the moment the in-sandbox agent invokes them.
-- **Reasoning**: the agent's thinking, where the harness exposes it.
-- **Run lifecycle**: run started, run finished, and related boundaries.
+- **Text**: the assistant output, piece by piece.
+- **Tool calls**, also bridged [tools](./tools). They show up as normal tool-call chunks when the agent calls them.
+- **Reasoning**: the agent's thinking, when the harness exposes it.
+- **Run lifecycle**: run started, run finished, and other boundaries.
+
+This page is about the stream that the client reads. To run server-side callbacks on file changes, or to log sandbox internals, see [Observability](./observability).
 
 ## Custom events
 
-On top of the standard chunks, the sandbox and harness layers emit `CUSTOM`
-events (`chunk.type === 'CUSTOM'`), each with a `name` and a `value`:
+On top of the standard chunks, the sandbox and harness layers send `CUSTOM` events (`chunk.type === 'CUSTOM'`). Each one has a `name` and a `value`:
 
-| Event `name` | Emitted by | When | `value` |
+| Event `name` | Sent by | When | `value` |
 | --- | --- | --- | --- |
-| `grok-build.session-id` | Grok Build adapter | once, when the in-sandbox session is created or resumed | the resumable harness session id |
-| `claude-code.session-id` | Claude Code adapter | once, when the in-sandbox session is created or resumed | the resumable harness session id |
-| `codex.session-id` | Codex adapter | once, when the session is created or resumed | the resumable harness session id |
-| `opencode.session-id` | OpenCode adapter | once, when the session is created or resumed | the resumable harness session id |
-| `file.changed` | harness adapter (e.g. Grok Build, Claude Code) | after the run completes | `{ path: string; diff: string }`: the whole working-tree `git diff` (`path` is always `'.'`, the tree root) |
-| `sandbox.file` | the engine, automatically | per file create / change / delete while a sandbox is active | `{ type: 'create' \| 'change' \| 'delete'; path: string; timestamp: number }` |
-| `sandbox.file.diff` | the engine, opt-in via `fileEvents: { diff: true }` | per file create / change / delete, after the matching `sandbox.file` | `{ path: string; diff: string }`: a unified patch of that one file vs the session's git baseline |
+| `grok-build.session-id` | Grok Build adapter | Once, when the session is created or resumed | `{ sessionId: string }` |
+| `claude-code.session-id` | Claude Code adapter | Once, when the session is created or resumed | `{ sessionId: string }` |
+| `codex.session-id` | Codex adapter | Once, when the session is created or resumed | `{ sessionId: string }` |
+| `opencode.session-id` | OpenCode adapter | Once, when the session is created or resumed | `{ sessionId: string }` |
+| `file.changed` | Harness adapter (for example Grok Build, Claude Code) | After the run completes | `{ path: string; diff: string }`: the whole working-tree `git diff`. `path` is always `'.'`, the tree root. |
+| `sandbox.file` | The engine, automatically | For each file create, change, or delete while a sandbox is active | `{ type: 'create' \| 'change' \| 'delete'; path: string; timestamp: number }` |
+| `sandbox.file.diff` | The engine, with `fileEvents: { diff: true }` | For each file create, change, or delete, after the matching `sandbox.file` | `{ path: string; diff: string }`: a unified patch of that one file against the git baseline of the session |
 
-The `*.session-id` event lets you resume a harness session on a follow-up run
-(pass it back via the adapter's `modelOptions.sessionId`). `sandbox.file` is
-emitted automatically whenever a sandbox is active and file watching is on, with
-no hooks required. `sandbox.file.diff` is off by default (computing a diff on
-every change has a cost); turn it on with `fileEvents: { diff: true }` on
-`defineSandbox` when the client needs to render the change itself, not just
-know it happened:
+- **`*.session-id`**: pass the id back with the adapter's `modelOptions.sessionId` to resume the harness session on a later run.
+- **`sandbox.file`**: sent whenever a sandbox is active and file watching is on. You need no hooks.
+- **`sandbox.file.diff`**: off by default, because a diff on every change has a cost. Turn it on with `fileEvents: { diff: true }` on `defineSandbox` when the client must show the change, not only know that it happened.
 
-```ts
-import { defineSandbox } from "@tanstack/ai-sandbox";
-import { dockerSandbox } from "@tanstack/ai-sandbox-docker";
+To handle file changes on the server with hooks, or to turn the watcher off, see [Observability](./observability). Hooks get the same diff, plus `before()` and `after()`.
 
-const repoSandbox = defineSandbox({
-  id: "repo-agent",
-  provider: dockerSandbox({ image: "node:22" }),
-  fileEvents: { diff: true }, // also emit sandbox.file.diff per change
-});
-```
-
-See [Observability](./observability) to also handle file changes server-side
-via hooks (which get the same diff, plus `before()`/`after()`), or to turn
-the watcher off entirely.
-
-> **Bridged tools emit their own events too.** A `chat()` tool that runs through
-> the [tool bridge](./tools) can stream `CUSTOM` events back mid-execution. Code
-> mode, for example, emits `code_mode:execution_started` and `code_mode:console`
-> (plus `code_mode:external_call` / `…_result` / `…_error`) so you can show its
-> progress live. Read them with the same pattern below.
-
-## Reading CUSTOM events on the client
-
-Every `CUSTOM` event TanStack AI itself emits, `sandbox.file`,
-`sandbox.file.diff`, `file.changed`, the `*.session-id` events, and more, has
-a fixed `name` and a concrete `value` shape, unified as `KnownCustomEvent`.
-`chat()`'s return type narrows accordingly: check `chunk.type === 'CUSTOM'`
-and then compare `chunk.name` to a literal string. No helper, no cast, the
-plain `if` types `chunk.value` for you:
-
-```ts
-import { stream } from "./my-run";
-
-for await (const chunk of stream) {
-  if (chunk.type === "CUSTOM" && chunk.name === "sandbox.file") {
-    console.log(chunk.value.type, chunk.value.path); // typed, no cast
-  } else if (chunk.type === "CUSTOM" && chunk.name === "sandbox.file.diff") {
-    console.log(chunk.value.path, chunk.value.diff); // typed, no cast
-  } else if (chunk.type === "CUSTOM" && chunk.name === "file.changed") {
-    console.log(chunk.value.diff); // typed, no cast
-  }
-}
-```
-
-### Session-id events aren't one literal name
-
-`*.session-id` is emitted per-adapter (`claude-code.session-id`,
-`codex.session-id`, `grok-build.session-id`, `opencode.session-id`), so its
-type is the template-literal name `` `${string}.session-id` ``, not a single
-string. If you know which adapter you're running, compare the exact literal
-it narrows `chunk.value` the same as any other event:
-
-```ts
-import { resumeSession } from "./session";
-import { stream } from "./my-run";
-
-for await (const chunk of stream) {
-  if (chunk.type === "CUSTOM" && chunk.name === "claude-code.session-id") {
-    resumeSession(chunk.value.sessionId); // typed as string, no cast
-  }
-}
-```
-
-> **`chunk.name.endsWith('.session-id')` does *not* narrow.** It's a plain
-> boolean expression, not something TypeScript can attach to a type, so
-> `chunk.value` stays whatever it was before the check (effectively
-> `unknown`), even though the check happens to be correct at runtime. If you
-> need to handle *any* adapter's session id without listing every adapter's
-> literal name, write a small type predicate instead:
->
-> ```ts
-> import type { KnownCustomEvent, SessionIdEvent } from "@tanstack/ai";
-> import { resumeSession } from "./session";
-> import { stream } from "./my-run";
->
-> function isSessionIdEvent(
->   chunk: KnownCustomEvent,
-> ): chunk is SessionIdEvent {
->   return chunk.name.endsWith(".session-id");
-> }
->
-> for await (const chunk of stream) {
->   if (chunk.type === "CUSTOM" && isSessionIdEvent(chunk)) {
->     resumeSession(chunk.value.sessionId); // typed as string, no cast
->   }
-> }
-> ```
->
-> This predicate is something you write yourself when you need it, TanStack
-> AI doesn't ship a guard API. Plain literal-`name` narrowing (as above) is
-> the primary, no-helper pattern; reach for a predicate only for this
-> "any adapter" case.
-
-See [Custom Events Reference](../protocol/custom-events) for the full typed
-event taxonomy, the `ChatStream` type this narrowing relies on, and the
-tradeoff for your own `emitCustomEvent` calls.
+For the full typed event list and the `ChatStream` type, see [Custom Events Reference](../protocol/custom-events).
 
 ## What gets stored
 
-Your user reopens a thread the next morning and wants what they saw before: the
-commands the agent ran and what came back. The stream on this page is live output.
-The transcript your app keeps is a different thing.
+Your user opens a thread the next morning and wants to see the commands the agent ran and their results. The stream on this page is live output. The transcript your app keeps is a different thing.
 
-Wire [chat persistence](../persistence/chat-persistence) next to `withSandbox` and a
-finished run leaves this in the message store:
+Add [chat persistence](../persistence/chat-persistence) next to `withSandbox`. A finished run then leaves this in the message store:
 
 | The harness produced | In the store |
 | --- | --- |
@@ -159,94 +107,127 @@ finished run leaves this in the message store:
 | Reasoning | No. |
 | `CUSTOM` events (file events, code-mode console, session ids) | No. |
 
-So reopening the thread rebuilds the tool cards with their results, on any device.
+So when the user opens the thread again, on any device, the tool cards come back with their results.
 
-`CUSTOM` events are not messages, so anything your UI builds from them (a file list,
-a console panel) lasts only for that visit. Keep that state yourself if you want it
-back.
+`CUSTOM` events are not messages. Anything your UI builds from them (a file list, a console panel) lasts only for that visit. If you want it back later, store that state yourself.
 
-Two limits to know about:
+Two limits:
 
-- All of the harness's text arrives as one final assistant message. A restored thread
-  reads as the tool cards in the order they ran, then the full text.
-- A stored result is the string the harness reported. Reopening a thread never re-runs
-  a tool.
+- All of the harness text arrives as one final assistant message. A restored thread shows the tool cards in the order they ran, then the full text.
+- A stored result is the string that the harness reported. Opening a thread again never runs a tool again.
+
+## Advanced
+
+### Bridged tools send their own events
+
+A `chat()` tool that runs through the [tool bridge](./tools) can stream `CUSTOM` events during its run. Code mode, for example, sends:
+
+- `code_mode:execution_started`
+- `code_mode:console`
+- `code_mode:external_call`, `code_mode:external_result`, and `code_mode:external_error`
+
+Read them with the same literal-name pattern to show progress live.
+
+### Session-id events with any adapter
+
+Each adapter sends its own name (`claude-code.session-id`, `codex.session-id`, `grok-build.session-id`, `opencode.session-id`). So the type of the name is the template literal `` `${string}.session-id` ``, not one string.
+
+If you know the adapter, compare the exact name. It types `chunk.value` like any other event:
+
+```ts
+import { resumeSession } from './session'
+import { stream } from './my-run'
+
+for await (const chunk of stream) {
+  if (chunk.type === 'CUSTOM' && chunk.name === 'claude-code.session-id') {
+    resumeSession(chunk.value.sessionId) // typed as string
+  }
+}
+```
+
+`chunk.name.endsWith('.session-id')` does **not** narrow the type. It is a plain boolean, so `chunk.value` stays untyped, even though the check is correct at runtime.
+
+To handle the session id of any adapter without a list of names, write a small type predicate:
+
+```ts
+import type { KnownCustomEvent, SessionIdEvent } from '@tanstack/ai'
+import { resumeSession } from './session'
+import { stream } from './my-run'
+
+function isSessionIdEvent(chunk: KnownCustomEvent): chunk is SessionIdEvent {
+  return chunk.name.endsWith('.session-id')
+}
+
+for await (const chunk of stream) {
+  if (chunk.type === 'CUSTOM' && isSessionIdEvent(chunk)) {
+    resumeSession(chunk.value.sessionId) // typed as string
+  }
+}
+```
+
+TanStack AI does not ship this guard. You write it yourself, only for this "any adapter" case.
 
 ### Trim what you keep
 
-To decide whether to store a transcript at all, see
-[Build a Sandbox Adapter](../persistence/build-a-sandbox-adapter). This section is the finer knob:
-you are storing one, and you want it smaller.
+To decide if you store a transcript at all, see [Build a Sandbox Adapter](../persistence/build-a-sandbox-adapter). This section is for when you store one and want it smaller.
 
-One run's tool output can be hundreds of kilobytes, and results reach your store
-whole. Your `MessageStore` decides what to keep. `isSandboxToolCall` tells you which
-calls the harness ran inside the sandbox, so you never have to know how they are
-marked. It reads a rendered `tool-call` part too, which is handy for filtering a
-client-side view.
+The tool output of one run can be hundreds of kilobytes, and results reach your store whole. Your `MessageStore` decides what to keep.
 
-Capping each result keeps the cards and bounds the size:
+To keep the cards but limit the size, cap each result:
 
 ```ts
-import type { ModelMessage } from "@tanstack/ai";
-import type { MessageStore } from "@tanstack/ai-persistence";
-import { db } from "./db";
+import type { ModelMessage } from '@tanstack/ai'
+import type { MessageStore } from '@tanstack/ai-persistence'
+import { db } from './db'
 
-const MAX_RESULT = 8_000;
+const MAX_RESULT = 8_000
 
 const store: MessageStore = {
   async saveThread(threadId, messages) {
     const capped = messages.map((message: ModelMessage) =>
-      message.role === "tool" && typeof message.content === "string"
+      message.role === 'tool' && typeof message.content === 'string'
         ? { ...message, content: message.content.slice(0, MAX_RESULT) }
         : message,
-    );
-    await db.saveThread(threadId, capped);
+    )
+    await db.saveThread(threadId, capped)
   },
   loadThread: (threadId) => db.loadThread(threadId),
-};
+}
 ```
 
-To drop the history instead, remove each result with its call. A result whose call is
-missing is worse than either, because providers reject it.
+To drop the history, remove each result together with its call. A result without its call is worse than both options, because providers reject it.
+
+`isSandboxToolCall` tells you which calls the harness ran inside the sandbox, so you do not need to know how they are marked. It also reads a rendered `tool-call` part, which helps when you filter a client-side view.
 
 ```ts
-import { isSandboxToolCall } from "@tanstack/ai-sandbox";
-import type { ModelMessage } from "@tanstack/ai";
-import type { MessageStore } from "@tanstack/ai-persistence";
-import { db } from "./db";
+import { isSandboxToolCall } from '@tanstack/ai-sandbox'
+import type { ModelMessage } from '@tanstack/ai'
+import type { MessageStore } from '@tanstack/ai-persistence'
+import { db } from './db'
 
 const store: MessageStore = {
   async saveThread(threadId, messages) {
-    const dropped = new Set<string>();
-    const kept: Array<ModelMessage> = [];
+    const dropped = new Set<string>()
+    const kept: Array<ModelMessage> = []
     for (const message of messages) {
-      const calls = message.toolCalls;
+      const calls = message.toolCalls
       if (calls && calls.length > 0 && calls.every(isSandboxToolCall)) {
-        for (const call of calls) dropped.add(call.id);
-        continue;
+        for (const call of calls) dropped.add(call.id)
+        continue
       }
       if (
-        message.role === "tool" &&
+        message.role === 'tool' &&
         message.toolCallId !== undefined &&
         dropped.has(message.toolCallId)
       ) {
-        continue;
+        continue
       }
-      kept.push(message);
+      kept.push(message)
     }
-    await db.saveThread(threadId, kept);
+    await db.saveThread(threadId, kept)
   },
   loadThread: (threadId) => db.loadThread(threadId),
-};
+}
 ```
 
-Dropping them is safe. They are display history, and nothing resumes from them: the
-next turn's request to the model never carries them either, because they name tools
-the provider was never given.
-
-## Related
-
-- [Observability](./observability), server-side file-event hooks (with `before()`/`after()`/`diff()`), debug logging, and the low-level watcher.
-- [Custom Events Reference](../protocol/custom-events), the full `KnownCustomEvent` taxonomy and the `ChatStream` type.
-- [Tools](./tools), bridged host tools that surface as tool-call (and CUSTOM) chunks.
-- [Quick Start](./quick-start), read the `file.changed` diff end to end.
+Dropping them is safe. They are display history, and nothing resumes from them. The next request to the model never carries them either, because they name tools that the provider never got.

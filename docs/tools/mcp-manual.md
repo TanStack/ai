@@ -2,7 +2,7 @@
 title: "Manual MCP: typed tools, resources & prompts"
 id: mcp-manual
 order: 10
-description: "Spread fully-typed MCP tools into chat(), inject MCP resources and prompts as content and messages, and stop in-flight MCP tool calls when a run aborts."
+description: "Spread typed MCP tools into chat(), add MCP resources and prompts to the conversation, and stop MCP tool calls when a run aborts."
 keywords:
   - tanstack ai
   - mcp
@@ -15,19 +15,15 @@ keywords:
   - abortController
 ---
 
-You have a live [MCP client](./mcp) and want to do more than auto-discover tools: spread fully-typed tools into a `chat()` run, inject the server's resources and prompts into the conversation, and cancel in-flight MCP calls when the run aborts. By the end of this guide you'll have wired all of these into a single `chat()` call.
+You want more from your [MCP client](./mcp) than tools with `unknown` arguments. You want typed tool arguments, or the resources and prompts of the server in the conversation. Call the client methods yourself and pass the results to `chat()`.
 
-> `createMCPClient` tries protocol `2026-07-28` first. If the server does not support that protocol, the client uses the 2025 initialize handshake.
->
-> Package names for an `@modelcontextprotocol/sdk` import are in [MCP SDK packages](../migration/mcp-sdk).
+On this path, you own the client and you close it. If you only need tools, and you want `chat()` to close the client, use [Managed MCP with chat()](./mcp-managed).
 
-> **Manual (`tools` spread) vs managed (`mcp` prop)**
->
-> This page covers the **manual** path — you call `client.tools()` / `client.resources()` / `client.getPrompt()` yourself and own `close()`. If you only need runtime-typed tools with discovery and lifecycle handled for you, use the `mcp` prop instead — see [Managed MCP with `chat()`](./mcp-managed). Both paths build on the [`createMCPClient` basics](./mcp).
+## Quick setup: typed tools
 
-## Fully-typed tools via the `tools` spread
-
-Pass `toolDefinition()` instances to `client.tools([...])` to get Zod-validated, TypeScript-typed arguments ([Mode 2](./mcp#mode-2--explicit-definitions-clienttoolsdefs)), then spread the result into `chat()`'s `tools` option. You own the client, so you must close it — but **not before the stream is consumed**: `chat()` executes tools lazily while the response streams, so closing in a `finally` around the `return` would kill in-flight tool calls. Close in a middleware terminal hook instead (exactly one of `onFinish`/`onAbort`/`onError` fires per run).
+1. Describe the tool with `toolDefinition()`. The `name` must match the tool name on the server.
+2. Pass the definition to `mcp.tools([...])`, and spread the result into `tools`.
+3. Close the client in a middleware hook.
 
 ```ts ignore
 // src/routes/api.chat.ts
@@ -55,11 +51,11 @@ export const Route = createFileRoute('/api/chat')({
         })
 
         const stream = chat({
-          adapter: openaiText('gpt-5.5'),
+          adapter: openaiText('gpt-6.1-sol'),
           messages,
-          // Fully-typed MCP tools, merged with any other tools you pass
+          // Typed MCP tools, merged with any other tools you pass
           tools: [...(await mcp.tools([searchDef]))],
-          // Close after the run ends — tools execute while the response streams.
+          // Close after the run ends. Tools run while the response streams.
           middleware: [
             {
               name: 'mcp-close',
@@ -77,9 +73,17 @@ export const Route = createFileRoute('/api/chat')({
 })
 ```
 
+The `search` tool now has the argument type `{ query: string }`, and Zod checks the arguments at runtime.
+
+## How it works
+
+- `mcp.tools([searchDef])` returns only the tools that you name. If a name is not on the server, it throws `MCPToolNotFoundError`. See [Mode 2: explicit definitions](./mcp-advanced#mode-2-explicit-definitions).
+- `chat()` runs tools while the response streams. If you close the client in a `finally` around the `return`, the client closes before the tools run, and the tool calls fail.
+- After the run, exactly one of `onFinish`, `onAbort`, or `onError` runs. So a middleware hook is the safe place for `close()`.
+
 ## Server instructions
 
-A server can send instructions that tell the model how to use its tools. Put them in the system prompt so the model reads them before it calls a tool.
+A server can send instructions that tell the model how to use its tools. Put them in the system prompt, so the model reads them before it calls a tool.
 
 Read them from `mcp.instructions` after connect. The value is `undefined` when the server sends none.
 
@@ -93,18 +97,18 @@ const mcp = await createMCPClient({
 })
 
 const stream = chat({
-  adapter: openaiText('gpt-5.5'),
+  adapter: openaiText('gpt-6.1-sol'),
   messages: [{ role: 'user', content: 'What is the weather in Paris?' }],
   systemPrompts: mcp.instructions ? [mcp.instructions] : [],
   tools: await mcp.tools(),
 })
 ```
 
-In a [multi-server pool](./mcp#per-server-access), each client has its own value: `pool.clients.github!.instructions`.
+In a [multi-server pool](./mcp-advanced#per-server-access), each client has its own value: `pool.clients.github!.instructions`.
 
 ## Resources
 
-MCP resources are context documents (files, database records, web pages) the server exposes. Fetch them and inject them into `chat()` as content parts.
+MCP resources are documents that the server exposes: files, database records, web pages. Read one and add it to a message as content parts:
 
 ```ts
 import { chat } from '@tanstack/ai'
@@ -121,9 +125,9 @@ const resources = await mcp.resources()
 const readResult = await mcp.readResource(resources[0]!.uri)
 const parts = readResult.contents.map(mcpResourceToContentPart)
 
-// Inject as part of a user message
+// Add the resource to a user message
 const stream = chat({
-  adapter: openaiText('gpt-5.5'),
+  adapter: openaiText('gpt-6.1-sol'),
   messages: [
     {
       role: 'user',
@@ -137,9 +141,12 @@ const stream = chat({
 ```
 
 `mcpResourceToContentPart` maps each MCP content block to a `ContentPart`:
-- `text` field present → `{ type: 'text', content: text }`
-- `blob` field present → `{ type: 'text', content: '[binary resource <uri>]' }`
-- otherwise → `{ type: 'text', content: JSON.stringify(content) }`
+
+| MCP content block | `ContentPart` |
+|---|---|
+| Has a `text` field | `{ type: 'text', content: text }` |
+| Has a `blob` field | `{ type: 'text', content: '[binary resource <uri>]' }` |
+| Anything else | `{ type: 'text', content: JSON.stringify(content) }` |
 
 ### Resource templates
 
@@ -155,7 +162,7 @@ const templates = await mcp.resourceTemplates()
 
 ## Prompts
 
-MCP prompts are reusable message templates the server exposes. Fetch a prompt, convert it to `ModelMessage[]` with `mcpPromptToMessages`, and spread it into `chat()` to seed the conversation with server-defined context or instructions.
+MCP prompts are message templates that the server exposes. Get a prompt, change it to `ModelMessage[]` with `mcpPromptToMessages`, and put it at the start of the conversation:
 
 ```ts ignore
 import { createFileRoute } from '@tanstack/react-router'
@@ -178,15 +185,15 @@ export const Route = createFileRoute('/api/chat')({
           const available = await mcp.prompts()
           // available: Array<{ name: string; description?: string; arguments?: ... }>
 
-          // Fetch a specific prompt, optionally passing template arguments
+          // Get one prompt, and fill its template arguments
           const prompt = await mcp.getPrompt('summarize', { language: 'english' })
 
           const stream = chat({
-            adapter: openaiText('gpt-5.5'),
+            adapter: openaiText('gpt-6.1-sol'),
             messages: [
-              // Seed the conversation with the server-defined prompt messages
+              // Start the conversation with the prompt messages of the server
               ...mcpPromptToMessages(prompt),
-              // Then append the user's own messages
+              // Then add the messages of the user
               ...messages,
             ],
           })
@@ -194,9 +201,9 @@ export const Route = createFileRoute('/api/chat')({
           return toServerSentEventsResponse(stream)
         } finally {
           // Safe here: all MCP calls (prompts/getPrompt) completed before chat()
-          // started, and no MCP tools are passed to the run. If you also spread
-          // MCP tools into `tools`, close in a middleware terminal hook instead
-          // (see "Fully-typed tools via the `tools` spread" above).
+          // started, and no MCP tools go to the run. If you also spread
+          // MCP tools into `tools`, close in a middleware hook instead
+          // (see "Quick setup: typed tools" above).
           await mcp.close()
         }
       },
@@ -205,18 +212,22 @@ export const Route = createFileRoute('/api/chat')({
 })
 ```
 
-`mcpPromptToMessages` maps each MCP prompt message to a `ModelMessage`:
-- `role === 'assistant'` → `{ role: 'assistant', content: text }`
-- any other role → `{ role: 'user', content: text }`
-- non-text content → `content` is `JSON.stringify`'d
+`getPrompt(name, args?)` takes an optional `args` of type `Record<string, string>`. It fills the template variables of the prompt.
 
-`getPrompt(name, args?)` accepts an optional `args` parameter typed as `Record<string, string>` for filling in template variables declared by the prompt.
+`mcpPromptToMessages` maps each MCP prompt message to a `ModelMessage`:
+
+| MCP prompt message | `ModelMessage` |
+|---|---|
+| `role === 'assistant'` | `{ role: 'assistant', content: text }` |
+| Any other role | `{ role: 'user', content: text }` |
+| Content that is not text | `content` is the `JSON.stringify` output |
 
 ## Cancellation
 
-When the chat run is cancelled (e.g. the user navigates away or an `AbortController` fires), TanStack AI stops waiting for in-flight MCP tool calls. The abort signal from the chat run is threaded through `ToolExecutionContext.abortSignal` into each tool's execute function.
+A chat run can stop, for example when the user leaves the page or an `AbortController` fires. Then TanStack AI stops the wait for MCP tool calls in progress. The abort signal of the run goes to the execute function of each tool in `ToolExecutionContext.abortSignal`.
 
-For an ordinary `callTool` request, this aborts the request. For a task-required tool, it stops the local task stream and sends a best-effort `tasks/cancel` for a remote task the MCP server has already created.
+- For a normal `callTool` request, the signal aborts the request.
+- For a task-required tool, it stops the local task stream. Then it sends a best-effort `tasks/cancel` for a remote task that the server already made.
 
 ```ts
 import { chat } from '@tanstack/ai'
@@ -231,21 +242,21 @@ const mcp = await createMCPClient({
 const controller = new AbortController()
 
 const stream = chat({
-  adapter: openaiText('gpt-5.5'),
+  adapter: openaiText('gpt-6.1-sol'),
   messages,
   tools: await mcp.tools(),
   abortController: controller,
 })
 
-// Cancel the run and stop waiting for in-flight MCP tool calls:
+// Stop the run and the wait for MCP tool calls in progress:
 controller.abort()
 ```
 
-## Full Server + Client Example
+## Full server and client example
 
-Here is a complete TanStack Start API route that connects to two MCP servers and streams the response to the browser.
+This TanStack Start route connects to two MCP servers and streams the response to the browser.
 
-**Server route (`src/routes/api.chat.ts`):**
+Server route (`src/routes/api.chat.ts`):
 
 ```ts ignore
 import { createFileRoute } from '@tanstack/react-router'
@@ -281,10 +292,10 @@ export const Route = createFileRoute('/api/chat')({
         })
 
         const stream = chat({
-          adapter: openaiText('gpt-5.5'),
+          adapter: openaiText('gpt-6.1-sol'),
           messages: body.messages,
           tools: await pool.tools(),
-          // Close after the run ends — tools execute while the response streams.
+          // Close after the run ends. Tools run while the response streams.
           middleware: [
             {
               name: 'mcp-close',
@@ -302,7 +313,7 @@ export const Route = createFileRoute('/api/chat')({
 })
 ```
 
-**Client component (`src/components/Chat.tsx`):**
+Client component (`src/components/Chat.tsx`):
 
 ```tsx
 import { useChat } from '@tanstack/ai-react'
@@ -336,8 +347,6 @@ export function Chat() {
 }
 ```
 
-## Going further
+Click **Ask**. The model calls the GitHub tools, and the answer streams into the list.
 
-> **Want `chat()` to discover tools and close clients for you?** If you don't need the manual `tools` spread, resources, or prompts, the `mcp` prop removes the close-middleware boilerplate entirely. See [Managed MCP with `chat()`](./mcp-managed).
-
-> **Want compile-checked tool names on the discovery path?** Generate per-server interface types from your live servers and pass them as a generic to `createMCPClient` — discovered tool names narrow to the server's literal names, with zero runtime overhead. See [MCP Type Generation](./mcp-codegen).
+To check tool names at compile time too, see [MCP Type Generation](./mcp-codegen).

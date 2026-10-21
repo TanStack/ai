@@ -11,10 +11,26 @@ keywords:
   - model context protocol
 ---
 
-Your app calls `createMCPClient`. The app still imports `@modelcontextprotocol/sdk`. That import does not resolve. `@tanstack/ai-mcp` does not use that package.
+Your app calls `createMCPClient`, and an import from `@modelcontextprotocol/sdk` does not resolve. `@tanstack/ai-mcp` does not use that package. It uses the v2 packages:
 
 - A client app imports `@modelcontextprotocol/client`.
 - A server app imports `@modelcontextprotocol/server`.
+
+## Upgrade
+
+1. If your app imports `@modelcontextprotocol/sdk`, run the MCP codemod from the app root:
+
+   ```bash
+   npx @modelcontextprotocol/codemod@latest v1-to-v2 .
+   ```
+
+   The codemod rewrites the imports from `@modelcontextprotocol/sdk`. It also rewrites the dependencies in `package.json`.
+
+2. If your app does not import `@modelcontextprotocol/sdk`, remove that dependency.
+
+The codemod comes from the MCP project. TanStack AI does not ship its own codemod for this change.
+
+This is what the codemod does to your imports:
 
 ```diff
 - import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
@@ -28,21 +44,12 @@ Your app calls `createMCPClient`. The app still imports `@modelcontextprotocol/s
 + import { Server } from '@modelcontextprotocol/server'
 ```
 
-## Codemod
+## Protocol version
 
-1. If the app imports `@modelcontextprotocol/sdk`, run `npx @modelcontextprotocol/codemod@latest v1-to-v2 .` from the app root.
-2. If the app does not import `@modelcontextprotocol/sdk`, remove that dependency.
-
-```bash
-npx @modelcontextprotocol/codemod@latest v1-to-v2 .
-```
-
-The codemod rewrites imports from `@modelcontextprotocol/sdk`. The codemod rewrites the `package.json` dependencies.
-
-This repo does not ship its own codemod.
-
-## Protocol
+You do not change your `createMCPClient` call. Keep the same transport configuration.
 
 `createMCPClient` tries protocol `2026-07-28` first. If the server does not support that protocol, the client uses the 2025 initialize handshake.
 
-Call `createMCPClient` with the same transport config. The client connects.
+## Done
+
+Your app has no `@modelcontextprotocol/sdk` import, and `createMCPClient` connects to your server with the same transport configuration. For the full MCP setup, see [MCP Server Tools](../tools/mcp).

@@ -2,7 +2,7 @@
 title: Cencori
 id: cencori-adapter
 order: 3
-description: "Access 14+ AI providers (OpenAI, Anthropic, Google, xAI, and more) through Cencori's unified interface with built-in security, observability, and cost tracking in TanStack AI."
+description: "Reach 14+ AI providers (OpenAI, Anthropic, Google, xAI, and more) through one Cencori key in TanStack AI, with security filters, request logs, and cost tracking."
 keywords:
   - tanstack ai
   - cencori
@@ -13,9 +13,9 @@ keywords:
   - community adapter
 ---
 
-The Cencori adapter provides access to 14+ AI providers (OpenAI, Anthropic, Google, xAI, and more) through a unified interface with built-in security, observability, and cost tracking.
+Cencori gives you 14+ AI providers (OpenAI, Anthropic, Google, xAI, and more) through one API key. It also adds security filters, request logs, and cost tracking. Cencori maintains this adapter.
 
-## Installation
+## 1. Install
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
@@ -30,7 +30,17 @@ octane: @cencori/ai-sdk
 
 <!-- ::end:tabs -->
 
-## Basic Usage
+## 2. Set the API key
+
+1. Go to [Cencori](https://cencori.com).
+2. Create an account and make an API key.
+3. Put the key in the environment of your server:
+
+```bash
+CENCORI_API_KEY=csk_your_api_key_here
+```
+
+## 3. Stream a chat
 
 ```typescript ignore
 // ignore: @cencori/ai-sdk/tanstack is a subpath export; kiira's paths["*"] wildcard maps it
@@ -51,43 +61,35 @@ for await (const chunk of chat({
 }
 ```
 
-## Configuration
+The answer prints in the terminal. To show the chat in a UI, return the stream from a route and use `useChat`. See [Streaming](../chat/streaming).
+
+## Switch providers
+
+Change the model id to reach another provider. The responses have the same shape for every provider:
 
 ```typescript ignore
 // ignore: @cencori/ai-sdk/tanstack subpath not resolvable via kiira's paths["*"] wildcard.
-import { createCencori } from "@cencori/ai-sdk/tanstack";
-
-const myCencori = createCencori({
-  apiKey: process.env.CENCORI_API_KEY!,
-  baseUrl: "https://cencori.com", // Optional
-});
-
-const adapter = myCencori("o1");
-```
-
-## Streaming
-
-```typescript ignore
-// ignore: @cencori/ai-sdk/tanstack subpath not resolvable via kiira's paths["*"] wildcard.
-import { chat } from "@tanstack/ai";
 import { cencori } from "@cencori/ai-sdk/tanstack";
 
-const adapter = cencori("claude-3-5-sonnet");
+// OpenAI-compatible
+const openaiCompat = cencori("o1");
 
-for await (const chunk of chat({
-  adapter,
-  messages: [{ role: "user", content: "Tell me a story" }],
-})) {
-  if (chunk.type === "TEXT_MESSAGE_CONTENT") {
-    process.stdout.write(chunk.delta);
-  } else if (chunk.type === "RUN_FINISHED") {
-    console.log("\nDone");
-  }
-}
+// Anthropic
+const anthropic = cencori("claude-3-5-sonnet");
+
+// Google
+const google = cencori("gemini-2.5-flash");
+
+// xAI
+const grok = cencori("grok-3");
+
+// DeepSeek
+const deepseek = cencori("deepseek-v3.2");
 ```
 
+## Tools
 
-## Tool Calling
+Tools work the same as with every adapter:
 
 ```typescript ignore
 // ignore: @cencori/ai-sdk/tanstack subpath not resolvable via kiira's paths["*"] wildcard.
@@ -121,34 +123,20 @@ for await (const chunk of chat({
 }
 ```
 
+See [Tools](../tools/tools).
 
-## Multi-Provider Support
+## What Cencori adds
 
-Switch between providers with a single parameter:
+- **Security:** PII filters, jailbreak detection, and content moderation.
+- **Observability:** request logs, latency metrics, and cost tracking.
+- **Cost control:** budgets, alerts, and analytics per route.
+- **Failover:** automatic retry, and fallback to other providers.
 
-```typescript ignore
-// ignore: @cencori/ai-sdk/tanstack subpath not resolvable via kiira's paths["*"] wildcard.
-import { cencori } from "@cencori/ai-sdk/tanstack";
+See the [Cencori dashboard](https://cencori.com) and the [Cencori docs](https://cencori.com/docs).
 
-// OpenAI-compatible
-const openaiCompat = cencori("o1");
+## Models and options
 
-// Anthropic
-const anthropic = cencori("claude-3-5-sonnet");
-
-// Google
-const google = cencori("gemini-2.5-flash");
-
-// xAI
-const grok = cencori("grok-3");
-
-// DeepSeek
-const deepseek = cencori("deepseek-v3.2");
-```
-
-All responses use the same unified format regardless of provider.
-
-## Supported Models
+### Models
 
 | Provider | Models |
 |----------|--------|
@@ -158,58 +146,36 @@ All responses use the same unified format regardless of provider.
 | xAI | `grok-4`, `grok-3` |
 | Mistral | `mistral-large`, `codestral`, `devstral` |
 | DeepSeek | `deepseek-v3.2`, `deepseek-reasoner` |
-| + More | Groq, Cohere, Perplexity, Together, Qwen, OpenRouter |
+| And more | Groq, Cohere, Perplexity, Together, Qwen, OpenRouter |
 
-> **Note:** Cencori is an external package and its catalogue changes over time. Verify the model ids above against [Cencori's current catalogue](https://cencori.com/docs) before relying on them.
-
-## Environment Variables
-
-```bash
-CENCORI_API_KEY=csk_your_api_key_here
-```
-
-## Getting an API Key
-
-1. Go to [Cencori](https://cencori.com)
-2. Create an account and generate an API key
-3. Add it to your environment variables
-
-## Why Cencori?
-
-- **🔒 Security** — PII filtering, jailbreak detection, content moderation
-- **📊 Observability** — Request logs, latency metrics, cost tracking
-- **💰 Cost Control** — Budgets, alerts, per-route analytics
-- **🔌 Multi-Provider** — One API key for 14+ AI providers
-- **🛠️ Tool Calling** — Full support for function calling across providers
-- **🔄 Failover** — Automatic retry and fallback to alternative providers
-
-## API Reference
+> [!NOTE]
+> Cencori is an external package, and its catalog changes over time. Compare the ids above with the [current Cencori catalog](https://cencori.com/docs) before you use them.
 
 ### `cencori(model)`
 
-Creates a Cencori adapter using environment variables.
+Creates an adapter that reads `CENCORI_API_KEY` from the environment.
 
-**Parameters:**
-
-- `model` - Model name (e.g., `"gpt-4o"`, `"claude-3-5-sonnet"`, `"gemini-2.5-flash"`)
-
-**Returns:** A Cencori TanStack AI adapter instance.
+- `model`: the model id, for example `"gpt-4o"`, `"claude-3-5-sonnet"`, or `"gemini-2.5-flash"`.
 
 ### `createCencori(config)`
 
-Creates a custom Cencori adapter factory.
+Creates an adapter factory with your own settings:
 
-**Parameters:**
+```typescript ignore
+// ignore: @cencori/ai-sdk/tanstack subpath not resolvable via kiira's paths["*"] wildcard.
+import { createCencori } from "@cencori/ai-sdk/tanstack";
 
-- `config.apiKey` - Your Cencori API key
-- `config.baseUrl?` - Custom base URL (optional)
+const myCencori = createCencori({
+  apiKey: process.env.CENCORI_API_KEY!,
+  baseUrl: "https://cencori.com", // Optional
+});
 
-**Returns:** A function that creates adapter instances for specific models.
+const adapter = myCencori("o1");
+```
 
-## Next Steps
+- `config.apiKey`: your Cencori API key.
+- `config.baseUrl`: optional, a custom base URL.
 
-- [Cencori Dashboard](https://cencori.com) — View analytics, logs, and costs
-- [Documentation](https://cencori.com/docs) — Complete API reference
-- [GitHub Repository](https://github.com/cencori/cencori) — SDK source code
-- [Streaming Guide](../chat/streaming) — Learn about streaming responses
-- [Tools Guide](../tools/tools) — Learn about tool calling
+It returns a function that creates an adapter for a model.
+
+The SDK source is on [GitHub](https://github.com/cencori/cencori).

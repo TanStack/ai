@@ -2,106 +2,124 @@
 title: Tools
 id: tools
 order: 6
-description: "Bridge your app's host tools (with their DB, secrets, and closures) into the in-sandbox agent over an authenticated MCP tool-proxy."
+description: "Give the in-sandbox agent your app's own server tools. They run on your host, with their database, secrets, and closures, over an authenticated MCP tool proxy."
 ---
 
-The agent inside the sandbox always has its own **native tools**: Bash, file
-edits, and search, running directly on the sandbox filesystem. That covers
-everything the agent does locally to the working tree.
+The agent in the sandbox can edit files and run commands. It cannot reach your app: your database, your secrets, or the closures in your tool code.
 
-What it cannot do on its own is reach back into _your_ app: your database, your
-secrets, the closures you captured when you defined a tool. For that, the
-`chat()`-provided **server tools** are **bridged** into the sandbox.
+Pass your server tools to `chat()`. TanStack AI bridges them into the sandbox. The agent calls them like any MCP tool, and each tool runs on your host.
 
-> This page is about your own host tools, bridged back to the orchestrator. If
-> instead you want to give the agent third-party MCP servers it talks to
-> directly with no host round-trip. Those are declared on the workspace, see
-> [Provisioning](./provisioning). For server tools in general, see the main
-> [server tools](../tools/server-tools) doc.
+## Bridge a tool into the sandbox
 
-## Native vs bridged tools
-
-When you pass `tools` to `chat()` with a sandbox in the middleware, each tool is
-exposed to the in-sandbox agent over a **host-side MCP tool-proxy**:
-
-1. The agent calls the tool by name, as it would any MCP tool.
-2. The call is proxied back across the sandbox boundary to the host.
-3. The tool's `execute()` runs **on the host**, keeping its DB handle, secrets,
-   and any closures it captured.
-4. The result is returned into the sandbox as the tool-call output.
-
-So `execute()` never ships into the sandbox; only the call and its result cross
-the boundary. The tool keeps running where it was defined.
+1. Define a server tool, the same as for any `chat()` call.
+2. Pass it in `tools`, next to `withSandbox`.
 
 ```ts
-import { chat } from '@tanstack/ai'
-import { grokBuildText } from '@tanstack/ai-grok-build'
-import { withSandbox } from '@tanstack/ai-sandbox'
-import { repoSandbox } from './sandbox'
-import { messages, threadId } from './chat-context'
-import { getTodos } from './tools'
-import { db } from './db'
+import { chat, toolDefinition } from '@tanstack/ai'
+import { GROK_CLI_INSTALL_COMMAND, grokBuildText } from '@tanstack/ai-grok-build'
+import {
+  createSecrets,
+  defineSandbox,
+  defineWorkspace,
+  githubRepo,
+  withSandbox,
+} from '@tanstack/ai-sandbox'
+import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+import { z } from 'zod'
 
-chat({
-  threadId,
+// Lives on your host. The sandbox never sees it.
+const todos = [{ id: '1', userId: 'u1', title: 'Fix the login bug' }]
+
+const getTodos = toolDefinition({
+  name: 'getTodos',
+  description: 'List the todos of a user.',
+  inputSchema: z.object({ userId: z.string() }),
+}).server(async ({ userId }) => todos.filter((t) => t.userId === userId))
+
+const repoSandbox = defineSandbox({
+  id: 'repo-agent',
+  provider: dockerSandbox({ image: 'node:22' }),
+  workspace: defineWorkspace({
+    source: githubRepo({ repo: 'owner/app' }),
+    setup: [GROK_CLI_INSTALL_COMMAND],
+    secrets: createSecrets({ XAI_API_KEY: process.env.XAI_API_KEY ?? '' }),
+  }),
+})
+
+const stream = chat({
+  threadId: 'thread-1',
   adapter: grokBuildText('grok-build'),
-  messages,
-  // `execute()` closes over `db` and runs on the host, never in the sandbox.
-  tools: [
-    getTodos.server(async ({ userId }: { userId: string }) =>
-      db.todos.find({ userId }),
-    ),
-  ],
+  messages: [{ role: 'user', content: 'Fix the bugs in the todos of user u1.' }],
+  tools: [getTodos],
   middleware: [withSandbox(repoSandbox)],
 })
 ```
 
-The bridge is gated by a **random per-run bearer token**, so the proxy endpoint
-is not an open door: only the agent for this run, holding that token, can
-invoke your tools.
+The agent can now call `getTodos`. The tool reads `todos` on your host and sends the result into the sandbox.
 
-## Reaching the bridge
+## How it works
 
-The bridge is an HTTP endpoint the **sandbox calls back to**. For bridged tools
-to work, the sandbox has to be able to open a connection to your orchestrator.
-That holds in two cases and breaks in a third.
+The agent always has its own native tools (Bash, file edits, search). They run on the sandbox filesystem. Your `chat()` tools go over a host-side MCP tool proxy:
 
-| Topology | Host the sandbox dials | Setup |
+1. The agent calls the tool by name, like any MCP tool.
+2. The call crosses the sandbox boundary to your host.
+3. The tool's `execute()` runs on your host, with its database handle, secrets, and closures.
+4. The result goes back into the sandbox as the tool output.
+
+`execute()` never goes into the sandbox. Only the call and the result cross the boundary.
+
+A random bearer token for each run protects the bridge. Only the agent of this run has that token, so only it can call your tools.
+
+> [!NOTE]
+> This page is about your own tools, bridged back to your server. To give the agent third-party MCP servers that it calls directly, declare them on the workspace. See [Provisioning](./provisioning). For server tools in general, see [Server Tools](../tools/server-tools).
+
+## Make sure the sandbox can reach the bridge
+
+The bridge is an HTTP endpoint that the sandbox calls back to. So the sandbox must be able to connect to your server.
+
+| Where it runs | Host the sandbox calls | Setup |
 | --- | --- | --- |
-| Local process | `localhost` | None. Works by default. |
-| Docker container (`dockerSandbox`) | `host.docker.internal` | None. Works by default. |
-| Docker Sandboxes (`sbxSandbox`) | `host.docker.internal` | The guest URL stays `host.docker.internal`. The `sbx` proxy rewrites that host to `localhost` before the policy match. A deny or ask allowlist must include `localhost`. `sbxSandbox()` adds `localhost` when it writes a real allowlist. |
-| Deployed orchestrator (production) | Your public host, derived from the request | None. Works by default. |
-| Remote cloud sandbox, driven from your laptop | Your laptop, which has no public URL | Tunnel the bridge with `withNgrokBridge`. |
+| Local process | `localhost` | None. |
+| Docker container (`dockerSandbox`) | `host.docker.internal` | None. |
+| Docker Sandboxes (`sbxSandbox`) | `host.docker.internal` | A deny or ask allowlist must include `localhost`. `sbxSandbox()` adds it when it writes a real allowlist. |
+| Deployed server (production) | Your public host, from the request | None. |
+| Cloud sandbox, driven from your laptop | Your laptop, which has no public URL | Tunnel the bridge with `withNgrokBridge`. |
 
-### Local process / Docker container
+### Local process and Docker container
 
-The orchestrator is the same machine as the sandbox, reached on `localhost` (local-process) or `host.docker.internal` (Docker container). Bridged tools work with no extra configuration. If the HTTP listener cannot start, bridge startup rejects with the original Node.js error.
+The sandbox runs on the same machine as your server. It reaches it on `localhost` (local process) or `host.docker.internal` (Docker container). Bridged tools need no extra setup. If the HTTP listener cannot start, bridge startup rejects with the original Node.js error.
 
 ### Docker Sandboxes (`sbxSandbox`)
 
-The guest still dials `host.docker.internal`. The host HTTP proxy rewrites
-that host to `localhost` before it checks `sbx policy`. If you write a deny
-or ask allowlist, allow `localhost` (or let `sbxSandbox()` add it).
-`denyNetwork` alone does not write that allowlist.
+The guest still calls `host.docker.internal`. The host HTTP proxy changes that host to `localhost` before it checks `sbx policy`. If you write a deny or ask allowlist, allow `localhost` (or let `sbxSandbox()` add it). `denyNetwork` alone does not write that allowlist.
 
-### A deployed orchestrator (production)
+### A deployed server (production)
 
-A deployed orchestrator already has a public URL, so the bridge is reachable out
-of the box. The provisioner advertises your public host (derived from the
-incoming request, instead of `localhost`, and every call is still gated by the
-per-run bearer token, so exposing the endpoint publicly is safe. This is the
-same path the edge/Cloudflare deployment uses; see [Cloudflare](./cloudflare).
+A deployed server already has a public URL, so the sandbox can reach the bridge. The provisioner sends your public host (taken from the incoming request) and not `localhost`. Every call still needs the bearer token for the run, so a public endpoint is safe. The edge setup uses the same path. See [Cloudflare](./cloudflare).
 
-### A remote cloud sandbox, driven from your laptop
+### A cloud sandbox, driven from your laptop
 
-With a cloud provider (Daytona, Vercel, Sprites) in **local dev**, the sandbox is a remote
-VM. It **cannot dial your machine's `localhost`**, and your laptop has no public
-URL, so bridged tools can't reach the host until you expose the bridge.
+A cloud provider (Daytona, Vercel, Sprites, and the others) runs a remote VM. In local dev, that VM cannot call your `localhost`, and your laptop has no public URL.
 
-The `@tanstack/ai-sandbox/ngrok` subpath tunnels the loopback bridge through
-[ngrok](https://ngrok.com) so a remote sandbox can reach it. Set
-`NGROK_AUTHTOKEN`, then add `withNgrokBridge` **after** `withSandbox(...)`:
+The `@tanstack/ai-sandbox/ngrok` subpath tunnels the bridge through [ngrok](https://ngrok.com):
+
+1. Install the optional peer dependency `@ngrok/ngrok`:
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @ngrok/ngrok
+vue: @ngrok/ngrok
+solid: @ngrok/ngrok
+svelte: @ngrok/ngrok
+preact: @ngrok/ngrok
+angular: @ngrok/ngrok
+vanilla: @ngrok/ngrok
+octane: @ngrok/ngrok
+
+<!-- ::end:tabs -->
+
+2. Set `NGROK_AUTHTOKEN`.
+3. Add `withNgrokBridge` **after** `withSandbox(...)`:
 
 ```ts
 import { chat } from '@tanstack/ai'
@@ -109,26 +127,17 @@ import { grokBuildText } from '@tanstack/ai-grok-build'
 import { withSandbox } from '@tanstack/ai-sandbox'
 import { withNgrokBridge } from '@tanstack/ai-sandbox/ngrok'
 import { repoSandbox } from './sandbox'
-import { messages, threadId } from './chat-context'
 import { getTodos } from './tools'
-import { db } from './db'
 
 chat({
-  threadId,
+  threadId: 'thread-1',
   adapter: grokBuildText('grok-build'),
-  messages,
-  tools: [
-    getTodos.server(async ({ userId }: { userId: string }) =>
-      db.todos.find({ userId }),
-    ),
-  ],
-  // Cloud provider in local dev → tunnel the host bridge so the remote sandbox
-  // can reach it. Local process / Docker don't need this.
+  messages: [{ role: 'user', content: 'Fix the bugs in the todos of user u1.' }],
+  tools: [getTodos],
+  // Cloud provider in local dev: tunnel the bridge so the remote sandbox can
+  // reach it. Local process and Docker do not need this.
   middleware: [withSandbox(repoSandbox), withNgrokBridge],
 })
 ```
 
-`@ngrok/ngrok` is an **optional peer dependency**, install it alongside the
-subpath (`npm i @ngrok/ngrok`). `withNgrokBridge` is purely a local-dev
-convenience: in production your deployed orchestrator is already reachable, so
-you ship without it.
+`withNgrokBridge` is for local dev only. In production your deployed server is already reachable, so you ship without it.

@@ -2,7 +2,7 @@
 title: MCP Client Input
 id: mcp-input
 order: 12
-description: "When an MCP server asks for input, chat() pauses so the UI can show the request and send the answer."
+description: "When an MCP server asks for input during a tool call, chat() pauses so the UI can show the request and send the answer."
 keywords:
   - tanstack ai
   - mcp
@@ -11,70 +11,18 @@ keywords:
   - sampling
 ---
 
-An MCP server can stop a tool call. The server asks for input.
+Sometimes an MCP server stops a tool call and asks for input. It needs one of these:
 
-- A form needs an answer from the user.
-- A sampling request needs a model reply.
+- A form that the user fills in.
+- A sampling request that needs a model reply.
 
-You want that request in the UI, and you want the answer to reach the server. `chat()` ends the run with an interrupt. `outcome.type` is `interrupt`. The payload has `kind` and `request`. When the user answers, the next run calls the tool again with the answer.
+You want to show that request in your UI and send the answer back to the server. `chat()` does this with an interrupt: the run pauses, the UI answers, and the next run calls the tool again with the answer.
 
-## Read the pause
+## Quick setup
 
-Pass the MCP client to `chat()` in `mcp.clients`. [MCP Server Tools](./mcp) has that setup.
+You need [MCP Server Tools](./mcp) working first, with the client in `mcp.clients`.
 
-The stream ends on one `RUN_FINISHED` chunk. Read the interrupt there:
-
-```ts
-import { chat } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
-import { createMCPClient } from '@tanstack/ai-mcp'
-
-const messages = [{ role: 'user' as const, content: 'Ask the server' }]
-
-const mcp = await createMCPClient({
-  transport: {
-    type: 'http',
-    url: 'https://my-mcp-server.example.com/mcp',
-  },
-})
-
-const stream = chat({
-  adapter: openaiText('gpt-5.5'),
-  messages,
-  mcp: { clients: [mcp] },
-})
-
-for await (const chunk of stream) {
-  if (chunk.type !== 'RUN_FINISHED') continue
-  if (chunk.outcome?.type !== 'interrupt') continue
-
-  for (const interrupt of chunk.outcome.interrupts) {
-    if (!interrupt.id.startsWith('mcp_input_')) continue
-    const payload = interrupt.metadata?.['tanstack:interruptPayload']
-    console.log(interrupt.id, payload)
-  }
-}
-```
-
-The pause follows these rules:
-
-- The input call has no tool result.
-- The run does not emit `RUN_ERROR`.
-- When other tools finish in that turn, the stream has those results.
-
-The interrupt has these fields:
-
-- `id`: `mcp_input_` and the tool call id. Read the pause by this id.
-- `reason`: display text. The default is `mcp_input`. A tool can set another string, for example `auth_required`. An empty reason stays `mcp_input`. These reasons also stay `mcp_input`: `approval_required`, `client_tool_input`, and `tanstack:client_tool_execution`.
-- `message`: `Input required to run` and the tool name
-- `metadata.toolName`: the tool name
-- `metadata['tanstack:interruptPayload']`: `kind` and `request`
-
-`kind` is `form` or `sampling`. `request` is the MCP input body.
-
-## Answer the request
-
-The answer comes back in a new request. Pass `parentRunId` and `resume` from that request to `chat()`:
+1. In your chat route, pass `parentRunId` and `resume` from the request to `chat()`:
 
 ```ts
 // app/api/chat/route.ts
@@ -96,7 +44,7 @@ export async function POST(request: Request) {
   })
 
   const stream = chat({
-    adapter: openaiText('gpt-5.5'),
+    adapter: openaiText('gpt-6.1-sol'),
     messages: params.messages,
     threadId: params.threadId,
     runId: params.runId,
@@ -108,12 +56,7 @@ export async function POST(request: Request) {
 }
 ```
 
-Then answer the request in the UI:
-
-1. Read `interrupts` from `useChat`.
-2. Find the item where `reason` is `mcp_input`.
-3. Read `metadata['tanstack:interruptPayload']` and show the request.
-4. Call `resolveInterrupt` with the answer, or call `cancel()`.
+2. In the UI, read `interrupts` from `useChat`. For each MCP input interrupt, show the request and call `resolveInterrupt` with the answer, or call `cancel()`:
 
 ```tsx
 import { useState } from 'react'
@@ -175,11 +118,21 @@ export function McpInputPrompt() {
 }
 ```
 
-`useChat` sends the answer in a new run. Then `chat()` runs the tool again, and the MCP client sends the answer to the server.
+Try it. When a tool asks for input, the form shows the question from the server. Type an answer and click **Send**. The tool call continues with your answer.
+
+## How it works
+
+1. The MCP server asks for input during a tool call.
+2. `chat()` ends the run with an interrupt. `outcome.type` is `interrupt`, and the interrupt id starts with `mcp_input_`.
+3. `useChat` shows the interrupt. The user answers.
+4. `useChat` sends the answer in a new run.
+5. `chat()` runs the tool again, and the MCP client sends the answer to the server.
+
+The pause and the resume work on spec 2026. On spec 2025, the server asks the client for input in the middle of the tool call. `chat()` cannot pause that call, so the tool call fails.
 
 ## What to send
 
-The answer depends on `kind`.
+The answer depends on the `kind` of the request.
 
 - `form`: send an object that matches `request.requestedSchema`. A server from `createMCPServer` asks for `{ value: string }`. The MCP client sends the object as the accepted content.
 - `sampling`: send the model reply as a string. You can also send a full MCP `CreateMessageResult`.
@@ -187,32 +140,91 @@ The answer depends on `kind`.
 
 To decline a form, send the full MCP answer: `{ action: 'decline' }`.
 
-A resumed tool gets the answer on `ctx.inputResponse`. The MCP tools read it for you. Your own server tool can read it too.
+## Advanced
 
-The client answers one input request per tool call. If the server asks for input again after it gets the answer, the tool call ends with a tool error.
+### Read the pause on the server
 
-The pause and the resume work on spec 2026. On spec 2025, the server asks the client for input in the middle of the tool call. `chat()` cannot pause that call, so the tool call fails.
+The stream ends with one `RUN_FINISHED` chunk. You can read the interrupt there:
 
-## A tool error
+```ts
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createMCPClient } from '@tanstack/ai-mcp'
 
-If the thrown value is a plain `Error`, the result is a tool error. The run does not pause.
+const messages = [{ role: 'user' as const, content: 'Ask the server' }]
 
-`chat()` pauses only for this shape:
+const mcp = await createMCPClient({
+  transport: {
+    type: 'http',
+    url: 'https://my-mcp-server.example.com/mcp',
+  },
+})
+
+const stream = chat({
+  adapter: openaiText('gpt-6.1-sol'),
+  messages,
+  mcp: { clients: [mcp] },
+})
+
+for await (const chunk of stream) {
+  if (chunk.type !== 'RUN_FINISHED') continue
+  if (chunk.outcome?.type !== 'interrupt') continue
+
+  for (const interrupt of chunk.outcome.interrupts) {
+    if (!interrupt.id.startsWith('mcp_input_')) continue
+    const payload = interrupt.metadata?.['tanstack:interruptPayload']
+    console.log(interrupt.id, payload)
+  }
+}
+```
+
+During the pause:
+
+- The input call has no tool result.
+- The run does not emit `RUN_ERROR`.
+- When other tools finish in the same turn, the stream has their results.
+
+### Interrupt fields
+
+| Field | Value |
+|---|---|
+| `id` | `mcp_input_` and the tool call id. Find the pause by this id. |
+| `reason` | Display text. The default is `mcp_input`. See the rules below. |
+| `message` | `Input required to run` and the tool name. |
+| `metadata.toolName` | The tool name. |
+| `metadata['tanstack:interruptPayload']` | `kind` and `request`. `kind` is `form` or `sampling`. `request` is the MCP input body. |
+
+Rules for `reason`:
+
+- A tool can set another string, for example `auth_required`.
+- An empty reason stays `mcp_input`.
+- These reasons also stay `mcp_input`: `approval_required`, `client_tool_input`, and `tanstack:client_tool_execution`.
+
+### Answers on the resumed tool
+
+- A resumed tool gets the answer on `ctx.inputResponse`. The MCP tools read it for you. Your own server tool can read it too.
+- The client answers one input request for each tool call. If the server asks for input again after it gets the answer, the tool call ends with a tool error.
+
+### Which errors pause the run
+
+If a tool throws a plain `Error`, the result is a tool error. The run does not pause.
+
+`chat()` pauses only for a thrown value with this shape:
 
 - `name`: `MCPInputRequiredError`
 - `kind`: `form` or `sampling`
 - `request`: the MCP input body
 - `reason` (optional): the `reason` of the interrupt. The default is `'mcp_input'`.
 
-A tool can throw this shape with its own `reason`, for example `auth_required`. The interrupt id stays `mcp_input_<toolCallId>`. Read the pause by that id. `reason` is display text. The resume uses the same id.
+A tool can throw this shape with its own `reason`, for example `auth_required`. The interrupt id stays `mcp_input_<toolCallId>`, and the resume uses the same id. `reason` is only display text, so find the pause by its id.
 
-## Outside chat()
+### Outside chat()
 
-Outside `chat()`, the client throws `MCPInputRequiredError`. The name `ask` is the tool name on your server.
+Outside `chat()`, the client throws `MCPInputRequiredError`. In this sample, `ask` is the tool name on your server.
 
 1. Call `tools()` on the MCP client.
 2. Call `execute` on the tool.
-3. Check the error with `isMCPInputRequiredError`, then read `kind` and `request`.
+3. Test the error with `isMCPInputRequiredError`, then read `kind` and `request`.
 4. Close the client after the call.
 
 ```ts

@@ -2,7 +2,7 @@
 title: Built-in Middleware
 id: built-in-middleware
 order: 2
-description: "Ready-made TanStack AI chat() middleware — toolCacheMiddleware for caching tool results, contentGuardMiddleware for redacting streamed text, and otelMiddleware for OpenTelemetry tracing."
+description: "Ready-made chat() middleware: toolCacheMiddleware caches tool results, contentGuardMiddleware redacts streamed text, and otelMiddleware sends OpenTelemetry traces."
 keywords:
   - tanstack ai
   - middleware
@@ -13,23 +13,70 @@ keywords:
   - opentelemetry
 ---
 
-TanStack AI ships ready-made middleware so you don't have to hand-roll the common cases. Each one is an ordinary [`ChatMiddleware`](./middleware) — drop it into the `middleware` array of any `chat()` call. This page documents every built-in.
+Your weather tool runs again for each question about the same city. Or the model writes a customer number into the reply, and you must hide it. You do not have to write middleware for these cases.
+
+TanStack AI ships ready-made middleware. Add one to the `middleware` array of `chat()`:
 
 | Middleware | Import | What it does |
-|------------|--------|--------------|
-| `toolCacheMiddleware` | `@tanstack/ai/middlewares` | Cache tool-call results by name + arguments |
-| `contentGuardMiddleware` | `@tanstack/ai/middlewares` | Redact / transform / block streamed text content |
-| `otelMiddleware` | `@tanstack/ai/middlewares/otel` | Emit OpenTelemetry spans + GenAI metrics |
+| --- | --- | --- |
+| `toolCacheMiddleware` | `@tanstack/ai/middlewares` | Caches tool results by tool name and arguments |
+| `contentGuardMiddleware` | `@tanstack/ai/middlewares` | Redacts, changes, or blocks streamed text |
+| `otelMiddleware` | `@tanstack/ai/middlewares/otel` | Sends OpenTelemetry spans and GenAI metrics |
 
-> `toolCacheMiddleware` and `contentGuardMiddleware` are exported from the main `@tanstack/ai/middlewares` barrel. `otelMiddleware` lives on its own subpath (`@tanstack/ai/middlewares/otel`) so that importing the barrel never eagerly pulls in `@opentelemetry/api` (an optional peer dependency).
+## Quick setup
 
-For app-owned policies (for example tool-call budgets), see the [tool-call budget recipe](../chat/agentic-cycle#tool-call-budgets-middleware-recipe) — those stay in your code, not in `@tanstack/ai/middlewares`.
+Cache the results of a tool for 60 seconds:
+
+```typescript
+// api/chat.ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toolDefinition,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { toolCacheMiddleware } from "@tanstack/ai/middlewares";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
+const getWeather = toolDefinition({
+  name: "getWeather",
+  description: "Get the current weather for a city",
+  inputSchema: z.object({ city: z.string() }),
+}).server(async ({ city }) => {
+  console.log(`getWeather ran for ${city}`);
+  return { city, temperature: 21 };
+});
+
+// Create the cache once, so all requests share it.
+const weatherCache = toolCacheMiddleware({
+  ttl: 60_000,
+  toolNames: ["getWeather"],
+});
+
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
+
+  const stream = chat({
+    adapter: openaiText("gpt-6.1-sol"),
+    messages,
+    threadId,
+    runId,
+    tools: [getWeather],
+    middleware: [weatherCache],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+Ask about the weather in Paris. Then start a new chat and ask again. The server console shows `getWeather ran for Paris` only one time. The second answer comes from the cache.
+
+Each built-in is a normal [`ChatMiddleware`](./middleware). You can combine them with your own middleware in the same array.
 
 ## toolCacheMiddleware
 
-Caches tool call results based on tool name and arguments. When a tool is called with the same name and arguments as a previous call, the cached result is returned immediately without re-executing the tool.
-
-Identical calls in one model turn run at the same time, so both of them miss the cache. To let the second call use the first result, set `toolExecution: 'sequential'` on `chat()`.
+`toolCacheMiddleware` caches tool results by tool name and arguments. When the model calls a tool with the same name and arguments again, the middleware returns the cached result. The tool does not run again.
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -38,37 +85,32 @@ import { toolCacheMiddleware } from "@tanstack/ai/middlewares";
 import { weatherTool, stockTool } from "./tools";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.5"),
+  adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "What's the weather in Paris?" }],
   tools: [weatherTool, stockTool],
   middleware: [
     toolCacheMiddleware({
-      ttl: 60_000, // Cache entries expire after 60 seconds
+      ttl: 60_000, // Entries expire after 60 seconds
       maxSize: 50, // Keep at most 50 entries (LRU eviction)
-      toolNames: ["getWeather"], // Only cache specific tools
+      toolNames: ["getWeather"], // Cache only these tools
     }),
   ],
 });
 ```
 
-**Options:**
+What it does:
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `maxSize` | `number` | `100` | Maximum cache entries. Oldest evicted first (LRU). Only applies to the default in-memory storage. |
-| `ttl` | `number` | `Infinity` | Time-to-live in milliseconds. Expired entries are not served. |
-| `toolNames` | `string[]` | All tools | Only cache these tools. Others pass through. |
-| `keyFn` | `(toolName, args) => string` | `JSON.stringify([toolName, args])` | Custom cache key derivation. |
-| `storage` | `ToolCacheStorage` | In-memory Map | Custom storage backend. When provided, `maxSize` is ignored — the storage manages its own capacity. |
+- It caches only successful tool calls. It never stores errors.
+- A cache hit returns `{ type: 'skip', result }` from `onBeforeToolCall`.
+- When the default storage reaches `maxSize`, it removes the oldest entry (LRU).
+- A cache hit moves the entry to the most recently used position.
 
-**Behaviors:**
+> [!NOTE]
+> Identical calls in one model turn run at the same time, so both of them miss the cache. To let the second call use the first result, set `toolExecution: 'sequential'` on `chat()`.
 
-- Only successful tool calls are cached — errors are never stored
-- Cache hits trigger `{ type: 'skip', result }` via `onBeforeToolCall`
-- LRU eviction: when `maxSize` is reached, the oldest entry is removed (default storage only)
-- Cache hits refresh the entry's LRU position (moved to most-recently-used)
+### Ignore some arguments in the cache key
 
-**Custom key function** — useful when you want to ignore certain arguments:
+Use `keyFn` when some arguments must not change the key. Here the cache ignores the page number:
 
 ```typescript
 import { toolCacheMiddleware } from "@tanstack/ai/middlewares";
@@ -79,8 +121,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 toolCacheMiddleware({
   keyFn: (toolName, args) => {
-    // Ignore pagination, cache by query only. `args` is `unknown`, so
-    // narrow it with a type guard before destructuring.
+    // `args` is `unknown`, so narrow it with a type guard first.
     if (!isRecord(args)) return JSON.stringify([toolName, args]);
     const { page, ...rest } = args;
     return JSON.stringify([toolName, rest]);
@@ -88,16 +129,15 @@ toolCacheMiddleware({
 });
 ```
 
-### Custom Storage
+### Custom storage
 
-By default the cache lives in-memory and is scoped to a single `toolCacheMiddleware()` instance. Pass a `storage` option to use an external backend like Redis, localStorage, or a database. This also enables **sharing a cache across multiple `chat()` calls**.
+The default cache lives in memory, inside one `toolCacheMiddleware()` instance. Pass a `storage` option to use another backend, like Redis, localStorage, or a database. A shared storage also shares the cache across `chat()` calls.
 
-The storage interface:
+Implement the `ToolCacheStorage` interface from `@tanstack/ai/middlewares`:
 
 ```typescript
 import { type ToolCacheEntry, type ToolCacheStorage } from "@tanstack/ai/middlewares";
 
-// Implement this interface (exported from `@tanstack/ai/middlewares`):
 interface MyStorage extends ToolCacheStorage {
   getItem: (key: string) => ToolCacheEntry | undefined | Promise<ToolCacheEntry | undefined>;
   setItem: (key: string, value: ToolCacheEntry) => void | Promise<void>;
@@ -107,9 +147,11 @@ interface MyStorage extends ToolCacheStorage {
 // ToolCacheEntry is { result: unknown; timestamp: number }
 ```
 
-All methods may return a `Promise` for async backends. The middleware handles TTL checking — your storage just needs to store and retrieve entries.
+- Each method can return a `Promise`, for async backends.
+- The middleware checks the TTL. Your storage only stores and returns entries.
+- With a custom storage, the middleware ignores `maxSize`. The storage controls its own size.
 
-**Redis example:**
+A Redis storage:
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -141,36 +183,59 @@ const stream = chat({
 });
 ```
 
-**Sharing a cache across requests:**
+To share a cache across requests in one process, create the storage once, outside the request handler:
 
 ```typescript
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
-import { toolCacheMiddleware, type ToolCacheStorage } from "@tanstack/ai/middlewares";
-import { globalCache, app, adapter } from "./server";
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import {
+  toolCacheMiddleware,
+  type ToolCacheEntry,
+  type ToolCacheStorage,
+} from "@tanstack/ai/middlewares";
+import { openaiText } from "@tanstack/ai-openai";
 import { weatherTool } from "./tools";
 
-// Create storage once, reuse across chat() calls
+const entries = new Map<string, ToolCacheEntry>();
+
 const sharedStorage: ToolCacheStorage = {
-  getItem: (key) => globalCache.get(key),
-  setItem: (key, value) => { globalCache.set(key, value); },
-  deleteItem: (key) => { globalCache.delete(key); },
+  getItem: (key) => entries.get(key),
+  setItem: (key, value) => {
+    entries.set(key, value);
+  },
+  deleteItem: (key) => {
+    entries.delete(key);
+  },
 };
 
-// Both requests share the same cache
-app.post("/api/chat", async (req: { body: { messages: unknown[] } }) => {
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
+
   const stream = chat({
-    adapter,
-    messages: req.body.messages,
+    adapter: openaiText("gpt-6.1-sol"),
+    messages,
+    threadId,
+    runId,
     tools: [weatherTool],
     middleware: [toolCacheMiddleware({ storage: sharedStorage })],
   });
+
   return toServerSentEventsResponse(stream);
-});
+}
 ```
 
 ## contentGuardMiddleware
 
-Filters or transforms streamed text content as it flows through `onChunk`. Use it to redact sensitive data (SSNs, emails, API keys), enforce a profanity filter, or rewrite text on the fly. Rules are applied to `TEXT_MESSAGE_CONTENT` chunks; all other chunk types pass through untouched.
+`contentGuardMiddleware` filters or changes streamed text in `onChunk`. Use it to:
+
+- Redact sensitive data (SSNs, emails, API keys).
+- Filter profanity.
+- Rewrite text while it streams.
+
+The rules apply to `TEXT_MESSAGE_CONTENT` chunks only. All other chunk types pass through unchanged.
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -178,12 +243,12 @@ import { openaiText } from "@tanstack/ai-openai";
 import { contentGuardMiddleware } from "@tanstack/ai/middlewares";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.5"),
+  adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Tell me about customer 123-45-6789" }],
   middleware: [
     contentGuardMiddleware({
       rules: [
-        // Regex + replacement
+        // Regex and replacement
         { pattern: /\b\d{3}-\d{2}-\d{4}\b/g, replacement: "[SSN REDACTED]" },
         // Custom transform function
         { fn: (text) => text.replaceAll("badword", "****") },
@@ -194,31 +259,26 @@ const stream = chat({
 });
 ```
 
-**Options:**
+### Matching strategies
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `rules` | `ContentGuardRule[]` | — | **Required.** Applied in order; each rule receives the previous rule's output. A rule is either `{ pattern: RegExp; replacement: string }` or `{ fn: (text: string) => string }`. |
-| `strategy` | `'delta' \| 'buffered'` | `'buffered'` | How content is matched. See below. |
-| `bufferSize` | `number` | `50` | (Buffered only) Characters held back before emitting, so patterns spanning chunk boundaries still match. Set it ≥ the longest pattern you expect. Flushed at stream end. |
-| `blockOnMatch` | `boolean` | `false` | When `true`, drop the entire chunk if any rule changes the content (instead of emitting the filtered version). |
-| `onFiltered` | `(info: ContentFilteredInfo) => void` | — | Callback fired whenever a rule changes content. Receives `{ messageId, original, filtered, strategy }`. |
+- **`'buffered'` (default).** The middleware collects the text and applies the rules to the settled part. It holds back the last `bufferSize` characters, so it still catches a pattern split across two chunks (`"...123-45"` then `"-6789..."`). It flushes the buffer when the message or the run ends. Use it for most redaction.
+- **`'delta'`.** The middleware applies the rules to each delta alone, when it arrives. This is the fastest, but a pattern split across two chunks can get through. If each pattern always fits in one delta, you can use it.
 
-**Matching strategies:**
+### What it does
 
-- **`'buffered'` (default)** — Accumulates content and applies rules to the settled portion, holding back a `bufferSize` look-behind window so a pattern split across two chunks (`"...123-45"` then `"-6789..."`) is still caught. The buffer is flushed when the message or run ends. Use this for anything that can span deltas — which is most redaction.
-- **`'delta'`** — Applies rules to each delta in isolation as it arrives. Fastest and lowest-latency, but a pattern split across a chunk boundary may slip through. Use only when your patterns are guaranteed to fit within a single delta.
-
-**Behaviors:**
-
-- Only `TEXT_MESSAGE_CONTENT` chunks are inspected; every other chunk type passes through.
-- A rule that doesn't change the text is a no-op — the chunk passes through unchanged.
-- With `blockOnMatch: true`, a matched chunk is dropped entirely (returns `null` from `onChunk`) rather than emitting the redacted text.
-- The `onFiltered` callback is for observability/audit — it fires with the before/after text but does not alter what is emitted.
+- A rule that does not change the text does nothing. The chunk passes through unchanged.
+- With `blockOnMatch: true`, the middleware drops a matched chunk (it returns `null` from `onChunk`). It does not send the redacted text.
+- `onFiltered` is for logs and audits. It gets the text before and after, but it does not change what goes out.
 
 ## otelMiddleware
 
-Emits vendor-neutral OpenTelemetry traces and metrics for every `chat()` call — a root span per call, a child span per agent-loop iteration, and a grandchild span per tool execution, all tagged with [GenAI semantic-convention attributes](https://opentelemetry.io/docs/specs/semconv/gen-ai/).
+`otelMiddleware` sends OpenTelemetry traces and metrics for each `chat()` call:
+
+- A root span for each call.
+- A child span for each agent-loop iteration.
+- A grandchild span for each tool run.
+
+All spans have [GenAI semantic-convention attributes](https://opentelemetry.io/docs/specs/semconv/gen-ai/).
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -229,23 +289,46 @@ import { messages } from "./server";
 
 const otel = otelMiddleware({
   tracer: trace.getTracer("my-app"),
-  meter: metrics.getMeter("my-app"), // optional — enables GenAI histograms
+  meter: metrics.getMeter("my-app"), // optional, turns on the GenAI histograms
 });
 
 const result = await chat({
-  adapter: openaiText("gpt-5.5"),
+  adapter: openaiText("gpt-6.1-sol"),
   messages,
   middleware: [otel],
 });
 ```
 
-`otelMiddleware` has its own configuration surface (content capture, redaction, span-name formatting, attribute enrichment, lifecycle callbacks) and requires the optional `@opentelemetry/api` peer dependency. See the dedicated [OpenTelemetry](./otel) guide for full setup, the span/metric catalogue, and all options.
+`otelMiddleware` needs the optional `@opentelemetry/api` peer dependency. It has its own options for content capture, redaction, span names, extra attributes, and lifecycle callbacks. See [OpenTelemetry](./otel) for the setup, the list of spans and metrics, and all options.
 
-## Writing your own
+## Write your own
 
-These built-ins are just `ChatMiddleware` objects — nothing about them is privileged. To build your own, see the [Middleware](./middleware) guide for the full hook reference, the context object, and composition rules.
+The built-ins are normal `ChatMiddleware` objects. To write your own, see [Middleware](./middleware).
 
-## Next Steps
+## Advanced
 
-- [Middleware](./middleware) — the full lifecycle and hook reference
-- [OpenTelemetry](./otel) — `otelMiddleware` in depth
+### Import paths
+
+`toolCacheMiddleware` and `contentGuardMiddleware` come from the `@tanstack/ai/middlewares` barrel. `otelMiddleware` has its own subpath, `@tanstack/ai/middlewares/otel`. So an import from the barrel never loads `@opentelemetry/api`, which is an optional peer dependency.
+
+Policies that belong to your app, like tool-call budgets, stay in your code. See the [tool-call budget recipe](../chat/agentic-cycle#tool-call-budgets-middleware-recipe).
+
+### toolCacheMiddleware options
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `maxSize` | `number` | `100` | The maximum number of entries. The oldest entry goes first (LRU). Applies to the default in-memory storage only. |
+| `ttl` | `number` | `Infinity` | Time to live in milliseconds. The middleware does not return expired entries. |
+| `toolNames` | `string[]` | All tools | Cache only these tools. Other tools pass through. |
+| `keyFn` | `(toolName, args) => string` | `JSON.stringify([toolName, args])` | Builds the cache key. |
+| `storage` | `ToolCacheStorage` | In-memory Map | A custom storage backend. When you set it, the middleware ignores `maxSize`. |
+
+### contentGuardMiddleware options
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `rules` | `ContentGuardRule[]` | none | **Required.** The rules apply in order. Each rule gets the output of the rule before it. A rule is `{ pattern: RegExp; replacement: string }` or `{ fn: (text: string) => string }`. |
+| `strategy` | `'delta' \| 'buffered'` | `'buffered'` | How the middleware matches text. See [Matching strategies](#matching-strategies). |
+| `bufferSize` | `number` | `50` | Buffered only. The number of characters to hold back, so patterns across chunk boundaries still match. Set it to at least the length of your longest pattern. The middleware flushes the buffer at the end of the stream. |
+| `blockOnMatch` | `boolean` | `false` | When `true`, drop the whole chunk if a rule changes the text. |
+| `onFiltered` | `(info: ContentFilteredInfo) => void` | none | Runs each time a rule changes the text. Gets `{ messageId, original, filtered, strategy }`. |

@@ -3,24 +3,33 @@ title: Build a Chat Adapter (Advanced)
 id: build-your-own-chat-adapter
 ---
 
-You want the transcript, the run lifecycle, and durable approvals in your own
-database, and you would rather write four small stores than add a service. This
-page builds all of them against SQLite (Node's built-in `node:sqlite`), start to
-finish, in the order an app usually grows into them.
+You want the transcript, the run status, and durable approvals in your own
+database. You do not want to add a service for them.
 
-Read [Build your own adapter](./build-your-own-adapter) first for the shape of an
-adapter and which stores your app needs. Every method signature and invariant is
-in the [store reference](./store-reference). The runnable version of this
-walkthrough lives in the `examples/ts-react-chat` app
-(`src/lib/sqlite-persistence.ts`).
+Write four small stores. This page builds all four against SQLite (the
+built-in `node:sqlite` module of Node), in the order an app usually needs them.
+Plan about 30 minutes.
+
+Before you start:
+
+- Read [Build your own adapter](./build-your-own-adapter) for the shape of an
+  adapter and which stores your app needs.
+- Every method signature and invariant is in the
+  [store reference](./store-reference).
+- The runnable version of this page is in the `examples/ts-react-chat` app, at
+  `src/lib/sqlite-persistence.ts`.
 
 ## 1. The schema
 
-Four tables. JSON payloads are stored as text (SQLite has no JSON column type),
-timestamps as integers (epoch milliseconds), everything keyed the way the store
-methods look records up.
+Four tables, one for each store:
 
-```sql
+- JSON payloads are text, because SQLite has no JSON column type.
+- Timestamps are integers (epoch milliseconds).
+- Each table has the key that its store methods look records up by.
+
+```ts
+// schema.ts
+export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS messages (
   thread_id text PRIMARY KEY NOT NULL,
   messages_json text NOT NULL
@@ -60,28 +69,30 @@ CREATE TABLE IF NOT EXISTS metadata (
   value_json text NOT NULL,
   PRIMARY KEY (scope, key)
 );
+`
 ```
 
 ## 2. Messages: full-transcript overwrite
 
-Three contracts to hold:
+The store has three rules:
 
-- `saveThread` always receives the complete, merged history. It is a replace,
-  not an append. Merge by id is `withPersistence`, not this store.
-- `loadThread` with no second argument returns the full array. Return `[]` for
-  a thread that was never saved, never `null`.
+- `saveThread` always gets the complete, merged history. It replaces the row.
+  It does not append. `withPersistence` does the merge by id, not this store.
+- `loadThread` with no second argument returns the full array. For a thread
+  that was never saved, it returns `[]`, never `null`.
 - `limit` and `before` are an optional hint. Ignore them and return the full
   array, or return a `MessagePage`. See the
   [store reference](./store-reference#messagestore).
 
 ```ts
+// message-store.ts
 import { DatabaseSync } from 'node:sqlite'
 import { defineMessageStore } from '@tanstack/ai-persistence'
 import type { ModelMessage } from '@tanstack/ai'
 
 // `defineMessageStore` types the object inline against the contract, so you get
 // autocomplete and checking with no separate `: MessageStore` annotation.
-function createMessageStore(db: DatabaseSync) {
+export function createMessageStore(db: DatabaseSync) {
   const select = db.prepare(
     'SELECT messages_json FROM messages WHERE thread_id = ?',
   )
@@ -92,7 +103,7 @@ function createMessageStore(db: DatabaseSync) {
   return defineMessageStore({
     async loadThread(threadId) {
       const json = select.get(threadId)?.messages_json
-      // Unknown thread → [] (never null). `node:sqlite` types columns as a
+      // Unknown thread: return [] (never null). `node:sqlite` types columns as a
       // SQL-value union, so narrow to string before parsing (no cast).
       if (typeof json !== 'string') return []
       const parsed: Array<ModelMessage> = JSON.parse(json)
@@ -105,24 +116,17 @@ function createMessageStore(db: DatabaseSync) {
 }
 ```
 
-This example ignores the paging hint and returns the full array. That is valid.
-`reconstructChat` slices a full array after it converts to UI messages.
-
-The methods are `async`, so `node:sqlite` (a synchronous driver) needs no
-`Promise.resolve` wrapper: `async` promotes the returned value to a promise, and
-a method that returns nothing resolves to `void`. On an async driver, `await` the
-query instead.
-
 ## 3. Runs: idempotent create, patch, get
 
-Two contracts to hold:
+The store has two rules:
 
-- `createOrResume` must be idempotent. If the run id already exists, return the
-  stored record unchanged, so resuming a run never resets its `startedAt` or
-  status. `INSERT ... ON CONFLICT DO NOTHING` gives you that in one statement.
-- `update` on an unknown run id is a no-op.
+- `createOrResume` is idempotent. If the run id already exists, return the
+  stored record unchanged. A resumed run then keeps its `startedAt` and its
+  status. `INSERT ... ON CONFLICT DO NOTHING` does this in one statement.
+- `update` on an unknown run id does nothing.
 
 ```ts
+// run-store.ts
 import { DatabaseSync } from 'node:sqlite'
 import { defineRunStore } from '@tanstack/ai-persistence'
 import type { RunRecord, RunStatus } from '@tanstack/ai-persistence'
@@ -196,7 +200,7 @@ function mapRun(row: Record<string, unknown>): RunRecord {
   }
 }
 
-function createRunStore(db: DatabaseSync) {
+export function createRunStore(db: DatabaseSync) {
   const select = db.prepare('SELECT * FROM runs WHERE run_id = ?')
   const insert = db.prepare(
     `INSERT INTO runs (
@@ -337,36 +341,26 @@ function createRunStore(db: DatabaseSync) {
 }
 ```
 
-`update` builds its `SET` list from only the fields present in the patch, so an
-empty patch touches nothing and a partial patch leaves other columns alone. Map
-each row back with a small helper that omits absent optional fields and parses
-the JSON columns.
+`update` builds its `SET` list from only the fields in the patch. An empty patch
+changes nothing, and a partial patch leaves the other columns alone. The
+`mapRun` helper leaves out absent optional fields and parses the JSON columns.
 
-**Absent is not the same as explicitly `undefined`.** A patch that omits a key
-must leave the column alone; a patch that carries the key with the value
-`undefined` must **clear** it. Only `detachedSince` is cleared that way today
-(the takeover path writes `{ detachedSince: undefined }` when a viewer
-re-attaches), but the distinction is easy to lose in whatever your ORM's "set"
-builder does with `undefined` (Drizzle's `.set()`, for instance, drops such
-columns). Get it wrong and nothing throws: the run simply looks detached
-forever. Index `runs(status, detached_since)` if you plan to sweep on
-`listReclaimable`.
-
-A subagent child run stores `parentRunId`, `subagentRunId`, and `name`.
-The first `createOrResume` writes them. A second call for the same `runId`
-returns the stored row. `listByParentRun` returns the children of that parent,
-oldest first. `reconstructChat` uses that list to rebuild the cards. Index
-`runs(parent_run_id, started_at)` for that query. Subagent support is optional.
-A store without `listByParentRun` does not need these three fields, and the
-conformance suite skips the subagent checks with no `skipMethods` entry.
+The four sandbox columns and `listReclaimable` are only for durable sandboxed
+runs. A chat app can leave them out. See
+[Absent is not the same as explicit undefined](#absent-is-not-the-same-as-explicit-undefined)
+before you keep them.
 
 ## 4. Interrupts: insert-if-absent, ordered listings
 
-`create` is insert-if-absent: a duplicate interrupt id must never overwrite an
-interrupt that was already resolved. Every `list*` method returns records ordered
-by `requested_at` ascending, which the middleware relies on.
+The store has two rules:
+
+- `create` is insert-if-absent. A duplicate interrupt id must never overwrite
+  an interrupt that is already resolved.
+- Every `list*` method returns records in `requested_at` ascending order. The
+  middleware relies on this order.
 
 ```ts
+// interrupt-store.ts
 import { DatabaseSync } from 'node:sqlite'
 import { defineInterruptStore } from '@tanstack/ai-persistence'
 import type {
@@ -401,7 +395,7 @@ function mapInterrupt(row: Record<string, unknown>): InterruptRecord {
   }
 }
 
-function createInterruptStore(db: DatabaseSync) {
+export function createInterruptStore(db: DatabaseSync) {
   const insert = db.prepare(
     `INSERT INTO interrupts
        (interrupt_id, run_id, thread_id, status, requested_at, payload_json, response_json)
@@ -476,15 +470,17 @@ function createInterruptStore(db: DatabaseSync) {
 
 ## 5. Metadata: reject nullish
 
-`(scope, key)` is the composite identity. A SQL backend cannot store a nullish
-value in a `NOT NULL` text column, so reject `null` and `undefined` with a clear
-error instead of a cryptic driver failure. Callers clear a value with `delete`.
+`(scope, key)` is the identity of a row. A SQL backend cannot store a nullish
+value in a `NOT NULL` text column. Reject `null` and `undefined` with a clear
+error, so the caller does not get a driver error. Callers clear a value with
+`delete`.
 
 ```ts
+// metadata-store.ts
 import { DatabaseSync } from 'node:sqlite'
 import { defineMetadataStore } from '@tanstack/ai-persistence'
 
-function createMetadataStore(db: DatabaseSync) {
+export function createMetadataStore(db: DatabaseSync) {
   const select = db.prepare(
     'SELECT value_json FROM metadata WHERE scope = ? AND key = ?',
   )
@@ -518,10 +514,11 @@ function createMetadataStore(db: DatabaseSync) {
 ## 6. Assemble the adapter
 
 Open the database, create the tables, and return the stores as an
-`AIPersistence`. `defineAIPersistence` keeps the exact store keys in the type and
-rejects unknown keys at runtime.
+`AIPersistence`. `defineAIPersistence` keeps the exact store keys in the type
+and rejects unknown keys at runtime.
 
 ```ts
+// sqlite-persistence.ts
 import { DatabaseSync } from 'node:sqlite'
 import { defineAIPersistence } from '@tanstack/ai-persistence'
 import type { ChatPersistence } from '@tanstack/ai-persistence'
@@ -549,10 +546,12 @@ export function sqlitePersistence(options: {
 }
 ```
 
-That is a complete backend. If you also need a mutex across workers, add
-`withLocks` alongside it; see [Locks](../advanced/locks).
+That is a complete backend.
 
-Wire it into `chat()` exactly like any other persistence:
+## 7. Use it in your chat route
+
+Create the `.data` folder. Then pass the adapter to `withPersistence`, the same
+as any other persistence:
 
 ```ts
 import {
@@ -562,12 +561,18 @@ import {
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { withPersistence } from '@tanstack/ai-persistence'
-import { persistence } from './persistence'
+import { sqlitePersistence } from './sqlite-persistence'
+
+// Creating tables on open is for local development. See Migrations.
+const persistence = sqlitePersistence({
+  url: 'file:.data/state.sqlite',
+  migrate: true,
+})
 
 export async function POST(request: Request) {
   const params = await chatParamsFromRequest(request)
   const stream = chat({
-    adapter: openaiText('gpt-5.5'),
+    adapter: openaiText('gpt-6.1-sol'),
     messages: params.messages,
     threadId: params.threadId,
     runId: params.runId,
@@ -578,8 +583,72 @@ export async function POST(request: Request) {
 }
 ```
 
-## Where to go next
+Send a message. The `messages` table in `.data/state.sqlite` now holds the
+thread. Next, prove the stores with the
+[conformance suite](./build-your-own-adapter#verify-with-the-conformance-suite).
 
-- [Build a generation adapter](./build-your-own-generation-adapter): generation runs, artifacts, and blobs, for media generation.
-- [Build your own adapter](./build-your-own-adapter#verify-with-the-conformance-suite): run the conformance suite against what you just built.
-- [Migrations](./migrations): who owns the schema and when to apply changes.
+## How it works
+
+- `withPersistence` writes the transcript to `messages` and the run status to
+  `runs`.
+- When a run pauses on an approval, it writes an `interrupts` record. The next
+  request must answer it before the thread continues.
+- `reconstructChat` calls `findActiveRun` when a client hydrates. If a run is
+  still going, the client tails it.
+- Other middleware reads and writes `metadata`. Compaction uses it for
+  checkpoints.
+
+Need a mutex across workers? Add `withLocks` next to `withPersistence`. See
+[Locks](../advanced/locks).
+
+## Advanced
+
+### Absent is not the same as explicit undefined
+
+A patch that omits a key must leave the column alone. A patch that has the key
+with the value `undefined` must clear the column.
+
+- Today only `detachedSince` is cleared that way. The takeover path writes
+  `{ detachedSince: undefined }` when a viewer attaches again.
+- Your ORM can lose this difference. For example, Drizzle's `.set()` drops
+  columns whose value is `undefined`.
+- If you get it wrong, nothing throws. The run looks detached forever.
+
+That is why the four sandbox branches in `update` check key presence
+(`'field' in patch`), not `!== undefined`. Index `runs(status, detached_since)`
+if you plan to sweep with `listReclaimable`. See
+[Build a sandbox adapter](./build-a-sandbox-adapter#the-four-run-fields).
+
+### Subagent fields
+
+A subagent child run stores three fields: `parentRunId`, `subagentRunId`, and
+`name`.
+
+- The first `createOrResume` writes them. A second call for the same `runId`
+  returns the stored row.
+- `listByParentRun` returns the children of a parent, oldest first.
+  `reconstructChat` uses that list to rebuild the subagent cards.
+- Index `runs(parent_run_id, started_at)` for that query.
+
+Subagent support is optional. A store without `listByParentRun` does not need
+these three fields. The conformance suite then skips the subagent checks, with
+no `skipMethods` entry.
+
+### Synchronous drivers
+
+The store methods are `async`. `node:sqlite` is a synchronous driver, but it
+needs no `Promise.resolve` wrapper. `async` turns the returned value into a
+promise, and a method that returns nothing resolves to `void`. On an async
+driver, `await` the query.
+
+### The paging hint
+
+The message store above ignores `limit` and `before` and returns the full array.
+That is valid. `reconstructChat` slices a full array after it converts it to UI
+messages.
+
+### Next
+
+- [Build a generation adapter](./build-your-own-generation-adapter): generation
+  runs, artifacts, and blobs, for media generation.
+- [Migrations](./migrations): who owns the schema, and when to apply changes.

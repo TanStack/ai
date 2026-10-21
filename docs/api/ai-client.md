@@ -2,7 +2,7 @@
 title: "@tanstack/ai-client"
 slug: /api/ai-client
 order: 2
-description: "API reference for @tanstack/ai-client — the framework-agnostic headless client for managing chat state and streaming transports."
+description: "API reference for @tanstack/ai-client: ChatClient, connection adapters, generation clients, and BYOK, with no UI framework."
 keywords:
   - tanstack ai
   - "@tanstack/ai-client"
@@ -13,9 +13,7 @@ keywords:
   - api reference
 ---
 
-Framework-agnostic headless client for managing chat state and streaming.
-
-For typed headless chat UI types and selectors, import `@tanstack/ai-client/ui`. See [Custom Chat UI Adapters](../ui/custom-adapters).
+The headless client under every framework package. Use it directly for vanilla JavaScript or a custom binding. For typed chat UI types and selectors, import `@tanstack/ai-client/ui` and see [Custom Chat UI Adapters](../ui/custom-adapters).
 
 ## Installation
 
@@ -32,89 +30,29 @@ octane: @tanstack/ai-client
 
 <!-- ::end:tabs -->
 
-## `registerWebMCPTools(tools, options)`
-
-Expose executable client tools through the browser WebMCP API. Abort the required signal to remove all tools from this registration.
-
-For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
-
-```typescript
-import {
-  registerWebMCPTools,
-  type RegisterWebMCPToolsOptions,
-} from "@tanstack/ai-client";
-import { searchProducts } from "./tools";
-
-const controller = new AbortController();
-const tools = [searchProducts];
-const options: RegisterWebMCPToolsOptions<typeof tools> = {
-  signal: controller.signal,
-  toolOptions: {
-    searchProducts: {
-      title: "Search products",
-      annotations: { readOnlyHint: true },
-    },
-  },
-};
-
-await registerWebMCPTools(tools, options);
-
-// Remove these tools when their owner is no longer active.
-controller.abort();
-```
-
-The function returns `Promise<void>`. It resolves without registration during server rendering, in an insecure context, or when WebMCP is unavailable.
-
-It validates Standard Schema inputs and outputs. A tool with `needsApproval: true` causes registration to fail.
-
-### Public option types
-
-- `RegisterWebMCPToolsOptions<TTools, TContext>` - Requires `signal`. It also contains `toolOptions` and the client tool runtime `context`.
-- `WebMCPToolOptionsByName<TTools>` - A partial options map keyed by the inferred tool names.
-- `WebMCPToolOptions` - Contains the optional `title` and `annotations` fields for one tool.
-- `WebMCPToolAnnotations` - Contains the optional `readOnlyHint` and `untrustedContentHint` fields.
-
-`context` is required when a tool declares a required runtime context. If registration fails, the function removes tools that it registered during the call.
-
 ## `ChatClient`
 
-The main client class for managing chat state.
+Holds the messages and the run state of one chat, and talks to your server route.
 
 ```typescript
-import {
-  ChatClient,
-  fetchServerSentEvents,
-  type UIMessage,
-} from "@tanstack/ai-client";
-import { myClientTool } from "./tools";
+import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
 
 const client = new ChatClient({
   connection: fetchServerSentEvents("/api/chat"),
-  initialMessages: [],
-  tools: [myClientTool],
-  onMessagesChange: (messages: UIMessage[]) => {
-    console.log("Messages updated:", messages);
-  },
 });
 
-// A new client is IDLE. Attach it when your view appears, detach when it goes.
+const unsubscribe = client.subscribeSnapshot(() => {
+  const { messages, isLoading } = client.getSnapshot();
+  console.log(messages.length, isLoading);
+});
+
 client.attach();
+await client.sendMessage("Hello!");
 ```
 
 ### Lifecycle: `attach()` and `detach()`
 
-One page can hold many chats. A browser allows only about six connections to one
-origin, and a chat that is tailing a run holds one for as long as that run lasts. If
-every chat held a connection, a handful of open views would use every slot and every
-other request would queue behind them, including the request that loads your messages.
-
-So the connection follows the view. A new client holds none, `attach()` starts it, and
-`detach()` stops it.
-
-If you use a framework package (`@tanstack/ai-react`, `-vue`, `-solid`, `-svelte`,
-`-preact`, `-angular`), the hook already does this: it attaches when its view mounts
-and detaches when it unmounts. Call these yourself only when you use `ChatClient`
-directly.
+A new client opens no connection. When your view appears, call `attach()`. When it goes away, call `detach()`. The framework hooks do this for you on mount and unmount.
 
 ```typescript
 import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
@@ -125,69 +63,89 @@ const client = new ChatClient({
   persistence: true,
 });
 
-client.attach(); // start: rejoin a run in progress, and load the thread
-client.detach(); // stop: drop the connection, keep messages and the run pointer
+client.attach(); // rejoin a run in progress, and load the thread
+client.detach(); // drop the connection, keep the messages and the run pointer
 ```
 
-What each one guarantees:
+The connection follows the view because a browser allows only about six connections to one origin. A chat that follows a run holds one connection for as long as the run lasts. If every chat on a page held one, the other requests wait behind them.
 
-- `attach()` is safe to call more than once. Attaching an attached client does nothing.
-- `detach()` keeps the transcript, the resume pointer and the run id. The run keeps
-  going on the server while nobody watches, so re-attaching repaints at once and picks
-  it back up from the durable log.
-- `detach()` is neither `stop()` (which ends the run) nor `dispose()` (which ends the
-  client). It says only that no view is watching right now.
-- A chat with no persistence has no resume pointer and no stored thread, so `attach()`
-  issues no request at all.
+- `attach()` is safe to call more than once. A second call does nothing.
+- `detach()` keeps the messages, the resume pointer, and the run id. The run goes on at the server, and a later `attach()` picks it up from the durable log.
+- `detach()` does not end the run (that is `stop()`) or the client (that is `dispose()`).
+- A chat with no persistence has nothing to rejoin, so `attach()` sends no request.
 
-#### Migrating from constructor tailing
+### Constructor options
 
-Earlier versions started tailing inside the constructor. If you build a `ChatClient`
-yourself, add `client.attach()` where your view appears and `client.detach()` where it
-goes away. Users of the framework hooks need no change.
+You must pass `connection` or `fetcher`, not both.
 
-### Constructor Options
+| Option | What it does |
+| --- | --- |
+| `connection` | Connection adapter. See [Connection adapters](#connection-adapters). |
+| `fetcher` | A function that gets `{ messages, data, threadId, runId, ... }` and an abort `signal`, and returns a `Response` or a stream. Use it with server functions. |
+| `tools` | Client tools from `.client()`. The client runs them when the model calls them. See [Client Tools](../tools/client-tools). |
+| `threadId` | The id of this chat. Required when `persistence` is on. If you omit it, the client makes one. |
+| `persistence` | `true` to load the thread from the server, or a storage adapter. See [Chat Persistence](../persistence/chat-persistence). |
+| `history` | `{ pageSize }`: load only the newest messages first. Only with `persistence: true`. |
+| `initialMessages` | The messages to show first. |
+| `forwardedProps` | JSON sent to the server in the AG-UI `RunAgentInput.forwardedProps` field. |
+| `context` | Client-only runtime context for client tools. It is not sent to the server. |
+| `queue` | What `sendMessage` does while a run is busy: `"queue"` (default), `"drop"`, `"interrupt"`, a config, or a function. See [Queueing](../chat/queueing). |
+| `interrupts` | Definitions from `defineInterrupt()`. See [Interrupts](../interrupts/overview). |
+| `byok` | A keyring from [`defineByok`](#definebyok). The client sends the key in `x-byok-*` headers, never in the body. |
+| `byokProvider` | A function that returns the provider slug for this chat. If it returns nothing, the client uses `provider` from the merged `forwardedProps` and send `body`. If no slug resolves, the send throws. It does not send every stored key. |
+| `streamProcessor` | `{ chunkStrategy }`. Controls when text updates are applied. Default: `ImmediateStrategy`, every chunk. |
+| `initialResumeSnapshot` | A saved resume state to restore pending interrupts after a reload. |
+| `devtools`, `devtoolsBridgeFactory` | Devtools metadata, and the bridge factory from `@tanstack/ai-client/devtools`. |
 
-- `connection` - Connection adapter for streaming
-- `initialMessages?` - Initial messages array
-- `threadId?` - The only identity for this chat. Required when persistence is on. If omitted, minted after mount.
-- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field
-- `byok?` - Optional BYOK keyring from [`defineByok`](#definebyok). On each send the client prepares the resolved provider and stamps `x-byok-*` request headers. Keys never go in the body
-- `byokProvider?` - Optional function that returns the provider slug for this chat. If it returns a slug, only that key is prepared and sent. Otherwise the merged `provider` from `forwardedProps` and per-call `sendMessage` `body` is used. Later sources win. If no slug resolves, the send throws instead of attaching every stored key
-- `context?` - Typed client-local runtime context passed to client tool implementations. This value is not serialized to the server
-- `tools?` - Registered `.client()` tool implementations. The client automatically executes matching tools when the model calls them
-- `onResponse?` - Callback when response is received
-- `onChunk?` - Callback when stream chunk is received
-- `onFinish?` - Callback when response finishes
-- `onError?` - Callback when error occurs
-- `onInterruptStateChange?` - Callback when interrupt state changes; context source is `hydrate` for restored state and `live` for streamed or client-initiated updates
-- `onMessagesChange?` - Callback when messages change
-- `onLoadingChange?` - Callback when loading state changes
-- `onHydratingChange?` - Callback when the client starts or stops loading the chat from persistence
-- `onErrorChange?` - Callback when error state changes
-- `streamProcessor?` - Stream processing configuration
+Callbacks:
+
+| Callback | When it runs |
+| --- | --- |
+| `onResponse`, `onChunk`, `onFinish`, `onError` | When a response arrives, a chunk arrives, a response ends, or an error occurs. |
+| `onMessagesChange`, `onLoadingChange`, `onErrorChange`, `onStatusChange` | When that piece of state changes. |
+| `onSubscriptionChange`, `onConnectionStatusChange`, `onSessionGeneratingChange` | When the live subscription changes. |
+| `onHydratingChange` | When loading from persistence starts or stops. |
+| `onQueueChange`, `onRunIdChange` | When the queue or the run id changes. |
+| `onInterruptStateChange` | When interrupt state changes. The second argument is `{ source: "hydrate" }` for restored state and `{ source: "live" }` otherwise. |
+| `onResumeStateChange` | When the resume state or pending interrupts change. |
+| `onCustomEvent` | When a server tool calls `emitCustomEvent()`. See [Custom Events](../protocol/custom-events). |
 
 ### Methods
 
-#### `sendMessage(content: string | MultimodalContent, body?, sendOptions?)`
+| Method | What it does |
+| --- | --- |
+| `sendMessage(content, body?, sendOptions?)` | Sends a user message and starts a run. |
+| `append(message)` | Adds a `UIMessage` or `ModelMessage` and starts a run. |
+| `reload()` | Removes the answer after the last user message and runs that message again. |
+| `stop()` | Aborts the request in flight. Client tool results for that turn are ignored. |
+| `clear()` | Clears all messages. |
+| `setMessagesManually(messages)` | Replaces the messages. |
+| `addToolResult(result)` | Gives a client tool result by hand: `{ toolCallId, tool, output, state?, errorText? }`. |
+| `attach()`, `detach()` | Start and stop the connection for a view. |
+| `subscribe(options?)`, `unsubscribe()` | Start and stop the live subscription loop. |
+| `getSnapshot()`, `subscribeSnapshot(listener)` | Read the UI state, and listen for changes. |
+| `getInterrupts()` | Pending interrupts, each with `resolveInterrupt(...)`. |
+| `resolveInterrupts(...)`, `cancelInterrupts()`, `retryInterrupts()`, `resumeInterruptsUnsafe(resume, state?)` | Act on all pending interrupts at once. |
+| `cancelQueued(id)`, `getQueue()` | Cancel or read queued messages. |
+| `loadOlderMessages()`, `getHasOlderMessages()` | Page in older messages. |
+| `updateOptions(options)` | Change the transport, `forwardedProps`, `tools`, `context`, `queue`, BYOK, or callbacks. |
+| `dispose()` | Ends the client: stops the subscription and releases devtools. |
 
-Sends a user message and starts the run.
+Read single values with `getMessages()`, `getIsLoading()`, `getStatus()`, `getError()`, `getIsHydrating()`, `getIsSubscribed()`, `getConnectionStatus()`, `getSessionGenerating()`, and `getCurrentRunId()`.
 
-`MultimodalContent` is `{ content, id?, metadata? }`. The string form has no metadata. Pass the object form to stamp `metadata` on the user `UIMessage`. TanStack writes the `tanstack` key. Your keys stay at the top of the bag.
+#### `sendMessage(content, body?, sendOptions?)`
 
-The second argument is extra JSON merged into this request's `forwardedProps`. The third argument is `SendMessageOptions`. `{ whenBusy }` overrides the queue policy for this send. `{ body }` is extra JSON too.
+`content` is a string or `MultimodalContent`: `{ content, id?, metadata? }`. Use the object form to put `metadata` on the user `UIMessage`. TanStack writes the `tanstack` key in `metadata`. Your keys stay at the top level.
 
-Chat-level `forwardedProps`, the positional argument, and `sendOptions.body` shallow-merge. `sendOptions.body` wins on key collisions.
+`body` and `sendOptions.body` are extra JSON for this request. They shallow-merge with the chat `forwardedProps`. On a key collision, `sendOptions.body` wins. `sendOptions.whenBusy` overrides the queue policy for this send.
 
-Framework hooks expose `sendMessage(content, sendOptions)` with no positional body. Pass `{ body }` there. It merges with the hook's `forwardedProps` the same way.
+The framework hooks expose `sendMessage(content, sendOptions)` with no positional `body`. Pass `{ body }` there.
 
 ```typescript
 import { client } from "./client";
 
-await client.sendMessage("Hello!");
-
 await client.sendMessage({
-  content: "Show me failed logins",
+  content: "Summarize the attached files",
   metadata: { author: { id: "user-42", name: "Dana" } },
 });
 
@@ -197,7 +155,7 @@ await client.sendMessage("Summarize the attached files", undefined, {
 });
 ```
 
-Your server reads the merged JSON from `chatParamsFromRequest`:
+On the server, read the merged JSON from `chatParamsFromRequest`:
 
 ```typescript
 import {
@@ -209,391 +167,103 @@ import { openaiText } from "@tanstack/ai-openai";
 
 export async function POST(request: Request) {
   const { messages, forwardedProps } = await chatParamsFromRequest(request);
+  const attachmentIds = forwardedProps.attachmentIds;
+  if (Array.isArray(attachmentIds)) {
+    // Look up the uploads. Do not add them to `messages`.
+  }
   const stream = chat({
-    adapter: openaiText("gpt-5.5"),
+    adapter: openaiText("gpt-6.1-sol"),
     messages,
   });
-  if (
-    forwardedProps &&
-    typeof forwardedProps === "object" &&
-    "attachmentIds" in forwardedProps
-  ) {
-    const { attachmentIds } = forwardedProps;
-    if (Array.isArray(attachmentIds) && attachmentIds.length > 0) {
-      // Look up the uploads. Do not add them to `messages`.
-    }
-  }
   return toServerSentEventsResponse(stream);
 }
 ```
 
-#### `append(message: ModelMessage | UIMessage)`
+If `append()` starts the stream, it resolves after the full HTTP response is processed. If a stream is already in progress, the call queues the send, and the promise can resolve before the queued response is processed. A `RUN_FINISHED` with `finishReason: "tool_calls"` does not end the wait when the agent loop goes on in the same response.
 
-Appends a message to the conversation. If you pass a `UIMessage`, `append` copies `uiMessage.metadata` onto the stored message.
+`append()` copies `metadata` from a `UIMessage` onto the stored message.
 
-`append()` resolves after the full HTTP response is processed when this call starts the stream. If a stream is already in progress, this call queues the send and the returned promise can resolve before that queued response is processed. A `RUN_FINISHED` with `finishReason: "tool_calls"` does not end the wait when the agent loop continues in that response.
+After `stop()`, a later `addToolResult()` for the stopped turn is ignored. A new user message starts a new turn, and `addToolResult()` applies to that turn.
 
-```typescript
-import { client } from "./client";
-import type { UIMessage } from "@tanstack/ai-client";
+#### `getSnapshot()` and `subscribeSnapshot(listener)`
 
-await client.append({
-  role: "user",
-  content: "Additional context",
-});
+The snapshot has `messages`, `status`, `isLoading`, `error`, `queue`, `runId`, `isSubscribed`, `connectionStatus`, `sessionGenerating`, `hasOlderMessages`, `isHydrating`, and `interruptState`.
 
-const stamped: UIMessage = {
-  id: "user-1",
-  role: "user",
-  parts: [{ type: "text", content: "Show me failed logins" }],
-  metadata: { author: { id: "user-42", name: "Dana" } },
-};
-await client.append(stamped);
-```
+- The snapshot, `messages`, `queue`, and their entries are frozen copies. `messages.push` throws. Use `setMessagesManually`.
+- `interruptState` is not copied.
+- `subscribeSnapshot(listener)` returns an unsubscribe function. It does not fire with the current value, so read `getSnapshot()` first.
+- `subscribeSnapshot` is not `subscribe()`. `subscribe()` starts the live connection loop.
 
-#### `reload()`
+## Connection adapters
 
-Reloads the last assistant message.
+Each adapter pairs with a server response helper from `@tanstack/ai`. See [Transports](../transports/overview).
 
-```typescript
-import { client } from "./client";
-
-await client.reload();
-```
-
-#### `attach()`
-
-Start tailing. Rejoins a run that is still in progress and, in server-authoritative
-mode, loads the stored thread. Idempotent. See
-[Lifecycle](#lifecycle-attach-and-detach).
-
-#### `detach()`
-
-Stop tailing and drop the connection. Keeps messages, the run pointer and the run
-id, so a later `attach()` continues where it left off. See
-[Lifecycle](#lifecycle-attach-and-detach).
-
-#### `getSnapshot()`
-
-Returns the current `ChatClientSnapshot`. The field names are
-`messages`, `status`, `isLoading`, `error`, `queue`, `runId`, `isSubscribed`,
-`connectionStatus`, `sessionGenerating`, `hasOlderMessages`, `isHydrating`,
-and `interruptState`. The snapshot object, `messages`, `queue`, and their
-entries are frozen copies. `interruptState` is not copied. In-place
-`messages.push` throws. Use `setMessages`.
-
-`subscribeSnapshot(listener)` returns an unsubscribe function. It does not
-fire with the current value. Read `getSnapshot()` first. This is not
-`subscribe()`, which starts the live connection loop.
-
-```typescript
-import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
-
-const client = new ChatClient({
-  connection: fetchServerSentEvents("/api/chat"),
-});
-
-function logSnapshot() {
-  const snapshot = client.getSnapshot();
-  console.log(snapshot.status, snapshot.messages.length);
-}
-
-logSnapshot();
-
-const unsubscribe = client.subscribeSnapshot(() => {
-  logSnapshot();
-});
-
-client.attach();
-client.sendMessage("Hello");
-```
-
-`GenerationClient`, `VideoGenerationClient`, `RealtimeClient`, and
-`ByokClient` use `subscribe(listener)` / `getSnapshot()`. The listener takes
-no argument. Call `getSnapshot()` inside it. A listener that throws does not
-skip the other listeners. The error goes to `reportError` in the browser and
-to `console.error` in other runtimes.
-
-When `RealtimeClient.connect()` connects, it clears the previous transcript.
-A transcript that arrives while the microphone starts is kept. A failed
-connection keeps the previous transcript. Snapshot `parts` are frozen at
-runtime, but their TypeScript type stays mutable. Tool `input`, `output`, and
-subagent transcripts on a snapshot are copies.
-
-`AudioRecorder.subscribe` still passes the new state:
-`subscribe((state) => ...)`. `getSnapshot()` returns that same state value.
-
-#### `stop()`
-
-Stops the current response generation. It aborts the in-flight request.
-Pending client-tool results for that turn are ignored. A later
-`addToolResult()` call for that turn is ignored. It does not start a resume.
-
-```typescript
-import { client } from "./client";
-
-client.stop();
-```
-
-#### `clear()`
-
-Clears all messages.
-
-```typescript
-import { client } from "./client";
-
-client.clear();
-```
-
-#### `setMessagesManually(messages: ReadonlyArray<UIMessage>)`
-
-Manually sets the messages array.
-
-```typescript
-import { client } from "./client";
-import type { UIMessage } from "@tanstack/ai-client";
-
-const newMessages: UIMessage[] = [];
-client.setMessagesManually([...newMessages]);
-```
-
-#### `addToolResult(result)`
-
-Adds the result of a client-side tool execution. After `stop()`, a result for
-the stopped turn is ignored. A new user message starts a new turn. Then
-`addToolResult()` applies to that turn.
-
-```typescript
-import { client } from "./client";
-
-await client.addToolResult({
-  toolCallId: "call_123",
-  tool: "toolName",
-  output: { result: "..." },
-  state: "output-available",
-});
-```
-
-#### `getInterrupts()`
-
-Returns the pending interrupts of the paused run. A tool that needs approval shows up as a `tool-approval` item. Call `resolveInterrupt` on that item with the decision. This example approves every pending tool call:
-
-```typescript
-import { client } from "./client";
-
-for (const interrupt of client.getInterrupts()) {
-  if (interrupt.kind === "tool-approval") {
-    interrupt.resolveInterrupt(true);
-  }
-}
-```
-
-### Properties
-
-- `messages: UIMessage[]` - Current messages
-- `isLoading: boolean` - Whether a response is being generated
-- `isHydrating: boolean` - Whether the chat is loading from persistence. Read it with `getIsHydrating()`
-- `error: Error | undefined` - Current error, if any
-
-## Connection Adapters
-
-For a complete transport walkthrough, see
-[Transports](../transports/overview). For React Native and Expo,
-see [React Native](../transports/react-native) and
-[Quick Start: React Native](../getting-started/quick-start-react-native).
-
-### `fetchServerSentEvents(url, options?)`
-
-Creates an SSE connection adapter.
+| Adapter | Server pair | Use it when |
+| --- | --- | --- |
+| `fetchServerSentEvents(url, options?)` | `toServerSentEventsResponse()` | Default for browsers. |
+| `fetchHttpStream(url, options?)` | `toHttpResponse()` | You want newline-delimited JSON. |
+| `fetchJson(url, options?)` | `toJsonResponse()` | The host cannot stream. See [JSON](../transports/json). |
+| `xhrHttpStream(url, options?)` | `toHttpResponse()` | React Native and Expo. See [React Native](../transports/react-native). |
+| `xhrServerSentEvents(url, options?)` | `toServerSentEventsResponse()` | XHR progress events work better than streaming `fetch`. |
+| `webSocket(url, options?)` | `toWebSocketResponse()` | You want one socket for many runs. See [WebSockets](../transports/websockets). |
+| `stream(factory)`, `rpcStream(call)` | Any `AsyncIterable<StreamChunk>` | You call a server function directly. See [Server Functions](../transports/server-functions). |
 
 ```typescript
 import { fetchServerSentEvents } from "@tanstack/ai-client";
 
-const adapter = fetchServerSentEvents("/api/chat", {
-  headers: {
-    Authorization: "Bearer token",
-  },
-});
-```
-
-### `fetchHttpStream(url, options?)`
-
-Creates a newline-delimited JSON HTTP stream connection adapter. Pair it with
-`toHttpResponse()` on the server.
-
-```typescript
-import { fetchHttpStream } from "@tanstack/ai-client";
-
-const adapter = fetchHttpStream("/api/chat");
-```
-
-`fetchHttpStream()` requires a runtime with streaming `fetch`,
-`Response.body.getReader()`, and `TextDecoder`. If the runtime cannot expose an
-incremental response body, it throws `UnsupportedResponseStreamError`; use the
-XHR adapters in React Native or Expo.
-
-### `fetchJson(url, options?)`
-
-Creates a connection adapter for one JSON body per request. Pair it with
-`toJsonResponse()` on the server. It does not need a streaming response body.
-
-```typescript
-import { fetchJson } from "@tanstack/ai-client";
-
-const adapter = fetchJson("/api/chat", {
-  pollIntervalMs: 500,
-});
-```
-
-It takes the fetch adapter options, plus `pollIntervalMs` (default 250). When a
-reply has `done: false`, the adapter waits `pollIntervalMs` and sends
-`GET ?runId=<id>&offset=<offset>`. Serve that `GET` with `resumeJsonResponse()`.
-See [JSON](../transports/json).
-
-### `xhrHttpStream(url, options?)`
-
-Creates an `XMLHttpRequest`-backed newline-delimited JSON stream adapter. This
-is the recommended default for React Native and Expo chat screens. Pair it with
-`toHttpResponse()` on the server.
-
-```typescript
-import { xhrHttpStream } from "@tanstack/ai-client";
-
-const adapter = xhrHttpStream("http://192.168.1.10:8787/chat/http", {
+const connection = fetchServerSentEvents("/api/chat", {
   headers: { Authorization: "Bearer token" },
-  withCredentials: true,
 });
 ```
 
-### `xhrServerSentEvents(url, options?)`
-
-Creates an `XMLHttpRequest`-backed SSE adapter for runtimes where XHR progress
-events are more reliable than streaming `fetch`. Pair it with
-`toServerSentEventsResponse()` on the server.
-
-```typescript
-import { xhrServerSentEvents } from "@tanstack/ai-client";
-
-const adapter = xhrServerSentEvents("http://192.168.1.10:8787/chat/sse");
-```
+`url` can be a string or a function that returns one. `options` can be an object or a function that returns one per request.
 
 ### Adapter options
 
-Fetch adapters accept:
+Fetch adapters take `headers`, `credentials`, `signal`, `body`, `fetchClient`, and `reconnect`.
 
-- `headers?: Record<string, string> | Headers`
-- `credentials?: RequestCredentials`
-- `signal?: AbortSignal`
-- `body?: Record<string, any>`
-- `fetchClient?: typeof globalThis.fetch`
+XHR adapters take `headers`, `withCredentials`, `signal`, `body`, `xhrFactory`, and `reconnect`.
 
-XHR adapters accept:
+`fetchJson()` also takes `pollIntervalMs` (default 250). When a reply has `done: false`, it waits that long and sends `GET ?runId=<id>&offset=<offset>`. Serve that `GET` with `resumeJsonResponse()`.
 
-- `headers?: Record<string, string> | Headers`
-- `withCredentials?: boolean`
-- `signal?: AbortSignal`
-- `body?: Record<string, any>`
-- `xhrFactory?: () => XMLHttpRequest`
+The adapter `body` merges into the AG-UI `forwardedProps`. The chat `forwardedProps` and the per-send `body` override it.
 
-`body` is merged into the AG-UI `forwardedProps` payload. Values from
-`forwardedProps` on the client and per-message `sendMessage` `body` (positional
-or `sendOptions.body`) override static adapter `body` values.
+`fetchHttpStream()` needs streaming `fetch`, `Response.body.getReader()`, and `TextDecoder`. If the runtime has none of these, it throws `UnsupportedResponseStreamError`. Use the XHR adapters in React Native and Expo.
+
+### `stream(factory)`
+
+Builds a custom adapter from a function that returns `AsyncIterable<StreamChunk>`. The function gets `(messages, data, abortSignal)`. `data` is the merged `forwardedProps`.
+
+```typescript
+import { stream } from "@tanstack/ai-client";
+import { chatOnServer } from "./server";
+
+const connection = stream((messages, data, signal) =>
+  chatOnServer({ messages, forwardedProps: data, signal }),
+);
+```
 
 ### Stream errors
 
-- `UnsupportedResponseStreamError` - thrown by fetch-based adapters when
-  `Response.body`, `Response.body.getReader()`, or `TextDecoder` is missing.
-- `StreamTruncatedError` - thrown when an SSE or NDJSON stream ends with
-  unterminated trailing data, usually because the server, proxy, or network cut
-  the connection mid-line.
+- `UnsupportedResponseStreamError`: a fetch adapter found no `Response.body`, `getReader()`, or `TextDecoder`.
+- `StreamTruncatedError`: an SSE or NDJSON stream ended in the middle of a line. A server, a proxy, or the network cut the connection.
+- `DurableStreamIncompleteError` and `StreamReconnectLimitError`: a resumable stream did not finish. See [Resumable Streams](../resumable-streams/overview).
 
-### `stream(connectFn)`
+## Persistence adapters
 
-Creates a custom connection adapter.
+Browser storage adapters for `persistence`. Each one keeps the messages and the resume state for a `threadId`. See [Client Persistence](../persistence/client-persistence).
 
-```typescript ignore
-import { stream } from "@tanstack/ai-client";
+| Adapter | Storage |
+| --- | --- |
+| `localStoragePersistence(options?)` | `localStorage` |
+| `sessionStoragePersistence(options?)` | `sessionStorage` |
+| `indexedDBPersistence(options?)` | IndexedDB. The default `databaseName` is `"tanstack-ai"`. |
 
-const adapter = stream(async (messages, data, signal) => {
-  // `data` here carries the merged forwardedProps. The fetch-based
-  // adapters serialize it as the AG-UI `RunAgentInput.forwardedProps`
-  // field on the wire (with a backward-compat `data` mirror).
-  const response = await fetch("/api/chat", {
-    method: "POST",
-    body: JSON.stringify({ messages, forwardedProps: data }),
-    signal,
-  });
-  return processStream(response);
-});
-```
+They throw `StorageUnavailableError` when the browser storage is not available.
 
-## Helper Functions
+## `createChatClientOptions(options)`
 
-### `clientTools(...tools)`
-
-**Optional.** A plain array — `tools: [tool1, tool2]` — already narrows tool names, inputs and outputs without any wrapper or `as const`. `clientTools()` is an identity helper that performs the same capture explicitly; reach for it only when you want to build a shared, reusable tools tuple outside the hook/options call.
-
-```typescript
-import {
-  clientTools,
-  createChatClientOptions,
-  fetchServerSentEvents,
-  type UIMessage,
-} from "@tanstack/ai-client";
-import { toolDefinition } from "@tanstack/ai";
-import { z } from "zod";
-
-const messages: UIMessage[] = [];
-
-const myTool1 = toolDefinition({
-  name: "myTool1",
-  description: "First tool",
-  inputSchema: z.object({ query: z.string() }),
-  outputSchema: z.object({ result: z.string() }),
-});
-
-const myTool2 = toolDefinition({
-  name: "myTool2",
-  description: "Second tool",
-  inputSchema: z.object({ query: z.string() }),
-  outputSchema: z.object({ result: z.string() }),
-});
-
-// Create client implementations
-const tool1Client = myTool1.client((input) => {
-  // Implementation
-  return { result: input.query };
-});
-
-const tool2Client = myTool2.client((input) => {
-  // Implementation
-  return { result: input.query };
-});
-
-// The explicit-capture form (equivalent to `[tool1Client, tool2Client]`).
-const tools = clientTools(tool1Client, tool2Client);
-
-// Now when you use these tools in chat options:
-const chatOptions = createChatClientOptions({
-  connection: fetchServerSentEvents("/api/chat"),
-  tools, // Fully typed with literal tool names
-});
-
-// In your component:
-messages.forEach((message) => {
-  message.parts.forEach((part) => {
-    if (part.type === "tool-call" && part.name === "myTool1") {
-      // ✅ TypeScript knows part.name is literally "myTool1"
-      // ✅ part.input is typed from myTool1's input schema
-      // ✅ part.output is typed from myTool1's output schema
-    }
-  });
-});
-```
-
-### `createChatClientOptions(options)`
-
-Helper function to create typed chat client options with proper type inference.
+Returns the options unchanged, with full type inference. Use it to define options outside a hook and to get the message type.
 
 ```typescript
 import {
@@ -601,59 +271,128 @@ import {
   fetchServerSentEvents,
   type InferChatMessages,
 } from "@tanstack/ai-client";
-import { tool1, tool2 } from "./tools";
-
-const tools = [tool1, tool2];
+import { searchProducts } from "./tools";
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),
-  tools,
+  tools: [searchProducts],
 });
 
-// Use InferChatMessages to extract message types
 type ChatMessages = InferChatMessages<typeof chatOptions>;
 ```
 
-`createChatClientOptions` also preserves typed client runtime context:
+A plain tools array keeps tool names, inputs, and outputs typed. You do not need `as const`. When you narrow with `part.name === "searchProducts"`, `part.input` and `part.output` get their types from the schemas of that tool.
+
+Client context stays typed too. If a `.client<ClientContext>()` tool needs context, `context` becomes required. It stays on the client. To send values to the server, use `forwardedProps`, then validate them and pass them to `chat({ context })`.
+
+## `clientTools(...tools)`
+
+Returns its arguments as a typed tuple. A plain array already gives the same types, so use this only to build a shared tools tuple outside the options call.
 
 ```typescript
-import {
-  createChatClientOptions,
-  fetchServerSentEvents,
-} from "@tanstack/ai-client";
-import { toolDefinition } from "@tanstack/ai";
-import { z } from "zod";
+import { clientTools } from "@tanstack/ai-client";
+import { searchProducts, showToast } from "./tools";
 
-type ClientContext = {
-  activeProjectId: string;
-};
-
-const projectTool = toolDefinition({
-  name: "projectAction",
-  description: "Run a project action",
-  inputSchema: z.object({ action: z.string() }),
-  outputSchema: z.object({ ok: z.boolean() }),
-});
-
-const tool = projectTool.client<ClientContext>((input, ctx: { context: ClientContext }) => {
-  console.log(ctx.context.activeProjectId, input.action);
-  return { ok: true };
-});
-
-const chatOptions = createChatClientOptions({
-  connection: fetchServerSentEvents("/api/chat"),
-  tools: [tool],
-  context: {
-    activeProjectId: "project_123",
-  },
-});
+export const tools = clientTools(searchProducts, showToast);
 ```
 
-Client runtime context is local to the client instance. Use `forwardedProps` for explicit client-to-server handoff of serializable values, then validate and map those values into server `chat({ context })`.
+## `GenerationClient`
+
+Runs one generation request (image, audio, speech, transcription, summary, or your own type) and keeps its result. The framework generation hooks wrap it. See [Generation Hooks](../media/generation-hooks).
+
+```typescript
+import type { ImageGenerationResult } from "@tanstack/ai";
+import {
+  GenerationClient,
+  fetchServerSentEvents,
+  type ImageGenerateInput,
+} from "@tanstack/ai-client";
+
+const generation = new GenerationClient<ImageGenerateInput, ImageGenerationResult>({
+  connection: fetchServerSentEvents("/api/generate/image"),
+  onResult: (result) => console.log(result.images.length),
+});
+
+await generation.generate({ prompt: "A mountain at sunset" });
+```
+
+- Options: `connection` or `fetcher`, `body`, `threadId`, `persistence`, `byok`, `byokProvider`, `devtools`, `onResult`, `onError`, `onProgress`, `onChunk`.
+- Methods: `generate(input)`, `stop()`, `reset()`, `updateOptions(options)`, `dispose()`, `getResult()`, `getIsLoading()`, `getError()`, `getStatus()`.
+- Snapshot: `result`, `isLoading`, `error`, `status` (`"idle"`, `"generating"`, `"success"`, or `"error"`), and `runId`.
+
+`VideoGenerationClient` does the same for video jobs. Its snapshot adds `jobId` and `videoStatus`, and it takes `onJobCreated` and `onStatusUpdate`.
+
+## `RealtimeClient`
+
+Runs a voice conversation with a realtime model. Pass `getToken` and `adapter`. Methods: `connect()`, `disconnect()`, `startListening()`, `stopListening()`, `interrupt()`, `sendText(text)`, `sendImage(data, mimeType)`, `updateSession(config)`, and `destroy()`. See [Realtime Chat](../media/realtime-chat).
+
+When `connect()` succeeds, it clears the previous transcript. A transcript that arrives while the microphone starts is kept. A failed connection keeps the previous transcript. Snapshot `parts` are frozen at runtime, but their TypeScript type stays mutable. Tool `input`, `output`, and subagent transcripts on a snapshot are copies.
+
+## `AudioRecorder`
+
+Records audio from the microphone. Methods: `start()`, `stop()` (resolves to the recording), and `cancel()`. See [Audio Recording](../media/audio-recording).
+
+### Listeners on the other clients
+
+`GenerationClient`, `VideoGenerationClient`, `RealtimeClient`, and `ByokClient` use `subscribe(listener)` and `getSnapshot()`:
+
+- The listener gets no argument. Call `getSnapshot()` inside it.
+- A listener that throws does not stop the other listeners. The error goes to `reportError` in the browser and to `console.error` in other runtimes.
+
+`AudioRecorder.subscribe` passes the new state: `subscribe((state) => ...)`. `getSnapshot()` returns that same state.
+
+## `registerWebMCPTools(tools, options)`
+
+Exposes client tools through the browser WebMCP API. Abort `options.signal` to remove the tools. See [WebMCP Tools](../tools/webmcp).
+
+```typescript
+import { registerWebMCPTools } from "@tanstack/ai-client";
+import { searchProducts } from "./tools";
+
+const controller = new AbortController();
+
+await registerWebMCPTools([searchProducts], {
+  signal: controller.signal,
+  toolOptions: {
+    searchProducts: {
+      title: "Search products",
+      annotations: { readOnlyHint: true },
+    },
+  },
+});
+
+// Later, when the owner of these tools goes away:
+controller.abort();
+```
+
+| Option | What it does |
+| --- | --- |
+| `signal` | Required. Aborting it removes all tools of this call. |
+| `toolOptions` | Per tool name: `title` and `annotations` (`readOnlyHint`, `untrustedContentHint`). |
+| `context` | Client tool runtime context. Required when a tool declares a required context. |
+
+- It returns `Promise<void>`. During server rendering, in an insecure context, or when WebMCP is not there, it resolves and registers nothing.
+- It validates Standard Schema inputs and outputs.
+- A tool with `needsApproval: true` makes the registration fail. If registration fails, the function removes the tools it registered during the call.
+
+Option types: `RegisterWebMCPToolsOptions`, `WebMCPToolOptionsByName`, `WebMCPToolOptions`, `WebMCPToolAnnotations`.
+
+## `getWebMCPTools(options?)` and `subscribeWebMCPTools(listener, options)`
+
+Read the tools that the page registered with WebMCP, as client tools. See [Page WebMCP Tools in Chat](../tools/webmcp-page-tools).
+
+- `getWebMCPTools({ filter? })` resolves to the current tools, or `[]` when WebMCP is not there.
+- `subscribeWebMCPTools(listener, { signal, filter?, onError? })` calls `listener` with the tools each time the page adds or removes one. Abort `signal` to stop.
+
+`filter` gets a `WebMCPPageTool` (`name`, `title`, `description`, `inputSchema`, `origin`, `annotations`). Return `false` to skip it.
+
+## `createMcpAppBridge(options)`
+
+Creates the bridge that lets an MCP App widget call tools and send chat messages. Options: `threadId`, `callEndpoint`, `chat`, `fetchImpl`, `onLink`. See [MCP Apps](../mcp/apps).
 
 ## `defineByok`
 
-Factory for a headless BYOK keyring. Import it from `@tanstack/ai-client/byok`. Pass the instance into `ChatClient`, `useChat`, or a generation hook. See [Bring Your Own Key](../advanced/byok) for a full client and relay walkthrough.
+Creates a headless BYOK keyring. Import it from `@tanstack/ai-client/byok`. Pass the keyring to `ChatClient`, `useChat`, or a generation hook. See [Bring Your Own Key](../advanced/byok).
 
 ```typescript
 import { defineByok, defaultByokStorage } from "@tanstack/ai-client/byok";
@@ -665,27 +404,28 @@ export const byok = defineByok({
 
 ### Factory options
 
-- `storage?` - A `KeyringStorage` implementation. Default is `memoryStorage()` (session only, not saved)
-- `providers?` - Descriptors whose `with` companions the store expands. With `[cloudflareByok, cloudflareAccountByok]`, a send for `cloudflare` carries the token and the account id headers, and `prepare` prompts for each missing one
+- `storage`: a `KeyringStorage`. Default: `memoryStorage()`, which keeps keys for the session only.
+- `providers`: descriptors whose `with` companions the keyring adds. With `[cloudflareByok, cloudflareAccountByok]`, a send for `cloudflare` carries the token and the account id headers. `prepare` asks for each missing one.
 
 ### Methods
 
-- `update(provider, key)` - Persist a key for a provider slug (`[a-z][a-z0-9-]{0,63}`), then update the snapshot. Throws if the id is not a slug, the key is empty, or storage fails
-- `update(key)` - Persist a key for the current `prompt` provider. Throws if `prompt` is null
-- `clear(provider?)` - Persist the removal, then drop one key, or all keys when you omit `provider`
-- `unlock()` - Decrypt unlockable storage (passkey). No-op for memory storage
-- `headers(provider)` - Return `x-byok-*` headers for that slug and its companions. Chat and generation clients throw if no slug resolves — they do not send every stored key
-- `prepare(provider?)` - Wait for hydration, then unlock if needed. If `provider` is set and the key for it or a companion is empty with no server coverage, throw `ByokBlockedError` and set `prompt` for that slug
-- `ready()` - Resolve when constructor hydration (peek/load) finishes
-- `setServerCoverage(flags)` - `true` means do not block a send when the browser has no key (the relay can fill from env). `false` restores the default: block. A record merges per-slug flags
-- `request(provider, reason)` - Set `prompt` to `{ provider, reason }` (`missing` | `locked` | `invalid`)
-- `getSnapshot()` - Return the current [`ByokSnapshot`](#snapshot)
-- `subscribe(listener)` - Call `listener` on each change. Returns an unsubscribe function
-- `keys()` - Return a copy of the raw keyring. Do not render this in the UI
+| Method | What it does |
+| --- | --- |
+| `update(provider, key)` | Saves a key for a provider slug (`[a-z][a-z0-9-]{0,63}`), then updates the snapshot. Throws if the id is not a slug, the key is empty, or storage fails. |
+| `update(key)` | Saves a key for the current `prompt` provider. Throws if `prompt` is null. |
+| `clear(provider?)` | Removes one key, or all keys when you omit `provider`. |
+| `unlock()` | Decrypts unlockable storage (passkey). Does nothing for memory storage. |
+| `headers(provider)` | Returns the `x-byok-*` headers for that slug and its companions. |
+| `prepare(provider?)` | Waits for hydration, then unlocks if needed. If the key for `provider` or a companion is empty and the server does not cover it, it throws `ByokBlockedError` and sets `prompt`. |
+| `ready()` | Resolves when the first load from storage ends. |
+| `setServerCoverage(flags)` | `true`: do not block a send when the browser has no key, because the relay can use its env. `false`: block (default). A record sets flags per slug. |
+| `request(provider, reason)` | Sets `prompt` to `{ provider, reason }`. `reason` is `"missing"`, `"locked"`, or `"invalid"`. |
+| `getSnapshot()`, `subscribe(listener)` | Read the [snapshot](#snapshot), and listen for changes. |
+| `keys()` | Returns a copy of the raw keyring. Do not show it in the UI. |
+
+The chat and generation clients throw if no provider slug resolves. They do not send every stored key.
 
 ### Snapshot
-
-`getSnapshot()` (and framework readers such as `useByok`) return:
 
 ```typescript ignore
 type ByokSnapshot = {
@@ -705,96 +445,56 @@ type KeyStatus =
   | { state: "error"; masked: string; message: string };
 ```
 
-`status` is sparse: only slugs that have a key, a lock, or a validation result appear. A missing entry means no key. `masked` is the last four characters of the key (`maskKey`). Read it with `"masked" in status` — `{ state: "empty" }` has no `masked`. `storageError` is set when peek/load fails. The snapshot never includes the raw key.
+- `status` is sparse. Only slugs with a key, a lock, or a validation result appear. A missing entry means no key.
+- `masked` is the last four characters of the key. `{ state: "empty" }` has no `masked`, so check with `"masked" in status`.
+- `storageError` is set when loading from storage fails.
+- The snapshot never holds the raw key.
 
 ### Storage
 
-- `defaultByokStorage(options?)` - Passkey-encrypted IndexedDB when WebAuthn is available in a secure context. Otherwise `memoryStorage()` with a warning. WebAuthn support is not the same as PRF — first save still throws if the authenticator lacks PRF
-- `memoryStorage()` - In-memory on the `ByokClient` instance. This backend does not persist. Keys are gone when the client is dropped or the page reloads
-- `passkeyStorage(options?)` - Encrypt the keyring with a WebAuthn passkey. First save throws if the authenticator does not support PRF
-- `KeyringStorage` - `{ id, label, persistent, unlockable?, peek?, load, save, clear }`
+| Storage | What it does |
+| --- | --- |
+| `defaultByokStorage(options?)` | Passkey-encrypted IndexedDB when WebAuthn is available in a secure context. Otherwise `memoryStorage()`, with a warning. The first save still throws if the authenticator has no PRF support. |
+| `memoryStorage()` | Keeps keys on the `ByokClient` instance. Keys are gone when the page reloads. |
+| `passkeyStorage(options?)` | Encrypts the keyring with a WebAuthn passkey. The first save throws if the authenticator has no PRF support. |
+| `KeyringStorage` | The storage interface: `{ id, label, persistent, unlockable?, peek?, load, save, clear }`. |
 
-This library does not ship a dialog. Call `byok.update(provider, value)` from your own UI.
+The library ships no key dialog. Call `byok.update(provider, value)` from your own UI.
 
 ## Types
 
 ### `UIMessage`
 
 ```typescript ignore
-interface UIMessage {
+interface UIMessage<TTools = any> {
   id: string;
-  role: "system" | "user" | "assistant";
-  parts: MessagePart[];
+  role: "system" | "user" | "assistant" | "activity";
   name?: string;
+  parts: Array<MessagePart<TTools>>;
   createdAt?: Date;
   metadata?: Record<string, any>;
 }
 ```
 
-`metadata` is an optional AG-UI bag (`Record<string, any>`). TanStack writes the `tanstack` key. Your keys stay at the top.
+`metadata` is an AG-UI bag. TanStack writes the `tanstack` key. Your keys stay at the top level.
 
 ### `MessagePart`
 
-```typescript ignore
-type MessagePart = TextPart | ThinkingPart | ToolCallPart | ToolResultPart;
-```
+| Part | `type` | What it holds |
+| --- | --- | --- |
+| `TextPart` | `"text"` | `content`: the text. |
+| `ThinkingPart` | `"thinking"` | `content`: the model reasoning. See [Thinking Content](../chat/thinking-content). |
+| `ToolCallPart` | `"tool-call"` | `id`, `name`, `arguments` (JSON string, can be partial while it streams), `input`, `output`, `state`, and `approval` for tools with `needsApproval: true`. |
+| `ToolResultPart` | `"tool-result"` | `toolCallId`, `content`, `state`, `error`, `outcome`, `metadata`. |
+| `ImagePart`, `AudioPart`, `VideoPart`, `DocumentPart` | media types | Media content. See [Multimodal Content](../advanced/multimodal-content). |
+| `StructuredOutputPart` | `"structured-output"` | Typed `data` and `partial`. See [Structured Outputs](../structured-outputs/overview). |
+| `ActivityPart`, `UIResourcePart`, `SubagentPart` | other | Activity records, MCP App resources, and subagent runs. |
 
-### `TextPart`
+Thinking parts are for the UI only. The client does not send them back to the model.
 
-```typescript
-interface TextPart {
-  type: "text";
-  content: string;
-}
-```
+With a typed tools array, `ToolCallPart` is a union with `name` as the key. Narrow on `part.name` to get typed `input` and `output`. The `approval` field exists only on tools with `needsApproval: true`, so narrow by `part.name` or check `"approval" in part` first.
 
-### `ThinkingPart`
-
-```typescript
-interface ThinkingPart {
-  type: "thinking";
-  content: string;
-}
-```
-
-Thinking parts represent the model's internal reasoning process. They are typically displayed in a collapsible format and automatically collapse when the response text appears. Thinking parts are UI-only and are not sent back to the model in subsequent requests.
-
-**Note:** Thinking parts are only available when using models that support reasoning/thinking (e.g., Anthropic Claude with thinking enabled, OpenAI GPT-5 with reasoning enabled).
-
-### `ToolCallPart`
-
-```typescript ignore
-interface ToolCallPart {
-  type: "tool-call";
-  id: string;
-  name: string;
-  arguments: string; // JSON string (may be incomplete during streaming)
-  input?: any; // Parsed tool input (typed from tool's inputSchema)
-  state: ToolCallState;
-  approval?: ApprovalRequest; // only on tools declared `needsApproval: true`
-  output?: any; // Tool execution output (typed from tool's outputSchema)
-}
-```
-
-When you pass a typed `tools` array (a plain array works — `clientTools()` is optional), the `input` and `output` fields are automatically typed based on your tool's Zod schemas, and `name` becomes a discriminated union enabling type narrowing. The `approval` field is present **only** on parts for tools declared with `needsApproval: true` — narrow by `part.name` (or guard with `'approval' in part`) before accessing it.
-
-### `ToolResultPart`
-
-```typescript ignore
-interface ToolResultPart {
-  type: "tool-result";
-  id?: string;
-  name?: string;
-  toolCallId: string;
-  content: string | ContentPart[];
-  state: ToolResultState;
-  error?: string;
-  metadata?: Record<string, unknown>;
-  createdAt?: Date;
-}
-```
-
-### `ToolCallState`
+### States
 
 ```typescript ignore
 type ToolCallState =
@@ -803,40 +503,8 @@ type ToolCallState =
   | "input-complete"
   | "approval-requested"
   | "approval-responded"
-  | "complete";
-```
-
-### `ToolResultState`
-
-```typescript ignore
-type ToolResultState =
-  | "streaming"
   | "complete"
   | "error";
+
+type ToolResultState = "streaming" | "complete" | "error";
 ```
-
-## Stream Processing
-
-Configure stream processing with chunk strategies:
-
-```typescript
-import {
-  ChatClient,
-  ImmediateStrategy,
-  fetchServerSentEvents,
-} from "@tanstack/ai-client";
-
-const client = new ChatClient({
-  connection: fetchServerSentEvents("/api/chat"),
-  streamProcessor: {
-    chunkStrategy: new ImmediateStrategy(), // Emit every chunk
-  },
-});
-```
-
-## Next Steps
-
-- [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Bring Your Own Key](../advanced/byok) - Store keys in the browser and send `x-byok-*` headers
-- [Transports](../transports/overview) - Learn about adapters
-- [@tanstack/ai-react API](./ai-react) - React hooks wrapper

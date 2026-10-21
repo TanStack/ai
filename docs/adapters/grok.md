@@ -2,7 +2,7 @@
 title: Grok (xAI)
 id: grok-adapter
 order: 5
-description: "Use xAI Grok models with TanStack AI — Grok 4.3, Grok Build 0.1, Grok Imagine image generation, and Grok Imagine video generation via @tanstack/ai-grok."
+description: "Use xAI Grok models in TanStack AI with @tanstack/ai-grok: Grok chat on the Responses API, Grok Imagine images and video, speech, transcription, and realtime voice."
 keywords:
   - tanstack ai
   - grok
@@ -15,9 +15,9 @@ keywords:
   - adapter
 ---
 
-The Grok text and summarization adapters provide access to xAI's Responses API for `grok-4.3` and `grok-build-0.1`, plus Grok Imagine image generation and Grok Imagine video generation.
+Grok gives you the xAI chat models on the Responses API, plus Grok Imagine images and video, speech, transcription, and realtime voice.
 
-## Installation
+## 1. Install
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
@@ -32,33 +32,283 @@ octane: @tanstack/ai-grok
 
 <!-- ::end:tabs -->
 
-## Basic Usage
+## 2. Set the API key
+
+Put the key in the environment of your server:
+
+```bash
+XAI_API_KEY=xai-...
+```
+
+`grokText` and the other short factories read `XAI_API_KEY`. To pass the key in code, use the `create*` factory of the same adapter:
+
+```typescript
+import { createGrokText } from "@tanstack/ai-grok";
+
+const adapter = createGrokText("grok-4.7", process.env.XAI_API_KEY!);
+```
+
+## 3. Stream a chat from the server
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { grokText } from "@tanstack/ai-grok";
+
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
+
+  const stream = chat({
+    adapter: grokText("grok-4.7"),
+    messages,
+    threadId,
+    runId,
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+## 4. Render the chat
+
+The client is the same for every provider. Point `useChat` at your route:
+
+```tsx
+import { useState } from "react";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+export function Chat() {
+  const [input, setInput] = useState("");
+  const { messages, sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+  });
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        sendMessage(input);
+        setInput("");
+      }}
+    >
+      {messages.map((message) => (
+        <p key={message.id}>
+          {message.parts
+            .map((part) => (part.type === "text" ? part.content : ""))
+            .join("")}
+        </p>
+      ))}
+      <input value={input} onChange={(event) => setInput(event.target.value)} />
+    </form>
+  );
+}
+```
+
+For Vue, Solid, Svelte, Angular, and the other frameworks, see [Quick Start](../getting-started/quick-start#3-render-the-chat).
+
+You now have a streaming Grok chat. [Tools](../tools/tools) and [Structured Outputs](../structured-outputs/overview) work the same as with every adapter.
+
+## Images
+
+```typescript
+import { generateImage } from "@tanstack/ai";
+import { grokImage } from "@tanstack/ai-grok";
+
+const result = await generateImage({
+  adapter: grokImage("grok-imagine-image-2.0"),
+  prompt: "A futuristic cityscape at sunset",
+  size: "16:9_2k",
+  modelOptions: { quality: "medium" },
+});
+```
+
+- The image models (`grok-imagine-image`, `grok-imagine-image-2.0`, `grok-imagine-image-quality`) take an aspect ratio as the size. `size` takes an `aspectRatio_resolution` template like `"16:9_2k"`. The `_2k` part is optional.
+- `grok-imagine-image-2.0` is the model that xAI recommends. It adds a `quality` option (`'low'` or `'medium'`, default `'medium'`).
+- To change an existing image, see [Image editing](#image-editing).
+
+## Video
+
+Grok Imagine makes short clips (1 to 15 seconds, with audio). Video generation is experimental. You start a job, then poll it:
+
+```typescript
+import { generateVideo, getVideoJobStatus } from "@tanstack/ai";
+import { grokVideo } from "@tanstack/ai-grok";
+
+const adapter = grokVideo("grok-imagine-video-1.5");
+
+// 1. Create the job
+const { jobId } = await generateVideo({
+  adapter,
+  prompt: "A red panda balancing on a bamboo stalk in the rain",
+  size: "16:9_720p", // "aspectRatio" or "aspectRatio_resolution"
+  duration: 5, // integer seconds, 1 to 15
+});
+
+// 2. Poll until complete, then read the video URL
+let status = await getVideoJobStatus({ adapter, jobId });
+while (status.status !== "completed" && status.status !== "failed") {
+  await new Promise((r) => setTimeout(r, 5000));
+  status = await getVideoJobStatus({ adapter, jobId });
+}
+
+console.log(status.url); // hosted .mp4 URL
+```
+
+- `grok-imagine-video-1.5` is the default that xAI recommends. It does text-to-video (with native 1080p), image-to-video, and reference-to-video.
+- `grok-imagine-video` (v1.0) also edits and extends a source video.
+
+Image-to-video, references, edits, and sizes are in [Video options](#video-options). For the full flow and the `useGenerateVideo` hook, see [Video Generation](../media/video-generation).
+
+## Speech
+
+```typescript
+import { generateSpeech } from "@tanstack/ai";
+import { grokSpeech } from "@tanstack/ai-grok";
+
+const result = await generateSpeech({
+  adapter: grokSpeech("grok-tts"),
+  text: "Hello from Grok!",
+  voice: "default",
+  format: "mp3",
+});
+
+console.log(result.audio); // Base64-encoded audio
+```
+
+## Transcription
+
+```typescript
+import { generateTranscription } from "@tanstack/ai";
+import { grokTranscription } from "@tanstack/ai-grok";
+import { audioFile } from "./audio";
+
+const result = await generateTranscription({
+  adapter: grokTranscription("grok-stt"),
+  audio: audioFile,
+});
+
+console.log(result.text);
+```
+
+## Summarization
+
+<!-- ignored: grokSummarize()'s resolved provider-options type sits in a
+     contravariant position in SummarizeAdapter, so it isn't assignable to
+     summarize()'s adapter param for any current Grok model. Tracked in #821;
+     un-ignore once the adapter type is corrected. -->
+
+```typescript ignore
+import { summarize } from "@tanstack/ai";
+import { grokSummarize } from "@tanstack/ai-grok";
+
+const result = await summarize({
+  adapter: grokSummarize("grok-4.3"),
+  text: "Your long text to summarize...",
+  maxLength: 100,
+  style: "concise", // "concise" | "bullet-points" | "paragraph"
+});
+
+console.log(result.summary);
+```
+
+## Realtime voice and files
+
+- **Realtime voice**: `grokRealtime` and the token issuer `grokRealtimeToken` run a live voice chat. The default model is `grok-voice-think-fast-2.0`. `grok-voice-latest` always points to the newest model. See [Realtime Voice Chat](../media/realtime-chat).
+- **Files**: `grokFiles` uploads media to the xAI Files API. See [Files API](../advanced/files-api).
+
+## Provider tools
+
+xAI runs some tools itself. Import them from `@tanstack/ai-grok/tools` and add them to `tools`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { grokText } from "@tanstack/ai-grok";
+import { grokWebSearchTool } from "@tanstack/ai-grok/tools";
+
+const stream = chat({
+  adapter: grokText("grok-4.3"),
+  messages: [{ role: "user", content: "What's new in AI this week?" }],
+  tools: [grokWebSearchTool()],
+});
+```
+
+- `grokWebSearchTool`: search the web. `filters` takes up to 5 `allowed_domains` or up to 5 `excluded_domains`, not both.
+- `grokXSearchTool`: search posts on X. Takes up to 20 `allowed_x_handles` or up to 20 `excluded_x_handles`, not both.
+- `grokFileSearchTool`: search your xAI file collections with `vector_store_ids`. `max_num_results` is 1 to 50.
+- `grokMCPTool`: connect a remote MCP server with `server_url` and `server_label`.
+
+**Supported models:** `grok-4.3` and `grok-build-0.1`. For your own tools, use `toolDefinition()`. See [Tools](../tools/tools.md).
+
+## Models and options
+
+### Model options
+
+Provider options go in `modelOptions`, with the names of the xAI Responses API. This includes the sampling options `temperature`, `top_p`, and `max_output_tokens`:
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { grokText } from "@tanstack/ai-grok";
 
 const stream = chat({
-  adapter: grokText("grok-build-0.1"),
+  adapter: grokText("grok-4.7"),
   messages: [{ role: "user", content: "Hello!" }],
+  modelOptions: {
+    temperature: 0.7,
+    top_p: 0.9,
+    max_output_tokens: 1024,
+    store: false,
+    include: ["reasoning.encrypted_content"],
+  },
 });
 ```
 
-## Basic Usage - Custom API Key
+- Requests use `store: false` by default, and include the encrypted reasoning with `include: ["reasoning.encrypted_content"]`. You can change both in `modelOptions`.
+- Sampling options do not go at the root of `chat()`. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
+
+### Reasoning
+
+Want Grok to think harder? Set `reasoning` on `chat()`. It goes out as `reasoning.effort`, with a summary so that the thinking text streams:
 
 ```typescript
 import { chat } from "@tanstack/ai";
-import { createGrokText } from "@tanstack/ai-grok";
-
-const adapter = createGrokText("grok-build-0.1", process.env.XAI_API_KEY!);
+import { grokText } from "@tanstack/ai-grok";
 
 const stream = chat({
-  adapter,
-  messages: [{ role: "user", content: "Hello!" }],
+  adapter: grokText("grok-4.7"),
+  messages: [{ role: "user", content: "Plan a database migration." }],
+  reasoning: "xhigh",
 });
 ```
 
-## Configuration
+| Model | Levels |
+| --- | --- |
+| `grok-4.7`, `grok-4.6` | `low` to `xhigh` |
+| `grok-4.5` | `low`, `medium`, `high` |
+| `grok-4.3` | `off`, `low`, `medium`, `high` |
+
+- `grok-build-0.1` and the `non-reasoning` models take no `reasoning`.
+- `grok-4.20-reasoning` and `grok-4.1-fast-reasoning` take no `reasoning` either. They always think, and have no levels.
+
+### Models
+
+| Activity | Factory | Models |
+| --- | --- | --- |
+| Chat | `grokText` | `grok-4.7`, `grok-4.6`, `grok-4.5`, `grok-4.3`, `grok-build-0.1` |
+| Chat on Vertex | `grokVertexText` | `grok-4.3`, `grok-4.20-reasoning`, `grok-4.20-non-reasoning`, `grok-4.1-fast-reasoning`, `grok-4.1-fast-non-reasoning` |
+| Images | `grokImage` | `grok-imagine-image-2.0`, `grok-imagine-image`, `grok-imagine-image-quality` |
+| Video | `grokVideo` | `grok-imagine-video-1.5`, `grok-imagine-video` |
+| Speech | `grokSpeech` | `grok-tts` |
+| Transcription | `grokTranscription` | `grok-stt` |
+| Realtime voice | `grokRealtime` | `grok-voice-think-fast-2.0`, `grok-voice-latest`, `grok-voice-fast-1.0` |
+
+`adapter.inputModalities` lists the input kinds of the selected model. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
+
+## Advanced
+
+### Configuration
 
 ```typescript
 import { createGrokText, type GrokTextConfig } from "@tanstack/ai-grok";
@@ -67,15 +317,15 @@ const config: Omit<GrokTextConfig, "apiKey"> = {
   baseURL: "https://api.x.ai/v1", // Optional, this is the default
 };
 
-const adapter = createGrokText("grok-build-0.1", process.env.XAI_API_KEY!, config);
+const adapter = createGrokText("grok-4.7", process.env.XAI_API_KEY!, config);
 ```
 
-Need a header on each request, or a log of each model call? The chat adapters on this page support [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
+- Need a header on each request, or a log of each model call? The chat adapters of this package support [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
+- The text and summarize adapters use the xAI **Responses API** (`/v1/responses`). They support streaming text, reasoning events, structured output through `text.format`, and function tools.
 
-## Grok on Vertex
+### Grok on Vertex
 
-Use `@tanstack/ai-grok/vertex` when Grok must run on Vertex AI. That path
-uses Google Cloud credentials and Vertex regional or global endpoints.
+Use `@tanstack/ai-grok/vertex` when Grok must run on Vertex AI. That path uses Google Cloud credentials and the regional or global endpoints of Vertex.
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
@@ -103,183 +353,20 @@ const stream = chat({
 });
 ```
 
-`project` and `location` use the same names as `@tanstack/ai-vertex`. If you
-omit `location`, the factory uses `global`.
+- `project` and `location` use the same names as `@tanstack/ai-vertex`. If you omit `location`, the factory uses `global`.
+- `grokVertexText` accepts only the Grok chat models that Vertex lists. See the [model table](#models). xAI API models such as `grok-4.6` and `grok-build-0.1` are not on Vertex.
+- The adapter sends the Vertex model id `xai/grok-4.3`.
+- Install `google-auth-library` for Application Default Credentials, or pass `authClient` or `getAccessToken`.
+- For summarize on Vertex, use `grokVertexSummarize` from the same entry.
 
-`grokVertexText` accepts only the Grok chat models that Vertex lists:
+Gemini on Vertex is in [`@tanstack/ai-vertex`](./vertex).
 
-- `grok-4.3`
-- `grok-4.20-reasoning`
-- `grok-4.20-non-reasoning`
-- `grok-4.1-fast-reasoning`
-- `grok-4.1-fast-non-reasoning`
+### Image editing
 
-xAI API models such as `grok-4.6` and `grok-build-0.1` are not on Vertex.
+The grok-imagine models take image prompt parts. The adapter then calls the `/v1/images/edits` endpoint of xAI.
 
-The adapter sends the Vertex model id `xai/grok-4.3`. Install
-`google-auth-library` for Application Default Credentials, or pass
-`authClient` or `getAccessToken`.
-
-Use `grokVertexSummarize` from the same entry when you need summarize on
-Vertex.
-
-Gemini on Vertex lives in [`@tanstack/ai-vertex`](./vertex).
-
-## Example: Chat Completion
-
-```typescript
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
-import { grokText } from "@tanstack/ai-grok";
-
-export async function POST(request: Request) {
-  const { messages } = await request.json();
-
-  const stream = chat({
-    adapter: grokText("grok-build-0.1"),
-    messages,
-  });
-
-  return toServerSentEventsResponse(stream);
-}
-```
-
-## Example: With Tools
-
-```typescript
-import { chat, toServerSentEventsResponse, toolDefinition } from "@tanstack/ai";
-import { grokText } from "@tanstack/ai-grok";
-import { z } from "zod";
-
-const getWeatherDef = toolDefinition({
-  name: "get_weather",
-  description: "Get the current weather",
-  inputSchema: z.object({
-    location: z.string(),
-  }),
-});
-
-const getWeather = getWeatherDef.server(async ({ location }) => {
-  // Fetch weather data
-  return { temperature: 72, conditions: "sunny" };
-});
-
-export async function POST(request: Request) {
-  const { messages } = await request.json();
-
-  const stream = chat({
-    adapter: grokText("grok-build-0.1"),
-    messages,
-    tools: [getWeather],
-  });
-
-  return toServerSentEventsResponse(stream);
-}
-```
-
-## Model Options
-
-Grok supports xAI Responses API options. Sampling parameters live here too — `temperature`, `top_p`, and `max_output_tokens` — rather than as root-level props on `chat()`:
-
-```typescript
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
-import { grokText } from "@tanstack/ai-grok";
-
-export async function POST(request: Request) {
-  const { messages } = await request.json();
-
-  const stream = chat({
-    adapter: grokText("grok-build-0.1"),
-    messages,
-    modelOptions: {
-      temperature: 0.7,
-      top_p: 0.9,
-      max_output_tokens: 1024,
-      store: false,
-      include: ["reasoning.encrypted_content"],
-    },
-  });
-
-  return toServerSentEventsResponse(stream);
-}
-```
-
-> If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
-
-## Reasoning
-
-Want Grok to think harder? Set `reasoning` on `chat()`. It goes out as `reasoning.effort`, with a summary so the thinking text streams:
-
-```typescript
-import { chat } from "@tanstack/ai";
-import { grokText } from "@tanstack/ai-grok";
-
-const stream = chat({
-  adapter: grokText("grok-4.7"),
-  messages: [{ role: "user", content: "Plan a database migration." }],
-  reasoning: "xhigh",
-});
-```
-
-| Model | Levels |
-| --- | --- |
-| `grok-4.7`, `grok-4.6` | `low` to `xhigh` |
-| `grok-4.5` | `low`, `medium`, `high` |
-| `grok-4.3` | `off`, `low`, `medium`, `high` |
-
-`grok-build-0.1` and the `non-reasoning` models take no `reasoning`. `grok-4.20-reasoning` and `grok-4.1-fast-reasoning` take no `reasoning` either: they always think, and have no levels.
-
-## Summarization
-
-Summarize long text content:
-
-<!-- ignored: grokSummarize()'s resolved provider-options type sits in a
-     contravariant position in SummarizeAdapter, so it isn't assignable to
-     summarize()'s adapter param for any current Grok model. Tracked in #821;
-     un-ignore once the adapter type is corrected. -->
-
-```typescript ignore
-import { summarize } from "@tanstack/ai";
-import { grokSummarize } from "@tanstack/ai-grok";
-
-const result = await summarize({
-  adapter: grokSummarize("grok-4.3"),
-  text: "Your long text to summarize...",
-  maxLength: 100,
-  style: "concise", // "concise" | "bullet-points" | "paragraph"
-});
-
-console.log(result.summary);
-```
-
-## Image Generation
-
-Generate images with a Grok Imagine model.
-
-The image models (`grok-imagine-image`, `grok-imagine-image-2.0`,
-`grok-imagine-image-quality`) are aspect-ratio sized — `size` takes an
-`aspectRatio_resolution` template like `"16:9_2k"` (the `_2k` suffix is
-optional). `grok-imagine-image-2.0` is xAI's recommended model and adds a
-2.0-only `quality` provider option (`'low' | 'medium'`, default `'medium'`):
-
-```typescript
-import { generateImage } from "@tanstack/ai";
-import { grokImage } from "@tanstack/ai-grok";
-
-const result = await generateImage({
-  adapter: grokImage("grok-imagine-image-2.0"),
-  prompt: "A futuristic cityscape at sunset",
-  size: "16:9_2k",
-  modelOptions: { quality: "medium" },
-});
-```
-
-### Image Editing (image-to-image)
-
-The grok-imagine models accept image prompt parts for image-conditioned
-generation via xAI's `/v1/images/edits` endpoint — up to 3 source images,
-addressed by xAI in the order they appear in the prompt. Per xAI's docs
-there is no in-prompt referencing syntax; write the prompt naturally and
-your text is sent verbatim:
+- You can send up to 3 source images. xAI reads them in the order of the prompt.
+- xAI has no syntax to point to an image in the prompt. Write the prompt in plain words. Your text goes out without changes.
 
 ```typescript
 import { generateImage } from "@tanstack/ai";
@@ -304,45 +391,21 @@ const result = await generateImage({
 });
 ```
 
-URL sources are fetched by xAI's servers, so they must be publicly
-reachable; use a `data` source for private images.
+The servers of xAI fetch URL sources, so the URLs must be public. For a private image, use a `data` source.
 
-## Video Generation (Experimental)
+### Video options
 
-Generate short video clips (1–15 seconds, with audio) with the Grok Imagine video models via xAI's asynchronous jobs/polling API.
+#### Sizes
 
-Available models:
+The video `size` takes an `aspectRatio_resolution` template. The resolution part is optional.
 
-- `grok-imagine-video` (v1.0) — text-to-video, image-to-video, and source-video edit / extend, $0.05 per second of video.
-- `grok-imagine-video-1.5` — xAI's recommended default, $0.08 per second of video. Supports text-to-video (with native 1080p), image-to-video, and reference-to-video. It does not accept a source video.
+- Aspect ratios: `1:1`, `16:9`, `9:16`, `4:3`, `3:4`, `3:2`, and `2:3`.
+- Resolutions: `480p` and `720p`. `1080p` (for example `"9:16_1080p"`) works only on `grok-imagine-video-1.5` for text-to-video and image-to-video.
+- Price: `grok-imagine-video` costs $0.05 per second of video. `grok-imagine-video-1.5` costs $0.08 per second.
 
-Text-to-video:
+#### Image-to-video
 
-```typescript
-import { generateVideo, getVideoJobStatus } from "@tanstack/ai";
-import { grokVideo } from "@tanstack/ai-grok";
-
-const adapter = grokVideo("grok-imagine-video-1.5");
-
-// 1. Create the job
-const { jobId } = await generateVideo({
-  adapter,
-  prompt: "A red panda balancing on a bamboo stalk in the rain",
-  size: "16:9_720p", // "aspectRatio" or "aspectRatio_resolution"
-  duration: 5, // integer seconds, 1–15
-});
-
-// 2. Poll until complete, then read the video URL
-let status = await getVideoJobStatus({ adapter, jobId });
-while (status.status !== "completed" && status.status !== "failed") {
-  await new Promise((r) => setTimeout(r, 5000));
-  status = await getVideoJobStatus({ adapter, jobId });
-}
-
-console.log(status.url); // hosted .mp4 URL
-```
-
-For image-to-video, include an `image` prompt part as the starting frame and describe the desired motion in the text part. URL sources are fetched by xAI's servers (so they must be publicly reachable); use a `data` source for a base64 starting frame:
+Add an `image` prompt part as the first frame. Describe the motion in the text part. The servers of xAI fetch URL sources, so they must be public. For a base64 first frame, use a `data` source.
 
 ```typescript
 import { generateVideo } from "@tanstack/ai";
@@ -365,11 +428,14 @@ const { jobId } = await generateVideo({
 });
 ```
 
-Like the Grok Imagine image models, sizing is aspect-ratio based: the `size` option takes an `aspectRatio_resolution` template. Supported aspect ratios are `1:1`, `16:9`, `9:16`, `4:3`, `3:4`, `3:2`, and `2:3`; supported resolutions are `480p`, `720p`, and (on `grok-imagine-video-1.5` text-to-video / image-to-video only) `1080p` (e.g. `"9:16_1080p"`). The resolution suffix is optional.
+#### Reference-to-video
 
-### Reference-to-Video
+On `grok-imagine-video-1.5`, image parts with `metadata.role: 'reference'` (or `'character'`) become `reference_images`. They guide subjects and style, but do not lock the first frame. The prompt text names them `<IMAGE_0>`, `<IMAGE_1>`, and so on, in request order.
 
-On `grok-imagine-video-1.5`, image prompt parts with `metadata.role: 'reference'` (or `'character'`) become `reference_images` — they guide subjects and style without locking the first frame, and are addressed from the prompt text as `<IMAGE_0>`, `<IMAGE_1>`, … in request order. Preset TTS voices (up to 3) can be referenced for generated speech via `modelOptions.reference_audios`, addressed as `<AUDIO_0>`, `<AUDIO_1>`, `<AUDIO_2>`. Reference-to-video output is capped at 720p. A starting-frame image can be combined with reference inputs on 1.5: the start frame pins the opening frame while the references steer subjects, style, and voices. Reference inputs are a 1.5-only feature, so the adapter rejects them on `grok-imagine-video`:
+- `modelOptions.reference_audios` takes up to 3 preset TTS voices for generated speech. The prompt names them `<AUDIO_0>`, `<AUDIO_1>`, `<AUDIO_2>`.
+- You can add a first-frame image to the references. The first frame fixes the opening frame, and the references guide subjects, style, and voices.
+- The output of reference-to-video is at most 720p.
+- References work only on 1.5. The adapter rejects them on `grok-imagine-video`.
 
 ```typescript
 import { generateVideo } from "@tanstack/ai";
@@ -400,12 +466,12 @@ const { jobId } = await generateVideo({
 });
 ```
 
-### Video Editing and Extension
+#### Edit and extend a video
 
-`grok-imagine-video` (v1.0) can rewrite or continue an existing clip. `grok-imagine-video-1.5` has no video input — the adapter rejects a source-video part or `mode` on that model. Pass the source clip as a `video` prompt part and pick the mode with `modelOptions.mode`:
+`grok-imagine-video` (v1.0) can change or continue a clip. `grok-imagine-video-1.5` takes no video input, so the adapter rejects a source-video part or `mode` on that model. Pass the source clip as a `video` prompt part and pick the mode with `modelOptions.mode`:
 
-- `mode: 'edit'` posts to `/v1/videos/edits` — modifies only what the prompt asks for, keeping the rest of the clip intact. Duration, aspect ratio, and resolution are inherited from the source (capped at 720p), so the adapter rejects `size`, `aspect_ratio`, `resolution`, and `duration` in this mode rather than sending fields the API ignores.
-- `mode: 'extend'` posts to `/v1/videos/extensions` — continues the clip. `duration` is the length of the **added tail**, not the total: extending a 10-second clip with `duration: 5` yields 15 seconds. Output geometry is still inherited from the source, so `size` / `aspect_ratio` / `resolution` are rejected here too.
+- `mode: 'edit'` posts to `/v1/videos/edits`. It changes only what the prompt asks for. The clip keeps the duration, aspect ratio, and resolution of the source (at most 720p). So the adapter rejects `size`, `aspect_ratio`, `resolution`, and `duration` in this mode.
+- `mode: 'extend'` posts to `/v1/videos/extensions`. It continues the clip. `duration` is the length of the **added part**, not the total: extending a 10-second clip with `duration: 5` gives 15 seconds. The size still comes from the source, so the adapter rejects `size`, `aspect_ratio`, and `resolution`.
 
 ```typescript
 import { generateVideo } from "@tanstack/ai";
@@ -441,137 +507,27 @@ const extension = await generateVideo({
 });
 ```
 
-Both return the usual `{ jobId }` and are polled like any other Grok video job.
+Both return the usual `{ jobId }`. Poll them like any other Grok video job.
 
-When the job completes, the adapter reports usage on the result: `usage.billed` carries the billed seconds of video (`{ quantity, unit: 'seconds' }`) and `usage.cost` the exact cost in USD, both as returned by the xAI API.
+When the job is complete, the result has the usage from the xAI API:
 
-See [Video Generation](../media/video-generation) for the full jobs/polling flow, streaming mode, and the `useGenerateVideo` hook.
+- `usage.billed`: the billed seconds of video (`{ quantity, unit: 'seconds' }`).
+- `usage.cost`: the exact cost in USD.
 
-## Text-to-Speech
+### API reference
 
-Generate speech with Grok TTS:
+Each factory pair has the same shape. The short factory reads `XAI_API_KEY` from the environment. The `create*` factory takes an explicit API key. Both take `model` as the first argument.
 
-```typescript
-import { generateSpeech } from "@tanstack/ai";
-import { grokSpeech } from "@tanstack/ai-grok";
+| Factories | Creates |
+| --- | --- |
+| `grokText(model, config?)` / `createGrokText(model, apiKey, config?)` | Text adapter |
+| `grokSummarize(model, config?)` / `createGrokSummarize(model, apiKey, config?)` | Summarization adapter |
+| `grokImage(model, config?)` / `createGrokImage(model, apiKey, config?)` | Image adapter |
+| `grokVideo(model, config?)` / `createGrokVideo(model, apiKey, config?)` | Video adapter for the Grok Imagine video models. Experimental |
+| `grokSpeech(model, config?)` / `createGrokSpeech(model, apiKey, config?)` | Text-to-speech adapter |
+| `grokTranscription(model, config?)` / `createGrokTranscription(model, apiKey, config?)` | Speech-to-text adapter |
+| `grokFiles` / `createGrokFiles` | Files API adapter. See [Files API](../advanced/files-api) |
+| `grokRealtime(...)` / `grokRealtimeToken(...)` | Realtime voice adapter and token issuer. See [Realtime Voice Chat](../media/realtime-chat) |
+| `grokVertexText` / `grokVertexSummarize` | Text and summarize adapters on Vertex. Import from `@tanstack/ai-grok/vertex` |
 
-const result = await generateSpeech({
-  adapter: grokSpeech("grok-tts"),
-  text: "Hello from Grok!",
-  voice: "default",
-  format: "mp3",
-});
-
-console.log(result.audio); // Base64-encoded audio
-```
-
-## Transcription
-
-Transcribe audio with Grok STT:
-
-```typescript
-import { generateTranscription } from "@tanstack/ai";
-import { grokTranscription } from "@tanstack/ai-grok";
-import { audioFile } from "./audio";
-
-const result = await generateTranscription({
-  adapter: grokTranscription("grok-stt"),
-  audio: audioFile,
-});
-
-console.log(result.text);
-```
-
-## Realtime Voice
-
-Grok also exposes a Realtime voice adapter (`grokRealtime`) and a token issuer (`grokRealtimeToken`) for low-latency voice conversations. The default model is `grok-voice-think-fast-2.0` (xAI's current recommended speech-to-speech model); `grok-voice-latest` always points at the newest model. See [Realtime Voice Chat](../media/realtime-chat) for the end-to-end flow.
-
-## Environment Variables
-
-Set your API key in environment variables:
-
-```bash
-XAI_API_KEY=xai-...
-```
-
-## Implementation Notes
-
-### Responses API
-
-The Grok text and summarize adapters use xAI's **Responses API** (`/v1/responses`). Requests default to `store: false` and include encrypted reasoning content with `include: ["reasoning.encrypted_content"]`; both can be overridden through `modelOptions`.
-
-The shared Responses implementation supports streaming text, reasoning events, structured output via `text.format`, and user-defined function tools.
-
-## API Reference
-
-### `grokText(model, config?)`
-
-Creates a Grok text adapter using environment variables.
-
-`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
-
-**Parameters:**
-
-- `model` - The model name (`'grok-4.3'` or `'grok-build-0.1'`)
-- `config.baseURL?` - Custom base URL (optional)
-
-**Returns:** A Grok text adapter instance.
-
-### `createGrokText(model, apiKey, config?)`
-
-Creates a Grok text adapter with an explicit API key.
-
-**Parameters:**
-
-- `model` - The model name
-- `apiKey` - Your xAI API key
-- `config.baseURL?` - Custom base URL (optional)
-
-**Returns:** A Grok text adapter instance.
-
-### `grokSummarize(model, config?)`
-
-Creates a Grok summarization adapter using environment variables.
-
-**Returns:** A Grok summarize adapter instance.
-
-### `createGrokSummarize(model, apiKey, config?)`
-
-Creates a Grok summarization adapter with an explicit API key.
-
-**Returns:** A Grok summarize adapter instance.
-
-### `grokImage(model, config?)` / `createGrokImage(model, apiKey, config?)`
-
-Creates a Grok image generation adapter.
-
-### `grokVideo(model, config?)` / `createGrokVideo(model, apiKey, config?)`
-
-Creates a Grok video generation adapter (experimental) for the Grok Imagine video models (`'grok-imagine-video'`, `'grok-imagine-video-1.5'`).
-
-### `grokSpeech(model, config?)` / `createGrokSpeech(model, apiKey, config?)`
-
-Creates a Grok text-to-speech adapter.
-
-### `grokTranscription(model, config?)` / `createGrokTranscription(model, apiKey, config?)`
-
-Creates a Grok speech-to-text adapter.
-
-### `grokRealtime(...)` / `grokRealtimeToken(...)`
-
-Realtime voice adapter and token issuer. See [Realtime Voice Chat](../media/realtime-chat) for usage.
-
-## Next Steps
-
-- [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../tools/tools) - Learn about tools
-- [Other Adapters](./openai) - Explore other providers
-
-## Provider Tools
-
-Grok does not currently expose provider-specific tool factories.
-Define your own tools with `toolDefinition()` from `@tanstack/ai`.
-
-See [Tools](../tools/tools.md) for the general tool-definition flow, or
-[Provider Tools](../tools/provider-tools.md) for other providers'
-native-tool offerings.
+`config.baseURL` sets a custom base URL. `adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know.

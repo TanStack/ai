@@ -2,7 +2,7 @@
 title: Custom Adapter
 id: memory-custom-adapter
 order: 4
-description: "Write a recall/save MemoryAdapter for a backend that isn't shipped, such as pgvector, MongoDB, DynamoDB, or a hosted memory service. Two methods, one shared contract test."
+description: "Write a recall/save MemoryAdapter for a backend that TanStack AI does not ship, such as pgvector, MongoDB, DynamoDB, or a hosted memory service. Two methods, one shared contract test."
 keywords:
   - tanstack ai
   - memory
@@ -14,54 +14,18 @@ keywords:
   - contract suite
 ---
 
-You have a backend in mind (pgvector, MongoDB, DynamoDB, a hosted memory API) and the
-built-in `inMemory()` / `redis()` adapters don't fit. A memory adapter is just an object
-with two methods, `recall` and `save`, so this is a short guide.
+Your memory must live in pgvector, MongoDB, DynamoDB, or a hosted memory API, and the built-in adapters do not fit. Write your own adapter. It is an object with two methods, `recall` and `save`.
 
-> **First time looking at memory?** Start with the [Overview](./overview) for what the
-> contract is and how the middleware uses it.
+This page builds a pgvector adapter. The same shape works for any backend.
 
-## The contract
+## Quick setup
 
-```ts
-// The MemoryAdapter contract, from `@tanstack/ai-memory`:
-import type { MemoryAdapter } from '@tanstack/ai-memory'
-```
+### 1. Write the adapter
+
+`save` stores the turn. `recall` returns the records that match the query, as a prompt block:
 
 ```ts
-// The shape of the contract, shown for reference.
-import type {
-  MemoryFact,
-  MemoryScope,
-  MemorySnapshot,
-  MemoryTurn,
-  RecallResult,
-  SaveReceipt,
-} from '@tanstack/ai-memory'
-
-interface MemoryAdapter {
-  id: string
-  recall(scope: MemoryScope, query: string): Promise<RecallResult>
-  save(scope: MemoryScope, turn: MemoryTurn): Promise<Array<SaveReceipt>>
-  inspect?(scope: MemoryScope): Promise<MemorySnapshot> // optional (devtools)
-  listFacts?(scope: MemoryScope): Promise<Array<MemoryFact>> // optional (devtools)
-}
-```
-
-Two rules the middleware relies on:
-
-1. **`recall` decides relevance.** Return a rendered `systemPrompt` (empty string when
-   there's nothing), plus optional `fragments`, `tools`, and `toolGuidance`. Ranking
-   strategy is entirely yours: lexical, vector, hybrid, or vendor-native.
-2. **`save` owns extraction.** Turn the `{ user, assistant }` turn into whatever you
-   persist. Return one `SaveReceipt` per underlying write.
-
-Scope isolation is your responsibility: a `recall` for one `scope` must never surface
-another scope's data.
-
-## Step 1: Scaffold
-
-```ts
+// pgvector.ts
 import type {
   MemoryAdapter,
   MemoryScope,
@@ -79,7 +43,7 @@ type Pool = {
   ) => Promise<{ rows: Array<{ text: string }> }>
 }
 
-// Your embedding client. Swap in OpenAI, Cohere, a local model, etc.
+// Your embedding client. Swap in OpenAI, Cohere, a local model, and more.
 type Embed = (text: string) => Promise<Array<number>>
 
 export function pgvectorMemory(options: { pool: Pool; embed: Embed }): MemoryAdapter {
@@ -112,8 +76,8 @@ export function pgvectorMemory(options: { pool: Pool; embed: Embed }): MemoryAda
 
     async recall(scope: MemoryScope, query: string): Promise<RecallResult> {
       const q = await embed(query)
-      // Match every isolation dim exactly (including NULL). Omitted tenant/user
-      // must not match rows written with a tenant/user set.
+      // Match every isolation field exactly (including NULL). An omitted
+      // tenant or user must not match rows written with a tenant or user.
       const { rows } = await pool.query(
         `SELECT text, 1 - (embedding <=> $1::vector) AS score
            FROM memory
@@ -139,15 +103,9 @@ export function pgvectorMemory(options: { pool: Pool; embed: Embed }): MemoryAda
 }
 ```
 
-The shape generalizes: every method takes a `scope`, does its backend-specific work,
-and keeps scopes isolated. For a backend without native search, load the scope's
-records and rank them yourself.
+### 2. Run the contract suite
 
-## Step 2: Run the contract suite
-
-`@tanstack/ai-memory/testkit` exports `runMemoryAdapterContract`. `inMemory` and `redis`
-run this suite. Point it at a factory that returns a fresh adapter. It verifies the save then recall round-trip, scope
-isolation, empty recall, receipt shape, and the optional introspection methods.
+`runMemoryAdapterContract` from `@tanstack/ai-memory/testkit` is a Vitest suite. Give it a factory that returns a fresh adapter:
 
 ```ts ignore
 // ignore: imports the `../src/pgvector` module you wrote in Step 1.
@@ -161,13 +119,23 @@ runMemoryAdapterContract('pgvectorMemory', async () => {
 })
 ```
 
-## Step 3: Wire it into `memoryMiddleware`
+The suite checks:
 
-Once the suite is green, the adapter is interchangeable with the built-ins:
+- A saved turn comes back in a later `recall`.
+- `recall` on an empty scope returns an empty prompt.
+- `recall` never returns data from another `threadId`, `userId`, or `tenantId`.
+- `save` returns at least one receipt with `ok: true`.
+- `inspect` and `listFacts`, if you add them, return well-formed data.
+
+`inMemory()` and `redis()` run the same suite.
+
+### 3. Add it to `memoryMiddleware`
+
+When the suite passes, use your adapter like a built-in one:
 
 ```ts ignore
 // ignore: imports the `./pgvector` module you wrote in Step 1, and assumes
-// `messages` / `scope` from your app.
+// `pool`, `embed`, `messages`, and `scope` from your app.
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { memoryMiddleware } from '@tanstack/ai-memory'
@@ -176,34 +144,63 @@ import { pgvectorMemory } from './pgvector'
 const memory = pgvectorMemory({ pool, embed })
 
 const stream = chat({
-  adapter: openaiText('gpt-5.5'),
+  adapter: openaiText('gpt-6.1-sol'),
   messages,
   middleware: [memoryMiddleware({ adapter: memory, scope })],
 })
 ```
 
-The middleware never inspects the adapter's internals. `recall`/`save` is the entire
-interface.
+Your backend now gives memory to every chat that uses this middleware.
 
-## Exposing tools (optional)
+## How it works
 
-`recall` can return `tools` and `toolGuidance` to give the model direct control over
-memory (this is how the `hindsight()` adapter exposes retain/recall/reflect tools). The
-middleware merges them into the run's tools and injects the guidance ahead of the
-recalled prompt. Return `tools: []` (or omit it) when your adapter exposes none.
+The middleware calls only the adapter methods. It never reads your records.
 
-## Pitfalls
+```ts
+// The shape of the contract, shown for reference.
+import type {
+  MemoryFact,
+  MemoryScope,
+  MemorySnapshot,
+  MemoryTurn,
+  RecallResult,
+  SaveReceipt,
+} from '@tanstack/ai-memory'
 
-- **Keep scopes isolated.** If you serialize scope into a composite key, escape your
-  delimiter so a `threadId`/`userId`/`tenantId` containing it can't collide with another
-  scope.
-- **`recall` must not throw for an empty scope.** Return `{ systemPrompt: '' }`.
-- **Extraction lives in `save`.** Don't expect the middleware to derive facts. The raw
-  turn is handed to you; store or summarize it however you like.
+interface MemoryAdapter {
+  id: string
+  name?: string // optional label for logs, defaults to id
+  recall(scope: MemoryScope, query: string): Promise<RecallResult>
+  save(scope: MemoryScope, turn: MemoryTurn): Promise<Array<SaveReceipt>>
+  inspect?(scope: MemoryScope): Promise<MemorySnapshot> // optional (devtools)
+  listFacts?(scope: MemoryScope): Promise<Array<MemoryFact>> // optional (devtools)
+}
+```
 
-## Where to go next
+| Member | What it does |
+| --- | --- |
+| `id` | A stable name for logs and devtools. |
+| `name` | Optional. A readable label for logs. The default is `id`. |
+| `recall(scope, query)` | Decides what is relevant. Returns a rendered `systemPrompt` (an empty string when there is nothing), plus optional `fragments`, `tools`, and `toolGuidance`. You choose the ranking: lexical, vector, hybrid, or what your vendor gives. |
+| `save(scope, turn)` | Owns extraction. Turns the `{ user, assistant }` turn into what you store. Returns one `SaveReceipt` per write. |
+| `inspect(scope)` | Optional. A full snapshot for the devtools panel. |
+| `listFacts(scope)` | Optional. A flat fact list for the devtools panel. |
 
-- [Overview](./overview): the `recall`/`save` contract, scope, and how a turn flows
-- [Adapters](./adapters): the built-in and vendor adapters, with every option
-- [Quickstart](./quickstart): wire `memoryMiddleware` into a real `chat()` call
-- [Operating memory](./operating): options, telemetry, devtools events, and failures
+Your adapter owns scope isolation. A `recall` for one scope must never return data from another scope.
+
+## Advanced
+
+### Give the model memory tools
+
+`recall` can return `tools` and `toolGuidance`. Then the model can read or write memory itself. The `hindsight()` adapter uses this for its retain, recall, and reflect tools.
+
+- The middleware adds your tools to the tools of the run. It skips a tool when the run already has a tool with the same name.
+- The middleware puts `toolGuidance` in the system prompts before the recalled `systemPrompt`.
+- If your adapter has no tools, return `tools: []` or leave it out.
+
+### Pitfalls
+
+- **Keep scopes isolated.** If you put the scope into one composite key, escape the delimiter. Then a `threadId`, `userId`, or `tenantId` that contains the delimiter cannot match another scope.
+- **Do not throw for an empty scope.** Return `{ systemPrompt: '' }` from `recall`.
+- **Do extraction in `save`.** The middleware does not derive facts. It gives you the raw turn. Store it or summarize it as you need.
+- **Backends without search.** Load the records of the scope and rank them in your code.

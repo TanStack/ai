@@ -2,7 +2,7 @@
 title: "@tanstack/ai-angular"
 id: ai-angular
 order: 6
-description: "API reference for @tanstack/ai-angular — Angular signal-based injectables including injectChat for streaming chat with full type safety."
+description: "API reference for @tanstack/ai-angular: the injectChat injectable, generation injectables, and Angular signal bindings for the headless TanStack AI client."
 keywords:
   - tanstack ai
   - "@tanstack/ai-angular"
@@ -13,9 +13,7 @@ keywords:
   - api reference
 ---
 
-Angular signal-based bindings for TanStack AI, providing convenient Angular bindings for the headless client.
-
-> **Injection context requirement:** Every `inject*` function in this package calls Angular's `inject()` internally. They **must** be called within an Angular injection context — a component or directive class field initializer, the constructor, or inside `runInInjectionContext`. Calling them outside an injection context will throw a runtime error.
+Angular injectables for TanStack AI, built on signals. To build your first chat, start with the [Quick Start](../getting-started/quick-start). For a typed chat layout, see [Angular Chat UI](../ui/angular).
 
 ## Installation
 
@@ -25,244 +23,57 @@ angular: @tanstack/ai-angular
 
 <!-- ::end:tabs -->
 
-## `injectRegisterWebMCPTools(tools, options?)`
-
-Register executable client tools for the current Angular injection owner. Angular removes them when it destroys that owner.
-
-For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
+> [!WARNING]
+> Call every `inject*` function in an Angular injection context: a class field initializer, the constructor, or `runInInjectionContext`. Outside one, the call throws.
 
 ```typescript
-import { Component } from "@angular/core";
-import {
-  injectRegisterWebMCPTools,
-  type InjectRegisterWebMCPToolsOptions,
-} from "@tanstack/ai-angular";
-import { searchProducts } from "./tools";
-
-const tools = [searchProducts];
-const options: InjectRegisterWebMCPToolsOptions<typeof tools> = {
-  onError(error) {
-    console.error(error);
-  },
-};
-
-@Component({ selector: "app-products", standalone: true, template: "" })
-export class ProductsComponent {
-  registration = injectRegisterWebMCPTools(tools, options);
-}
-```
-
-`InjectRegisterWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The injectable owns the registration signal.
-
-The `context` field is required when a tool declares a required runtime context. Call this function only in an Angular injection context.
-
-## `injectPageWebMCPTools(options?)`
-
-Read the WebMCP tools on the page as client tools. The signal starts empty and updates when the page adds or removes a tool. Pass the signal to `injectChat` as `tools`. Call it in an injection context.
-
-```ts
-import { Component } from "@angular/core";
-import { injectPageWebMCPTools } from "@tanstack/ai-angular";
-
-@Component({ selector: "app-page-tools", standalone: true, template: "" })
-export class PageTools {
-  pageTools = injectPageWebMCPTools({
-    filter: (tool) => tool.origin === location.origin,
-  });
-}
-```
-
-`filter` skips a tool when it returns `false`. `onError` gets a failed WebMCP read. For a complete guide, see [Page WebMCP Tools in Chat](../tools/webmcp-page-tools).
-
-## `injectChat(options?)`
-
-Main injectable for managing chat state in Angular with full type safety.
-
-```typescript
-import { Component } from "@angular/core";
+import { Injector, inject, runInInjectionContext } from "@angular/core";
 import { injectChat, fetchServerSentEvents } from "@tanstack/ai-angular";
 
-@Component({
-  selector: "app-chat",
-  standalone: true,
-  template: `...`,
-})
-export class ChatComponent {
-  // injectChat is called in a field initializer — valid injection context.
-  chat = injectChat({
-    connection: fetchServerSentEvents("/api/chat"),
-  });
-}
-```
+export class MyComponent {
+  // Field initializer
+  chat = injectChat({ connection: fetchServerSentEvents("/api/chat") });
 
-### Options
+  private injector = inject(Injector);
 
-Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state callbacks):
-
-- `connection` - Connection adapter (required, or use `fetcher`)
-- `fetcher?` - Direct async function for one-shot generation (alternative to `connection`)
-- `tools?` - Array of client tool implementations (with `.client()` method). Reactive: pass a `Signal` or getter to change the tools after the chat is created.
-- `initialMessages?` - Initial messages array
-- `threadId?` - The only identity for this chat. Required when persistence is on. If omitted, minted after mount.
-- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field. Reactive — accepts a plain value, an Angular `Signal`, or a zero-arg getter; changes sync automatically via `effect`
-- `byok?` - Optional BYOK keyring from `defineByok`. On each send the client prepares the resolved provider and stamps `x-byok-*` request headers. Keys never go in the body
-- `byokProvider?` - Optional function that returns the provider slug for this chat. If it returns a slug, only that key is prepared and sent. Otherwise the merged `provider` from `forwardedProps` and per-call `sendMessage` `body` is used. Later sources win. If no slug resolves, the send throws instead of attaching every stored key
-- `context?` - Typed client-local runtime context passed to client tool implementations. Reactive (same forms). This value is not serialized to the server
-- `live?` - Enable live subscription mode (auto-subscribes/unsubscribes). Reactive (same forms)
-- `outputSchema?` - Standard-schema-compatible schema (Zod, Valibot, ArkType, or JSON Schema). When provided, adds typed `partial` and `final` signals to the return value
-- `persistence?` - Persistence configuration
-- `devtools?` - Display options for TanStack AI Devtools
-- `onResponse?` - Callback when response is received
-- `onChunk?` - Callback when stream chunk is received
-- `onFinish?` - Callback when response finishes
-- `onError?` - Callback when error occurs
-- `onInterruptStateChange?` - Callback when interrupt state changes; context source is `hydrate` for restored state and `live` for streamed or client-initiated updates
-- `onCustomEvent?` - Callback for custom stream events
-- `streamProcessor?` - Stream processing configuration
-
-**Reactive options** (`forwardedProps`, `context`, `live`) accept a `ReactiveOption<T>`, which is one of:
-
-```typescript
-import type { Signal } from "@angular/core";
-
-type ReactiveOption<T> = T | Signal<T> | (() => T);
-```
-
-A plain value becomes a constant; a `Signal` is read directly; a zero-arg getter is wrapped in `computed` so any signals read inside it are tracked.
-
-**Note:** Client tools are automatically executed — no `onToolCall` callback needed!
-
-### Returns
-
-```typescript
-import type { Signal } from "@angular/core";
-import type {
-  UIMessage,
-  MultimodalContent,
-  DeepPartial,
-} from "@tanstack/ai-angular";
-import type { ModelMessage, InferSchemaType } from "@tanstack/ai/client";
-import type {
-  BoundInterrupts,
-  ChatClientState,
-  ConnectionStatus,
-  SendMessageOptions,
-} from "@tanstack/ai-client";
-type TSchema = any;
-
-interface InjectChatResult {
-  messages: Signal<ReadonlyArray<UIMessage>>;
-  sendMessage: (
-    content: string | MultimodalContent,
-    options?: SendMessageOptions,
-  ) => Promise<void>;
-  append: (message: ModelMessage | UIMessage) => Promise<void>;
-  addToolResult: (result: {
-    toolCallId: string;
-    tool: string;
-    output: any;
-    state?: "output-available" | "output-error";
-    errorText?: string;
-  }) => Promise<void>;
-  interrupts: Signal<BoundInterrupts>;
-  reload: () => Promise<void>;
-  stop: () => void;
-  clear: () => void;
-  setMessages: (messages: ReadonlyArray<UIMessage>) => void;
-  isLoading: Signal<boolean>;
-  error: Signal<Error | undefined>;
-  status: Signal<ChatClientState>;
-  isSubscribed: Signal<boolean>;
-  connectionStatus: Signal<ConnectionStatus>;
-  sessionGenerating: Signal<boolean>;
-  isHydrating: Signal<boolean>;
-  // Only present when outputSchema is supplied:
-  partial: Signal<DeepPartial<InferSchemaType<TSchema>>>;
-  final: Signal<InferSchemaType<TSchema> | null>;
-}
-```
-
-**Note:** All reactive state (`messages`, `isLoading`, `error`, `status`, `isSubscribed`, `connectionStatus`, `sessionGenerating`, `isHydrating`) is exposed as read-only Angular `Signal`s. Read them by calling them as functions (e.g., `chat.messages()`, `chat.isLoading()`). Cleanup is automatic via `DestroyRef.onDestroy`.
-
-## `injectByok(client)`
-
-Subscribe to a `ByokClient` snapshot in Angular. Call it in an injection context. The return value is a read-only `Signal`.
-
-```typescript
-import { Component } from "@angular/core";
-import { injectByok } from "@tanstack/ai-angular";
-import { byok } from "./byok";
-
-@Component({
-  selector: "app-key-status",
-  standalone: true,
-  template: `<p>{{ last4() }}</p>`,
-})
-export class KeyStatusComponent {
-  snapshot = injectByok(byok);
-
-  last4() {
-    const openai = this.snapshot().status.openai;
-    return openai && "masked" in openai ? openai.masked : "No key";
+  // Later, outside the constructor
+  openSecondChat() {
+    return runInInjectionContext(this.injector, () =>
+      injectChat({ connection: fetchServerSentEvents("/api/chat") }),
+    );
   }
 }
 ```
 
-`snapshot()` has `status`, `locked`, and `prompt`. Call `byok.update(provider, value)` from your own UI to save a key. See [Bring Your Own Key](../advanced/byok).
+## `injectChat(options)`
 
-## Connection Adapters
-
-Re-exported from `@tanstack/ai-client` for convenience:
-
-```typescript
-import {
-  fetchServerSentEvents,
-  fetchHttpStream,
-  fetchJson,
-  xhrServerSentEvents,
-  xhrHttpStream,
-  stream,
-  rpcStream,
-  type ConnectionAdapter,
-} from "@tanstack/ai-angular";
-```
-
-## Example: Basic Chat
+Holds the messages and the run state of one chat, and talks to your server route.
 
 ```typescript
 import { Component } from "@angular/core";
-import { CommonModule } from "@angular/common";
 import { injectChat, fetchServerSentEvents } from "@tanstack/ai-angular";
 
 @Component({
   selector: "app-chat",
   standalone: true,
-  imports: [CommonModule],
   template: `
-    <ul>
-      @for (message of chat.messages(); track message.id) {
-        <li>
-          <strong>{{ message.role }}:</strong>
-          @for (part of message.parts; track $index) {
-            @if (part.type === 'thinking') {
-              <em>Thinking: {{ part.content }}</em>
-            } @else if (part.type === 'text') {
-              <span>{{ part.content }}</span>
-            }
+    @for (message of chat.messages(); track message.id) {
+      <p>
+        <strong>{{ message.role }}:</strong>
+        @for (part of message.parts; track $index) {
+          @if (part.type === 'text') {
+            <span>{{ part.content }}</span>
           }
-        </li>
-      }
-    </ul>
-    <input #input placeholder="Type a message..." />
+        }
+      </p>
+    }
+    <input #input />
     <button
       (click)="chat.sendMessage(input.value); input.value = ''"
       [disabled]="chat.isLoading()"
     >
       Send
     </button>
-    @if (chat.isLoading()) {
-      <p>Thinking...</p>
-    }
   `,
 })
 export class ChatComponent {
@@ -272,9 +83,75 @@ export class ChatComponent {
 }
 ```
 
-## Example: Tool Approval
+### Options
 
-Pending approvals show up in `interrupts`. Pass the shared tool definition to `tools` so each item is typed. Then call `resolveInterrupt` with the decision.
+You must pass `connection` or `fetcher`, not both.
+
+| Option | What it does |
+| --- | --- |
+| `connection` | Connection adapter, for example `fetchServerSentEvents("/api/chat")`. See [Transports](../transports/overview). |
+| `fetcher` | A function that returns a `Response` or a stream. Use it with server functions. |
+| `tools` | Client tools from `.client()`. They run when the model calls them. Reactive. See [Client Tools](../tools/client-tools). |
+| `threadId` | The id of this chat. Required when `persistence` is on. If you omit it, the injectable makes one after mount. |
+| `initialMessages` | The messages to show first. |
+| `forwardedProps` | JSON sent to the server in the AG-UI `forwardedProps` field, for example `{ model: "gpt-6.1-sol" }`. Reactive. |
+| `persistence` | `true` to load the thread from the server, or a storage adapter. See [Chat Persistence](../persistence/chat-persistence). |
+| `outputSchema` | A Standard Schema. Adds typed `partial` and `final` signals to the return value. See [Streaming structured output](../structured-outputs/streaming). |
+| `context` | Client-only runtime context for client tools. It is not sent to the server. Reactive. |
+| `live` | Subscribe while `live` is `true`. Reactive. |
+| `queue` | What `sendMessage` does while a run is busy. Default: queue the message. See [Queueing](../chat/queueing). |
+| `interrupts` | Definitions from `defineInterrupt()`. See [Interrupts](../interrupts/overview). |
+| `byok`, `byokProvider` | A keyring from `defineByok()`. See [Bring Your Own Key](../advanced/byok). |
+| `devtools` | Display options for TanStack AI Devtools. |
+
+The injectable also takes the `ChatClient` callbacks (`onResponse`, `onChunk`, `onFinish`, `onError`, `onInterruptStateChange`, `onCustomEvent`) and the other client options. See [`ChatClient` options](./ai-client#constructor-options).
+
+A reactive option is a `ReactiveOption<T>`: a plain value, a `Signal<T>`, or a getter `() => T`. A getter runs in `computed`, so the signals it reads are tracked. A change updates the current chat.
+
+```typescript
+import { Component, signal } from "@angular/core";
+import { injectChat, fetchServerSentEvents } from "@tanstack/ai-angular";
+
+@Component({ selector: "app-model-chat", standalone: true, template: "" })
+export class ModelChatComponent {
+  model = signal("gpt-6.1-sol");
+
+  chat = injectChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    forwardedProps: () => ({ model: this.model() }),
+  });
+}
+```
+
+### Returns
+
+State values are read-only Angular `Signal`s. Call them to read the value, for example `chat.messages()`. Cleanup runs in `DestroyRef.onDestroy`.
+
+| Field | What it is |
+| --- | --- |
+| `messages` | The `UIMessage` array of the chat. |
+| `sendMessage(content, options?)` | Sends a user message. `content` is a string or `{ content, id?, metadata? }`. `options` takes `whenBusy` and `body`. |
+| `isLoading` | `true` while a response streams. |
+| `error` | The last error, or `undefined`. |
+| `status` | `"ready"`, `"submitted"`, `"streaming"`, or `"error"`. |
+| `stop()` | Stops the current response. |
+| `reload()` | Runs the last user message again. |
+| `append(message)` | Adds a `UIMessage` or `ModelMessage` and starts a run. |
+| `addToolResult(result)` | Gives the result of a client tool by hand: `{ toolCallId, tool, output, state?, errorText? }`. |
+| `setMessages(messages)`, `clear()` | Replace or clear the messages. |
+| `queue`, `cancelQueued(id)` | Messages that wait while a run is busy. See [Queueing](../chat/queueing). |
+| `runId` | The id of the run in flight, or `null`. |
+| `interrupts` | Pending interrupts. Each item has `resolveInterrupt(...)`. See [Interrupts](../interrupts/overview). |
+| `resolveInterrupts`, `cancelInterrupts`, `retryInterrupts`, `resumeInterruptsUnsafe` | Act on all pending interrupts at once. |
+| `interruptErrors`, `resuming` | Errors from the last resume, and `true` while a resume runs. |
+| `isHydrating` | `true` while the chat loads from persistence. |
+| `hasOlderMessages`, `loadOlderMessages()` | Page in older messages. See [Chat Persistence](../persistence/chat-persistence). |
+| `isSubscribed`, `connectionStatus`, `sessionGenerating` | State of the live subscription. |
+| `partial`, `final` | Structured output. Only when you pass `outputSchema`. |
+
+### Example: tool approval
+
+A tool with `needsApproval: true` pauses the run. The pending call shows up in `interrupts`.
 
 ```typescript
 import { Component } from "@angular/core";
@@ -312,353 +189,158 @@ export class ApprovalChatComponent {
 }
 ```
 
-## Example: Client Tools with Type Safety
+See [Tool Approval](../interrupts/tool-approval) for the server side.
+
+## `createChatHook(options)`
+
+This package does not export `createChatHook` from its main entry. `@tanstack/ai-angular/ui` has a `createChatHook` that binds chat options and typed UI components. See [Angular Chat UI](../ui/angular).
+
+## Generation hooks
+
+Each injectable runs one generation request and keeps its result. See [Generation Hooks](../media/generation-hooks).
+
+| Injectable | `generate()` input | `result` |
+| --- | --- | --- |
+| `injectGenerateImage` | `ImageGenerateInput` | `ImageGenerationResult` |
+| `injectGenerateAudio` | `AudioGenerateInput` | `AudioGenerationResult` |
+| `injectGenerateSpeech` | `SpeechGenerateInput` | `TTSResult` |
+| `injectTranscription` | `TranscriptionGenerateInput` | `TranscriptionResult` |
+| `injectSummarize` | `SummarizeGenerateInput` | `SummarizationResult` |
+| `injectGenerateVideo` | `VideoGenerateInput` | `VideoGenerateResult` |
+| `injectGeneration` | Your own input type | Your own result type |
 
 ```typescript
 import { Component } from "@angular/core";
-import { CommonModule } from "@angular/common";
-import { injectChat, fetchServerSentEvents } from "@tanstack/ai-angular";
-import {
-  createChatClientOptions,
-  type InferChatMessages,
-} from "@tanstack/ai-client";
-import { toolDefinition } from "@tanstack/ai";
-import { z } from "zod";
-
-const updateUIDef = toolDefinition({
-  name: "updateUI",
-  description: "Show a notification in the UI",
-  inputSchema: z.object({ message: z.string(), type: z.string() }),
-});
-
-const saveToStorageDef = toolDefinition({
-  name: "saveToStorage",
-  description: "Save a value to localStorage",
-  inputSchema: z.object({ key: z.string(), value: z.string() }),
-});
-
-@Component({
-  selector: "app-typed-chat",
-  standalone: true,
-  imports: [CommonModule],
-  template: `
-    @for (message of chat.messages(); track message.id) {
-      @for (part of message.parts; track $index) {
-        @if (part.type === 'tool-call' && part.name === 'updateUI') {
-          <div>Tool executed: {{ part.name }}</div>
-        }
-      }
-    }
-  `,
-})
-export class TypedChatComponent {
-  // Create client implementations
-  private updateUI = updateUIDef.client((input) => {
-    // input is fully typed!
-    return { success: true };
-  });
-
-  private saveToStorage = saveToStorageDef.client((input) => {
-    localStorage.setItem(input.key, input.value);
-    return { saved: true };
-  });
-
-  // Create typed tools array (no 'as const' needed!)
-  private tools = [this.updateUI, this.saveToStorage];
-
-  chat = injectChat({
-    connection: fetchServerSentEvents("/api/chat"),
-    tools: this.tools, // Automatic execution, full type safety
-  });
-}
-```
-
-## Example: Reactive Options with Signals
-
-```typescript
-import { Component, signal } from "@angular/core";
-import { injectChat, fetchServerSentEvents } from "@tanstack/ai-angular";
-
-@Component({
-  selector: "app-reactive-chat",
-  standalone: true,
-  template: `
-    <button (click)="toggleLanguage()">Toggle Language</button>
-    @for (message of chat.messages(); track message.id) {
-      <p>{{ message.role }}: {{ message.parts[0]?.content }}</p>
-    }
-  `,
-})
-export class ReactiveChatComponent {
-  language = signal("en");
-
-  // forwardedProps is reactive — the signal is read on every request
-  chat = injectChat({
-    connection: fetchServerSentEvents("/api/chat"),
-    forwardedProps: () => ({ language: this.language() }),
-  });
-
-  toggleLanguage() {
-    this.language.set(this.language() === "en" ? "fr" : "en");
-  }
-}
-```
-
-## Example: Structured Output
-
-```typescript
-import { Component } from "@angular/core";
-import { injectChat, fetchServerSentEvents } from "@tanstack/ai-angular";
-import { z } from "zod";
-
-const recipeSchema = z.object({
-  title: z.string(),
-  ingredients: z.array(z.string()),
-  steps: z.array(z.string()),
-});
-
-@Component({
-  selector: "app-recipe-chat",
-  standalone: true,
-  template: `
-    <button (click)="chat.sendMessage('Give me a pasta recipe')">Ask</button>
-    @if (chat.partial().title) {
-      <h2>{{ chat.partial().title }}</h2>
-    }
-    @if (chat.final()) {
-      <ul>
-        @for (step of chat.final()!.steps; track $index) {
-          <li>{{ step }}</li>
-        }
-      </ul>
-    }
-  `,
-})
-export class RecipeChatComponent {
-  chat = injectChat({
-    connection: fetchServerSentEvents("/api/chat"),
-    outputSchema: recipeSchema,
-  });
-}
-```
-
-## Generation Injectables
-
-Angular injectables for one-shot generation tasks (images, audio, speech, transcription, summarization, video). All share the same pattern: provide a `connection` or `fetcher`, call `generate()`, and read reactive signals.
-
-### `injectGeneration(options)`
-
-Base injectable for custom generation types. All specialized injectables below are built on this.
-
-```typescript
-import { Component } from "@angular/core";
-import { injectGeneration } from "@tanstack/ai-angular";
-import { fetchServerSentEvents } from "@tanstack/ai-client";
-
-@Component({ selector: "app-custom", standalone: true, template: `...` })
-export class CustomGenerationComponent {
-  gen = injectGeneration({
-    connection: fetchServerSentEvents("/api/generate/custom"),
-  });
-
-  // Call gen.generate(input), read gen.result(), gen.isLoading(), etc.
-}
-```
-
-**Options:** `connection?`, `fetcher?`, `threadId?`, `body?` (reactive), `devtools?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
-
-**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `runId`. All reactive state is a read-only `Signal<T>`.
-
-### `injectGenerateImage(options)`
-
-Image generation injectable. `generate()` accepts `ImageGenerateInput`, result is `ImageGenerationResult`.
-
-```typescript
-import { Component } from "@angular/core";
-import { injectGenerateImage } from "@tanstack/ai-angular";
-import { fetchServerSentEvents } from "@tanstack/ai-client";
+import { injectGenerateImage, fetchServerSentEvents } from "@tanstack/ai-angular";
 
 @Component({
   selector: "app-image",
   standalone: true,
   template: `
-    <button (click)="gen.generate({ prompt: 'A mountain at sunset' })" [disabled]="gen.isLoading()">
+    <button
+      (click)="image.generate({ prompt: 'A mountain at sunset' })"
+      [disabled]="image.isLoading()"
+    >
       Generate
     </button>
-    @if (gen.result()) {
-      <img [src]="gen.result()!.images[0]!.url" alt="Generated image" />
-    }
   `,
 })
 export class ImageComponent {
-  gen = injectGenerateImage({
+  image = injectGenerateImage({
     connection: fetchServerSentEvents("/api/generate/image"),
   });
 }
 ```
 
-### `injectGenerateAudio(options)`
+Options: `connection` or `fetcher`, `body` (reactive), `threadId`, `persistence`, `byok`, `byokProvider`, `devtools`, `onResult`, `onError`, `onProgress`, `onChunk`.
 
-Audio generation injectable (music, sound effects). `generate()` accepts `AudioGenerateInput`, result is `AudioGenerationResult`.
+Returns: `generate(input)`, `result`, `isLoading`, `error`, `status`, `stop()`, `reset()`, `runId`. The state fields are read-only signals. Cleanup runs in `DestroyRef.onDestroy`.
+
+`injectGenerateVideo` also returns `jobId` and `videoStatus` signals, and takes `onJobCreated` and `onStatusUpdate`.
+
+## Realtime chat
+
+This package does not export a realtime injectable. Use `RealtimeClient`, which this package re-exports. See [Realtime Chat](../media/realtime-chat).
+
+## `injectAudioRecorder(options?)`
+
+Records audio from the microphone. See [Audio Recording](../media/audio-recording).
+
+Returns `recording` and `isRecording` (signals), `isSupported`, `start()`, `stop()`, and `cancel()`. Pass `onComplete` to transform the recording. Then `recording` and `stop()` use the transformed type.
+
+## `injectByok(client)`
+
+Subscribes to a BYOK keyring and returns a read-only `Signal` of its snapshot. See [Bring Your Own Key](../advanced/byok).
 
 ```typescript
-import { Component } from "@angular/core";
-import { injectGenerateAudio } from "@tanstack/ai-angular";
-import { fetchServerSentEvents } from "@tanstack/ai-client";
+import { Component, computed } from "@angular/core";
+import { injectByok } from "@tanstack/ai-angular";
+import { byok } from "./byok";
 
 @Component({
-  selector: "app-audio",
+  selector: "app-key-status",
   standalone: true,
-  template: `
-    <button (click)="gen.generate({ prompt: 'An upbeat electronic track', duration: 10 })" [disabled]="gen.isLoading()">
-      Generate
-    </button>
-    @if (gen.result()) {
-      <audio [src]="gen.result()!.audio.url" controls></audio>
-    }
-  `,
+  template: `<p>{{ last4() }}</p>`,
 })
-export class AudioComponent {
-  gen = injectGenerateAudio({
-    connection: fetchServerSentEvents("/api/generate/audio"),
+export class KeyStatusComponent {
+  snapshot = injectByok(byok);
+
+  last4 = computed(() => {
+    const openai = this.snapshot().status.openai;
+    return openai && "masked" in openai ? openai.masked : "No key";
   });
 }
 ```
 
-### `injectGenerateSpeech(options)`
+The snapshot has `status`, `locked`, `prompt`, and `storageError`. Save a key from your own UI with `byok.update(provider, value)`.
 
-Text-to-speech injectable. `generate()` accepts `SpeechGenerateInput`, result is `TTSResult`.
+## MCP App bridge
 
-### `injectTranscription(options)`
+This package does not export a bridge injectable. Use `createMcpAppBridge`, which this package re-exports. See [MCP Apps](../mcp/apps).
 
-Audio transcription injectable. `generate()` accepts `TranscriptionGenerateInput`, result is `TranscriptionResult`.
+## `injectRegisterWebMCPTools(tools, options?)`
 
-### `injectSummarize(options)`
-
-Text summarization injectable. `generate()` accepts `SummarizeGenerateInput`, result is `SummarizationResult`.
-
-### `injectGenerateVideo(options)`
-
-Video generation injectable with job polling. Returns additional `jobId` and `videoStatus` signals. Accepts extra `onJobCreated?` and `onStatusUpdate?` callbacks.
+Exposes client tools to the browser WebMCP API for the current injection owner. Angular removes them when it destroys that owner. See [WebMCP Tools](../tools/webmcp).
 
 ```typescript
 import { Component } from "@angular/core";
-import { injectGenerateVideo } from "@tanstack/ai-angular";
-import { fetchServerSentEvents } from "@tanstack/ai-client";
+import { injectRegisterWebMCPTools } from "@tanstack/ai-angular";
+import { searchProducts } from "./tools";
 
-@Component({
-  selector: "app-video",
-  standalone: true,
-  template: `
-    <button (click)="gen.generate({ prompt: 'A time-lapse of a sunset' })" [disabled]="gen.isLoading()">
-      Generate
-    </button>
-    @if (gen.videoStatus()) {
-      <p>Status: {{ gen.videoStatus()!.status }}</p>
-    }
-    @if (gen.result()) {
-      <video [src]="gen.result()!.url" controls></video>
-    }
-  `,
-})
-export class VideoComponent {
-  gen = injectGenerateVideo({
-    connection: fetchServerSentEvents("/api/generate/video"),
-    onJobCreated: (jobId) => console.log("Job created:", jobId),
+@Component({ selector: "app-products", standalone: true, template: "" })
+export class ProductsComponent {
+  registration = injectRegisterWebMCPTools([searchProducts], {
+    onError: (error) => console.error(error),
   });
 }
 ```
 
-**Additional returns (video only):**
-- `jobId: Signal<string | null>` — The polling job ID, once the server creates it
-- `videoStatus: Signal<VideoStatusInfo | null>` — Real-time status updates from the polling loop
+Options: `toolOptions`, `context`, and `onError`. `context` is required when a tool declares a required runtime context.
 
-All generation injectables automatically clean up via `DestroyRef.onDestroy`.
+## `injectPageWebMCPTools(options?)`
 
-## Injection Context
-
-Angular's DI system requires that `inject()` is called during component construction. Every `inject*` function in this package calls `inject()` internally. Valid call sites:
+Reads the WebMCP tools that the page registered, as client tools. The signal starts empty and updates when the page adds or removes a tool. Pass the signal to `injectChat` as `tools`. See [Page WebMCP Tools in Chat](../tools/webmcp-page-tools).
 
 ```typescript
-import { inject, runInInjectionContext, Injector } from "@angular/core";
-import { injectChat, fetchServerSentEvents } from "@tanstack/ai-angular";
+import { Component } from "@angular/core";
+import { injectPageWebMCPTools } from "@tanstack/ai-angular";
 
-const injector = inject(Injector);
-
-// Field initializer (recommended)
-export class MyComponent {
-  chat = injectChat({ connection: fetchServerSentEvents("/api/chat") });
+@Component({ selector: "app-page-tools", standalone: true, template: "" })
+export class PageToolsComponent {
+  pageTools = injectPageWebMCPTools({
+    filter: (tool) => tool.origin === location.origin,
+  });
 }
-
-// Constructor
-export class MyComponentAlt {
-  chat: ReturnType<typeof injectChat>;
-  constructor() {
-    this.chat = injectChat({ connection: fetchServerSentEvents("/api/chat") });
-  }
-}
-
-// Inside runInInjectionContext
-const chat = runInInjectionContext(injector, () =>
-  injectChat({ connection: fetchServerSentEvents("/api/chat") }),
-);
 ```
 
-## `createChatClientOptions(options)`
+Options: `filter` (return `false` to skip a tool) and `onError`.
 
-Helper to create typed chat options (re-exported from `@tanstack/ai-client`).
+## Re-exports from `@tanstack/ai-client`
 
-```typescript
-import {
-  createChatClientOptions,
-  type InferChatMessages,
-} from "@tanstack/ai-client";
-import { fetchServerSentEvents } from "@tanstack/ai-angular";
-import { tool1, tool2 } from "./tools";
+You can import these from `@tanstack/ai-angular` directly. See [`@tanstack/ai-client`](./ai-client) for details.
 
-// Create typed tools array (no 'as const' needed!)
-const tools = [tool1, tool2];
+| Group | Exports |
+| --- | --- |
+| Connection adapters | `fetchServerSentEvents`, `fetchHttpStream`, `fetchJson`, `xhrServerSentEvents`, `xhrHttpStream`, `webSocket`, `stream`, `rpcStream` |
+| Typed options | `createChatClientOptions`, `clientTools` |
+| Persistence | `localStoragePersistence`, `sessionStoragePersistence`, `indexedDBPersistence` |
+| Clients | `ChatClient`, `GenerationClient`, `VideoGenerationClient`, `RealtimeClient`, `AudioRecorder`, `InterruptManager` |
+| WebMCP and MCP Apps | `registerWebMCPTools`, `getWebMCPTools`, `subscribeWebMCPTools`, `createMcpAppBridge` |
+| Errors | `UnsupportedResponseStreamError`, `StreamTruncatedError`, `DurableStreamIncompleteError`, `StreamReconnectLimitError`, `StorageUnavailableError` |
+| Stream helpers | `StreamProcessor`, chunk strategies, `parsePartialJSON`, message converters |
 
-const chatOptions = createChatClientOptions({
-  connection: fetchServerSentEvents("/api/chat"),
-  tools,
-});
-
-type Messages = InferChatMessages<typeof chatOptions>;
-```
+BYOK helpers (`defineByok`, `defaultByokStorage`, and more) are on the `@tanstack/ai-angular/byok` subpath.
 
 ## Types
 
-Re-exported from `@tanstack/ai-angular` (sourced from `@tanstack/ai-client`):
+| Type | What it is |
+| --- | --- |
+| `InjectChatOptions`, `InjectChatResult` | The options and return value of `injectChat`. |
+| `ReactiveOption<T>` | `T`, `Signal<T>`, or `() => T`. |
+| `UIMessage<TTools>` | A chat message with typed parts. |
+| `InferChatMessages<T>` | The message type for a `createChatClientOptions` result. |
+| `MultimodalContent`, `SendMessageOptions`, `WhenBusy`, `QueueOption`, `QueuedMessage` | Send and queue types. |
+| `DeepPartial<T>` | The type of `partial` while structured output streams. |
+| `Inject<Name>Options`, `Inject<Name>Result` | Options and return types for the generation and recorder injectables. The WebMCP injectables export only an options type. |
 
-- `UIMessage<TTools>` - Message type with tool type parameter
-- `InjectChatOptions<TTools, TSchema, TContext>` - Chat injectable options
-- `InjectChatResult<TTools, TSchema>` - Chat injectable return type
-- `ReactiveOption<T>` - Union of `T | Signal<T> | (() => T)` for reactive option fields
-- `DeepPartial<T>` - Recursive partial; used to type the in-flight `partial` value
-- `ChatRequestBody` - Request body type
-- `MultimodalContent` - Multimodal content type for `sendMessage`
-- `ConnectionAdapter` - Connection adapter interface
-- `InferChatMessages<T>` - Extract message type from options
-- `GenerationClientState` - Generation lifecycle state
-- `ImageGenerateInput` - Image generation input type
-- `AudioGenerateInput` - Audio generation input type
-- `SpeechGenerateInput` - Speech generation input type
-- `TranscriptionGenerateInput` - Transcription input type
-- `SummarizeGenerateInput` - Summarization input type
-- `VideoGenerateInput` - Video generation input type
-- `VideoGenerateResult` - Video generation result type
-- `VideoStatusInfo` - Video job status info
-
-Tool authoring types — import directly from `@tanstack/ai` (not re-exported by `@tanstack/ai-angular`):
-
-- `toolDefinition()` - Create isomorphic tool definition
-- `ToolDefinitionInstance` - Tool definition type
-- `ClientTool` - Client tool type
-- `ServerTool` - Server tool type
-
-## Next Steps
-
-- [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../tools/tools) - Learn about the isomorphic tool system
-- [Client Tools](../tools/client-tools) - Learn about client-side tools
+Pass a plain tools array to `injectChat` or `createChatClientOptions`. Tool names, inputs, and outputs stay typed without `as const`. Import `toolDefinition` from `@tanstack/ai`. This package does not re-export it.

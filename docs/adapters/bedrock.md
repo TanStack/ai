@@ -2,7 +2,7 @@
 title: Amazon Bedrock
 id: bedrock-adapter
 order: 7
-description: "Use Amazon Bedrock with TanStack AI — the Converse API is the default, reaching Claude, Nova, Llama, Mistral, DeepSeek, and more. Opt into OpenAI-compatible Chat Completions or Responses for open-weight and gpt-oss models. Supports streaming, tools, reasoning, and API-key or SigV4 auth."
+description: "Use Amazon Bedrock in TanStack AI with @tanstack/ai-bedrock: Claude, Nova, Llama, Mistral, DeepSeek, and gpt-oss through the Converse API or the OpenAI-compatible APIs, with API-key or SigV4 auth."
 keywords:
   - tanstack ai
   - amazon bedrock
@@ -19,18 +19,9 @@ keywords:
   - adapter
 ---
 
-The Bedrock adapter connects TanStack AI to [Amazon Bedrock](https://aws.amazon.com/bedrock/) with three API paths:
+[Amazon Bedrock](https://aws.amazon.com/bedrock/) gives you Claude, Nova, Llama, Mistral, DeepSeek, gpt-oss, and more in your AWS account, with streaming, tools, reasoning, and embeddings.
 
-- **Converse** (default) — Bedrock's model-agnostic API built on `@aws-sdk/client-bedrock-runtime`. Reaches the broad chat catalog including Anthropic Claude, Amazon Nova, Meta Llama, Mistral, DeepSeek, Cohere, AI21, and OpenAI gpt-oss models.
-- **Chat Completions** (`api: 'chat'`) — Bedrock's OpenAI-compatible Chat Completions endpoint. Reaches open-weight models only (gpt-oss, DeepSeek V3.x, Gemma, Qwen, Mistral open models, GLM, etc.). Does NOT reach Claude, Nova, or Llama.
-- **Responses** (`api: 'responses'`) — Bedrock's OpenAI-compatible Responses API, mantle-only. Currently gpt-oss and Gemma 4.
-
-All paths support streaming and client-side tool calling. Reasoning output is
-surfaced when the model emits it (e.g. DeepSeek R1, gpt-oss); on the Converse
-path, request-side enablement of extended thinking (e.g. a Claude thinking
-budget) is not yet wired, so only models that reason by default surface it.
-
-## Installation
+## 1. Install
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
@@ -45,45 +36,13 @@ octane: @tanstack/ai-bedrock
 
 <!-- ::end:tabs -->
 
-No additional packages are required. SigV4 authentication is handled by `@aws-sdk/client-bedrock-runtime`, which is a direct dependency.
+You need no other package. `@aws-sdk/client-bedrock-runtime` is a direct dependency, and it does the SigV4 signing.
 
-## Quick Start (Converse — default)
+## 2. Set the credentials
 
-The default `bedrockText` call uses the Converse API and reaches the broad model catalog:
+Bedrock takes an API key or your AWS credentials. Pick one.
 
-```typescript ignore
-// ignore: iterating a chat() stream and reading chunk.type/chunk.delta needs the
-// AG-UI base event fields, which come from @ag-ui/core. It's a transitive dep of
-// @tanstack/ai, so kiira (resolving @tanstack/ai from source under the dist->src
-// heuristic) can't follow it and those base fields drop off StreamChunk. The code
-// is correct (the same pattern is used throughout ai-client); see
-// getting-started/quick-start-server for the type-checked consumption shape.
-import { bedrockText } from '@tanstack/ai-bedrock'
-import { chat } from '@tanstack/ai'
-
-const adapter = bedrockText('us.anthropic.claude-haiku-4-5-20251001-v1:0', {
-  region: 'us-east-1',
-})
-
-for await (const chunk of chat({
-  adapter,
-  messages: [{ role: 'user', content: 'What is the capital of France?' }],
-})) {
-  if (chunk.type === 'TEXT_MESSAGE_CONTENT') process.stdout.write(chunk.delta ?? '')
-}
-```
-
-Equivalent to passing `{ api: 'converse' }` explicitly. Returns a `bedrock-converse` adapter.
-
-## Authentication
-
-Bedrock supports two authentication modes.
-
-### API Key
-
-Bedrock issues API keys from the AWS Console. See the [Bedrock API keys guide](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html) for instructions.
-
-Set one of the following environment variables and the adapter picks it up automatically:
+**API key.** Create a key in the AWS Console. See the [Bedrock API keys guide](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html). Then set one of these variables:
 
 ```bash
 BEDROCK_API_KEY=your-bedrock-api-key
@@ -91,9 +50,7 @@ BEDROCK_API_KEY=your-bedrock-api-key
 AWS_BEARER_TOKEN_BEDROCK=your-bedrock-api-key
 ```
 
-### SigV4 (AWS credential chain)
-
-For workloads using IAM roles, instance profiles, or `~/.aws/credentials`, set `auth: 'sigv4'` (or leave it as `'auto'` with no API key in the environment). SigV4 works out of the box via `@aws-sdk/client-bedrock-runtime` — no additional packages required.
+**SigV4 (AWS credential chain).** Use this for IAM roles, instance profiles, or `~/.aws/credentials`. With no API key in the environment, the adapter uses SigV4:
 
 ```bash
 AWS_ACCESS_KEY_ID=...
@@ -101,228 +58,85 @@ AWS_SECRET_ACCESS_KEY=...
 AWS_SESSION_TOKEN=...   # optional, for temporary credentials
 ```
 
-### Auth resolution order (`auth: 'auto'`, the default)
+With `auth: 'auto'` (the default), the adapter uses the first of these that it finds:
 
-1. Explicit `apiKey` passed to the factory
-2. `BEDROCK_API_KEY` environment variable
-3. `AWS_BEARER_TOKEN_BEDROCK` environment variable
-4. SigV4 via the standard AWS credential chain
+1. An explicit `apiKey` passed to the factory.
+2. The `BEDROCK_API_KEY` environment variable.
+3. The `AWS_BEARER_TOKEN_BEDROCK` environment variable.
+4. SigV4 through the standard AWS credential chain.
 
-## Configuration
+Also enable access to the model in the [Amazon Bedrock console](https://console.aws.amazon.com/bedrock/home#/modelaccess). The models that you can use depend on your account and your region.
 
-`BedrockClientConfig` accepts the following options:
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `api` | `'converse' \| 'chat' \| 'responses'` | `'converse'` | Bedrock API to use |
-| `region` | `string` | `'us-east-1'` | AWS region string (e.g. `'us-west-2'`) |
-| `auth` | `'apikey' \| 'sigv4' \| 'auto'` | `'auto'` | Authentication mode |
-| `apiKey` | `string` | — | Explicit API key (overrides env vars) |
-| `baseURL` | `string` | — | Override the computed base URL entirely |
-| `defaultHeaders` | `Record<string, string>` | none | Headers sent with every request |
-| `endpoint` | `'runtime' \| 'mantle'` | `'runtime'` | Bedrock endpoint to target (Chat Completions path only) |
-
-The `endpoint` option only applies when `api: 'chat'`. The `runtime` endpoint (`bedrock-runtime`) hosts the broad open-weight catalog; `mantle` is an alternative. On mantle, the adapter reads the path from the Bedrock API compatibility config (`/openai/v1` for Gemma 4, `/v1` for other models). An explicit `baseURL` still wins. The Responses API always targets mantle.
-
-## Behind a proxy
-
-Route every request through a gateway, such as Cloudflare AI Gateway or a corporate proxy, with `baseURL` and `defaultHeaders`. These two option names are the same on every TanStack AI adapter, so one gateway config works for all of them.
+## 3. Stream a chat from the server
 
 ```typescript
-import { createBedrockText } from "@tanstack/ai-bedrock";
-
-const adapter = createBedrockText("us.amazon.nova-pro-v1:0", process.env.BEDROCK_API_KEY!, {
-  baseURL: "https://gateway.example.com/aws-bedrock",
-  defaultHeaders: { "cf-aig-authorization": `Bearer ${process.env.GATEWAY_TOKEN}` },
-});
-```
-
-All three Bedrock APIs accept these options. On the Converse API the headers are added before SigV4 signing, so a signed request still includes them.
-
-Need more than a fixed header, such as a log of each model call? The Chat Completions API (`api: 'chat'`) and the Responses API (`api: 'responses'`) support [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call). The Converse API ignores it, because the AWS SDK does not send its requests through `fetch`.
-
-## Converse API (default)
-
-`bedrockText(model)` or `bedrockText(model, { api: 'converse' })` returns a `bedrock-converse` adapter backed by `@aws-sdk/client-bedrock-runtime`. This is Bedrock's model-agnostic conversational API and is the recommended path for most use cases.
-
-**Model scope:** Anthropic Claude, Amazon Nova, Meta Llama, Mistral, DeepSeek, Cohere, AI21, OpenAI gpt-oss, and other models accessible in your account. See [Model availability](#model-availability) below.
-
-```typescript
-import { bedrockText } from '@tanstack/ai-bedrock'
-import { chat } from '@tanstack/ai'
-
-// Claude via Converse
-const claudeAdapter = bedrockText('us.anthropic.claude-haiku-4-5-20251001-v1:0', {
-  region: 'us-east-1',
-})
-
-// Amazon Nova via Converse
-const novaAdapter = bedrockText('us.amazon.nova-pro-v1:0', {
-  region: 'us-east-1',
-})
-
-// Meta Llama via Converse
-const llamaAdapter = bedrockText('us.meta.llama4-maverick-17b-instruct-v1:0', {
-  region: 'us-east-1',
-})
-```
-
-### Explicit API key (Converse)
-
-```typescript
-import { createBedrockText } from '@tanstack/ai-bedrock'
-
-const adapter = createBedrockText(
-  'us.anthropic.claude-haiku-4-5-20251001-v1:0',
-  'your-bedrock-api-key',
-  { region: 'us-west-2' },
-)
-```
-
-### Prompt caching
-
-`chat()` adds cache points for Claude models by default: one after the system prompt, and one at the end of the last user message. Pass `promptCache: 'long'` for the 1-hour cache, or `promptCache: 'none'` to turn it off. Other models get no automatic cache point. For the cost, see [Prompt Caching](../advanced/prompt-caching).
-
-To pick the places yourself, add a `cachePoint`. One cache point of your own turns the automatic ones off for that request. Later requests can read matching tokens at the reduced cache rate. Bedrock bills cache misses at the standard input rate.
-
-Explicit prompt caching is model-dependent. Use `cachePoint` only with a model that AWS lists as supporting it. The minimum checkpoint size and the TTL options also vary by model.
-
-Set `metadata.cachePoint` on the item that ends the stable part of your prompt. The adapter places a `cachePoint` block right after it:
-
-```typescript
-import { bedrockText } from '@tanstack/ai-bedrock'
-import { chat } from '@tanstack/ai'
-
-const stream = chat({
-  adapter: bedrockText('us.anthropic.claude-sonnet-4-5-20250929-v1:0', {
-    region: 'us-east-1',
-  }),
-  systemPrompts: [
-    {
-      content: 'Long, stable instructions...',
-      metadata: { cachePoint: { type: 'default' } },
-    },
-  ],
-  messages: [
-    // An older turn. Its cachePoint was removed when the new turn was added.
-    { role: 'user', content: 'Summarize the report.' },
-    { role: 'assistant', content: 'The report says...' },
-    {
-      role: 'user',
-      content: [
-        {
-          type: 'text',
-          content: 'What changed since yesterday?',
-          // Only the newest message has a checkpoint.
-          // It caches the conversation up to here for the next round.
-          metadata: { cachePoint: { type: 'default' } },
-        },
-      ],
-    },
-  ],
-})
-```
-
-Keep one message checkpoint, on the newest message. Before you send the next turn, remove `cachePoint` from the older message and add it to the new message. The metadata stays in the message history. If you do not remove it, the checkpoints add up, and the request can go over the Bedrock limit of four.
-
-Tools take the same metadata. Pass `metadata: { cachePoint: { type: 'default' } }` to `toolDefinition()` for the last tool in the list to cache the tool definitions.
-
-- Bedrock accepts up to four checkpoints per request.
-- Add `ttl: '1h'` to keep an entry for one hour. The default is 5 minutes, and a read refreshes the timer. Bedrock processes tool checkpoints first, then system prompt checkpoints, and then message checkpoints. If a request mixes both TTLs, place every `1h` checkpoint before the first `5m` checkpoint in that combined order.
-- A checkpoint below the model's minimum size is ignored. The request still succeeds, and nothing is cached.
-
-### Token usage
-
-`onUsage` and `RUN_FINISHED.usage` report Bedrock's counts as `promptTokens`, `completionTokens`, and `totalTokens`. `promptTokens` is the full input, cached tokens included. When a request hits or writes a prompt cache, the cache parts are also on `promptTokensDetails.cachedTokens` and `promptTokensDetails.cacheWriteTokens`. To read these counts, see [Token usage](../chat/stream-events#token-usage).
-
-## Chat Completions API (`api: 'chat'`)
-
-Set `api: 'chat'` to use Bedrock's OpenAI-compatible Chat Completions endpoint. Returns a `bedrock` adapter.
-
-**Model scope:** Open-weight models only — gpt-oss, DeepSeek V3.x, Gemma, Qwen, Mistral open models, GLM, and similar. Claude, Nova, and Llama are NOT available on this endpoint. See the [AWS API compatibility matrix](https://docs.aws.amazon.com/bedrock/latest/userguide/models-api-compatibility.html) for the current list.
-
-```typescript ignore
-// ignore: see the Converse quick-start above — iterating a chat() stream and
-// reading chunk.type/chunk.delta needs @ag-ui/core base fields kiira can't
-// resolve transitively through @tanstack/ai source.
-import { bedrockText } from '@tanstack/ai-bedrock'
-import { chat } from '@tanstack/ai'
-
-const adapter = bedrockText('openai.gpt-oss-20b-1:0', {
-  region: 'us-east-1',
-  api: 'chat',
-})
-
-for await (const chunk of chat({
-  adapter,
-  messages: [{ role: 'user', content: 'What is the capital of France?' }],
-})) {
-  if (chunk.type === 'TEXT_MESSAGE_CONTENT') process.stdout.write(chunk.delta ?? '')
-}
-```
-
-## Responses API (`api: 'responses'`)
-
-Set `api: 'responses'` to use Bedrock's OpenAI-compatible Responses API. Returns a `bedrock-responses` adapter. This API is mantle-only.
-
-**Model scope:** Currently gpt-oss and Gemma 4. The Responses API is stateful — pass `previous_response_id` and `store` through `modelOptions` to continue a conversation server-side.
-
-**Reasoning:** Reasoning deltas stream as thinking content. Mantle-served models may still emit the pre-July-2025 event name `response.reasoning.delta` (removed from the OpenAI spec in favor of `response.reasoning_text.delta`); the adapter recognizes both and maps them identically.
-
-```typescript ignore
-// ignore: see the Converse quick-start above — iterating a chat() stream and
-// reading chunk.type/chunk.delta needs @ag-ui/core base fields kiira can't
-// resolve transitively through @tanstack/ai source.
-import { bedrockText } from '@tanstack/ai-bedrock'
-import { chat } from '@tanstack/ai'
-
-const adapter = bedrockText('openai.gpt-oss-120b-1:0', {
-  region: 'us-east-1',
-  api: 'responses',
-})
-
-for await (const chunk of chat({
-  adapter,
-  messages: [{ role: 'user', content: 'Summarize the Bedrock pricing page.' }],
-})) {
-  if (chunk.type === 'TEXT_MESSAGE_CONTENT') process.stdout.write(chunk.delta ?? '')
-}
-```
-
-## Reasoning
-
-Set `reasoning` on `chat()`. What goes on the wire depends on the API:
-
-- Converse (the default): only Claude gets thinking. A budget model gets `thinking` with a budget in `additionalModelRequestFields`, and `maxTokens` grows past the budget. `off` sends nothing.
-- Chat Completions (`api: 'chat'`): `reasoning_effort`.
-- Responses (`api: 'responses'`): `reasoning.effort`.
-
-```typescript
-import { chat } from "@tanstack/ai";
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
 import { bedrockText } from "@tanstack/ai-bedrock";
 
-const stream = chat({
-  adapter: bedrockText("us.anthropic.claude-haiku-4-5-20251001-v1:0", {
-    region: "us-east-1",
-  }),
-  messages: [{ role: "user", content: "Check this proof." }],
-  reasoning: { level: "high", budgetTokens: 8000 },
-});
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
+
+  const stream = chat({
+    adapter: bedrockText("us.anthropic.claude-sonnet-4-5-20250929-v1:0", {
+      region: "us-east-1",
+    }),
+    messages,
+    threadId,
+    runId,
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```
 
-The levels of each model:
+`bedrockText` uses the Converse API by default. Converse reaches the full chat catalog of Bedrock. For the other two APIs, see [Choose the API](#choose-the-api).
 
-- `us.anthropic.claude-haiku-4-5-*`, `us.anthropic.claude-sonnet-4-5-*`: `off`, `high`, with `budgetTokens`.
-- `openai.gpt-oss-120b-1:0`, `openai.gpt-oss-20b-1:0`: `low`, `medium`, `high`.
-- The `google.gemma-4` models: `off`, `high`.
+## 4. Render the chat
 
-The other models take no `reasoning`. `us.deepseek.r1-v1:0` always thinks, and has no levels.
+The client is the same for every provider. Point `useChat` at your route:
 
-On Converse, structured output forces a tool, and Claude cannot think while a tool is forced. So the structured output call sends no thinking.
+```tsx
+import { useState } from "react";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+export function Chat() {
+  const [input, setInput] = useState("");
+  const { messages, sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+  });
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        sendMessage(input);
+        setInput("");
+      }}
+    >
+      {messages.map((message) => (
+        <p key={message.id}>
+          {message.parts
+            .map((part) => (part.type === "text" ? part.content : ""))
+            .join("")}
+        </p>
+      ))}
+      <input value={input} onChange={(event) => setInput(event.target.value)} />
+    </form>
+  );
+}
+```
+
+For Vue, Solid, Svelte, Angular, and the other frameworks, see [Quick Start](../getting-started/quick-start#3-render-the-chat).
+
+You now have a streaming chat on Bedrock. Client-side [tools](../tools/tools) work on all three APIs. Structured output and multimodal input (text, images, and documents) depend on the model.
 
 ## Embeddings
 
-Generate embedding vectors with Titan or Cohere embedding models via `InvokeModel`:
+`bedrockEmbedding` calls the Titan and Cohere embedding models through `InvokeModel`:
 
 ```typescript
 import { embed } from "@tanstack/ai";
@@ -337,7 +151,7 @@ const result = await embed({
 console.log(result.embeddings[0]?.vector);
 ```
 
-Titan Multimodal embeds text and images — alone or fused into a single vector. Fuse parts by nesting them in an array (the same `Array<ContentPart>` shape a chat message's `content` uses); the outer array is the item list, so this embeds one fused item:
+Titan Multimodal embeds text and images, alone or joined into one vector. To join parts, nest them in an array (the same `Array<ContentPart>` shape as the `content` of a chat message). The outer array is the list of items, so this embeds one joined item:
 
 ```typescript
 import { embed } from "@tanstack/ai";
@@ -364,7 +178,7 @@ const result = await embed({
 });
 ```
 
-Cohere Embed v3 on Bedrock is also supported (text-only, batched, requires `inputType`):
+Cohere Embed v3 on Bedrock is text only. It sends items in batches and requires `inputType`:
 
 ```typescript
 import { embed } from "@tanstack/ai";
@@ -377,61 +191,249 @@ const result = await embed({
 });
 ```
 
-> Titan models have no batch API — a batch of N items runs as N `InvokeModel`
-> calls under a small concurrency cap. Titan Multimodal does not fetch remote
-> image URLs; pass base64 data (or a `data:` URI).
+- Titan models have no batch API. A batch of N items runs as N `InvokeModel` calls, with a small limit on calls at the same time.
+- Titan Multimodal does not fetch remote image URLs. Pass base64 data (or a `data:` URI).
 
-See the [Embeddings guide](../embeddings.md) for the full API.
+See the [Embeddings guide](../embeddings.md).
 
-## Model Availability
+## Models and options
 
-The adapter ships with a hand-seeded snapshot catalog (`src/model-catalog.generated.ts`) of confirmed model IDs. This catalog can be refreshed by the maintainer script `scripts/fetch-bedrock-models.ts`, which calls `ListFoundationModels` with AWS credentials.
+### Choose the API
 
-**Actual model availability depends on your AWS account's model access configuration and the region you are targeting.** Enable model access in the [Amazon Bedrock console](https://console.aws.amazon.com/bedrock/home#/modelaccess) before use.
+Bedrock has three chat APIs. Set `api` on the factory:
 
-For the full list of models and which API endpoints they support, see the [AWS API compatibility matrix](https://docs.aws.amazon.com/bedrock/latest/userguide/models-api-compatibility.html).
+| `api` | Adapter name | Models | SDK |
+|---|---|---|---|
+| `'converse'` (default) | `bedrock-converse` | The full catalog: Claude, Nova, Llama, Mistral, DeepSeek, Cohere, AI21, gpt-oss, and more | `@aws-sdk/client-bedrock-runtime` |
+| `'chat'` | `bedrock` | Open-weight models only: gpt-oss, DeepSeek V3.x, Gemma, Qwen, Mistral open models, GLM, and similar. No Claude, Nova, or Llama | `openai` (OpenAI-compatible Chat Completions) |
+| `'responses'` | `bedrock-responses` | gpt-oss and Gemma 4. Mantle only | `openai` (OpenAI-compatible Responses) |
 
-## Supported Capabilities
+Use Converse unless you need the OpenAI wire format. For which models work with which API, see the [AWS API compatibility matrix](https://docs.aws.amazon.com/bedrock/latest/userguide/models-api-compatibility.html). Samples for `'chat'` and `'responses'` are in [Advanced](#chat-completions-api).
 
-- Streaming chat completions
-- Client-side tool calling
-- Reasoning output (extended thinking surfaced when the model emits it; request-side enablement on Converse is not yet wired)
-- Multimodal input (text, images, documents — model-dependent)
-- JSON schema / structured output
+### Reasoning
 
-## API Reference
+Set `reasoning` on `chat()`. What goes to Bedrock depends on the API:
 
-### `bedrockText(model, config?)`
+- Converse (the default): only Claude gets thinking. A budget model gets `thinking` with a budget in `additionalModelRequestFields`, and `maxTokens` grows past the budget. `off` sends nothing.
+- Chat Completions (`api: 'chat'`): `reasoning_effort`.
+- Responses (`api: 'responses'`): `reasoning.effort`.
 
-Creates a Bedrock adapter using environment-variable auth.
+```typescript
+import { chat } from "@tanstack/ai";
+import { bedrockText } from "@tanstack/ai-bedrock";
+
+const stream = chat({
+  adapter: bedrockText("us.anthropic.claude-haiku-4-5-20251001-v1:0", {
+    region: "us-east-1",
+  }),
+  messages: [{ role: "user", content: "Check this proof." }],
+  reasoning: { level: "high", budgetTokens: 8000 },
+});
+```
+
+The levels of each model:
+
+- `us.anthropic.claude-haiku-4-5-*`, `us.anthropic.claude-sonnet-4-5-*`: `off`, `high`, with `budgetTokens`.
+- `openai.gpt-oss-120b-1:0`, `openai.gpt-oss-20b-1:0`: `low`, `medium`, `high`.
+- The `google.gemma-4` models: `off`, `high`.
+
+The other models take no `reasoning`. `us.deepseek.r1-v1:0` always thinks, and has no levels. When a model thinks by default, such as DeepSeek R1 or gpt-oss, the adapter streams its thinking.
+
+On Converse, structured output forces a tool, and Claude cannot think while a tool is forced. So the structured output call sends no thinking.
+
+### Models
+
+The package ships a catalog of confirmed model ids (`src/model-catalog.generated.ts`). The maintainer script `scripts/fetch-bedrock-models.ts` refreshes it with `ListFoundationModels`.
+
+| Group | Model ids |
+| --- | --- |
+| Anthropic Claude | `us.anthropic.claude-sonnet-4-5-20250929-v1:0`, `us.anthropic.claude-haiku-4-5-20251001-v1:0`, `us.anthropic.claude-3-7-sonnet-20250219-v1:0`, `us.anthropic.claude-3-5-sonnet-20241022-v2:0`, `us.anthropic.claude-3-5-haiku-20241022-v1:0` |
+| Amazon Nova | `us.amazon.nova-pro-v1:0`, `us.amazon.nova-lite-v1:0`, `us.amazon.nova-micro-v1:0` |
+| Meta Llama | `us.meta.llama4-maverick-17b-instruct-v1:0`, `us.meta.llama3-3-70b-instruct-v1:0` |
+| Other chat | `openai.gpt-oss-120b-1:0`, `openai.gpt-oss-20b-1:0`, `us.mistral.pixtral-large-2502-v1:0`, `us.deepseek.r1-v1:0`, `google.gemma-4-31b`, `google.gemma-4-26b-a4b`, `google.gemma-4-e2b` |
+| Embeddings | `amazon.titan-embed-text-v2:0`, `amazon.titan-embed-image-v1`, `cohere.embed-english-v3`, `cohere.embed-multilingual-v3` |
 
 `adapter.inputModalities` lists the input kinds of a model in the catalog. If this package does not know the model id, `bedrockText` and `createBedrockText` throw. `createBedrockChat`, `createBedrockResponsesText`, and `createBedrockConverse` return `undefined` for that id. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 
-- `model` — Model ID (e.g. `'us.anthropic.claude-haiku-4-5-20251001-v1:0'`)
-- `config.api` — `'converse'` (default), `'chat'`, or `'responses'`
-- `config.region` — AWS region string (default `'us-east-1'`)
-- `config.auth` — `'auto'` (default), `'apikey'`, or `'sigv4'`
-- `config.apiKey` — Explicit API key (overrides env vars)
-- `config.baseURL` — Override base URL
-- `config.endpoint` — `'runtime'` (default) or `'mantle'` (Chat Completions path only)
+## Advanced
 
-Returns a chat adapter for use with `chat()` or `generate()`.
+### Configuration
 
-| `api` value | Adapter name | Underlying SDK |
-|---|---|---|
-| `'converse'` (default) | `bedrock-converse` | `@aws-sdk/client-bedrock-runtime` |
-| `'chat'` | `bedrock` | `openai` (OpenAI-compatible) |
-| `'responses'` | `bedrock-responses` | `openai` (OpenAI-compatible) |
+`BedrockClientConfig` takes these options:
 
-### `createBedrockText(model, apiKey, config?)`
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `api` | `'converse' \| 'chat' \| 'responses'` | `'converse'` | The Bedrock API to use |
+| `region` | `string` | `'us-east-1'` | AWS region (for example `'us-west-2'`) |
+| `auth` | `'apikey' \| 'sigv4' \| 'auto'` | `'auto'` | Authentication mode |
+| `apiKey` | `string` | none | Explicit API key (wins over the environment variables) |
+| `baseURL` | `string` | none | Replaces the computed base URL |
+| `defaultHeaders` | `Record<string, string>` | none | Headers sent with every request |
+| `endpoint` | `'runtime' \| 'mantle'` | `'runtime'` | The Bedrock endpoint (Chat Completions only) |
 
-Creates a Bedrock adapter with an explicit API key, bypassing the environment-variable lookup.
+About `endpoint`:
 
-## Next Steps
+- It applies only when `api: 'chat'`.
+- `runtime` (`bedrock-runtime`) hosts the broad open-weight catalog. `mantle` is the other choice.
+- On mantle, the adapter reads the path from the Bedrock API compatibility config: `/openai/v1` for Gemma 4, `/v1` for other models. An explicit `baseURL` still wins.
+- The Responses API always uses mantle.
 
-- [Amazon Bedrock API keys](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html) — Create and manage API keys
-- [Amazon Bedrock model access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html) — Enable models in your account
-- [AWS API compatibility matrix](https://docs.aws.amazon.com/bedrock/latest/userguide/models-api-compatibility.html) — Which models work with which APIs
-- [Converse API reference](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html) — Native Converse API docs
-- [Streaming Guide](../chat/streaming) — Learn about streaming responses
-- [Tools Guide](../tools/tools) — Learn about tool calling
+With an explicit API key:
+
+```typescript
+import { createBedrockText } from "@tanstack/ai-bedrock";
+
+const adapter = createBedrockText(
+  "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "your-bedrock-api-key",
+  { region: "us-west-2" },
+);
+```
+
+### Behind a proxy
+
+Send every request through a gateway, such as Cloudflare AI Gateway or a corporate proxy, with `baseURL` and `defaultHeaders`. These two option names are the same on every TanStack AI adapter, so one gateway config works for all of them.
+
+```typescript
+import { createBedrockText } from "@tanstack/ai-bedrock";
+
+const adapter = createBedrockText("us.amazon.nova-pro-v1:0", process.env.BEDROCK_API_KEY!, {
+  baseURL: "https://gateway.example.com/aws-bedrock",
+  defaultHeaders: { "cf-aig-authorization": `Bearer ${process.env.GATEWAY_TOKEN}` },
+});
+```
+
+- All three Bedrock APIs accept these options. On the Converse API, the adapter adds the headers before SigV4 signing, so a signed request still includes them.
+- Need more than a fixed header, such as a log of each model call? The Chat Completions API (`api: 'chat'`) and the Responses API (`api: 'responses'`) support [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call). The Converse API ignores it, because the AWS SDK does not send its requests through `fetch`.
+
+### Prompt caching
+
+`chat()` adds cache points for Claude models by default: one after the system prompt, and one at the end of the last user message. Pass `promptCache: 'long'` for the 1-hour cache, or `promptCache: 'none'` to turn it off. Other models get no automatic cache point. For the cost, see [Prompt Caching](../advanced/prompt-caching).
+
+To pick the places yourself, add a `cachePoint`. One cache point of your own turns the automatic ones off for that request. Later requests can read matching tokens at the lower cache rate. Bedrock bills cache misses at the standard input rate.
+
+Explicit prompt caching depends on the model. Use `cachePoint` only with a model that AWS lists as supporting it. The minimum checkpoint size and the TTL options also change by model.
+
+Set `metadata.cachePoint` on the item that ends the stable part of your prompt. The adapter puts a `cachePoint` block right after it:
+
+```typescript
+import { bedrockText } from "@tanstack/ai-bedrock";
+import { chat } from "@tanstack/ai";
+
+const stream = chat({
+  adapter: bedrockText("us.anthropic.claude-sonnet-4-5-20250929-v1:0", {
+    region: "us-east-1",
+  }),
+  systemPrompts: [
+    {
+      content: "Long, stable instructions...",
+      metadata: { cachePoint: { type: "default" } },
+    },
+  ],
+  messages: [
+    // An older turn. Its cachePoint was removed when the new turn was added.
+    { role: "user", content: "Summarize the report." },
+    { role: "assistant", content: "The report says..." },
+    {
+      role: "user",
+      content: [
+        {
+          type: "text",
+          content: "What changed since yesterday?",
+          // Only the newest message has a checkpoint.
+          // It caches the conversation up to here for the next round.
+          metadata: { cachePoint: { type: "default" } },
+        },
+      ],
+    },
+  ],
+});
+```
+
+Keep one message checkpoint, on the newest message. Before you send the next turn, remove `cachePoint` from the older message and add it to the new message. The metadata stays in the message history. If you do not remove it, the checkpoints add up, and the request can go over the Bedrock limit of four.
+
+Tools take the same metadata. To cache the tool definitions, pass `metadata: { cachePoint: { type: 'default' } }` to `toolDefinition()` for the last tool in the list.
+
+- Bedrock accepts up to four checkpoints in one request.
+- Add `ttl: '1h'` to keep an entry for one hour. The default is 5 minutes, and a read starts the timer again.
+- Bedrock reads tool checkpoints first, then system prompt checkpoints, then message checkpoints. If a request mixes both TTLs, put every `1h` checkpoint before the first `5m` checkpoint in that order.
+- Bedrock ignores a checkpoint below the minimum size of the model. The request still succeeds, and nothing goes into the cache.
+
+### Token usage
+
+`onUsage` and `RUN_FINISHED.usage` report the counts of Bedrock as `promptTokens`, `completionTokens`, and `totalTokens`.
+
+- `promptTokens` is the full input, cached tokens included.
+- When a request reads or writes a prompt cache, the cache parts are also on `promptTokensDetails.cachedTokens` and `promptTokensDetails.cacheWriteTokens`.
+
+To read these counts, see [Token usage](../chat/stream-events#token-usage).
+
+### Chat Completions API
+
+Set `api: 'chat'` to use the OpenAI-compatible Chat Completions endpoint of Bedrock. It returns a `bedrock` adapter. Only open-weight models are on this endpoint.
+
+```typescript ignore
+// ignore: iterating a chat() stream and reading chunk.type/chunk.delta needs the
+// AG-UI base event fields, which come from @ag-ui/core. It's a transitive dep of
+// @tanstack/ai, so kiira (resolving @tanstack/ai from source under the dist->src
+// heuristic) can't follow it and those base fields drop off StreamChunk. The code
+// is correct (the same pattern is used throughout ai-client); see
+// getting-started/quick-start-server for the type-checked consumption shape.
+import { bedrockText } from '@tanstack/ai-bedrock'
+import { chat } from '@tanstack/ai'
+
+const adapter = bedrockText('openai.gpt-oss-20b-1:0', {
+  region: 'us-east-1',
+  api: 'chat',
+})
+
+for await (const chunk of chat({
+  adapter,
+  messages: [{ role: 'user', content: 'What is the capital of France?' }],
+})) {
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT') process.stdout.write(chunk.delta ?? '')
+}
+```
+
+### Responses API
+
+Set `api: 'responses'` to use the OpenAI-compatible Responses API of Bedrock. It returns a `bedrock-responses` adapter. This API is mantle only.
+
+- The Responses API is stateful. To continue a conversation on the server, pass `previous_response_id` and `store` in `modelOptions`.
+- Reasoning deltas stream as thinking content. Models on mantle can still send the old event name `response.reasoning.delta`, which the OpenAI spec replaced with `response.reasoning_text.delta`. The adapter reads both names the same way.
+
+```typescript ignore
+// ignore: see the Chat Completions sample above. Iterating a chat() stream and
+// reading chunk.type/chunk.delta needs @ag-ui/core base fields kiira can't
+// resolve transitively through @tanstack/ai source.
+import { bedrockText } from '@tanstack/ai-bedrock'
+import { chat } from '@tanstack/ai'
+
+const adapter = bedrockText('openai.gpt-oss-120b-1:0', {
+  region: 'us-east-1',
+  api: 'responses',
+})
+
+for await (const chunk of chat({
+  adapter,
+  messages: [{ role: 'user', content: 'Summarize the Bedrock pricing page.' }],
+})) {
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT') process.stdout.write(chunk.delta ?? '')
+}
+```
+
+### API reference
+
+| Factory | Creates |
+| --- | --- |
+| `bedrockText(model, config?)` | Chat adapter with auth from the environment. Returns the adapter of the `api` that you pick |
+| `createBedrockText(model, apiKey, config?)` | Chat adapter with an explicit API key. Skips the environment lookup |
+| `bedrockEmbedding(model, config?)` / `createBedrockEmbedding(model, apiKey, config?)` | Embedding adapter for Titan and Cohere models |
+
+`config` takes `api`, `region`, `auth`, `apiKey`, `baseURL`, `defaultHeaders`, and `endpoint`. See [Configuration](#configuration).
+
+More from AWS:
+
+- [Amazon Bedrock API keys](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html): create and manage API keys.
+- [Amazon Bedrock model access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html): enable models in your account.
+- [Converse API reference](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html): the native Converse API docs.

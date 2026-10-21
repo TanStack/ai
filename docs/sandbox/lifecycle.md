@@ -2,24 +2,22 @@
 title: Lifecycle & Snapshots
 id: lifecycle
 order: 8
-description: "Control sandbox reuse, snapshot the bootstrapped workspace after setup, and resume across runs to cut cold-start cost."
+description: "Reuse one sandbox per thread, snapshot the workspace after setup, and resume on the next run, so only the first run pays the cold-start cost."
 ---
 
-Bootstrapping a sandbox (cloning the repo, installing dependencies, running
-`setup`) is the expensive part of a run. The lifecycle config lets you pay that
-cost once and reuse the result: keep one sandbox per thread, snapshot it after
-setup, and resume instead of re-bootstrapping on the next run.
+Every new sandbox clones the repo, installs dependencies, and runs `setup`. That is the slow part of a run. You do not want to pay it on every message.
 
-When you must also recover files after a sandbox is gone, configure
-[Keep Files After Reload](./portable-snapshots-configure). Provider-native
-snapshots make bootstrap faster. Portable snapshots save the completed
-workspace as durable application data.
+The `lifecycle` config lets you pay it once. Keep one sandbox per thread, take a snapshot after setup, and resume on the next run.
+
+## Reuse a sandbox
+
+Add `lifecycle` to `defineSandbox`:
 
 ```ts
 import { defineSandbox, defineWorkspace, githubRepo } from '@tanstack/ai-sandbox'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 
-const sandbox = defineSandbox({
+export const sandbox = defineSandbox({
   id: 'repo-agent',
   provider: dockerSandbox({ image: 'node:22' }),
   workspace: defineWorkspace({
@@ -27,116 +25,66 @@ const sandbox = defineSandbox({
     setup: ['corepack enable', 'pnpm install'],
   }),
   lifecycle: {
-    reuse: 'thread',          // one sandbox per threadId ('none' = fresh per run)
-    snapshot: 'after-setup',  // snapshot once bootstrapped (provider-permitting)
-    keepAlive: '30m',         // hint to keep the sandbox warm between runs
-    destroyOnComplete: false, // keep it for the next run
+    reuse: 'thread', // one sandbox per threadId
+    snapshot: 'after-setup', // snapshot once bootstrap is done
+    snapshotMaxAge: '24h', // make a new one when the snapshot is older
+    destroyOnComplete: false, // keep the sandbox for the next run
   },
 })
 ```
 
-## The lifecycle object
+Pass the same `threadId` to `chat()` on each run. The first run bootstraps. Later runs resume the sandbox or restore the snapshot, and skip setup.
 
-| Field               | What it controls                                                                            |
-| ------------------- | ------------------------------------------------------------------------------------------- |
-| `reuse`             | `'thread'` keeps one sandbox per `threadId`; `'none'` provisions a fresh sandbox per run.    |
-| `snapshot`          | `'after-setup'` snapshots the workspace once bootstrap finishes, on snapshot-capable providers. |
-| `keepAlive`         | Duration hint (e.g. `'30m'`) for how long the sandbox should stay warm between runs. Nothing in `@tanstack/ai-sandbox` reads it today; it is a hint for providers and host apps. Provider idle timers live on the [provider](./providers) config. |
-| `destroyOnComplete` | When `false`, the sandbox survives the run so the next one can resume it.                    |
-| `snapshotMaxAge`    | Duration (e.g. `'24h'`) after which a stored snapshot is treated as stale and re-created.   |
+## The lifecycle fields
 
-### These fields govern *completion*, not cancellation
+| Field | What it controls |
+| --- | --- |
+| `reuse` | `'thread'` (default) keeps one sandbox per `threadId`. `'none'` makes a fresh sandbox for each run. |
+| `snapshot` | `'after-setup'` takes a snapshot when bootstrap ends. `'after-run'` takes one when a run completes. `'none'` takes no snapshot. The default is `'after-setup'` when the provider supports snapshots, else `'none'`. |
+| `snapshotMaxAge` | A duration such as `'24h'` or `'30m'`. An older record is treated as stale and created again. |
+| `destroyOnComplete` | When `true`, the sandbox is destroyed after the run completes. When `false` (default), the next run can resume it. |
+| `keepAlive` | A duration hint such as `'30m'`, for how long to keep the sandbox warm. `@tanstack/ai-sandbox` does not read it. It is a hint for providers and host apps. Provider idle timers are on the [provider](./providers-advanced) config. |
 
-`keepAlive` and `destroyOnComplete` describe what happens when a run **finishes**.
-They never keep a sandbox alive through an abort: closing the agent's IO stream
-does not kill the agent process, so an explicit cancel destroys the sandbox
-regardless of `destroyOnComplete`, and that is the only reliable way to stop the
-agent burning tokens.
+## How it works
 
-A **disconnect** is the third case, and it is not the same as a cancel. A user
-pressing Stop and a user closing the tab produce an identical connection close.
-On a run with durability wired, a disconnect neither completes nor destroys: the
-sandbox stays up, the agent keeps working, and the run record is marked detached
-so a later request can take it over. With no durability wired, a disconnect
-destroys, exactly as an abort does. See
-[Takeover & Detached Runs](./takeover#detach-vs-cancel).
+When a run needs a sandbox, `withSandbox` tries these in order:
 
-## Snapshot after setup
+1. **Resume the running sandbox**, if a live one exists for this key.
+2. **Restore the latest snapshot**, and skip setup.
+3. **Create a fresh sandbox and bootstrap it**: clone, install, run `setup`, then take a snapshot.
 
-When the provider supports snapshots (see [Providers](./providers)), bootstrap
-automatically takes a snapshot after `setup` completes. The snapshot caches the
-fully bootstrapped [workspace](./workspace) (the cloned repo with dependencies
-installed) so subsequent runs resume from it instead of re-running the setup
-steps, which dramatically reduces cold-start time.
+Each step falls through to the next only when it is not available. A warm thread starts almost at once. A cold one does the full bootstrap.
 
-`snapshot: 'after-setup'` is the default whenever the provider reports snapshot
-support, so you usually do not set it explicitly. Providers without snapshot
-support (e.g. `localProcessSandbox`) skip the snapshot step silently.
+Providers without snapshot support (for example `localProcessSandbox`) skip the snapshot step with no error. Providers without a durable disk or snapshots create and bootstrap again on every run. See [Providers (Advanced)](./providers-advanced) for what each provider supports.
 
-```ts
-import { defineSandbox, defineWorkspace, githubRepo } from '@tanstack/ai-sandbox'
-import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+> [!NOTE]
+> Provider snapshots make bootstrap faster. To keep the finished files after the sandbox is gone, use [Keep Files After Reload](./portable-snapshots-configure). Portable snapshots restore only into a new private sandbox, after the steps above. They never overwrite a live resumed sandbox.
 
-const sandbox = defineSandbox({
-  id: 'repo-agent',
-  provider: dockerSandbox({ image: 'node:22' }),
-  workspace: defineWorkspace({
-    source: githubRepo({ repo: 'owner/app' }),
-    setup: ['corepack enable', 'pnpm install'],
-  }),
-  lifecycle: {
-    reuse: 'thread',
-    // 'after-setup' is the default when the provider supports snapshots.
-    snapshot: 'after-setup',
-    // Optional: re-create (re-bootstrap) when the snapshot is older than this.
-    snapshotMaxAge: '24h',
-  },
-})
-```
+## Advanced
 
 ### Stale snapshots
 
-`snapshotMaxAge` accepts a duration string (`'24h'`, `'30m'`, etc.). When the
-stored snapshot is older than the limit, the sandbox treats it as stale and
-re-creates from scratch, re-running setup and capturing a new snapshot. Leave
-it unset to keep snapshots indefinitely.
+`snapshotMaxAge` takes `'<n>h'` (hours) or `'<n>m'` (minutes). When the stored record is older than this limit, the sandbox is treated as stale. It is created from scratch: setup runs again, and a new snapshot is taken. If you leave it unset, snapshots stay forever.
 
-## The sandbox instance key
+### The sandbox instance key
 
-A sandbox is keyed by a compound `sandboxInstanceKey`:
+A sandbox is found by a compound key:
 
 ```txt
 sandboxInstanceKey = hash(threadId + sandbox.id + provider + workspaceHash + tenant?)
 ```
 
-Because the key folds in the workspace hash, the provider, and an optional
-tenant. Changing any input that would invalidate a cached environment means the
-repo, the `setup` steps, the provider image, or the tenant, produces a
-different key. That means you safely start a **fresh** sandbox rather than
-resuming a stale one whose snapshot no longer matches your config. Keep those
-inputs stable across runs to keep hitting the same warm sandbox.
+The key includes the workspace hash, the provider, and an optional tenant. So if you change the repo, the `setup` steps, the provider image, or the tenant, you get a different key. That starts a **fresh** sandbox, and you never resume a stale one that does not match your config. Keep those inputs the same across runs to keep hitting the same warm sandbox.
 
-## Ensure order
+Providers without a durable disk or snapshots (for example ephemeral containers) keep the same key. But every run pays the bootstrap cost, because there is nothing durable to resume.
 
-When a run needs a sandbox, the layer resolves it in this order:
+### Completion, cancel, and disconnect
 
-1. **Resume the running sandbox**, if a live sandbox already exists for the key.
-2. **Restore the latest snapshot**, recreate from the most recent snapshot,
-   skipping setup.
-3. **Create fresh and bootstrap**, clone, install, run `setup`, then snapshot.
+`keepAlive` and `destroyOnComplete` apply when a run **completes**. They never keep a sandbox alive through an abort.
 
-Each step falls through to the next only when the prior one is unavailable. This
-is what turns a warm thread into a near-instant start, and a cold one into a
-full bootstrap.
+- **Cancel:** closing the agent's IO stream does not stop the agent process. So an explicit cancel always destroys the sandbox, whatever `destroyOnComplete` says. That is the only sure way to stop the agent from spending tokens.
+- **Disconnect:** Stop and a closed tab look the same to the server: the connection closes.
+  - With durability wired, a disconnect does not complete or destroy anything. The sandbox stays up, the agent keeps working, and the run record is marked detached. A later request can take it over.
+  - With no durability wired, a disconnect destroys the sandbox, the same as an abort.
 
-Portable sandbox snapshots run after this lifecycle work. They restore a saved
-workspace only into a newly created private sandbox. They never overwrite a
-live resumed sandbox. See [Portable Snapshots](./portable-snapshots).
-
-> Which providers support durable disk, snapshots, and resume-by-id is listed on
-> [Providers](./providers).
-
-Providers without durable disk or snapshots (e.g. ephemeral containers)
-re-create and re-bootstrap under the same identity: the `sandboxInstanceKey`
-stays stable, but every run pays the bootstrap cost because there is nothing
-durable to resume.
+See [Takeover & Detached Runs](./takeover#detach-vs-cancel) and [Durable Runs](./durable-runs).

@@ -2,7 +2,7 @@
 title: Locks
 id: locks
 order: 3
-description: "Cross-instance mutual exclusion with LockStore and withLocks — coordination middleware for multi-worker critical sections (e.g. sandbox ensure)."
+description: "Let only one run at a time enter a critical section for a key, across workers. Use LockStore and withLocks, for example around sandbox create."
 keywords:
   - tanstack ai
   - locks
@@ -16,60 +16,80 @@ keywords:
   - coordination
 ---
 
-Locks answer a different question from persistence:
+Two runs for the same thread start at the same time on two workers. Both see that no sandbox exists, and both create one. Now you pay for two sandboxes, and the thread uses the wrong one.
 
-| Concern | Question | Seam |
-| --- | --- | --- |
-| **State** | What is durable? | Stores + `withPersistence` |
-| **Locks** | Who may run this critical section right now? | `LockStore` + `withLocks` |
+A lock fixes this. Only one caller at a time runs the critical section for a key. The next caller waits until the first one is done.
 
-They live in **`@tanstack/ai`** as a middleware capability — not in
-`@tanstack/ai-persistence`, and never as a key on `AIPersistence.stores`.
+## Quick setup
 
-## When you need them
+### 1. Provide a lock store
 
-Use locks when **more than one process or isolate** might enter the same critical
-section for the same key:
-
-- **Sandbox resume-or-create** (`withSandbox` / `ensure`) — two concurrent runs
-  for the same thread must not both create a provider sandbox. See
-  [Sandbox Instance Durability](../sandbox/durability).
-- **Your own middleware** — any multi-writer work you want to serialize across
-  workers (e.g. a custom “one active job per thread” gate).
-
-You do **not** need locks for:
-
-- Single-process local dev (optional: `InMemoryLockStore` is fine).
-- Ordinary chat state durability — that is stores, not mutexes.
-- Automatically locking an entire `chat()` turn — `withLocks` only **provides**
-  the capability; consumers call `withLock` when they need exclusion.
-
-## Wire it up
+Add `withLocks` to the `middleware` array. Put it before the middleware that uses the lock:
 
 ```ts
-import { chat } from '@tanstack/ai'
+// api/chat.ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { withLocks, InMemoryLockStore } from '@tanstack/ai/locks'
-import { grokBuildText } from '@tanstack/ai-grok-build'
-import type { ModelMessage } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { onePrepPerThread } from './one-prep-per-thread'
 
-const messages: Array<ModelMessage> = [{ role: 'user', content: 'hi' }]
+// Create the store once, so all requests share it.
+// For more than one process, pass a distributed LockStore.
+const locks = new InMemoryLockStore()
 
-chat({
-  adapter: grokBuildText('grok-build'),
-  messages,
-  middleware: [
-    // Single process. Multi-instance: pass a distributed LockStore instead.
-    withLocks(new InMemoryLockStore()),
-    // later middleware can getLocks(ctx) / withSandbox will use the same token
-  ],
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
+
+  const stream = chat({
+    adapter: openaiText('gpt-6.1-sol'),
+    messages,
+    threadId,
+    runId,
+    middleware: [withLocks(locks), onePrepPerThread],
+  })
+
+  return toServerSentEventsResponse(stream)
+}
+```
+
+### 2. Use the lock in your middleware
+
+Read the store with `getLocks(ctx)`. Then wrap the critical section in `withLock`:
+
+```ts
+// one-prep-per-thread.ts
+import { defineChatMiddleware } from '@tanstack/ai'
+import { LocksCapability, getLocks } from '@tanstack/ai/locks'
+
+export const onePrepPerThread = defineChatMiddleware({
+  name: 'one-prep-per-thread',
+  requires: [LocksCapability],
+  async onStart(ctx) {
+    const locks = getLocks(ctx)
+    await locks.withLock(`thread:${ctx.threadId}`, async (signal) => {
+      // Only one run for this thread is in here at a time.
+      // Pass `signal` to cancellable work when you use a lease-backed store.
+      console.log(`start ${ctx.threadId}`)
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+      console.log(`end ${ctx.threadId}, lost lock: ${signal.aborted}`)
+    })
+  },
 })
 ```
 
-Capability identity is by **object reference**. `withLocks` provides the shared
-`LocksCapability` from core; any later middleware that reads that token (including
-`@tanstack/ai-sandbox`) sees the same store.
+When two runs for the same thread start at the same time, the server console shows `start`, `end`, `start`, `end`. The two critical sections never overlap.
 
-Typical order when composing with sandbox:
+## How it works
+
+- `withLocks(store)` is a middleware. It provides the `LocksCapability` in its `setup` hook. See [Capabilities](./middleware-advanced#capabilities).
+- `withLocks` does not lock a whole `chat()` turn. It only gives the store to later middleware. A consumer calls `withLock` when it needs the lock.
+- The capability is the same object everywhere. So each later middleware that reads `LocksCapability` sees the same store, including `@tanstack/ai-sandbox`.
+
+When you use a sandbox, put `withLocks` before `withSandbox`:
 
 ```ts
 import { withLocks, InMemoryLockStore } from '@tanstack/ai/locks'
@@ -80,20 +100,34 @@ declare const sandbox: SandboxDefinition
 
 const middleware = [
   withLocks(new InMemoryLockStore()),
-  withSandbox(sandbox), // after providers
+  withSandbox(sandbox), // after the providers
 ]
 ```
 
-## The contract
+## When you need a lock
+
+Use a lock when **more than one process or isolate** can enter the same critical section for the same key:
+
+- **Sandbox resume-or-create** (`withSandbox` / `ensure`). Two runs for the same thread must not both create a provider sandbox. See [Sandbox Instance Durability](../sandbox/durability).
+- **Your own middleware.** Any work with more than one writer that you want to run one at a time across workers. For example, "one active job per thread".
+
+You do not need a lock for:
+
+- Local development with one process. `InMemoryLockStore` is enough there.
+- Saving chat state. Stores and `withPersistence` do that. See [Persistence Controls](../persistence/controls).
+
+## Advanced
+
+### The contract
 
 ```ts
 import type { LockStore } from '@tanstack/ai/locks'
 
 declare const locks: LockStore
 
-// Mutual exclusion for a key; lease-backed impls abort `signal` on loss.
+// Mutual exclusion for a key. Lease-backed stores abort `signal` on loss.
 await locks.withLock('thread:abc', async (signal) => {
-  // critical section — pass `signal` to cancellable work when using leases
+  // Critical section. Pass `signal` to cancellable work when you use leases.
   void signal
 })
 ```
@@ -102,18 +136,23 @@ await locks.withLock('thread:abc', async (signal) => {
 | --- | --- |
 | `LockStore` | Interface: `withLock(key, fn)` |
 | `withLocks(store)` | Chat middleware that provides `LocksCapability` |
-| `InMemoryLockStore` | Process-local implementation (promise chain per key) |
+| `InMemoryLockStore` | Implementation for one process (a promise chain per key) |
+| `defineLock(lock)` | Types your own `LockStore` inline |
 | `getLocks` / `provideLocks` | Low-level capability accessors for custom middleware |
 
-`InMemoryLockStore` is correct **within one process only**. It serializes
-callers for the same key, does not poison the chain when a critical section
-throws, and never aborts its signal (ownership cannot be lost in-process).
+`InMemoryLockStore` is correct **in one process only**:
 
-## Implement a lock
+- It runs callers for the same key one at a time.
+- When a critical section throws, the next caller still runs.
+- It never aborts its signal, because a process cannot lose its own lock.
 
-Wrap your own mutual-exclusion primitive with `defineLock`. It types the object
-against the contract inline (autocomplete, no `: LockStore` annotation). Acquire
-the key, run `fn`, and release when `fn` settles (whether it resolves or throws):
+### Implement a lock
+
+Wrap your own mutual-exclusion primitive with `defineLock`. It checks the object against the contract inline, so you get autocomplete and need no `: LockStore` annotation.
+
+1. Acquire the key.
+2. Run `fn`.
+3. Release the key when `fn` settles, also when it throws.
 
 ```ts
 import { defineLock } from '@tanstack/ai/locks'
@@ -133,61 +172,25 @@ export const locks = defineLock({
 })
 ```
 
-Wire it as middleware with `withLocks(locks)`. The requirements a production
-store must meet are covered below.
+Wire it as middleware with `withLocks(locks)`. A production store must meet the rules in the next section.
 
-## Distributed locks and leases
+### Distributed locks and leases
 
-Multi-instance deployments need a **distributed** implementation (Durable Object,
-Redis, etc.). A good store:
+A deployment with more than one instance needs a **distributed** store, for example a Durable Object or Redis. A good store:
 
-1. Serializes owners per `key`.
-2. Uses **leases** (or equivalent) so a crashed owner cannot block forever.
-3. Passes an `AbortSignal` into `fn`; when the lease is lost, **abort** so the
-   callback stops starting externally visible work and passes the signal to
-   cancellable dependencies.
+1. Lets one owner at a time hold each `key`.
+2. Uses **leases** (or something like them), so an owner that crashes cannot block the key forever.
+3. Passes an `AbortSignal` into `fn`. When the lease is lost, it **aborts** the signal. The callback then stops starting work that others can see, and passes the signal to cancellable dependencies.
 
-Callbacks that ignore `signal` still type-check (`() => Promise<T>` is
-assignable), but lease-backed backends cannot protect you if the critical
-section keeps mutating after abort.
+A callback that ignores `signal` still type-checks, because `() => Promise<T>` is assignable. But a lease-backed store cannot protect you if the critical section keeps changing data after the abort.
 
-There is no shared lock conformance suite in the chat store testkit — write
-targeted tests for concurrency, release-on-throw, and lease expiry for your
-backend. The Cloudflare Durable Object recipe lives in the
-`ai-persistence/build-cloudflare-adapter` agent skill (app-owned file,
-not a shipped package).
+To test your store:
 
-On Redis, `upstashLocks()` from `@upstash/agentkit-tanstack-ai` is a published
-third-party `LockStore` backed by Upstash Redis. It renews its lease while `fn`
-runs and aborts `signal` if renewal fails. See
-[Upstash](../community-adapters/upstash#locks).
+- The chat store testkit has no lock conformance suite. Write your own tests for concurrency, release on throw, and lease expiry.
+- The Cloudflare Durable Object recipe is in the `ai-persistence/build-cloudflare-adapter` agent skill. It is a file that your app owns, not a published package.
 
-## Consume in custom middleware
+On Redis, `upstashLocks()` from `@upstash/agentkit-tanstack-ai` is a published third-party `LockStore` on Upstash Redis. It renews its lease while `fn` runs, and it aborts `signal` if a renewal fails. See [Upstash](../community-adapters/upstash#locks).
 
-```ts
-import { defineChatMiddleware } from '@tanstack/ai'
-import { LocksCapability, getLocks } from '@tanstack/ai/locks'
+### Provide a store without `withLocks`
 
-const serializePerThread = defineChatMiddleware({
-  name: 'serialize-per-thread',
-  requires: [LocksCapability],
-  async onStart(ctx) {
-    const locks = getLocks(ctx)
-    await locks.withLock(`thread:${ctx.threadId}`, async (signal) => {
-      // critical section — honor `signal` under lease-backed locks
-      void signal
-    })
-  },
-})
-```
-
-Or provide without `withLocks` by calling `provideLocks` in your own
-`setup` hook if you already own a custom middleware.
-
-## See also
-
-- [Middleware](./middleware) — capability bus and lifecycle
-- [Sandboxes](../sandbox/overview) — sandbox middleware overview
-- [Sandbox Instance Durability](../sandbox/durability) — primary product consumer (`withSandbox` / `ensure`)
-- [Persistence Controls](../persistence/controls) — compose state stores from different systems
-- [Build Your Own Adapter](../persistence/build-your-own-adapter) — chat store contracts
+If you already own a custom middleware, call `provideLocks(ctx, store)` in its `setup` hook, and list `LocksCapability` in its `provides`. Later middleware then reads the store with `getLocks(ctx)`.

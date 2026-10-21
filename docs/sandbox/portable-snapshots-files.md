@@ -15,41 +15,18 @@ policy runs on automatic save, named save, and restore.
 This page assumes you already created a snapshots object. If you have not, start
 with [Keep Files After Reload](./portable-snapshots-configure).
 
-## Default exclusions stay unless you pass exclude
-
-If you pass only `include` or only `redact`, the default exclusions stay
-in place. Capture still skips `.env`, `.git`, and `node_modules`.
-
-If you pass `exclude`, that function replaces the default exclusions.
-Copy `defaultSandboxSnapshotPolicy()` first. Then keep those rules and add
-yours.
-
-```ts
-import { defaultSandboxSnapshotPolicy } from '@tanstack/ai-sandbox'
-
-const defaults = defaultSandboxSnapshotPolicy()
-
-const policy = {
-  ...defaults,
-  include(path: string) {
-    return path === 'src' || path.startsWith('src/')
-  },
-}
-```
-
-The projection marker for this workspace stays protected. A custom policy
-cannot capture or restore that marker.
-
 ## Pass the policy
 
-Pass `policy` to `memorySandboxSnapshots` or `createSandboxSnapshots`. Use that
-same object in `withSandbox`.
+Pass `policy` to `memorySandboxSnapshots` or `createSandboxSnapshots`. Then pass
+that same snapshots object to `withSandbox`. This sample keeps only the `src`
+folder:
 
 ```ts
 import { chat } from '@tanstack/ai'
-import { grokBuildText } from '@tanstack/ai-grok-build'
+import { GROK_CLI_INSTALL_COMMAND, grokBuildText } from '@tanstack/ai-grok-build'
 import { withPersistence } from '@tanstack/ai-persistence'
 import {
+  createSecrets,
   defaultSandboxSnapshotPolicy,
   defineSandbox,
   defineWorkspace,
@@ -64,7 +41,11 @@ const instances = new InMemorySandboxInstanceStore()
 const sandbox = defineSandbox({
   id: 'app-builder',
   provider: dockerSandbox({ image: 'node:22' }),
-  workspace: defineWorkspace({ source: { type: 'none' } }),
+  workspace: defineWorkspace({
+    source: { type: 'none' },
+    setup: [GROK_CLI_INSTALL_COMMAND],
+    secrets: createSecrets({ XAI_API_KEY: process.env.XAI_API_KEY ?? '' }),
+  }),
   lifecycle: { reuse: 'thread' },
 })
 
@@ -96,6 +77,19 @@ void result
 
 `snapshots.save` has no file list. Change the file set by changing `policy` on
 the snapshots object.
+
+## Default exclusions stay unless you pass exclude
+
+If you pass only `include` or only `redact`, the default exclusions stay
+in place. Capture still skips `.env`, `.git`, and `node_modules`.
+
+If you pass `exclude`, that function replaces the default exclusions.
+Copy `defaultSandboxSnapshotPolicy()` first. Then keep those rules and add
+yours. Every recipe below starts with `...defaults` for this reason. See
+[Skip one extra folder](#skip-one-extra-folder).
+
+The projection marker for this workspace stays protected. A custom policy
+cannot capture or restore that marker.
 
 ## How include and exclude run
 

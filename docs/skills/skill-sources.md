@@ -13,53 +13,76 @@ keywords:
   - edge skills
 ---
 
-Inline skills are fine for a demo, but real skills live somewhere: a folder in
-your repo, a bundle baked at build time, or rows in a database. A `SkillSource`
-is how `withSkills` reads them. This page covers the three built-in sources and
-how to combine them.
+Your skills live in a folder in your repo, not in code. Or you deploy to the edge, where you cannot read files at request time.
 
-Every source is bytes only, so the same middleware works on the edge, in a
-Worker, or on a server. Pick the source that matches where your skills live.
+A `SkillSource` tells `withSkills` where to read skills from. Pick the built-in source that matches where your skills live:
 
-## From a folder
+| Your skills live | Use | Runs on |
+| --- | --- | --- |
+| In a folder | `skillDirectory` from `@tanstack/ai-skills/node` | A Node server |
+| In a folder, baked in at build time | `staticSkills` from `@tanstack/ai-skills/static` | The edge, Workers, and servers |
+| In S3, a database, or a registry | Your own `SkillSource` | Where your store client runs |
+| In your code | `inlineSkill` from `@tanstack/ai-skills` | Anywhere |
 
-`skillDirectory` walks a folder for `SKILL.md` files. It lives under the `/node`
-entry point because it reads the filesystem, so use it on a server, not the edge.
+## Quick setup: load skills from a folder
 
-```typescript
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+### 1. Put each skill in its own folder
+
+A skill folder is any folder that contains a `SKILL.md`:
+
+```text
+skills/
+  pptx-builder/
+    SKILL.md
+    references/
+      layouts.md
+  brand-voice/
+    SKILL.md
+```
+
+### 2. Pass `skillDirectory` to `withSkills`
+
+`skillDirectory` reads the file system, so it lives under the `/node` entry point:
+
+```ts
+// api/chat.ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { withSkills } from '@tanstack/ai-skills'
 import { skillDirectory } from '@tanstack/ai-skills/node'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
-
+  const params = await chatParamsFromRequest(request)
   const stream = chat({
-    adapter: anthropicText('claude-sonnet-4-5'),
-    messages,
+    adapter: anthropicText('claude-sonnet-5-5'),
+    messages: params.messages,
     middleware: [withSkills(skillDirectory('./skills'))],
   })
-
   return toServerSentEventsResponse(stream)
 }
 ```
 
-A skill folder is any directory that contains a `SKILL.md`. Bundled files under
-`references/` and `assets/` become the skill's resources, and files under
-`scripts/` are listed too (they are inventoried, not run, in this release).
+The catalog now lists `pptx-builder` and `brand-voice`.
 
-By default `skillDirectory` is strict: a malformed `SKILL.md` is an error, so a
-broken file never slips into your catalog silently. Pass `{ strict: false }` to
-skip bad files and load the rest.
+## How it works
 
-## From a build-time bundle (edge-safe)
+A source gives `withSkills` bytes only. It lists the skills, and it loads one `SKILL.md` by name. It does not need a file path, so the same middleware runs on a server, in a Worker, or on the edge.
 
-For an edge deployment you cannot read the filesystem at request time. The Vite
-plugin globs your skills at build time and bakes them into the bundle, so
-`staticSkills` needs no filesystem at runtime.
+`skillDirectory` maps the folder like this:
 
-Add the plugin to your Vite config:
+- `SKILL.md` is the skill. Its frontmatter gives the name and the description.
+- Files under `references/` and `assets/` become the skill's resources.
+- Files under `scripts/` are listed in the `load_skill` result, but they do not run.
+
+## Load skills at build time (edge-safe)
+
+On the edge, you cannot read the file system at request time. The Vite plugin reads your skills at build time and puts them in the bundle. `staticSkills` then needs no file system.
+
+1. Add the plugin to your Vite config:
 
 ```ts ignore
 import { defineConfig } from 'vite'
@@ -70,10 +93,14 @@ export default defineConfig({
 })
 ```
 
-Then wrap the generated catalog:
+2. Wrap the generated catalog with `staticSkills`:
 
 ```ts ignore
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { withSkills } from '@tanstack/ai-skills'
 import { staticSkills } from '@tanstack/ai-skills/static'
@@ -82,54 +109,72 @@ import { catalog } from 'virtual:tanstack-skills'
 const skills = staticSkills(catalog)
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
-
+  const params = await chatParamsFromRequest(request)
   const stream = chat({
-    adapter: anthropicText('claude-sonnet-4-5'),
-    messages,
+    adapter: anthropicText('claude-sonnet-5-5'),
+    messages: params.messages,
     middleware: [withSkills(skills)],
   })
-
   return toServerSentEventsResponse(stream)
 }
 ```
 
-Because the catalog is baked at build time, `skills.names` is a typed list of
-your skill names, and the `load_skill` tool's `name` is constrained to it.
+The catalog is fixed at build time. So `skills.names` is a typed list of your skill names, and the `name` input of `load_skill` accepts only those names.
 
-## From your own store
+## Load skills from your own store
 
-For DB, S3, or registry-backed skills, define a `SkillSource` yourself. It is a
-small interface: list the skills, and load one by name. See
-[Write a skill source](./writing-adapters) for the full walkthrough and the
-conformance suite that proves your adapter behaves.
+For skills in S3, a database, or a registry, write your own `SkillSource`. It has two required methods: list the skills, and load one by name. See [Write a skill source](./writing-adapters).
 
 ## Combine sources
 
-Real setups layer skills: org-wide, per-project, per-tenant. Combine them with
-the combinators, then pass the result to `withSkills`.
+Real apps often layer skills: one set for the whole org, one per project, one per tenant. Combine the sources, then pass the result to `withSkills`:
 
 ```ts ignore
 import { aggregate, dedupe } from '@tanstack/ai-skills'
 
-// Org skills plus this tenant's skills, org first on a name clash.
+// Org skills plus this tenant's skills. On a name clash, the org skill wins.
 const source = dedupe(aggregate([orgSkills, tenantSkills]))
 ```
 
 | Combinator | What it does |
 |---|---|
-| `aggregate([a, b])` | Concatenate sources in order. No dedupe. |
-| `dedupe(source)` | First occurrence of a name wins, warns on a clash. |
-| `filter(source, fn)` | Hide skills your predicate rejects. Hidden skills never reach the catalog. |
-| `cache(source)` | Memoize `list()` and `load()`. Shares one fetch across concurrent calls. |
+| `aggregate([a, b])` | Joins the sources in order. It does not remove duplicates. |
+| `dedupe(source)` | The first skill with a name wins. It logs a warning on a clash. |
+| `filter(source, fn)` | Hides each skill that `fn` rejects. Hidden skills never reach the catalog. |
+| `cache(source)` | Keeps the results of `list()` and `load()` in memory. Calls at the same time share one fetch. |
 
-Passing an array straight to `withSkills([a, b])` is shorthand for
-`dedupe(aggregate([a, b]))`. A single source is used as-is and never wrapped, so
-a tenant-scoped source is never cached into a shared bucket by accident. Reach
-for `cache` yourself only when the source is safe to share.
+`withSkills([a, b])` with an array is a short form of `dedupe(aggregate([a, b]))`.
 
-## Where to go next
+## Advanced
 
-- [Portable Agent Skills](./agent-skills) — the middleware, the catalog, and the
-  `load_skill` flow.
-- [Write a skill source](./writing-adapters) — back skills with your own store.
+### Broken `SKILL.md` files
+
+`skillDirectory` skips a `SKILL.md` that it cannot use. Other skills still load.
+
+- A file with no frontmatter, or with no `description`, is always skipped.
+- A file with a warning is skipped in the default strict mode. The warnings are: the name does not match the folder name, the name is longer than 64 characters, or the name has invalid characters.
+
+To load files that have warnings, pass `{ strict: false }`:
+
+```ts ignore
+skillDirectory('./skills', { strict: false })
+```
+
+`skillDirectory` also accepts an array of folders and a `maxDepth` option. With several folders, the first skill with a name wins.
+
+### When to cache
+
+`withSkills` uses a single source as it is. It never wraps it in `cache`. So a source for one tenant never goes into a shared cache by accident.
+
+If all users can safely share the source, add `cache` yourself. To expire the cache, pass a time in milliseconds:
+
+```ts ignore
+import { cache } from '@tanstack/ai-skills'
+
+const shared = cache(orgSkills, { refreshInterval: 60_000 })
+```
+
+### Combinator options
+
+- `dedupe(source, onCollision)`: replace the default warning with your own function `(name) => void`.
+- `filter(source, predicate, ctx)`: the predicate gets `(skill, ctx)`. Pass request data, such as a tenant id, in `ctx`.

@@ -1,7 +1,7 @@
 ---
 title: TypeSafe
 id: typesafe-adapter
-description: "Use TypeSafe Jev with TanStack AI via @tanstack/ai-typesafe: typed evaluate decisions with decide(), choice(), score(), and boolean()."
+description: "Get typed answers from TypeSafe Jev in TanStack AI with @tanstack/ai-typesafe: a choice, a score, or a yes or no from decide()."
 keywords:
   - tanstack ai
   - typesafe
@@ -12,12 +12,9 @@ keywords:
   - adapter
 ---
 
-You have a TypeSafe API key and you want typed answers from Jev.
-Install `@tanstack/ai-typesafe`. Then pass `typesafeDecider` to `decide()`.
+TypeSafe gives you Jev, a model that answers typed questions about your data: a queue name, an urgency level, or a yes or no. The adapter works with `decide()` only. It has no chat.
 
-The adapter covers evaluate only. It talks to TypeSafe over `fetch`. There is no TypeSafe SDK.
-
-## Installation
+## 1. Install
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
@@ -32,125 +29,126 @@ octane: @tanstack/ai @tanstack/ai-typesafe
 
 <!-- ::end:tabs -->
 
-## Evaluate
+## 2. Set the API key
 
-```typescript
-import { decide, choice, score, boolean } from "@tanstack/ai";
-import { typesafeDecider } from "@tanstack/ai-typesafe";
-
-const ticket = {
-  subject: "Charged twice for the same invoice",
-  body: "Please refund the extra payment.",
-};
-
-const result = await decide({
-  adapter: typesafeDecider("jev-latest"),
-  state: ticket,
-  questions: {
-    queue: choice({
-      instructions: "Which team should handle this ticket?",
-      options: {
-        billing: "Payments, invoices, refunds",
-        tech: "Bugs, outages, integrations",
-        sales: "Pricing, upgrades, new accounts",
-      },
-    }),
-    urgency: score({
-      instructions: "How urgent is this ticket?",
-      levels: ["low", "medium", "high"],
-    }),
-    refund: boolean({
-      instructions: "Is the customer asking for a refund?",
-    }),
-  },
-});
-
-console.log(result.queue.value);
-console.log(result.queue.probability);
-console.log(result.queue.confidence);
-console.log(result.meta.usage);
-```
-
-For question helpers, the result shape, abort, and middleware, see [Evaluate](../evaluate/evaluate).
-
-## Models
-
-| Model        | Description                |
-| ------------ | -------------------------- |
-| `jev-latest` | Current stable Jev alias   |
-| `jev-1.13.0` | Pinned Jev release         |
-
-You can also pass other TypeSafe model ids as a string.
-
-## Environment Variables
-
-The adapter reads your API key from the environment:
+Get a key from [TypeSafe](https://typesafe.ai). Put it in the environment of your server:
 
 ```bash
 TYPESAFE_API_KEY=your-typesafe-api-key
 ```
 
-| Variable           | Required | Description            |
-| ------------------ | -------- | ---------------------- |
-| `TYPESAFE_API_KEY` | Yes      | Your TypeSafe API key  |
-
-Get a key from [TypeSafe](https://typesafe.ai).
-
-## Explicit API Keys
-
-To pass a key directly, use `createTypesafeDecider`:
+`typesafeDecider` reads `TYPESAFE_API_KEY`. To pass the key in code, use `createTypesafeDecider`:
 
 ```typescript
 import { createTypesafeDecider } from "@tanstack/ai-typesafe";
 
-const adapter = createTypesafeDecider(
-  "jev-latest",
-  process.env.MY_TYPESAFE_KEY!,
-);
+const adapter = createTypesafeDecider("jev-latest", process.env.MY_TYPESAFE_KEY!);
 ```
 
-## Behind a proxy
+## 3. Ask your first questions from the server
 
-Route every request through a gateway with `baseURL` and `defaultHeaders`.
-These two option names are the same on every TanStack AI adapter.
+This route reads a support ticket and asks Jev three questions about it:
+
+```typescript
+import { decide, choice, score, boolean } from "@tanstack/ai";
+import { typesafeDecider } from "@tanstack/ai-typesafe";
+
+export async function POST(request: Request) {
+  const ticket = await request.text();
+
+  const result = await decide({
+    adapter: typesafeDecider("jev-latest"),
+    state: ticket,
+    questions: {
+      queue: choice({
+        instructions: "Which team should handle this ticket?",
+        options: {
+          billing: "Payments, invoices, refunds",
+          tech: "Bugs, outages, integrations",
+          sales: "Pricing, upgrades, new accounts",
+        },
+      }),
+      urgency: score({
+        instructions: "How urgent is this ticket?",
+        levels: ["low", "medium", "high"],
+      }),
+      refund: boolean({
+        instructions: "Is the customer asking for a refund?",
+      }),
+    },
+  });
+
+  return Response.json({
+    queue: result.queue.value,
+    urgency: result.urgency.value,
+    refund: result.refund.value,
+  });
+}
+```
+
+Each answer also has a `probability`. `result.meta.usage` has the token count.
+
+## 4. Call the route from the client
+
+`decide()` needs your API key, so it stays on the server. The client sends the ticket text to the route:
+
+```typescript
+export async function evaluateTicket(ticket: string) {
+  const response = await fetch("/api/evaluate", {
+    method: "POST",
+    body: ticket,
+  });
+  return response.json();
+}
+```
+
+Call `evaluateTicket("Charged twice for the same invoice. Please refund the extra payment.")` and you get back something like `{ queue: "billing", urgency: "medium", refund: true }`.
+
+For the question helpers, the result shape, abort, and middleware, see [Evaluate](../evaluate/evaluate). For a full TanStack Start app, see [Evaluate a ticket](../tutorials/evaluate).
+
+## Models and options
+
+| Model | Description |
+| --- | --- |
+| `jev-latest` | The current stable Jev release |
+| `jev-1.13.0` | A pinned Jev release |
+
+You can also pass other TypeSafe model ids as a string. The package exports the known ids as `TYPESAFE_EVALUATE_MODELS`.
+
+## Advanced
+
+### Behind a proxy
+
+To send every request through a gateway, set `baseURL` and `defaultHeaders`. All TanStack AI adapters use these two option names:
 
 ```typescript
 import { createTypesafeDecider } from "@tanstack/ai-typesafe";
 
-const adapter = createTypesafeDecider(
-  "jev-latest",
-  process.env.TYPESAFE_API_KEY!,
-  {
-    baseURL: "https://gateway.example.com/typesafe",
-    defaultHeaders: {
-      "cf-aig-authorization": `Bearer ${process.env.GATEWAY_TOKEN}`,
-    },
+const adapter = createTypesafeDecider("jev-latest", process.env.TYPESAFE_API_KEY!, {
+  baseURL: "https://gateway.example.com/typesafe",
+  defaultHeaders: {
+    "cf-aig-authorization": `Bearer ${process.env.GATEWAY_TOKEN}`,
   },
-);
+});
 ```
 
 `baseUrl` and `headers` are aliases of the same two options. If you set both forms, `baseURL` and `defaultHeaders` win.
 
-## API Reference
+### Bring your own key
 
-### `typesafeDecider(model, config?)`
+`typesafeByok` from `@tanstack/ai-typesafe/byok` declares TypeSafe for the BYOK store, with `TYPESAFE_API_KEY` as its env var. See [Bring Your Own Key](../advanced/byok).
 
-Creates an evaluate adapter. It reads `TYPESAFE_API_KEY` from the environment.
+### API reference
 
-- `model`: `"jev-latest"`, `"jev-1.13.0"`, or another TypeSafe model id
-- `config.baseURL`: override the API base URL (default `https://api.typesafe.ai`). `baseUrl` is an alias.
-- `config.defaultHeaders`: extra request headers. `headers` is an alias.
-- `config.fetch`: override `fetch`
-- `config.timeout`: request timeout in milliseconds
+The adapter sends `POST /v1/systemone` to the base URL with `fetch`. There is no TypeSafe SDK.
 
-### `createTypesafeDecider(model, apiKey, config?)`
+| Factory | Creates |
+| --- | --- |
+| `typesafeDecider(model, config?)` | An evaluate adapter. Reads `TYPESAFE_API_KEY`. |
+| `createTypesafeDecider(model, apiKey, config?)` | The same adapter with an explicit API key. |
 
-Same as `typesafeDecider` with an explicit API key.
+The `config` fields:
 
-The adapter sends `POST /v1/systemone` to that base URL.
-
-## Next Steps
-
-- [Evaluate guide](../evaluate/evaluate): full `decide()` walkthrough
-- [Evaluate a ticket](../tutorials/evaluate): build a Start route
-- [Generation Hooks](../media/generation-hooks.md): usage and lifecycle middleware
+- `baseURL`: the API base URL. The default is `https://api.typesafe.ai`. `baseUrl` is an alias.
+- `defaultHeaders`: extra request headers. `headers` is an alias.
+- `fetch`: your own `fetch` function.

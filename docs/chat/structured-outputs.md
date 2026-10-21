@@ -2,7 +2,7 @@
 title: Structured Outputs (Moved)
 id: structured-outputs
 order: 4
-description: "Structured outputs documentation has moved to its own top-level Structured Outputs section, with separate guides for one-shot extraction, streaming UIs, multi-turn chat, and combining with tools."
+description: "Structured outputs have their own section. Pick the guide for what you build: one-shot extraction, a streaming UI, multi-turn chat, tools, or a harness agent."
 keywords:
   - tanstack ai
   - structured outputs
@@ -10,13 +10,12 @@ keywords:
   - redirect
 ---
 
-The structured-outputs guide has moved to its own top-level section, split by what you're building. Pick the journey that fits:
+You want the model to return a typed object, not free text. Structured outputs have their own section. Pick the page for what you build:
 
-- **[Overview](../structured-outputs/overview)** — what structured output is, schema library options, provider support, and "which page do I read?"
-- **[One-Shot Extraction](../structured-outputs/one-shot)** — single prompt in, single typed object out. Use this when you don't need streaming or chat history.
-- **[Streaming UIs](../structured-outputs/streaming)** — `useChat({ outputSchema })` with `partial` and `final` populating a UI field by field.
-- **[Multi-Turn Chat](../structured-outputs/multi-turn)** — each successfully completed structured-output run adds a typed response to message history, and `messages[i].parts.find(p => p.type === "structured-output").data` is typed by your schema.
-- **[With Tools](../structured-outputs/with-tools)** — combining `outputSchema` with the agent loop, including pause/resume for server-tool approvals and client-tool invocations.
-- **[Harness Agents](../structured-outputs/harnesses)** — a coding agent in a sandbox inspects files, then returns a typed object.
+- **[Overview](../structured-outputs/overview)**: what structured output is, which schema libraries work, provider support, and which page to read.
+- **[One-Shot Extraction](../structured-outputs/one-shot)**: one prompt in, one typed object out. Use it when you do not need streaming or chat history.
+- **[Streaming UIs](../structured-outputs/streaming)**: `useChat({ outputSchema })` fills a UI field by field with `partial` and `final`.
+- **[Multi-Turn Chat](../structured-outputs/multi-turn)**: each completed run adds a typed response to the message history. The `data` of its `structured-output` part has the type of your schema.
+- **[With Tools](../structured-outputs/with-tools)**: use `outputSchema` with the agent loop, including server-tool approvals and client tools.
 
-> **Note:** This URL is kept for backward compatibility. New content lives under `/structured-outputs/*` — update existing bookmarks when you can.
+Need a coding agent in a sandbox that reads files and then returns a typed object? See [Harness Agents](../structured-outputs/harnesses).

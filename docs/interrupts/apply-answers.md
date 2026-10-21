@@ -2,7 +2,7 @@
 title: Apply Answers
 id: interrupts-apply-answers
 order: 6
-description: "Read a generic interrupt answer on the continuation run and apply it to the next model turn."
+description: "Read the answer to a generic interrupt on the continuation run, and use it in the next model call."
 keywords:
   - tanstack ai
   - onInterruptResolution
@@ -12,181 +12,24 @@ keywords:
   - createCapability
 ---
 
-The user approved a plan or typed a note. You need that value on the server
-before the next model call. `onInterruptResolution` is where you read it. It
-does not change config. `onConfig` is where you apply it.
+The user approved a plan or typed a note. The server must use that answer in
+the next model call, or stop the run when the user said no.
 
-By the end of this page you know when the resolution hook runs, what it can
-return, and how to turn the answer into a prompt, a tool list, or a stop.
+Read the answer in `onInterruptResolution`, keep it on a middleware capability,
+and apply it in `onConfig`.
 
-Define and emit the interrupt first. See [Generic Interrupts](./generic).
+This page assumes that you have the `reviewPlan` definition from
+[Generic Interrupts](./generic).
 
-## Two `chat()` calls
+## Quick setup
 
-The pause spans two runs. One user-visible turn. Two `chat()` calls.
+### 1. Write the middleware
 
-**Call 1 (pause).** `onInterruptBoundary` returns `{ interrupts }`. The run
-ends with `RUN_FINISHED` and `outcome: interrupt`. The resolution hook does
-not run.
-
-**Call 2 (resume).** The client starts a new request after
-`resolveInterrupt()` or `cancel()`. The body includes:
-
-- a new `runId`
-- `parentRunId` set to the paused run
-- `resume` with the answers. Each generic item also has `metadata` with the
-  original request (`tanstack:interruptContinuation`)
-
-`useChat` sends those fields for you. If you POST by hand, include all three.
-If `resume` is present and `parentRunId` is missing, the server throws.
-
-A hand-built generic resume item looks like this:
+This middleware asks for the review, reads the answer, and adds the note to
+the system prompts:
 
 ```ts
-import { wrapGenericInterruptContinuation } from '@tanstack/ai'
-
-const resumeItem = {
-  interruptId: 'generic-1',
-  status: 'resolved' as const,
-  payload: { approved: true },
-  metadata: wrapGenericInterruptContinuation({
-    v: 1,
-    definitionId: 'review-plan',
-    key: 'turn-1',
-    batchIndex: 0,
-    reason: 'review',
-    message: 'Review the plan',
-  }),
-}
-```
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Client
-    participant Server
-
-    Client->>Server: first chat() request
-    Server-->>Client: RUN_FINISHED outcome interrupt
-    Client->>User: interrupts array
-    User->>Client: resolveInterrupt or cancel
-    Client->>Server: second chat() with parentRunId and resume
-    Note over Server: onInterruptResolution runs here
-    Server-->>Client: continue, cancel tools, or stop
-```
-
-## Exact place in the second call
-
-```
-setup
-onConfig                 (phase is init)
-onInterruptResolution    (phase is still init)
-onStart
-then stop, or continue the agent loop
-```
-
-The hook runs **once**, at the start of the continuation. It does not run at
-`beforeModel`, `afterModel`, `beforeTools`, or `afterTools`.
-
-`ctx.phase` is `'init'`. `ctx.iteration` is `0`. No model call has started.
-
-The hook runs once per batch. Two cards in one pause still produce one hook
-call with both answers.
-
-The hook does not run on the first user message. It does not run for a
-tool-approval or client-tool batch that has no generic interrupt.
-
-If that continuation pauses again, that is a third `chat()` call. The hook
-runs again at the start of that third call.
-
-## Read the typed answers
-
-```ts
-import type { ChatMiddleware } from '@tanstack/ai'
-import { reviewPlan } from './interrupts'
-
-export const applyReview: ChatMiddleware<unknown, typeof reviewPlan> = {
-  name: 'apply-review',
-  onInterruptResolution(_ctx, resumedInterrupts) {
-    for (const result of resumedInterrupts.for(reviewPlan)) {
-      if (result.status === 'resolved' && !result.response.approved) {
-        return { toolResume: 'stop' }
-      }
-    }
-  },
-}
-```
-
-- `resumedInterrupts.for(reviewPlan)` keeps the response type for that
-  definition
-- `resumedInterrupts.all()` returns every registered answer
-- `resumedInterrupts.all(reviewPlan, otherDefinition)` narrows to those
-  definitions
-
-Each item is `resolved` (with `response`) or `cancelled`.
-
-## What the hook can return
-
-Return `toolResume` to decide what happens to **pending tools** from the
-paused turn:
-
-| Value | Effect |
-| --- | --- |
-| `continue` | Run the pending tools |
-| `cancel` | Mark the pending tools as cancelled. Do not run them |
-| `stop` | End the run after `onStart`. No tools. No model call |
-
-When more than one middleware returns a value, the engine keeps the stricter
-one. `stop` wins over `cancel`. `cancel` wins over `continue`.
-
-If a generic interrupt shares a batch with client tools, the client does not
-run those client tools until `toolResume` is `continue`. `cancel` and `stop`
-skip them. After `continue`, the engine emits the client-tool wait again.
-
-After a `continue`, the engine picks up from the phase that paused:
-
-| First run paused at | Next step |
-| --- | --- |
-| `beforeModel` | The model call |
-| `afterModel` | Tools, if the model asked for them |
-| `beforeTools` | Tool execution |
-| `afterTools` | The next model turn (the tools already ran) |
-
-## What the hook cannot change
-
-`onInterruptResolution` cannot change config. It cannot change the model or
-the adapter.
-
-These fields change only from `onConfig` (or `onStructuredOutputConfig`):
-
-- `messages`
-- `systemPrompts`
-- `tools`
-- `modelOptions`
-- `metadata`
-
-The user answer is **not** added to `messages` by itself. If the model must
-see the note, you add it.
-
-## Apply the answer in `onConfig`
-
-Order on the continuation:
-
-1. `onConfig` with `phase: 'init'`. The answers are not applied yet.
-2. `onInterruptResolution`. Read the answers and store them on the run.
-3. `onConfig` with `phase: 'beforeModel'`. Return the new prompts, tools, or
-   messages.
-
-Store the answer in a [middleware capability](../advanced/middleware#capabilities).
-The value lives on `ctx` for this `chat()` call. Another middleware can
-declare `requires` and read the same note. Two overlapping `chat()` calls do
-not share the value.
-
-If you list the capability in `provides`, you must provide it in `setup`.
-You do not have the user answer yet. Provide an empty box first. Write the
-answer in `onInterruptResolution`.
-
-```ts
+// app/review-plan.ts
 import { createCapability, type ChatMiddleware } from '@tanstack/ai'
 import { reviewPlan } from './interrupts'
 
@@ -238,7 +81,156 @@ export const reviewMiddleware: ChatMiddleware<unknown, typeof reviewPlan> = {
 }
 ```
 
-Register the object on `chat({ middleware: [reviewMiddleware] })`.
+### 2. Register it on the server
+
+The continuation needs the same definitions and the same middleware as the
+paused run. Forward `parentRunId` and `resume` from the request:
+
+```ts
+// app/api/chat/route.ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { reviewMiddleware } from '../../review-plan'
+import { reviewPlan } from '../../interrupts'
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request)
+  const stream = chat({
+    adapter: openaiText('gpt-6.1-sol'),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    ...(params.parentRunId ? { parentRunId: params.parentRunId } : {}),
+    ...(params.resume ? { resume: params.resume } : {}),
+    interrupts: [reviewPlan],
+    middleware: [reviewMiddleware],
+  })
+  return toServerSentEventsResponse(stream)
+}
+```
+
+### 3. Try it
+
+Use the `PlanReview` component from [Generic Interrupts](./generic). Make it
+resolve with `{ approved: true, note: 'Keep it short' }`. The model reply now
+follows the note. Resolve with `{ approved: false }`, and the run stops with no
+model call.
+
+## How it works
+
+The pause spans two `chat()` calls, for one turn that the user sees:
+
+1. **Pause.** `onInterruptBoundary` returns `{ interrupts }`. The run ends with
+   `RUN_FINISHED` and `outcome: interrupt`. `onInterruptResolution` does not
+   run.
+2. **Resume.** After `resolveInterrupt()` or `cancel()`, the client sends a new
+   request with `parentRunId` and `resume`. `onInterruptResolution` runs here.
+
+On the continuation, the hooks run in this order:
+
+1. `onConfig` with `phase: 'init'`. The answers are not applied yet.
+2. `onInterruptResolution`. Read the answers and store them on the capability.
+3. `onConfig` with `phase: 'beforeModel'`. Return the new prompts, tools, or
+   messages.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Client
+    participant Server
+
+    Client->>Server: first chat() request
+    Server-->>Client: RUN_FINISHED outcome interrupt
+    Client->>User: interrupts array
+    User->>Client: resolveInterrupt or cancel
+    Client->>Server: second chat() with parentRunId and resume
+    Note over Server: onInterruptResolution runs here
+    Server-->>Client: continue, cancel tools, or stop
+```
+
+## What the hook can return
+
+Return `toolResume` to decide what happens to the **pending tools** of the
+paused turn:
+
+| Value | Effect |
+| --- | --- |
+| `continue` | Run the pending tools |
+| `cancel` | Mark the pending tools as cancelled. Do not run them |
+| `stop` | End the run after `onStart`. No tools. No model call |
+
+When more than one middleware returns a value, the engine keeps the stricter
+one. `stop` wins over `cancel`. `cancel` wins over `continue`.
+
+After `continue`, the engine continues from the phase that paused:
+
+| First run paused at | Next step |
+| --- | --- |
+| `beforeModel` | The model call |
+| `afterModel` | Tools, if the model asked for them |
+| `beforeTools` | Tool execution |
+| `afterTools` | The next model turn (the tools already ran) |
+
+## Read the typed answers
+
+- `resumed.for(reviewPlan)` keeps the response type for that definition.
+- `resumed.all()` returns every registered answer.
+- `resumed.all(reviewPlan, otherDefinition)` narrows to those definitions.
+
+Each item is `resolved` (with `response`) or `cancelled`.
+
+## Advanced
+
+### Exact place in the second call
+
+```
+setup
+onConfig                 (phase is init)
+onInterruptResolution    (phase is still init)
+onStart
+then stop, or continue the agent loop
+```
+
+- The hook runs **once**, at the start of the continuation. It does not run at
+  `beforeModel`, `afterModel`, `beforeTools`, or `afterTools`.
+- `ctx.phase` is `'init'` and `ctx.iteration` is `0`. No model call has
+  started.
+- The hook runs once per batch. Two cards in one pause give one hook call with
+  both answers.
+- The hook does not run on the first user message.
+- The hook does not run for a tool-approval or client-tool batch that has no
+  generic interrupt.
+- If the continuation pauses again, the next continuation is a third `chat()`
+  call. The hook runs again at the start of that call.
+
+### What the hook cannot change
+
+`onInterruptResolution` cannot change config, the model, or the adapter. These
+fields change only from `onConfig` (or `onStructuredOutputConfig`):
+
+- `messages`
+- `systemPrompts`
+- `tools`
+- `modelOptions`
+- `metadata`
+
+The engine does not add the user answer to `messages`. If the model must see
+the note, add it yourself, as the quick setup does.
+
+### Why a capability
+
+A [middleware capability](../advanced/middleware-advanced#capabilities) keeps the value
+on `ctx` for this `chat()` call:
+
+- Another middleware can declare `requires` and read the same note.
+- Two `chat()` calls that run at the same time do not share the value.
+- A capability in `provides` must be provided in `setup`. The answer is not
+  there yet, so `setup` provides an empty object. `onInterruptResolution`
+  writes the answer later.
 
 A later middleware can read the same note:
 
@@ -259,51 +251,56 @@ export const applyVoice: ChatMiddleware = {
 }
 ```
 
-Other hooks that can change behavior, but not this resume payload:
+Other hooks can change behavior, but they do not see this resume payload:
 
-- `onBeforeToolCall` can rewrite args, skip a tool, or abort
-- `onChunk` can rewrite or drop stream events
-- `onShouldContinue` can return `false` to stop the loop with a normal finish
+- `onBeforeToolCall` can rewrite arguments, skip a tool, or abort.
+- `onChunk` can rewrite or drop stream events.
+- `onShouldContinue` can return `false` to stop the loop with a normal finish.
 
 See [Middleware](../advanced/middleware) for those hooks.
 
-## Persistence
+### Client tools in the same batch
 
-With [chat persistence](../persistence/chat-persistence), the hook still runs
-at the same moment: after init `onConfig`, before `onStart`.
+A generic interrupt can share a batch with client tools. Then the client runs
+those client tools only when `toolResume` is `continue`. `cancel` and `stop`
+skip them. After `continue`, the engine emits the client-tool wait again.
 
-Persistence rebuilds the pending requests from the store and clears
-`config.resume` so the engine does not rebuild them from client history. You
-still read answers from `resumedInterrupts.for(definition)`.
+### The resume request
 
-## Register both sides
+`useChat` sends these fields for you. If you POST by hand, include all three:
 
-The continuation needs the same definitions and the same middleware as the
-paused run. Forward `parentRunId` and `resume` from the request.
+- a new `runId`
+- `parentRunId`, set to the paused run
+- `resume`, with the answers. Each generic item also has `metadata` with the
+  original request (`tanstack:interruptContinuation`).
+
+If `resume` is present and `parentRunId` is missing, the server throws.
+
+A generic resume item that you build by hand looks like this:
 
 ```ts
-// app/api/chat/route.ts
-import {
-  chat,
-  chatParamsFromRequest,
-  toServerSentEventsResponse,
-} from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
-import { reviewMiddleware } from '../../chat-middleware'
-import { reviewPlan } from '../../interrupts'
+import { wrapGenericInterruptContinuation } from '@tanstack/ai'
 
-export async function POST(request: Request) {
-  const params = await chatParamsFromRequest(request)
-  const stream = chat({
-    adapter: openaiText('gpt-5.5'),
-    messages: params.messages,
-    threadId: params.threadId,
-    runId: params.runId,
-    ...(params.parentRunId ? { parentRunId: params.parentRunId } : {}),
-    ...(params.resume ? { resume: params.resume } : {}),
-    interrupts: [reviewPlan],
-    middleware: [reviewMiddleware],
-  })
-  return toServerSentEventsResponse(stream)
+const resumeItem = {
+  interruptId: 'generic-1',
+  status: 'resolved' as const,
+  payload: { approved: true },
+  metadata: wrapGenericInterruptContinuation({
+    v: 1,
+    definitionId: 'review-plan',
+    key: 'turn-1',
+    batchIndex: 0,
+    reason: 'review',
+    message: 'Review the plan',
+  }),
 }
 ```
+
+### Persistence
+
+With [chat persistence](../persistence/chat-persistence), the hook runs at the
+same moment: after init `onConfig`, before `onStart`.
+
+Persistence rebuilds the pending requests from the store. It clears
+`config.resume`, so the engine does not rebuild them from the client history.
+You still read the answers from `resumed.for(definition)`.

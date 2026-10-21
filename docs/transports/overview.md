@@ -2,7 +2,7 @@
 title: Transports
 id: transports-overview
 order: 1
-description: "Pick how TanStack AI sends chat chunks from your server to useChat: SSE, HTTP stream, WebSockets, React Native, server functions, or your own transport."
+description: "Pick how your chat gets chunks from the server to useChat: SSE, HTTP stream, JSON, WebSockets, React Native, server functions, or your own transport."
 keywords:
   - tanstack ai
   - transports
@@ -18,91 +18,144 @@ redirect_from:
   - /chat/connection-adapters
 ---
 
-Your chat must get chunks from the server to the UI. The best way to do that depends on where your code runs: a web server, an edge runtime, a phone, or one process.
+Your chat must get chunks from the server to the UI. The right way to do that depends on where your code runs: a web server, an edge runtime, a phone, or one process.
 
-TanStack AI works with all of them. A connection adapter is the only part that touches the network. Chunk processing, messages, tool calls, and UI updates work the same on every transport.
-
-Pass the adapter to `useChat` as `connection`:
-
-```typescript
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-
-const { messages, sendMessage } = useChat({
-  connection: fetchServerSentEvents("/api/chat"),
-});
-```
-
-For the full server and client path, see [Streaming](../chat/streaming).
+A transport is the one part of the chat that touches the network. You pick it with the `connection` option of `useChat`. Messages, tool calls, and UI updates work the same on every transport.
 
 ## Pick a transport
 
-| You have | Use | Page |
+Start at the top. Use the first row that matches your app.
+
+| Your app | Use | Page |
 | --- | --- | --- |
 | A normal HTTP server | `fetchServerSentEvents` | [Server-Sent Events](./sse) |
 | A runtime or proxy that blocks SSE | `fetchHttpStream` | [HTTP Stream](./http-stream) |
-| A host or proxy that buffers or breaks streams, or you want one response per run | `fetchJson` | [JSON](./json) |
-| React Native or Expo | `xhrHttpStream` or `xhrServerSentEvents` | [React Native](./react-native) |
+| A host or proxy that buffers or breaks streams | `fetchJson` | [JSON](./json) |
+| React Native or Expo | `xhrHttpStream` | [React Native](./react-native) |
+| A TanStack Start server function, with no HTTP route | `fetcher` | [Server Functions](./server-functions#quick-setup) |
+
+Not sure? Use SSE. It works in the most places, and it is the easiest to debug.
+
+Less common cases:
+
+| Your app | Use | Page |
+| --- | --- | --- |
 | A function that returns an `AsyncIterable<StreamChunk>` synchronously (in-process `chat()`, an RSC stream, tests) | `stream` | [Server Functions](./server-functions#in-process-streams) |
-| An async function, such as a TanStack Start server function, that resolves to a `Response` or an `AsyncIterable<StreamChunk>` | `fetcher` | [Server Functions](./server-functions#async-functions-with-fetcher) |
-| An RPC framework such as Cap'n Web, gRPC-Web, or tRPC | `rpcStream` | [Server Functions](./server-functions#rpc-clients-with-rpcstream) |
+| An RPC framework, such as Cap'n Web, gRPC-Web, or tRPC | `rpcStream` | [Server Functions](./server-functions#rpc-clients-with-rpcstream) |
 | One long-lived, resumable WebSocket for many runs | `webSocket` | [WebSockets](./websockets) |
 | BroadcastChannel, postMessage, a shared worker, or a different persistent channel | Your own `subscribe` / `send` adapter | [Custom Transports](./custom#persistent-transports) |
-| SSE with a wrapped `fetch` (auth refresh, retries) | `fetchServerSentEvents` with `fetchClient` | [Request Options](./request-options#wrap-fetch) |
 | A different protocol, such as HTTP/3 | Your own `connect` adapter | [Custom Transports](./custom#request-scoped-adapters) |
 
-All adapters produce the same `StreamChunk` events ([AG-UI Protocol](../migration/ag-ui-compliance)). The choice changes only the transport.
+To send headers, extra body data, or an auth token on any transport, see [Request Options](./request-options). To wrap `fetch` for auth refresh or retries, see [Wrap fetch](./request-options#wrap-fetch).
 
-To send headers, a request body, or an auth token, see [Request Options](./request-options).
+## Plug it in
 
-## Cancel a run
+Pass the transport to `useChat` as `connection`:
 
-Every adapter gets an `AbortSignal`. The `stop()` function from `useChat` triggers the signal and aborts the active run:
-
-```typescript
+```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
-const { stop } = useChat({ connection: fetchServerSentEvents("/api/chat") });
-stop(); // aborts the active stream
+export function Chat() {
+  const { messages, sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+  });
+
+  return (
+    <div>
+      {messages.map((message) => (
+        <p key={message.id}>
+          {message.parts.map((part) =>
+            part.type === "text" ? part.content : "",
+          )}
+        </p>
+      ))}
+      <button onClick={() => void sendMessage("Hello")}>Send</button>
+    </div>
+  );
+}
 ```
 
-- **Built-in adapters** pass the signal to `fetch`.
-- **Custom adapters** must honor the signal themselves.
+To change transports, change only the `connection` line and the matching server helper. Each transport page shows both halves. For the full server and client path, see [Streaming](../chat/streaming).
+
+## How it works
+
+- **The server** runs `chat()` and writes its chunks in one format: SSE, NDJSON, JSON, or WebSocket frames.
+- **The transport** reads that format and turns it back into `StreamChunk` events.
+- **The chat client** processes those events the same way on every transport.
+
+All transports produce the same `StreamChunk` events ([AG-UI Protocol](../migration/ag-ui-compliance)). Only the wire format changes.
+
+Pick a row, send a message, and the reply streams into `messages`.
+
+## Advanced
+
+### Cancel a run
+
+Every transport gets an `AbortSignal`. The `stop()` function from `useChat` triggers the signal and aborts the active run:
+
+```tsx
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+export function StopButton() {
+  const { stop, isLoading } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+  });
+
+  return (
+    <button disabled={!isLoading} onClick={stop}>
+      Stop
+    </button>
+  );
+}
+```
+
+Who handles the signal:
+
+- **Built-in transports** pass the signal to `fetch`.
+- **Custom transports** must honor the signal themselves.
 - **`SubscribeConnectionAdapter`**: the signal in `subscribe()` ends the full subscription (for example, on unmount). The signal in `send()` ends only the active send.
 
-The fetch adapters cancel the response body in these cases:
+The fetch transports cancel the response body in these cases:
 
 - Parsing fails.
 - You exit the chunk iterator early.
 
 A response that gets to its normal end keeps all of its chunks.
 
-Custom cancellation hooks do not delay errors or early iterator returns. The adapters release the reader lock, also when cancellation fails or stays pending.
+Custom cancellation hooks do not delay errors or early iterator returns. The transports release the reader lock, also when cancellation fails or stays pending.
 
-## Errors
+### Errors
 
-An adapter throws on a transport error: an HTTP status that is not 2xx, a parse failure, or a dropped socket. The `ChatClient` catches the error. If no `RUN_ERROR` chunk was emitted yet, the client emits one. Then it shows the error through `onError` and the `error` state:
+A transport throws on a transport error:
 
-```typescript
+- An HTTP status that is not 2xx.
+- A parse failure.
+- A dropped socket.
+
+The `ChatClient` catches the error. If no `RUN_ERROR` chunk came yet, the client emits one. Then it shows the error through `onError` and the `error` state:
+
+```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
-const { error } = useChat({
-  connection: fetchServerSentEvents("/api/chat"),
-  onError: (err) => console.error("Chat failed:", err),
-});
+export function ChatError() {
+  const { error } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    onError: (err) => console.error("Chat failed:", err),
+  });
+
+  return error ? <p>{error.message}</p> : null;
+}
 ```
 
-If the connection drops in the middle of a line, the stream adapters throw `StreamTruncatedError`.
+If the connection drops in the middle of a line, the stream transports throw `StreamTruncatedError`.
 
-Do not catch and hide an `AbortError` in a custom adapter. Let it propagate, so that the client knows the abort worked.
+In a custom transport, do not catch and hide an `AbortError`. Let it propagate, so that the client knows that the abort worked.
 
-## Best practices
+### Rules for a custom transport
 
-- **Start with SSE.** It works in the most places and is the easiest to debug. Change only when something blocks it.
 - **Use `stream()` when you can.** If you control both sides and do not need HTTP, a server function takes less code than a custom adapter.
-- **Use `subscribe` / `send` only for a persistent channel.** Then you must handle reconnection, run correlation, and the connection lifecycle yourself.
+- **Use `subscribe` / `send` only for a persistent channel.** Then you handle reconnection, run correlation, and the connection lifecycle yourself.
 - **Always honor `abortSignal`.** The client uses it to clean up on unmount and on `stop()`.
 - **Emit `RUN_FINISHED` from the server.** Without it, the client does not know that the turn ended. See [Stream Events](../chat/stream-events).
 
 For the full type signatures, see [API Reference: `@tanstack/ai-client`](../api/ai-client).
-
-Pick a row in the table and send a message. The reply streams into `messages` on every transport.

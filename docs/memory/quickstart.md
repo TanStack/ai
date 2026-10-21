@@ -2,7 +2,7 @@
 title: Quickstart
 id: memory-quickstart
 order: 2
-description: "Add cross-session memory to a TanStack AI chat() call: install the package, pick a recall/save adapter, wire memoryMiddleware, and derive scope server-side."
+description: "Add memory to a TanStack AI chat route: install the package, create an adapter, add memoryMiddleware with a server-side scope, then move to Redis for production."
 keywords:
   - tanstack ai
   - memory
@@ -12,14 +12,11 @@ keywords:
   - chat middleware
 ---
 
-You have a working `chat()` call and you want it to remember context across turns or
-sessions. By the end of this guide, `memoryMiddleware` recalls relevant memory into the
-prompt and saves each finished turn through a real adapter, scoped safely from your
-server-validated session.
+You have a chat route that works. Now you want the assistant to remember what the user said. At the end of this page, your route recalls memory before each answer, saves each turn, and is ready to move to Redis.
 
-> Want the full contract first? See the [Overview](./overview).
+## Quick setup
 
-## Step 1: Install the package
+### 1. Install the package
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
@@ -34,80 +31,145 @@ octane: @tanstack/ai-memory
 
 <!-- ::end:tabs -->
 
-`@tanstack/ai-memory` ships `memoryMiddleware`, the `MemoryAdapter` contract, and the
-built-in and vendor adapters (each on its own subpath).
+### 2. Create the memory adapter
 
-## Step 2: Pick an adapter
-
-> **In-memory:** `inMemory()` is zero-dependency and stores records in a `Map`. Use it
-> for local development, tests, and single-process demos. Records vanish on restart.
->
-> **Redis:** `redis({ redis })` persists across restarts and shares state across
-> processes. Bring your own client (`ioredis`, or `redis` via `fromNodeRedis`).
->
-> **Vendors:** `hindsight()`, `mem0()`, and `honcho()` delegate to a hosted memory service.
-
-Custom adapters implement the `recall`/`save` contract. See [Custom Adapter](./custom-adapter).
-
-## Step 3: Wire `memoryMiddleware` into `chat()`
-
-Start with the in-memory adapter, the fastest path to a working setup:
+Start with `inMemory()`. It keeps records in a `Map` in the server process:
 
 ```ts
-import { chat } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
-import { memoryMiddleware } from '@tanstack/ai-memory'
+// memory.ts
 import { inMemory } from '@tanstack/ai-memory/in-memory'
 
-const memory = inMemory()
-
-const stream = chat({
-  adapter: openaiText('gpt-5.5'),
-  messages: [{ role: 'user', content: 'Hello' }],
-  middleware: [
-    memoryMiddleware({
-      adapter: memory,
-      scope: { threadId: 'demo-thread', userId: 'alice' },
-    }),
-  ],
-})
+export const memory = inMemory()
 ```
 
-Each turn, the middleware recalls relevant memory into the system prompt (lexical scoring
-by default), then deferred-saves the user and assistant turn after the stream finishes.
+### 3. Add the middleware to the server route
 
-When you're ready to ship, swap the adapter and keep everything else the same:
+Set the scope from your auth session. The `onRecall` log lets you see memory work:
 
 ```ts
-import Redis from 'ioredis'
+// api/chat.ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
 import { memoryMiddleware } from '@tanstack/ai-memory'
-import { redis } from '@tanstack/ai-memory/redis'
-import type { MemoryScope } from '@tanstack/ai-memory'
+import { memory } from './memory'
 
-declare const scope: MemoryScope // from Step 5
+// Replace with your auth. Read the user from the session, never from the body.
+function getUserId(_request: Request): string {
+  return 'demo-user'
+}
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request)
+  const userId = getUserId(request)
+
+  const stream = chat({
+    adapter: openaiText('gpt-6.1-sol'),
+    messages: params.messages,
+    threadId: params.threadId,
+    middleware: [
+      memoryMiddleware({
+        adapter: memory,
+        // In a real app, make sure that this thread belongs to userId.
+        scope: { threadId: params.threadId, userId },
+        onRecall: ({ result }) => {
+          console.log('memory recalled', result.fragments?.length ?? 0, 'items')
+        },
+      }),
+    ],
+  })
+  return toServerSentEventsResponse(stream)
+}
+```
+
+### 4. Use the chat in the client
+
+Memory runs on the server only. The client is a normal chat client:
+
+```tsx
+import { useState } from 'react'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+
+export function Chat() {
+  const [input, setInput] = useState('')
+  const { messages, sendMessage } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+  })
+
+  return (
+    <>
+      {messages.map((message) => (
+        <div key={message.id}>
+          {message.parts.map((part, index) =>
+            part.type === 'text' ? <p key={index}>{part.content}</p> : null,
+          )}
+        </div>
+      ))}
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          void sendMessage(input)
+          setInput('')
+        }}
+      >
+        <input value={input} onChange={(event) => setInput(event.target.value)} />
+        <button type="submit">Send</button>
+      </form>
+    </>
+  )
+}
+```
+
+For Vue, Solid, Svelte, and the other frameworks, use the client from the [Quick Start](../getting-started/quick-start). Nothing in it changes for memory.
+
+### 5. Try it
+
+1. Send `My favorite language is TypeScript`.
+2. Send `Which language do I like?`.
+
+The server log shows `memory recalled 2 items` (or a similar count) for the second message. The first turn was saved and then recalled into the prompt.
+
+## How it works
+
+- Before the model runs, the adapter finds records in the same scope that match the last user message. They go into the system prompt.
+- After the stream finishes, the adapter saves the user message and the assistant answer.
+- `inMemory()` scores by word overlap and recency. Records are lost when the process restarts.
+
+## Move to production
+
+### Use Redis
+
+`redis()` keeps memory across restarts and shares it between server processes. Change only `memory.ts`. The route stays the same:
+
+```ts
+// memory.ts
+import Redis from 'ioredis'
+import { redis } from '@tanstack/ai-memory/redis'
 
 const client = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379')
-const memory = redis({ redis: client })
 
-memoryMiddleware({ adapter: memory, scope })
+export const memory = redis({ redis: client })
 ```
 
-> Using a hosted service? Swap `inMemory()` for `hindsight({ user })`, `mem0({ user })`,
-> or `honcho({ user })`. The middleware wiring is identical. The adapter maps
-> `recall`/`save` onto the vendor API.
+Install `ioredis` (or `redis`) yourself. Both are optional peer dependencies. For `node-redis` and the other options, see [`redis()`](./adapters#redis).
 
-## Step 4: Semantic scoring (optional)
+To use a hosted service, export `hindsight()`, `mem0()`, or `honcho()` from `memory.ts` instead. See [Adapters](./adapters).
 
-The built-in adapters score lexically by default. Pass an `embedder` for semantic recall
-when scopes grow large or queries don't share keywords with stored text:
+### Add semantic scoring (optional)
+
+Word overlap misses a question that uses different words than the stored text. Add an `embedder` to `inMemory()` or `redis()` to also score by meaning:
 
 ```ts
+// memory.ts
 import OpenAI from 'openai'
 import { inMemory } from '@tanstack/ai-memory/in-memory'
 
 const openai = new OpenAI()
 
-const memory = inMemory({
+export const memory = inMemory({
   embedder: {
     async embed(text) {
       const result = await openai.embeddings.create({
@@ -122,62 +184,6 @@ const memory = inMemory({
 })
 ```
 
-## Step 5: Derive scope server-side
+The embedder runs on each recall (for the query) and on each save (for the stored text).
 
-`scope` is the isolation boundary. Static scopes are fine for fixtures, but in any real
-app derive scope per request from server-validated session data, never from the request
-body.
-
-```ts
-import { chat } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
-import { memoryMiddleware } from '@tanstack/ai-memory'
-import type { ModelMessage } from '@tanstack/ai'
-import type { MemoryAdapter } from '@tanstack/ai-memory'
-
-// From earlier steps / your auth layer.
-declare const messages: Array<ModelMessage>
-declare const memory: MemoryAdapter
-declare const session: { userId: string; threadId: string }
-declare function getSession(ctx: unknown): { threadId: string; userId: string }
-
-const stream = chat({
-  adapter: openaiText('gpt-5.5'),
-  messages,
-  context: { session }, // attached by your auth middleware, not from req.body
-  middleware: [
-    memoryMiddleware({
-      adapter: memory,
-      scope: (ctx) => {
-        const session = getSession(ctx)
-        return { threadId: session.threadId, userId: session.userId }
-      },
-    }),
-  ],
-})
-```
-
-On the client, nothing changes for memory wiring — consume the same stream as any
-other `chat()` endpoint:
-
-```ts
-import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
-
-function Chat() {
-  const { messages, sendMessage, isLoading } = useChat({
-    connection: fetchServerSentEvents('/api/chat'),
-  })
-  // Memory is entirely server-side; the client only sees the usual message stream.
-  return (
-    // render messages, input, sendMessage, isLoading…
-    null
-  )
-}
-```
-
-## Where to go next
-
-- [Overview](./overview): the `recall`/`save` contract, scope, and how a turn flows
-- [Adapters](./adapters): every adapter's options, with an example of each
-- [Operating memory](./operating): options, telemetry, devtools events, and failures
-- [Custom Adapter](./custom-adapter): implement `recall`/`save` for a backend that isn't shipped
+Your route now remembers what the user says and can move to Redis with a one-file change. To log memory in production and watch it in devtools, see [Operating memory](./operating).

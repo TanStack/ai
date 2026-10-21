@@ -11,19 +11,11 @@ keywords:
   - example
 ---
 
-Pass `forwardedProps` to `useAppChat()`. Every request from that instance carries it.
-
-```tsx ignore
-const chat = useAppChat({
-  forwardedProps: { tenantId: 'tenant_456' },
-})
-```
-
-The value never enters the prompt. The model does not see it.
+Your server route needs to know which tenant or user a chat belongs to, and that value must not go into the prompt. Pass it as `forwardedProps` to `useAppChat()`. Every request from that chat instance carries it, and the model does not see it.
 
 ## Client
 
-`forwardedProps` belongs on the screen, not on `chatOptions`, because it changes per user.
+Put `forwardedProps` on the screen, not on `chatOptions`, because the value changes for each user:
 
 ```tsx group=request-context
 import { fetchServerSentEvents } from '@tanstack/ai-react'
@@ -69,7 +61,7 @@ export function TenantChat({ tenantId }: { tenantId: string }) {
 
 ## Server
 
-Read it with `chatParamsFromRequest`, then map it into `context`. Tools and middleware read `context`.
+Read the value with `chatParamsFromRequest`. Then put it in `context`, where tools and middleware read it:
 
 ```tsx
 import {
@@ -89,7 +81,7 @@ export async function POST(request: Request) {
   if (!tenantId) return new Response('Missing tenant', { status: 400 })
 
   const stream = chat({
-    adapter: openaiText('gpt-5.6'),
+    adapter: openaiText('gpt-6.1-sol'),
     messages: params.messages,
     context: { tenantId },
   })
@@ -98,23 +90,29 @@ export async function POST(request: Request) {
 }
 ```
 
-## Validate it. Always.
+Click **Ask**. The route gets `tenantId` from the request, and the model never sees it.
 
-`forwardedProps` comes from the browser. A user can change it.
+## How it works
 
-Never trust it for identity or authorization. Get the user from your session or token on the server, and use `forwardedProps` only for values that are safe to be wrong:
+- `useAppChat()` sends `forwardedProps` with every request from that instance.
+- `chatParamsFromRequest` returns it as `params.forwardedProps`.
+- `context` passes it to your tools and middleware.
 
-1. Derive the user id from the request's own auth, not from the client.
-2. Check every forwarded field against a type or a schema.
-3. Reject the request when a required field is missing.
+## Validate it on the server
 
-The example above checks `tenantId` is a string, then refuses the request without it. In a real app you would also confirm the authenticated user may use that tenant.
+`forwardedProps` comes from the browser, so a user can change it. Do not trust it for identity or authorization:
 
-## One chat per user
+1. Get the user id from the auth of the request (your session or token), not from the client.
+2. Check each forwarded field against a type or a schema.
+3. If a required field is missing, reject the request.
 
-Pass `threadId` alongside `forwardedProps` when a screen can show more than one chat. Two instances with different thread ids keep separate histories.
+The example above makes sure that `tenantId` is a string, and rejects the request without it. A real app also makes sure that the signed-in user can use that tenant.
+
+## One chat for each user
+
+If a screen can show more than one chat, pass a `threadId` with `forwardedProps`. Two instances with different thread ids keep separate histories.
 
 ## Next
 
-- Typed server dependencies for tools and middleware: [runtime context](../../advanced/runtime-context).
-- Local browser dependencies that stay on the client: [client tools](../../tools/client-tools).
+- Typed server values for tools and middleware: [Runtime context](../../advanced/runtime-context).
+- Browser values that stay on the client: [Client tools](../../tools/client-tools).

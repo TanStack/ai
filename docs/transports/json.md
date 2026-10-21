@@ -2,7 +2,7 @@
 title: JSON
 id: transports-json
 order: 9
-description: "Send each chat run as one plain JSON response with fetchJson and toJsonResponse, for hosts and proxies that buffer or break streams, and poll long runs with resumeJsonResponse."
+description: "Send each chat run as one JSON response with fetchJson and toJsonResponse when your host buffers streams. Poll long runs with resumeJsonResponse."
 keywords:
   - tanstack ai
   - json transport
@@ -14,53 +14,33 @@ keywords:
   - serverless timeout
 ---
 
-Your host, proxy, or React Native setup buffers or breaks streamed responses. Or you want one plain response per run. Send the run as one JSON body. `useChat` works the same: messages, tool calls, approvals, and errors.
+Your host, proxy, or React Native setup buffers or breaks streamed responses. Or you want one plain response per run. Send the whole run as one JSON body with `fetchJson`. `useChat` works the same: messages, tool calls, approvals, and errors.
 
-## 1. Return JSON from the server
+## Quick setup
 
-Run the chat to its end with `stream: false`, then send the result with `toJsonResponse()`:
+### 1. Return JSON from the server
+
+Run the chat to its end with `stream: false`. Then send the result with `toJsonResponse()`:
 
 ```typescript
+// api/chat.ts
 import { chat, chatParamsFromRequest, toJsonResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 export async function POST(request: Request) {
   const { messages, threadId, runId } = await chatParamsFromRequest(request);
   const result = await chat({
-    adapter: openaiText("gpt-5.6"),
+    adapter: openaiText("gpt-6.1-sol"),
     messages,
     threadId,
     runId,
     stream: false,
   });
-  console.log(result.text);
   return toJsonResponse(result);
 }
 ```
 
-`result.text` is the full reply. `result.chunks` holds every chunk of the run, and the client reads them from the response.
-
-You can also pass the stream from `chat()`. Then pass `request.signal`, so that the run stops when the client leaves:
-
-```typescript
-import { chat, chatParamsFromRequest, toJsonResponse } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-
-export async function POST(request: Request) {
-  const { messages, threadId, runId } = await chatParamsFromRequest(request);
-  const stream = chat({
-    adapter: openaiText("gpt-5.6"),
-    messages,
-    threadId,
-    runId,
-  });
-  return toJsonResponse(stream, { signal: request.signal });
-}
-```
-
-The body is `{ chunks, offset?, done }`. Without durability, `done` is always `true`, and the body holds the whole run.
-
-## 2. Connect from the client
+### 2. Connect from the client
 
 Pass `fetchJson()` to `useChat`:
 
@@ -76,7 +56,9 @@ export function Chat() {
     <div>
       {messages.map((message) => (
         <p key={message.id}>
-          {message.parts.map((part) => (part.type === "text" ? part.content : ""))}
+          {message.parts.map((part) =>
+            part.type === "text" ? part.content : "",
+          )}
         </p>
       ))}
       <button disabled={isLoading} onClick={() => void sendMessage("Hello")}>
@@ -87,13 +69,45 @@ export function Chat() {
 }
 ```
 
+Click Send. When the run ends, the full reply appears in `messages`, with no stream between your server and the browser.
+
 `fetchJson` sends the same POST body as `fetchHttpStream`. It takes the same options: `headers`, `body`, `credentials`, `fetchClient`, and dynamic functions. See [Request Options](./request-options).
 
-## Send a structured output
+## How it works
+
+- `result.text` is the full reply on the server. `result.chunks` holds every chunk of the run.
+- `toJsonResponse()` sends the body `{ chunks, offset?, done }`. Without durability, `done` is always `true`, and the body holds the whole run.
+- `fetchJson` reads the chunks from the body and gives them to the chat client, one after the other.
+
+## Advanced
+
+### Send the stream from chat()
+
+You can also pass the stream from `chat()` to `toJsonResponse()`. Then pass `request.signal`, so that the run stops when the client leaves:
+
+```typescript
+// api/chat.ts
+import { chat, chatParamsFromRequest, toJsonResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
+  const stream = chat({
+    adapter: openaiText("gpt-6.1-sol"),
+    messages,
+    threadId,
+    runId,
+  });
+  return toJsonResponse(stream, { signal: request.signal });
+}
+```
+
+### Send a structured output
 
 `await chat({ outputSchema })` gives you the typed object on the server. You can save it or change it before the client sees it. To show it in `useChat`, pass the object to `toJsonResponse()`:
 
 ```typescript
+// api/extract-person.ts
 import { chat, chatParamsFromRequest, toJsonResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
@@ -106,7 +120,7 @@ const PersonSchema = z.object({
 export async function POST(request: Request) {
   const { messages } = await chatParamsFromRequest(request);
   const person = await chat({
-    adapter: openaiText("gpt-5.6"),
+    adapter: openaiText("gpt-6.1-sol"),
     messages,
     outputSchema: PersonSchema,
   });
@@ -157,7 +171,7 @@ What happens:
 
 To fill in the object field by field, pass the stream from `chat({ outputSchema, stream: true })` to `toJsonResponse()` instead.
 
-## Long runs and reloads
+### Long runs and reloads
 
 A long agent run can take more time than your host lets one request live. Add durability, and the server replies before the timeout. The client then asks for the rest.
 
@@ -165,6 +179,7 @@ A long agent run can take more time than your host lets one request live. Add du
 2. Add a `GET` handler with `resumeJsonResponse`.
 
 ```typescript
+// api/chat.ts
 import {
   chat,
   chatParamsFromRequest,
@@ -176,7 +191,12 @@ import { openaiText } from "@tanstack/ai-openai";
 
 export async function POST(request: Request) {
   const { messages, threadId, runId } = await chatParamsFromRequest(request);
-  const stream = chat({ adapter: openaiText("gpt-5.6"), messages, threadId, runId });
+  const stream = chat({
+    adapter: openaiText("gpt-6.1-sol"),
+    messages,
+    threadId,
+    runId,
+  });
   return toJsonResponse(stream, {
     durability: { adapter: memoryStream(request) },
     signal: request.signal,
@@ -204,18 +224,16 @@ The client from step 2 needs no change. To set the wait between polls (default 2
 ```typescript
 import { fetchJson } from "@tanstack/ai-react";
 
-const connection = fetchJson("/api/chat", { pollIntervalMs: 500 });
+export const connection = fetchJson("/api/chat", { pollIntervalMs: 500 });
 ```
 
 Pass this `connection` to `useChat`.
 
 `memoryStream(request)` keeps the log in one process. If your requests run on many processes, use a production adapter. See [Resumable Streams](../resumable-streams/overview).
 
-## Limits
+### Limits
 
 - **No live text.** The answer appears when a reply arrives. With `maxWaitMs`, it appears in parts, one part per reply.
 - **The run must outlive the reply.** After an early reply, the run continues in the same process. Your host must keep that work alive after the response goes out.
 - **The first POST is not retried.** A retry can start the run two times. A failed poll is retried with the `reconnect` option. See [Reconnection bounding](../resumable-streams/advanced#reconnection-bounding).
-- **Use `fetchJson`, not `fetcher`.** A `useChat` fetcher that returns a `Response` is parsed as SSE.
-
-Send a message. When the run ends, the full reply appears in `messages`, with no stream between your server and the browser.
+- **Use `fetchJson`, not `fetcher`.** The chat client parses a `Response` from a `useChat` fetcher as SSE.

@@ -2,7 +2,7 @@
 title: Serve Resources and Prompts
 id: mcp-server-content
 order: 13
-description: "Serve documents and prompts from your MCP server so a host can read a document or start from a prompt."
+description: "Serve documents and prompts from your MCP server, so a host can read a document or start from a prompt."
 keywords:
   - tanstack ai
   - mcp
@@ -15,12 +15,16 @@ keywords:
   - createMCPServer
 ---
 
-Until you serve a resource, a host cannot read your document. Until you serve a prompt, a host cannot start from that prompt.
+Your MCP server serves tools, but a host also wants to read your documents and start from your prompts. Until you serve them, the host cannot see them.
 
-## Define Resources and Prompts
+Define each document with `resourceDefinition` and each prompt with `promptDefinition`. Then pass them to `createMCPServer`.
 
-1. Define each document with `resourceDefinition`.
-2. Define each prompt with `promptDefinition`.
+## Quick setup
+
+You need an MCP server first. If you do not have one, start with [Serve Tools over HTTP](./server).
+
+1. Define a resource for each document.
+2. Define a prompt for each prompt.
 3. Pass `resources` and `prompts` to `createMCPServer`.
 
 ```ts
@@ -62,26 +66,33 @@ export function handleMcp(request: Request) {
 }
 ```
 
-## Resources
+Now the host gets these results:
 
-A resource must have `uri` or `uriTemplate`.
+- It reads `file:///readme.md`. The `text` is `# Hello`.
+- It reads `file:///notes.md`. The `text` is `The body of notes.md`.
+- It starts from the `summarize` prompt with the topic `weather`. It gets one message: the `role` is `user`, and the `content` is `weather`.
 
-- `uri`: one document. An example is `file:///readme.md`.
-- `uriTemplate`: a URI pattern. An example is `file:///{path}`.
+## How it works
 
-If the resource has no `uri` and no `uriTemplate`, `resourceDefinition` throws `This resource has no uri and no uriTemplate. Pass a uri or a uriTemplate.`
+A resource has one of two addresses:
 
-If you pass `uri` and `uriTemplate`, the server uses `uri`.
+- `uri`: one document, for example `file:///readme.md`.
+- `uriTemplate`: a URI pattern for many documents, for example `file:///{path}`.
 
-`read` returns `{ text }` for a text document. For a binary document, `read` returns `{ blob }` with a base64 string. Add `mimeType` to that object when one template serves files of different types.
+`read` returns the body of the document:
 
-## Serve One Resource per Item
+- `{ text }` for a text document.
+- `{ blob }` with a base64 string for a binary document.
+
+A prompt parses its arguments with `argsSchema`. Then `render` returns an array of messages. Each message has a `role` (`user` or `assistant`) and a `content` string.
+
+## Serve one resource per item
 
 A template such as `myapp://items/{itemId}/summary` serves many documents. The read must know which item the host asked for, and which user asks. A host also needs a list of the items that exist.
 
 1. Read `itemId` from the `variables` argument of `read`.
 2. Read the user from `ctx.context`.
-3. Add `list` to return the concrete resources for `resources/list`.
+3. Add `list` to return the real resources for `resources/list`.
 
 ```ts
 import { createMCPServer, resourceDefinition } from '@tanstack/ai-mcp/server'
@@ -118,29 +129,27 @@ export function handleMcp(request: Request, userId: string) {
 }
 ```
 
+The host lists `Item 1` and `Item 2`. A read of `myapp://items/1/summary` returns `First item` plus the user id.
+
+## Advanced
+
+### The arguments of `read`
+
 `read` gets three arguments:
 
-- `uri`: the URI the host asked for, as a `URL`.
+- `uri`: the URI that the host asked for, as a `URL`.
 - `variables`: the values from the template. A resource with `uri` gets `{}`. When the template has `argsSchema`, `argsSchema.parse` runs first, so `read` gets the parsed values. For `file:///notes.md`, `path` is `notes.md`.
 - `ctx.context`: the values from `handle(request, { context })`, plus the verified token as `authInfo`. A tool gets the same values, plus `requestInput` and `sample`.
 
 `list` gets the same `ctx`. It returns `{ resources }`, with a `uri` and a `name` for each resource. Only a resource with `uriTemplate` can have `list`.
 
-## Prompts
+### Resource rules
 
-`argsSchema.parse` runs first. Then `render` receives the parsed arguments.
+- If the resource has no `uri` and no `uriTemplate`, `resourceDefinition` throws `This resource has no uri and no uriTemplate. Pass a uri or a uriTemplate.`
+- If you pass `uri` and `uriTemplate`, the server uses `uri`.
+- When one template serves files of different types, add `mimeType` to the object that `read` returns.
 
-`render` returns an array of messages. Each message has these fields:
+### Prompt rules
 
-- `role`: `user` or `assistant`.
-- `content`: the message text.
-
-If `role` is not `user` or `assistant`, the server sends that message as `user`.
-
-## What the Host Gets
-
-The host reads `file:///readme.md`. The `text` is `# Hello`.
-
-The host reads `file:///notes.md`. The `text` is `The body of notes.md`.
-
-The host starts from the `summarize` prompt with topic `weather`. The `role` is `user`. The `content` string is `weather`.
+- `argsSchema.parse` runs first. Then `render` receives the parsed arguments.
+- If `role` is not `user` or `assistant`, the server sends that message as `user`.

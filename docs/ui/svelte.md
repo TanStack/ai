@@ -2,7 +2,7 @@
 title: Svelte Chat UI
 id: typed-headless-ui-svelte
 order: 4
-description: "Build a typed, headless Svelte 5 chat UI with createChatHook, snippets, and static components."
+description: "Render a streaming chat in Svelte 5 with your own components. createChatHook types every tool, part, and interrupt, and snippets place the pieces."
 keywords:
   - tanstack ai
   - createChatHook
@@ -11,95 +11,275 @@ keywords:
   - ToolProps
 ---
 
-Install `@tanstack/ai-svelte`. Import the UI factory from `@tanstack/ai-svelte/ui`. Call `createChatHook({ options, ...components })` once. Your app calls `createAppChat()` to create the instance. Pass `{ui}` and `{chat}` into `UIChat`.
+You have a streaming chat and you want it to look like your Svelte app. You also want tool calls and approvals typed, with no casts.
 
-The factory needs a `toolsComponents` entry for every tool name in `chatOptions`. It also needs an `interruptsComponents.generic` entry for every interrupt id. `generic.fallback` is optional. Widgets go in `components`, `partsComponents`, `toolsComponents`, and `interruptsComponents`, the same way Form and Table register components.
+`createChatHook` from `@tanstack/ai-svelte/ui` binds your chat options and your components once. Each screen then creates a chat with `createAppChat()` and renders it with `UIChat`. You supply every visible component. There is no default markup or style.
 
-The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI text adapter.
+## Quick setup
 
-The [chat UI recipes](./recipes/index) show the same option groups one at a time. The code there is React, and the shape carries over.
+1. Install the packages:
 
-## Client
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+svelte: @tanstack/ai @tanstack/ai-svelte @tanstack/ai-openai
+
+<!-- ::end:tabs -->
+
+2. Put `OPENAI_API_KEY` in your server environment. Then add a `POST` route at `/api/chat`:
+
+```ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
+
+  const stream = chat({
+    adapter: openaiText('gpt-6.1-sol'),
+    messages,
+    threadId,
+    runId,
+  })
+
+  return toServerSentEventsResponse(stream)
+}
+```
+
+3. Create three widget files in `src/lib/chat/`. `Layout.svelte` places the message list:
 
 ```svelte
 <script lang="ts">
-  import { fetchServerSentEvents } from '@tanstack/ai-svelte'
-  import { createChatHook, UIChat } from '@tanstack/ai-svelte/ui'
-  import { toolDefinition } from '@tanstack/ai'
-  import { z } from 'zod'
-  import Layout from './Layout.svelte'
-  import Message from './Message.svelte'
-  import Weather from './Weather.svelte'
-  import Fallback from './Fallback.svelte'
+  import type { Snippet } from 'svelte'
 
-  const getWeather = toolDefinition({
-    name: 'getWeather',
-    description: 'Look up weather',
-    inputSchema: z.object({ city: z.string() }),
-    outputSchema: z.object({ temperature: z.number() }),
-  }).client()
-
-  const chatOptions = {
-    connection: fetchServerSentEvents('/api/chat'),
-    tools: [getWeather],
-  }
-
-  const { createAppChat, ui } = createChatHook({
-    options: chatOptions,
-    components: {
-      layout: Layout,
-      message: Message,
-    },
-    partsComponents: { fallback: Fallback },
-    toolsComponents: { getWeather: Weather },
-  })
-  const chat = createAppChat()
+  let { messages }: { messages: Snippet } = $props()
 </script>
 
-<UIChat {ui} {chat} />
+<section>
+  {@render messages()}
+</section>
 ```
 
-`Layout.svelte` receives snippets `messages`, `interrupts`, `queue`, and `input`. `{@render queue()}` draws pending sends. Call `item.cancelQueued()` on a queue item to drop it. `Message.svelte` receives snippet `parts`. A tool with an approval receives prop `interrupt`.
+`Message.svelte` wraps one message:
 
-## Type a component in its own file
+```svelte
+<script lang="ts">
+  import type { Snippet } from 'svelte'
+  import type { MessageProps } from '@tanstack/ai-svelte/ui'
+  import type { chatOptions } from './chat-ui'
 
-Type the `$props()` of a tool file with `ToolProps`. Share the same `chatOptions` module that you pass to `createChatHook`.
+  let {
+    message,
+    parts,
+  }: MessageProps<typeof chatOptions> & { parts: Snippet } = $props()
+</script>
+
+<article data-role={message.role}>
+  {@render parts()}
+</article>
+```
+
+`Text.svelte` renders a text part:
+
+```svelte
+<script lang="ts">
+  import type { PartProps } from '@tanstack/ai-svelte/ui'
+  import type { chatOptions } from './chat-ui'
+
+  let { part }: PartProps<typeof chatOptions, 'text'> = $props()
+</script>
+
+<p>{part.content}</p>
+```
+
+4. Create `src/lib/chat/chat-ui.ts`:
+
+```ts ignore
+import { fetchServerSentEvents } from '@tanstack/ai-svelte'
+import { createChatHook } from '@tanstack/ai-svelte/ui'
+import Layout from './Layout.svelte'
+import Message from './Message.svelte'
+import Text from './Text.svelte'
+
+export const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+}
+
+export const { createAppChat, ui } = createChatHook({
+  options: chatOptions,
+  components: { layout: Layout, message: Message },
+  partsComponents: { text: Text },
+})
+```
+
+5. Create `src/lib/chat/Chat.svelte`:
+
+```svelte
+<script lang="ts">
+  import { UIChat } from '@tanstack/ai-svelte/ui'
+  import { createAppChat, ui } from './chat-ui'
+
+  const chat = createAppChat()
+  let draft = $state('')
+
+  function send(event: SubmitEvent) {
+    event.preventDefault()
+    const text = draft.trim()
+    if (!text) return
+    draft = ''
+    void chat.sendMessage(text)
+  }
+</script>
+
+<main>
+  <UIChat {ui} {chat} />
+  <form onsubmit={send}>
+    <input bind:value={draft} />
+    <button type="submit">Send</button>
+  </form>
+</main>
+```
+
+6. Render `<Chat />` and send a message.
+
+The reply streams into the page as the model writes it.
+
+## How it works
+
+- `createChatHook` runs once, at module scope. It binds `chatOptions` to your components. It returns `ui`, the descriptor that `UIChat` reads.
+- `createAppChat()` creates one chat instance. `UIChat` renders that instance with your components.
+- `layout` gets the `messages`, `interrupts`, `queue`, and `input` snippets. `message` gets one message plus the `parts` snippet.
+- `partsComponents.text` renders text. A part type with no component renders nothing and warns once in development. Register `partsComponents.fallback` to catch those parts.
+
+## Next steps
+
+Each step adds one thing to the quick setup. The [chat UI recipes](./recipes/index) have the full file for each one. The recipes use React, and the option names are the same in Svelte.
+
+### Render a tool
+
+Add the tool to `tools` in `chatOptions`. Then register a component under the tool name in `toolsComponents`. Type its props with `ToolProps`:
 
 ```svelte
 <script lang="ts">
   import type { ToolProps } from '@tanstack/ai-svelte/ui'
-  import { chatOptions } from './chat-options'
+  import type { chatOptions } from './chat-ui'
 
   let { part }: ToolProps<typeof chatOptions, 'getWeather'> = $props()
 </script>
 
-<strong>{part.input?.city}</strong>
+{#if part.state === 'complete'}
+  <p>{part.input?.city}: {part.output?.temperature}</p>
+{:else}
+  <p>Looking up weather</p>
+{/if}
 ```
 
-Part components use `PartProps<typeof chatOptions, 'text'>`. Then `part` is already a text part.
+The factory needs one entry for every tool in `chatOptions`. Full example: [Make a tool look right](./recipes/format-a-tool).
 
-Interrupt components use `InterruptProps<typeof chatOptions, 'choosePlan'>`. Then `interrupt.payload` matches the definition.
+### Ask before a tool runs
 
-Mapped components do not receive `chat` as a prop. Call `ui.useChatContext()` when a component needs live chat. That call opts the component into chat updates. Nested children can call it too.
+Set `needsApproval: true` on the tool. The tool component then gets an `interrupt` prop:
 
-## Read chat from `ui.useChatContext()`
+```svelte
+<script lang="ts">
+  import type { ToolProps } from '@tanstack/ai-svelte/ui'
+  import type { chatOptions } from './chat-ui'
 
-Import the same `ui` descriptor in a child file. Call `ui.useChatContext()` only under `UIChat` or `UIProvider`.
+  let { part, interrupt }: ToolProps<typeof chatOptions, 'deleteFile'> =
+    $props()
+</script>
+
+{#if interrupt?.status === 'pending'}
+  <button onclick={() => interrupt?.resolveInterrupt(true)}>
+    Delete {part.input?.path}
+  </button>
+{:else}
+  <p>{part.input?.path}</p>
+{/if}
+```
+
+`resolveInterrupt(true)` approves. `resolveInterrupt(false)` denies. Full example: [Ask before a tool runs](./recipes/tool-approval).
+
+### Ask the user your own question
+
+Define the question with `defineInterrupt`. Add it to `interrupts` in `chatOptions`. Register a component under its id in `interruptsComponents.generic`, and render the `interrupts` snippet in the layout:
+
+```svelte
+<script lang="ts">
+  import type { InterruptProps } from '@tanstack/ai-svelte/ui'
+  import type { chatOptions } from './chat-ui'
+
+  let { interrupt }: InterruptProps<typeof chatOptions, 'choosePlan'> =
+    $props()
+</script>
+
+<button onclick={() => interrupt.resolveInterrupt('pro')}>
+  {interrupt.payload?.title}
+</button>
+```
+
+The factory needs one entry for every interrupt id in `chatOptions`. Full example: [Ask the user your own question](./recipes/custom-interrupt).
+
+### Read chat state inside a widget
+
+Mapped components do not get `chat` as a prop. Import `ui` and call `ui.useChatContext()` inside the widget. This also moves the composer into the layout. Create `Input.svelte`:
 
 ```svelte
 <script lang="ts">
   import { ui } from './chat-ui'
 
   const chat = ui.useChatContext()
+  let draft = $state('')
+
+  function send(event: SubmitEvent) {
+    event.preventDefault()
+    const text = draft.trim()
+    if (!text) return
+    draft = ''
+    void chat.sendMessage(text)
+  }
 </script>
 
-<p>{chat.messages.length} messages</p>
+<form onsubmit={send}>
+  <input bind:value={draft} disabled={chat.isLoading} />
+  <button type="submit">Send</button>
+</form>
 ```
 
-`createChat(chatOptions)` owns the state. `ui.useChatContext()` reads the instance you passed into `UIChat`. A call outside that tree throws.
+Register it as `components.input`. Then render `{@render input()}` in `Layout.svelte`, and remove the form from `Chat.svelte`.
 
-## Interrupts
+Call `ui.useChatContext()` only inside `UIChat` or `UIProvider`. A call outside that tree throws.
 
-Tool approvals sit in the tool when you read the `interrupt` prop. Put a component on `interruptsComponents.tools` to send that approval to the list instead. Generic interrupts always sit in the list under `interruptsComponents.generic`: `{ choosePlan, fallback }`. An unbound interrupt uses `fallback`. Branch on `interrupt.kind === 'unbound'` if the copy must differ.
+### Render markdown
 
-The full map is on the [React page](./react).
+`@tanstack/ai-svelte/ui` has no `TextPart` component. Render `part.content` in your own text part, with the markdown library of your choice.
+
+### Type a widget in its own file
+
+Every widget above is already in its own file. Type its `$props()` with `ToolProps`, `PartProps`, `InterruptProps`, or `MessageProps`. Pass `typeof chatOptions` and a name.
+
+You now have a typed chat UI in Svelte. Each widget is your own component.
+
+## Advanced
+
+### Slots and props
+
+The config keys, part keys, and prop types are the same as in React. See [Every widget slot](./react#every-widget-slot). In Svelte, components place content with snippets:
+
+- `layout`: the `messages`, `interrupts`, `queue`, and `input` snippets.
+- `message`: the `message` prop and the `parts` snippet.
+
+`createAppChat()` takes per-instance options: `threadId`, `initialMessages`, `live`, and `forwardedProps`.
+
+### Approvals and generic interrupts
+
+- A tool approval renders in the tool when you read the `interrupt` prop.
+- To show it in the list instead, register a component under `interruptsComponents.tools` and render the `interrupts` snippet.
+- Generic interrupts always render in the list. `generic.fallback` renders an unregistered id and an unbound interrupt. If the copy must be different, branch on `interrupt.kind === 'unbound'`.
+
+### Show queued messages
+
+Register `queue` on `components`, then render `{@render queue()}` in the layout. A queue component gets one `item`. Call `item.cancelQueued()` to drop it.

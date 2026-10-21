@@ -14,16 +14,37 @@ keywords:
   - mobile streaming
 ---
 
-Your native app calls your own backend, not a same-origin browser route. Use `useChat` from `@tanstack/ai-react` with an XHR adapter and an absolute URL.
+Your native app calls your own backend, and streaming `fetch` is often missing on phones. Use `useChat` from `@tanstack/ai-react` with the `xhrHttpStream()` transport and an absolute URL. It reads the stream through XHR progress events.
 
-## 1. Set the backend URL
+## Quick setup
+
+### 1. Return NDJSON from the server
+
+Your backend returns the stream with `toHttpResponse()`:
 
 ```typescript
-const baseUrl =
-  process.env.EXPO_PUBLIC_TANSTACK_AI_BASE_URL ??
-  'http://127.0.0.1:8787'
-const httpUrl = `${baseUrl}/chat/http`
-const sseUrl = `${baseUrl}/chat/sse`
+// server route: POST /chat/http
+import { chat, chatParamsFromRequest, toHttpResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
+  const stream = chat({
+    adapter: openaiText("gpt-6.1-sol"),
+    messages,
+    threadId,
+    runId,
+  });
+  return toHttpResponse(stream);
+}
+```
+
+### 2. Set the backend URL
+
+Put the backend address in a public Expo variable:
+
+```env
+EXPO_PUBLIC_TANSTACK_AI_BASE_URL=http://127.0.0.1:8787
 ```
 
 Use a URL that your runtime can reach:
@@ -32,39 +53,65 @@ Use a URL that your runtime can reach:
 - **Android emulator**: usually `10.0.2.2`, to reach the host machine.
 - **A physical device**: a LAN URL or a tunnel URL.
 
-## 2. Connect with `xhrHttpStream`
+### 3. Connect with `xhrHttpStream`
 
-Use `xhrHttpStream()` for Expo and React Native. It reads newline-delimited JSON from incremental XHR progress events. Your server returns the stream with `toHttpResponse()` (see [HTTP Stream](./http-stream)):
-
-```typescript
+```tsx
+import { Button, Text, View } from "react-native";
 import { useChat, xhrHttpStream } from "@tanstack/ai-react";
 
-const baseUrl = process.env.EXPO_PUBLIC_TANSTACK_AI_BASE_URL ?? 'http://127.0.0.1:8787';
-const httpUrl = `${baseUrl}/chat/http`;
+const baseUrl =
+  process.env.EXPO_PUBLIC_TANSTACK_AI_BASE_URL ?? "http://127.0.0.1:8787";
 
-const chat = useChat({
-  connection: xhrHttpStream(httpUrl),
-});
+export function ChatScreen() {
+  const { messages, sendMessage } = useChat({
+    connection: xhrHttpStream(`${baseUrl}/chat/http`),
+  });
+
+  return (
+    <View>
+      {messages.map((message) => (
+        <Text key={message.id}>
+          {message.parts.map((part) =>
+            part.type === "text" ? part.content : "",
+          )}
+        </Text>
+      ))}
+      <Button title="Send" onPress={() => void sendMessage("Hello")} />
+    </View>
+  );
+}
 ```
 
-Mobile connections drop often. If the server adds a durability adapter, both XHR adapters reconnect and support `joinRun`. See [Resumable Streams](../resumable-streams/overview).
+Tap Send in the simulator. The reply streams into `messages` as the model writes it.
 
-## Use SSE on mobile
+For a full mobile walkthrough with a Hono server and a text input, see [Quick Start: React Native](../getting-started/quick-start-react-native).
+
+## How it works
+
+1. `sendMessage` posts the messages to your backend through XHR.
+2. The server writes each chunk as one line of JSON.
+3. `xhrHttpStream()` reads new lines from each XHR progress event and updates `messages`.
+
+Mobile connections drop often. If the server adds a durability adapter, both XHR transports reconnect and support `joinRun`. See [Resumable Streams](../resumable-streams/overview).
+
+## Advanced
+
+### Use SSE on mobile
 
 If your server returns `text/event-stream` with `toServerSentEventsResponse()` (see [Server-Sent Events](./sse)), use `xhrServerSentEvents()`:
 
 ```typescript
-import { useChat, xhrServerSentEvents } from "@tanstack/ai-react";
+import { xhrServerSentEvents } from "@tanstack/ai-react";
 
-const baseUrl = process.env.EXPO_PUBLIC_TANSTACK_AI_BASE_URL ?? 'http://127.0.0.1:8787';
-const sseUrl = `${baseUrl}/chat/sse`;
+const baseUrl =
+  process.env.EXPO_PUBLIC_TANSTACK_AI_BASE_URL ?? "http://127.0.0.1:8787";
 
-const chat = useChat({
-  connection: xhrServerSentEvents(sseUrl),
-});
+export const connection = xhrServerSentEvents(`${baseUrl}/chat/sse`);
 ```
 
-## Use `fetchHttpStream` on mobile
+Pass this `connection` to `useChat`.
+
+### Use `fetchHttpStream` on mobile
 
 `fetchHttpStream()` works only if your React Native runtime has all of these:
 
@@ -75,26 +122,24 @@ const chat = useChat({
 The server still returns newline-delimited JSON with `toHttpResponse()`:
 
 ```typescript
-import { useChat, fetchHttpStream } from "@tanstack/ai-react";
+import { fetchHttpStream } from "@tanstack/ai-react";
 
-const baseUrl = process.env.EXPO_PUBLIC_TANSTACK_AI_BASE_URL ?? 'http://127.0.0.1:8787';
-const httpUrl = `${baseUrl}/chat/http`;
+const baseUrl =
+  process.env.EXPO_PUBLIC_TANSTACK_AI_BASE_URL ?? "http://127.0.0.1:8787";
 
-const chat = useChat({
-  connection: fetchHttpStream(httpUrl),
-});
+export const connection = fetchHttpStream(`${baseUrl}/chat/http`);
 ```
 
-If one of these APIs is missing, `fetchHttpStream()` throws `UnsupportedResponseStreamError`. A polyfill that buffers the response does not help, because the adapter needs incremental bytes. Use `xhrHttpStream()` or `xhrServerSentEvents()`.
+If one of these APIs is missing, `fetchHttpStream()` throws `UnsupportedResponseStreamError`. A polyfill that buffers the response does not help, because the transport needs incremental bytes. Use `xhrHttpStream()` or `xhrServerSentEvents()`.
 
-## Keep the bundle small
+### Request options on mobile
+
+The XHR transports take `headers` and `body`, like the fetch transports. For cookies, they use `withCredentials`, not `credentials`. See [Request Options](./request-options).
+
+### Keep the bundle small
 
 Keep provider SDKs and server helpers on your backend. Import only hooks and connection adapters in the React Native bundle. Do not import these:
 
 - OpenAI, Anthropic, or Gemini SDKs.
 - React DOM UI or devtools UI.
 - Packages for other frameworks.
-
-For a full mobile walkthrough, see [Quick Start: React Native](../getting-started/quick-start-react-native).
-
-Send a message from the simulator. The reply streams into `chat.messages` as the model writes it.

@@ -2,7 +2,7 @@
 title: Generations
 id: generations
 order: 1
-description: "One shape for image, speech, transcription, summarization and video: a server function, a route, and a hook. Copy the snippets and pick a transport."
+description: "Make an image, speech, a transcript, music, or a video with one server call and one client hook. Every media type uses the same three parts."
 keywords:
   - tanstack ai
   - generations
@@ -13,76 +13,100 @@ keywords:
   - video generation
 ---
 
-You want an image, some speech, a transcript, a video, or a live stream, not a conversation. Every one
-of those is a **generation**: one request, one result. They all share the same shape, so
-learning one teaches you the rest.
+You want an image, a voice clip, a transcript, or a video. You do not want a conversation. TanStack AI calls each of these a **generation**: one request goes in, one result comes out.
 
-For a live, prompt-steerable stream that does not end as a file, see [Live Generation](./live-generation) or [World Generation](./world-generation).
+Every generation uses the same three parts. When you know how to make one image, you know how to make all of them.
 
-## The fastest path
+## Generate your first image
 
-A server route that streams the result:
+You need a React app with a server route, and an OpenAI API key. This takes about 5 minutes.
 
-```typescript ignore
-import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
+1. Install the packages:
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai @tanstack/ai-react @tanstack/ai-openai
+
+<!-- ::end:tabs -->
+
+2. Put your key in `.env`:
+
+```bash
+OPENAI_API_KEY=sk-...
+```
+
+3. Add a `POST` route at `/api/generate/image`:
+
+```typescript
+import {
+  generateImage,
+  generationParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
-  const { prompt } = await request.json()
+  const { input } = await generationParamsFromRequest('image', request)
+  if (typeof input.prompt !== 'string') {
+    return new Response('Send a text prompt.', { status: 400 })
+  }
+
   const stream = generateImage({
-    adapter: openaiImage('dall-e-3'),
-    prompt: typeof prompt === 'string' ? prompt : '',
+    adapter: openaiImage('gpt-image-2.5-flare'),
+    prompt: input.prompt,
     stream: true,
   })
   return toServerSentEventsResponse(stream)
 }
 ```
 
-A hook that calls it:
+4. Call the route from a component:
 
 ```tsx
 import { fetchServerSentEvents, useGenerateImage } from '@tanstack/ai-react'
 
-function ImageGenerator() {
+export function ImageGenerator() {
   const { generate, result, isLoading, error } = useGenerateImage({
     connection: fetchServerSentEvents('/api/generate/image'),
   })
 
   return (
     <div>
-      <button onClick={() => generate({ prompt: 'A sunset over mountains' })}>
-        {isLoading ? 'Generating…' : 'Generate'}
+      <button
+        onClick={() => generate({ prompt: 'A sunset over mountains' })}
+        disabled={isLoading}
+      >
+        {isLoading ? 'Generating...' : 'Generate'}
       </button>
       {error && <p role="alert">{error.message}</p>}
       {result?.images.map((img, i) => (
-        <img key={i} src={img.url || `data:image/png;base64,${img.b64Json}`} />
+        <img
+          key={i}
+          src={img.url || `data:image/png;base64,${img.b64Json}`}
+          alt="Generated image"
+        />
       ))}
     </div>
   )
 }
 ```
 
-That is the whole loop. Swap `generateImage` and `useGenerateImage` for any other pair
-in the table below and nothing else changes.
+Click the button. The image shows up below it.
 
-For a React + Start walkthrough with OpenRouter, open [Generate Image](../tutorials/generate-image).
+For a full React and TanStack Start walkthrough with OpenRouter, open [Generate Image](../tutorials/generate-image).
 
-## Which transport?
+## How it works
 
-| Transport | Use it when | How |
-| --- | --- | --- |
-| **Streaming route** | You have an API route. The default, and what the snippets above use. | `stream: true` plus `toServerSentEventsResponse`, and `connection:` on the hook |
-| **Direct** | You call a server function and want plain JSON back. Simplest, no streaming. | Return the result from the function, and pass `fetcher:` on the hook |
-| **Server function that streams** | You use TanStack Start server functions and want typed input plus streaming. | Return `toServerSentEventsResponse(...)` from the function, and pass `fetcher:` |
+The loop has three parts:
 
-The third one is the best of both when you are on Start: input is fully typed and the
-streaming is handled for you. All three are written out in
-[Transports in full](#transports-in-full).
+- **The server function.** `generateImage()` calls the provider. With `stream: true`, it returns a stream of events instead of a plain result.
+- **The response helper.** `toServerSentEventsResponse()` sends those events to the browser as Server-Sent Events (SSE).
+- **The hook.** `useGenerateImage()` posts the input, reads the events, and gives you `result`, `isLoading`, and `error`.
 
-## Available Generations
+To make a different media type, swap the server function and the hook for another pair from the table. Nothing else changes.
 
-| Activity | Server Function | Client Hook (React) | Guide |
-|----------|----------------|---------------------|-------|
+| Activity | Server function | React hook | Guide |
+| --- | --- | --- | --- |
 | Image generation | `generateImage()` | `useGenerateImage()` | [Image Generation](./image-generation) |
 | Audio generation | `generateAudio()` | `useGenerateAudio()` | [Audio Generation](./audio-generation) |
 | Text-to-speech | `generateSpeech()` | `useGenerateSpeech()` | [Text-to-Speech](./text-to-speech) |
@@ -93,47 +117,40 @@ streaming is handled for you. All three are written out in
 | Live generation | `generateLiveVideo()` | - | [Live Generation](./live-generation) |
 | World generation | `generateWorld()` | - | [World Generation](./world-generation) |
 
-> **Note:** Video adapters use a jobs/polling architecture. The `useGenerateVideo` hook additionally exposes `jobId`, `videoStatus`, `onJobCreated`, and `onStatusUpdate` for tracking the polling lifecycle. Live adapters mint a session token. World Labs world jobs return a viewer URL and asset links.
+Three types work a little differently:
+
+- **Video** runs as a job. The server starts the job and polls it until the video is ready. The hook also gives you the job status. See [Video Generation](./video-generation).
+- **Live** and **world** generation return a session token. The browser uses the token to connect to the provider. See [Live Generation](./live-generation) and [World Generation](./world-generation).
+
+The hooks for Vue, Solid, Svelte, Angular, and the other frameworks are in [Generation Hooks](./generation-hooks). To keep a result after a page reload, add [Generation Persistence](../persistence/generation-persistence).
+
+## Pick a transport
+
+The quick setup uses a streaming route. You can also call a server function:
+
+| Transport | Use it when | How |
+| --- | --- | --- |
+| **Streaming route** | You have an API route. This is the default. | `stream: true` and `toServerSentEventsResponse()` on the server. `connection:` on the hook. |
+| **Direct** | You call a server function and want plain JSON back. No streaming. | Return the result from the function. `fetcher:` on the hook. |
+| **Server function that streams** | You use TanStack Start server functions and want typed input and streaming. | Return `toServerSentEventsResponse(...)` from the function. `fetcher:` on the hook. |
+
+On TanStack Start, the third transport gives you both: the input is typed and the hook still reads a stream. All three are written out in [Transports in full](#transports-in-full).
 
 ## Advanced
 
 ### Transports in full
 
-#### Streaming Mode (Connection Adapter)
+#### Streaming route (connection)
 
-The server passes `stream: true` to the generation function and sends the result as SSE. The client uses `fetchServerSentEvents()` to consume the stream.
+The server passes `stream: true` to the generation function and sends the events as SSE. The hook reads them with `fetchServerSentEvents()`. This is the quick setup above.
 
-**Server:**
+The hook sends its input inside an AG-UI request body. `generationParamsFromRequest(kind, request)` reads that body and returns `{ input, threadId, runId }`. The `kind` is one of `'image'`, `'audio'`, `'tts'`, `'voice'`, `'video'`, `'transcription'`, `'world'`, or `'liveVideo'`.
 
-```typescript ignore
-import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
-import { openaiImage } from '@tanstack/ai-openai'
+#### Direct (fetcher)
 
-// In your API route handler
-const stream = generateImage({
-  adapter: openaiImage('dall-e-3'),
-  prompt: 'A sunset over mountains',
-  stream: true,
-})
+The hook calls a server function and gets the result back as JSON. There is no stream.
 
-return toServerSentEventsResponse(stream)
-```
-
-**Client:**
-
-```tsx
-import { useGenerateImage, fetchServerSentEvents } from '@tanstack/ai-react'
-
-const { generate, result, isLoading } = useGenerateImage({
-  connection: fetchServerSentEvents('/api/generate/image'),
-})
-```
-
-#### Direct Mode (Fetcher)
-
-The client calls a server function directly and receives the result as JSON. No streaming protocol needed.
-
-**Server:**
+Server:
 
 ```typescript ignore
 import { createServerFn } from '@tanstack/react-start'
@@ -144,32 +161,31 @@ export const generateImageFn = createServerFn({ method: 'POST' })
   .inputValidator((data: { prompt: string }) => data)
   .handler(async ({ data }) => {
     return generateImage({
-      adapter: openaiImage('dall-e-3'),
+      adapter: openaiImage('gpt-image-2.5-flare'),
       prompt: data.prompt,
     })
   })
 ```
 
-**Client:**
+Client:
 
 ```tsx
 import { useGenerateImage } from '@tanstack/ai-react'
 import { generateImageFn } from '../lib/server-functions'
 
-const { generate, result, isLoading } = useGenerateImage({
-  fetcher: (input) => generateImageFn({ data: input }),
-})
+export function ImageGenerator() {
+  const { generate, result, isLoading } = useGenerateImage({
+    fetcher: (input) => generateImageFn({ data: input }),
+  })
+  // Render the same way as in the quick setup.
+}
 ```
 
-#### Server Function Streaming (Fetcher + Response)
+#### Server function that streams (fetcher + Response)
 
-Combines the best of both: **type-safe input** from the fetcher pattern with **streaming** from a server function that returns an SSE `Response`. When the fetcher returns a `Response` object (instead of a plain result), the client automatically parses it as an SSE stream.
+The server function returns an SSE `Response`. When a fetcher returns a `Response`, the hook reads it as an SSE stream. You get typed input from the fetcher and streaming from the response.
 
-If the client stops reading before the response ends, it cancels the response body. A `RUN_ERROR` event also closes the unfinished response.
-
-Custom cancellation hooks do not delay the client error or loading state. The client releases the reader lock even if cancellation fails or stays pending.
-
-**Server:**
+Server:
 
 ```typescript ignore
 import { createServerFn } from '@tanstack/react-start'
@@ -181,7 +197,7 @@ export const generateImageStreamFn = createServerFn({ method: 'POST' })
   .handler(({ data }) => {
     return toServerSentEventsResponse(
       generateImage({
-        adapter: openaiImage('dall-e-3'),
+        adapter: openaiImage('gpt-image-2.5-flare'),
         prompt: data.prompt,
         stream: true,
       }),
@@ -189,48 +205,59 @@ export const generateImageStreamFn = createServerFn({ method: 'POST' })
   })
 ```
 
-**Client:**
+Client:
 
 ```tsx
 import { useGenerateImage } from '@tanstack/ai-react'
 import { generateImageStreamFn } from '../lib/server-functions'
 
-const { generate, result, isLoading } = useGenerateImage({
-  fetcher: (input) => generateImageStreamFn({ data: input }),
-})
+export function ImageGenerator() {
+  const { generate, result, isLoading } = useGenerateImage({
+    fetcher: (input) => generateImageStreamFn({ data: input }),
+  })
+  // Render the same way as in the quick setup.
+}
 ```
 
-This is the recommended approach when using TanStack Start server functions, the input is fully typed (e.g., `ImageGenerateInput`), and the streaming protocol is handled transparently.
+How the client closes the response:
 
+- If the client stops reading before the response ends, it cancels the response body.
+- A `RUN_ERROR` event also closes the unfinished response.
+- Custom cancellation hooks do not delay the error or loading state on the client.
+- The client releases the reader lock, even if cancellation fails or stays pending.
 
-### How Streaming Works
+### How streaming works
 
-When you pass `stream: true` to any generation function, it returns an async iterable of `StreamChunk` events instead of a plain result:
+With `stream: true`, every generation function returns an async iterable of `StreamChunk` events instead of a plain result. A successful run sends these events:
 
 ```
-1. RUN_STARTED          → Client sets status to 'generating'
-2. CUSTOM               → Client receives the result
+1. RUN_STARTED          -> the hook sets status to 'generating'
+2. CUSTOM               -> the hook stores the result
    name: 'generation:result'
    value: <your result>
-3. RUN_FINISHED         → Client sets status to 'success'
+3. RUN_FINISHED         -> the hook sets status to 'success'
 ```
 
-If the function throws, a `RUN_ERROR` event is emitted instead:
+If the function throws, the run sends `RUN_ERROR` instead:
 
 ```
-1. RUN_STARTED          → Client sets status to 'generating'
-2. RUN_ERROR            → Client sets error + status to 'error'
-   error: { message: '...' }
+1. RUN_STARTED          -> the hook sets status to 'generating'
+2. RUN_ERROR            -> the hook sets error, and status to 'error'
+   message: '...'
 ```
 
-This is the same event protocol used by chat streaming, so the same transport layer (`toServerSentEventsResponse`, `fetchServerSentEvents`) works for both.
+If [Generation Persistence](../persistence/generation-persistence) stores the generated files, a `CUSTOM` event named `generation:artifacts` comes before `generation:result`. It carries the stored file references.
 
-When the server emits `RUN_ERROR`, the client surfaces it on `error` (and sets `status` to `'error'`). Use the `onError` callback to react, and render `error?.message` in your UI:
+Chat streaming uses the same event protocol. As a result, `toServerSentEventsResponse()` and `fetchServerSentEvents()` work for chat and for generations.
+
+### Show errors
+
+The hook puts a `RUN_ERROR` on `error` and sets `status` to `'error'`. Use `onError` to log it, and show `error.message` in your UI:
 
 ```tsx
-import { useGenerateImage, fetchServerSentEvents } from '@tanstack/ai-react'
+import { fetchServerSentEvents, useGenerateImage } from '@tanstack/ai-react'
 
-function ImageGenerator() {
+export function ImageGenerator() {
   const { generate, result, error, status } = useGenerateImage({
     connection: fetchServerSentEvents('/api/generate/image'),
     onError: (err) => console.error('Generation failed:', err.message),
@@ -243,64 +270,20 @@ function ImageGenerator() {
       </button>
       {status === 'error' && <p role="alert">Error: {error?.message}</p>}
       {result?.images.map((img, i) => (
-        <img key={i} src={img.url || `data:image/png;base64,${img.b64Json}`} />
+        <img
+          key={i}
+          src={img.url || `data:image/png;base64,${img.b64Json}`}
+          alt="Generated image"
+        />
       ))}
     </div>
   )
 }
 ```
 
+### Hook options and return values
 
-### Common Hook API
-
-All generation hooks share the same interface:
-
-| Option | Type | Description |
-|--------|------|-------------|
-| `connection` | `ConnectionAdapter` | Streaming transport (SSE, HTTP stream, custom) |
-| `fetcher` | `(input) => Promise<Result \| Response>` | Direct async function, or server function returning an SSE `Response` |
-| `threadId` | `string` | Stable scope for this generation. Required when `persistence` is on. Optional for ephemeral runs. |
-| `body` | `Record<string, any>` | Additional body parameters (connection mode) |
-| `onResult` | `(result) => T \| null \| void` | Transform or react to the result |
-| `onError` | `(error) => void` | Error callback |
-| `onProgress` | `(progress, message?) => void` | Progress updates (0-100) |
-
-| Return | Type | Description |
-|--------|------|-------------|
-| `generate` | `(input) => Promise<void>` | Trigger generation |
-| `result` | `T \| null` | The result (optionally transformed), or null |
-| `isLoading` | `boolean` | Whether generation is in progress |
-| `error` | `Error \| undefined` | Current error, if any |
-| `status` | `GenerationClientState` | `'idle'` \| `'generating'` \| `'success'` \| `'error'` |
-| `stop` | `() => void` | Abort the current generation |
-| `reset` | `() => void` | Clear all state, return to idle |
-
-#### Result Transform
-
-The `onResult` callback can optionally transform the stored result:
-
-- Return a **non-null value**, replaces the stored result with the transformed value
-- Return **`null`**, keeps the previous result unchanged (useful for filtering)
-- Return **nothing** (`void`), stores the raw result as-is
-
-TypeScript automatically infers the result type from your `onResult` return value, no explicit generic parameter needed.
-
-```tsx
-import { useGenerateSpeech, fetchServerSentEvents } from '@tanstack/ai-react'
-import type { TTSResult } from '@tanstack/ai'
-
-function SpeechPlayer() {
-  const { result } = useGenerateSpeech({
-    connection: fetchServerSentEvents('/api/generate/speech'),
-    onResult: (raw: TTSResult) => ({
-      audioUrl: `data:${raw.contentType};base64,${raw.audio}`,
-      duration: raw.duration,
-    }),
-  })
-  // result is typed as { audioUrl: string; duration?: number } | null
-}
-```
-
+All generation hooks share one set of options and one return shape. The full tables, result transforms, and the framework variants are in [Generation Hooks](./generation-hooks).
 
 ### Architecture
 
@@ -318,21 +301,20 @@ generateVideo({ ..., stream: true })"]
   end
 
   transport -- "StreamChunks via SSE
-RUN_STARTED → generation:result → RUN_FINISHED" --> adapter
+RUN_STARTED, generation:result, RUN_FINISHED" --> adapter
 
   subgraph Client ["Client"]
     direction TB
     adapter["fetchServerSentEvents('/api/...')"]
     gc["GenerationClient
 (state machine)"]
-    hooks["Framework Hooks
-useGenerateImage() · useGenerateSpeech()
-useGenerateVideo() · useSummarize()
+    hooks["Framework hooks
+useGenerateImage(), useGenerateSpeech(),
+useGenerateVideo(), useSummarize(),
 useTranscription()"]
     adapter --> gc
     gc -- "result, isLoading, error, status" --> hooks
   end
 ```
 
-The key insight: **every generation activity on the server is just an async function that returns a result**. By passing `stream: true`, the function returns a `StreamChunk` iterable instead of a plain result, which the client already knows how to consume.
-
+On the server, every generation is an async function that returns a result. With `stream: true`, the same function returns a `StreamChunk` iterable. The client already knows how to read that iterable, because chat uses it too.

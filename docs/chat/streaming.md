@@ -2,7 +2,7 @@
 title: Streaming
 id: streaming-responses
 order: 2
-description: "Show AI tokens in the UI as they arrive. Server stream, client useChat, cancel, and callbacks."
+description: "Show the reply in the UI while the model writes it. Stream from the server, render with useChat, and cancel a run."
 keywords:
   - tanstack ai
   - streaming
@@ -13,15 +13,18 @@ keywords:
   - useChat
 ---
 
-You send a message. The UI sits still until the model is done. That wait feels broken.
+You send a message, and the UI sits still until the model is done. That wait feels broken.
 
-Stream the reply. Tokens show up as the model writes them.
+Stream the reply instead. The tokens show up in the UI while the model writes them.
 
-## 1. Send the stream from the server
+## Quick setup
+
+### 1. Send the stream from the server
 
 Call `chat()`. Then wrap the result with `toServerSentEventsResponse`:
 
 ```typescript
+// api/chat.ts
 import {
   chat,
   chatParamsFromRequest,
@@ -33,7 +36,7 @@ export async function POST(request: Request) {
   const { messages, threadId, runId } = await chatParamsFromRequest(request);
 
   const stream = chat({
-    adapter: openaiText("gpt-5.6"),
+    adapter: openaiText("gpt-6.1-sol"),
     messages,
     threadId,
     runId,
@@ -43,11 +46,7 @@ export async function POST(request: Request) {
 }
 ```
 
-`chatParamsFromRequest` reads the AG-UI body that `useChat` sends. If the body is invalid, it throws a `Response` with status 400. If your framework does not map a thrown `Response` to HTTP 400, catch it and return it.
-
-The response stream pauses `chat()` when its output queue is full. It reads more chunks when the client consumes the queued data. This also applies to `toHttpResponse` with NDJSON. A response with `durability` does not pause, so its run keeps writing to the log.
-
-## 2. Render with `useChat`
+### 2. Render the stream with `useChat`
 
 ```tsx
 import { useState } from "react";
@@ -95,19 +94,23 @@ export function Chat() {
 }
 ```
 
-`messages` updates as chunks arrive. `isLoading` is `true` while the run is in flight.
+Send a message. The text grows in the UI while the tokens arrive.
 
-The shared `ChatClient` processes ready chunks in order without inserting a task between each chunk. It yields after bounded processing work to keep the main thread responsive.
+The same pattern works in every UI framework. See [Quick Start](../getting-started/quick-start) for your framework.
 
-The same pattern works in every UI framework. See [Quick Start](../getting-started/quick-start).
+## How it works
 
-If SSE is blocked, pick another transport on [Transports](../transports/overview).
+- `chatParamsFromRequest` reads the AG-UI body that `useChat` sends.
+- `chat()` returns a stream of events. `toServerSentEventsResponse` writes them to the response as Server-Sent Events.
+- `useChat` reads the events and updates `messages` after each chunk. `isLoading` is `true` while the run is in progress.
 
-## 3. Cancel a run
+If your network blocks SSE, pick another transport on [Transports](../transports/overview).
 
-Call `stop()`. The client aborts the fetch.
+## Cancel a run
 
-Pass the same `AbortController` to `chat()` and `toServerSentEventsResponse` so the server stops the model too:
+Call `stop()` on the client. The client aborts the fetch.
+
+To stop the model on the server too, give the same `AbortController` to `chat()` and to `toServerSentEventsResponse`:
 
 ```typescript
 import {
@@ -122,7 +125,7 @@ export async function POST(request: Request) {
   const abortController = new AbortController();
 
   const stream = chat({
-    adapter: openaiText("gpt-5.6"),
+    adapter: openaiText("gpt-6.1-sol"),
     messages,
     threadId,
     runId,
@@ -133,22 +136,73 @@ export async function POST(request: Request) {
 }
 ```
 
-`AbortError` from `stop()` is expected. Pending client-tool work for that turn does not resume. A later `addToolResult()` for that turn is ignored.
+After `stop()`:
 
-A dropped connection mid-line throws `StreamTruncatedError`. The client then moves to `error`. See [Transports: Errors](../transports/overview#errors).
+- An `AbortError` is expected.
+- Pending client-tool work for that turn does not continue.
+- A later `addToolResult()` for that turn has no effect.
 
-For OpenAI and OpenRouter Responses, a stream that ends without `response.completed` emits `RUN_ERROR` with code `incomplete-stream`. This applies to chat and to structured output. Text received before the error remains available. The run does not call `onFinish`.
+## Where to go next
 
-Chat Completions adapters built on `@tanstack/openai-base` also check completion in `chat()`. A started stream needs a non-null `finish_reason` or a final usage-only chunk (`choices: []` with `usage`). Otherwise, the adapter closes open lifecycles and emits `RUN_ERROR` with code `incomplete-stream`. Partial text remains available. The run calls `onError`, skips pending server tools, and does not call `onFinish`.
+- **The user sends while a reply streams.** By default, the message waits in `queue`. See [Message Queue](./queueing).
+- **You need the event types, the thread ids, or the tool parts.** See [Stream Events](./stream-events).
+- **The model thinks before it answers.** See [Thinking and Reasoning](./thinking-content).
+- **A page refresh must not lose the stream.** See [Resumable Streams](../resumable-streams/overview).
 
-The usage-only exception preserves provider compatibility. Usage on an earlier chunk or alongside a choice does not satisfy it. The OpenAI SDK hides `[DONE]`, so this check cannot verify that marker. A stream with only `[DONE]` after content still needs a finish reason or usage-only tail to succeed.
+## Advanced
 
-## Later
+### Stream without HTTP
 
-- **No HTTP.** Iterate `chat()` yourself. Branch on `chunk.type === "TEXT_MESSAGE_CONTENT"`. Then read `chunk.delta`.
-- **Callbacks.** `onChunk` fires on each event. `onFinish` fires with the completed message.
-- **Send while a reply is in flight.** Messages wait in `queue` by default. See [Message Queue](./queueing).
-- **Event types, thread ids, and tool parts.** See [Stream Events](./stream-events).
-- **Thinking tokens or a refresh mid-stream.** See [Thinking and Reasoning](./thinking-content) and [Resumable Streams](../resumable-streams/overview).
+You can iterate `chat()` yourself. Branch on `chunk.type`, then read `chunk.delta`:
 
-Send a message. Text grows in the UI as tokens arrive.
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openaiText("gpt-6.1-sol"),
+  messages: [{ role: "user", content: "Hello!" }],
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === "TEXT_MESSAGE_CONTENT") {
+    process.stdout.write(chunk.delta);
+  }
+}
+```
+
+### Client callbacks
+
+`useChat` takes two callbacks for the stream:
+
+- `onChunk`: runs for each event.
+- `onFinish`: runs with the completed message.
+
+### A bad request body
+
+If the body is not valid, `chatParamsFromRequest` throws a `Response` with status 400. If your framework does not send a thrown `Response` as the HTTP reply, catch it and return it.
+
+### Backpressure
+
+The response stream pauses `chat()` when its output queue is full. It reads more chunks when the client reads the queued data. `toHttpResponse` with NDJSON does the same.
+
+A response with `durability` does not pause. Its run keeps writing to the log.
+
+### Main-thread work on the client
+
+The shared `ChatClient` processes the chunks that are ready in order. It does not add a task between each chunk. After a fixed amount of work, it yields to keep the main thread responsive.
+
+### A stream that ends too early
+
+- **The connection drops in the middle of a line.** The client throws `StreamTruncatedError` and moves to `error`. See [Transports: Errors](../transports/overview#errors).
+- **An OpenAI or OpenRouter Responses stream ends without `response.completed`.** The adapter emits `RUN_ERROR` with code `incomplete-stream`. This applies to chat and to structured output. The text that arrived stays available. The run does not call `onFinish`.
+- **A Chat Completions stream ends without a finish.** See below.
+
+Chat Completions adapters built on `@tanstack/openai-base` also make sure that the stream finished. A started stream needs one of these:
+
+- a non-null `finish_reason`
+- a final chunk with only usage (`choices: []` with `usage`)
+
+If neither arrives, the adapter closes the open lifecycles and emits `RUN_ERROR` with code `incomplete-stream`. The partial text stays available. The run calls `onError`, skips pending server tools, and does not call `onFinish`.
+
+The usage-only rule keeps providers compatible. Usage on an earlier chunk, or usage next to a choice, does not count. The OpenAI SDK hides `[DONE]`, so this check cannot see that marker. A stream with only `[DONE]` after the content still needs a finish reason or a usage-only last chunk.

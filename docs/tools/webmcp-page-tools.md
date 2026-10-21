@@ -14,15 +14,20 @@ keywords:
   - getWebMCPTools
 ---
 
-Your page already has WebMCP tools. A widget, a library, or your own code registered them on `document.modelContext`. You want your in-page chat to use the same tools, without a second copy of each tool.
+Your page already has WebMCP tools. A widget, a library, or your own code registered them on `document.modelContext`. You want your in-page chat to use the same tools, without a second copy of each one.
 
-The page tools API reads the tools from `document.modelContext` and gives them to the chat as client tools. When the model calls a tool, the chat runs the tool through WebMCP.
+The page tools API reads those tools and gives them to your chat as client tools. When the model calls one, the chat runs it through WebMCP.
 
-> **Experimental:** WebMCP support is experimental. During SSR, in insecure contexts, or in unsupported browsers, the tool list stays empty.
+> [!WARNING]
+> WebMCP is experimental. During SSR, in an insecure context, or in a browser without WebMCP, the tool list stays empty.
 
-## 1. Accept client tools on the server
+## Set it up
 
-The server does not know the page tools. Let the client declare them with `mergeAgentTools`:
+You need a working chat first. If you do not have one, start with the [Quick Start](../getting-started/quick-start).
+
+### 1. Accept client tools on the server
+
+The server does not know which tools the page has. Let the client send them, and merge them with `mergeAgentTools`:
 
 ```ts
 // api/chat.ts
@@ -45,11 +50,12 @@ export async function POST(request: Request) {
 }
 ```
 
-> **Security:** `params.tools` comes from the browser. The model can call these tools, but the tools run in the browser, not on the server. Keep sensitive work behind your own server checks.
+> [!WARNING]
+> `params.tools` comes from the browser. The model can call these tools, but they run in the browser, not on the server. Keep sensitive work behind your own server checks.
 
-## 2. Give the page tools to the chat
+### 2. Give the page tools to the chat
 
-Use the page tools API for your framework. Pass the result to the chat as `tools`.
+Call the page tools API for your framework. Pass the result to the chat as `tools`.
 
 <!-- ::start:framework -->
 
@@ -240,7 +246,7 @@ export function Chat() {
 
 # Remix
 
-Pass the component `Handle` to `createPageWebMCPTools`. It calls `handle.update()` when the tools change. Read `page.tools` in a `tools` getter. The chat reads the getter each time a run starts.
+Pass the component `Handle` to `createPageWebMCPTools`. When the tools change, it calls `handle.update()`. Read `page.tools` in a `tools` getter. The chat reads the getter each time a run starts.
 
 ```tsx
 import {
@@ -275,9 +281,29 @@ export const Chat = clientEntry(import.meta.url, function Chat(handle) {
 
 <!-- ::end:framework -->
 
-## 3. Skip tools with a filter
+That is all. Your chat can now call every WebMCP tool on the page. Ask it to "Open the help panel", and the model calls the page tool that does it.
 
-Pass `filter` to skip a tool. Return `false` and the chat does not get that tool. The filter gets the WebMCP tool, so you can read `name`, `origin`, and `annotations`:
+## How it works
+
+1. The page tools API reads the tools from `document.modelContext`.
+2. It turns each tool into a client tool, with the same name, description, and input schema.
+3. The chat sends these tool definitions to your server. `mergeAgentTools` gives them to the model.
+4. When the model calls a tool, the chat runs it in the browser through WebMCP.
+5. When the page adds or removes a tool, the list updates.
+
+To send your own client tools to WebMCP, see [WebMCP Tools](./webmcp).
+
+## Advanced
+
+### Skip tools with a filter
+
+Pass `filter` to skip a tool. Return `false`, and the chat does not get that tool. The filter gets the WebMCP tool, so you can read these fields:
+
+- `name`
+- `origin`: the origin of the document that registered the tool.
+- `annotations`
+
+This filter keeps only read-only tools from your own origin:
 
 ```tsx
 import { usePageWebMCPTools } from '@tanstack/ai-react'
@@ -291,13 +317,30 @@ export function useReadOnlyPageTools() {
 }
 ```
 
-Every framework API takes the same `filter` and `onError` options. `onError` gets a failed WebMCP read, for example a `NotAllowedError` from the `tools` permissions policy. The last good list stays in place.
+Some providers reject a tool name with a period, such as `help.open`. WebMCP allows periods. Use `filter` to skip those tools.
 
-Tool names must be unique after filtering, including tools from different frames. If names repeat, `getWebMCPTools()` rejects and subscriptions report the error through `onError`. Subscriptions keep the last good list. Give the tools unique names or use `filter` to select one of them.
+### Handle read errors
 
-Some providers reject a tool name with a period, such as `help.open`. WebMCP allows periods. Skip those tools with `filter`.
+Every framework API takes the same two options: `filter` and `onError`.
 
-## Read page tools without a framework
+`onError` gets a failed WebMCP read. An example is a `NotAllowedError` from the `tools` permissions policy. When a read fails, the last good list stays in place.
+
+### Duplicate tool names
+
+Tool names must be unique after the filter runs. This includes tools from different frames.
+
+If two tools have the same name:
+
+- `getWebMCPTools()` rejects.
+- A subscription sends the error to `onError` and keeps the last good list.
+
+Give the tools unique names, or use `filter` to keep only one of them.
+
+### Tool results
+
+WebMCP returns each tool result as a string. If the string is valid JSON, the chat parses it. If not, the chat gets the string as it is.
+
+### Read page tools without a framework
 
 Use `getWebMCPTools` from `@tanstack/ai-client` to read the tools one time:
 
@@ -310,7 +353,7 @@ const client = new ChatClient({
 })
 ```
 
-To keep the list current, use `subscribeWebMCPTools`. It calls your listener now and after each WebMCP `toolchange` event. Abort the signal to stop:
+To keep the list current, use `subscribeWebMCPTools`. It calls your listener now, and again after each WebMCP `toolchange` event. Abort the signal to stop:
 
 ```ts
 import {
@@ -334,6 +377,6 @@ export function stopPageTools() {
 }
 ```
 
-Every framework package also exports `getWebMCPTools` and `subscribeWebMCPTools`.
+If WebMCP is not available, `subscribeWebMCPTools` calls your listener one time with an empty array.
 
-Your chat can now call every WebMCP tool on the page that passes your filter. To expose your own client tools to WebMCP, see [WebMCP Tools](./webmcp).
+Every framework package also exports `getWebMCPTools` and `subscribeWebMCPTools`.

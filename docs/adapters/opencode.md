@@ -2,7 +2,7 @@
 title: OpenCode
 id: opencode-adapter
 order: 14
-description: "Use OpenCode as a chat backend in TanStack AI — agent harness with local tool execution, token-level streaming, stateful sessions, and tool bridging via @tanstack/ai-opencode."
+description: "Run the OpenCode agent inside a sandbox from TanStack AI, with any model that OpenCode supports. It edits files and runs commands in a real repo and streams each step."
 keywords:
   - tanstack ai
   - opencode
@@ -13,120 +13,179 @@ keywords:
   - adapter
 ---
 
-The OpenCode adapter runs [OpenCode](https://opencode.ai) as a chat backend, driving it over its local HTTP server (`@opencode-ai/sdk`). Unlike HTTP provider adapters, this is a **harness adapter**: OpenCode runs its own agent loop and executes its own tools — shell commands, file reads and edits, search — locally on your server. Each `chat()` call runs one full harness turn; assistant text and reasoning stream as true token-level deltas, and the harness's tool activity streams back as already-resolved tool-call events your UI can render.
+The OpenCode adapter gives `chat()` a coding agent that works with many model providers. It starts an `opencode serve` server inside a sandbox, where the agent edits files and runs commands in a real repo. Text and each tool step stream back to your UI.
 
-> **Server-only.** The adapter spawns (or attaches to) an `opencode serve` process, so it only works in a Node.js server environment — never in the browser. Treat it like giving OpenCode a shell on the machine it runs on, and configure permissions accordingly.
+You need:
 
-## Installation
+- A sandbox provider. The samples use Docker, so Docker must run on your machine.
+- An API key for the model provider that OpenCode uses. The samples use OpenAI, so they need `OPENAI_API_KEY`.
+- The `opencode` CLI inside the sandbox. A setup step in the sandbox installs it.
+
+## 1. Install
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
-react: @tanstack/ai-opencode
-vue: @tanstack/ai-opencode
-solid: @tanstack/ai-opencode
-svelte: @tanstack/ai-opencode
-preact: @tanstack/ai-opencode
-angular: @tanstack/ai-opencode
-vanilla: @tanstack/ai-opencode
-octane: @tanstack/ai-opencode
+react: @tanstack/ai-opencode @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+vue: @tanstack/ai-opencode @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+solid: @tanstack/ai-opencode @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+svelte: @tanstack/ai-opencode @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+preact: @tanstack/ai-opencode @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+angular: @tanstack/ai-opencode @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+vanilla: @tanstack/ai-opencode @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+octane: @tanstack/ai-opencode @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
 
 <!-- ::end:tabs -->
 
-The `opencode` CLI must be installed and its providers authenticated on the host:
+## 2. Set the API key
 
-<!-- ::start:tabs variant="package-manager" mode="custom" -->
-
-react: install -g opencode-ai
-vue: install -g opencode-ai
-solid: install -g opencode-ai
-svelte: install -g opencode-ai
-preact: install -g opencode-ai
-angular: install -g opencode-ai
-vanilla: install -g opencode-ai
-octane: install -g opencode-ai
-
-<!-- ::end:tabs -->
-
-Then authenticate:
+Put the key in the environment of your server:
 
 ```bash
-opencode auth login
+OPENAI_API_KEY=sk-...
 ```
 
-A runnable demo lives at [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare) — pick Claude Code, Codex, or Grok Build in the UI, with session resume, the harness tool timeline, and tool bridging, wired into a TanStack Start app on Workers. For the same wiring on plain Node with durable, refresh-surviving runs (Claude Code on Docker), see [`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web) — swapping in this adapter is a one-line change (`src/sandbox-agent.ts`).
+OpenCode reads the key from the environment of its process. The sandbox in step 3 passes it in as a workspace secret. This adapter has no `authMode` option.
 
-## Models
+## 3. Run the agent from the server
 
-OpenCode is provider-agnostic: it resolves any `provider/model` id its configured providers support. Address models as `provider/model` (the adapter splits on the first `/`):
+Define the sandbox once. It clones your repo into a Docker container and installs the `opencode` CLI:
 
-```typescript
-import { chat } from "@tanstack/ai";
-import { opencodeText } from "@tanstack/ai-opencode";
+```ts
+// sandbox.ts
+import {
+  createSecrets,
+  defineSandbox,
+  defineWorkspace,
+  githubRepo,
+} from "@tanstack/ai-sandbox";
+import { dockerSandbox } from "@tanstack/ai-sandbox-docker";
 
-const stream = chat({
-  adapter: opencodeText("anthropic/claude-sonnet-4-5", {
-    directory: "/path/to/project",
-    permissionMode: "acceptEdits",
+export const sandbox = defineSandbox({
+  id: "opencode-agent",
+  // The host talks to `opencode serve` on port 4096, so publish it.
+  provider: dockerSandbox({ image: "node:22", publishPorts: [4096] }),
+  workspace: defineWorkspace({
+    source: githubRepo({ repo: "owner/app" }),
+    setup: ["npm install -g opencode-ai --include=optional && opencode --version"],
+    secrets: createSecrets({
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
+    }),
   }),
-  messages: [{ role: "user", content: "Fix the failing test in utils.test.ts" }],
 });
 ```
 
-## Configuration
+Then pass the adapter and the sandbox to `chat()` in your route:
 
-| Option                | Description                                                                                                                                                  |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `directory`           | Working directory for the harness session. Defaults to `process.cwd()`.                                                                                      |
-| `baseUrl`             | Attach to an already-running `opencode serve` (e.g. `http://127.0.0.1:4096`) instead of spawning a new server per turn.                                       |
-| `hostname`            | Hostname for the spawned server. Defaults to the SDK default (`127.0.0.1`).                                                                                   |
-| `port`                | Port for the spawned server. Defaults to the SDK default (`4096`).                                                                                           |
-| `permissionMode`      | `'default'` (bridged tools run, everything else that prompts is rejected), `'acceptEdits'` (also auto-approves file edits), or `'bypassPermissions'` (allow all). |
-| `onPermissionRequest` | Custom permission handler; replaces the default policy entirely.                                                                                             |
-| `config`              | Extra OpenCode config merged with the adapter's MCP and permission config.                                                                                    |
-
-Per-call overrides — `sessionId`, `permissionMode`, `directory` — go through `modelOptions`.
-
-## Reasoning
-
-Set `reasoning` on `chat()`. The adapter writes it into the model's `options` in the OpenCode server config:
-
-```typescript
-import { chat } from "@tanstack/ai";
-import { opencodeText } from "@tanstack/ai-opencode";
-
-const stream = chat({
-  adapter: opencodeText("anthropic/claude-sonnet-4-5"),
-  messages: [{ role: "user", content: "Refactor the auth module" }],
-  reasoning: { level: "high", budgetTokens: 8000 },
-});
-```
-
-- Claude models get `thinking` with a token budget. `off` disables thinking. `anthropic/claude-sonnet-4-5` and `opencode/claude-sonnet-4-5` take `off` to `high`. `anthropic/claude-opus-4-5` takes `low`, `medium`, `high`.
-- The other models get `reasoningEffort`, plus `reasoningSummary: "auto"` when the summary is on. `openai/gpt-5.2` takes `off`, `low` to `xhigh`. The `gpt-5.1-codex` models take `low`, `medium`, `high`.
-
-## Permissions
-
-OpenCode asks for permission before mutating files or running commands. A headless server has no one to answer those prompts, so the adapter applies a policy automatically — it never hangs a turn:
-
-- **`'default'`** — bridged TanStack tools run; anything else that would prompt (edits, shell, web fetch) is rejected.
-- **`'acceptEdits'`** — additionally auto-approves file-mutation requests (edit / write / patch).
-- **`'bypassPermissions'`** — approves everything. Only use this against a sandbox or scratch directory.
-
-Provide `onPermissionRequest` to implement your own policy (e.g. allow-list specific commands).
-
-## Stateful Sessions
-
-OpenCode sessions are stateful — the harness keeps the full working context (files read, commands run, conclusions reached) between turns. The adapter surfaces the session id of every fresh run as a custom stream event named `opencode.session-id`; thread it back via `modelOptions.sessionId` to resume. When resuming, only the latest user message is sent — the harness already holds the prior context.
-
-Server endpoint:
-
-```typescript
+```ts
+// api/agent.ts
 import {
   chat,
   chatParamsFromRequest,
   toServerSentEventsResponse,
 } from "@tanstack/ai";
 import { opencodeText } from "@tanstack/ai-opencode";
+import { withSandbox } from "@tanstack/ai-sandbox";
+import { sandbox } from "./sandbox";
+
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
+
+  const stream = chat({
+    adapter: opencodeText("openai/gpt-5.2", {
+      permissionMode: "acceptEdits",
+    }),
+    messages,
+    threadId,
+    runId,
+    middleware: [withSandbox(sandbox)],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+- Replace `owner/app` with your repo.
+- Model ids are `provider/model`. The adapter splits the id at the first `/`.
+- `permissionMode: "acceptEdits"` lets the agent edit files. See [Permissions](#permissions).
+
+## 4. Render the agent's work
+
+The client is the same as for any chat. Render the text, and show each tool that the agent ran:
+
+```tsx
+import { useState } from "react";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+export function CodingAgent() {
+  const [input, setInput] = useState("");
+  const { messages, sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/agent"),
+  });
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        sendMessage(input);
+        setInput("");
+      }}
+    >
+      {messages.map((message) =>
+        message.parts.map((part, index) => {
+          if (part.type === "text") {
+            return <p key={`${message.id}-${index}`}>{part.content}</p>;
+          }
+          if (part.type === "tool-call") {
+            return <code key={part.id}>{part.name}</code>;
+          }
+          return null;
+        }),
+      )}
+      <input value={input} onChange={(event) => setInput(event.target.value)} />
+    </form>
+  );
+}
+```
+
+Ask it "Fix the failing test in utils.test.ts". The text streams token by token, and you see a line for each tool the agent used: `read`, `edit`, `bash`, and more. The agent edited the files inside the container.
+
+## How it works
+
+- `opencodeText` declares that it needs a sandbox. `withSandbox(sandbox)` gives it one. Without a sandbox, `chat()` fails at the call site.
+- The adapter starts `opencode serve` inside the sandbox and connects to it over HTTP with the `@opencode-ai/sdk` client.
+- Each `chat()` call runs one full agent turn. OpenCode runs its own loop and its own tools.
+- Text and reasoning stream token by token. The tools of the agent stream back as `tool-call` parts with the results attached. Your code does not run them.
+- The running todo plan of the agent arrives as an `opencode.todo` custom event.
+
+To learn more about sandboxes, see [Sandboxes](../sandbox/overview).
+
+## Permissions
+
+OpenCode asks for permission before it edits files or runs commands. A headless server has no person to answer, so the adapter answers each request from `permissionMode`. A turn never waits for an answer.
+
+| Mode | What runs |
+| --- | --- |
+| `'default'` | Your bridged tools run. Every other request that asks (edits, shell, web fetch) is rejected. |
+| `'acceptEdits'` | Also allows file edits (edit, write, patch). |
+| `'bypassPermissions'` | Allows every request. Use it only in a sandbox or a scratch directory. |
+
+To write your own rules, for example to allow only some commands, pass `onPermissionRequest`. It replaces the default policy.
+
+## Resume a session
+
+OpenCode keeps its working context between turns: the files it read, the commands it ran, and what it found. The adapter sends the session id of each new run as a custom event named `opencode.session-id`. Send it back in `modelOptions.sessionId` to continue the session.
+
+On the server, read the id from the request:
+
+```ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { opencodeText } from "@tanstack/ai-opencode";
+import { withSandbox } from "@tanstack/ai-sandbox";
+import { sandbox } from "./sandbox";
 
 export async function POST(request: Request) {
   const params = await chatParamsFromRequest(request);
@@ -138,11 +197,11 @@ export async function POST(request: Request) {
       : undefined;
 
   const stream = chat({
-    adapter: opencodeText("anthropic/claude-sonnet-4-5", {
-      directory: "/path/to/project",
-      permissionMode: "acceptEdits",
-    }),
+    adapter: opencodeText("openai/gpt-5.2", { permissionMode: "acceptEdits" }),
     messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    middleware: [withSandbox(sandbox)],
     modelOptions: { sessionId },
   });
 
@@ -150,18 +209,17 @@ export async function POST(request: Request) {
 }
 ```
 
-Client (React) — capture the session id from the custom event and send it back on subsequent requests:
+On the client, keep the id from the custom event and send it with each request:
 
-```typescript
+```tsx
 import { useState } from "react";
-import { useChat } from "@tanstack/ai-react";
-import { fetchServerSentEvents } from "@tanstack/ai-client";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
-function CodingAssistant() {
+export function useCodingAgent() {
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
 
-  const { messages, sendMessage } = useChat({
-    connection: fetchServerSentEvents("/api/chat", () => ({
+  return useChat({
+    connection: fetchServerSentEvents("/api/agent", () => ({
       body: { sessionId },
     })),
     onCustomEvent: (name, value) => {
@@ -176,26 +234,22 @@ function CodingAssistant() {
       }
     },
   });
-
-  // ... render messages; harness tool activity (bash, edit, read, ...)
-  // arrives as regular tool-call parts with results.
 }
 ```
 
-Sessions live on the server that ran them, so resuming only works against the same server instance (or a shared `baseUrl`).
+- On a resumed session, the adapter sends only the latest user message. The agent already has the rest.
+- OpenCode saves the session inside the sandbox. Resume works only when the next call runs in the same sandbox. See [Lifecycle & Snapshots](../sandbox/lifecycle).
 
-## Tools
+## Give the agent your own tools
 
-Two kinds of tools flow through this adapter:
+The agent has its own tools for files and the shell. It cannot reach your database or your secrets. Pass your server tools to `chat()`, and the adapter bridges them into the sandbox:
 
-1. **Built-in harness tools** are executed by OpenCode itself and stream back as tool-call events with results already attached: `bash`, `edit`, `write`, `read`, `grep`, and the agent's running todo plan (surfaced as an `opencode.todo` custom event). Your code never executes them.
-
-2. **Your TanStack tools** are bridged *into* the harness: the adapter starts a short-lived Streamable-HTTP MCP server on `127.0.0.1` for the duration of the turn and registers it with OpenCode. Define tools as usual with `toolDefinition().server()`; tool-call events come back under the names you registered (OpenCode prefixes MCP tools `tanstack_…` internally, which the adapter strips).
-
-```typescript group=tools
+```ts group=tools
 import { z } from "zod";
 import { chat, toolDefinition } from "@tanstack/ai";
 import { opencodeText } from "@tanstack/ai-opencode";
+import { withSandbox } from "@tanstack/ai-sandbox";
+import { sandbox } from "./sandbox";
 
 const lookupTicket = toolDefinition({
   name: "lookup_ticket",
@@ -206,24 +260,31 @@ const lookupTicket = toolDefinition({
 });
 
 const stream = chat({
-  adapter: opencodeText("anthropic/claude-sonnet-4-5"),
+  adapter: opencodeText("openai/gpt-5.2"),
   messages: [{ role: "user", content: "What's the status of ticket T-123?" }],
   tools: [lookupTicket],
+  middleware: [withSandbox(sandbox)],
 });
 ```
 
-**Client-side and approval-gated tools are not supported.** The harness executes tools inside a live process, which cannot pause across HTTP requests to wait for a browser round-trip or a human approval. Passing a tool without a server `execute()` implementation — or one marked `needsApproval` — fails fast with a descriptive error. Run those tools outside the harness with a regular provider adapter.
+- Each tool runs on your server, with its closures and secrets. The result goes back into the sandbox.
+- OpenCode names the tool `tanstack_lookup_ticket` internally. The adapter removes the prefix, so the events use the name you gave.
+- Your bridged tools always run, in every permission mode.
+- Only server tools work here. A client tool has no server `execute()`, so the agent cannot run it.
+
+For how the bridge reaches your server from each provider, see [Sandbox Tools](../sandbox/tools).
 
 ## Tool choice
 
-You want OpenCode to see just one of your tools, or none of them. Pass `toolChoice` to `chat()`:
+You want OpenCode to see only one of your tools, or none of them. Pass `toolChoice` to `chat()`:
 
-```typescript group=tools
+```ts group=tools
 const onlyLookup = chat({
-  adapter: opencodeText("anthropic/claude-opus-4-5"),
+  adapter: opencodeText("openai/gpt-5.2"),
   messages: [{ role: "user", content: "What's the status of ticket T-123?" }],
   tools: [lookupTicket],
   toolChoice: { type: "tool", name: "lookup_ticket" },
+  middleware: [withSandbox(sandbox)],
 });
 ```
 
@@ -240,70 +301,142 @@ Each value except `'auto'` logs a warning the first time an adapter instance get
 
 For the values on other adapters, see [Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool).
 
-## Structured Output
+## Structured output
 
-Pass `outputSchema` on `chat()`. OpenCode has no native schema flag. The adapter adds the JSON Schema to the prompt and parses the last assistant text (markdown fences are stripped). Tool activity still streams. The object arrives as `structured-output.complete`.
+You want a typed report after the agent reads the repo. Pass `outputSchema` on the same `chat()` call:
 
 ```ts
-import { chat } from "@tanstack/ai"
-import { opencodeText } from "@tanstack/ai-opencode"
-import { defineSandbox, withSandbox } from "@tanstack/ai-sandbox"
-import { dockerSandbox } from "@tanstack/ai-sandbox-docker"
-import { z } from "zod"
+import { chat } from "@tanstack/ai";
+import { opencodeText } from "@tanstack/ai-opencode";
+import { withSandbox } from "@tanstack/ai-sandbox";
+import { z } from "zod";
+import { sandbox } from "./sandbox";
 
 const Report = z.object({
   summary: z.string(),
   filesChanged: z.array(z.string()),
-})
-
-const sandbox = defineSandbox({
-  id: "repo-report",
-  provider: dockerSandbox({ image: "node:22" }),
-})
+});
 
 const report = await chat({
-  adapter: opencodeText("anthropic/claude-opus-4-5"),
+  adapter: opencodeText("openai/gpt-5.2"),
   messages: [{ role: "user", content: "Review this repo." }],
   outputSchema: Report,
   middleware: [withSandbox(sandbox)],
-})
+});
 
-report.summary
+console.log(report.summary);
 ```
-
-This path parses JSON from the last assistant message. If extract-only is the job, use a model adapter such as `@tanstack/ai-openai`.
 
 On the client, pass the same schema to `useChat` and read `final`. `partial` stays empty until the end.
 
 ```tsx
-import { fetchServerSentEvents, useChat } from "@tanstack/ai-react"
-import { z } from "zod"
+import { fetchServerSentEvents, useChat } from "@tanstack/ai-react";
+import { z } from "zod";
 
 const Report = z.object({
   summary: z.string(),
   filesChanged: z.array(z.string()),
-})
+});
 
-function ReportView() {
+export function ReportView() {
   const { final, isLoading } = useChat({
     connection: fetchServerSentEvents("/api/repo-report"),
     outputSchema: Report,
-  })
+  });
 
-  if (isLoading) return <p>The agent is inspecting the repo.</p>
-  if (!final) return null
-  return <p>{final.summary}</p>
+  if (isLoading) return <p>The agent is inspecting the repo.</p>;
+  if (!final) return null;
+  return <p>{final.summary}</p>;
 }
 ```
 
-Full walkthrough, including the client: [Harness Agents](../structured-outputs/harnesses).
+- OpenCode has no schema flag. The adapter adds the JSON Schema to the prompt.
+- The adapter parses the last assistant text as JSON. It removes markdown fences first.
+- Tool activity still streams. The object arrives as `structured-output.complete`.
 
-## Limitations
+Do you only need JSON from a prompt, with no repo? Use a model adapter such as `@tanstack/ai-openai`. For the full walkthrough, see [Harness Agents](../structured-outputs/harnesses).
 
-- **Server-only (Node).** The adapter spawns or attaches to an `opencode serve` process.
-- **The harness owns the agent loop.** TanStack's agent-loop strategies and per-iteration middleware don't apply inside a harness turn.
-- **No sampling controls.** `temperature`-style options don't exist here.
-- **Sessions are server-local.** Resume requires hitting the same server instance (or a shared `baseUrl`).
-- **Cold starts.** Spawning a server per turn adds first-token latency; point the adapter at a long-lived `baseUrl` to avoid it.
+## Models and options
 
-This adapter ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the harness process sends the model requests.
+### Models
+
+| Model | Reasoning levels | What `reasoning` sets |
+| --- | --- | --- |
+| `anthropic/claude-opus-4-5` | `low`, `medium`, `high` | `thinking` with a token budget |
+| `anthropic/claude-sonnet-4-5`, `opencode/claude-sonnet-4-5` | `off`, `minimal`, `low`, `medium`, `high` | `thinking` with a token budget |
+| `openai/gpt-5.2` | `off`, `low`, `medium`, `high`, `xhigh` | `reasoningEffort` |
+| `openai/gpt-5.1-codex`, `opencode/gpt-5.1-codex` | `low`, `medium`, `high` | `reasoningEffort` |
+| `google/gemini-3-pro-preview` | none | none |
+
+The package exports this list as `OPENCODE_MODELS`. The adapter also takes any other `provider/model` id that your OpenCode providers support.
+
+### Reasoning
+
+Set `reasoning` on `chat()`. The adapter writes it into the `options` of the model in the OpenCode server config:
+
+```ts
+import { chat } from "@tanstack/ai";
+import { opencodeText } from "@tanstack/ai-opencode";
+import { withSandbox } from "@tanstack/ai-sandbox";
+import { sandbox } from "./sandbox";
+
+const stream = chat({
+  adapter: opencodeText("anthropic/claude-sonnet-4-5"),
+  messages: [{ role: "user", content: "Refactor the auth module" }],
+  reasoning: { level: "high", budgetTokens: 8000 },
+  middleware: [withSandbox(sandbox)],
+});
+```
+
+- Claude models get `thinking` with a token budget. `off` turns thinking off.
+- The other models get `reasoningEffort`, plus `reasoningSummary: "auto"` when the summary is on.
+
+See [Reasoning](../chat/reasoning).
+
+### Adapter options
+
+Pass these as the second argument of `opencodeText`:
+
+| Option | What it does |
+| --- | --- |
+| `directory` | The working directory inside the sandbox. Default `/workspace`. |
+| `port` | The port of `opencode serve` inside the sandbox. Default `4096`. On Docker, publish it with `publishPorts`. |
+| `hostname` | The hostname that the server binds in the sandbox. Default `0.0.0.0`. |
+| `permissionMode` | `'default'` (default), `'acceptEdits'`, or `'bypassPermissions'`. See [Permissions](#permissions). |
+| `onPermissionRequest` | Your own permission handler. It replaces the default policy. |
+
+### Per-call options
+
+Pass these in `modelOptions` on `chat()`:
+
+- `sessionId`: resume a session. See [Resume a session](#resume-a-session).
+- `permissionMode`: the permission mode for this call.
+- `directory`: the working directory for this call.
+
+## Advanced
+
+### Ports on other providers
+
+The host connects to `opencode serve` over HTTP, so the sandbox must expose the port:
+
+- Docker: pass `publishPorts: [4096]` to `dockerSandbox()`.
+- Vercel: expose the port with the `ports` option of the provider.
+- Local-process and Daytona: nothing to do.
+
+### No run journal
+
+OpenCode does not write NDJSON to stdout, so this adapter writes no run journal, also on a durable run. See [Harnesses](../sandbox/harnesses#harness-output-can-go-to-a-journal).
+
+### Limitations
+
+- **A sandbox is required.** Every call needs `withSandbox(...)`.
+- **The agent owns the loop.** TanStack agent-loop strategies and per-iteration middleware do not apply inside a turn.
+- **No sampling options.** Options such as `temperature` do not exist here.
+- **Sessions stay in the sandbox.** Resume needs the same sandbox.
+- **Cold starts.** Each call starts the OpenCode server in the sandbox and stops it after the turn. So the first token arrives later than with an HTTP adapter.
+- **No `wrapFetch`.** This adapter ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the OpenCode server sends the model requests.
+
+### Example apps
+
+- [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare): a coding agent at the edge, with session resume, the tool timeline, and tool bridging.
+- [`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web): Claude Code on Docker, with durable runs that continue after a page refresh. To use OpenCode there, change the adapter in `src/sandbox-agent.ts`.

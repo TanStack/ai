@@ -14,9 +14,11 @@ keywords:
   - tanstack start
 ---
 
-You have a chat app. You want the model to do a task on a web page for your user. In this tutorial, the model opens tanstack.com and finds the TanStack AI computer use docs. The model sees only screenshots. It clicks, types, and scrolls on what it sees.
+You have a chat app. You want the model to do a task on a web page for your user.
 
-This tutorial is React + Start, with OpenAI.
+With computer use, the model sees only screenshots. It clicks, types, and scrolls on what it sees. In this tutorial, the model opens tanstack.com and finds the TanStack AI computer use docs. Each screenshot shows in your chat.
+
+This tutorial uses React, TanStack Start, and OpenAI. It takes about 15 minutes.
 
 ## 1. Create a Start app
 
@@ -112,13 +114,19 @@ export const Route = createFileRoute('/api/chat')({
 - `middleware` and `interrupts` pause a risky action until a person approves it.
 - `maxIterations(20)` lets the model take up to 20 actions in one reply.
 
-CAUTION: The browser can open every address that your server can reach. Run this app only on your own machine.
+> [!WARNING]
+> The browser can open every address that your server can reach. Run this app only on your own machine.
 
 ## 3. Show the screenshots
 
-Each computer action returns a screenshot. On the client, the screenshot is an `image` part inside a `tool-result` part. Open `src/routes/index.tsx` and turn those parts into `<img>` sources:
+Each computer action returns a screenshot. On the client, the screenshot is an `image` part inside a `tool-result` part.
+
+Replace `src/routes/index.tsx` with this file. It shows the text of each message and every screenshot:
 
 ```tsx ignore
+import { useState } from 'react'
+import { createFileRoute } from '@tanstack/react-router'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import type { UIMessage } from '@tanstack/ai-react'
 
 type Part = UIMessage['parts'][number]
@@ -135,33 +143,71 @@ function screenshots(part: Part) {
     return source.type === 'url' ? [source.value] : []
   })
 }
+
+function ChatPage() {
+  const [input, setInput] = useState('')
+  const { messages, sendMessage, isLoading } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+  })
+
+  return (
+    <main>
+      {messages.map((message) => (
+        <div key={message.id}>
+          {message.parts.map((part, index) => {
+            if (part.type === 'text' && part.content) {
+              return <p key={index}>{part.content}</p>
+            }
+            return screenshots(part).map((src) => (
+              <img key={`${index}-${src.slice(-16)}`} src={src} alt="What the model sees" />
+            ))
+          })}
+        </div>
+      ))}
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (!input.trim()) return
+          sendMessage(input.trim())
+          setInput('')
+        }}
+      >
+        <textarea
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+          rows={3}
+          disabled={isLoading}
+        />
+        <button type="submit" disabled={isLoading}>
+          Send
+        </button>
+      </form>
+    </main>
+  )
+}
+
+export const Route = createFileRoute('/')({
+  component: ChatPage,
+})
 ```
 
-Then render text parts and screenshots for each message:
-
-```tsx ignore
-{message.parts.map((part, index) => {
-  if (part.type === 'text' && part.content) {
-    return <div key={index}>{part.content}</div>
-  }
-  return screenshots(part).map((src) => (
-    <img key={`${index}-${src.slice(-16)}`} src={src} alt="What the model sees" />
-  ))
-})}
-```
+- `screenshots` turns the `image` parts of a tool result into `<img>` sources.
+- Each message shows its text parts and its screenshots, in order.
 
 ## 4. Approve risky actions
 
-OpenAI can mark an action as risky, for example a form submit. The run then pauses. Register `computerSafetyCheck` with `useChat` and show a card for each pause:
+OpenAI can mark an action as risky, for example a form submit. The run then pauses until a person answers.
+
+1. Add these imports to the top of `src/routes/index.tsx`:
 
 ```tsx ignore
-import {
-  fetchServerSentEvents,
-  useChat,
-  type GenericInterrupt,
-} from '@tanstack/ai-react'
+import type { GenericInterrupt } from '@tanstack/ai-react'
 import { computerSafetyCheck } from '@tanstack/ai-computer-use'
+```
 
+2. Add the card above `ChatPage`:
+
+```tsx ignore
 function SafetyCheckCard({
   interrupt,
 }: {
@@ -185,27 +231,60 @@ function SafetyCheckCard({
     </div>
   )
 }
+```
 
+3. Replace `ChatPage` with this version. It registers `computerSafetyCheck` with `useChat`, and shows a card above the input for each pause:
+
+```tsx ignore
 function ChatPage() {
-  const { interrupts } = useChat({
+  const [input, setInput] = useState('')
+  const { messages, sendMessage, isLoading, interrupts } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
     interrupts: [computerSafetyCheck],
   })
 
   return (
-    <>
+    <main>
+      {messages.map((message) => (
+        <div key={message.id}>
+          {message.parts.map((part, index) => {
+            if (part.type === 'text' && part.content) {
+              return <p key={index}>{part.content}</p>
+            }
+            return screenshots(part).map((src) => (
+              <img key={`${index}-${src.slice(-16)}`} src={src} alt="What the model sees" />
+            ))
+          })}
+        </div>
+      ))}
       {interrupts.map((interrupt) => {
         if (interrupt.kind !== 'generic') return null
         if (!('definitionId' in interrupt)) return null
         if (interrupt.definitionId !== computerSafetyCheck.id) return null
         return <SafetyCheckCard key={interrupt.id} interrupt={interrupt} />
       })}
-    </>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (!input.trim()) return
+          sendMessage(input.trim())
+          setInput('')
+        }}
+      >
+        <textarea
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+          rows={3}
+          disabled={isLoading}
+        />
+        <button type="submit" disabled={isLoading}>
+          Send
+        </button>
+      </form>
+    </main>
   )
 }
 ```
-
-Put the cards above the input, next to the messages from step 3.
 
 - If you click Approve, the action runs.
 - If you click Decline, no action of that turn runs.
@@ -214,7 +293,7 @@ For more, see [Safety checks](../computer-use/safety-checks).
 
 ## 5. Send the task
 
-Run the app and send this task:
+Start the app with `npm run dev`. Open it in your browser and send this task:
 
 ```text
 You are on the TanStack home page. Find the TanStack AI documentation page about computer use.
@@ -226,4 +305,4 @@ A Chromium window opens on tanstack.com. The model clicks through the site, and 
 
 The full example is on GitHub: [TanStack/ai `examples/react/computer-use`](https://github.com/TanStack/ai/tree/main/examples/react/computer-use). It has the same task in the input box.
 
-To use Anthropic, change the adapter only. To run the browser in a sandbox, see [Drivers](../computer-use/drivers).
+To use Anthropic, change only the adapter. To run a full desktop in a sandbox, see [Drivers](../computer-use/drivers).

@@ -2,7 +2,7 @@
 title: Typed Pre-Configured Options
 id: typed-options
 order: 11
-description: "Define typed, reusable option objects for chat, summarize, image, video, audio, speech, and transcription with createChatOptions and friends — share configuration across routes without losing per-model type safety."
+description: "Define a typed options object once with createChatOptions and the other create*Options helpers, and use it in many routes. You keep the type checks for each model."
 keywords:
   - tanstack ai
   - createChatOptions
@@ -16,130 +16,109 @@ keywords:
   - shared configuration
 ---
 
-You have a `chat()` (or `generateImage()`, `generateSpeech()`, …) configuration you want to reuse — across multiple routes, between a server function and its caller, or simply factored out of a handler for clarity. By the end of this guide, you'll have a single typed options object that infers the adapter's model, modalities, and provider options, and that you can spread into any call site without losing type safety.
+Several routes call `chat()` with the same adapter, system prompt, and tools. You copy the config into each route, or you type it by hand and lose the types of the model.
 
-## The pattern
+Define the config once with `createChatOptions`. The object keeps the full type of the adapter, so `modelOptions`, content types, and `outputSchema` stay checked where you spread it.
 
-Every activity in `@tanstack/ai` ships a paired `createXxxOptions` helper that takes the exact same options object as the activity itself and returns it unchanged — at runtime it's the identity function. The point is **type inference**: the returned object carries the adapter's full type, so when you spread it into the activity, TypeScript still narrows `modelOptions`, content modalities, and `outputSchema` to the adapter you chose.
+## Quick setup
 
-```typescript
-import { chat, createChatOptions } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
-
-const chatOptions = createChatOptions({
-  adapter: openaiText('gpt-5.5'),
-  // modelOptions, systemPrompts, tools — all type-checked against the
-  // adapter+model pair above. Sampling params (temperature, top_p,
-  // max_output_tokens, …) live inside modelOptions, under each provider's
-  // native key.
-  modelOptions: {
-    temperature: 0.3,
-  },
-  reasoning: 'medium',
-})
-
-// Later, anywhere in your codebase:
-const stream = chat({ ...chatOptions, messages: [{ role: 'user', content: 'Hello' }] })
-```
-
-Without the helper you'd have to either inline the configuration at every call site, or hand-write the full chat options type with its adapter/model generics resolved manually — `createChatOptions` does that for you.
-
-## When to reach for it
-
-- **Sharing a configuration across multiple routes** — define once, spread into each handler.
-- **Passing options through a layer** (a server function, a wrapper, a test fixture) without erasing the adapter's model-specific types.
-- **Branching on a runtime value while keeping types intact** — build different options objects and choose between them, instead of weaving conditionals into a single `chat({...})` call.
-- **Co-locating tools, system prompts, and middleware** with the adapter they target.
-
-If you only call an activity once at one site, you don't need this helper. Inline the options.
-
-## Available helpers
-
-Each helper mirrors the activity it pairs with. Same options, same return type.
-
-| Helper | Activity | Adapter |
-|---|---|---|
-| `createChatOptions` | `chat()` | text adapter (e.g. `openaiText`, `anthropicText`) |
-| `createSummarizeOptions` | `summarize()` | summarize adapter (e.g. `openaiSummarize`) |
-| `createImageOptions` | `generateImage()` | image adapter (e.g. `openaiImage`, `falImage`) |
-| `createAudioOptions` | `generateAudio()` | audio adapter (e.g. `falAudio`, `geminiAudio`) |
-| `createVideoOptions` | `generateVideo()` / `getVideoJobStatus()` | video adapter (e.g. `falVideo`, `openaiVideo`) |
-| `createLiveVideoOptions` | `generateLiveVideo()` | live adapter (e.g. `reactorVideo`, `falLiveVideo`) |
-| `createWorldOptions` | `generateWorld()` | world adapter (e.g. `reactorWorld`, `worldlabsWorld`) |
-| `createSpeechOptions` | `generateSpeech()` | speech adapter (e.g. `openaiSpeech`, `elevenlabsSpeech`) |
-| `createTranscriptionOptions` | `generateTranscription()` | transcription adapter (e.g. `openaiTranscription`, `falTranscription`) |
-
-All helpers are exported from `@tanstack/ai`.
-
-## Example: shared chat configuration across routes
-
-Suppose you have several routes that all hit the same model with the same provider options and tool set. Factor the configuration out once:
+### 1. Define the options once
 
 ```typescript
 // lib/ai/chat-options.ts
 import { createChatOptions, toolDefinition } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
-import { db } from './db'
 
-const lookupOrderDef = toolDefinition({
+const orders = new Map([['A-100', { id: 'A-100', status: 'shipped' }]])
+
+const lookupOrder = toolDefinition({
   name: 'lookupOrder',
   description: 'Look up a customer order by ID',
   inputSchema: z.object({ orderId: z.string() }),
-})
-
-const lookupOrder = lookupOrderDef.server(async ({ orderId }) => {
-  return db.orders.findUnique({ where: { id: orderId } })
-})
+}).server(async ({ orderId }) => orders.get(orderId) ?? null)
 
 export const supportChatOptions = createChatOptions({
-  adapter: openaiText('gpt-5.5'),
+  adapter: openaiText('gpt-6.1-sol'),
   systemPrompts: ['You are a customer-support assistant for Acme Corp.'],
   tools: [lookupOrder],
   reasoning: 'medium',
+  // Sampling settings go in modelOptions, under the key of the provider.
+  modelOptions: {
+    temperature: 0.3,
+  },
 })
 ```
 
-```typescript ignore
+### 2. Spread the options into `chat()`
+
+```typescript
 // routes/api/support/chat.ts
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
-import { supportChatOptions } from '@/lib/ai/chat-options'
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { supportChatOptions } from '../../../lib/ai/chat-options'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
-  const stream = chat({ ...supportChatOptions, messages })
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
+
+  const stream = chat({ ...supportChatOptions, messages, threadId, runId })
+
   return toServerSentEventsResponse(stream)
 }
 ```
 
-```typescript ignore
-// routes/api/support/draft-reply.ts — same adapter+tools, different schema
+Every route that spreads `supportChatOptions` now uses the same model, prompt, and tools, with full type checks.
+
+## Change one field per route
+
+The spread wins from the right. Add or override any field at the call site. This route uses the same options, and adds a schema for a structured answer:
+
+```typescript
+// routes/api/support/draft-reply.ts
 import { chat } from '@tanstack/ai'
-import { supportChatOptions } from '@/lib/ai/chat-options'
 import { z } from 'zod'
+import { supportChatOptions } from '../../../lib/ai/chat-options'
 
 export async function POST(request: Request) {
-  const { ticket } = await request.json()
+  const body: unknown = await request.json()
+  const ticket =
+    typeof body === 'object' && body !== null && 'ticket' in body
+      ? String(body.ticket)
+      : ''
+
   const draft = await chat({
     ...supportChatOptions,
     messages: [{ role: 'user', content: `Draft a reply to: ${ticket}` }],
     outputSchema: z.object({ subject: z.string(), body: z.string() }),
     stream: false,
   })
+
   return Response.json(draft)
 }
 ```
 
-Both routes share the adapter, system prompt, tools, and reasoning settings; each adds what it needs. Override or omit any field at the call site — the spread wins on the right.
+## When to use it
 
-## Example: typed pre-configured image generation
+- You share one config across many routes.
+- You pass options through a layer (a server function, a wrapper, a test fixture) and want to keep the types of the model.
+- You pick between two configs at runtime. Build two options objects and choose one, so the `chat()` call has no conditions inside it.
+- You keep tools, system prompts, and middleware next to the adapter that they target.
+
+If you call an activity once in one place, you do not need the helper. Write the options inline.
+
+## The same pattern for media
+
+Each activity has its own helper. For example, an image:
 
 ```typescript
 import { createImageOptions, generateImage } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 const heroImageOptions = createImageOptions({
-  adapter: openaiImage('gpt-image-2'),
+  adapter: openaiImage('gpt-image-2.5-sunburst'),
   prompt: 'A glass sphere refracting a sunset over a calm sea',
   size: '1536x1024',
   numberOfImages: 1,
@@ -148,16 +127,39 @@ const heroImageOptions = createImageOptions({
 const result = await generateImage(heroImageOptions)
 ```
 
-The same pattern works for `createVideoOptions`, `createSpeechOptions`, `createTranscriptionOptions`, `createAudioOptions`, and `createSummarizeOptions` — the adapter is captured in the typed options object and every downstream call is narrowed to it.
+## Available helpers
 
-## What the helper does NOT do
+All helpers come from `@tanstack/ai`. Each one takes the same options as its activity.
 
-- **No runtime behavior.** `createChatOptions(opts)` is `opts`. There is no validation, freezing, cloning, or memoization. If you mutate the returned object after creation, the next call sees the mutation. Treat the result as immutable by convention.
-- **No partial typing.** The helper expects the full options shape it'll be spread into. If you need to build options up incrementally, type the intermediate state yourself (a `Partial<>` of the full chat options shape) and only call the helper at the boundary where the shape is complete.
-- **No request execution.** The helper does not call the model. Only the activity function (`chat`, `generateImage`, …) makes the request.
+| Helper | Activity | Adapter examples |
+|---|---|---|
+| `createChatOptions` | `chat()` | `openaiText`, `anthropicText` |
+| `createSummarizeOptions` | `summarize()` | `openaiSummarize` |
+| `createEmbedOptions` | `embed()` | `openaiEmbedding`, `geminiEmbedding` |
+| `createRerankOptions` | `rerank()` | `cohereRerank` |
+| `createImageOptions` | `generateImage()` | `openaiImage`, `falImage` |
+| `createAudioOptions` | `generateAudio()` | `falAudio`, `geminiAudio` |
+| `createVideoOptions` | `generateVideo()`, `getVideoJobStatus()` | `falVideo`, `openaiVideo` |
+| `createLiveVideoOptions` | `generateLiveVideo()` | `reactorVideo`, `falLiveVideo` |
+| `createWorldOptions` | `generateWorld()` | `reactorWorld`, `worldlabsWorld` |
+| `createSpeechOptions` | `generateSpeech()` | `openaiSpeech`, `elevenlabsSpeech` |
+| `createVoiceOptions` | `generateVoice()` | `elevenlabsVoiceDesign` |
+| `createTranscriptionOptions` | `generateTranscription()` | `openaiTranscription`, `falTranscription` |
 
-## Related
+## Advanced
 
-- [Per-Model Type Safety](./per-model-type-safety) — how the adapter+model pair drives `modelOptions` inference.
-- [Tree-Shaking](./tree-shaking) — why each adapter is exported separately, and how the typed-options pattern keeps your bundle small.
-- [Extend Adapter](./extend-adapter) — when you need to add custom models to an adapter without losing the same typed-options ergonomics.
+### How it works
+
+At runtime, each helper is the identity function: `createChatOptions(opts)` returns `opts`. The value of the helper is in the types. The returned object carries the full type of the adapter and model, so you do not write the generic types of the options yourself.
+
+### What the helper does not do
+
+- **No runtime behavior.** There is no validation, freezing, cloning, or memoization. If you change the returned object, the next call sees the change. Treat the object as read-only.
+- **No partial types.** The helper expects the full options shape. To build options step by step, give the partial state your own type (a `Partial<>` of the full options shape). Call the helper only when the shape is complete.
+- **No request.** The helper does not call the model. Only the activity function (`chat`, `generateImage`, and the others) sends the request.
+
+### Related pages
+
+- [Per-Model Type Safety](./per-model-type-safety): how the adapter and model choose the type of `modelOptions`.
+- [Tree-Shaking](./tree-shaking): why each adapter and helper is a separate export.
+- [Extend Adapter](./extend-adapter): add custom models to an adapter, with the same typed options.

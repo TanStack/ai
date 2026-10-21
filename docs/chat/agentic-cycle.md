@@ -2,7 +2,7 @@
 title: Agentic Cycle
 id: agentic-cycle
 order: 1
-description: "The agentic cycle in TanStack AI — how the LLM loops through tool calls, results, and reasoning until it produces a final answer."
+description: "How chat() loops through tool calls and tool results until the model gives a final answer, and how to limit that loop."
 keywords:
   - tanstack ai
   - agentic cycle
@@ -12,135 +12,65 @@ keywords:
   - ai agents
 ---
 
-The agentic cycle is the pattern where the LLM repeatedly calls tools, receives results, and continues reasoning until it can provide a final answer. This enables complex multi-step operations.
+One model call cannot do a task with many steps. To answer "What should I wear in San Francisco today?", the model must get the weather first, then ask for clothing advice, then write the answer.
 
-To send a turn to a named child agent, see [Subagents](./subagents).
+`chat()` runs this loop for you. The model calls a tool, `chat()` runs it and gives the result back, and the model continues until it can answer.
 
-> **Tip:** Code Mode can reduce agent loop iterations by letting the LLM write a program that calls multiple tools in a single execution. See [Code Mode](../code-mode/code-mode).
+## Quick setup
 
-```mermaid
-graph TD
-    A[User sends message] --> B[LLM analyzes request]
-    B --> C{Does task need tools?}
-    C -->|No| D[Generate text response]
-    C -->|Yes| E[Call appropriate tool]
-    E --> F{Where does<br/>tool execute?}
-    F -->|Server| G[Execute on server]
-    F -->|Client| H[Execute on client]
-    G --> I[Tool returns result]
-    H --> I
-    I --> J[Add result to conversation]
-    J --> K[LLM analyzes result]
-    K --> L{Task complete?}
-    L -->|No| E
-    L -->|Yes| D
-    D --> M[Stream response to user]
-    M --> N[Done]
-    
-    style E fill:#e1f5ff
-    style G fill:#ffe1e1
-    style H fill:#ffe1e1
-    style L fill:#fff4e1
-```
-
-### Detailed Agentic Flow
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Client
-    participant Server
-    participant LLM
-    participant Tools
-    
-    User->>Client: "What's the weather in SF and LA?"
-    Client->>Server: Send message
-    Server->>LLM: Message + tool definitions
-    
-    Note over LLM: Cycle 1: Call first tool
-    
-    LLM->>Server: tool_call: get_weather(SF)
-    Server->>Tools: Execute get_weather
-    Tools-->>Server: {temp: 65, conditions: "sunny"}
-    Server->>LLM: tool_result
-    
-    Note over LLM: Cycle 2: Call second tool
-    
-    LLM->>Server: tool_call: get_weather(LA)
-    Server->>Tools: Execute get_weather
-    Tools-->>Server: {temp: 75, conditions: "clear"}
-    Server->>LLM: tool_result
-    
-    Note over LLM: Cycle 3: Generate answer
-    
-    LLM-->>Server: content: "SF is 65°F..."
-    Server-->>Client: Stream response
-    Client->>User: Display answer
-```
-
-### Multi-Step Example
-
-Here's a real-world example of the agentic cycle:
-
-**User**: "Find me flights to Paris under $500 and book the cheapest one"
-
-**Cycle 1**: LLM calls `searchFlights({destination: "Paris", maxPrice: 500})`
-- Tool returns: `[{id: "F1", price: 450}, {id: "F2", price: 480}]`
-
-**Cycle 2**: LLM analyzes results and calls `bookFlight({flightId: "F1"})`
-- Tool requires approval (sensitive operation) — see [Tool Approval](../tools/tool-approval)
-- User approves
-- Tool returns: `{bookingId: "B123", confirmed: true}`
-
-**Cycle 3**: LLM generates final response
-- "I found 2 flights under $500. I've booked the cheapest one (Flight F1) for $450. Your booking ID is B123."
-
-### Code Example: Agentic Weather Assistant
+### 1. Define the tools
 
 ```typescript
-import { chat, toolDefinition, toServerSentEventsResponse } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
+// tools.ts
+import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 
-// Tool definitions
-const getWeatherDef = toolDefinition({
+export const getWeather = toolDefinition({
   name: "get_weather",
-  description: "Get current weather for a city",
+  description: "Get the current weather for a city",
   inputSchema: z.object({
     city: z.string(),
   }),
+}).server(async ({ city }) => {
+  // Replace with a call to your weather API.
+  return { city, temperature: 62, conditions: "cloudy" };
 });
 
-const getClothingAdviceDef = toolDefinition({
+export const getClothingAdvice = toolDefinition({
   name: "get_clothing_advice",
-  description: "Get clothing recommendations based on weather",
+  description: "Get clothing advice for the weather",
   inputSchema: z.object({
     temperature: z.number(),
     conditions: z.string(),
   }),
-});
-
-// Server implementations
-const getWeather = getWeatherDef.server(async ({ city }) => {
-  const response = await fetch(`https://api.weather.com/v1/${city}`);
-  return await response.json();
-});
-
-const getClothingAdvice = getClothingAdviceDef.server(async ({ temperature, conditions }) => {
-  // Business logic for clothing recommendations
-  if (temperature < 50) {
-    return { recommendation: "Wear a warm jacket" };
+}).server(async ({ temperature }) => {
+  if (temperature < 65) {
+    return { recommendation: "Wear a light jacket" };
   }
   return { recommendation: "Light clothing is fine" };
 });
+```
 
-// Server route
+### 2. Give the tools to `chat()`
+
+```typescript
+// api/chat.ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { getClothingAdvice, getWeather } from "./tools";
+
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
 
   const stream = chat({
-    adapter: openaiText("gpt-5.5"),
+    adapter: openaiText("gpt-6.1-sol"),
     messages,
+    threadId,
+    runId,
     tools: [getWeather, getClothingAdvice],
   });
 
@@ -148,66 +78,177 @@ export async function POST(request: Request) {
 }
 ```
 
-**User**: "What should I wear in San Francisco today?"
+### 3. Show the tool calls on the client
 
-**Agentic Cycle**:
-1. LLM calls `get_weather({city: "San Francisco"})` → Returns `{temp: 62, conditions: "cloudy"}`
-2. LLM calls `get_clothing_advice({temperature: 62, conditions: "cloudy"})` → Returns `{recommendation: "Light jacket recommended"}`
-3. LLM generates: "The weather in San Francisco is 62°F and cloudy. I recommend wearing a light jacket."
+The tool calls arrive as `tool-call` parts in the same message as the text:
 
-The loop continues only while the model's finish reason is `tool_calls` (with pending tool calls) **and** the agent loop strategy permits another iteration. It ends as soon as the model returns a normal `stop` finish reason. An answer that [hits the output limit](#when-the-output-limit-cuts-a-tool-call) is a special case.
+```tsx
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
-### Controlling the loop
+export function Chat() {
+  const { messages, sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+  });
 
-By default, the loop stops after five **model turns** (`maxIterations(5)`), even if the model calls more tools. It also stops after an answer that [hits the output limit](#when-the-output-limit-cuts-a-tool-call) (`untilFinishReason(["length"])`). Override this with the `agentLoopStrategy` option.
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => sendMessage("What should I wear in San Francisco today?")}
+      >
+        Ask
+      </button>
+      {messages.map((message) => (
+        <div key={message.id}>
+          {message.parts.map((part, index) => {
+            if (part.type === "tool-call") {
+              return <p key={index}>Called {part.name}</p>;
+            }
+            return part.type === "text" ? <p key={index}>{part.content}</p> : null;
+          })}
+        </div>
+      ))}
+    </>
+  );
+}
+```
 
-Other built-in strategies:
+Click "Ask". You see two tool calls, then an answer that uses both results.
 
-- **`untilFinishReason([...])`** — continue until the model returns one of the given finish reasons (e.g. `untilFinishReason(["stop", "length"])`).
-- **`combineStrategies([...])`** — combine multiple strategies with AND logic; the loop continues only while every strategy agrees.
+## How it works
 
-A strategy is just a function that receives `{ iterationCount, finishReason, messages, toolCallCount, lastTurnToolCallCount }` and returns `true` to allow another iteration or `false` to stop, so you can also write your own:
+For the question above, the loop runs three model turns:
+
+1. The model calls `get_weather({ city: "San Francisco" })`. The tool returns `{ temperature: 62, conditions: "cloudy" }`.
+2. The model calls `get_clothing_advice({ temperature: 62, conditions: "cloudy" })`. The tool returns `{ recommendation: "Wear a light jacket" }`.
+3. The model writes: "It is 62 degrees and cloudy in San Francisco. Wear a light jacket."
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    participant LLM
+    participant Tools
+
+    Client->>Server: Send message
+    Server->>LLM: Message + tool definitions
+    LLM->>Server: tool_call get_weather
+    Server->>Tools: Run get_weather
+    Tools-->>Server: Result
+    Server->>LLM: tool_result
+    LLM->>Server: tool_call get_clothing_advice
+    Server->>Tools: Run get_clothing_advice
+    Tools-->>Server: Result
+    Server->>LLM: tool_result
+    LLM-->>Server: Final text
+    Server-->>Client: Stream the answer
+```
+
+The loop continues only while both of these are true:
+
+- The model stops with the finish reason `tool_calls`, and tool calls wait to run.
+- The agent loop strategy allows one more model turn.
+
+The loop ends when the model stops with the finish reason `stop`. The full loop is one run, so the client sees one stream.
+
+Related pages:
+
+- A tool can run on the client instead of the server. See [Client Tools](../tools/client-tools).
+- A sensitive tool can wait for the user to say yes. See [Tool Approval](../tools/tool-approval).
+- To send a turn to a named child agent, see [Subagents](./subagents).
+
+> [!TIP]
+> Code Mode can make the loop shorter. The model writes one program that calls many tools in one run. See [Code Mode](../code-mode/code-mode).
+
+## Control the loop
+
+By default, the loop stops after five model turns (`maxIterations(5)`), even if the model calls more tools. It also stops after an answer that [hits the output limit](#when-the-output-limit-cuts-a-tool-call). The full default is `combineStrategies([maxIterations(5), untilFinishReason(["length"])])`.
+
+Set `agentLoopStrategy` to change it:
 
 ```typescript
-import { chat, combineStrategies, maxIterations, toServerSentEventsResponse } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
+// api/chat.ts
+import {
+  chat,
+  chatParamsFromRequest,
+  combineStrategies,
+  maxIterations,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
 import type { AgentLoopState } from "@tanstack/ai";
-import { getWeather, getClothingAdvice } from "./tools";
+import { openaiText } from "@tanstack/ai-openai";
+import { getClothingAdvice, getWeather } from "./tools";
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
+
   const stream = chat({
-    adapter: openaiText("gpt-5.5"),
+    adapter: openaiText("gpt-6.1-sol"),
     messages,
+    threadId,
+    runId,
     tools: [getWeather, getClothingAdvice],
     agentLoopStrategy: combineStrategies([
       maxIterations(10),
       ({ messages }: AgentLoopState) => messages.length < 100,
     ]),
   });
+
   return toServerSentEventsResponse(stream);
 }
 ```
 
+The built-in strategies:
+
+- `maxIterations(n)`: stop after `n` model turns.
+- `untilFinishReason([...])`: continue until the model returns one of the given finish reasons, for example `untilFinishReason(["stop", "length"])`.
+- `combineStrategies([...])`: continue only while every strategy in the list agrees.
+
+A strategy is a function. It gets the loop state and returns `true` to allow one more turn, or `false` to stop. The state has these fields:
+
+- `iterationCount`: the model turns so far, from 0.
+- `finishReason`: the finish reason of the last response.
+- `messages`: the current messages.
+- `toolCallCount`: the tool calls so far in this run.
+- `lastTurnToolCallCount`: the tool calls in the last batch.
+
+## Advanced
+
 ### When the output limit cuts a tool call
 
-A model can run out of output tokens in the middle of a tool call, for example while it writes a long file. The provider stops with the finish reason `length`, and the input of the call is not complete. `chat()` never runs such a call. It asks for no approval and starts no client tool. Each cut call gets an error tool result instead.
+A model can run out of output tokens in the middle of a tool call, for example while it writes a long file. The provider stops with the finish reason `length`, and the input of the call is not complete.
+
+`chat()` never runs such a call:
+
+- It asks for no approval.
+- It starts no client tool.
+- Each cut call gets an error tool result.
 
 By default, the run then ends with the finish reason `length`. To let the model send the cut call again, use a strategy that does not stop on `length`:
 
 ```typescript
-import { chat, maxIterations, toServerSentEventsResponse } from "@tanstack/ai";
+// api/chat.ts
+import {
+  chat,
+  chatParamsFromRequest,
+  maxIterations,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
-import { writeFile } from "./tools";
+import { getClothingAdvice, getWeather } from "./tools";
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
+
   const stream = chat({
     adapter: openaiText("gpt-6.1-sol"),
     messages,
-    tools: [writeFile],
+    threadId,
+    runId,
+    tools: [getWeather, getClothingAdvice],
     agentLoopStrategy: maxIterations(5),
   });
+
   return toServerSentEventsResponse(stream);
 }
 ```
@@ -217,7 +258,7 @@ Then this happens after a cut answer:
 1. The loop calls the model again. The model reads the error result and sends the call again.
 2. `maxIterations` counts the cut answer as one model turn. A model that hits the limit every time stops at the iteration limit.
 
-The client needs no change. When the loop goes on, the `RUN_FINISHED` event of the cut answer has the finish reason `tool_calls`, so `useChat` keeps the stream open for the next model turn.
+The client needs no change. When the loop continues, the `RUN_FINISHED` event of the cut answer has the finish reason `tool_calls`. So `useChat` keeps the stream open for the next model turn.
 
 The default error text tells the model to send the calls again and to split a large input. To use your own text, return a new result from the `onAfterToolCall` middleware hook. The error of a cut call has the code `max_tokens`:
 
@@ -245,24 +286,26 @@ On the server, each assistant message that `chat()` stores keeps `metadata.tanst
 
 ### Tool-call budgets (middleware recipe)
 
-> **Iterations ≠ tool calls.** One model turn can emit many parallel tool calls. `maxIterations` only bounds **model turns**. Strategies run *between* turns, so without a per-turn cap a single runaway turn can still fan out unbounded.
+`maxIterations` limits model turns, not tool calls. One model turn can emit many tool calls in parallel. A strategy runs between turns, so it cannot stop one turn that calls too many tools.
 
-There is no built-in `maxToolCalls` strategy. Cap tools with middleware:
+TanStack AI has no built-in `maxToolCalls` strategy. Use middleware to limit tool calls:
 
-- **`onBeforeToolCall`** — skip excess calls inside one turn (`maxPerTurn`)
-- **`onShouldContinue`** — stop further turns once cumulative **emitted** tools hit a budget (`max`); skipped calls still count toward `toolCallCount`
+- `onBeforeToolCall`: skip extra calls inside one turn (`maxPerTurn`).
+- `onShouldContinue`: stop more turns when the total of emitted tool calls reaches a budget (`max`). Skipped calls also count toward `toolCallCount`.
 
 ```typescript
+// api/chat.ts
 import {
   chat,
+  chatParamsFromRequest,
   maxIterations,
   toServerSentEventsResponse,
   type ChatMiddleware,
 } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
-import { getWeather, getClothingAdvice } from "./tools";
+import { getClothingAdvice, getWeather } from "./tools";
 
-/** App-owned policy — not a library export. */
+// Your own policy. This is not a library export.
 function toolCallBudget(options: {
   max?: number;
   maxPerTurn?: number;
@@ -275,7 +318,7 @@ function toolCallBudget(options: {
     onIteration() {
       perTurn = 0;
     },
-    // Fresh per-turn budget for pending/resume batches (no onIteration).
+    // A pending or resume batch has no onIteration, so reset here too.
     onToolPhaseComplete() {
       perTurn = 0;
     },
@@ -300,21 +343,25 @@ function toolCallBudget(options: {
 }
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
+
   const stream = chat({
-    adapter: openaiText("gpt-5.5"),
+    adapter: openaiText("gpt-6.1-sol"),
     messages,
+    threadId,
+    runId,
     tools: [getWeather, getClothingAdvice],
     agentLoopStrategy: maxIterations(20), // model turns
     middleware: [
       toolCallBudget({
-        maxPerTurn: 10, // cap parallel fan-out inside one turn
-        max: 20, // stop further turns once cumulative emitted tools hit 20
+        maxPerTurn: 10, // limit parallel calls inside one turn
+        max: 20, // stop more turns after 20 emitted tool calls in total
       }),
     ],
   });
+
   return toServerSentEventsResponse(stream);
 }
 ```
 
-Place this **before** `toolCacheMiddleware` so over-budget skips win over cache hits. See [`onShouldContinue`](../advanced/middleware#onshouldcontinue) for the hook contract.
+Put this middleware before `toolCacheMiddleware`. Then a skip for a call over the budget wins over a cache hit. See [`onShouldContinue`](../advanced/middleware-advanced#onshouldcontinue) for the hook contract.

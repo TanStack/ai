@@ -2,7 +2,7 @@
 title: Lazy Tools
 id: lazy-tools
 order: 5
-description: "Keep large tool catalogs out of the Code Mode system prompt with lazy tools — the model fetches TypeScript signatures on demand via a discover_tools call."
+description: "Keep rarely used tools out of the Code Mode system prompt. The model gets their TypeScript signatures on demand with a discover_tools call."
 keywords:
   - tanstack ai
   - code mode
@@ -13,30 +13,32 @@ keywords:
   - tool catalog
 ---
 
-Large tool catalogs bloat the `execute_typescript` system prompt. Every tool you pass to `createCodeMode` becomes a full TypeScript type stub in that prompt — and at 50+ tools, those stubs can push the effective prompt into the tens of thousands of tokens before the model has even seen your user message.
+Each tool that you give to [Code Mode](./code-mode) adds a full TypeScript type stub to the system prompt. With 50 or more tools, the prompt can grow to tens of thousands of tokens before the model reads the user message.
 
-Lazy tools fix this with **progressive disclosure**: mark rarely-used tools `lazy: true` and they are withheld from the initial system prompt. The model sees only their names in a short "Discoverable APIs" catalog. When it needs one, it calls the `discover_tools` sibling tool to fetch the TypeScript signature on demand, then uses it inside `execute_typescript`. All sandbox bindings are always injected — lazy only defers _documentation_, not callability.
+Mark the rarely used tools `lazy: true`. The prompt then lists only their names. When the model needs one, it calls `discover_tools` to get the signature, then uses the tool in `execute_typescript`.
 
-## Marking a Tool Lazy
+## Quick setup
 
-Add `lazy: true` to the `toolDefinition` config for any tool you want to defer:
+You need the route from the [Code Mode quick setup](./code-mode#quick-setup) first.
+
+1. Add `lazy: true` to each tool that most requests do not need:
 
 ```typescript group=lazy-tools
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 
-// Always eager — documented upfront
+// Eager: the full type stub is in the system prompt
 const fetchWeather = toolDefinition({
   name: "fetchWeather",
   description: "Get current weather for a city",
   inputSchema: z.object({ location: z.string() }),
   outputSchema: z.object({ temperature: z.number(), condition: z.string() }),
-}).server(async ({ location }) => {
-  const res = await fetch(`https://api.weather.example/v1?city=${location}`);
-  return res.json();
-});
+}).server(async ({ location }) => ({
+  temperature: location.length + 10,
+  condition: "sunny",
+}));
 
-// Lazy — kept out of the system prompt until discovered
+// Lazy: only the name is in the system prompt, until the model discovers it
 const fetchArchive = toolDefinition({
   name: "fetchArchive",
   description: "Retrieve historical weather archive data for a date range",
@@ -47,74 +49,53 @@ const fetchArchive = toolDefinition({
   }),
   outputSchema: z.array(z.object({ date: z.string(), temperature: z.number() })),
   lazy: true,
-}).server(async ({ location, from, to }) => {
-  const res = await fetch(
-    `https://api.weather.example/v1/archive?city=${location}&from=${from}&to=${to}`
-  );
-  return res.json();
-});
+}).server(async ({ from, to }) => [
+  { date: from, temperature: 14 },
+  { date: to, temperature: 16 },
+]);
 ```
 
-Eager tools continue to receive full type stubs in the system prompt. Lazy tools appear only by name.
-
-## Server Setup
-
-Pass both eager and lazy tools to `createCodeMode`. When at least one tool is lazy, `createCodeMode` also returns a `discover_tools` sibling tool — include it in the `tools` array you pass to `chat()`:
+2. Give both tools to `createCodeMode`, and give the returned `tools` array to `chat()`. Because one tool is lazy, `tools` also holds `discover_tools`:
 
 ```typescript group=lazy-tools
-// server/route.ts
-import { chat, maxIterations, toServerSentEventsStream } from "@tanstack/ai";
+import {
+  chat,
+  chatParamsFromRequest,
+  maxIterations,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
 import { createCodeMode } from "@tanstack/ai-code-mode";
 import { createNodeIsolateDriver } from "@tanstack/ai-isolate-node";
 import { openaiText } from "@tanstack/ai-openai";
 
 const { tools, systemPrompt } = createCodeMode({
   driver: createNodeIsolateDriver(),
-  tools: [fetchWeather, fetchArchive], // fetchArchive is lazy
+  tools: [fetchWeather, fetchArchive],
 });
-
 // tools is [execute_typescript, discover_tools]
-// — discover_tools is included automatically because fetchArchive is lazy
 
-export async function POST(req: Request) {
-  const { messages } = await req.json();
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
 
   const stream = chat({
-    adapter: openaiText("gpt-5.5"),
+    adapter: openaiText("gpt-6.1-sol"),
     systemPrompts: ["You are a helpful weather assistant.", systemPrompt],
-    tools: [...tools],
+    tools,
     messages,
+    threadId,
+    runId,
     agentLoopStrategy: maxIterations(10),
   });
 
-  return toServerSentEventsStream(stream);
+  return toServerSentEventsResponse(stream);
 }
 ```
 
-`createCodeMode` returns `{ tool, discoveryTool, tools, systemPrompt }`:
+3. Ask "What was the weather in Paris from 2026-01-01 to 2026-01-07?" The model calls `discover_tools` first, then calls `external_fetchArchive` in `execute_typescript`.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `tool` | `ServerTool` | The `execute_typescript` tool (backward compatible) |
-| `discoveryTool` | `ServerTool \| null` | The `discover_tools` tool, or `null` when there are no lazy tools |
-| `tools` | `Array<ServerTool>` | `[tool]` or `[tool, discoveryTool]` — spread into `chat({ tools })` |
-| `systemPrompt` | `string` | The matching system prompt |
+## How it works
 
-If no tools are lazy, `discoveryTool` is `null` and `tools` contains only `execute_typescript`.
-
-## The `discover_tools` Flow
-
-When the model encounters a task that requires a lazy tool, it:
-
-1. Calls `discover_tools` with the tool name (bare name, no `external_` prefix).
-2. Receives the TypeScript type stub and description for that tool.
-3. Writes `execute_typescript` code using the now-documented `external_fetchArchive(...)` call.
-
-The bindings are always injected into the sandbox — discovering a tool only retrieves documentation, it does not enable the binding. The model could call `external_fetchArchive` without discovering it first, but it would be writing blind without the type signature.
-
-## Tuning the Discoverable APIs Catalog
-
-By default, lazy tools appear in the system prompt as bare names with no description:
+The system prompt lists the lazy tools in a "Discoverable APIs" catalog, with names only:
 
 ```text
 ### Discoverable APIs
@@ -124,83 +105,73 @@ By default, lazy tools appear in the system prompt as bare names with no descrip
 - external_exportData
 ```
 
-If you want the model to have a hint about what each tool does before deciding whether to discover it, use `lazyToolsConfig.includeDescription`:
+Then the model:
 
-```typescript
-import { createCodeMode } from "@tanstack/ai-code-mode";
-import { createNodeIsolateDriver } from "@tanstack/ai-isolate-node";
-import {
-  fetchWeather,
-  fetchArchive,
-  runReport,
-  exportData,
-} from "./tools";
+1. Calls `discover_tools` with a list of tool names. The `external_` prefix is optional.
+2. Gets the TypeScript type stub and the description of each tool.
+3. Writes `execute_typescript` code that calls `external_fetchArchive(...)`.
 
+Lazy hides only the documentation. Every tool is always a function in the sandbox. The model can call `external_fetchArchive` with no discovery, but then it writes the call without the type signature.
+
+## Show descriptions in the catalog
+
+To give the model a hint about each lazy tool before it discovers one, set `lazyToolsConfig.includeDescription`:
+
+```typescript ignore
 const { tools, systemPrompt } = createCodeMode({
   driver: createNodeIsolateDriver(),
-  tools: [fetchWeather, fetchArchive, runReport, exportData],
+  tools: [fetchWeather, fetchArchive],
   lazyToolsConfig: {
-    includeDescription: "first-sentence", // 'none' | 'first-sentence' | 'full'
+    includeDescription: "first-sentence",
   },
 });
 ```
 
-With `'first-sentence'` the catalog becomes:
+| Value | What the catalog shows |
+|-------|------------------------|
+| `'none'` (default) | Names only. This is the smallest prompt. |
+| `'first-sentence'` | The name and the first sentence of the description. |
+| `'full'` | The name and the full description. |
 
-```text
-### Discoverable APIs
+`includeDescription` changes only the catalog. A `discover_tools` call always returns the full type stub.
 
-- external_fetchArchive — Retrieve historical weather archive data for a date range.
-- external_runReport — Generate a summary report for a given time period.
-- external_exportData — Export query results to CSV or JSON format.
+## Lazy tools with no Code Mode
+
+`chat()` also takes `lazyToolsConfig`, for lazy tools that you give to `chat()` directly. The `includeDescription` values work the same way:
+
+```typescript ignore
+const stream = chat({
+  adapter: openaiText("gpt-6.1-sol"),
+  messages,
+  tools: [fetchWeather, fetchArchive],
+  lazyToolsConfig: { includeDescription: "first-sentence" },
+});
 ```
 
-| Value | Effect |
-|-------|--------|
-| `'none'` (default) | Bare names only — smallest possible prompt addition |
-| `'first-sentence'` | Name plus the first sentence of the tool's description |
-| `'full'` | Name plus the complete description |
+For the full setup without Code Mode, see [Lazy Tool Discovery](../tools/lazy-tool-discovery).
 
-The full type stub and input/output schema are always returned on discovery — `includeDescription` only affects the pre-discovery catalog.
+## Advanced
 
-## Lazy Tools with Plain `chat()`
+### What `createCodeMode` returns
 
-The same `lazyToolsConfig` option works for lazy tools used directly with `chat()`, outside of Code Mode. Tools marked `lazy: true` are withheld from the `__lazy__tool__discovery__` catalog description until the model calls for them. Pass `lazyToolsConfig` directly to `chat()`:
+| Field | Type | Description |
+|-------|------|-------------|
+| `tool` | `ServerTool` | The `execute_typescript` tool. |
+| `discoveryTool` | `ServerTool \| null` | The `discover_tools` tool, or `null` when no tool is lazy. |
+| `tools` | `Array<ServerTool>` | `[tool]`, or `[tool, discoveryTool]`. Give this array to `chat({ tools })`. |
+| `systemPrompt` | `string` | The matching system prompt. |
 
-```typescript
-import { chat, maxIterations, toServerSentEventsStream } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-import { fetchWeather, fetchArchive, runReport } from "./tools";
+If no tool is lazy, `tools` holds only `execute_typescript`. So you can always pass `tools`, with or without lazy tools.
 
-// Non-code-mode: lazy tools in a regular chat agent
-export async function POST(req: Request) {
-  const { messages } = await req.json();
+### `discover_tools` input and output
 
-  const stream = chat({
-    adapter: openaiText("gpt-5.5"),
-    messages,
-    tools: [fetchWeather, fetchArchive, runReport],
-    lazyToolsConfig: {
-      includeDescription: "first-sentence",
-    },
-    agentLoopStrategy: maxIterations(10),
-  });
+- **Input:** `{ toolNames: Array<string> }`. Each name can be `fetchArchive` or `external_fetchArchive`.
+- **Output:** `{ tools: Array<{ name, description, typeStub }>, errors? }`. An unknown name adds an entry to `errors` that lists the tools that the model can discover.
 
-  return toServerSentEventsStream(stream);
-}
-```
+`discover_tools` is a separate tool call. It is not a function inside `execute_typescript`.
 
-The `includeDescription` behavior is identical — `'none'` lists bare tool names, `'first-sentence'` appends the first sentence, `'full'` appends the complete description.
+### Tips
 
-## Tips
-
-- **Start with `'none'`.** The bare-names catalog is enough for models that reason well about tool names. Add `'first-sentence'` only if the model frequently discovers irrelevant tools.
-- **Lazy tools are always callable.** Their `external_*` bindings are injected into the sandbox regardless of whether the model has called `discover_tools`. Discovery only reveals documentation.
-- **Use `discoveryTool` for observability.** You can inspect `discoveryTool.name` (`"discover_tools"`) to confirm the tool is wired up, or log its calls for analytics.
-- **Partition by frequency, not capability.** Mark tools lazy when they are rarely needed for a typical request. Core tools that most requests use should stay eager.
-
-## Next Steps
-
-- [Code Mode](./code-mode) — Core Code Mode setup and API reference
-- [Code Mode with Snippets](./code-mode-with-snippets) — Persistent reusable snippet libraries
-- [Isolate Drivers](./code-mode-isolates) — Compare Node, QuickJS, and Cloudflare sandbox runtimes
+- **Start with `'none'`.** Names are enough for models that reason well about tool names. Switch to `'first-sentence'` if the model often discovers the wrong tools.
+- **Split by how often a tool is used.** When most requests do not need a tool, make it lazy. Keep the core tools eager.
+- **Watch `discover_tools` calls.** `discoveryTool.name` is `"discover_tools"`. Log its calls to see which lazy tools the model needs.

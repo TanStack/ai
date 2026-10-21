@@ -13,23 +13,16 @@ keywords:
   - resumable websocket
 ---
 
-You want one connection for the whole conversation, not one request per message. Use the built-in `webSocket()` adapter. It opens one socket for the conversation. If a durable run drops, it reconnects automatically.
+You want one connection for the whole conversation, not one request per message. Use the built-in `webSocket()` transport. It opens one socket for the conversation. When a durable run drops, it reconnects by itself.
 
-## 1. Connect from the client
+## Quick setup
 
-```typescript
-import { useChat, webSocket } from "@tanstack/ai-react";
-
-const connection = webSocket("/api/chat-ws");
-
-const { messages, sendMessage } = useChat({ connection });
-```
-
-## 2. Accept the socket on the server
+### 1. Accept the socket on the server
 
 On Cloudflare Workers or Durable Objects, use `toWebSocketResponse`:
 
 ```typescript
+// worker.ts
 import { chat, memoryStream, toWebSocketResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
@@ -39,7 +32,7 @@ export default {
       durability: (ctx) => memoryStream(ctx.request),
       onRun: ({ messages, threadId, runId }) =>
         chat({
-          adapter: openaiText("gpt-5.6"),
+          adapter: openaiText("gpt-6.1-sol"),
           messages,
           threadId,
           runId,
@@ -49,8 +42,46 @@ export default {
 };
 ```
 
-On other hosts, such as Node, accept the socket yourself. Then pass it to `toWebSocketStream`. See [Resumable Streams: WebSockets](../resumable-streams/websockets) for this setup, the wire protocol, and the reconnect details.
+On other hosts, such as Node, accept the socket yourself. Then pass it to `toWebSocketStream`. See [Resumable Streams: WebSockets](../resumable-streams/websockets#hosting-on-node).
 
-To use your own wire format or a server that you do not control, write a custom adapter. See [Custom Transports](./custom#persistent-transports).
+### 2. Connect from the client
+
+```tsx
+import { useChat, webSocket } from "@tanstack/ai-react";
+
+const connection = webSocket("/api/chat-ws");
+
+export function Chat() {
+  const { messages, sendMessage } = useChat({ connection });
+
+  return (
+    <div>
+      {messages.map((message) => (
+        <p key={message.id}>
+          {message.parts.map((part) =>
+            part.type === "text" ? part.content : "",
+          )}
+        </p>
+      ))}
+      <button onClick={() => void sendMessage("Hello")}>Send</button>
+    </div>
+  );
+}
+```
 
 Send two messages. Both replies stream over the same socket.
+
+## How it works
+
+1. `webSocket()` opens the socket on the first `sendMessage`.
+2. Each user message goes over the socket as one frame.
+3. The server runs one `chat()` turn for each frame, through `onRun`, and streams the chunks back.
+4. The socket stays open for the next message.
+
+For the wire protocol, the `onRun` context, client options, and the reconnect details, see [Resumable Streams: WebSockets](../resumable-streams/websockets).
+
+## Advanced
+
+### Use your own wire format
+
+To use your own wire format or a server that you do not control, write a custom transport. See [Custom Transports](./custom#persistent-transports).

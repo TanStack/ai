@@ -2,7 +2,7 @@
 title: World Generation
 id: world-generation
 order: 7
-description: "Generate a world with generateWorld(). Live adapters mint a session token. Job adapters return a finished 3D world URL."
+description: "Make a world from a prompt with generateWorld(). Reactor opens a live world you can steer in the browser. World Labs returns a finished 3D world."
 keywords:
   - tanstack ai
   - world generation
@@ -16,34 +16,60 @@ keywords:
   - experimental
 ---
 
-You want a world from a prompt. Some providers open a live session you can steer. Other providers generate a finished 3D world. Open `world.url` to view it. Asset URLs on `world.assets` are often signed.
+You want a world from a prompt: a place the user can look at, move through, or steer. `generateWorld()` makes one on the server. There are two kinds of result:
 
-Call `generateWorld()` on the server with a world adapter. Reactor mints a session token. World Labs returns a Marble viewer URL after the job finishes.
+- **A live world** (Reactor). The server mints a session token. The browser connects, plays the world, and changes it with new prompts.
+- **A finished 3D world** (World Labs Marble). The server waits for the job, then returns a viewer URL and asset links.
 
-> **Experimental.** The API can change. Live world models bill per session-second while a GPU is held. World Labs bills in credits per generation.
+> [!WARNING]
+> World generation is experimental. The API can change. Live world models bill for each second that a session holds a GPU. World Labs bills in credits for each generation.
 
-## 1. Mint a session on the server
+## Quick setup: a live world
 
-The browser can paste a Reactor key. The relay reads `x-byok-reactor`, then `REACTOR_API_KEY`. Do not put the key in the JSON body.
+This streams a live Reactor Orbis world. It takes about 10 minutes.
+
+1. Install the packages:
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai @tanstack/ai-reactor @reactor-team/js-sdk
+vue: @tanstack/ai @tanstack/ai-reactor @reactor-team/js-sdk
+solid: @tanstack/ai @tanstack/ai-reactor @reactor-team/js-sdk
+svelte: @tanstack/ai @tanstack/ai-reactor @reactor-team/js-sdk
+preact: @tanstack/ai @tanstack/ai-reactor @reactor-team/js-sdk
+angular: @tanstack/ai @tanstack/ai-reactor @reactor-team/js-sdk
+vanilla: @tanstack/ai @tanstack/ai-reactor @reactor-team/js-sdk
+octane: @tanstack/ai @tanstack/ai-reactor @reactor-team/js-sdk
+
+<!-- ::end:tabs -->
+
+2. Put your key in `.env` on the server:
+
+```bash
+REACTOR_API_KEY=your-reactor-key
+```
+
+3. Add a `POST` route at `/api/world` that mints a session:
 
 ```ts
 import { generateWorld } from '@tanstack/ai'
-import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
 import { reactorWorld } from '@tanstack/ai-reactor'
-import { reactorByok } from '@tanstack/ai-reactor/byok'
 
 export async function POST(request: Request) {
-  const apiKey = getByokKey(request, reactorByok)
-  if (!apiKey) return byokMissing(reactorByok)
-
-  const body = await request.json()
-  const prompt = typeof body.prompt === 'string' ? body.prompt : ''
+  const body: unknown = await request.json()
+  const prompt =
+    typeof body === 'object' &&
+    body !== null &&
+    'prompt' in body &&
+    typeof body.prompt === 'string'
+      ? body.prompt
+      : ''
   if (prompt.length === 0) {
     return Response.json({ error: 'prompt is required' }, { status: 400 })
   }
 
   const world = await generateWorld({
-    adapter: reactorWorld('visko-orbis-stable', { apiKey }),
+    adapter: reactorWorld('visko-orbis-stable'),
     prompt,
   })
 
@@ -56,22 +82,10 @@ export async function POST(request: Request) {
 }
 ```
 
-See [Bring Your Own Key](../advanced/byok) for the client store.
-
-## 2. Connect in the browser
-
-Install `@reactor-team/js-sdk`. Connect with the token. Then set the prompt and start.
+4. In the browser, connect and play the world in a `<video>` element:
 
 ```ts group=world-browser
 import { Reactor } from '@reactor-team/js-sdk'
-import { defineByok, defaultByokStorage } from '@tanstack/ai-client/byok'
-import { reactorByok } from '@tanstack/ai-reactor/byok'
-
-const byok = defineByok({
-  storage: defaultByokStorage(),
-  providers: [reactorByok],
-})
-byok.setServerCoverage(true)
 
 const video = document.querySelector('video')
 if (!video) {
@@ -80,10 +94,7 @@ if (!video) {
 
 const world = await fetch('/api/world', {
   method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    ...byok.headers(reactorByok.id),
-  },
+  headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
     prompt:
       'A dramatic coastline of black volcanic cliffs at golden hour, a single unbroken take.',
@@ -126,9 +137,71 @@ await reactor.sendCommand('set_prompt', { prompt })
 await reactor.sendCommand('start', {})
 ```
 
-The video element now plays a live world. A new `set_prompt` during the run morphs the scene at the next chunk.
+The video element now plays a live world. To steer it, send a new `set_prompt`. The scene changes at the next chunk.
 
-LingBot and LingBot World 2 start from a seed image. Pass a `File` from `<input type="file" accept="image/png,image/jpeg">`. The SDK uploads the file. Do not send base64. `start` also needs `set_prompt`. Write the prompt to describe what the image shows. When the prompt and the image disagree, the image wins and the world drifts.
+## How it works
+
+The work splits in two:
+
+- **The server** calls `generateWorld()` with a world adapter. A live adapter returns a short-lived `token`, the `model` slug to connect to, and the `prompt`. The API key stays on the server.
+- **The browser** uses the Reactor SDK to connect with the token, play the stream, and send commands.
+
+There is no client hook for worlds. For the shared model of other media types, see [Generations](./generations).
+
+## Live world models
+
+`reactorWorld()` takes these ids. The `model` field on the result is the Reactor connect slug.
+
+| Id | Connect slug | What it does |
+| --- | --- | --- |
+| `visko-orbis-stable` | `reactor/visko-orbis-stable` | Steerable video with live audio |
+| `visko-orbis-dynamic` | `reactor/visko-orbis-dynamic` | Same family, can change resolution while it runs |
+| `lingbot-world-2` | `reactor/lingbot-world-2` | A world you can move through, anchored on an image |
+| `lingbot` | `reactor/lingbot` | Video you can move through, anchored on an image |
+| `helios` | `reactor/helios` | Interactive live video |
+
+More notes:
+
+- Happy Oyster (`happy-oyster-adventure`, `happy-oyster-director`) uses `createWorld` and `startTravel` after connect.
+- Helios also works with `generateLiveVideo()` and `reactorVideo()`. See [Live Generation](./live-generation).
+- Every id is in the [Reactor adapter](../adapters/reactor).
+
+## Finished 3D worlds (World Labs)
+
+World Labs Marble runs a job, not a live stream. `generateWorld()` waits until the world is ready. Then it returns a viewer URL and asset links. Set `WORLDLABS_API_KEY` on the server.
+
+```ts
+import { generateWorld } from '@tanstack/ai'
+import { worldlabsWorld } from '@tanstack/ai-worldlabs'
+
+const world = await generateWorld({
+  adapter: worldlabsWorld('marble-1.1'),
+  prompt: 'A mystical forest with glowing mushrooms',
+})
+
+console.log(world.url) // The Marble viewer
+```
+
+What you get back:
+
+- `world.url` is the Marble viewer. Do not put it in an iframe.
+- `world.assets` holds splat, mesh, and panorama URLs when the provider returns them. These URLs are often signed.
+
+Models: `marble-1.1-plus`, `marble-1.1` (the World Labs default), `marble-1.0`, and `marble-1.0-draft`. See the [World Labs adapter](../adapters/worldlabs) for image and video inputs.
+
+A full app is in [`examples/ts-react-media`](https://github.com/TanStack/ai/tree/main/examples/ts-react-media). Open the World tab. Pick a Reactor model for a live stream, or a Marble model for a finished 3D world. What the example shows:
+
+- If splat files are present, it loads one SPZ in Spark. If not, it shows a thumbnail and an Open in Marble link.
+- It can download the Marble files when the response includes them.
+- It can save a Reactor session as MP4 when recording is on for that model or plan.
+
+## Advanced
+
+### Start LingBot from a seed image
+
+LingBot and LingBot World 2 start from an image. Pass a `File` from `<input type="file" accept="image/png,image/jpeg">`. The SDK uploads the file. Do not send base64.
+
+`start` also needs `set_prompt`. Write the prompt so it describes what the image shows. If the prompt and the image disagree, the image wins and the world drifts.
 
 ```ts group=world-browser
 const picker = document.querySelector('input[type="file"]')
@@ -145,38 +218,58 @@ await reactor.sendCommand('set_prompt', { prompt })
 await reactor.sendCommand('start', {})
 ```
 
-## Models
+### Let users bring their own Reactor key
 
-`reactorWorld()` accepts these ids. The result `model` field is the Reactor connect slug.
+The browser can save a Reactor key and send it in an `x-byok-reactor` header. The server reads that header first, then `REACTOR_API_KEY`. Do not put the key in the JSON body.
 
-| Id | Connect slug | What it does |
-| --- | --- | --- |
-| `visko-orbis-stable` | `reactor/visko-orbis-stable` | Steerable video with realtime audio |
-| `visko-orbis-dynamic` | `reactor/visko-orbis-dynamic` | Same family, live resolution switch |
-| `lingbot-world-2` | `reactor/lingbot-world-2` | Image-anchored navigable world |
-| `lingbot` | `reactor/lingbot` | Image-anchored navigable video |
-| `helios` | `reactor/helios` | Interactive realtime video |
-
-Happy Oyster (`happy-oyster-adventure`, `happy-oyster-director`) uses `createWorld` and `startTravel` after connect. See the [Reactor adapter](../adapters/reactor) for every id. Helios also works with `generateLiveVideo()` and `reactorVideo()`. See [Live Generation](./live-generation).
-
-A full app lives in [`examples/ts-react-media`](https://github.com/TanStack/ai/tree/main/examples/ts-react-media). Open the World tab. Pick a Reactor model for a live stream, or a Marble model for a finished 3D world. If splat files are present, the example loads one SPZ in Spark. If not, it shows a thumbnail and an Open in Marble link.
-
-## Finished 3D worlds (World Labs)
-
-World Labs Marble is a job, not a live stream. `generateWorld()` waits until the world is ready, then returns a viewer URL and asset links.
+Server:
 
 ```ts
 import { generateWorld } from '@tanstack/ai'
-import { worldlabsWorld } from '@tanstack/ai-worldlabs'
+import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
+import { reactorWorld } from '@tanstack/ai-reactor'
+import { reactorByok } from '@tanstack/ai-reactor/byok'
 
-const world = await generateWorld({
-  adapter: worldlabsWorld('marble-1.1'),
-  prompt: 'A mystical forest with glowing mushrooms',
-})
+export async function POST(request: Request) {
+  const apiKey = getByokKey(request, reactorByok)
+  if (!apiKey) return byokMissing(reactorByok)
+
+  const world = await generateWorld({
+    adapter: reactorWorld('visko-orbis-stable', { apiKey }),
+    prompt: 'A dramatic coastline of black volcanic cliffs at golden hour',
+  })
+
+  return Response.json({
+    token: world.token,
+    model: world.model,
+    prompt: world.prompt,
+  })
+}
 ```
 
-`world.url` is the Marble viewer. Do not iframe it. `world.assets` is optional and holds splat, mesh, and panorama URLs when the provider returns them. See the [World Labs adapter](../adapters/worldlabs) for image and video inputs, models, and `wait: false`. `wait: false` returns `operationId`. This SDK cannot resume that id.
+Browser:
 
-## What you have now
+```ts
+import { defineByok, defaultByokStorage } from '@tanstack/ai-client/byok'
+import { reactorByok } from '@tanstack/ai-reactor/byok'
 
-A server route that mints a live world session, or a server call that returns a finished Marble world. For Reactor, connect in the browser and change the prompt to steer the stream. The media example can save a Reactor session as MP4 when recording is enabled for that model or plan, and download Marble files when the response includes them.
+const byok = defineByok({
+  storage: defaultByokStorage(),
+  providers: [reactorByok],
+})
+byok.setServerCoverage(true)
+
+const world = await fetch('/api/world', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    ...byok.headers(reactorByok.id),
+  },
+}).then((response) => response.json())
+```
+
+See [Bring Your Own Key](../advanced/byok) for the key store and a save UI.
+
+### World Labs jobs that do not wait
+
+Pass `modelOptions: { wait: false }` to `generateWorld()`. Then it returns at once with an `operationId`. This SDK cannot resume that id. See the [World Labs adapter](../adapters/worldlabs).

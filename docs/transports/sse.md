@@ -14,13 +14,16 @@ keywords:
   - Last-Event-ID
 ---
 
-You have a normal HTTP server and you want the chat reply to stream. Use Server-Sent Events (SSE). It is the default transport. It works in all browsers, it passes through most proxies, and it is easy to debug.
+You have a normal HTTP server, and you want the chat reply to show up word by word. Use Server-Sent Events (SSE), the default transport. It works in all browsers and through most proxies.
 
-## 1. Return SSE from the server
+## Quick setup
+
+### 1. Return SSE from the server
 
 Wrap the `chat()` stream with `toServerSentEventsResponse()`:
 
 ```typescript
+// api/chat.ts
 import {
   chat,
   chatParamsFromRequest,
@@ -31,7 +34,7 @@ import { openaiText } from "@tanstack/ai-openai";
 export async function POST(request: Request) {
   const { messages, threadId, runId } = await chatParamsFromRequest(request);
   const stream = chat({
-    adapter: openaiText("gpt-5.6"),
+    adapter: openaiText("gpt-6.1-sol"),
     messages,
     threadId,
     runId,
@@ -40,35 +43,61 @@ export async function POST(request: Request) {
 }
 ```
 
-## 2. Connect from the client
+### 2. Connect from the client
 
 Pass `fetchServerSentEvents()` to `useChat`:
 
-```typescript
+```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
-const { messages, sendMessage } = useChat({
-  connection: fetchServerSentEvents("/api/chat"),
-});
+export function Chat() {
+  const { messages, sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+  });
+
+  return (
+    <div>
+      {messages.map((message) => (
+        <p key={message.id}>
+          {message.parts.map((part) =>
+            part.type === "text" ? part.content : "",
+          )}
+        </p>
+      ))}
+      <button onClick={() => void sendMessage("Hello")}>Send</button>
+    </div>
+  );
+}
 ```
+
+Click Send. The reply streams into `messages` as the model writes it.
 
 To add headers, a dynamic URL, or extra body data, see [Request Options](./request-options).
 
-## Resume a dropped stream
+## How it works
+
+1. `sendMessage` posts the messages to `/api/chat`.
+2. The server runs `chat()`. `toServerSentEventsResponse()` writes each chunk as one SSE event (`text/event-stream`).
+3. `fetchServerSentEvents()` reads the events and gives each chunk to the chat client.
+
+## Advanced
+
+### Resume a dropped stream
 
 A connection can drop in the middle of a reply. If the server sends SSE `id:` values, `fetchServerSentEvents` can continue the reply:
 
-- **Reconnect.** If the connection drops after an id arrived, the adapter reconnects with `Last-Event-ID`. It removes the replayed chunks that it already has.
+- **Reconnect.** If the connection drops after an id arrived, the transport reconnects with `Last-Event-ID`. It removes the replayed chunks that it already has.
 - **`joinRun(runId)`.** It sends a read-only GET with `offset=-1` and the run id. The server replays an in-flight or finished run from the start.
 
-The ids appear only when the server passes a durability adapter to `toServerSentEventsResponse`. The ids are opaque tokens that the durability adapter owns. The chat client does not create, parse, or store them. Without ids, the adapter does one plain fetch.
+The ids appear only when the server passes a durability adapter to `toServerSentEventsResponse`. The ids are opaque tokens that the durability adapter owns. The chat client does not create, parse, or store them. Without ids, the transport does one plain fetch.
 
 Add a `GET` handler next to `POST`, so that `joinRun` works in a second tab or after a reload:
 
-- **`POST`** starts new runs. It also gets the automatic reconnects, because the adapter sends the same body again with `Last-Event-ID`.
+- **`POST`** starts new runs. It also gets the automatic reconnects, because the transport sends the same body again with `Last-Event-ID`.
 - **`GET`** replays a known run from the start.
 
 ```typescript
+// api/chat.ts
 import {
   chat,
   chatParamsFromRequest,
@@ -80,7 +109,12 @@ import { openaiText } from "@tanstack/ai-openai";
 
 export async function POST(request: Request) {
   const { messages, threadId, runId } = await chatParamsFromRequest(request);
-  const stream = chat({ adapter: openaiText("gpt-5.6"), messages, threadId, runId });
+  const stream = chat({
+    adapter: openaiText("gpt-6.1-sol"),
+    messages,
+    threadId,
+    runId,
+  });
   return toServerSentEventsResponse(stream, {
     durability: { adapter: memoryStream(request) },
   });
@@ -92,13 +126,15 @@ export async function GET(request: Request) {
 }
 ```
 
+The client from step 2 needs no change.
+
 The `GET` handler does not call a provider. On a replay, `resumeFrom()` on the durability adapter is not null (it comes from `?offset`). So the handler replays the log. If the request has no resume offset, `resumeServerSentEventsResponse` returns a 400.
 
-Other adapters resume the same way:
+Other transports resume the same way:
 
 - `xhrServerSentEvents` uses the same `id:` lines. See [React Native](./react-native).
 - `fetchHttpStream` and `xhrHttpStream` resume over NDJSON. See [HTTP Stream](./http-stream#resume-a-dropped-stream).
 
-To pick a durability adapter for production, see [Resumable Streams](../resumable-streams/overview).
+To test it, send a message and turn off the network for a moment. When the network comes back, the reply continues with no duplicate text.
 
-Send a message and turn off the network for a moment. When the network comes back, the reply continues with no duplicate text.
+To pick a durability adapter for production, see [Resumable Streams](../resumable-streams/overview).

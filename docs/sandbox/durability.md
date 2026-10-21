@@ -2,161 +2,121 @@
 title: Sandbox Instance Durability
 id: sandbox-durability
 order: 9
-description: "Durable sandbox instance resume across processes with a SandboxInstanceStore passed to withSandbox."
+description: "Resume the same sandbox from any server process. Pass a SandboxInstanceStore and a lock to withSandbox."
 ---
 
-Your agent runs behind more than one server instance, or at the edge. A run
-spins up a sandbox, clones the repo, installs deps, does its work. The next run
-for the same thread should pick that sandbox back up. Instead it builds a fresh
-one every time and pays the whole cold-start cost again.
+Your agent runs behind more than one server, or at the edge. A run creates a sandbox, clones the repo, and installs dependencies. The next run for the same thread lands on a different server. That server has never seen the sandbox, so it builds a new one and pays the cold start again.
 
-[Lifecycle & Snapshots](./lifecycle) already knows how to resume, but its
-bookkeeping is in-memory, so it only holds within one process. The moment a run
-lands on a different replica (or a fresh isolate), that instance has never seen
-the sandbox and re-creates it.
-
-**Sandbox instance durability** is runtime placement, not chat history. It is
-owned by `@tanstack/ai-sandbox`, independent of `@tanstack/ai-persistence`
-(transcript / runs / interrupts). You may share a database with chat stores, but
-you compose a separate middleware.
-
-Instance durability does not copy the workspace into your application storage.
-Use [Keep Files After Reload](./portable-snapshots-configure) when a new
-sandbox must rebuild completed files, artifacts, and the saved conversation.
-
-It is also not the agent's *output*. This page keeps a sandbox findable across
-processes; keeping the run's event stream readable across processes is
-[The Run Journal](./journal). The two compose: a resumed sandbox still holds the
-journal of every **durable** run that executed in it, under `/tmp/tanstack-runs`.
-(Durable meaning `withSandbox` was given both `runs` and `durability`. Journaling
-is opt-in, and a run without it leaves no file there.)
-
-Two pieces:
-
-- **`SandboxInstanceStore`**: map of compound key → provider sandbox id (+
-  optional snapshot). Durable, shared across instances.
-- **`LockStore`** (from `@tanstack/ai/locks`): mutual exclusion around resume-or-create.
-  Multi-instance needs a distributed lock. See [Locks](../advanced/locks).
+[Lifecycle & Snapshots](./lifecycle) can resume a sandbox, but it keeps its records in memory, in one process. A `SandboxInstanceStore` keeps those records in shared storage, so every server finds the same sandbox.
 
 ## Wire it up
 
-Hand the store to `withSandbox`. The lock is a separate middleware because other
-middleware can share it, and it must come **before** `withSandbox`.
+You need two pieces:
+
+- **`SandboxInstanceStore`**: maps the compound sandbox key to the provider sandbox id (and an optional snapshot). It must be shared across servers.
+- **`LockStore`** from `@tanstack/ai/locks`: makes sure that only one run at a time does resume-or-create. Across servers you need a distributed lock. See [Locks](../advanced/locks).
+
+This sample uses the in-memory versions, which work in one process for local dev:
 
 ```ts
 import { chat } from '@tanstack/ai'
 import { InMemoryLockStore, withLocks } from '@tanstack/ai/locks'
-import { grokBuildText } from '@tanstack/ai-grok-build'
+import { GROK_CLI_INSTALL_COMMAND, grokBuildText } from '@tanstack/ai-grok-build'
 import {
-  InMemorySandboxInstanceStore,
+  createSecrets,
   defineSandbox,
   defineWorkspace,
+  githubRepo,
+  InMemorySandboxInstanceStore,
   withSandbox,
 } from '@tanstack/ai-sandbox'
-import type { ModelMessage } from '@tanstack/ai'
+import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 
-// Single-process: in-memory is fine for local dev.
-// Multi-instance: your durable SandboxInstanceStore + distributed LockStore.
-const instanceStore = new InMemorySandboxInstanceStore()
-const messages: Array<ModelMessage> = [{ role: 'user', content: 'hi' }]
+// Production: your durable store and a distributed LockStore.
+const instances = new InMemorySandboxInstanceStore()
+const locks = new InMemoryLockStore()
 
 const sandbox = defineSandbox({
-  id: 'repo',
-  provider: {
-    name: 'example',
-    capabilities: () => ({
-      fs: true,
-      exec: true,
-      env: true,
-      ports: false,
-      backgroundProcesses: false,
-      writableStdin: false,
-      killableProcesses: false,
-      snapshots: false,
-      networkPolicy: false,
-      durableFilesystem: false,
-      fork: false,
-    }),
-    create: () => {
-      throw new Error('example provider: wire a real SandboxProvider')
-    },
-    resume: () => Promise.resolve(null),
-    destroy: () => Promise.resolve(),
-  },
-  workspace: defineWorkspace({ source: { type: 'none' } }),
+  id: 'repo-agent',
+  provider: dockerSandbox({ image: 'node:22' }),
+  workspace: defineWorkspace({
+    source: githubRepo({ repo: 'owner/app' }),
+    setup: [GROK_CLI_INSTALL_COMMAND],
+    secrets: createSecrets({ XAI_API_KEY: process.env.XAI_API_KEY ?? '' }),
+  }),
 })
 
-chat({
+const stream = chat({
+  threadId: 'thread-1',
   adapter: grokBuildText('grok-build'),
-  messages,
+  messages: [{ role: 'user', content: 'hi' }],
   middleware: [
-    withLocks(new InMemoryLockStore()),
-    withSandbox(sandbox, { instances: instanceStore }),
+    // The lock comes BEFORE withSandbox.
+    withLocks(locks),
+    withSandbox(sandbox, { instances }),
   ],
 })
 ```
 
-With `reuse: 'thread'` (the default), the first run creates and records the
-instance. A later run for the same `threadId` resumes it when the store (and
-lock) are shared across processes.
+With `reuse: 'thread'` (the default), the first run creates the sandbox and records it. A later run for the same `threadId` resumes it, on any server that shares the store and the lock.
 
-Single sandbox, nothing else sharing the lock? Pass both as options and skip the
-extra middleware:
+For production, replace both in-memory stores. To write your own `SandboxInstanceStore`, see [Build a Sandbox Adapter](../persistence/build-a-sandbox-adapter).
+
+## How it works
+
+- Instance durability is about where the sandbox runs. It is not chat history. `@tanstack/ai-sandbox` owns it, separate from `@tanstack/ai-persistence` (transcripts, runs, interrupts). You can use the same database for both, but each has its own middleware.
+- It does not copy the workspace into your storage. When a new sandbox must rebuild finished files, artifacts, and the conversation, use [Keep Files After Reload](./portable-snapshots-configure).
+- It does not keep the agent's output. To read a run's events from another process, see [The Run Journal](./journal).
+
+The two work together. A resumed sandbox still holds the journal of every **durable** run that ran in it, under `/tmp/tanstack-runs`. A run is durable when `withSandbox` gets both `runs` and `durability`. A run without that opt-in leaves no journal file.
+
+## Other ways to wire it
+
+If nothing else shares the lock, pass both as options and skip `withLocks`:
 
 ```ts
 import { InMemoryLockStore } from '@tanstack/ai/locks'
 import { withSandbox } from '@tanstack/ai-sandbox'
-import { instanceStore } from './instance-store'
+import { instances } from './instance-store'
 import { sandbox } from './sandbox'
 
 const middleware = [
   withSandbox(sandbox, {
-    instances: instanceStore,
-    locks: new InMemoryLockStore(), // multi-replica: a distributed LockStore
+    instances,
+    locks: new InMemoryLockStore(), // multi-server: a distributed LockStore
   }),
 ]
 ```
 
-Optional chat persistence is independent:
+Chat persistence is a separate middleware. Add it next to the sandbox:
 
 ```ts
 import { withLocks, InMemoryLockStore } from '@tanstack/ai/locks'
 import { withPersistence, memoryPersistence } from '@tanstack/ai-persistence'
 import { withSandbox } from '@tanstack/ai-sandbox'
-import { instanceStore } from './instance-store'
+import { instances } from './instance-store'
 import { sandbox } from './sandbox'
 
 const middleware = [
   withPersistence(memoryPersistence()), // chat state only
-  withLocks(new InMemoryLockStore()), // multi-replica: distributed LockStore
-  withSandbox(sandbox, { instances: instanceStore }),
+  withLocks(new InMemoryLockStore()), // multi-server: a distributed LockStore
+  withSandbox(sandbox, { instances }),
 ]
 ```
 
-## Implement `SandboxInstanceStore`
+## Advanced
 
-The store is three methods (`get`, `upsert`, `delete`), each with an invariant that
-a conformance suite checks for you.
-[Build a Sandbox Adapter](../persistence/build-a-sandbox-adapter) walks through the
-implementation, the table, and the suite, alongside the choice of how much a
-sandboxed run should leave behind at all.
+### Why you need a lock
 
-## Locks
+A shared instance store without a distributed lock is still wrong across servers. Two runs for one thread can start at the same time. Both find no record, and both create a sandbox.
 
-A durable instance map without a distributed lock is still wrong across
-replicas: two concurrent runs for one thread both find no record and both
-create. Pair the store with a lock, either `withLocks` from
-`@tanstack/ai/locks` or the `locks` option above. Full guide:
-[Locks](../advanced/locks).
+Pair the store with a lock: use `withLocks` from `@tanstack/ai/locks`, or the `locks` option. See [Locks](../advanced/locks).
 
-## See also
+### Implement `SandboxInstanceStore`
 
-- [The Run Journal](./journal): durability of a run's output, as opposed to its sandbox
-- [Takeover & Detached Runs](./takeover): surviving a client disconnect. A
-  detached run keeps its sandbox up, and `RunStore.sandboxKey` /
-  `RunStore.detachedSince` is how a later host finds it again
-- [Build a Sandbox Adapter](../persistence/build-a-sandbox-adapter): implement this store, and
-  choose how much a sandboxed run leaves behind
-- [Locks](../advanced/locks)
-- [Lifecycle](./lifecycle)
-- [Persistence overview](../persistence/overview): chat state only
+The store has three methods: `get`, `upsert`, and `delete`. Each has a rule that a conformance suite checks for you. [Build a Sandbox Adapter](../persistence/build-a-sandbox-adapter) shows the code, the table, and the suite. It also helps you choose how much a sandboxed run leaves behind.
+
+### Related pages
+
+- [Takeover & Detached Runs](./takeover): survive a client disconnect. A detached run keeps its sandbox up. A later server finds it again with `RunStore.sandboxKey` and `RunStore.detachedSince`.
+- [Persistence overview](../persistence/overview): chat state only.

@@ -12,9 +12,11 @@ keywords:
   - virtual machine
 ---
 
-You have your own machine: a VM, a remote desktop, or a device in a lab. No driver package controls it. Write a `ComputerDriver`, and [computer use](./computer-use) runs on it with no other change.
+You have your own machine: a VM, a remote desktop, or a device in a lab. No driver package controls it.
 
-## Write the driver
+Write a `ComputerDriver`, and [computer use](./computer-use) runs on it with no other change.
+
+## 1. Write the driver
 
 A driver is an object with a screen size and a small set of methods. This example sends each method to an HTTP agent that runs on the machine.
 
@@ -54,7 +56,7 @@ export function createMyDriver(base: string) {
 }
 ```
 
-Then give it to `createComputerUse`:
+## 2. Give it to `createComputerUse`
 
 ```ts
 import { createComputerUse } from '@tanstack/ai-computer-use'
@@ -68,9 +70,27 @@ const computerUse = createComputerUse({
 })
 ```
 
+Give `computerUse.tools`, `computerUse.middleware`, and `computerUse.interrupt` to `chat()`, as in the [computer use setup](./computer-use).
+
+## 3. Try it
+
+Start your agent on the machine, and send a task in the chat. Your agent gets the first `/screenshot` request, then the clicks and the key presses. The model now uses your own machine.
+
+## How it works
+
+Your driver does only the small steps. The core builds the rest from them:
+
+- **Drags**: `move`, `mouseDown`, more `move` calls, then `mouseUp`.
+- **Modifier clicks and scrolls**: `keyDown` for each modifier, the action, then `keyUp` in reverse order.
+- **`hold_key` and `wait`**: the core holds the keys or waits, then continues.
+- **Key names**: the core changes OpenAI and Anthropic key names to `KeyboardEvent.key` names.
+- **Screenshots**: after a normal action, the core waits `screenshotDelay` ms and calls `screenshot()`. An OpenAI batch waits once, after the last action, then takes one screenshot. `zoom` and `cursor_position` return their own result, so the core does not call `screenshot()` for them.
+
 A driver is one machine. Every thread shares it, so it serves one conversation at a time. `createComputerUse` never closes it. To give each thread its own machine, write a [driver factory](#one-machine-for-each-thread).
 
-## The contract
+## Advanced
+
+### The contract
 
 Coordinates are in pixels, in `display` space. Key names are `KeyboardEvent.key` names, for example `'Enter'`, `'Control'`, or `'a'`.
 
@@ -87,7 +107,7 @@ Coordinates are in pixels, in `display` space. Key names are `KeyboardEvent.key`
 | `press(keys)` | Presses one combo, like `['Control', 's']`. |
 | `type(text)` | Types text as a user does. |
 
-## Add the optional methods
+### Add the optional methods
 
 Four methods are optional:
 
@@ -96,7 +116,7 @@ Four methods are optional:
 - `navigate(url)`: opens the URL. `computerUse.tools` then has the `navigate` tool. The tool accepts only `http:` and `https:` URLs.
 - `close()`: frees the machine. `createComputerUse` calls it only on a driver that a factory made.
 
-Add this function to `app/my-driver.ts`. It narrows the JSON from your agent before it returns it:
+For example, to add `cursorPosition`, add this function to `app/my-driver.ts`. It narrows the JSON from your agent before it returns it:
 
 ```ts
 export async function readCursorPosition(base: string) {
@@ -116,7 +136,7 @@ export async function readCursorPosition(base: string) {
 
 Then add `cursorPosition: () => readCursorPosition(base)` to `driver` in `createMyDriver`.
 
-## One machine for each thread
+### One machine for each thread
 
 One shared machine serves one conversation at a time. To give each thread its own machine, write a `ComputerDriverFactory`. `createComputerUse` calls `create` on the first action of each thread.
 
@@ -175,17 +195,3 @@ The factory has these members:
 | `close()` | Optional. Frees what the threads share. `computerUse.close()` calls it after it closes every thread. |
 
 When a thread closes or goes idle, `createComputerUse` calls `close()` on the driver of that thread.
-
-## What the core builds for you
-
-Your driver does only the small steps. The core builds the rest from them:
-
-- **Drags**: `move`, `mouseDown`, more `move` calls, then `mouseUp`.
-- **Modifier clicks and scrolls**: `keyDown` for each modifier, the action, then `keyUp` in reverse order.
-- **`hold_key` and `wait`**: the core holds the keys or waits, then continues.
-- **Key names**: the core changes OpenAI and Anthropic key names to `KeyboardEvent.key` names.
-- **Screenshots**: after a normal action, the core waits `screenshotDelay` ms and calls `screenshot()`. An OpenAI batch waits once, after the last action, then takes one screenshot. `zoom` and `cursor_position` return their own result. The core does not call `screenshot()` for those two.
-
-## Try it
-
-Start your agent on the machine, and send a task in the chat. Your agent gets the first `/screenshot` request, then the clicks and the key presses. The model now uses your own machine.

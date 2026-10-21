@@ -13,21 +13,11 @@ keywords:
   - approval
 ---
 
-Some computer actions are risky. The page can ask the model to do a thing the user did not ask for, or the action can send data. OpenAI attaches safety checks to these actions. The run pauses, and a person approves or declines the action.
+Some computer actions are risky. The page can ask the model to do a thing that the user did not ask for, or the action can send data.
 
-## How it works
+OpenAI attaches safety checks to these actions. TanStack AI pauses the run, and a person approves or declines the action. This page adds the approval card to your [computer use](./computer-use) app.
 
-1. The model sends a computer call with `pending_safety_checks`.
-2. The `middleware` pauses the run with one interrupt for each call that has checks.
-3. A person approves or declines on the client.
-
-- If the person approves all calls, the calls run. The checks go back to OpenAI as acknowledged.
-- If the person declines one call, no call of that turn runs.
-- A call with checks that nobody approved does not run. The tool refuses it.
-
-Safety checks are an OpenAI feature. Anthropic models do not send them, so this code does nothing on Anthropic.
-
-## Server
+## 1. Add the server route
 
 Give `tools`, `middleware`, and `interrupt` to `chat()`. Also give `parentRunId` and `resume`, so that the approval can continue the run.
 
@@ -61,16 +51,9 @@ export async function POST(request: Request) {
 }
 ```
 
-`computerUse` keeps the approval for the thread until the resume request comes. To keep it there:
+## 2. Show the approval card
 
-- Create `computerUse` one time, at module scope. Every request uses the same one.
-- Give `params.threadId` to `chat()`. The resume request has the same thread id as the request that paused.
-- Set `idleTimeout` above the time that a person takes to answer. If the time ends first, the page closes, and the approved action runs on a new page.
-- Send the resume request to the same server process. The approvals live in the memory of that process.
-
-## Client
-
-Register `computerSafetyCheck` with `useChat`. Each item has these fields:
+Register `computerSafetyCheck` with `useChat`. Then show a card for each paused action. Each interrupt has these fields:
 
 - `payload.checks`: the safety checks. Each check has an `id`, and can have a `code` and a `message`.
 - `payload.action`: the action that waits. For a batch, this is the list of actions.
@@ -127,6 +110,34 @@ export function Chat() {
 
 `interrupt.cancel()` also declines the action. When every interrupt of the batch has an answer, the client sends the answers. For more about generic interrupts, see [Generic Interrupts](../interrupts/generic).
 
-## Try it
+## 3. Try it
 
-Ask the model to do a task that sends data, for example a form submit. When OpenAI adds a safety check, the card shows. Click **Approve**, and the action runs. Click **Decline**, and the page stays as it was.
+Ask the model to do a task that sends data, for example a form submit. When OpenAI adds a safety check, the card shows.
+
+- Click **Approve**, and the action runs.
+- Click **Decline**, and the page stays as it was.
+
+## How it works
+
+1. The model sends a computer call with `pending_safety_checks`.
+2. The `middleware` pauses the run with one interrupt for each call that has checks.
+3. A person approves or declines on the client.
+
+After the answer:
+
+- If the person approves all calls, the calls run. The checks go back to OpenAI as acknowledged.
+- If the person declines one call, no call of that turn runs.
+- A call with checks that nobody approved does not run. The tool refuses it.
+
+Safety checks are an OpenAI feature. Anthropic models do not send them, so this code does nothing on Anthropic.
+
+## Advanced
+
+### Keep the approval until the resume request
+
+`computerUse` keeps the approval for the thread until the resume request comes. To keep it there:
+
+- Create `computerUse` one time, at module scope. Every request uses the same one.
+- Give `params.threadId` to `chat()`. The resume request has the same thread id as the request that paused.
+- Set `idleTimeout` above the time that a person takes to answer. If the time ends first, the page closes, and the approved action runs on a new page.
+- Send the resume request to the same server process. The approvals live in the memory of that process.

@@ -2,7 +2,7 @@
 title: MCP Server Tasks
 id: server-tasks
 order: 13
-description: "A long MCP tool returns a task handle so the host can poll for the result."
+description: "Let a long MCP tool return a task handle at once, so the host can poll for the result."
 keywords:
   - tanstack ai
   - mcp
@@ -15,11 +15,75 @@ keywords:
   - waitUntil
 ---
 
-Your long tool holds the HTTP call until the work ends. You have no task id for the host to poll.
+Your tool takes minutes, and the HTTP call stays open until the work ends. The host has no task id to poll.
 
-Set `execution: 'task'` on `toolDefinition`.
+Set `execution: 'task'` on the tool. The call returns a task handle at once, and the host polls for the result.
 
-The handler returns a task handle before the work ends. The tool function continues in this process. There is no queue.
+## Quick setup
+
+You need an MCP server first. If you do not have one, start with [Serve Tools over HTTP](./server). This setup is for one long-lived process, such as a Node server. For a Worker, see [Run tasks on a Worker](#run-tasks-on-a-worker).
+
+1. Set `execution: 'task'` on the tool definition.
+2. Return the final value from the tool function.
+3. Create the server once, outside the request handler.
+
+```ts
+import { toolDefinition } from '@tanstack/ai'
+import { createMCPServer } from '@tanstack/ai-mcp/server'
+
+const buildReport = toolDefinition({
+  name: 'build_report',
+  description: 'Build a long report',
+  execution: 'task',
+}).server(async () => {
+  const text = await writeReport()
+  return { text }
+})
+
+async function writeReport() {
+  await new Promise((resolve) => {
+    setTimeout(resolve, 5000)
+  })
+  return 'Quarterly report'
+}
+
+const server = createMCPServer({
+  name: 'reports',
+  version: '1.0.0',
+  tools: [buildReport],
+})
+
+export function handleMcp(request: Request) {
+  return server.fetch(request)
+}
+```
+
+The host calls `build_report` and gets a task handle at once. After 5 seconds, the status is `completed`, and the host reads `{ text: 'Quarterly report' }` from `structuredContent`.
+
+## How it works
+
+1. The host calls the tool.
+2. The handler returns a task handle before the work ends.
+3. The tool function continues in this process. There is no queue.
+4. When the tool function ends, the task store saves the value.
+5. The host polls until the status is `completed` or `failed`.
+
+The default task store keeps each task in memory for this process. A TanStack AI host polls until the task ends. See [MCP Server Tools](../tools/mcp).
+
+## What a task tool can use
+
+The task keeps running after the call returns the task handle. As a result, the task cannot use the request that started it:
+
+- `ctx.context.requestInput` throws an error. Ask for input in a tool without `execution: 'task'`.
+- `ctx.context.sample` calls the `sample` option of `createMCPServer`. If you do not pass `sample`, it throws an error.
+- `ctx.abortSignal` does not abort when the call request ends.
+
+## Run tasks on a Worker
+
+A Worker can stop when the response is sent. It can also build a new server for each request. Pass two more options:
+
+- `taskStore`: create it once with `inMemoryTaskStore`, outside `fetch`. A new store on each request has no record of the old task.
+- `waitUntil`: pass `waitUntil` from the Worker context. Without it, a Worker can stop before the tool function ends.
 
 ```ts
 import { toolDefinition } from '@tanstack/ai'
@@ -61,40 +125,21 @@ export default {
 }
 ```
 
-Your tool function returns the final value. When the tool function ends, the store saves that value.
+The server calls `waitUntil` with the tool promise. This promise settles after the store saves the tool result or the tool error.
 
-## What a task tool can use
+## Advanced
 
-The task keeps running after the call returns the task handle. So the task does not use the request that started it.
+### Share the store across instances
 
-- `ctx.context.requestInput` throws an error. Ask for input in a tool without `execution: 'task'`.
-- `ctx.context.sample` calls the `sample` option of `createMCPServer`. If you do not pass `sample`, `ctx.context.sample` throws an error.
-- `ctx.abortSignal` does not abort when the call request ends.
+If more than one instance can receive `tasks/get`, pass a `taskStore` that those instances share. A task store has three methods:
 
-## Keep the Worker alive
-
-If you run on a Worker, pass `waitUntil` from the Worker context.
-
-The server calls `waitUntil` with the tool promise. After the store saves the tool result or the tool error, this promise settles.
-
-If you omit `waitUntil`, a Worker can stop before the tool function ends. On one long-lived process, you can omit `waitUntil`.
-
-## Keep the task record
-
-1. Create the store with `inMemoryTaskStore` outside `fetch`.
-2. Pass this store as `taskStore`.
-
-A new store on each request has no record of the old task.
-
-The package `@tanstack/ai-mcp/server` exports `inMemoryTaskStore`. The default store keeps each task in memory for this process. If you build the server once, you can omit `taskStore`.
-
-If more than one instance can receive `tasks/get`, pass a `taskStore` that those instances share.
-
-- `get`: read one task by id.
+- `get`: read one task by id. Return `null` when the id is absent.
 - `set`: save one task.
 - `delete`: remove one task.
 
-## Spec 2025 and spec 2026
+`@tanstack/ai-mcp/server` exports `inMemoryTaskStore` and the `TaskStore` type.
+
+### Spec 2025 and spec 2026
 
 Tasks are part of spec `2025-11-25`. Spec `2026-07-28` has no tasks yet.
 
@@ -103,11 +148,11 @@ Tasks are part of spec `2025-11-25`. Spec `2026-07-28` has no tasks yet.
 | `2025-11-25` | A task handle. The host polls `tasks/get`, then reads `tasks/result`. |
 | `2026-07-28` | The tool result. The tool runs inline, and the call waits for it. |
 
-On spec 2025, the server sets `execution.taskSupport` to `required`, and advertises the `tasks` capability for `tools/call`.
+On spec 2025, the server sets `execution.taskSupport` to `required`. It also advertises the `tasks` capability for `tools/call`.
 
-## Read the result
+### The task handle
 
-On spec 2025, the call response is the `CreateTaskResult` from the spec. The `task` field is a `Task` with status `working`. This status means that the tool function is still at work.
+On spec 2025, the call response is the `CreateTaskResult` from the spec. The `task` field is a `Task` with status `working`.
 
 ```json
 {
@@ -124,27 +169,31 @@ On spec 2025, the call response is the `CreateTaskResult` from the spec. The `ta
 
 `tasks/get` returns the same `Task` fields:
 
-- `taskId`: the id from the call.
-- `status`: `working`, `completed`, or `failed`.
-- `ttl`: `null`.
-- `createdAt`: the time of the first `set`.
-- `lastUpdatedAt`: the time of the last `set`.
-- `statusMessage`: the error text, when the status is `failed`.
+| Field | Value |
+| --- | --- |
+| `taskId` | The id from the call. |
+| `status` | `working`, `completed`, or `failed`. |
+| `ttl` | `null`. |
+| `createdAt` | The time of the first `set`. |
+| `lastUpdatedAt` | The time of the last `set`. |
+| `statusMessage` | The error text, when the status is `failed`. |
 
-`tasks/result` wraps the value as `content`. When the value is an object, `tasks/result` also returns `structuredContent`. If the status is not `completed`, `tasks/result` returns the error `Task result is not ready`.
+### Task status
 
-A task uses one status:
+| Status | Meaning |
+| --- | --- |
+| `working` | The tool function is still at work. |
+| `completed` | The store holds the tool result. |
+| `failed` | The tool function threw an error. |
 
-- `working`: the tool function is still at work.
-- `completed`: the store holds the tool result.
-- `failed`: the tool function threw an error.
+If the tool function throws, the task keeps the text of that error in `statusMessage`. If that error has no text, the task keeps `The tool failed.`
 
-If the tool function throws, the task keeps the text from that error in `statusMessage`. If that error has no text, the task keeps `The tool failed.`
+### Read the result
 
-An unknown task id on `tasks/get` returns the error `Task not found`. When the server has `auth`, a task belongs to the caller that started it: the `clientId` of the token plus its `sub` claim. Another caller also gets `Task not found`. [MCP Server Auth](./server-auth) shows how the verifier sets them.
+`tasks/result` wraps the value as `content`. When the value is an object, `tasks/result` also returns `structuredContent`.
 
-The host polls until the status is `completed` or `failed`. A TanStack AI host polls until the task ends.
+Errors:
 
-See [MCP Server Tools](../tools/mcp).
-
-After the status is `completed`, the host reads `{ text: 'Quarterly report' }` from `structuredContent`.
+- If the status is not `completed`, `tasks/result` returns the error `Task result is not ready`.
+- An unknown task id on `tasks/get` returns the error `Task not found`.
+- When the server has `auth`, a task belongs to the caller that started it: the `clientId` of the token plus its `sub` claim. Another caller also gets `Task not found`. [MCP Server Auth](./server-auth) shows how the verifier sets these values.

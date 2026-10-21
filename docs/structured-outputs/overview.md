@@ -2,7 +2,7 @@
 title: Structured Outputs Overview
 id: structured-outputs-overview
 order: 1
-description: "Constrain TanStack AI responses to a JSON Schema so the model returns typed, predictable objects. Pick the journey that matches what you're building — one-shot extraction, a streaming UI, or a multi-turn structured chat."
+description: "Get a typed object back from the model instead of text. Pass a schema as outputSchema, read the result on the server or in useChat, then pick the streaming, multi-turn, tools, or harness guide."
 keywords:
   - tanstack ai
   - structured outputs
@@ -14,64 +14,183 @@ keywords:
   - outputSchema
 ---
 
-Structured outputs constrain model responses to match a JSON Schema you control. You get back a typed object — not a string you have to parse, not a "mostly-JSON" blob you have to guess at, not a regex match. The model either returns something that fits your schema or you get a typed error.
+You want data from the model, not prose. Parsing JSON out of a chat reply breaks the first time the model adds a sentence before the braces.
 
-You wire this in once with `outputSchema`. The runtime takes care of the rest: it converts your schema to JSON Schema, hands it to the provider's native structured-output API, validates the response, and infers the TypeScript type from your schema definition.
+Pass a schema as `outputSchema`. The model must answer in that shape, and you get a typed object back.
+
+## Quick setup
+
+This setup adds a "person extractor" to an app that already has chat. It takes about 5 minutes.
+
+### 1. Install a schema library
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: zod
+vue: zod
+solid: zod
+svelte: zod
+preact: zod
+angular: zod
+vanilla: zod
+octane: zod
+
+<!-- ::end:tabs -->
+
+### 2. Define the schema
+
+Put the schema in a file that the server and the client can both import:
+
+```typescript
+// schemas/person.ts
+import { z } from "zod";
+
+export const PersonSchema = z.object({
+  name: z.string().meta({ description: "The full name of the person" }),
+  age: z.number().meta({ description: "The age in years" }),
+  email: z.string().email(),
+});
+```
+
+### 3. Add the server endpoint
+
+```typescript
+// api/extract-person.ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { PersonSchema } from "../schemas/person";
+
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
+
+  const stream = chat({
+    adapter: openaiText("gpt-6.1-sol"),
+    messages,
+    threadId,
+    runId,
+    outputSchema: PersonSchema,
+    stream: true,
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+### 4. Read the object on the client
+
+Give `useChat` the same schema. Then read `final`:
+
+```tsx
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { PersonSchema } from "./schemas/person";
+
+export function PersonExtractor() {
+  const { sendMessage, isLoading, final } = useChat({
+    connection: fetchServerSentEvents("/api/extract-person"),
+    outputSchema: PersonSchema,
+  });
+
+  return (
+    <div>
+      <button
+        disabled={isLoading}
+        onClick={() => void sendMessage("John Doe is 30, john@example.com")}
+      >
+        Extract
+      </button>
+      {final && (
+        <p>
+          {final.name} ({final.age}): {final.email}
+        </p>
+      )}
+    </div>
+  );
+}
+```
+
+Click Extract. When the run ends, the card shows `John Doe (30): john@example.com`. `final.age` is a `number`, with no cast.
+
+Vue, Solid, Svelte, Angular, Preact, and Octane take the same `outputSchema` option and return the same `partial` and `final` values.
+
+## How it works
+
+1. TanStack AI converts your schema to JSON Schema.
+2. The adapter sends that JSON Schema to the native structured-output API of the provider.
+3. The server streams the JSON. The last event, `structured-output.complete`, holds the full object.
+4. `useChat` sets `final` from that event. TypeScript infers its type from the schema.
+
+## No UI? Await the object
+
+In a script, a CLI, or a server job, leave out `stream: true`. Then `chat()` returns a promise of the typed object:
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
-import { z } from "zod";
-
-const Person = z.object({ name: z.string(), age: z.number() });
+import { PersonSchema } from "./schemas/person";
 
 const person = await chat({
-  adapter: openaiText("gpt-5.5"),
-  messages: [{ role: "user", content: "John Doe, 30" }],
-  outputSchema: Person,
+  adapter: openaiText("gpt-6.1-sol"),
+  messages: [{ role: "user", content: "John Doe is 30, john@example.com" }],
+  outputSchema: PersonSchema,
 });
 
-person.name; // string — fully typed, no cast
-person.age;  // number
+console.log(person.name, person.age);
 ```
 
-## Schema Libraries
+## Pick your next page
 
-TanStack AI accepts any library that implements [Standard JSON Schema](https://standardschema.dev/json-schema):
+| You want to | Read |
+| --- | --- |
+| Extract one object, with field hints and error handling | [One-Shot Extraction](./one-shot) |
+| Fill a form or card field by field while the JSON streams | [Streaming UIs](./streaming) |
+| Fill a table from streamed rows in a TanStack Start app | [Streaming Structured Table](../tutorials/streaming-structured-table) |
+| Let the user change the object over many turns, and keep each version | [Multi-Turn Chat](./multi-turn) |
+| Call tools first, then return a typed object | [With Tools](./with-tools) |
+| Let a coding agent read files in a sandbox, then return a typed object | [Harness Agents](./harnesses) |
+
+## Advanced
+
+### Schema libraries
+
+`outputSchema` accepts any library that implements [Standard JSON Schema](https://standardschema.dev/json-schema):
 
 - [Zod](https://zod.dev/) (v4.2+)
 - [ArkType](https://arktype.io/)
-- [Valibot](https://valibot.dev/) (via `@valibot/to-json-schema`)
-- Plain JSON Schema objects (loses TypeScript type inference — see [One-Shot Extraction](./one-shot#using-plain-json-schema))
+- [Valibot](https://valibot.dev/) (with `@valibot/to-json-schema`)
+- Plain JSON Schema objects. You lose type inference. See [Using plain JSON Schema](./one-shot#using-plain-json-schema).
 
-Refer to your schema library's docs for field descriptions, refinements, and enums. TanStack AI converts the schema to JSON Schema automatically.
+For field descriptions, refinements, and enums, read the docs of your schema library. TanStack AI converts the schema to JSON Schema for you.
 
-## Provider Support
+### Provider support
 
-Every adapter handles structured output through its provider's native API:
+Each adapter uses the native structured-output API of its provider. The same `chat({ outputSchema })` call works with all of them.
 
 | Provider | Implementation |
-|---|---|
+| --- | --- |
 | OpenAI | `response_format` with `json_schema` |
 | Anthropic | Tool-based extraction |
 | Google Gemini | `responseSchema` |
 | Ollama | JSON mode with schema |
-| OpenRouter / Grok / Groq | `response_format` with `json_schema` |
-| Claude Code / Codex | Native schema flag on the same harness turn (`--json-schema` / `--output-schema`) |
-| OpenCode / Grok Build / ACP compatible | Same-turn prompt-and-parse |
+| OpenRouter, Grok, Groq | `response_format` with `json_schema` |
+| Claude Code, Codex | Native schema flag on the same harness turn (`--json-schema`, `--output-schema`) |
+| OpenCode, Grok Build, ACP compatible | Schema in the prompt, then the adapter parses the reply on the same turn |
 
-The provider-specific details are handled for you. The same `chat({ outputSchema })` call works across all of them. For a coding agent in a sandbox, see [Harness Agents](./harnesses).
+For a coding agent in a sandbox, see [Harness Agents](./harnesses).
 
 ### When strict JSON schema is rejected
 
-Some models reject strict JSON schema. They accept JSON mode (`response_format` type `json_object`) only. A strict request to one of these models fails before the model runs.
+Some models reject strict JSON schema. They accept only JSON mode (`response_format` type `json_object`). A strict request to one of these models fails before the model runs.
 
 The OpenRouter and Groq adapters find these models in their catalogs. For these models, `chat({ outputSchema })` does two things:
 
 - It sends JSON mode.
 - It adds your schema to the system prompt, because JSON mode does not send the schema.
 
-When your schema is a Standard Schema, such as Zod, `await chat({ outputSchema })` still checks the reply. JSON of the wrong shape throws. TanStack AI does not check a plain JSON Schema or a streamed reply. Check those in your own code.
+If your schema is a Standard Schema, such as Zod, `await chat({ outputSchema })` still validates the reply. JSON of the wrong shape throws. TanStack AI does not validate a plain JSON Schema or a streamed reply. Validate those in your own code.
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -86,8 +205,7 @@ const person = await chat({
   outputSchema: Person,
 });
 
-person.name;
-person.age;
+console.log(person.name, person.age);
 ```
 
 To send JSON mode to a model that is not in the catalog, set it in `modelOptions`:
@@ -97,77 +215,70 @@ To send JSON mode to a model that is not in the catalog, set it in `modelOptions
 
 ### Anthropic schema complexity limits
 
-Anthropic compiles a structured-output schema into a grammar and rejects schemas it considers too large or too complex with a 400 error — typically `Schema is too complex for compilation` or `output_config.format.schema: Invalid schema: The compiled grammar is too large`. This affects Claude models directly and `anthropic/*` models routed through OpenRouter, even when every other provider accepts the same schema.
+Anthropic compiles a structured-output schema into a grammar. It rejects a schema that is too large or too complex with a 400 error. Two common messages:
 
-If you hit one of these errors, simplify the schema. Complexity is driven less by overall size than by constructs that multiply the grammar's branching — common offenders:
+- `Schema is too complex for compilation`
+- `output_config.format.schema: Invalid schema: The compiled grammar is too large`
 
-- `.optional()` fields you don't strictly need
-- `.catch()` / `.default()` wrappers (they widen the accepted input)
+This applies to Claude models directly and to `anthropic/*` models on OpenRouter. Other providers can accept the same schema.
+
+If you get one of these errors, make the schema simpler. Constructs that add branches to the grammar cost more than size:
+
+- `.optional()` fields that you do not need
+- `.catch()` and `.default()` wrappers, because they widen the accepted input
 - Union types and deeply nested objects
-- Unconstrained optional strings — tighten with enums or formats where possible
+- Optional strings with no constraint. Use enums or formats where you can.
 
-Anthropic's exact limits change over time and aren't all published, so we deliberately don't reproduce the numbers here — see Anthropic's [structured outputs documentation](https://docs.claude.com/en/docs/build-with-claude/structured-outputs) for the current limits and reduction strategies.
+Anthropic changes its limits and does not publish all of them. For the current limits, read the Anthropic [structured outputs documentation](https://docs.claude.com/en/docs/build-with-claude/structured-outputs).
 
-## Which page do I read?
+### Where validation runs
 
-Pick the journey that matches what you're building. The guides under Structured Outputs cover separate use cases. Read the one that fits.
+Validation on the server depends on the path:
 
-| You want to… | Read |
-|---|---|
-| Extract one structured object from a single prompt — and consume it server-side (script, endpoint, CLI) or in a browser via `final` | [One-Shot Extraction](./one-shot) |
-| Build a UI that fills in field-by-field as the model streams (progressive form, live card, typewriter preview) | [Streaming UIs](./streaming) |
-| Walk through a Start app that fills a table from streamed rows | [Streaming Structured Table](../tutorials/streaming-structured-table) |
-| Let users iterate on a structured object across multiple turns — each turn produces a new typed object and history stays renderable | [Multi-Turn Chat](./multi-turn) |
-| Combine structured output with tool calls (agent loop that runs tools first, then returns a typed object) | [With Tools](./with-tools) |
-| Ask a coding agent in a sandbox to inspect files, then return a typed object | [Harness Agents](./harnesses) |
+- `await chat({ outputSchema })`: the engine validates the object with your Standard Schema when the run ends. A failure goes to the `onError` middleware hook, and the promise rejects.
+- `chat({ outputSchema, stream: true })`: the engine does not validate. Read the object from `value.object` on the `structured-output.complete` event, or call `parseWithStandardSchema` on the raw text yourself.
 
-The streaming and multi-turn paths both build on `useChat({ outputSchema })`. The "with tools" path layers on top of either. Pick the one that describes your shipping shape — start there, follow the cross-links when you need a piece of another story.
+On the client, the schema you give `useChat` is for TypeScript types and for the progressive parse of `partial`.
 
-> **Note:** Server-side validation is **path-dependent**. For the non-streaming agentic path (`await chat({ outputSchema })`), the engine runs Standard Schema validation inside the finalization step and routes failures through `onError` (the awaited promise rejects). For the streaming path (`chat({ outputSchema, stream: true })`), Standard Schema _validation_ is deliberately deferred to the consumer — consumers read the object from the `structured-output.complete` event's `value.object` field (or call `parseWithStandardSchema` themselves on the raw text). The schema you pass to `useChat({ outputSchema })` on the client is used for TypeScript inference and (in `useChat`) for client-side `parsePartialJSON`-based progressive parsing — the typed-object guarantee comes from the server-side path you pick.
->
-> On **both** paths the engine normalizes the captured object before it reaches you: to satisfy strict providers, optional fields are widened to `required` + nullable, so the provider returns `null` for an absent optional. The engine undoes exactly that widening — an `.optional()` field that came back `null` reads back as **absent** (matching `T | undefined`), while a genuine `.nullable()` field's `null` is **preserved**. So `value.object` (streaming) and the awaited result (non-streaming) both carry the un-widened shape your schema describes.
+### Optional fields come back absent
 
-## Middleware integration
+Strict providers need every field to be required. So the engine sends each optional field as required and nullable, and the provider returns `null` for a missing optional field. Before you get the object, the engine undoes this change:
 
-Middleware configured on `chat()` now observes the final structured-output
-provider call in addition to the agent loop. Chunks from the structured-output
-adapter are attributed to `ctx.phase === 'structuredOutput'`; `onFinish` fires
-exactly once at the end of the entire run.
+- An `.optional()` field that came back `null` is absent, which matches `T | undefined`.
+- A `.nullable()` field keeps its `null`.
 
-> **Path-dependent:** Adapters that natively combine `tools` + a schema-
-> constrained final answer in one streaming call do **not** issue a separate
-> finalization round-trip. The engine wires `outputSchema` into the regular
-> `chatStream` request and harvests the structured result from the agent
-> loop's final-turn text. On this path the `'structuredOutput'` middleware
-> phase does **not** fire — middleware sees the run through `'beforeModel'`
-> / `'modelStream'` as usual, and `onStructuredOutputConfig` is not invoked.
->
-> **Native combined providers:**
-> - Modern OpenAI (Chat Completions + Responses)
-> - Anthropic Claude 4.5+
-> - Gemini 3.x
-> - Grok 4.x family
-> - OpenRouter, when every routed model is in
->   `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS` (see the
->   [OpenRouter adapter](../adapters/openrouter.md#tools-and-structured-output-together))
->
-> **Adapters without native combined-mode support** (Anthropic 4.4-, Gemini
-> 2.x, Grok 2/3, Groq, Ollama, and OpenRouter models outside that set) keep
-> the legacy finalization path and the `'structuredOutput'` phase fires as
-> before.
+This applies to the awaited result and to `value.object` on the stream.
 
-### Observing structured-output chunks
+### Middleware
+
+Middleware on `chat()` sees the agent loop and the final structured-output call. Chunks from that final call have `ctx.phase === "structuredOutput"`. `onFinish` fires once, at the end of the full run.
+
+Some adapters return tool calls and the schema-constrained answer in one streaming request. On these adapters there is no separate final call:
+
+- The engine adds `outputSchema` to the normal request and reads the object from the text of the last turn.
+- The `"structuredOutput"` phase does not fire. Middleware sees the run through `"beforeModel"` and `"modelStream"`.
+- `onStructuredOutputConfig` does not run.
+
+Adapters with this combined mode:
+
+- OpenAI (Chat Completions and Responses)
+- Anthropic Claude 4.5 and newer
+- Gemini 3.x
+- Grok 4.x
+- OpenRouter, when every routed model is in `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`. See the [OpenRouter adapter](../adapters/openrouter.md#tools-and-structured-output-together).
+
+Other adapters make a separate final call, and the `"structuredOutput"` phase fires. These include Anthropic 4.4 and older, Gemini 2.x, Grok 2 and 3, Groq, Ollama, and OpenRouter models outside that set.
+
+To see the structured-output chunks, read `ctx.phase` in `onChunk`:
 
 ```ts
-import { chat } from "@tanstack/ai";
 import type { ChatMiddleware } from "@tanstack/ai";
 import { span } from "./span";
 
 const tracing: ChatMiddleware = {
   name: "tracing",
   onChunk(ctx, chunk) {
-    // Fires for chunks from the agent loop AND the final structured-output call
-    // chunk.type narrows inside a conditional — use a discriminant check first:
+    // Fires for chunks from the agent loop and from the final structured-output call.
     if ("type" in chunk) {
       span.addEvent("chunk", { phase: ctx.phase, type: chunk.type });
     }
@@ -175,9 +286,7 @@ const tracing: ChatMiddleware = {
 };
 ```
 
-### Transforming the JSON Schema before the provider call
-
-Use the `onStructuredOutputConfig` hook when you need to mutate the schema:
+To change the JSON Schema before the provider call, use `onStructuredOutputConfig`:
 
 ```ts
 import type { ChatMiddleware } from "@tanstack/ai";
@@ -193,5 +302,4 @@ const injectDefs: ChatMiddleware = {
 };
 ```
 
-See [Advanced: Middleware](../advanced/middleware.md) for the full hook
-reference.
+For all hooks, see [Middleware](../advanced/middleware.md).

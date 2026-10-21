@@ -11,14 +11,18 @@ keywords:
   - example
 ---
 
-Use `defineInterrupt` when the question is not about approving a tool. The server pauses the run and asks. Your component answers.
+Sometimes the run needs an answer that is not a tool approval: pick a plan, choose a date, confirm an address. Define the question with `defineInterrupt`. The server pauses the run and asks, and your component answers.
 
 Two schemas define the exchange:
 
-1. `payloadSchema` is what the server sends you.
-2. `responseSchema` is what you send back.
+- `payloadSchema`: what the server sends to you.
+- `responseSchema`: what you send back.
 
-## Define it
+This page covers the UI. To pause a run on the server, read [Generic interrupts](../../interrupts/generic).
+
+## Full example
+
+1. Define the interrupt. The server sends a list of plan names. You send one name back.
 
 ```tsx group=plan-interrupt
 import { defineInterrupt } from '@tanstack/ai'
@@ -33,11 +37,7 @@ export const choosePlan = defineInterrupt({
 })
 ```
 
-The server sends a list of plan names. You send one name back.
-
-## Render it
-
-Add the interrupt to `chatOptions`, then register a component under `interruptsComponents.generic`. The key is the interrupt id.
+2. Add it to `interrupts` in `chatOptions`. Register a component under its id in `interruptsComponents.generic`, and render `Interrupts` in the layout:
 
 ```tsx group=plan-interrupt
 import { fetchServerSentEvents } from '@tanstack/ai-react'
@@ -86,22 +86,23 @@ export function PlanChat() {
 }
 ```
 
-`interrupt.payload` matches your `payloadSchema`, so `options` is a string array. `resolveInterrupt` accepts only what your `responseSchema` allows, so passing a number here is a compile error.
+When the server asks, the plan buttons show in the interrupt list.
 
-## Generic interrupts always render in the list
+## How it works
 
-A tool approval can render next to its tool. A generic interrupt cannot, because no tool owns it. Render `Interrupts` in your layout or it never appears.
+- `interrupt.payload` matches your `payloadSchema`, so `options` is a string array.
+- `resolveInterrupt` accepts only what your `responseSchema` allows. Passing a number here is a compile error.
+- No tool owns a generic interrupt, so it always renders in `Interrupts`. If the layout does not render `Interrupts`, the question never shows.
 
 ## Always register a fallback
 
 `fallback` catches two things:
 
-1. An interrupt id you did not register.
-2. An unbound interrupt, which arrives with no id at all.
+- An interrupt id that you did not register.
+- An unbound interrupt. Something outside this chat owns it, so it cannot be answered here.
 
-Branch on `interrupt.kind === 'unbound'` when the copy must differ.
+If the copy must be different, branch on `interrupt.kind === 'unbound'`.
 
 ## Next
 
-- Approving a tool instead? See [tool approval](./tool-approval).
-- More interrupt shapes and the protocol behind them: [generic interrupts](../../interrupts/generic).
+- Approving a tool instead? Read [Ask before a tool runs](./tool-approval).
