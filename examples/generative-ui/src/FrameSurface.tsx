@@ -8,6 +8,28 @@ interface LibraryEntry {
   revision: number
   title: string
   kind: string
+  dataSource?: { name: string; params?: Record<string, unknown> }
+}
+
+/** Open an SSE stream to a host data source and push each value into the frame. */
+function liveSubscription(ds: {
+  name: string
+  params?: Record<string, unknown>
+}) {
+  const qs = new URLSearchParams({ source: ds.name })
+  if (ds.params) qs.set('params', JSON.stringify(ds.params))
+  const href = `/api/live?${qs.toString()}`
+  return (emit: (data: unknown) => void) => {
+    const es = new EventSource(href)
+    es.onmessage = (e) => {
+      try {
+        emit(JSON.parse(e.data))
+      } catch {
+        // ignore malformed frame
+      }
+    }
+    return () => es.close()
+  }
 }
 
 interface LogLine {
@@ -85,6 +107,9 @@ export function FrameSurface() {
                   sandboxUrl={sandboxUrl}
                   title={a.title}
                   minHeight={120}
+                  subscribeData={
+                    a.dataSource ? liveSubscription(a.dataSource) : undefined
+                  }
                   onStateChange={(s) =>
                     push({
                       kind: 'state',

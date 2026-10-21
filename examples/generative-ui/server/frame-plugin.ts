@@ -160,6 +160,7 @@ export function frameApiPlugin(): Plugin {
               title: r.title,
               kind: r.kind,
               driver: r.provenance.driver,
+              dataSource: r.dataSource,
             }))
             res.setHeader('Content-Type', 'application/json')
             res.end(JSON.stringify({ artifacts }))

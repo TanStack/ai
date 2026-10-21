@@ -1,2 +1,7 @@
 # Persistent Tier F artifact store (model-authored + seeded artifacts)
 .data/
+
+# Playwright E2E
+test-results/
+playwright-report/
+.playwright/

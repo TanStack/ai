@@ -8,7 +8,8 @@
     "dev:vite": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:types": "tsc --noEmit"
+    "test:types": "tsc --noEmit",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@mcp-ui/client": "^7.1.1",
@@ -24,6 +25,7 @@
     "react-dom": "^19.2.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@tailwindcss/vite": "^4.1.18",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
