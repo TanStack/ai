@@ -12,8 +12,7 @@ type ItemInterruptErrorCode =
   | "unknown-interrupt"
   | "expired"
   | "stale"
-  | "conflict"
-  | "legacy-unsupported";
+  | "conflict";
 ```
 
-Defined in: [packages/ai/src/interrupts.ts:16](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L16)
+Defined in: packages/ai/src/interrupts.ts:16

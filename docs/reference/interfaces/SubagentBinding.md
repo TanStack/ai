@@ -3,7 +3,7 @@ id: SubagentBinding
 title: SubagentBinding
 ---
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:45](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L45)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:45
 
 What a host adds to every activity call an agent makes through `ctx`. Apps
 using plain `chat({ subagents })` do not set it.
@@ -16,7 +16,7 @@ using plain `chat({ subagents })` do not set it.
 optional budget?: SubagentBudget;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:60](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L60)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:60
 
 The subagent tree budget. A child's `ctx.chat({ subagents })` passes it
 down, so limits hold across the whole tree.
@@ -29,7 +29,7 @@ down, so limits hold across the whole tree.
 optional chatMiddleware?: readonly AnyChatMiddleware[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:50](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L50)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:50
 
 Added before the call's own middleware on every `ctx.chat` call. A
 child's `ctx.chat({ subagents })` passes it down to its own children.
@@ -42,7 +42,7 @@ child's `ctx.chat({ subagents })` passes it down to its own children.
 optional generationMiddleware?: readonly GenerationMiddleware<unknown>[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:55](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L55)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:55
 
 Added before the call's own middleware on every generation call. A
 child's `ctx.chat({ subagents })` passes it down to its own children.
@@ -55,7 +55,7 @@ child's `ctx.chat({ subagents })` passes it down to its own children.
 optional keys?: ProviderKeys;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:66](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L66)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:66
 
 The provider keys an agent reads as `ctx.keys`. `subagents.keys` sets
 them. A child's `ctx.chat({ subagents })` passes them down to its own
@@ -69,7 +69,7 @@ children. Without them, `ctx.keys` reads each provider's `env` names.
 optional promptCache?: PromptCacheRetention;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:71](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L71)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:71
 
 The prompt cache retention of the parent call. A child's `ctx.chat()`
 uses it when the call gives no `promptCache`.
@@ -85,7 +85,7 @@ optional start?: (call, options) => Promise<{
 }>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:78](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L78)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:78
 
 Starts a child without waiting for it and returns its id at once. The
 agent tools call it for `background: true`. With

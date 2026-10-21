@@ -1272,7 +1272,7 @@ async function* translateInteractionEvents(
     yield {
       type: EventType.TOOL_CALL_END,
       toolCallId,
-      toolName: state.name,
+      toolCallName: state.name,
       model,
       timestamp,
       ...end,
@@ -1360,7 +1360,6 @@ async function* translateInteractionEvents(
               type: EventType.TOOL_CALL_START,
               toolCallId,
               toolCallName: state.name,
-              toolName: state.name,
               // Bind the tool call to the same assistant message id the
               // eventual TEXT_MESSAGE_START uses so the message id stays
               // stable when a function_call arrives before any text (#477).

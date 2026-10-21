@@ -7,7 +7,7 @@ title: keyedAdapters
 function keyedAdapters<TMap>(map): { [K in string | number | symbol]: TMap[K] extends KeyedAdapter<A> ? KeyedAdapter<A> : TMap[K] extends (key: string) => A ? KeyedAdapter<A> : never };
 ```
 
-Defined in: [packages/ai/src/byok/keyed.ts:113](https://github.com/TanStack/ai/blob/main/packages/ai/src/byok/keyed.ts#L113)
+Defined in: packages/ai/src/byok/keyed.ts:113
 
 Keyed adapters for several providers in one map. The map key is the
 provider id, so a key goes only to the factory of its own provider. An

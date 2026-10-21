@@ -312,7 +312,6 @@ export class FakeTextAdapter<
         type: EventType.TOOL_CALL_START,
         toolCallId,
         toolCallName: call.name,
-        toolName: call.name,
         model,
         timestamp: Date.now(),
         index,

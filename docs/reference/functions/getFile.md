@@ -7,7 +7,7 @@ title: getFile
 function getFile<TName>(options): Promise<FileHandle<TName>>;
 ```
 
-Defined in: [packages/ai/src/activities/files/index.ts:49](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/files/index.ts#L49)
+Defined in: packages/ai/src/activities/files/index.ts:49
 
 Fetch metadata for a previously uploaded file. Accepts the handle itself
 (preferred — the provider-literal type rejects a foreign provider's handle

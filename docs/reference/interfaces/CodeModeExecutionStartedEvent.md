@@ -3,7 +3,7 @@ id: CodeModeExecutionStartedEvent
 title: CodeModeExecutionStartedEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1902](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1902)
+Defined in: packages/ai/src/types.ts:1834
 
 Custom event for extensibility.
 
@@ -21,7 +21,7 @@ Custom event for extensibility.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1783](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1783)
+Defined in: packages/ai/src/types.ts:1755
 
 Extra information attached to this event.
 
@@ -37,7 +37,7 @@ Extra information attached to this event.
 name: "code_mode:execution_started";
 ```
 
-Defined in: [packages/ai/src/types.ts:1903](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1903)
+Defined in: packages/ai/src/types.ts:1835
 
 What this custom event is. Required: without it a consumer cannot route
 the value.
@@ -56,7 +56,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1782](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1782)
+Defined in: packages/ai/src/types.ts:1754
 
 #### Inherited from
 
@@ -70,7 +70,7 @@ Defined in: [packages/ai/src/types.ts:1782](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1904](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1904)
+Defined in: packages/ai/src/types.ts:1836
 
 The payload. Any JSON value, and required.
 

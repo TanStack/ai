@@ -7,4 +7,4 @@ title: AnyFilesAdapter
 type AnyFilesAdapter = FilesAdapter<string>;
 ```
 
-Defined in: [packages/ai/src/activities/files/adapter.ts:83](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/files/adapter.ts#L83)
+Defined in: packages/ai/src/activities/files/adapter.ts:83

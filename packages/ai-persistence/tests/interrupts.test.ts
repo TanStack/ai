@@ -152,7 +152,6 @@ const toolStart = (parentMessageId?: string): AdapterYieldChunk => ({
   type: EventType.TOOL_CALL_START,
   toolCallId: 'tool-call-1',
   toolCallName: 'clientSearch',
-  toolName: 'clientSearch',
   timestamp: 1,
   ...(parentMessageId ? { parentMessageId } : {}),
 })

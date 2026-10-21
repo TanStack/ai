@@ -4042,7 +4042,6 @@ class TextEngine<
           timestamp: Date.now(),
           toolCallId: result.toolCallId,
           toolCallName: result.toolName,
-          toolName: result.toolName,
         })
 
         const args = argsMap.get(result.toolCallId) ?? '{}'

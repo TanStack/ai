@@ -3,7 +3,7 @@ id: ErrorInfo
 title: ErrorInfo
 ---
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:609](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L609)
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:603
 
 Information passed to onError.
 
@@ -15,7 +15,7 @@ Information passed to onError.
 duration: number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:613](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L613)
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:607
 
 Duration until error in milliseconds
 
@@ -27,6 +27,6 @@ Duration until error in milliseconds
 error: unknown;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:611](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L611)
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:605
 
 The error that caused the failure

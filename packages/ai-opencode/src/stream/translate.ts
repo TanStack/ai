@@ -281,7 +281,6 @@ export async function* translateOpencodeStream(
       type: EventType.TOOL_CALL_START,
       toolCallId: part.callID,
       toolCallName,
-      toolName: toolCallName,
       model,
       timestamp: now(),
     }
@@ -297,7 +296,6 @@ export async function* translateOpencodeStream(
       type: EventType.TOOL_CALL_END,
       toolCallId: part.callID,
       toolCallName,
-      toolName: toolCallName,
       model,
       timestamp: now(),
       input,

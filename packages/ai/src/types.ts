@@ -1674,8 +1674,6 @@ export interface ToolCallStartEvent extends Omit<
   'type'
 > {
   type: 'TOOL_CALL_START'
-  /** Alias of `toolCallName`. Kept so existing stream readers still compile. */
-  toolName?: string
   /** Provider-specific metadata to carry into the ToolCall. */
   metadata?: Record<string, any>
 }

@@ -3,7 +3,7 @@ id: MCPToolSource
 title: MCPToolSource
 ---
 
-Defined in: [packages/ai/src/activities/chat/mcp/types.ts:25](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L25)
+Defined in: packages/ai/src/activities/chat/mcp/types.ts:25
 
 Minimal structural shape that `chat({ mcp })` needs from an MCP client.
 
@@ -19,7 +19,7 @@ shape — the core `@tanstack/ai` package does NOT import `@tanstack/ai-mcp`
 close: () => Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/mcp/types.ts:30](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L30)
+Defined in: packages/ai/src/activities/chat/mcp/types.ts:30
 
 #### Returns
 
@@ -33,7 +33,7 @@ Defined in: [packages/ai/src/activities/chat/mcp/types.ts:30](https://github.com
 optional readResource?: (uri) => Promise<McpResourceReadResult>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/mcp/types.ts:38](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L38)
+Defined in: packages/ai/src/activities/chat/mcp/types.ts:38
 
 Reads an MCP resource by URI. Used by the chat manager to eagerly fetch
 `ui://` resource widgets (MCP Apps) after a tool result resolves.
@@ -59,7 +59,7 @@ this method. `ai-mcp`'s `MCPClient` satisfies this structurally.
 tools: (options?) => Promise<AnyServerTool[]>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/mcp/types.ts:29](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L29)
+Defined in: packages/ai/src/activities/chat/mcp/types.ts:29
 
 #### Parameters
 

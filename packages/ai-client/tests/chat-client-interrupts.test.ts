@@ -419,55 +419,23 @@ describe('InterruptManager hydration', () => {
     expect(manager.getInterrupts()[0]?.kind).toBe('generic')
   })
 
-  it('keeps deprecated approval and client-tool reason aliases compatible', () => {
-    const approval = normalizeApprovalSchema(
-      transferDefinition.approvalSchema,
-      transferDefinition.inputSchema,
-    )
-    const approvalBinding: InterruptBinding = {
-      v: INTERRUPT_BINDING_VERSION,
-      kind: 'tool-approval',
-      interruptId: 'approval-legacy',
-      interruptedRunId: 'run-legacy',
-      generation: 1,
-      toolName: 'transfer',
-      toolCallId: 'call-approval-legacy',
-      originalArgs: { cents: 100 },
-      inputSchemaHash: hashSchemaInput(transferDefinition.inputSchema),
-      approvalSchemaHash: approval.approvalSchemaHash,
-      responseSchemaHash: approval.responseSchemaHash,
-    }
-    const outputSchemaHash = hashSchemaInput(lookupDefinition.outputSchema)
-    const clientBinding: InterruptBinding = {
-      v: INTERRUPT_BINDING_VERSION,
-      kind: 'client-tool-execution',
-      interruptId: 'client-legacy',
-      interruptedRunId: 'run-legacy',
-      generation: 1,
-      toolName: 'lookup',
-      toolCallId: 'call-client-legacy',
-      outputSchemaHash,
-      responseSchemaHash: outputSchemaHash,
-    }
+  it('gives the 0.x approval and client-tool reasons no special meaning', () => {
     const { manager } = createManager()
 
     manager.hydrate({
-      threadId: 'thread-legacy',
-      interruptedRunId: 'run-legacy',
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
       generation: 1,
       interrupts: [
-        descriptor(approvalBinding, {
-          reason: 'approval_required',
-          responseSchema: approval.responseSchema,
-        }),
-        descriptor(clientBinding, { reason: 'client_tool_input' }),
+        { id: 'approval-1', reason: 'approval_required', toolCallId: 'call-1' },
+        { id: 'client-1', reason: 'client_tool_input', toolCallId: 'call-2' },
       ],
     })
 
-    // The legacy client-tool alias hydrates internally but stays out of the
-    // public bound array; only the approval is surfaced.
+    // Only the binding decides the kind. Without one, both are unbound.
     expect(manager.getInterrupts().map((interrupt) => interrupt.kind)).toEqual([
-      'tool-approval',
+      'unbound',
+      'unbound',
     ])
   })
 

@@ -1109,7 +1109,7 @@ describe('chat()', () => {
       expect(searchExecute).toHaveBeenCalledTimes(1)
 
       // TOOL_CALL_RESULT with content should be emitted for the server tool
-      // (TOOL_CALL_END is also emitted but `result`/`toolName` are stripped by strip-to-spec middleware)
+      // (TOOL_CALL_END is also emitted but `result` is stripped by strip-to-spec middleware)
       const toolResultChunks = chunks.filter(
         (c) =>
           c.type === 'TOOL_CALL_RESULT' && 'content' in c && (c as any).content,
@@ -1198,7 +1198,7 @@ describe('chat()', () => {
       expect(weatherExecute).toHaveBeenCalledTimes(1)
 
       // TOOL_CALL_RESULT with content should be emitted for the server tool
-      // (TOOL_CALL_END is also emitted but `result`/`toolName` are stripped by strip-to-spec middleware)
+      // (TOOL_CALL_END is also emitted but `result` is stripped by strip-to-spec middleware)
       const toolResultChunks = chunks.filter(
         (c) =>
           c.type === 'TOOL_CALL_RESULT' && 'content' in c && (c as any).content,
@@ -2970,7 +2970,7 @@ describe('chat()', () => {
       ).toEqual([EventType.TOOL_CALL_RESULT])
     })
 
-    it('should replace pendingExecution placeholder with the real tool result and supply both toolCallName/toolName (issue #532)', async () => {
+    it('should replace pendingExecution placeholder with the real tool result (issue #532)', async () => {
       const executeSpy = vi.fn().mockReturnValue({ status: 'ok' })
 
       const { adapter, calls } = createMockAdapter({
@@ -4926,7 +4926,7 @@ describe('chat()', () => {
       expect((runFinished as any).threadId).toBe('thread-1')
     })
 
-    it('should keep spec toolCallName on TOOL_CALL_START and drop toolName', async () => {
+    it('should keep spec toolCallName on TOOL_CALL_START', async () => {
       const { adapter } = createMockAdapter({
         iterations: [
           [
@@ -4961,7 +4961,6 @@ describe('chat()', () => {
       const toolStartChunks = chunks.filter((c) => c.type === 'TOOL_CALL_START')
       for (const toolStart of toolStartChunks) {
         expect(toolStart.toolCallName).toBe('get_weather')
-        expect(toolStart.toolName).toBe('get_weather')
       }
     })
 

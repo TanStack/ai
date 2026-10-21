@@ -3,7 +3,7 @@ id: UsageInfo
 title: UsageInfo
 ---
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:560](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L560)
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:554
 
 Token usage statistics passed to the onUsage hook.
 Extracted from the RUN_FINISHED chunk when usage data is present.

@@ -135,7 +135,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter — usage-only terminal chunk', (
     expect(toolEnd).toBeDefined()
     if (toolEnd?.type === EventType.TOOL_CALL_END) {
       expect(toolEnd.toolCallId).toBe('call_1')
-      expect(toolEnd.toolName).toBe('get_weather')
+      expect(toolEnd.toolCallName).toBe('get_weather')
     }
 
     const runFinished = chunks.find((c) => c.type === EventType.RUN_FINISHED)
@@ -203,7 +203,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter — usage-only terminal chunk', (
     expect(toolEnd).toBeDefined()
     if (toolEnd?.type === EventType.TOOL_CALL_END) {
       expect(toolEnd.toolCallId).toBe('call_1')
-      expect(toolEnd.toolName).toBe('get_weather')
+      expect(toolEnd.toolCallName).toBe('get_weather')
       expect(toolEnd.input).toEqual({ location: 'Berlin' })
     }
 

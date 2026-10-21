@@ -3,7 +3,7 @@ id: SummarizationOptions
 title: SummarizationOptions
 ---
 
-Defined in: [packages/ai/src/types.ts:2214](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2214)
+Defined in: packages/ai/src/types.ts:2137
 
 ## Type Parameters
 
@@ -19,7 +19,7 @@ Defined in: [packages/ai/src/types.ts:2214](https://github.com/TanStack/ai/blob/
 optional abortSignal?: AbortSignal;
 ```
 
-Defined in: [packages/ai/src/types.ts:2244](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2244)
+Defined in: packages/ai/src/types.ts:2167
 
 Effective abort signal composed by the activity from caller `abortSignal`
 and/or `timeout`. Adapters should forward this to the provider SDK when
@@ -33,7 +33,7 @@ supported. Request-specific — never store on a global client config.
 optional focus?: string[];
 ```
 
-Defined in: [packages/ai/src/types.ts:2221](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2221)
+Defined in: packages/ai/src/types.ts:2144
 
 ***
 
@@ -43,7 +43,7 @@ Defined in: [packages/ai/src/types.ts:2221](https://github.com/TanStack/ai/blob/
 logger: InternalLogger;
 ```
 
-Defined in: [packages/ai/src/types.ts:2238](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2238)
+Defined in: packages/ai/src/types.ts:2161
 
 Internal logger threaded from the summarize() entry point. Adapters must
 call logger.request() before the SDK call and logger.errors() in catch blocks.
@@ -56,7 +56,7 @@ call logger.request() before the SDK call and logger.errors() in catch blocks.
 optional maxLength?: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:2219](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2219)
+Defined in: packages/ai/src/types.ts:2142
 
 ***
 
@@ -66,7 +66,7 @@ Defined in: [packages/ai/src/types.ts:2219](https://github.com/TanStack/ai/blob/
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2217](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2217)
+Defined in: packages/ai/src/types.ts:2140
 
 ***
 
@@ -76,7 +76,7 @@ Defined in: [packages/ai/src/types.ts:2217](https://github.com/TanStack/ai/blob/
 optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: [packages/ai/src/types.ts:2223](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2223)
+Defined in: packages/ai/src/types.ts:2146
 
 Provider-specific options forwarded by the summarize() activity.
 
@@ -88,7 +88,7 @@ Provider-specific options forwarded by the summarize() activity.
 optional runId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2232](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2232)
+Defined in: packages/ai/src/types.ts:2155
 
 Run identity forwarded from the summarize() activity. When set, the
 streaming adapter stamps it onto the emitted `RUN_STARTED` (via the wrapped
@@ -105,7 +105,7 @@ their own.
 optional style?: "bullet-points" | "paragraph" | "concise";
 ```
 
-Defined in: [packages/ai/src/types.ts:2220](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2220)
+Defined in: packages/ai/src/types.ts:2143
 
 ***
 
@@ -115,7 +115,7 @@ Defined in: [packages/ai/src/types.ts:2220](https://github.com/TanStack/ai/blob/
 text: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2218](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2218)
+Defined in: packages/ai/src/types.ts:2141
 
 ***
 
@@ -125,4 +125,4 @@ Defined in: [packages/ai/src/types.ts:2218](https://github.com/TanStack/ai/blob/
 optional threadId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2233](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2233)
+Defined in: packages/ai/src/types.ts:2156

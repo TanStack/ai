@@ -7,7 +7,7 @@ title: ToolDefinitionConfig
 type ToolDefinitionConfig<TInput, TOutput, TName, TNeedsApproval, TApprovalSchema> = object & ApprovalConfig<TNeedsApproval, TApprovalSchema>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:215](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L215)
+Defined in: packages/ai/src/activities/chat/tools/tool-definition.ts:215
 
 Tool definition configuration
 

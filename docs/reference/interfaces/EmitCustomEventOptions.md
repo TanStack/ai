@@ -3,7 +3,7 @@ id: EmitCustomEventOptions
 title: EmitCustomEventOptions
 ---
 
-Defined in: [packages/ai/src/types.ts:847](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L847)
+Defined in: packages/ai/src/types.ts:847
 
 Options for a single `emitCustomEvent` call, on both the tool-execution and
 middleware contexts.
@@ -16,7 +16,7 @@ middleware contexts.
 optional batch?: boolean;
 ```
 
-Defined in: [packages/ai/src/types.ts:856](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L856)
+Defined in: packages/ai/src/types.ts:856
 
 Keep this event in the durability batch with later chunks.
 CUSTOM events flush as soon as they are emitted, so a progress

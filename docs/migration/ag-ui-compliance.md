@@ -269,7 +269,7 @@ for await (const chunk of stream) {
 
 - **Wire events.** The spec fields stay at the top. The TanStack fields go in `metadata.tanstack`. For custom servers, see [Event metadata](../protocol/metadata).
 - **Wire messages.** They use `content`, `toolCalls`, and extra `role: "tool"` and `role: "reasoning"` messages. They have no `parts` field.
-- **`chat()` chunks.** In-process `chat()` still yields `toolName`, `TOOL_CALL_END.input`, and the TanStack `TokenUsage` (`promptTokens`). The SSE and HTTP wire changes `usage` to the spec array (`inputTokens`).
+- **`chat()` chunks.** In-process `chat()` still yields `TOOL_CALL_END.input` and the TanStack `TokenUsage` (`promptTokens`). The SSE and HTTP wire changes `usage` to the spec array (`inputTokens`).
 - **Usage in middleware.** `onUsage` still gets the TanStack `TokenUsage` (`promptTokens`, `completionTokens`).
 
 For the `for await` loop, see [Stream Events](../chat/stream-events). For `onUsage`, see [Middleware](../advanced/middleware).

@@ -3,7 +3,7 @@ id: RunErrorEvent
 title: RunErrorEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1648](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1648)
+Defined in: packages/ai/src/types.ts:1622
 
 Emitted when an error occurs during a run.
 
@@ -23,7 +23,7 @@ Spec `usage[]` is provider/model token counts. Interrupt errors live in
 optional error?: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1661](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1661)
+Defined in: packages/ai/src/types.ts:1635
 
 Nested payload kept for in-process / durability consumers.
 
@@ -47,7 +47,7 @@ message: string;
 optional metadata?: object & Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1668](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1668)
+Defined in: packages/ai/src/types.ts:1642
 
 #### Type Declaration
 
@@ -65,7 +65,7 @@ optional tanstack?: TanStackRunMetadata;
 optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1659](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1659)
+Defined in: packages/ai/src/types.ts:1633
 
 Restored on the client from `metadata.tanstack`.
 
@@ -77,7 +77,7 @@ Restored on the client from `metadata.tanstack`.
 optional retryAfterMs?: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:1667](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1667)
+Defined in: packages/ai/src/types.ts:1641
 
 How long the provider asks you to wait before a retry, in milliseconds.
 Adapters read it from the `retry-after-ms` or `retry-after` header.
@@ -91,7 +91,7 @@ Adapters read it from the `retry-after-ms` or `retry-after` header.
 optional runId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1657](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1657)
+Defined in: packages/ai/src/types.ts:1631
 
 Restored on the client from `metadata.tanstack`.
 
@@ -103,7 +103,7 @@ Restored on the client from `metadata.tanstack`.
 optional threadId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1655](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1655)
+Defined in: packages/ai/src/types.ts:1629
 
 Restored on the client from `metadata.tanstack`.
 
@@ -115,7 +115,7 @@ Restored on the client from `metadata.tanstack`.
 type: RUN_ERROR;
 ```
 
-Defined in: [packages/ai/src/types.ts:1652](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1652)
+Defined in: packages/ai/src/types.ts:1626
 
 ***
 
@@ -125,4 +125,4 @@ Defined in: [packages/ai/src/types.ts:1652](https://github.com/TanStack/ai/blob/
 optional usage?: TokenUsage<ProviderUsageDetails> | TokenUsage[];
 ```
 
-Defined in: [packages/ai/src/types.ts:1653](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1653)
+Defined in: packages/ai/src/types.ts:1627

@@ -12,7 +12,7 @@ type SystemPrompt<TMetadata> =
 };
 ```
 
-Defined in: [packages/ai/src/system-prompts.ts:39](https://github.com/TanStack/ai/blob/main/packages/ai/src/system-prompts.ts#L39)
+Defined in: packages/ai/src/system-prompts.ts:39
 
 A single entry in `chat({ systemPrompts: [...] })`.
 

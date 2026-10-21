@@ -7,7 +7,7 @@ title: streamToText
 function streamToText(stream): Promise<ChatResult>;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:60](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L60)
+Defined in: packages/ai/src/stream-to-response.ts:60
 
 Read a StreamChunk async iterable to the end and return its text and chunks.
 

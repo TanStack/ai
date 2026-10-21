@@ -538,8 +538,8 @@ createGeminiChat('gemini-3.8-flash', process.env.GOOGLE_API_KEY!, {
 
 ### a. HIGH: Confusing legacy monolithic with tree-shakeable adapter
 
-The legacy `openai()` (and `anthropic()`, etc.) monolithic adapters are
-deprecated. They take the model in `chat()`, not in the factory.
+The legacy `openai()` (and `anthropic()`, etc.) monolithic adapters were
+removed in 1.0. They took the model in `chat()`, not in the factory.
 
 ```typescript ignore
 // WRONG: Legacy monolithic adapter pattern (no longer exported)

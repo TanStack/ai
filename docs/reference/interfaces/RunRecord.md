@@ -3,7 +3,7 @@ id: RunRecord
 title: RunRecord
 ---
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:106](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L106)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:106
 
 Durable bookkeeping for a single run.
 
@@ -15,7 +15,7 @@ Durable bookkeeping for a single run.
 optional activity?: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:186](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L186)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:186
 
 The activity of a `kind: 'activity'` run (`'image'`, `'chat'`, ...).
 
@@ -27,7 +27,7 @@ The activity of a `kind: 'activity'` run (`'image'`, `'chat'`, ...).
 optional agent?: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:188](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L188)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:188
 
 The agent name of a `kind: 'agent'` run.
 
@@ -39,7 +39,7 @@ The agent name of a `kind: 'agent'` run.
 optional artifacts?: RunArtifactRef[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:192](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L192)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:192
 
 Durable artifact references produced by this run.
 
@@ -51,7 +51,7 @@ Durable artifact references produced by this run.
 optional cancelRequested?: boolean;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:168](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L168)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:168
 
 Set by an explicit out-of-band cancel, to be distinguished from a mere
 client disconnect (the two produce an identical TCP close, so intent is not
@@ -69,7 +69,7 @@ the run having stopped, and only the driver knows when it has.
 optional checkpoint?: RunCheckpoint;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:203](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L203)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:203
 
 Crash-resume data saved at the last model or tool boundary.
 
@@ -81,7 +81,7 @@ Crash-resume data saved at the last model or tool boundary.
 optional detachedSince?: number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:158](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L158)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:158
 
 Epoch ms when the last viewer detached; absent while someone is attached.
 Written by `withSandbox`'s detach path (`onAbort` in `@tanstack/ai-sandbox`'s
@@ -99,7 +99,7 @@ surfaces (see that method's doc comment).
 optional driverEpoch?: number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:178](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L178)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:178
 
 Monotonic fencing token for the run's driver. Bumped by each host that
 successfully claims the run (see `withRunClaim` in `@tanstack/ai-sandbox`),
@@ -117,7 +117,7 @@ loser nothing to read. Absent on a run that was never claimed.
 optional error?: RunError;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:137](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L137)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:137
 
 ***
 
@@ -127,7 +127,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:137](https:
 optional finishedAt?: number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:136](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L136)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:136
 
 ***
 
@@ -137,7 +137,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:136](https:
 optional kind?: RunKind;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:184](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L184)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:184
 
 What kind of work this run is, when a host session recorded it:
 a chat turn, an agent run, one activity call inside an agent, a user
@@ -151,7 +151,7 @@ command, or a compaction. Absent on runs recorded by plain `chat()`.
 optional leaseExpiresAt?: number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:201](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L201)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:201
 
 ***
 
@@ -161,7 +161,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:201](https:
 optional leaseOwner?: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:200](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L200)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:200
 
 The host that currently drives this run, and when its claim expires. The
 driver renews `leaseExpiresAt`. Another host may resume the run after it
@@ -175,7 +175,7 @@ passes. Pairs with `driverEpoch` for fencing.
 optional name?: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:133](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L133)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:133
 
 Agent name (`researcher`, `writer`) when this record is a subagent.
 
@@ -187,7 +187,7 @@ Agent name (`researcher`, `writer`) when this record is a subagent.
 optional parentRunId?: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:125](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L125)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:125
 
 Parent chat run that started this child, when this record is a subagent.
 Absent on the parent run itself.
@@ -200,7 +200,7 @@ Absent on the parent run itself.
 optional principal?: object;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:194](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L194)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:194
 
 Who started this run, from the host's `authorize`.
 
@@ -218,7 +218,7 @@ id: string;
 optional result?: unknown;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:190](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L190)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:190
 
 Terminal result metadata (ids, urls, text). Never media bytes.
 
@@ -230,7 +230,7 @@ Terminal result metadata (ids, urls, text). Never media bytes.
 runId: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:107](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L107)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:107
 
 ***
 
@@ -240,7 +240,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:107](https:
 optional sandboxKey?: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:148](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L148)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:148
 
 Compound sandbox key this run was bound to, when it ran in a sandbox.
 Recorded so a future reclaimer can identify the sandbox to tear down
@@ -258,7 +258,7 @@ destroying the sandbox. A backend must round-trip this field — see
 startedAt: number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:135](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L135)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:135
 
 ***
 
@@ -268,7 +268,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:135](https:
 status: RunStatus;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:134](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L134)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:134
 
 ***
 
@@ -278,7 +278,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:134](https:
 optional subagentRunId?: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:131](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L131)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:131
 
 The child's AG-UI subagentRunId, the id on its `SUBAGENT_*` chunks and on
 every chunk it streams. On a child record this equals `runId`. Absent on
@@ -292,7 +292,7 @@ the parent run.
 threadId: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:120](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L120)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:120
 
 Conversation this run belongs to — the `Scope.threadId`.
 
@@ -313,4 +313,4 @@ conversation never return children. Use `listByParentRun`.
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:138](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L138)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:138

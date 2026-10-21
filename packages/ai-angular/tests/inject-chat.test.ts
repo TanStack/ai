@@ -20,7 +20,7 @@ afterEach(() => {
 
 describe('injectChat', () => {
   describe('interrupt state', () => {
-    it('projects one immutable reactive snapshot with the deprecated pending alias', () => {
+    it('projects one immutable reactive snapshot', () => {
       const onInterruptStateChange = vi.fn()
       const { result, flush } = renderInjectChat({
         connection: createMockConnectionAdapter(),

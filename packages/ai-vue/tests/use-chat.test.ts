@@ -19,7 +19,7 @@ describe('useChat', () => {
   })
 
   describe('interrupt state', () => {
-    it('projects one immutable reactive snapshot with the deprecated pending alias', async () => {
+    it('projects one immutable reactive snapshot', async () => {
       const onInterruptStateChange = vi.fn()
       const { result } = renderUseChat({
         connection: createMockConnectionAdapter(),

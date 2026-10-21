@@ -3,7 +3,7 @@ id: AudioVisualization
 title: AudioVisualization
 ---
 
-Defined in: [packages/ai/src/realtime/types.ts:205](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L205)
+Defined in: packages/ai/src/realtime/types.ts:205
 
 Interface for accessing audio visualization data
 
@@ -15,7 +15,7 @@ Interface for accessing audio visualization data
 getInputFrequencyData: () => Uint8Array;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:212](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L212)
+Defined in: packages/ai/src/realtime/types.ts:212
 
 Get frequency data for input audio visualization
 
@@ -31,7 +31,7 @@ Get frequency data for input audio visualization
 getInputTimeDomainData: () => Uint8Array;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:217](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L217)
+Defined in: packages/ai/src/realtime/types.ts:217
 
 Get time domain data for input waveform
 
@@ -47,7 +47,7 @@ Get time domain data for input waveform
 getOutputFrequencyData: () => Uint8Array;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:214](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L214)
+Defined in: packages/ai/src/realtime/types.ts:214
 
 Get frequency data for output audio visualization
 
@@ -63,7 +63,7 @@ Get frequency data for output audio visualization
 getOutputTimeDomainData: () => Uint8Array;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:219](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L219)
+Defined in: packages/ai/src/realtime/types.ts:219
 
 Get time domain data for output waveform
 
@@ -79,7 +79,7 @@ Get time domain data for output waveform
 readonly inputLevel: number;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:207](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L207)
+Defined in: packages/ai/src/realtime/types.ts:207
 
 Input volume level (0-1 normalized)
 
@@ -91,7 +91,7 @@ Input volume level (0-1 normalized)
 readonly inputSampleRate: number;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:222](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L222)
+Defined in: packages/ai/src/realtime/types.ts:222
 
 Input sample rate
 
@@ -103,7 +103,7 @@ Input sample rate
 optional onInputAudio?: (callback) => () => void;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:227](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L227)
+Defined in: packages/ai/src/realtime/types.ts:227
 
 Subscribe to raw input audio samples
 
@@ -125,7 +125,7 @@ Subscribe to raw input audio samples
 optional onOutputAudio?: (callback) => () => void;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:231](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L231)
+Defined in: packages/ai/src/realtime/types.ts:231
 
 Subscribe to raw output audio samples
 
@@ -147,7 +147,7 @@ Subscribe to raw output audio samples
 readonly outputLevel: number;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:209](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L209)
+Defined in: packages/ai/src/realtime/types.ts:209
 
 Output volume level (0-1 normalized)
 
@@ -159,6 +159,6 @@ Output volume level (0-1 normalized)
 readonly outputSampleRate: number;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:224](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L224)
+Defined in: packages/ai/src/realtime/types.ts:224
 
 Output sample rate

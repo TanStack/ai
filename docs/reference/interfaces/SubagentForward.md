@@ -3,7 +3,7 @@ id: SubagentForward
 title: SubagentForward
 ---
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:25](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L25)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:25
 
 The fields a child `chat()` needs, in one spread:
 `chat({ adapter, messages, ...ctx.forward })`.
@@ -16,7 +16,7 @@ The fields a child `chat()` needs, in one spread:
 abortController: AbortController;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:36](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L36)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:36
 
 Aborts when the parent run or the subagent group stops.
 
@@ -28,7 +28,7 @@ Aborts when the parent run or the subagent group stops.
 parentRunId: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:28](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L28)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:28
 
 ***
 
@@ -38,7 +38,7 @@ Defined in: [packages/ai/src/activities/chat/agents/bound.ts:28](https://github.
 optional parentSubagentRunId?: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:33](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L33)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:33
 
 The subagentRunId of the child that started this one, for a nested child.
 
@@ -50,7 +50,7 @@ The subagentRunId of the child that started this one, for a nested child.
 optional promptCache?: PromptCacheRetention;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:38](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L38)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:38
 
 The prompt cache retention of the parent call, when it has one.
 
@@ -62,7 +62,7 @@ The prompt cache retention of the parent call, when it has one.
 optional resume?: RunAgentResumeItem[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:34](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L34)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:34
 
 ***
 
@@ -72,7 +72,7 @@ Defined in: [packages/ai/src/activities/chat/agents/bound.ts:34](https://github.
 runId: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:27](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L27)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:27
 
 ***
 
@@ -82,7 +82,7 @@ Defined in: [packages/ai/src/activities/chat/agents/bound.ts:27](https://github.
 subagentName: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:31](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L31)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:31
 
 The agent name. Middleware reads it as `ctx.subagentName`.
 
@@ -94,7 +94,7 @@ The agent name. Middleware reads it as `ctx.subagentName`.
 subagentRunId: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:29](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L29)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:29
 
 ***
 
@@ -104,4 +104,4 @@ Defined in: [packages/ai/src/activities/chat/agents/bound.ts:29](https://github.
 threadId: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:26](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L26)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:26

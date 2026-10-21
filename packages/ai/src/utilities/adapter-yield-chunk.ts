@@ -15,7 +15,6 @@ type AdapterExtras = {
   // a structured object. The leftover bag intersects every StreamChunk variant.
   content?: string | Record<string, any>
   args?: string
-  toolName?: string
   toolCallName?: string
   index?: number
   input?: unknown

@@ -806,7 +806,6 @@ describe('ChatClient resume', () => {
             type: EventType.TOOL_CALL_START,
             toolCallId: 'tool-call-1',
             toolCallName: 'lookup',
-            toolName: 'lookup',
             timestamp: Date.now(),
           }
           yield {
@@ -921,7 +920,6 @@ describe('ChatClient resume', () => {
             type: EventType.TOOL_CALL_START,
             toolCallId: 'tool-call-1',
             toolCallName: 'lookup',
-            toolName: 'lookup',
             timestamp: Date.now(),
           },
           {
@@ -1066,7 +1064,6 @@ describe('ChatClient resume', () => {
           type: EventType.TOOL_CALL_START,
           toolCallId: 'frontend-tool-call',
           toolCallName: 'lookup',
-          toolName: 'lookup',
           timestamp: Date.now(),
         },
         {
@@ -1162,7 +1159,6 @@ describe('ChatClient resume', () => {
             type: EventType.TOOL_CALL_START,
             toolCallId,
             toolCallName: 'lookup',
-            toolName: 'lookup',
             timestamp: Date.now(),
           },
           {

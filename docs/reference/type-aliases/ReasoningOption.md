@@ -9,7 +9,7 @@ type ReasoningOption<TCapability> =
   | object & true extends TCapability["budget"] ? object : object;
 ```
 
-Defined in: [packages/ai/src/reasoning.ts:46](https://github.com/TanStack/ai/blob/main/packages/ai/src/reasoning.ts#L46)
+Defined in: packages/ai/src/reasoning.ts:46
 
 The `reasoning` option of `chat()`: a level, or an object. `summary` asks
 the provider to stream the thinking text (default `true`). `budgetTokens`

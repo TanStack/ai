@@ -7,4 +7,4 @@ title: provideRunDetached
 provideRunDetached: CapabilityProvider<true>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:420](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L420)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:420

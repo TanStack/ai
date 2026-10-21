@@ -3,7 +3,7 @@ id: LogRecordsWriter
 title: LogRecordsWriter
 ---
 
-Defined in: [packages/ai/src/activities/chat/middleware/log-records.ts:16](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/log-records.ts#L16)
+Defined in: packages/ai/src/activities/chat/middleware/log-records.ts:16
 
 Appends records to the session log that a host keeps. A host is a
 middleware that provides this capability. `chat()` does not provide it.
@@ -16,7 +16,7 @@ middleware that provides this capability. `chat()` does not provide it.
 append: (records) => Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/log-records.ts:22](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/log-records.ts#L22)
+Defined in: packages/ai/src/activities/chat/middleware/log-records.ts:22
 
 Resolves when the host has written all the records. Rejects when the
 host refuses a record or the write fails. Then the host writes none of

@@ -1047,7 +1047,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       expect(toolStartChunk).toBeDefined()
       if (toolStartChunk?.type === 'TOOL_CALL_START') {
         expect(toolStartChunk.toolCallId).toBe('call_abc123')
-        expect(toolStartChunk.toolName).toBe('lookup_weather')
+        expect(toolStartChunk.toolCallName).toBe('lookup_weather')
         expect(toolStartChunk.index).toBe(0)
       }
 
@@ -1064,7 +1064,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       expect(toolEndChunk).toBeDefined()
       if (toolEndChunk?.type === 'TOOL_CALL_END') {
         expect(toolEndChunk.toolCallId).toBe('call_abc123')
-        expect(toolEndChunk.toolName).toBe('lookup_weather')
+        expect(toolEndChunk.toolCallName).toBe('lookup_weather')
         expect(toolEndChunk.input).toEqual({ location: 'Berlin' })
       }
 
@@ -1628,13 +1628,12 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const starts = chunks.filter((c) => c.type === 'TOOL_CALL_START')
       expect(starts.length).toBe(1)
       if (starts[0]?.type === 'TOOL_CALL_START') {
-        expect(starts[0].toolName).toBe('lookup_weather')
         expect(starts[0].toolCallName).toBe('lookup_weather')
       }
       const end = chunks.find((c) => c.type === 'TOOL_CALL_END')
       expect(end).toBeDefined()
       if (end?.type === 'TOOL_CALL_END') {
-        expect(end.toolName).toBe('lookup_weather')
+        expect(end.toolCallName).toBe('lookup_weather')
       }
     })
 
@@ -1713,10 +1712,10 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       expect(starts).toHaveLength(1)
       expect(ends).toHaveLength(1)
       if (starts[0]?.type === 'TOOL_CALL_START') {
-        expect(starts[0].toolName).toBe('lookup_weather')
+        expect(starts[0].toolCallName).toBe('lookup_weather')
       }
       if (ends[0]?.type === 'TOOL_CALL_END') {
-        expect(ends[0].toolName).toBe('lookup_weather')
+        expect(ends[0].toolCallName).toBe('lookup_weather')
         expect(ends[0].input).toEqual({ location: 'NYC' })
       }
     })
@@ -1778,7 +1777,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       expect(starts).toHaveLength(1)
       expect(ends).toHaveLength(1)
       if (ends[0]?.type === 'TOOL_CALL_END') {
-        expect(ends[0].toolName).toBe('lookup_weather')
+        expect(ends[0].toolCallName).toBe('lookup_weather')
         expect(ends[0].input).toEqual({ location: 'Berlin' })
       }
     })
@@ -4653,7 +4652,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       expect(ends).toHaveLength(1)
       expect(starts[0]).toMatchObject({
         toolCallId: 'call_patch',
-        toolName: 'apply_patch',
+        toolCallName: 'apply_patch',
         metadata: { itemId: 'apc_1', openaiUserTool: 'apply_patch' },
       })
       expect(ends[0]).toMatchObject({
@@ -4702,7 +4701,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       expect(ends).toHaveLength(1)
       expect(ends[0]).toMatchObject({
         toolCallId: 'call_local',
-        toolName: 'shell',
+        toolCallName: 'shell',
         input: {
           commands: ['echo hello'],
           max_output_length: 4096,
@@ -4730,7 +4729,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       expect(ends).toHaveLength(1)
       expect(ends[0]).toMatchObject({
         toolCallId: 'call_bare',
-        toolName: 'shell',
+        toolCallName: 'shell',
       })
     })
 
@@ -4784,7 +4783,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       expect(ends).toHaveLength(1)
       expect(ends[0]).toMatchObject({
         toolCallId: 'call_lsh',
-        toolName: 'local_shell',
+        toolCallName: 'local_shell',
         input: {
           type: 'exec',
           command: ['pwd'],
@@ -4990,7 +4989,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       expect(chunks.some((chunk) => chunk.type === 'RUN_ERROR')).toBe(false)
       const start = chunks.find((chunk) => chunk.type === 'TOOL_CALL_START')
       expect(start).toMatchObject({
-        toolName: 'apply_patch',
+        toolCallName: 'apply_patch',
         toolCallId: 'call_chat',
       })
       const end = chunks.find((chunk) => chunk.type === 'TOOL_CALL_END')

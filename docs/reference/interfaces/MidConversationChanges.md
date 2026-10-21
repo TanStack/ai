@@ -3,7 +3,7 @@ id: MidConversationChanges
 title: MidConversationChanges
 ---
 
-Defined in: [packages/ai/src/types.ts:393](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L393)
+Defined in: packages/ai/src/types.ts:393
 
 What changed in the tools and system prompts between model calls.
 `chat()` passes it in `TextOptions.midConversationChanges`.
@@ -16,7 +16,7 @@ What changed in the tools and system prompts between model calls.
 changes: object[];
 ```
 
-Defined in: [packages/ai/src/types.ts:404](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L404)
+Defined in: packages/ai/src/types.ts:404
 
 Each change goes directly before `messages[before]`, or at the end when
 `before === messages.length`. `tools` are the added names.
@@ -48,7 +48,7 @@ optional tools?: string[];
 start: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:398](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L398)
+Defined in: packages/ai/src/types.ts:398
 
 The tool names of the start point, in start order, and how many entries
 at the front of `systemPrompts` belong to it.

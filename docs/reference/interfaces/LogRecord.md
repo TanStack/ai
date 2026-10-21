@@ -3,7 +3,7 @@ id: LogRecord
 title: LogRecord
 ---
 
-Defined in: [packages/ai/src/activities/chat/middleware/log-records.ts:7](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/log-records.ts#L7)
+Defined in: packages/ai/src/activities/chat/middleware/log-records.ts:7
 
 One record of a session log. `type` names the kind of record. The other
 fields are JSON.
@@ -22,4 +22,4 @@ fields are JSON.
 type: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/log-records.ts:8](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/log-records.ts#L8)
+Defined in: packages/ai/src/activities/chat/middleware/log-records.ts:8

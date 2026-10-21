@@ -316,22 +316,17 @@ function DebugPanel({
                 </thead>
                 <tbody className="text-gray-300">
                   {chunks.map((chunk, idx) => {
-                    const toolName =
-                      chunk.toolCall?.function?.name || chunk.toolName || '-'
+                    const toolName = chunk.toolCallName || '-'
 
                     let detail = '-'
-                    if (chunk.type === 'content' && chunk.content) {
-                      detail = chunk.content
-                    } else if (
-                      chunk.type === 'tool_call' &&
-                      chunk.toolCall?.function?.arguments
+                    if (
+                      chunk.type === 'TEXT_MESSAGE_CONTENT' ||
+                      chunk.type === 'TOOL_CALL_ARGS'
                     ) {
-                      detail = chunk.toolCall.function.arguments
-                    } else if (chunk.type === 'tool_result' && chunk.content) {
+                      detail = chunk.delta
+                    } else if (chunk.type === 'TOOL_CALL_RESULT') {
                       detail = chunk.content
-                    } else if (chunk.type === 'tool-input-available') {
-                      detail = JSON.stringify(chunk.input)
-                    } else if (chunk.type === 'done') {
+                    } else if (chunk.type === 'RUN_FINISHED') {
                       detail = `Finish: ${chunk.finishReason || 'unknown'}`
                     }
 

@@ -213,7 +213,6 @@ function createSimulatorAdapter() {
             type: EventType.TOOL_CALL_START,
             toolCallId,
             toolCallName: tc.name,
-            toolName: tc.name,
             model: MODEL,
             timestamp,
             index: i,
@@ -239,7 +238,6 @@ function createSimulatorAdapter() {
             type: EventType.TOOL_CALL_END,
             toolCallId,
             toolCallName: tc.name,
-            toolName: tc.name,
             model: MODEL,
             timestamp: Date.now(),
           }

@@ -7,7 +7,7 @@ title: createChatMiddleware
 function createChatMiddleware(): ChatMiddlewareBuilder<readonly [], never>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/builder.ts:114](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/builder.ts#L114)
+Defined in: packages/ai/src/activities/chat/middleware/builder.ts:114
 
 Create an order-aware middleware builder.
 

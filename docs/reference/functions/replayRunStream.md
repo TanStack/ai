@@ -10,7 +10,7 @@ function replayRunStream<TOffset>(
 signal?): AsyncGenerator<AGUIEvent>;
 ```
 
-Defined in: [packages/ai/src/stream-durability.ts:588](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-durability.ts#L588)
+Defined in: packages/ai/src/stream-durability.ts:588
 
 Replay a run's delivery-durability log as a bare stream of chunks, for
 callers that serve a `joinRun` handler without an HTTP `Response` — e.g. a

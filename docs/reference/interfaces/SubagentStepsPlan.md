@@ -3,7 +3,7 @@ id: SubagentStepsPlan
 title: SubagentStepsPlan
 ---
 
-Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:83](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L83)
+Defined in: packages/ai/src/activities/chat/agents/spawn.ts:83
 
 ## Properties
 
@@ -13,4 +13,4 @@ Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:83](https://github.
 steps: readonly SubagentStep[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:84](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L84)
+Defined in: packages/ai/src/activities/chat/agents/spawn.ts:84

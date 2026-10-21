@@ -7,7 +7,7 @@ title: summarize
 function summarize<TAdapter, TStream>(options): SummarizeActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/summarize/index.ts:207](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/summarize/index.ts#L207)
+Defined in: packages/ai/src/activities/summarize/index.ts:207
 
 Summarize activity - generates summaries from text.
 

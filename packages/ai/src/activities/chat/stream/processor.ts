@@ -2819,7 +2819,7 @@ export class StreamProcessor {
           : this.findToolCallName(toolCallId)
       const input = Object.hasOwn(metadata, 'input') ? metadata.input : {}
 
-      if (kind === 'approval' || interrupt.reason === 'approval_required') {
+      if (kind === 'approval') {
         if (owner !== undefined) {
           if (emit) {
             this.events.onApprovalRequest?.({
@@ -2865,7 +2865,7 @@ export class StreamProcessor {
         continue
       }
 
-      if (kind === 'client_tool' || interrupt.reason === 'client_tool_input') {
+      if (kind === 'client_tool') {
         // Generic interrupts in the same batch decide `toolResume`. Do not
         // run client tools until that policy is `continue`.
         if (hasGeneric || !emit) continue

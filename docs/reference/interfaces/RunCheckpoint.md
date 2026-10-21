@@ -3,7 +3,7 @@ id: RunCheckpoint
 title: RunCheckpoint
 ---
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:218](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L218)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:218
 
 What a run saved at its last model or tool boundary.
 
@@ -15,7 +15,7 @@ What a run saved at its last model or tool boundary.
 at: number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:220](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L220)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:220
 
 Epoch ms of the checkpoint.
 
@@ -27,7 +27,7 @@ Epoch ms of the checkpoint.
 optional pendingTools?: object[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:222](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L222)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:222
 
 Tools that started but had no result yet at the checkpoint.
 

@@ -178,9 +178,9 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
     expect(types).toContain('TOOL_CALL_END')
 
     const startChunk = chunks.find((c) => c.type === 'TOOL_CALL_START') as
-      | { toolName: string; toolCallId: string }
+      | { toolCallName: string; toolCallId: string }
       | undefined
-    expect(startChunk!.toolName).toBe('search')
+    expect(startChunk!.toolCallName).toBe('search')
     expect(startChunk!.toolCallId).toBe('tc-123')
   })
 
@@ -271,7 +271,7 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
       }),
     )
     const startChunk = chunks.find((c) => c.type === 'TOOL_CALL_START') as
-      | { toolCallId: string; toolName: string }
+      | { toolCallId: string; toolCallName: string }
       | undefined
     expect(startChunk!.toolCallId).toMatch(/^search_\d+/)
   })

@@ -3,7 +3,7 @@ id: CompositeStrategy
 title: CompositeStrategy
 ---
 
-Defined in: [packages/ai/src/activities/chat/stream/strategies.ts:68](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/strategies.ts#L68)
+Defined in: packages/ai/src/activities/chat/stream/strategies.ts:68
 
 Composite Strategy - combine multiple strategies (OR logic)
 Emits if ANY strategy says to emit
@@ -20,7 +20,7 @@ Emits if ANY strategy says to emit
 new CompositeStrategy(strategies): CompositeStrategy;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/strategies.ts:69](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/strategies.ts#L69)
+Defined in: packages/ai/src/activities/chat/stream/strategies.ts:69
 
 #### Parameters
 
@@ -40,7 +40,7 @@ Defined in: [packages/ai/src/activities/chat/stream/strategies.ts:69](https://gi
 reset(): void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/strategies.ts:75](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/strategies.ts#L75)
+Defined in: packages/ai/src/activities/chat/stream/strategies.ts:75
 
 Optional: Reset strategy state (called when streaming starts)
 
@@ -60,7 +60,7 @@ Optional: Reset strategy state (called when streaming starts)
 shouldEmit(chunk, accumulated): boolean;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/strategies.ts:71](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/strategies.ts#L71)
+Defined in: packages/ai/src/activities/chat/stream/strategies.ts:71
 
 Called for each text chunk received
 

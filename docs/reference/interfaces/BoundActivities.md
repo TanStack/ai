@@ -3,7 +3,7 @@ id: BoundActivities
 title: BoundActivities
 ---
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:97](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L97)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:97
 
 Activity functions bound to one child run. Each takes the same options as
 the plain function. Options you pass win over the bound defaults.
@@ -16,7 +16,7 @@ the plain function. Options you pass win over the bound defaults.
 chat: <TAdapter, TSchema, TStream, TTools, TInterrupts, TContext, TMiddleware, TAgents>(options) => TextActivityResult<TSchema, TStream, TTools>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:98](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L98)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:98
 
 Text activity - handles agentic text generation, one-shot text generation, and agentic structured output.
 
@@ -145,7 +145,7 @@ const result = await chat({
 decide: <TAdapter, TQuestions>(options) => Promise<{ [K in string | number | symbol]: InferEvaluateAnswer<TQuestions[K]> } & object>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:110](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L110)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:110
 
 Ask typed questions about `state` and get answers your code can branch on.
 
@@ -219,7 +219,7 @@ result.meta.usage
 embed: <TAdapter>(options) => Promise<EmbeddingResult>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:108](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L108)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:108
 
 Embed activity - generates embedding vectors from text and image inputs.
 
@@ -295,7 +295,7 @@ const result = await embed({
 generateAudio: <TAdapter, TStream>(options) => AudioActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:102](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L102)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:102
 
 Audio generation activity - generates audio from text prompts.
 
@@ -346,7 +346,7 @@ console.log(result.audio.url) // URL to generated audio
 generateImage: <TAdapter, TStream>(options) => ImageActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:100](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L100)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:100
 
 Image activity - generates images from text prompts.
 
@@ -425,7 +425,7 @@ const result = await generateImage({
 generateLiveVideo: <TAdapter, TStream>(options) => LiveVideoActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:107](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L107)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:107
 
 **`Experimental`**
 
@@ -477,7 +477,7 @@ const live = await generateLiveVideo({
 generateSpeech: <TAdapter, TStream>(options) => TTSActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:103](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L103)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:103
 
 TTS activity - generates speech from text.
 
@@ -540,7 +540,7 @@ const result = await generateSpeech({
 generateTranscription: <TAdapter, TStream>(options) => TranscriptionActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:105](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L105)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:105
 
 Transcription activity - converts audio to text.
 
@@ -617,7 +617,7 @@ for await (const chunk of generateTranscription({
 generateVideo: <TAdapter, TStream>(options) => TStream extends true ? AsyncIterable<AGUIEvent, any, any> : Promise<VideoJobResult>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:101](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L101)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:101
 
 **`Experimental`**
 
@@ -700,7 +700,7 @@ return toServerSentEventsResponse(stream)
 generateVoice: <TAdapter, TStream>(options) => VoiceActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:104](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L104)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:104
 
 Voice activity - creates a reusable voice.
 
@@ -770,7 +770,7 @@ const saved = await generateVoice({
 generateWorld: <TAdapter, TStream>(options) => WorldActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:106](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L106)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:106
 
 **`Experimental`**
 
@@ -823,7 +823,7 @@ const world = await generateWorld({
 rerank: <TAdapter, TDocument>(options) => Promise<RerankResult<TDocument>>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:109](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L109)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:109
 
 Rerank activity - reorders documents by relevance to a query.
 
@@ -889,7 +889,7 @@ console.log(ranking[0].document.id)
 summarize: <TAdapter, TStream>(options) => SummarizeActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:99](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L99)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:99
 
 Summarize activity - generates summaries from text.
 

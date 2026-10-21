@@ -7,7 +7,7 @@ title: subagentRoute
 function subagentRoute<TAgents>(agents, options?): object;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/route.ts:94](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/route.ts#L94)
+Defined in: packages/ai/src/activities/chat/agents/route.ts:94
 
 Build `decide()` questions for a subagent router.
 
