@@ -1,4 +1,5 @@
 import { ResourceScope, disposeAll } from './resources'
+import type { Logger } from '@tanstack/ai'
 import type { AnyHarness } from './define'
 import type {
   HostPluginContext,
@@ -20,18 +21,23 @@ interface Entry {
   ready: Promise<HostPluginContributions<any> | void>
 }
 
-/** The context of a host plugin setup whose resources live in `scope`. */
+/**
+ * The context of a host plugin setup whose resources live in `scope`.
+ * `logger` is the logger of the host, safe to call.
+ */
 export function hostPluginContext(
   harness: string,
   scope: ResourceScope,
-): HostPluginContext {
+  logger: Logger,
+) {
   return {
     harness,
     resources: {
       acquire: (open, close) => scope.acquire(open, close),
       signal: scope.signal,
     },
-  }
+    logger,
+  } satisfies HostPluginContext
 }
 
 /**
@@ -50,6 +56,9 @@ export class HostPlugins {
     Map<HostPluginDefinition<any>, Entry>
   >()
   private closed = false
+
+  /** `logger` is the logger of the host, safe to call. Each setup gets it. */
+  constructor(private readonly logger: Logger) {}
 
   /** The shared setup of `plugin` for `harness`. */
   async acquire(
@@ -74,7 +83,7 @@ export class HostPlugins {
     if (!entry) {
       const scope = new ResourceScope()
       const ready = Promise.resolve().then(() =>
-        plugin.setup(hostPluginContext(harness.name, scope)),
+        plugin.setup(hostPluginContext(harness.name, scope, this.logger)),
       )
       const created: Entry = { refs: 0, scope, ready }
       // A failed setup is not kept: the next session sets it up again.

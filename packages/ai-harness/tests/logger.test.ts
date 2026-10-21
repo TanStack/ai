@@ -108,6 +108,22 @@ describe('the host logger', () => {
     await host.close()
   })
 
+  it('is ctx.logger of the shared setup of a host plugin', async () => {
+    const logger = recordingLogger()
+    const plugin = definePlugin({
+      name: 'test/pool',
+      lifetime: 'host',
+      setup: (ctx) => {
+        ctx.logger.warn('The pool is slow.', { size: 4 })
+      },
+    })
+
+    const { host } = await open(logger, mockAdapter([]).adapter, [plugin])
+
+    expect(logger.warn).toHaveBeenCalledWith('The pool is slow.', { size: 4 })
+    await host.close()
+  })
+
   it('gets the error of a model call of a turn, and no debug lines', async () => {
     const logger = recordingLogger()
     const failure = new Error('model down')

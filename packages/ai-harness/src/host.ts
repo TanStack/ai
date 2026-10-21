@@ -1700,7 +1700,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
     (options.harnesses ?? []).map((harness) => [harness.name, harness]),
   )
   /** The plugins with `lifetime: 'host'`, shared by the sessions of a harness. */
-  const hostPlugins = new HostPlugins()
+  const hostPlugins = new HostPlugins(logger)
   /** The sessions of `sessions` that finished opening, by key. */
   const live = new Map<string, SessionImpl>()
   /**

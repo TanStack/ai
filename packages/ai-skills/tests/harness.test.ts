@@ -13,12 +13,12 @@ import {
 } from '@tanstack/ai-harness'
 import { skills } from '../src/harness'
 import type { FSWatcher } from 'node:fs'
-import type { TextOptions } from '@tanstack/ai'
+import type { Logger, TextOptions } from '@tanstack/ai'
 import type { FakeResponse } from '@tanstack/ai/testing'
 import type {
   HarnessHost,
+  HarnessHostOptions,
   HarnessPlugin,
-  HostLifecycleOptions,
 } from '@tanstack/ai-harness'
 import type { SkillsPluginOptions } from '../src/harness'
 import type { SkillSource } from '../src/types'
@@ -125,9 +125,6 @@ function closedFlag(watcher: FSWatcher | undefined) {
 /** Wait one turn of the event loop. */
 const nextLoop = () => new Promise((resolve) => setImmediate(resolve))
 
-/** Stop the warnings in the test output, and keep them. */
-const warnings = () => vi.spyOn(console, 'warn').mockImplementation(() => {})
-
 /** An answer of the fake model, or a function that makes it. */
 type Answer = FakeResponse | (() => Promise<FakeResponse>)
 
@@ -163,8 +160,8 @@ function harnessOf(
 }
 
 /** A host that the test closes at its end. */
-function hostOf(lifecycle: HostLifecycleOptions = {}) {
-  const host = createHarnessHost({ lifecycle })
+function hostOf(options: HarnessHostOptions = {}) {
+  const host = createHarnessHost(options)
   hosts.push(host)
   return host
 }
@@ -189,6 +186,24 @@ async function open(
 ) {
   const { harness, requests } = harnessOf(options, extra)
   return { ...(await openOn(hostOf(), harness)), requests }
+}
+
+/**
+ * A session like {@link open}, on a host whose logger records each call. A
+ * spy keeps `console.warn` out of the test output, so a test can check that
+ * the plugin does not use it.
+ */
+async function openWithLogger(options: SkillsPluginOptions) {
+  const logger = {
+    debug: vi.fn<Logger['debug']>(),
+    info: vi.fn<Logger['info']>(),
+    warn: vi.fn<Logger['warn']>(),
+    error: vi.fn<Logger['error']>(),
+  }
+  const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  const { harness } = harnessOf(options)
+  const opened = await openOn(hostOf({ logger }), harness)
+  return { ...opened, logger, consoleWarn }
 }
 
 /** The system prompt text of a model request. */
@@ -499,7 +514,6 @@ describe('skills()', () => {
   })
 
   it('watches a folder without recursive where the platform has none', async () => {
-    const warn = warnings()
     const dir = await tempDir()
     await addSkill(dir, 'alpha')
     vi.mocked(watch).mockImplementationOnce(() => {
@@ -507,7 +521,9 @@ describe('skills()', () => {
         code: 'ERR_FEATURE_UNAVAILABLE_ON_PLATFORM',
       })
     })
-    const { names, list } = await open({ dirs: [dir] })
+    const { names, list, logger, consoleWarn } = await openWithLogger({
+      dirs: [dir],
+    })
     await list()
 
     const calls = vi
@@ -518,11 +534,12 @@ describe('skills()', () => {
       [dir, { recursive: false, persistent: false }],
     ])
     expect(names()).toContain('alpha')
-    expect(warn.mock.calls).toEqual([
+    expect(logger.warn.mock.calls).toEqual([
       [
         `skills: cannot watch the subfolders of ${dir} on this platform. An edited SKILL.md shows at the next turn.`,
       ],
     ])
+    expect(consoleWarn).not.toHaveBeenCalled()
     // Without a recursive watcher, an edited SKILL.md shows at the next read.
     await addSkill(dir, 'alpha', 'an edit')
     expect(await list()).toContain(`/alpha  ${dir}`)
@@ -555,31 +572,31 @@ describe('skills()', () => {
   })
 
   it('warns once, and reads the folder at each turn, when it cannot be watched', async () => {
-    const warn = warnings()
     const dir = await tempDir()
     await addSkill(dir, 'alpha')
     vi.mocked(watch).mockImplementationOnce(() => {
       throw Object.assign(new Error('too many open files'), { code: 'EMFILE' })
     })
-    const { list } = await open({ dirs: [dir] })
+    const { list, logger, consoleWarn } = await openWithLogger({ dirs: [dir] })
 
     expect(await list()).toBe(`/alpha  ${dir}`)
     await addSkill(dir, 'gamma')
     expect(await list()).toContain(`/gamma  ${dir}`)
     await list()
     expect(vi.mocked(watch)).toHaveBeenCalledTimes(1)
-    expect(warn.mock.calls).toEqual([
+    expect(logger.warn.mock.calls).toEqual([
       [
         `skills: cannot watch ${dir} (too many open files). Its skills change at the next turn.`,
       ],
     ])
+    expect(consoleWarn).not.toHaveBeenCalled()
   })
 
   it('closes the folder watcher after the last session, and at host.close()', async () => {
     const dir = await tempDir()
     await addSkill(dir, 'alpha')
     const { harness } = harnessOf({ dirs: [dir] })
-    const host = hostOf({ closeIdleSessionsAfterMs: 0 })
+    const host = hostOf({ lifecycle: { closeIdleSessionsAfterMs: 0 } })
     const first = await openOn(host, harness, 't-0')
     const second = await openOn(host, harness, 't-1')
     const shared = closedFlag(watchersOf(dir)[0]?.value)

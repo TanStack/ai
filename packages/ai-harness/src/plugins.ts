@@ -191,6 +191,12 @@ export interface HostPluginContext {
   harness: string
   /** Resources that live as long as the shared setup. */
   resources: PluginResources
+  /**
+   * The `logger` of the host (`createHarnessHost({ logger })`), for the
+   * warnings and errors of the shared setup. A logger that throws loses that
+   * line, and the setup goes on.
+   */
+  logger: Logger
 }
 
 /**
@@ -1159,7 +1165,8 @@ async function sharedSetup(
   env: MountEnvironment,
 ): Promise<SharedHostPlugin> {
   if (env.hostPlugin) return env.hostPlugin(plugin)
-  const context = hostPluginContext(env.harnessName ?? '', scope)
+  const { logger } = env.services ?? NO_SERVICES
+  const context = hostPluginContext(env.harnessName ?? '', scope, logger)
   return {
     contributions: await plugin.setup(context),
     release: () => Promise.resolve(),
