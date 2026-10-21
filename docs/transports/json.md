@@ -105,7 +105,7 @@ export async function POST(request: Request) {
 
 ### Send a structured output
 
-`await chat({ outputSchema })` gives you the typed object on the server. You can save it or change it before the client sees it. To show it in `useChat`, pass the object and the `threadId` of the request to `toJsonResponse()`:
+`await chat({ outputSchema })` gives you the typed object on the server. You can save it or change it before the client sees it. To show it in `useChat`, pass the object to `toJsonResponse()`:
 
 ```typescript
 // api/extract-person.ts
@@ -127,7 +127,7 @@ export async function POST(request: Request) {
     outputSchema: PersonSchema,
   });
   // `person` is typed here. Save it before you send it.
-  return toJsonResponse(person, { threadId });
+  return toJsonResponse(person);
 }
 ```
 

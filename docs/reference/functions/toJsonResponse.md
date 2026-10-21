@@ -9,7 +9,7 @@ title: toJsonResponse
 function toJsonResponse(result, init?): Promise<Response>;
 ```
 
-Defined in: packages/ai/src/stream-to-response.ts:1688
+Defined in: packages/ai/src/stream-to-response.ts:1684
 
 Send a chat run as one JSON body, for hosts that cannot stream a response.
 Pair it with the `fetchJson` connection adapter.
@@ -32,14 +32,13 @@ after an early reply. A request with a resume offset reads the log instead.
 
 #### result
 
-  \| [`ChatResult`](../interfaces/ChatResult.md)
-  \| `PromiseLike`\<[`ChatResult`](../interfaces/ChatResult.md)\>
+[`ChatResult`](../interfaces/ChatResult.md)
 
 #### init?
 
 `ResponseInit`
 
-Response init. For a stream, also `abortController`, `signal`, `maxWaitMs`, `durability`, and `debug`. For a structured output, also the `threadId` of the request.
+Response init. For a stream, also `abortController`, `signal`, `maxWaitMs`, `durability`, and `debug`.
 
 ### Returns
 
@@ -55,7 +54,6 @@ export async function POST(request: Request) {
   const result = await chat({
     adapter: openaiText('gpt-5.5'),
     messages: [...],
-    threadId,
     stream: false,
   });
   return toJsonResponse(result);
@@ -67,14 +65,13 @@ export async function POST(request: Request) {
     adapter: openaiText('gpt-5.5'),
     messages: [...],
     outputSchema: PersonSchema,
-    threadId,
   });
-  return toJsonResponse(person, { threadId });
+  return toJsonResponse(person);
 }
 
 // A durable stream that replies at least once a second
 export async function POST(request: Request) {
-  const stream = chat({ adapter: openaiText('gpt-5.5'), messages: [...], threadId });
+  const stream = chat({ adapter: openaiText('gpt-5.5'), messages: [...] });
   return toJsonResponse(stream, {
     durability: { adapter: memoryStream(request) },
     signal: request.signal,
@@ -89,7 +86,7 @@ export async function POST(request: Request) {
 function toJsonResponse<TOffset>(stream, init?): Promise<Response>;
 ```
 
-Defined in: packages/ai/src/stream-to-response.ts:1692
+Defined in: packages/ai/src/stream-to-response.ts:1688
 
 Send a chat run as one JSON body, for hosts that cannot stream a response.
 Pair it with the `fetchJson` connection adapter.
@@ -124,7 +121,7 @@ after an early reply. A request with a resume offset reads the log instead.
 
 `JsonResponseInit`\<`TOffset`\>
 
-Response init. For a stream, also `abortController`, `signal`, `maxWaitMs`, `durability`, and `debug`. For a structured output, also the `threadId` of the request.
+Response init. For a stream, also `abortController`, `signal`, `maxWaitMs`, `durability`, and `debug`.
 
 ### Returns
 
@@ -140,7 +137,6 @@ export async function POST(request: Request) {
   const result = await chat({
     adapter: openaiText('gpt-5.5'),
     messages: [...],
-    threadId,
     stream: false,
   });
   return toJsonResponse(result);
@@ -152,14 +148,13 @@ export async function POST(request: Request) {
     adapter: openaiText('gpt-5.5'),
     messages: [...],
     outputSchema: PersonSchema,
-    threadId,
   });
-  return toJsonResponse(person, { threadId });
+  return toJsonResponse(person);
 }
 
 // A durable stream that replies at least once a second
 export async function POST(request: Request) {
-  const stream = chat({ adapter: openaiText('gpt-5.5'), messages: [...], threadId });
+  const stream = chat({ adapter: openaiText('gpt-5.5'), messages: [...] });
   return toJsonResponse(stream, {
     durability: { adapter: memoryStream(request) },
     signal: request.signal,
@@ -171,10 +166,10 @@ export async function POST(request: Request) {
 ## Call Signature
 
 ```ts
-function toJsonResponse(structuredOutput, init): Promise<Response>;
+function toJsonResponse(structuredOutput, init?): Promise<Response>;
 ```
 
-Defined in: packages/ai/src/stream-to-response.ts:1696
+Defined in: packages/ai/src/stream-to-response.ts:1692
 
 Send a chat run as one JSON body, for hosts that cannot stream a response.
 Pair it with the `fetchJson` connection adapter.
@@ -199,11 +194,11 @@ after an early reply. A request with a resume offset reads the log instead.
 
 `object`
 
-#### init
+#### init?
 
-`ResponseInit` & `object`
+`ResponseInit`
 
-Response init. For a stream, also `abortController`, `signal`, `maxWaitMs`, `durability`, and `debug`. For a structured output, also the `threadId` of the request.
+Response init. For a stream, also `abortController`, `signal`, `maxWaitMs`, `durability`, and `debug`.
 
 ### Returns
 
@@ -219,7 +214,6 @@ export async function POST(request: Request) {
   const result = await chat({
     adapter: openaiText('gpt-5.5'),
     messages: [...],
-    threadId,
     stream: false,
   });
   return toJsonResponse(result);
@@ -231,14 +225,13 @@ export async function POST(request: Request) {
     adapter: openaiText('gpt-5.5'),
     messages: [...],
     outputSchema: PersonSchema,
-    threadId,
   });
-  return toJsonResponse(person, { threadId });
+  return toJsonResponse(person);
 }
 
 // A durable stream that replies at least once a second
 export async function POST(request: Request) {
-  const stream = chat({ adapter: openaiText('gpt-5.5'), messages: [...], threadId });
+  const stream = chat({ adapter: openaiText('gpt-5.5'), messages: [...] });
   return toJsonResponse(stream, {
     durability: { adapter: memoryStream(request) },
     signal: request.signal,

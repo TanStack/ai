@@ -1267,17 +1267,9 @@ describe('toJsonResponse with a structured-output result', () => {
 
   it('sends the object from chat({ outputSchema }) as a complete structured output', async () => {
     const result = await extractGuitar()
-    expectTypeOf(
-      toJsonResponse(result, { threadId: 'thread-1' }),
-    ).toEqualTypeOf<Promise<Response>>()
-    await expect(
-      // @ts-expect-error - a structured output needs the threadId of the request
-      toJsonResponse(result),
-    ).rejects.toThrow('init.threadId')
+    expectTypeOf(toJsonResponse(result)).toEqualTypeOf<Promise<Response>>()
 
-    const body = await readJsonBody(
-      await toJsonResponse(result, { threadId: 'thread-1' }),
-    )
+    const body = await readJsonBody(await toJsonResponse(result))
 
     expect(body.done).toBe(true)
     expect(body.chunks.map(label)).toEqual([
@@ -1285,8 +1277,6 @@ describe('toJsonResponse with a structured-output result', () => {
       '[CUSTOM]',
       '[RUN_FINISHED]',
     ])
-    expect(body.chunks[0]).toMatchObject({ threadId: 'thread-1' })
-    expect(body.chunks[2]).toMatchObject({ threadId: 'thread-1' })
     expect(body.chunks[1]).toMatchObject({
       name: 'structured-output.complete',
       value: { object: guitar, raw: JSON.stringify(guitar) },
@@ -1294,9 +1284,7 @@ describe('toJsonResponse with a structured-output result', () => {
   })
 
   it('awaits a Promise input', async () => {
-    const fromObject = await readJsonBody(
-      await toJsonResponse(extractGuitar(), { threadId: 'thread-1' }),
-    )
+    const fromObject = await readJsonBody(await toJsonResponse(extractGuitar()))
     expect(fromObject.chunks[1]).toMatchObject({ value: { object: guitar } })
 
     const chatResult: ChatResult = {
@@ -1315,9 +1303,7 @@ describe('toJsonResponse with a structured-output result', () => {
       chunks: [{ id: 'c1', content: 'A long' }],
     }
 
-    const body = await readJsonBody(
-      await toJsonResponse(document, { threadId: 'thread-1' }),
-    )
+    const body = await readJsonBody(await toJsonResponse(document))
 
     expect(body.chunks.map(label)).toEqual([
       '[RUN_STARTED]',
@@ -1328,9 +1314,7 @@ describe('toJsonResponse with a structured-output result', () => {
   })
 
   it('gives the client a complete structured-output part it can send back', async () => {
-    const body = await readJsonBody(
-      await toJsonResponse(await extractGuitar(), { threadId: 'thread-1' }),
-    )
+    const body = await readJsonBody(await toJsonResponse(await extractGuitar()))
     const processor = new StreamProcessor()
 
     await processor.process(streamOf(body.chunks as Array<StreamChunk>))

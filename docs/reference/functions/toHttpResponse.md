@@ -7,7 +7,7 @@ title: toHttpResponse
 function toHttpResponse<TOffset>(stream, init?): Response;
 ```
 
-Defined in: packages/ai/src/stream-to-response.ts:1484
+Defined in: packages/ai/src/stream-to-response.ts:1482
 
 Convert a StreamChunk async iterable to a Response in HTTP stream format (newline-delimited JSON)
 
