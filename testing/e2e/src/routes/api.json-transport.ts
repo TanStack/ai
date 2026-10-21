@@ -67,7 +67,7 @@ export const Route = createFileRoute('/api/json-transport')({
             runId: params.runId,
             outputSchema: guitarRecommendationSchema,
           })
-          return toJsonResponse(guitar)
+          return toJsonResponse(guitar, { threadId: params.threadId })
         }
 
         const stream = chat({

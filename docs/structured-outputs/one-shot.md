@@ -180,7 +180,7 @@ What you get from the hook:
 
 Anthropic, Gemini, and Ollama send the object as one event. `partial` stays `{}`, and `final` arrives in one step. Your client code does not change.
 
-To keep the awaited object on the server and still use `useChat`, send it with `toJsonResponse(person)`. See [Send a structured output](../transports/json#send-a-structured-output).
+To keep the awaited object on the server and still use `useChat`, send it with `toJsonResponse(person, { threadId })`. See [Send a structured output](../transports/json#send-a-structured-output).
 
 ## Write a good schema
 

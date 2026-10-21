@@ -144,6 +144,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
 export const generateSpeechFn = createServerFn({ method: 'POST' })
   .inputValidator(
     z.object({
+      threadId: z.string().min(1),
       text: z.string(),
       voice: z.string().optional(),
       format: z.enum(['mp3', 'opus', 'aac', 'flac', 'wav', 'pcm']).optional(),
@@ -162,7 +163,7 @@ export const generateSpeechFn = createServerFn({ method: 'POST' })
     }
     return generateSpeech({
       adapter,
-      threadId: 'server-fn-speech',
+      threadId: data.threadId,
       text: data.text,
       voice: data.voice,
       format: data.format,
@@ -172,6 +173,7 @@ export const generateSpeechFn = createServerFn({ method: 'POST' })
 export const transcribeFn = createServerFn({ method: 'POST' })
   .inputValidator(
     z.object({
+      threadId: z.string().min(1),
       audio: z.string(),
       language: z.string().optional(),
       responseFormat: TRANSCRIPTION_RESPONSE_FORMAT_SCHEMA,
@@ -192,7 +194,7 @@ export const transcribeFn = createServerFn({ method: 'POST' })
     }
     return generateTranscription({
       adapter,
-      threadId: 'server-fn-transcription',
+      threadId: data.threadId,
       audio: data.audio,
       language: data.language,
       responseFormat: data.responseFormat,
@@ -203,6 +205,7 @@ export const transcribeFn = createServerFn({ method: 'POST' })
 export const generateAudioFn = createServerFn({ method: 'POST' })
   .inputValidator(
     z.object({
+      threadId: z.string().min(1),
       prompt: z.string(),
       duration: z.number().optional(),
       provider: AUDIO_PROVIDER_SCHEMA,
@@ -222,7 +225,7 @@ export const generateAudioFn = createServerFn({ method: 'POST' })
     }
     return generateAudio({
       adapter,
-      threadId: 'server-fn-audio',
+      threadId: data.threadId,
       prompt: data.prompt,
       duration: data.duration,
     })
@@ -231,6 +234,7 @@ export const generateAudioFn = createServerFn({ method: 'POST' })
 export const summarizeFn = createServerFn({ method: 'POST' })
   .inputValidator(
     z.object({
+      threadId: z.string().min(1),
       text: z.string(),
       maxLength: z.number().optional(),
       style: z.enum(['bullet-points', 'paragraph', 'concise']).optional(),
@@ -240,7 +244,7 @@ export const summarizeFn = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     return summarize({
       adapter: openaiSummarize((data.model ?? 'gpt-4o-mini') as 'gpt-4o-mini'),
-      threadId: 'server-fn-summarize',
+      threadId: data.threadId,
       text: data.text,
       maxLength: data.maxLength,
       style: data.style,
@@ -250,6 +254,7 @@ export const summarizeFn = createServerFn({ method: 'POST' })
 export const generateVideoFn = createServerFn({ method: 'POST' })
   .inputValidator(
     z.object({
+      threadId: z.string().min(1),
       prompt: z.string(),
       size: z.string().optional(),
       duration: z.number().optional(),
@@ -261,7 +266,7 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
     // Create the job
     const { jobId } = await generateVideo({
       adapter,
-      threadId: 'server-fn-video',
+      threadId: data.threadId,
       prompt: data.prompt,
       size: data.size as any,
       duration: data.duration,
@@ -273,7 +278,7 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
     let status = await getVideoJobStatus({
       adapter,
       jobId,
-      threadId: 'server-fn-video',
+      threadId: data.threadId,
     })
     while (status.status !== 'completed' && status.status !== 'failed') {
       if (++polls > MAX_POLLS) {
@@ -283,7 +288,7 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
       status = await getVideoJobStatus({
         adapter,
         jobId,
-        threadId: 'server-fn-video',
+        threadId: data.threadId,
       })
     }
 
@@ -382,6 +387,7 @@ export const joinImageRunFn = createServerFn({ method: 'GET' })
 export const generateSpeechStreamFn = createServerFn({ method: 'POST' })
   .inputValidator(
     z.object({
+      threadId: z.string().min(1),
       text: z.string(),
       voice: z.string().optional(),
       format: z.enum(['mp3', 'opus', 'aac', 'flac', 'wav', 'pcm']).optional(),
@@ -401,7 +407,7 @@ export const generateSpeechStreamFn = createServerFn({ method: 'POST' })
     return toServerSentEventsResponse(
       generateSpeech({
         adapter,
-        threadId: 'server-fn-speech',
+        threadId: data.threadId,
         text: data.text,
         voice: data.voice,
         format: data.format,
@@ -413,6 +419,7 @@ export const generateSpeechStreamFn = createServerFn({ method: 'POST' })
 export const transcribeStreamFn = createServerFn({ method: 'POST' })
   .inputValidator(
     z.object({
+      threadId: z.string().min(1),
       audio: z.string(),
       language: z.string().optional(),
       responseFormat: TRANSCRIPTION_RESPONSE_FORMAT_SCHEMA,
@@ -434,7 +441,7 @@ export const transcribeStreamFn = createServerFn({ method: 'POST' })
     return toServerSentEventsResponse(
       generateTranscription({
         adapter,
-        threadId: 'server-fn-transcription',
+        threadId: data.threadId,
         audio: data.audio,
         language: data.language,
         responseFormat: data.responseFormat,
@@ -447,6 +454,7 @@ export const transcribeStreamFn = createServerFn({ method: 'POST' })
 export const summarizeStreamFn = createServerFn({ method: 'POST' })
   .inputValidator(
     z.object({
+      threadId: z.string().min(1),
       text: z.string(),
       maxLength: z.number().optional(),
       style: z.enum(['bullet-points', 'paragraph', 'concise']).optional(),
@@ -459,7 +467,7 @@ export const summarizeStreamFn = createServerFn({ method: 'POST' })
         adapter: openaiSummarize(
           (data.model ?? 'gpt-4o-mini') as 'gpt-4o-mini',
         ),
-        threadId: 'server-fn-summarize',
+        threadId: data.threadId,
         text: data.text,
         maxLength: data.maxLength,
         style: data.style,
@@ -471,6 +479,7 @@ export const summarizeStreamFn = createServerFn({ method: 'POST' })
 export const generateVideoStreamFn = createServerFn({ method: 'POST' })
   .inputValidator(
     z.object({
+      threadId: z.string().min(1),
       prompt: z.string(),
       size: z.string().optional(),
       duration: z.number().optional(),
@@ -480,7 +489,7 @@ export const generateVideoStreamFn = createServerFn({ method: 'POST' })
     return toServerSentEventsResponse(
       generateVideo({
         adapter: grokVideo('grok-imagine-video'),
-        threadId: 'server-fn-video',
+        threadId: data.threadId,
         prompt: data.prompt,
         size: data.size as any,
         duration: data.duration,
@@ -495,13 +504,17 @@ export const generateVideoStreamFn = createServerFn({ method: 'POST' })
 
 export const chatFn = createServerFn({ method: 'POST' })
   .inputValidator(
-    (data: { messages: Array<UIMessage>; data?: Record<string, any> }) => data,
+    (data: {
+      messages: Array<UIMessage>
+      threadId: string
+      data?: Record<string, any>
+    }) => data,
   )
   .handler(({ data }) =>
     toServerSentEventsResponse(
       chat({
         adapter: openaiText('gpt-5.2'),
-        threadId: 'server-fn-chat',
+        threadId: data.threadId,
         messages: data.messages as any,
         systemPrompts: [
           'You are a helpful assistant. Keep replies short and friendly.',

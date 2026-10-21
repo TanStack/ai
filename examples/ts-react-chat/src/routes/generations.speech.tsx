@@ -67,9 +67,17 @@ function SpeechGenerationForm({
         threadId: `speech:${mode}:${config.id}`,
         // `text` is optional on the hook's input because a dialogue request
         // sends `turns` instead. This form only sends text, so default it.
-        fetcher: (input: { text?: string; voice?: string }) =>
+        fetcher: (
+          input: { text?: string; voice?: string },
+          { threadId }: { threadId: string },
+        ) =>
           generateSpeechFn({
-            data: { ...input, text: input.text ?? '', provider: config.id },
+            data: {
+              ...input,
+              text: input.text ?? '',
+              provider: config.id,
+              threadId,
+            },
           }),
         persistence: true,
         onResult: toSpeechOutput,
@@ -77,9 +85,17 @@ function SpeechGenerationForm({
     }
     return {
       threadId: `speech:${mode}:${config.id}`,
-      fetcher: (input: { text?: string; voice?: string }) =>
+      fetcher: (
+        input: { text?: string; voice?: string },
+        { threadId }: { threadId: string },
+      ) =>
         generateSpeechStreamFn({
-          data: { ...input, text: input.text ?? '', provider: config.id },
+          data: {
+            ...input,
+            text: input.text ?? '',
+            provider: config.id,
+            threadId,
+          },
         }),
       persistence: true,
       onResult: toSpeechOutput,

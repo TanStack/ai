@@ -108,9 +108,11 @@ function isChatResult(value: unknown): value is ChatResult {
  * The chunks a client needs to show `object`, the result of
  * `chat({ outputSchema })`, as a complete structured-output part.
  */
-function structuredOutputChunks(object: unknown): Array<StreamChunk> {
+function structuredOutputChunks(
+  object: unknown,
+  threadId: string,
+): Array<StreamChunk> {
   const runId = crypto.randomUUID()
-  const threadId = crypto.randomUUID()
   const timestamp = Date.now()
   return [
     { type: EventType.RUN_STARTED, runId, threadId, timestamp },
@@ -1645,7 +1647,7 @@ const DEFAULT_RESUME_JSON_MAX_WAIT_MS = 1000
  * after an early reply. A request with a resume offset reads the log instead.
  *
  * @param input - A `ChatResult`, the object from `chat({ outputSchema })`, or a StreamChunk async iterable from chat()
- * @param init - Response init. For a stream, also `abortController`, `signal`, `maxWaitMs`, `durability`, and `debug`.
+ * @param init - Response init. For a stream, also `abortController`, `signal`, `maxWaitMs`, `durability`, and `debug`. For a structured output, also the `threadId` of the request.
  * @returns A promise of a JSON Response
  *
  * @example
@@ -1655,6 +1657,7 @@ const DEFAULT_RESUME_JSON_MAX_WAIT_MS = 1000
  *   const result = await chat({
  *     adapter: openaiText('gpt-5.5'),
  *     messages: [...],
+ *     threadId,
  *     stream: false,
  *   });
  *   return toJsonResponse(result);
@@ -1666,13 +1669,14 @@ const DEFAULT_RESUME_JSON_MAX_WAIT_MS = 1000
  *     adapter: openaiText('gpt-5.5'),
  *     messages: [...],
  *     outputSchema: PersonSchema,
+ *     threadId,
  *   });
- *   return toJsonResponse(person);
+ *   return toJsonResponse(person, { threadId });
  * }
  *
  * // A durable stream that replies at least once a second
  * export async function POST(request: Request) {
- *   const stream = chat({ adapter: openaiText('gpt-5.5'), messages: [...] });
+ *   const stream = chat({ adapter: openaiText('gpt-5.5'), messages: [...], threadId });
  *   return toJsonResponse(stream, {
  *     durability: { adapter: memoryStream(request) },
  *     signal: request.signal,
@@ -1682,7 +1686,7 @@ const DEFAULT_RESUME_JSON_MAX_WAIT_MS = 1000
  * ```
  */
 export function toJsonResponse(
-  result: ChatResult,
+  result: ChatResult | PromiseLike<ChatResult>,
   init?: ResponseInit,
 ): Promise<Response>
 export function toJsonResponse<TOffset extends string = string>(
@@ -1691,7 +1695,7 @@ export function toJsonResponse<TOffset extends string = string>(
 ): Promise<Response>
 export function toJsonResponse(
   structuredOutput: object,
-  init?: ResponseInit,
+  init: ResponseInit & { threadId: string },
 ): Promise<Response>
 export async function toJsonResponse<TOffset extends string = string>(
   input:
@@ -1699,9 +1703,10 @@ export async function toJsonResponse<TOffset extends string = string>(
     | AsyncIterable<StreamChunk>
     | PromiseLike<unknown>
     | object,
-  init?: JsonResponseInit<TOffset>,
+  init?: JsonResponseInit<TOffset> & { threadId?: string },
 ) {
   const {
+    threadId,
     abortController,
     signal,
     maxWaitMs: rawMaxWaitMs,
@@ -1723,7 +1728,7 @@ export async function toJsonResponse<TOffset extends string = string>(
     : {
         chunks: (isChatResult(value)
           ? value.chunks
-          : structuredOutputChunks(value)
+          : structuredOutputChunks(value, requireThreadId(threadId))
         ).map(toWireChunk),
         done: true,
       }
@@ -1734,6 +1739,15 @@ export async function toJsonResponse<TOffset extends string = string>(
       headers,
     ),
   })
+}
+
+function requireThreadId(threadId: string | undefined): string {
+  if (threadId === undefined) {
+    throw new Error(
+      'toJsonResponse: a structured output needs init.threadId, the threadId of the request.',
+    )
+  }
+  return threadId
 }
 
 /** The stream half of {@link toJsonResponse}. */
