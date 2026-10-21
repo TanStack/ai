@@ -37,8 +37,10 @@ import type {
 } from './types'
 import type {
   ClientOptions,
+  DiscoverResult,
   GetPromptResult,
   McpSubscription,
+  PriorDiscovery,
   Prompt,
   ReadResourceResult,
   Resource,
@@ -75,6 +77,15 @@ export interface MCPClient<
    * Optional so an existing hand-rolled `MCPClient` keeps compiling.
    */
   readonly instructions?: string
+  /**
+   * The `server/discover` result of this connection, or the `prior` it
+   * adopted. Save it and pass it back as `prior: { kind: 'modern', discover }`
+   * to skip the `server/discover` request on a later connect. `undefined`
+   * when the server speaks spec 2025.
+   *
+   * Optional so an existing hand-rolled `MCPClient` keeps compiling.
+   */
+  getDiscoverResult?: () => DiscoverResult | undefined
   /**
    * Auto-discovery: every server tool as a ServerTool. With a generated
    * descriptor, tool names are typed as the descriptor's name literals;
@@ -239,7 +250,7 @@ class MCPClientImpl<
     }
   }
 
-  async connect(transport: Transport): Promise<void> {
+  async connect(transport: Transport, prior?: PriorDiscovery): Promise<void> {
     try {
       // A tools/list_changed notice drops the cached definitions so the next
       // callTool reads each tool's execution mode again.
@@ -251,10 +262,11 @@ class MCPClientImpl<
       )
       // The connect handshake gets the request options too, so `timeout`
       // also limits a server that does not answer while it connects.
-      await this.#client.connect(
-        transport,
-        sdkRequestOptions(this.#policy.requestOptions),
-      )
+      // `prior` adopts a saved discover result and skips server/discover.
+      await this.#client.connect(transport, {
+        ...sdkRequestOptions(this.#policy.requestOptions),
+        ...(prior === undefined ? {} : { prior }),
+      })
       this.capabilities = this.#client.getServerCapabilities() ?? {}
       this.instructions = this.#client.getInstructions()
       // A failed listen only means that tool changes are not pushed.
@@ -479,6 +491,10 @@ class MCPClientImpl<
     return result as TypedCallToolResult<TServer['tools'][TName]['output']>
   }
 
+  getDiscoverResult(): DiscoverResult | undefined {
+    return this.#client.getDiscoverResult()
+  }
+
   async close(): Promise<void> {
     if (this.#closed) return
     this.#closed = true
@@ -610,7 +626,7 @@ async function connectTransport<
       requestOptions: options.requestOptions,
     },
   )
-  await impl.connect(transport)
+  await impl.connect(transport, options.prior)
   return impl
 }
 

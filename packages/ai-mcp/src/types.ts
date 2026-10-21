@@ -1,6 +1,7 @@
 import type { ServerTool, ToolDefinition } from '@tanstack/ai'
 import type {
   ClientOptions,
+  PriorDiscovery,
   Tool as McpToolDef,
   ToolAnnotations,
 } from '@modelcontextprotocol/client'
@@ -153,6 +154,23 @@ export interface MCPClientOptions {
     /** Restart the timeout when the server sends a progress notification. */
     resetTimeoutOnProgress?: boolean
   }
+  /**
+   * A saved `server/discover` result for the SDK `Client.connect`. With
+   * `{ kind: 'modern', discover }` the client skips the `server/discover`
+   * request. Save it from `MCPClient.getDiscoverResult()`. Reuse it only
+   * for the same authorization context, and only while its `ttlMs` and
+   * `cacheScope` allow it.
+   *
+   * ```ts
+   * const first = await createMCPClient({ transport })
+   * const discover = first.getDiscoverResult?.()
+   * const next = await createMCPClient({
+   *   transport,
+   *   prior: discover ? { kind: 'modern', discover } : undefined,
+   * })
+   * ```
+   */
+  prior?: PriorDiscovery
   /**
    * Choose the server tools the model gets. Default: every tool.
    *

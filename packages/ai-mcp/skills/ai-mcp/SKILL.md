@@ -297,6 +297,7 @@ If the server does not support that spec, the client uses the 2025 initialize ha
 The client keeps negotiation mode `auto`.
 `client.instructions` holds the server's instructions from the handshake, or `undefined` when the server sends none.
 Put them in the system prompt: `systemPrompts: client.instructions ? [client.instructions] : []`.
+`client.getDiscoverResult()` returns the spec 2026 `server/discover` result. Pass it back as `prior: { kind: 'modern', discover }` to `createMCPClient` to skip that request. Reuse it only for the same auth context, within its `ttlMs` and `cacheScope`.
 
 Two more client options:
 

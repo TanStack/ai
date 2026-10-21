@@ -43,12 +43,45 @@ async function* closeMcpOnDrain(
  *
  * - GET returns the discovered tools, so a test can read `outputSchema`.
  *   It also calls `forecast` with the typed `callTool`.
+ * - GET `?prior` connects to the stateless server twice. The second client
+ *   gets the first one's discover result as `prior`.
  * - POST runs chat() with those tools.
  */
 export const Route = createFileRoute('/api/mcp-typed-test')({
   server: {
     handlers: {
       GET: async ({ request }) => {
+        const url = new URL(request.url)
+        if (url.searchParams.has('prior')) {
+          const transport = {
+            type: 'http' as const,
+            url: `${url.origin}/api/mcp-typed-server?stateless`,
+          }
+          const first = await createMCPClient({ transport })
+          const discover = first.getDiscoverResult?.()
+          await first.close()
+          if (discover === undefined) {
+            return Response.json(
+              { error: 'no discover result' },
+              { status: 500 },
+            )
+          }
+          const next = await createMCPClient({
+            transport,
+            prior: { kind: 'modern', discover },
+          })
+          try {
+            const called = await next.callTool('show_note', {})
+            return Response.json({
+              supportedVersions: discover.supportedVersions,
+              adopted: next.getDiscoverResult?.() ?? null,
+              discover,
+              content: called.content,
+            })
+          } finally {
+            await next.close()
+          }
+        }
         const mcp = await connect(request, 'alice')
         try {
           const tools = await mcp.tools()

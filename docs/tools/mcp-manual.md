@@ -102,6 +102,31 @@ const stream = chat({
 
 In a [multi-server pool](./mcp#per-server-access), each client has its own value: `pool.clients.github!.instructions`.
 
+## Skip the discover request
+
+On spec 2026, the client sends `server/discover` when it connects. A host that connects to the same server again and again, for example one connection per request, pays for that round trip each time. Save the result once, then pass it back as `prior`:
+
+```ts
+import { createMCPClient } from '@tanstack/ai-mcp'
+import type { DiscoverResult } from '@tanstack/ai-mcp'
+
+const transport = { type: 'http' as const, url: process.env.MCP_URL! }
+let saved: DiscoverResult | undefined
+
+export async function connect() {
+  const mcp = await createMCPClient({
+    transport,
+    prior: saved ? { kind: 'modern', discover: saved } : undefined,
+  })
+  saved ??= mcp.getDiscoverResult?.()
+  return mcp
+}
+```
+
+- `getDiscoverResult()` returns the `server/discover` result of the connection. It is `undefined` when the server speaks spec 2025.
+- The result is plain JSON, so you can keep it in a cache or a database.
+- Reuse it only for the same user or token, and only for as long as its `ttlMs` and `cacheScope` allow. See [Caching](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching) in the MCP spec.
+
 ## Resources
 
 MCP resources are context documents (files, database records, web pages) the server exposes. Fetch them and inject them into `chat()` as content parts.

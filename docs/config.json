@@ -565,7 +565,7 @@
           "label": "Manual MCP",
           "to": "tools/mcp-manual",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-09-29"
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "MCP Type Generation",
