@@ -1,6 +1,6 @@
-import { createAnthropicChat } from '@tanstack/ai-anthropic'
 import {
   NEON_ANTHROPIC_MODELS,
+  NEON_RESPONSES_MODELS,
   NEON_RESPONSES_ONLY_MODELS,
 } from '../model-meta'
 import {
@@ -8,6 +8,7 @@ import {
   getNeonTokenFromEnv,
   resolveNeonHost,
 } from '../utils/client'
+import { NeonAnthropicTextAdapter } from './anthropic-text'
 import { NeonTextAdapter } from './text'
 import { NeonResponsesTextAdapter } from './responses-text'
 import type { AnthropicTextConfig } from '@tanstack/ai-anthropic'
@@ -20,9 +21,7 @@ import type {
 import type { NeonTextConfig } from './text'
 import type { NeonResponsesTextConfig } from './responses-text'
 
-/** The Anthropic adapter `neonText` returns for a Claude model. */
-export type NeonAnthropicTextAdapter<TModel extends NeonAnthropicModel> =
-  ReturnType<typeof createAnthropicChat<TModel>>
+export type { NeonAnthropicTextAdapter } from './anthropic-text'
 
 /**
  * Config for a Claude model. It goes to the Anthropic Messages route, so it
@@ -31,7 +30,7 @@ export type NeonAnthropicTextAdapter<TModel extends NeonAnthropicModel> =
 export type NeonAnthropicTextConfig = Omit<
   AnthropicTextConfig,
   'apiKey' | 'auth' | 'baseURL' | 'provider'
-> & { baseURL?: string }
+> & { baseURL?: string; api?: never }
 
 /** Config for the Chat Completions route, the default. */
 export type NeonChatApiConfig = Omit<NeonTextConfig, 'apiKey'> & {
@@ -50,6 +49,12 @@ export type AnyNeonTextConfig =
 
 const anthropicModels = new Set<string>(NEON_ANTHROPIC_MODELS)
 const responsesOnlyModels = new Set<string>(NEON_RESPONSES_ONLY_MODELS)
+const responsesModels = new Set<string>(NEON_RESPONSES_MODELS)
+
+type ChatCompletionsModel = Exclude<
+  NeonChatModel,
+  NeonAnthropicModel | NeonResponsesOnlyModel
+>
 
 function isAnthropicModel(model: string): model is NeonAnthropicModel {
   return anthropicModels.has(model)
@@ -67,15 +72,38 @@ export function buildNeonText(
   apiKey: string,
   config: AnyNeonTextConfig = {},
 ): AnyNeonTextAdapter {
-  const { api, ...rest }: { api?: 'chat' | 'responses'; baseURL?: string } =
-    config
+  // The overloads pair each model with its SDK's options. Only the shared
+  // fields are needed here; SDK-specific headers pass through the spread.
+  const {
+    api,
+    ...rest
+  }: {
+    api?: 'chat' | 'responses'
+    baseURL?: string
+    fetch?: typeof globalThis.fetch
+  } = config
   if (isAnthropicModel(model)) {
-    return createAnthropicChat(model, apiKey, {
-      ...rest,
-      baseURL: resolveNeonHost(rest.baseURL) + NEON_ROUTES.anthropic,
-      auth: 'bearer',
-      provider: 'neon',
-    })
+    if (api !== undefined) {
+      throw new Error(`${model} uses the Anthropic Messages API; omit api.`)
+    }
+    return new NeonAnthropicTextAdapter(
+      {
+        ...rest,
+        apiKey,
+        baseURL: resolveNeonHost(rest.baseURL) + NEON_ROUTES.anthropic,
+        auth: 'bearer',
+        provider: 'neon',
+      },
+      model,
+    )
+  }
+  if (api === 'chat' && responsesOnlyModels.has(model)) {
+    throw new Error(
+      `${model} requires the Responses API; omit api or use api: 'responses'.`,
+    )
+  }
+  if (api === 'responses' && !responsesModels.has(model)) {
+    throw new Error(`${model} does not support the Responses API.`)
   }
   if (api === 'responses' || responsesOnlyModels.has(model)) {
     // The overloads only let a Responses-capable model get here.
@@ -113,7 +141,7 @@ export function createNeonText<TModel extends NeonResponsesModel>(
   apiKey: string,
   config: NeonResponsesApiConfig,
 ): NeonResponsesTextAdapter<TModel>
-export function createNeonText<TModel extends NeonChatModel>(
+export function createNeonText<TModel extends ChatCompletionsModel>(
   model: TModel,
   apiKey: string,
   config?: NeonChatApiConfig,
@@ -148,7 +176,7 @@ export function neonText<TModel extends NeonResponsesModel>(
   model: TModel,
   config: NeonResponsesApiConfig,
 ): NeonResponsesTextAdapter<TModel>
-export function neonText<TModel extends NeonChatModel>(
+export function neonText<TModel extends ChatCompletionsModel>(
   model: TModel,
   config?: NeonChatApiConfig,
 ): NeonTextAdapter<TModel>

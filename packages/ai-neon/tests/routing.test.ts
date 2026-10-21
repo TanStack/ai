@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { AnthropicTextAdapter } from '@tanstack/ai-anthropic'
-import { createNeonText, neonText } from '../src/adapters/factory'
+import {
+  buildNeonText,
+  createNeonText,
+  neonText,
+} from '../src/adapters/factory'
 import { NeonTextAdapter } from '../src/adapters/text'
 import { NeonResponsesTextAdapter } from '../src/adapters/responses-text'
 import type { TextOptions } from '@tanstack/ai'
@@ -32,14 +36,16 @@ async function drain(
   model: string,
   extra: Partial<TextOptions> = {},
 ) {
-  for await (const _ of adapter.chatStream({
+  const events: Array<unknown> = []
+  for await (const event of adapter.chatStream({
     logger,
     model,
     messages,
     ...extra,
   })) {
-    // drain
+    events.push(event)
   }
+  return events
 }
 
 describe('neon text routing', () => {
@@ -138,6 +144,115 @@ describe('neon text routing', () => {
 })
 
 describe('neon request body', () => {
+  it('reports only the input modalities supported by each route', () => {
+    const config = { baseURL: HOST }
+    expect(
+      createNeonText('gemini-3-8-flash', 'nt-test', config).inputModalities,
+    ).toEqual(['text', 'image'])
+    expect(
+      createNeonText('meta-llama-3-3-70b-instruct', 'nt-test', config)
+        .inputModalities,
+    ).toEqual(['text'])
+    expect(
+      createNeonText('gpt-5-4', 'nt-test', { ...config, api: 'responses' })
+        .inputModalities,
+    ).toContain('document')
+    expect(
+      createNeonText('claude-opus-5-5', 'nt-test', config).inputModalities,
+    ).toContain('document')
+  })
+
+  it('rejects a route that cannot serve the model, including untyped callers', () => {
+    expect(() =>
+      buildNeonText('gpt-5-3-codex', 'nt-test', { baseURL: HOST, api: 'chat' }),
+    ).toThrow(/requires the Responses API/)
+    expect(() =>
+      buildNeonText('gemini-3-8-flash', 'nt-test', {
+        baseURL: HOST,
+        api: 'responses',
+      }),
+    ).toThrow(/does not support the Responses API/)
+    expect(() =>
+      buildNeonText('claude-opus-5-5', 'nt-test', {
+        baseURL: HOST,
+        api: 'chat',
+      }),
+    ).toThrow(/uses the Anthropic Messages API/)
+  })
+
+  it('drops rejected Claude sampling settings, including through wrapFetch', async () => {
+    const { fetch, sent } = captureFetch()
+    const modelOptions = { temperature: 0.2, top_p: 0.9 }
+    const events = await drain(
+      createNeonText('claude-opus-5-5', 'nt-test', { baseURL: HOST, fetch }),
+      'claude-opus-5-5',
+      {
+        modelOptions,
+        wrapFetch: (next) => (input, init) => next(input, init),
+      },
+    )
+    expect(events).not.toContainEqual(
+      expect.objectContaining({ type: 'RUN_ERROR' }),
+    )
+    expect(sent).toHaveLength(1)
+    expect(sent[0]?.body).not.toHaveProperty('temperature')
+    expect(sent[0]?.body).not.toHaveProperty('top_p')
+    expect(modelOptions).toEqual({ temperature: 0.2, top_p: 0.9 })
+
+    const accepts = captureFetch()
+    await drain(
+      createNeonText('claude-sonnet-4-5', 'nt-test', {
+        baseURL: HOST,
+        fetch: accepts.fetch,
+      }),
+      'claude-sonnet-4-5',
+      { modelOptions: { temperature: 0.2 } },
+    )
+    expect(accepts.sent[0]?.body.temperature).toBe(0.2)
+  })
+
+  it('drops rejected Claude sampling settings on structured output', async () => {
+    const bodies: Array<Record<string, unknown>> = []
+    const model = 'claude-opus-5-5'
+    const adapter = createNeonText(model, 'nt-test', {
+      baseURL: HOST,
+      fetch: async (_input, init) => {
+        bodies.push(JSON.parse(String(init?.body)))
+        return Response.json({
+          id: 'msg-neon',
+          type: 'message',
+          role: 'assistant',
+          model,
+          content: [
+            {
+              type: 'tool_use',
+              id: 'tool-neon',
+              name: 'structured_output',
+              input: { ok: true },
+            },
+          ],
+          stop_reason: 'tool_use',
+          usage: { input_tokens: 3, output_tokens: 5 },
+        })
+      },
+    })
+    const modelOptions = { max_tokens: 73, temperature: 0.2, top_p: 0.9 }
+    const result = await adapter.structuredOutput({
+      outputSchema: { type: 'object', properties: { ok: { type: 'boolean' } } },
+      chatOptions: { model, messages, logger, modelOptions },
+    })
+    expect(result.data).toEqual({ ok: true })
+    expect(bodies).toHaveLength(1)
+    expect(bodies[0]?.max_tokens).toBe(73)
+    expect(bodies[0]).not.toHaveProperty('temperature')
+    expect(bodies[0]).not.toHaveProperty('top_p')
+    expect(modelOptions).toEqual({
+      max_tokens: 73,
+      temperature: 0.2,
+      top_p: 0.9,
+    })
+  })
+
   it('sends the model reasoning effort on Chat Completions', async () => {
     const { fetch, sent } = captureFetch()
     await drain(

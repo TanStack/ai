@@ -82,4 +82,10 @@ describe('neon summarize adapter', () => {
     expect(adapter.name).toBe('anthropic')
     expect(body.max_tokens).toBeGreaterThan(0)
   })
+
+  it('omits the default temperature for Claude models that reject sampling', async () => {
+    const { body } = await summarizeBody('claude-opus-5-5')
+    expect(body).not.toHaveProperty('temperature')
+    expect(body).not.toHaveProperty('top_p')
+  })
 })

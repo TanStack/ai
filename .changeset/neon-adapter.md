@@ -1,4 +1,5 @@
 ---
+'@tanstack/ai': patch
 '@tanstack/ai-neon': minor
 '@tanstack/openai-base': patch
 ---

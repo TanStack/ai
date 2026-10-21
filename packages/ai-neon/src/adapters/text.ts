@@ -32,17 +32,25 @@ export type ResolveInputModalities<TModel extends string> =
     ? NeonModelInputModalitiesByName[TModel]
     : readonly ['text']
 
+// The Chat Completions converter handles text and images. The catalog also
+// lists media that needs a native route, so constrain this route's types.
+type ResolveChatInputModalities<TModel extends string> =
+  'image' extends ResolveInputModalities<TModel>[number]
+    ? readonly ['text', 'image']
+    : readonly ['text']
+
 /**
  * Drop `temperature` and `top_p` for the models that 400 on them. Callers
  * (and the summarize adapter's low-temperature default) can't know a given
  * model rejects them, and stripping only ever averts a guaranteed 400.
  */
-export function dropRejectedSampling<
-  TRequest extends { temperature?: unknown; top_p?: unknown },
->(model: string, request: TRequest): TRequest {
+export function dropRejectedSampling<TRequest extends object>(
+  model: string,
+  request: TRequest,
+): TRequest {
   if (NEON_MODELS_REJECTING_SAMPLING.has(model)) {
-    delete request.temperature
-    delete request.top_p
+    Reflect.deleteProperty(request, 'temperature')
+    Reflect.deleteProperty(request, 'top_p')
   }
   return request
 }
@@ -59,7 +67,7 @@ export class NeonTextAdapter<
   TModel extends NeonChatModel,
   TProviderOptions extends Record<string, any> = NeonTextProviderOptions,
   TInputModalities extends ReadonlyArray<Modality> =
-    ResolveInputModalities<TModel>,
+    ResolveChatInputModalities<TModel>,
 > extends OpenAIBaseChatCompletionsTextAdapter<
   TModel,
   TProviderOptions,
@@ -70,7 +78,9 @@ export class NeonTextAdapter<
 > {
   override readonly kind = 'text' as const
   override readonly name = 'neon' as const
-  override readonly inputModalities = NEON_MODEL_INPUT_MODALITIES[this.model]
+  override readonly inputModalities = NEON_MODEL_INPUT_MODALITIES[
+    this.model
+  ].filter((modality) => modality === 'text' || modality === 'image')
   /** The gateway's output cap on this route, for `summarize({ maxLength })`. */
   readonly maxTokensKey = 'max_tokens'
 

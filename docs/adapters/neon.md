@@ -134,6 +134,8 @@ The gateway has one endpoint per API style. `neonText` sends each model to the e
 
 The types follow the endpoint. For example, a Claude model takes the Anthropic model options.
 
+Chat Completions accepts text and images through this adapter. For documents, use Claude or a GPT model with `api: "responses"`. Audio and video inputs are not supported.
+
 Other GPT models can also use the Responses API. Pass `{ api: "responses" }`:
 
 ```typescript

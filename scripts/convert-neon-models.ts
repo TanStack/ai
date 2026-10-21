@@ -134,9 +134,7 @@ function convertModels(): string {
   const responsesOnly = responses.filter(
     (model) => model.capabilities?.chat === 'not-served',
   )
-  const rejectsSampling = chat.filter(
-    (model) => model.temperature === false && !anthropicSet.has(model.id),
-  )
+  const rejectsSampling = chat.filter((model) => model.temperature === false)
   // Measured against the gateway: every Gemini-dialect model 400s on
   // `stream_options` on Chat Completions, and streams usage without it.
   const rejectsStreamOptions = chat.filter(

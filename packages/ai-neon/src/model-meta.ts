@@ -133,6 +133,15 @@ export type NeonEmbeddingModel = (typeof NEON_EMBEDDING_MODELS)[number]
 
 /** Models that reject `temperature` and `top_p`. The adapters drop both. */
 export const NEON_MODELS_REJECTING_SAMPLING: ReadonlySet<string> = new Set([
+  'claude-fable-5',
+  'claude-fable-5-1',
+  'claude-haiku-5-5',
+  'claude-opus-4-7',
+  'claude-opus-4-8',
+  'claude-opus-5',
+  'claude-opus-5-5',
+  'claude-sonnet-5',
+  'claude-sonnet-5-5',
   'gemini-3-6-flash',
   'gemini-3-7-flash',
   'gemini-3-8-flash',

@@ -155,6 +155,13 @@ function createSummarizeAdapter(
         baseURL: llmockBase(aimockPort),
         defaultHeaders: headers,
       }),
+    'neon-anthropic': () =>
+      createNeonSummarize('claude-opus-5-5', DUMMY_KEY, {
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
+        fetch: (input, init) =>
+          fetch(String(input).replace('/anthropic/v1/', '/v1/'), init),
+      }),
   }
   return factories[provider]?.()
 }

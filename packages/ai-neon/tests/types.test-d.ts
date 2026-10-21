@@ -1,6 +1,6 @@
 import { chat, summarize } from '@tanstack/ai'
 import { expectTypeOf } from 'vitest'
-import { createNeonText, neonSummarize } from '../src'
+import { createNeonText, neonText, neonSummarize } from '../src'
 import type {
   NeonAnthropicTextAdapter,
   NeonResponsesTextAdapter,
@@ -25,6 +25,31 @@ expectTypeOf(createNeonText('gemini-3-8-flash', 'k')).toEqualTypeOf<
 
 // @ts-expect-error the Responses route does not serve Gemini
 createNeonText('gemini-3-8-flash', 'k', { api: 'responses' })
+
+// @ts-expect-error a Responses-only model cannot select Chat Completions
+createNeonText('gpt-5-3-codex', 'k', { api: 'chat' })
+// @ts-expect-error the environment factory has the same route restriction
+neonText('gpt-5-5-pro', { api: 'chat' })
+// @ts-expect-error Claude always uses the Anthropic Messages route
+createNeonText('claude-opus-5-5', 'k', { api: 'chat' })
+// @ts-expect-error Claude cannot take OpenAI route options
+neonText('claude-opus-5-5', { api: 'responses' })
+
+expectTypeOf(
+  createNeonText('gemini-3-8-flash', 'k')['~types']['inputModalities'],
+).toEqualTypeOf<readonly ['text', 'image']>()
+expectTypeOf(
+  createNeonText('gpt-5-4', 'k', { api: 'responses' })['~types'][
+    'inputModalities'
+  ],
+).toEqualTypeOf<readonly ['text', 'image', 'document']>()
+
+chat({
+  adapter: createNeonText('gpt-5-3-codex', 'k'),
+  messages,
+  // @ts-expect-error the Responses API uses max_output_tokens
+  modelOptions: { max_tokens: 10 },
+})
 
 chat({
   adapter: createNeonText('gemini-3-8-flash', 'k'),
