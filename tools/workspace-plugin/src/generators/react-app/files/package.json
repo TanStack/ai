@@ -41,6 +41,7 @@
     "@tanstack/ai-mcp": "workspace:*",
     "@tanstack/ai-memory": "workspace:*",
     "@tanstack/ai-mistral": "workspace:*",
+    "@tanstack/ai-neon": "workspace:*",
     "@tanstack/ai-ollama": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-opencode": "workspace:*",

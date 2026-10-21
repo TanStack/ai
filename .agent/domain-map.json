@@ -25,6 +25,7 @@
         "packages/ai-llmgateway",
         "packages/ai-lovable",
         "packages/ai-mistral",
+        "packages/ai-neon",
         "packages/ai-ollaya",
         "packages/ai-openrouter",
         "packages/ai-perplexity",
