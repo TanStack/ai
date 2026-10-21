@@ -3,7 +3,7 @@ id: CodeModeConsoleEvent
 title: CodeModeConsoleEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1906](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1906)
+Defined in: [packages/ai/src/types.ts:1912](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1912)
 
 Custom event for extensibility.
 
@@ -21,7 +21,7 @@ Custom event for extensibility.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1783](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1783)
+Defined in: [packages/ai/src/types.ts:1789](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1789)
 
 Extra information attached to this event.
 
@@ -37,7 +37,7 @@ Extra information attached to this event.
 name: "code_mode:console";
 ```
 
-Defined in: [packages/ai/src/types.ts:1907](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1907)
+Defined in: [packages/ai/src/types.ts:1913](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1913)
 
 What this custom event is. Required: without it a consumer cannot route
 the value.
@@ -56,7 +56,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1782](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1782)
+Defined in: [packages/ai/src/types.ts:1788](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1788)
 
 #### Inherited from
 
@@ -70,7 +70,7 @@ Defined in: [packages/ai/src/types.ts:1782](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1908](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1908)
+Defined in: [packages/ai/src/types.ts:1914](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1914)
 
 The payload. Any JSON value, and required.
 

@@ -11,7 +11,7 @@ type TaggedCustomEvent<T> =
   | ToolInputAvailableEvent;
 ```
 
-Defined in: [packages/ai/src/types.ts:2197](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2197)
+Defined in: [packages/ai/src/types.ts:2203](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2203)
 
 Discriminated union of the orchestrator-tagged `CUSTOM` events. Each variant
 has a literal `name`, so a single narrow on `chunk.name` yields a typed

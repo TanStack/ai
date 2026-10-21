@@ -3,7 +3,7 @@ id: SubagentFinishedEvent
 title: SubagentFinishedEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:2159](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2159)
+Defined in: [packages/ai/src/types.ts:2165](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2165)
 
 A child agent's segment of this run ended.
 

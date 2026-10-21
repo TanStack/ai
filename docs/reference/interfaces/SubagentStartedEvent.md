@@ -3,7 +3,7 @@ id: SubagentStartedEvent
 title: SubagentStartedEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:2152](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2152)
+Defined in: [packages/ai/src/types.ts:2158](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2158)
 
 A child agent started. The later chunks for that child carry the same
 `subagentRunId`.

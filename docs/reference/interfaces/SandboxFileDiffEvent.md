@@ -3,7 +3,7 @@ id: SandboxFileDiffEvent
 title: SandboxFileDiffEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1886](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1886)
+Defined in: [packages/ai/src/types.ts:1892](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1892)
 
 Custom event for extensibility.
 
@@ -21,7 +21,7 @@ Custom event for extensibility.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1783](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1783)
+Defined in: [packages/ai/src/types.ts:1789](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1789)
 
 Extra information attached to this event.
 
@@ -37,7 +37,7 @@ Extra information attached to this event.
 name: "sandbox.file.diff";
 ```
 
-Defined in: [packages/ai/src/types.ts:1887](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1887)
+Defined in: [packages/ai/src/types.ts:1893](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1893)
 
 What this custom event is. Required: without it a consumer cannot route
 the value.
@@ -56,7 +56,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1782](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1782)
+Defined in: [packages/ai/src/types.ts:1788](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1788)
 
 #### Inherited from
 
@@ -70,7 +70,7 @@ Defined in: [packages/ai/src/types.ts:1782](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1888](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1888)
+Defined in: [packages/ai/src/types.ts:1894](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1894)
 
 The payload. Any JSON value, and required.
 

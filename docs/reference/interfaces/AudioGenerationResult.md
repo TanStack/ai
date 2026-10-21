@@ -3,7 +3,7 @@ id: AudioGenerationResult
 title: AudioGenerationResult
 ---
 
-Defined in: [packages/ai/src/types.ts:2588](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2588)
+Defined in: [packages/ai/src/types.ts:2594](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2594)
 
 Result of audio generation
 
@@ -15,7 +15,7 @@ Result of audio generation
 optional artifacts?: PersistedArtifactRef[];
 ```
 
-Defined in: [packages/ai/src/types.ts:2598](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2598)
+Defined in: [packages/ai/src/types.ts:2604](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2604)
 
 Persisted artifact references for generated assets, when available
 
@@ -27,7 +27,7 @@ Persisted artifact references for generated assets, when available
 audio: GeneratedAudio;
 ```
 
-Defined in: [packages/ai/src/types.ts:2594](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2594)
+Defined in: [packages/ai/src/types.ts:2600](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2600)
 
 The generated audio
 
@@ -39,7 +39,7 @@ The generated audio
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2590](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2590)
+Defined in: [packages/ai/src/types.ts:2596](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2596)
 
 Unique identifier for the generation
 
@@ -51,7 +51,7 @@ Unique identifier for the generation
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2592](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2592)
+Defined in: [packages/ai/src/types.ts:2598](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2598)
 
 Model used for generation
 
@@ -63,6 +63,6 @@ Model used for generation
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:2596](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2596)
+Defined in: [packages/ai/src/types.ts:2602](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2602)
 
 Token usage information (if available)

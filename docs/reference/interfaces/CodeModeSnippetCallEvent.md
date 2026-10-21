@@ -3,7 +3,7 @@ id: CodeModeSnippetCallEvent
 title: CodeModeSnippetCallEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1926](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1926)
+Defined in: [packages/ai/src/types.ts:1932](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1932)
 
 Custom event for extensibility.
 
@@ -21,7 +21,7 @@ Custom event for extensibility.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1783](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1783)
+Defined in: [packages/ai/src/types.ts:1789](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1789)
 
 Extra information attached to this event.
 
@@ -37,7 +37,7 @@ Extra information attached to this event.
 name: "code_mode:snippet_call";
 ```
 
-Defined in: [packages/ai/src/types.ts:1927](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1927)
+Defined in: [packages/ai/src/types.ts:1933](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1933)
 
 What this custom event is. Required: without it a consumer cannot route
 the value.
@@ -56,7 +56,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1782](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1782)
+Defined in: [packages/ai/src/types.ts:1788](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1788)
 
 #### Inherited from
 
@@ -70,7 +70,7 @@ Defined in: [packages/ai/src/types.ts:1782](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1928](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1928)
+Defined in: [packages/ai/src/types.ts:1934](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1934)
 
 The payload. Any JSON value, and required.
 
