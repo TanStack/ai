@@ -165,7 +165,7 @@ export function executeHostTool(
   tools: Array<AnyTool>,
   name: string,
   args: unknown,
-  options: { context?: unknown; signal?: AbortSignal } = {},
+  options: { threadId: string; context?: unknown; signal?: AbortSignal },
 ): Promise<unknown> {
   const tool = tools.find((candidate) => candidate.name === name)
   if (!tool?.execute) {
@@ -173,6 +173,7 @@ export function executeHostTool(
   }
   return Promise.resolve(
     tool.execute(args ?? {}, {
+      threadId: options.threadId,
       context: options.context,
       abortSignal: options.signal,
     }),

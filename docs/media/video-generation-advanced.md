@@ -40,10 +40,10 @@ async function createAndAwaitVideo(prompt: string, threadId: string) {
   })
 
   // 2. Poll until the job is done or fails
-  let status = await getVideoJobStatus({ adapter, jobId, threadId })
+  let status = await getVideoJobStatus({ adapter, jobId })
   while (status.status !== 'completed' && status.status !== 'failed') {
     await new Promise((resolve) => setTimeout(resolve, 5000))
-    status = await getVideoJobStatus({ adapter, jobId, threadId })
+    status = await getVideoJobStatus({ adapter, jobId })
     console.log(`Status: ${status.status} (${status.progress ?? 0}%)`)
   }
 
@@ -82,10 +82,10 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
     const { threadId } = data
     const { jobId } = await generateVideo({ adapter, prompt: data.prompt, threadId })
 
-    let status = await getVideoJobStatus({ adapter, jobId, threadId })
+    let status = await getVideoJobStatus({ adapter, jobId })
     while (status.status !== 'completed' && status.status !== 'failed') {
       await new Promise((r) => setTimeout(r, 5000))
-      status = await getVideoJobStatus({ adapter, jobId, threadId })
+      status = await getVideoJobStatus({ adapter, jobId })
     }
 
     if (status.status === 'failed' || !status.url) {
@@ -330,7 +330,7 @@ const { jobId } = await generateVideo({
   duration: 6, // 3-10 seconds. Leave it out for the 10s default.
 })
 
-const status = await getVideoJobStatus({ adapter, jobId, threadId: 'thread-1' })
+const status = await getVideoJobStatus({ adapter, jobId })
 // status.url is 'data:video/mp4;base64,...' when the job is complete
 ```
 
@@ -685,7 +685,7 @@ try {
   const adapter = openaiVideo('sora-2')
   const { jobId } = await generateVideo({ adapter, prompt: 'A scene', threadId: 'thread-1' })
 
-  const status = await getVideoJobStatus({ adapter, jobId, threadId: 'thread-1' })
+  const status = await getVideoJobStatus({ adapter, jobId })
   if (status.status === 'failed') {
     console.error('Generation failed:', status.error)
   }

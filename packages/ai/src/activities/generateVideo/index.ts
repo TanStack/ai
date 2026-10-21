@@ -822,8 +822,8 @@ async function* runStreamingVideoGeneration<
  *
  * The run this poll finishes is identified by `adapter` + `jobId` alone — the
  * same pair the submitting `generateVideo()` call derived it from — so there is
- * no run id to thread through. Pass the submission's `threadId` and the same
- * `middleware`.
+ * no run id to thread through. With middleware, pass the submission's
+ * `threadId` and the same `middleware`.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
@@ -836,8 +836,10 @@ export interface VideoJobStatusOptions<
   jobId: string
   /**
    * The scope the run is filed under. Must match the submission's `threadId`.
+   * Only middleware reads it. Generation persistence throws without it,
+   * unless you set its own `threadId` option. A plain status poll can omit it.
    */
-  threadId: string
+  threadId?: string
   /**
    * Observe-only middleware. Hooks fire ONLY on the poll that observes a
    * terminal job state: `onStart` (resuming the submission's run), then the

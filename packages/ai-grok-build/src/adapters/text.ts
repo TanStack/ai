@@ -358,6 +358,7 @@ export class GrokBuildTextAdapter<
             : undefined) ?? nodeHttpBridgeProvisioner
         bridge = await provisioner.provision(tools, {
           provider: sandbox.provider,
+          threadId,
           context: options.context,
           emitCustomEvent: channel.emitCustomEvent,
           ...(externalSignal ? { signal: externalSignal } : {}),
@@ -662,6 +663,7 @@ export class GrokBuildTextAdapter<
             : undefined) ?? nodeHttpBridgeProvisioner
         bridge = await provisioner.provision(tools, {
           provider: sandbox.provider,
+          threadId,
           context: options.context,
           ...(options.abortController?.signal
             ? { signal: options.abortController.signal }

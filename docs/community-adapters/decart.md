@@ -99,7 +99,6 @@ const jobId = "example-job-id";
 const status = await getVideoJobStatus({
   adapter: decartVideo("lucy-pro-t2v"),
   jobId,
-  threadId: "thread-1",
 });
 
 console.log("Status:", status.status); // "pending" | "processing" | "completed" | "failed"
@@ -127,7 +126,7 @@ async function createVideo(prompt: string) {
   while (status !== "completed" && status !== "failed") {
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
-    const result = await getVideoJobStatus({ adapter, jobId, threadId: "thread-1" });
+    const result = await getVideoJobStatus({ adapter, jobId });
     status = result.status;
     console.log(`Status: ${status}`);
 

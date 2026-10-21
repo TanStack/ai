@@ -679,7 +679,8 @@ jobs without `url`), the adapter's `getVideo()` returns
 core buffers the whole video in memory and sets `url` to a base64 `data:` URL
 (fine for short clips, an out-of-memory risk on serverless above ~10 MiB).
 Custom adapters must implement `getVideo()`. There is no `getVideoUrl()`.
-To poll from app code, call `getVideoJobStatus({ adapter, threadId, jobId })`. Providers that
+To poll from app code, call `getVideoJobStatus({ adapter, jobId })`. With middleware,
+also pass the `threadId` of the submit. Providers that
 return a URL (Grok, fal, BytePlus) pass through; persistence still re-hosts
 them, which you want because those URLs expire.
 
@@ -721,18 +722,10 @@ const { jobId } = await generateVideo({
   duration: 8,
 })
 
-let status = await getVideoJobStatus({
-  adapter: openaiVideo('sora-2'),
-  threadId: 'thread-1',
-  jobId,
-})
+let status = await getVideoJobStatus({ adapter: openaiVideo('sora-2'), jobId })
 while (status.status !== 'completed' && status.status !== 'failed') {
   await new Promise((r) => setTimeout(r, 5000))
-  status = await getVideoJobStatus({
-    adapter: openaiVideo('sora-2'),
-    threadId: 'thread-1',
-    jobId,
-  })
+  status = await getVideoJobStatus({ adapter: openaiVideo('sora-2'), jobId })
 }
 
 // Streaming: server handles polling, client gets real-time updates

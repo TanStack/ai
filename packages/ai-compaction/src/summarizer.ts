@@ -24,7 +24,10 @@ export interface SummarizeInput {
   turnPrefixMessages?: Array<ModelMessage>
   /** Aborted when the run is cancelled. */
   signal?: AbortSignal
-  /** The thread id of the run. Pass it to the summary model call. */
+  /**
+   * The thread id of the conversation. A summary model call uses a thread id
+   * of its own, for example `${threadId}:compaction`.
+   */
   threadId: string
 }
 
@@ -233,7 +236,8 @@ export function conversationSummarizer(options: {
         modelOptions: options.modelOptions,
         middleware: [countUsage],
         abortController: controller,
-        threadId: input.threadId,
+        // A thread of its own: the summary call is not a turn of the conversation.
+        threadId: `${input.threadId}:compaction`,
         stream: false,
       })
       text = result.text

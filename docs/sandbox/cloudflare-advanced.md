@@ -54,7 +54,7 @@ Four exports from `@tanstack/ai-sandbox` carry the tools across:
 1. The coordinator serializes its tools with `toolDescriptors(tools)` and sends the descriptors in.
 2. The container rebuilds them with `remoteToolStubs(descriptors, executor)`.
 3. Each stub's `execute()` calls a `RemoteToolExecutor`. `httpRemoteToolExecutor(url, token)` posts `{ name, args }` back.
-4. The coordinator answers that call with `executeHostTool(tools, name, args)`.
+4. The coordinator answers that call with `executeHostTool(tools, name, args, { threadId })`. The tool gets the `threadId` of the run in its context.
 
 To write your own runner, this is what `runInContainerHarness` does inside the container:
 

@@ -623,14 +623,16 @@ describe('createComputerUse threads', () => {
     ])
   })
 
-  it('rejects a call with no threadId and makes no machine', async () => {
+  it('uses one shared thread for calls with no context', async () => {
     const { factory, created } = createFactory()
     const {
       tools: [tool],
     } = setupWith(factory)
 
-    await expect(tool.execute?.(CLICK)).rejects.toThrow('needs a threadId')
-    expect(created).toHaveLength(0)
+    await tool.execute?.(CLICK)
+    await tool.execute?.(TYPE)
+
+    expect(created).toHaveLength(1)
   })
 
   it('keeps the approvals per thread', async () => {

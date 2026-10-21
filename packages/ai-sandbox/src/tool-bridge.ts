@@ -60,6 +60,8 @@ export interface BridgePermission {
 }
 
 export interface ToolBridgeCoreOptions {
+  /** The thread id of the run, forwarded to each tool's `execute()`. */
+  threadId: string
   /** Runtime context forwarded to each tool's `execute()`. */
   context?: unknown
   /** Abort signal forwarded to each tool's `execute()`. */
@@ -131,7 +133,7 @@ export interface ToolBridgeCore {
 /** Build the transport-agnostic bridge core for the given tools. */
 export function createToolBridgeCore(
   tools: Array<AnyTool>,
-  options: ToolBridgeCoreOptions = {},
+  options: ToolBridgeCoreOptions,
 ): ToolBridgeCore {
   const toolsByName = new Map(tools.map((tool) => [tool.name, tool]))
   const permission = options.permission
@@ -166,6 +168,7 @@ export function createToolBridgeCore(
       if (!tool?.execute) throw new Error(`Unknown tool: ${name}`)
       try {
         const result: unknown = await tool.execute(args ?? {}, {
+          threadId: options.threadId,
           context: options.context,
           abortSignal: options.signal,
           // No-op default so tools that always call it (e.g. code mode) don't

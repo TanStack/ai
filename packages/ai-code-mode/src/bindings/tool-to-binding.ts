@@ -4,7 +4,7 @@ import {
   parseWithStandardSchema,
 } from '@tanstack/ai'
 import type { ToolExecutionContext } from '@tanstack/ai'
-import type { CodeModeTool, ToolBinding } from '../types'
+import type { CodeModeTool, ToolBinding, ToolBindingContext } from '../types'
 
 /**
  * Convert an array of TanStack AI tools to a Record of ToolBindings
@@ -55,7 +55,7 @@ export function toolToBinding(
   }
 
   const toolExecute = tool.execute
-  const execute = async (args: unknown, context?: ToolExecutionContext) => {
+  const execute = async (args: unknown, context?: ToolBindingContext) => {
     let input = args
     if (tool.inputSchema && isStandardSchema(tool.inputSchema)) {
       try {
@@ -69,7 +69,14 @@ export function toolToBinding(
       }
     }
 
-    let result = await Promise.resolve(toolExecute(input, context))
+    // A tool context needs a threadId. Without one (no parent run), the tool
+    // gets no context, the same as a direct `execute()` call outside `chat()`.
+    const threadId = context?.threadId
+    let result = await Promise.resolve(
+      context && threadId !== undefined
+        ? toolExecute(input, { ...context, threadId })
+        : toolExecute(input),
+    )
 
     if (tool.outputSchema && isStandardSchema(tool.outputSchema)) {
       try {
@@ -102,7 +109,7 @@ export function toolToBinding(
  * Each call gets the parent tool's `abortSignal`, `threadId`, and runtime `context`, so a
  * tool can cancel in-flight work when the run aborts. `toolCallId` and `inputResponse` are
  * not passed: they belong to the parent tool call, not to this nested call. Without a
- * parent context, the bindings get no context.
+ * parent context, the context has no `threadId`.
  *
  * @param bindings - Original tool bindings
  * @param emitCustomEvent - Callback to emit custom events to the stream
@@ -111,12 +118,14 @@ export function toolToBinding(
 export function createEventAwareBindings(
   bindings: Record<string, ToolBinding>,
   emitCustomEvent: ToolExecutionContext['emitCustomEvent'],
-  parentContext?: ToolExecutionContext,
+  parentContext?: ToolBindingContext,
 ): Record<string, ToolBinding> {
-  const toolContext: ToolExecutionContext | undefined = parentContext && {
-    context: parentContext.context,
-    abortSignal: parentContext.abortSignal,
-    threadId: parentContext.threadId,
+  const toolContext: ToolBindingContext = {
+    context: parentContext?.context,
+    abortSignal: parentContext?.abortSignal,
+    ...(parentContext?.threadId !== undefined && {
+      threadId: parentContext.threadId,
+    }),
     emitCustomEvent,
   }
 
@@ -135,7 +144,7 @@ export function createEventAwareBindings(
 
         const startTime = Date.now()
         try {
-          toolContext?.abortSignal?.throwIfAborted()
+          toolContext.abortSignal?.throwIfAborted()
           const result = await binding.execute(args, toolContext)
 
           // Emit result event

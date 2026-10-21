@@ -85,7 +85,7 @@ describe('selectRelevantSnippets', () => {
     expect(result).toHaveLength(1)
     expect(result[0]!.name).toBe('github_stats')
     expect(chatMock).toHaveBeenCalledWith(
-      expect.objectContaining({ threadId: 'thread-1' }),
+      expect.objectContaining({ threadId: 'thread-1:snippets' }),
     )
   })
 

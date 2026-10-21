@@ -352,7 +352,10 @@ export interface CompactionContext {
   addUsage: (usage: TokenUsage) => void
   /** Aborted when the run is cancelled. Pass it to a model call. */
   signal?: AbortSignal
-  /** The thread id of the run. Pass it to a model call. */
+  /**
+   * The thread id of the conversation. A model call of the strategy uses a
+   * thread id of its own, for example `${threadId}:compaction`.
+   */
   threadId: string
 }
 

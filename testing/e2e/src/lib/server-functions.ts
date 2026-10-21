@@ -199,11 +199,7 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
       prompt: data.prompt,
     })
     // Poll for completion (aimock returns completed immediately)
-    const result = await getVideoJobStatus({
-      adapter,
-      jobId,
-      threadId: 'server-fn-video',
-    })
+    const result = await getVideoJobStatus({ adapter, jobId })
     return {
       jobId,
       status: result.status,

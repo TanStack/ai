@@ -470,7 +470,7 @@ Question helpers:
 
 Each function runs one generation with a matching adapter. The guide for each one shows the server and the client side.
 
-The generate functions and `getVideoJobStatus` need a `threadId`, the same as `chat()`.
+The generate functions need a `threadId`, the same as `chat()`. `getVideoJobStatus` needs it only when you pass middleware, for example persistence.
 
 | Function | What it makes | Guide |
 | --- | --- | --- |

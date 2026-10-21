@@ -213,7 +213,9 @@ describe('claude-code co-located host-tool delegation', () => {
         // these stubs — only this executor crosses back to the host tool.
         tools: remoteToolStubs(toolDescriptors([getFactRealTool]), {
           execute: (name, args) =>
-            executeHostTool([getFactRealTool], name, args),
+            executeHostTool([getFactRealTool], name, args, {
+              threadId: 'thread-1',
+            }),
         }),
       }),
     )

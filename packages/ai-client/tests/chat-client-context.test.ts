@@ -47,7 +47,7 @@ function findToolResultPart(client: ChatClient, toolCallId: string) {
 }
 
 describe('ChatClient runtime context', () => {
-  it('passes client-local context to client tool execution without serializing it', async () => {
+  it('passes client-local context and the thread id to client tool execution without serializing the context', async () => {
     const firstChunks = createToolCallChunks([
       { id: 'tc-client-context', name: 'read_client_context', arguments: '{}' },
     ])
@@ -79,6 +79,7 @@ describe('ChatClient runtime context', () => {
       outputs.push({
         localUserId: ctx.context.localUserId,
         tokenLength: ctx.context.secretToken.length,
+        threadId: ctx.threadId,
       })
       return { ok: true }
     })
@@ -92,7 +93,9 @@ describe('ChatClient runtime context', () => {
 
     await client.sendMessage('use client context')
 
-    expect(outputs).toEqual([{ localUserId: 'local-1', tokenLength: 12 }])
+    expect(outputs).toEqual([
+      { localUserId: 'local-1', tokenLength: 12, threadId: 'thread-1' },
+    ])
     expect(JSON.stringify(sentPayloads)).not.toContain('secret-value')
     expect(JSON.stringify(runContexts)).not.toContain('secret-value')
     expect(runContexts).toEqual([

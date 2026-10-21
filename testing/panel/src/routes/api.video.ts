@@ -54,11 +54,7 @@ export const Route = createFileRoute('/api/video')({
                 )
               }
 
-              const result = await getVideoJobStatus({
-                threadId: 'panel-video',
-                adapter,
-                jobId,
-              })
+              const result = await getVideoJobStatus({ adapter, jobId })
 
               return new Response(
                 JSON.stringify({
@@ -90,11 +86,7 @@ export const Route = createFileRoute('/api/video')({
                 )
               }
 
-              const result = await getVideoJobStatus({
-                threadId: 'panel-video',
-                adapter,
-                jobId,
-              })
+              const result = await getVideoJobStatus({ adapter, jobId })
 
               return new Response(
                 JSON.stringify({

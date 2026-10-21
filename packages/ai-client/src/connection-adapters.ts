@@ -882,9 +882,9 @@ export interface ConnectConnectionAdapter {
    */
   connect: (
     messages: Array<UIMessage> | Array<ModelMessage>,
-    data?: Record<string, any>,
-    abortSignal?: AbortSignal,
-    runContext?: RunAgentInputContext,
+    data: Record<string, any> | undefined,
+    abortSignal: AbortSignal | undefined,
+    runContext: RunAgentInputContext,
   ) => AsyncIterable<StreamChunk>
   /**
    * Fetch server-driven hydration for a generation `threadId`: the last
@@ -1024,9 +1024,9 @@ export interface SubscribeConnectionAdapter {
    */
   send: (
     messages: Array<UIMessage> | Array<ModelMessage>,
-    data?: Record<string, any>,
-    abortSignal?: AbortSignal,
-    runContext?: RunAgentInputContext,
+    data: Record<string, any> | undefined,
+    abortSignal: AbortSignal | undefined,
+    runContext: RunAgentInputContext,
   ) => Promise<void>
   /**
    * Re-attach to an existing run by id, replaying its stream from the start off

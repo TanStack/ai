@@ -180,7 +180,7 @@ const windowed = withCompaction({
         text: messages
           .map((m) => `${m.role}: ${typeof m.content === 'string' ? m.content : ''}`)
           .join('\n'),
-        threadId,
+        threadId: `${threadId}:compaction`,
       }),
   }),
 })
@@ -220,7 +220,7 @@ const compaction = withCompaction({
         text: messages
           .map((m) => `${m.role}: ${typeof m.content === 'string' ? m.content : ''}`)
           .join('\n'),
-        threadId,
+        threadId: `${threadId}:compaction`,
       }),
   }),
 })

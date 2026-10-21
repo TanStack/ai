@@ -2393,7 +2393,7 @@ describe('conversationSummarizer', () => {
     }
     expect(userOf(requests[0])).toContain('[User]: fix the bug')
     expect(userOf(requests[0])).toContain('[Assistant]: done')
-    expect(requests[0]?.threadId).toBe('thread-1')
+    expect(requests[0]?.threadId).toBe('thread-1:compaction')
   })
 
   it('writes text parts and a tag for each other part', async () => {

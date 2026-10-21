@@ -968,6 +968,7 @@ export class ChatClient<
                     : this.activeContext
                 const output = await executeFunc(args.input, {
                   toolCallId: args.toolCallId,
+                  threadId: this.threadId,
                   context: context as TContext,
                   emitCustomEvent: () => {},
                 })

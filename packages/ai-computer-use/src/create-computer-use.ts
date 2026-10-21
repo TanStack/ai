@@ -41,6 +41,9 @@ export interface CreateComputerUseOptions {
 
 const TOOL_NAME = 'computer'
 
+/** The thread of a direct `execute()` call with no context. */
+const SHARED_THREAD = 'computer-use:shared'
+
 /** The state of one thread. */
 interface ThreadState {
   id: string
@@ -257,14 +260,7 @@ export function createComputerUse({
     threadId: string | undefined,
     work: (thread: ThreadState) => Promise<T>,
   ) {
-    if (threadId === undefined) {
-      return Promise.reject<T>(
-        new Error(
-          'createComputerUse: a computer tool needs a threadId. chat() passes it. Pass a context with a threadId when you call execute() yourself.',
-        ),
-      )
-    }
-    const thread = threadOf(threadId)
+    const thread = threadOf(threadId ?? SHARED_THREAD)
     clearTimeout(thread.timer)
     thread.pending += 1
     const previous = sharesOneMachine ? sharedQueue : thread.queue

@@ -457,6 +457,7 @@ export class AcpCompatibleTextAdapter<
             : undefined) ?? nodeHttpBridgeProvisioner
         bridge = await provisioner.provision(tools, {
           provider: sandbox.provider,
+          threadId,
           context: options.context,
           emitCustomEvent: channel.emitCustomEvent,
           ...(externalSignal ? { signal: externalSignal } : {}),

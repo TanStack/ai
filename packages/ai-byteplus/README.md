@@ -120,10 +120,10 @@ const { jobId } = await generateVideo({
   duration: 5,
 })
 
-let status = await getVideoJobStatus({ adapter, threadId: 'thread-1', jobId })
+let status = await getVideoJobStatus({ adapter, jobId })
 while (status.status === 'pending' || status.status === 'processing') {
   await new Promise((resolve) => setTimeout(resolve, 5000))
-  status = await getVideoJobStatus({ adapter, threadId: 'thread-1', jobId })
+  status = await getVideoJobStatus({ adapter, jobId })
 }
 
 console.log(status.status === 'completed' ? status.url : status.error)

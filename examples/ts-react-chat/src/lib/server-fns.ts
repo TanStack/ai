@@ -275,21 +275,13 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
     // Poll until complete (max 10 minutes)
     const MAX_POLLS = 120
     let polls = 0
-    let status = await getVideoJobStatus({
-      adapter,
-      jobId,
-      threadId: data.threadId,
-    })
+    let status = await getVideoJobStatus({ adapter, jobId })
     while (status.status !== 'completed' && status.status !== 'failed') {
       if (++polls > MAX_POLLS) {
         throw new Error('Video generation timed out')
       }
       await new Promise((r) => setTimeout(r, 5000))
-      status = await getVideoJobStatus({
-        adapter,
-        jobId,
-        threadId: data.threadId,
-      })
+      status = await getVideoJobStatus({ adapter, jobId })
     }
 
     if (status.status === 'failed') {

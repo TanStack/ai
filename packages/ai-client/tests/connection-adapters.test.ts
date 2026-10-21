@@ -1400,7 +1400,12 @@ describe('connection-adapters', () => {
       })()
 
       await expect(
-        adapter.send([{ role: 'user', content: 'Hello' }]),
+        adapter.send(
+          [{ role: 'user', content: 'Hello' }],
+          undefined,
+          undefined,
+          RUN_CONTEXT,
+        ),
       ).rejects.toThrow('connect exploded')
       const received = await receivedPromise
 

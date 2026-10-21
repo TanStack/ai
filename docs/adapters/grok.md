@@ -151,10 +151,10 @@ const { jobId } = await generateVideo({
 });
 
 // 2. Poll until complete, then read the video URL
-let status = await getVideoJobStatus({ adapter, jobId, threadId: "thread-1" });
+let status = await getVideoJobStatus({ adapter, jobId });
 while (status.status !== "completed" && status.status !== "failed") {
   await new Promise((r) => setTimeout(r, 5000));
-  status = await getVideoJobStatus({ adapter, jobId, threadId: "thread-1" });
+  status = await getVideoJobStatus({ adapter, jobId });
 }
 
 console.log(status.url); // hosted .mp4 URL

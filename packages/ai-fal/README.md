@@ -80,11 +80,7 @@ const job = await generateVideo({
   duration: '5',
 })
 
-const status = await getVideoJobStatus({
-  adapter,
-  threadId: 'thread-1',
-  jobId: job.jobId,
-})
+const status = await getVideoJobStatus({ adapter, jobId: job.jobId })
 console.log(status.status) // "pending" | "processing" | "completed"
 ```
 

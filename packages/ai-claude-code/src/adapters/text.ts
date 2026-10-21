@@ -515,6 +515,7 @@ export class ClaudeCodeTextAdapter<
             : undefined) ?? nodeHttpBridgeProvisioner
         bridge = await provisioner.provision(tools, {
           provider: sandbox.provider,
+          threadId,
           context: options.context,
           emitCustomEvent: channel.emitCustomEvent,
           ...(permission !== undefined ? { permission } : {}),
