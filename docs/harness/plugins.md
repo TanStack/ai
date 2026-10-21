@@ -415,6 +415,38 @@ The options:
 
 The call stops when its run stops, for example on a cancel, and when the time limit ends. Then it rejects. Its usage counts in the session under `plugin:<name>`, here `plugin:acme/recap`. See [Usage of plugins](./usage#usage-of-plugins). The `goal()`, `title()`, and `compact()` plugins call their models this way.
 
+## Write warnings to the host logger
+
+Your plugin has a warning for the developer of the app, for example a service that does not answer. A `console.warn` line does not go where the app sends its logs, and it breaks a full-screen terminal UI. Write the warning to `ctx.logger`, the [host logger](./host-options#send-the-warnings-to-your-own-logger):
+
+```ts group=harness-plugins
+export const prices = definePlugin({
+  name: 'acme/prices',
+  setup: (ctx) => {
+    let latest = 'unknown'
+    return {
+      onTurnStart: async () => {
+        try {
+          const response = await fetch('https://prices.example.com/today')
+          if (!response.ok) throw new Error(`HTTP ${response.status}`)
+          latest = await response.text()
+        } catch (error) {
+          ctx.logger.warn('[acme/prices] Cannot load the prices. The turn uses the old prices.', { error })
+        }
+      },
+      prompts: [() => `Prices: ${latest}`],
+    }
+  },
+})
+```
+
+- `ctx.logger` has `debug`, `info`, `warn`, and `error`. Put an error in the meta as `{ error }`, as the harness does.
+- The logger does not add the name of your plugin. Start each message with it.
+- A call to `ctx.logger` never throws. A logger that fails loses the line, and your plugin goes on.
+- Every plugin gets `ctx.logger`: a session plugin, a turn plugin, and the setup of a `lifetime: 'host'` plugin.
+
+The `mcp()`, `codeMode()`, and `skills()` plugins write their warnings this way.
+
 ## Pick the model of a turn
 
 Some turns need another model: a short question does not need your strongest model, and an organization can allow only some models. Return an `adapter` picker from `setup`. When each turn starts, the session calls it with the message, context, and sender of that turn:
@@ -582,7 +614,7 @@ export const orders = definePlugin({
 - The host sets the plugin up one time for each harness and plugin object. Every session of that harness that uses the same object shares this setup.
 - Create the plugin one time, outside the `plugins` function, as `orders` is above. Then use it with `plugins: () => [orders]`. A `plugins` function that calls `definePlugin` or `mcp()` for each session gives each session its own setup.
 - The host cleans it up when the last session that uses it closes, or at `host.close()`.
-- Its setup context has no session, no credentials, no keys, and no commands. It has `harness`, the name of the harness, and `resources`.
+- Its setup context has no session, no credentials, no keys, and no commands. It has `harness` (the name of the harness), `resources`, and `logger`. See [Write warnings to the host logger](#write-warnings-to-the-host-logger).
 - A tool of the plugin reads the user of its call from `ctx.context.run`. See [Act as the user of a run](#act-as-the-user-of-a-run).
 
 Some parts need the session: a command, a setting, plugin state, or a question to the user. Return them from `session`. It runs for each session, with the same context as a session plugin:

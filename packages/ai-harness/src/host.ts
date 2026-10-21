@@ -222,12 +222,14 @@ export interface HarnessHostOptions<U extends HarnessUser = HarnessUser> {
    *
    * @example
    * ```ts
+   * // The harness puts an error under `error`, so tell pino to read it there.
+   * const log = pino({ errorKey: 'error' })
    * const host = createHarnessHost({
    *   logger: {
-   *     debug: (message, meta) => pino.debug(meta ?? {}, message),
-   *     info: (message, meta) => pino.info(meta ?? {}, message),
-   *     warn: (message, meta) => pino.warn(meta ?? {}, message),
-   *     error: (message, meta) => pino.error(meta ?? {}, message),
+   *     debug: (message, meta) => log.debug(meta, message),
+   *     info: (message, meta) => log.info(meta, message),
+   *     warn: (message, meta) => log.warn(meta, message),
+   *     error: (message, meta) => log.error(meta, message),
    *   },
    * })
    * ```

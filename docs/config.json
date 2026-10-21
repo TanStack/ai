@@ -942,7 +942,8 @@
         {
           "label": "Host options",
           "to": "harness/host-options",
-          "addedAt": "2026-10-20"
+          "addedAt": "2026-10-20",
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "Send and show media",
@@ -1025,7 +1026,7 @@
           "label": "Wait for a person",
           "to": "harness/waits",
           "addedAt": "2026-10-18",
-          "updatedAt": "2026-10-20"
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "Build on the session log",
@@ -1079,31 +1080,31 @@
           "label": "Ask before risky tool calls",
           "to": "harness/permissions",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-20"
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "Give your agent coding tools",
           "to": "harness/coding-tools",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "Sandbox and extend the coding tools",
           "to": "harness/coding-tools-backends",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-19"
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "Run the coding tools for many threads",
           "to": "harness/coding-workspaces",
           "addedAt": "2026-10-18",
-          "updatedAt": "2026-10-20"
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "Undo a turn",
           "to": "harness/snapshots",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-19"
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "Build a coding agent",
@@ -1145,13 +1146,13 @@
           "label": "Build your own UI",
           "to": "harness/custom-ui",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-19"
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "Code mode in a harness",
           "to": "harness/code-mode",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "Work until a goal is met",
@@ -1181,7 +1182,7 @@
           "label": "Use MCP servers",
           "to": "harness/mcp",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-20"
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "Give your agent a computer",
@@ -1250,7 +1251,7 @@
           "label": "Providers",
           "to": "sandbox/providers",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-10-19"
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "Harnesses",
