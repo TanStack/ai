@@ -3,7 +3,7 @@ id: ToolCallArgsEvent
 title: ToolCallArgsEvent
 ---
 
-Defined in: packages/ai/src/types.ts:1688
+Defined in: packages/ai/src/types.ts:1686
 
 Emitted when tool call arguments are streaming.
 

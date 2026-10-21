@@ -7,6 +7,6 @@ title: MediaPromptModality
 type MediaPromptModality = "image" | "video" | "audio";
 ```
 
-Defined in: packages/ai/src/types.ts:2311
+Defined in: packages/ai/src/types.ts:2309
 
 Non-text modalities a media-generation model can accept in its prompt.

@@ -3,7 +3,7 @@ id: StateSnapshotEvent
 title: StateSnapshotEvent
 ---
 
-Defined in: packages/ai/src/types.ts:1741
+Defined in: packages/ai/src/types.ts:1739
 
 Emitted to provide a full state snapshot.
 

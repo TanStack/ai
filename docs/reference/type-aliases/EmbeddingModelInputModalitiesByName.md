@@ -7,7 +7,7 @@ title: EmbeddingModelInputModalitiesByName
 type EmbeddingModelInputModalitiesByName = Record<string, ReadonlyArray<EmbeddingModality>>;
 ```
 
-Defined in: packages/ai/src/types.ts:3241
+Defined in: packages/ai/src/types.ts:3239
 
 Per-model map from model name to the input modalities it accepts, used as
 an adapter type parameter (`TModelInputModalitiesByName`). Models absent

@@ -3,7 +3,7 @@ id: CustomEvent
 title: CustomEvent
 ---
 
-Defined in: packages/ai/src/types.ts:1755
+Defined in: packages/ai/src/types.ts:1753
 
 Custom event for extensibility.
 
@@ -40,7 +40,7 @@ Custom event for extensibility.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: packages/ai/src/types.ts:1757
+Defined in: packages/ai/src/types.ts:1755
 
 Extra information attached to this event.
 
@@ -58,4 +58,4 @@ Omit.metadata
 type: "CUSTOM";
 ```
 
-Defined in: packages/ai/src/types.ts:1756
+Defined in: packages/ai/src/types.ts:1754

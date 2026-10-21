@@ -3,7 +3,7 @@ id: SubagentErrorEvent
 title: SubagentErrorEvent
 ---
 
-Defined in: packages/ai/src/types.ts:2093
+Defined in: packages/ai/src/types.ts:2091
 
 A child agent failed. The parent run can continue.
 

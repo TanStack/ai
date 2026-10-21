@@ -3,7 +3,7 @@ id: WorldGenerationResult
 title: WorldGenerationResult
 ---
 
-Defined in: packages/ai/src/types.ts:2728
+Defined in: packages/ai/src/types.ts:2726
 
 **`Experimental`**
 
@@ -27,7 +27,7 @@ Job adapters (World Labs): `status: 'ready'` with viewer `url` and
 optional assets?: WorldGenerationAssets;
 ```
 
-Defined in: packages/ai/src/types.ts:2753
+Defined in: packages/ai/src/types.ts:2751
 
 **`Experimental`**
 
@@ -41,7 +41,7 @@ Assets when a world job has finished and the provider returned them
 optional expiresAt?: number;
 ```
 
-Defined in: packages/ai/src/types.ts:2739
+Defined in: packages/ai/src/types.ts:2737
 
 **`Experimental`**
 
@@ -56,7 +56,7 @@ Job adapters: operation expiry when the provider sends it.
 id: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2730
+Defined in: packages/ai/src/types.ts:2728
 
 **`Experimental`**
 
@@ -70,7 +70,7 @@ Unique identifier for this generation
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2732
+Defined in: packages/ai/src/types.ts:2730
 
 **`Experimental`**
 
@@ -84,7 +84,7 @@ Model used for generation (provider connect slug or model id)
 optional operationId?: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2751
+Defined in: packages/ai/src/types.ts:2749
 
 **`Experimental`**
 
@@ -98,7 +98,7 @@ Provider operation id for a long-running world job
 prompt: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2741
+Defined in: packages/ai/src/types.ts:2739
 
 **`Experimental`**
 
@@ -112,7 +112,7 @@ Prompt used to generate the world, or the prompt the client should send
 optional sessionId?: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2745
+Defined in: packages/ai/src/types.ts:2743
 
 **`Experimental`**
 
@@ -126,7 +126,7 @@ Provider session id, when the adapter created one
 status: "ready" | "waiting";
 ```
 
-Defined in: packages/ai/src/types.ts:2743
+Defined in: packages/ai/src/types.ts:2741
 
 **`Experimental`**
 
@@ -140,7 +140,7 @@ Status after the server half finishes
 optional token?: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2734
+Defined in: packages/ai/src/types.ts:2732
 
 **`Experimental`**
 
@@ -154,7 +154,7 @@ Short-lived session token for a live client connection
 optional url?: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2747
+Defined in: packages/ai/src/types.ts:2745
 
 **`Experimental`**
 
@@ -168,7 +168,7 @@ Viewer URL for a finished world job (not an asset download URL)
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: packages/ai/src/types.ts:2755
+Defined in: packages/ai/src/types.ts:2753
 
 **`Experimental`**
 
@@ -182,7 +182,7 @@ Token usage / billing, when the adapter can report it
 optional worldId?: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2749
+Defined in: packages/ai/src/types.ts:2747
 
 **`Experimental`**
 

@@ -22,7 +22,7 @@ Emitted when a tool call starts.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: packages/ai/src/types.ts:1680
+Defined in: packages/ai/src/types.ts:1678
 
 Provider-specific metadata to carry into the ToolCall.
 
@@ -31,18 +31,6 @@ Provider-specific metadata to carry into the ToolCall.
 ```ts
 Omit.metadata
 ```
-
-***
-
-### toolName?
-
-```ts
-optional toolName?: string;
-```
-
-Defined in: packages/ai/src/types.ts:1678
-
-Alias of `toolCallName`. Kept so existing stream readers still compile.
 
 ***
 

@@ -3,7 +3,7 @@ id: TTSAlignment
 title: TTSAlignment
 ---
 
-Defined in: packages/ai/src/types.ts:2851
+Defined in: packages/ai/src/types.ts:2849
 
 Timings for the generated audio, returned when `timestamps: true` was
 requested and the adapter declares `capabilities.timestamps`.
@@ -20,7 +20,7 @@ All times are **seconds**; adapters convert.
 endSeconds: number[];
 ```
 
-Defined in: packages/ai/src/types.ts:2859
+Defined in: packages/ai/src/types.ts:2857
 
 End of each entry in seconds. Same length as `texts`.
 
@@ -32,7 +32,7 @@ End of each entry in seconds. Same length as `texts`.
 startSeconds: number[];
 ```
 
-Defined in: packages/ai/src/types.ts:2857
+Defined in: packages/ai/src/types.ts:2855
 
 Start of each entry in seconds. Same length as `texts`.
 
@@ -44,7 +44,7 @@ Start of each entry in seconds. Same length as `texts`.
 texts: string[];
 ```
 
-Defined in: packages/ai/src/types.ts:2855
+Defined in: packages/ai/src/types.ts:2853
 
 Entry text, in audio order.
 
@@ -56,6 +56,6 @@ Entry text, in audio order.
 unit: "character" | "word";
 ```
 
-Defined in: packages/ai/src/types.ts:2853
+Defined in: packages/ai/src/types.ts:2851
 
 Granularity of each entry.

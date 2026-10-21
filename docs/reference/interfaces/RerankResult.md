@@ -3,7 +3,7 @@ id: RerankResult
 title: RerankResult
 ---
 
-Defined in: packages/ai/src/types.ts:2228
+Defined in: packages/ai/src/types.ts:2226
 
 Public result of the `rerank()` activity, generic over the caller's document
 element type so `document` / `rerankedDocuments` carry the original values
@@ -23,7 +23,7 @@ element type so `document` / `rerankedDocuments` carry the original values
 id: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2229
+Defined in: packages/ai/src/types.ts:2227
 
 ***
 
@@ -33,7 +33,7 @@ Defined in: packages/ai/src/types.ts:2229
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2230
+Defined in: packages/ai/src/types.ts:2228
 
 ***
 
@@ -43,7 +43,7 @@ Defined in: packages/ai/src/types.ts:2230
 ranking: object[];
 ```
 
-Defined in: packages/ai/src/types.ts:2232
+Defined in: packages/ai/src/types.ts:2230
 
 Scored results, highest relevance first.
 
@@ -73,7 +73,7 @@ score: number;
 rerankedDocuments: TDocument[];
 ```
 
-Defined in: packages/ai/src/types.ts:2234
+Defined in: packages/ai/src/types.ts:2232
 
 The documents reordered by relevance — `ranking.map(r => r.document)`.
 
@@ -85,7 +85,7 @@ The documents reordered by relevance — `ranking.map(r => r.document)`.
 usage: TokenUsage;
 ```
 
-Defined in: packages/ai/src/types.ts:2241
+Defined in: packages/ai/src/types.ts:2239
 
 Usage for the request. Rerank typically bills in provider-defined "search
 units" (`usage.billed = { quantity, unit: 'units' }`) rather than tokens.

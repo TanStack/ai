@@ -9,7 +9,7 @@ type ChatStream = AsyncIterable<
 | KnownCustomEvent>;
 ```
 
-Defined in: packages/ai/src/types.ts:1909
+Defined in: packages/ai/src/types.ts:1907
 
 The default chat streaming result: standard chunks plus every typed
  framework CUSTOM event, with the `value: any` catch-all excluded so

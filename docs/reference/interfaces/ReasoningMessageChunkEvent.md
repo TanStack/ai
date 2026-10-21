@@ -3,7 +3,7 @@ id: ReasoningMessageChunkEvent
 title: ReasoningMessageChunkEvent
 ---
 
-Defined in: packages/ai/src/types.ts:2030
+Defined in: packages/ai/src/types.ts:2028
 
 AG-UI 1.0 ReasoningMessageChunkEvent shape.
 

@@ -7,4 +7,4 @@ title: AdapterYieldChunk
 type AdapterYieldChunk = WithAdapterExtras<StreamChunk>;
 ```
 
-Defined in: packages/ai/src/utilities/adapter-yield-chunk.ts:37
+Defined in: packages/ai/src/utilities/adapter-yield-chunk.ts:36

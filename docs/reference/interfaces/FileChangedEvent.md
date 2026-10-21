@@ -3,7 +3,7 @@ id: FileChangedEvent
 title: FileChangedEvent
 ---
 
-Defined in: packages/ai/src/types.ts:1826
+Defined in: packages/ai/src/types.ts:1824
 
 Custom event for extensibility.
 
@@ -21,7 +21,7 @@ Custom event for extensibility.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: packages/ai/src/types.ts:1757
+Defined in: packages/ai/src/types.ts:1755
 
 Extra information attached to this event.
 
@@ -37,7 +37,7 @@ Extra information attached to this event.
 name: "file.changed";
 ```
 
-Defined in: packages/ai/src/types.ts:1827
+Defined in: packages/ai/src/types.ts:1825
 
 What this custom event is. Required: without it a consumer cannot route
 the value.
@@ -56,7 +56,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: packages/ai/src/types.ts:1756
+Defined in: packages/ai/src/types.ts:1754
 
 #### Inherited from
 
@@ -70,7 +70,7 @@ Defined in: packages/ai/src/types.ts:1756
 value: object;
 ```
 
-Defined in: packages/ai/src/types.ts:1828
+Defined in: packages/ai/src/types.ts:1826
 
 The payload. Any JSON value, and required.
 

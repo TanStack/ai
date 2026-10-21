@@ -3,7 +3,7 @@ id: ImageGenerationResult
 title: ImageGenerationResult
 ---
 
-Defined in: packages/ai/src/types.ts:2453
+Defined in: packages/ai/src/types.ts:2451
 
 Result of image generation
 
@@ -15,7 +15,7 @@ Result of image generation
 optional artifacts?: PersistedArtifactRef[];
 ```
 
-Defined in: packages/ai/src/types.ts:2463
+Defined in: packages/ai/src/types.ts:2461
 
 Persisted artifact references for generated assets, when available
 
@@ -27,7 +27,7 @@ Persisted artifact references for generated assets, when available
 id: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2455
+Defined in: packages/ai/src/types.ts:2453
 
 Unique identifier for the generation
 
@@ -39,7 +39,7 @@ Unique identifier for the generation
 images: GeneratedImage[];
 ```
 
-Defined in: packages/ai/src/types.ts:2459
+Defined in: packages/ai/src/types.ts:2457
 
 Array of generated images
 
@@ -51,7 +51,7 @@ Array of generated images
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2457
+Defined in: packages/ai/src/types.ts:2455
 
 Model used for generation
 
@@ -63,6 +63,6 @@ Model used for generation
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: packages/ai/src/types.ts:2461
+Defined in: packages/ai/src/types.ts:2459
 
 Token usage information (if available)

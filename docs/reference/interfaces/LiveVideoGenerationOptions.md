@@ -3,7 +3,7 @@ id: LiveVideoGenerationOptions
 title: LiveVideoGenerationOptions
 ---
 
-Defined in: packages/ai/src/types.ts:2767
+Defined in: packages/ai/src/types.ts:2765
 
 **`Experimental`**
 
@@ -25,7 +25,7 @@ Options for live generation (prompt-steerable video sessions).
 optional abortSignal?: AbortSignal;
 ```
 
-Defined in: packages/ai/src/types.ts:2790
+Defined in: packages/ai/src/types.ts:2788
 
 **`Experimental`**
 
@@ -41,7 +41,7 @@ supported. Request-specific — never store on a global client config.
 logger: InternalLogger;
 ```
 
-Defined in: packages/ai/src/types.ts:2784
+Defined in: packages/ai/src/types.ts:2782
 
 **`Experimental`**
 
@@ -57,7 +57,7 @@ catch blocks.
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2771
+Defined in: packages/ai/src/types.ts:2769
 
 **`Experimental`**
 
@@ -71,7 +71,7 @@ The model to use for live generation
 optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: packages/ai/src/types.ts:2778
+Defined in: packages/ai/src/types.ts:2776
 
 **`Experimental`**
 
@@ -86,7 +86,7 @@ resolution/seed/audio are browser `sendCommand` fields.
 prompt: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2773
+Defined in: packages/ai/src/types.ts:2771
 
 **`Experimental`**
 

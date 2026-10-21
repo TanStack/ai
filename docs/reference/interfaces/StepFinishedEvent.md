@@ -3,7 +3,7 @@ id: StepFinishedEvent
 title: StepFinishedEvent
 ---
 
-Defined in: packages/ai/src/types.ts:1721
+Defined in: packages/ai/src/types.ts:1719
 
 Emitted when a thinking/reasoning step finishes.
 

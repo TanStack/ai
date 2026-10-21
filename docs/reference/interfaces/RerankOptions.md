@@ -3,7 +3,7 @@ id: RerankOptions
 title: RerankOptions
 ---
 
-Defined in: packages/ai/src/types.ts:2189
+Defined in: packages/ai/src/types.ts:2187
 
 Options passed to a [RerankAdapter](RerankAdapter.md). Documents reach the adapter
 already serialized to strings — the `rerank()` activity stringifies object
@@ -24,7 +24,7 @@ deal with the caller's document type.
 optional abortSignal?: AbortSignal;
 ```
 
-Defined in: packages/ai/src/types.ts:2202
+Defined in: packages/ai/src/types.ts:2200
 
 Forwarded to the provider request for cancellation.
 
@@ -36,7 +36,7 @@ Forwarded to the provider request for cancellation.
 documents: string[];
 ```
 
-Defined in: packages/ai/src/types.ts:2196
+Defined in: packages/ai/src/types.ts:2194
 
 Documents to rerank, pre-serialized to strings by the activity.
 
@@ -48,7 +48,7 @@ Documents to rerank, pre-serialized to strings by the activity.
 logger: InternalLogger;
 ```
 
-Defined in: packages/ai/src/types.ts:2208
+Defined in: packages/ai/src/types.ts:2206
 
 Internal logger threaded from the rerank() entry point. Adapters must call
 logger.request() before the provider call and logger.errors() in catch
@@ -62,7 +62,7 @@ blocks.
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2192
+Defined in: packages/ai/src/types.ts:2190
 
 ***
 
@@ -72,7 +72,7 @@ Defined in: packages/ai/src/types.ts:2192
 optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: packages/ai/src/types.ts:2200
+Defined in: packages/ai/src/types.ts:2198
 
 Provider-specific options forwarded by the rerank() activity.
 
@@ -84,7 +84,7 @@ Provider-specific options forwarded by the rerank() activity.
 query: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2194
+Defined in: packages/ai/src/types.ts:2192
 
 The search query documents are scored against.
 
@@ -96,6 +96,6 @@ The search query documents are scored against.
 optional topN?: number;
 ```
 
-Defined in: packages/ai/src/types.ts:2198
+Defined in: packages/ai/src/types.ts:2196
 
 Return only the top N results. Passed through to the provider.

@@ -3,7 +3,7 @@ id: SandboxFileDiffEvent
 title: SandboxFileDiffEvent
 ---
 
-Defined in: packages/ai/src/types.ts:1820
+Defined in: packages/ai/src/types.ts:1818
 
 Custom event for extensibility.
 
@@ -21,7 +21,7 @@ Custom event for extensibility.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: packages/ai/src/types.ts:1757
+Defined in: packages/ai/src/types.ts:1755
 
 Extra information attached to this event.
 
@@ -37,7 +37,7 @@ Extra information attached to this event.
 name: "sandbox.file.diff";
 ```
 
-Defined in: packages/ai/src/types.ts:1821
+Defined in: packages/ai/src/types.ts:1819
 
 What this custom event is. Required: without it a consumer cannot route
 the value.
@@ -56,7 +56,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: packages/ai/src/types.ts:1756
+Defined in: packages/ai/src/types.ts:1754
 
 #### Inherited from
 
@@ -70,7 +70,7 @@ Defined in: packages/ai/src/types.ts:1756
 value: object;
 ```
 
-Defined in: packages/ai/src/types.ts:1822
+Defined in: packages/ai/src/types.ts:1820
 
 The payload. Any JSON value, and required.
 

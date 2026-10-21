@@ -3,7 +3,7 @@ id: ActivitySnapshotEvent
 title: ActivitySnapshotEvent
 ---
 
-Defined in: packages/ai/src/types.ts:2000
+Defined in: packages/ai/src/types.ts:1998
 
 Full activity state for an `ActivityMessage`.
 
@@ -22,4 +22,4 @@ Full activity state for an `ActivityMessage`.
 type: "ACTIVITY_SNAPSHOT";
 ```
 
-Defined in: packages/ai/src/types.ts:2004
+Defined in: packages/ai/src/types.ts:2002

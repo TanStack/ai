@@ -3,7 +3,7 @@ id: TextMessageChunkEvent
 title: TextMessageChunkEvent
 ---
 
-Defined in: packages/ai/src/types.ts:2024
+Defined in: packages/ai/src/types.ts:2022
 
 AG-UI 1.0 TextMessageChunkEvent shape.
 

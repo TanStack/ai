@@ -7,7 +7,7 @@ title: EmbeddingModality
 type EmbeddingModality = "text" | "image";
 ```
 
-Defined in: packages/ai/src/types.ts:3234
+Defined in: packages/ai/src/types.ts:3232
 
 Input modalities an embedding model can accept. Unlike
 [MediaPromptModality](MediaPromptModality.md), `'text'` is listed explicitly because

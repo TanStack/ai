@@ -3,7 +3,7 @@ id: SnippetRegisteredEvent
 title: SnippetRegisteredEvent
 ---
 
-Defined in: packages/ai/src/types.ts:1877
+Defined in: packages/ai/src/types.ts:1875
 
 Custom event for extensibility.
 
@@ -21,7 +21,7 @@ Custom event for extensibility.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: packages/ai/src/types.ts:1757
+Defined in: packages/ai/src/types.ts:1755
 
 Extra information attached to this event.
 
@@ -37,7 +37,7 @@ Extra information attached to this event.
 name: "snippet:registered";
 ```
 
-Defined in: packages/ai/src/types.ts:1878
+Defined in: packages/ai/src/types.ts:1876
 
 What this custom event is. Required: without it a consumer cannot route
 the value.
@@ -56,7 +56,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: packages/ai/src/types.ts:1756
+Defined in: packages/ai/src/types.ts:1754
 
 #### Inherited from
 
@@ -70,7 +70,7 @@ Defined in: packages/ai/src/types.ts:1756
 value: object;
 ```
 
-Defined in: packages/ai/src/types.ts:1879
+Defined in: packages/ai/src/types.ts:1877
 
 The payload. Any JSON value, and required.
 

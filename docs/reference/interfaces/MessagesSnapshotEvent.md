@@ -3,7 +3,7 @@ id: MessagesSnapshotEvent
 title: MessagesSnapshotEvent
 ---
 
-Defined in: packages/ai/src/types.ts:1734
+Defined in: packages/ai/src/types.ts:1732
 
 Emitted to provide a snapshot of all messages in a conversation.
 

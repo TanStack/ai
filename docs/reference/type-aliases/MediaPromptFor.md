@@ -11,7 +11,7 @@ type MediaPromptFor<TModalities> =
   | MediaPartByModality[TModalities])[];
 ```
 
-Defined in: packages/ai/src/types.ts:2327
+Defined in: packages/ai/src/types.ts:2325
 
 Prompt type narrowed to the modalities a specific model supports.
 `MediaPromptFor<never>` (a text-only model) is `string | Array<TextPart>`;

@@ -10,7 +10,7 @@ type EmbeddingInputItemFor<TModalities> =
   | EmbeddingItemByModality[TModalities];
 ```
 
-Defined in: packages/ai/src/types.ts:3284
+Defined in: packages/ai/src/types.ts:3282
 
 Embedding item type narrowed to the modalities a specific model supports.
 `EmbeddingInputItemFor<'text'>` (a text-only model) is `string | TextPart`;

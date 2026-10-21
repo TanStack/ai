@@ -3,7 +3,7 @@ id: StepStartedEvent
 title: StepStartedEvent
 ---
 
-Defined in: packages/ai/src/types.ts:1714
+Defined in: packages/ai/src/types.ts:1712
 
 Emitted when a thinking/reasoning step starts.
 

@@ -3,7 +3,7 @@ id: ReasoningEncryptedValueEvent
 title: ReasoningEncryptedValueEvent
 ---
 
-Defined in: packages/ai/src/types.ts:1992
+Defined in: packages/ai/src/types.ts:1990
 
 Emitted for encrypted reasoning values.
 

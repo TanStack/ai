@@ -3,7 +3,7 @@ id: SummarizationOptions
 title: SummarizationOptions
 ---
 
-Defined in: packages/ai/src/types.ts:2139
+Defined in: packages/ai/src/types.ts:2137
 
 ## Type Parameters
 
@@ -19,7 +19,7 @@ Defined in: packages/ai/src/types.ts:2139
 optional abortSignal?: AbortSignal;
 ```
 
-Defined in: packages/ai/src/types.ts:2169
+Defined in: packages/ai/src/types.ts:2167
 
 Effective abort signal composed by the activity from caller `abortSignal`
 and/or `timeout`. Adapters should forward this to the provider SDK when
@@ -33,7 +33,7 @@ supported. Request-specific — never store on a global client config.
 optional focus?: string[];
 ```
 
-Defined in: packages/ai/src/types.ts:2146
+Defined in: packages/ai/src/types.ts:2144
 
 ***
 
@@ -43,7 +43,7 @@ Defined in: packages/ai/src/types.ts:2146
 logger: InternalLogger;
 ```
 
-Defined in: packages/ai/src/types.ts:2163
+Defined in: packages/ai/src/types.ts:2161
 
 Internal logger threaded from the summarize() entry point. Adapters must
 call logger.request() before the SDK call and logger.errors() in catch blocks.
@@ -56,7 +56,7 @@ call logger.request() before the SDK call and logger.errors() in catch blocks.
 optional maxLength?: number;
 ```
 
-Defined in: packages/ai/src/types.ts:2144
+Defined in: packages/ai/src/types.ts:2142
 
 ***
 
@@ -66,7 +66,7 @@ Defined in: packages/ai/src/types.ts:2144
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2142
+Defined in: packages/ai/src/types.ts:2140
 
 ***
 
@@ -76,7 +76,7 @@ Defined in: packages/ai/src/types.ts:2142
 optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: packages/ai/src/types.ts:2148
+Defined in: packages/ai/src/types.ts:2146
 
 Provider-specific options forwarded by the summarize() activity.
 
@@ -88,7 +88,7 @@ Provider-specific options forwarded by the summarize() activity.
 optional runId?: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2157
+Defined in: packages/ai/src/types.ts:2155
 
 Run identity forwarded from the summarize() activity. When set, the
 streaming adapter stamps it onto the emitted `RUN_STARTED` (via the wrapped
@@ -105,7 +105,7 @@ their own.
 optional style?: "bullet-points" | "paragraph" | "concise";
 ```
 
-Defined in: packages/ai/src/types.ts:2145
+Defined in: packages/ai/src/types.ts:2143
 
 ***
 
@@ -115,7 +115,7 @@ Defined in: packages/ai/src/types.ts:2145
 text: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2143
+Defined in: packages/ai/src/types.ts:2141
 
 ***
 
@@ -125,4 +125,4 @@ Defined in: packages/ai/src/types.ts:2143
 optional threadId?: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2158
+Defined in: packages/ai/src/types.ts:2156

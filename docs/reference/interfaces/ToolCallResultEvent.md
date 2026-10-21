@@ -3,7 +3,7 @@ id: ToolCallResultEvent
 title: ToolCallResultEvent
 ---
 
-Defined in: packages/ai/src/types.ts:1707
+Defined in: packages/ai/src/types.ts:1705
 
 Emitted when a tool call result is available.
 

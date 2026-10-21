@@ -3,7 +3,7 @@ id: UIResourceEvent
 title: UIResourceEvent
 ---
 
-Defined in: packages/ai/src/types.ts:1800
+Defined in: packages/ai/src/types.ts:1798
 
 Emitted when an MCP tool returns a ui:// resource (MCP Apps). Reconciled into
  a UIResourcePart on the assistant UIMessage. Never enters model input.
@@ -20,7 +20,7 @@ Emitted when an MCP tool returns a ui:// resource (MCP Apps). Reconciled into
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: packages/ai/src/types.ts:1757
+Defined in: packages/ai/src/types.ts:1755
 
 Extra information attached to this event.
 
@@ -36,7 +36,7 @@ Extra information attached to this event.
 name: "ui-resource";
 ```
 
-Defined in: packages/ai/src/types.ts:1801
+Defined in: packages/ai/src/types.ts:1799
 
 What this custom event is. Required: without it a consumer cannot route
 the value.
@@ -55,7 +55,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: packages/ai/src/types.ts:1756
+Defined in: packages/ai/src/types.ts:1754
 
 #### Inherited from
 
@@ -69,7 +69,7 @@ Defined in: packages/ai/src/types.ts:1756
 value: object;
 ```
 
-Defined in: packages/ai/src/types.ts:1802
+Defined in: packages/ai/src/types.ts:1800
 
 The payload. Any JSON value, and required.
 

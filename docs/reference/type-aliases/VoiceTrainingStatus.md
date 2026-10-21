@@ -7,7 +7,7 @@ title: VoiceTrainingStatus
 type VoiceTrainingStatus = "ready" | "training" | "failed";
 ```
 
-Defined in: packages/ai/src/types.ts:3103
+Defined in: packages/ai/src/types.ts:3101
 
 Whether a created voice is usable.
 

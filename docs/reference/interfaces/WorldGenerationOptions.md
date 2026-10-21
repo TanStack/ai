@@ -3,7 +3,7 @@ id: WorldGenerationOptions
 title: WorldGenerationOptions
 ---
 
-Defined in: packages/ai/src/types.ts:2659
+Defined in: packages/ai/src/types.ts:2657
 
 **`Experimental`**
 
@@ -25,7 +25,7 @@ Options for world generation (live session or finished job).
 optional abortSignal?: AbortSignal;
 ```
 
-Defined in: packages/ai/src/types.ts:2684
+Defined in: packages/ai/src/types.ts:2682
 
 **`Experimental`**
 
@@ -41,7 +41,7 @@ supported. Request-specific — never store on a global client config.
 logger: InternalLogger;
 ```
 
-Defined in: packages/ai/src/types.ts:2678
+Defined in: packages/ai/src/types.ts:2676
 
 **`Experimental`**
 
@@ -57,7 +57,7 @@ catch blocks.
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2663
+Defined in: packages/ai/src/types.ts:2661
 
 **`Experimental`**
 
@@ -71,7 +71,7 @@ The model to use for world generation
 optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: packages/ai/src/types.ts:2672
+Defined in: packages/ai/src/types.ts:2670
 
 **`Experimental`**
 
@@ -88,7 +88,7 @@ token-mint fields.
 prompt: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2665
+Defined in: packages/ai/src/types.ts:2663
 
 **`Experimental`**
 

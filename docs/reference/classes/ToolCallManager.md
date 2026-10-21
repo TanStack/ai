@@ -121,7 +121,7 @@ Add a TOOL_CALL_START event to begin tracking a tool call (AG-UI)
 clear(): void;
 ```
 
-Defined in: packages/ai/src/activities/chat/tools/tool-calls.ts:497
+Defined in: packages/ai/src/activities/chat/tools/tool-calls.ts:496
 
 Clear the tool calls map for the next iteration
 

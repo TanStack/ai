@@ -3,7 +3,7 @@ id: TranscriptionWord
 title: TranscriptionWord
 ---
 
-Defined in: packages/ai/src/types.ts:3191
+Defined in: packages/ai/src/types.ts:3189
 
 A single word with timing information.
 
@@ -15,7 +15,7 @@ A single word with timing information.
 end: number;
 ```
 
-Defined in: packages/ai/src/types.ts:3197
+Defined in: packages/ai/src/types.ts:3195
 
 End time in seconds
 
@@ -27,7 +27,7 @@ End time in seconds
 start: number;
 ```
 
-Defined in: packages/ai/src/types.ts:3195
+Defined in: packages/ai/src/types.ts:3193
 
 Start time in seconds
 
@@ -39,6 +39,6 @@ Start time in seconds
 word: string;
 ```
 
-Defined in: packages/ai/src/types.ts:3193
+Defined in: packages/ai/src/types.ts:3191
 
 The transcribed word

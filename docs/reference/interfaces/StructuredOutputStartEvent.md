@@ -3,7 +3,7 @@ id: StructuredOutputStartEvent
 title: StructuredOutputStartEvent
 ---
 
-Defined in: packages/ai/src/types.ts:1793
+Defined in: packages/ai/src/types.ts:1791
 
 Emitted at the start of a streaming structured-output run, before the JSON
 deltas. Tells consumers that the upcoming `TEXT_MESSAGE_CONTENT` deltas
@@ -24,7 +24,7 @@ made per-message rather than globally.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: packages/ai/src/types.ts:1757
+Defined in: packages/ai/src/types.ts:1755
 
 Extra information attached to this event.
 
@@ -40,7 +40,7 @@ Extra information attached to this event.
 name: "structured-output.start";
 ```
 
-Defined in: packages/ai/src/types.ts:1794
+Defined in: packages/ai/src/types.ts:1792
 
 What this custom event is. Required: without it a consumer cannot route
 the value.
@@ -59,7 +59,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: packages/ai/src/types.ts:1756
+Defined in: packages/ai/src/types.ts:1754
 
 #### Inherited from
 
@@ -73,7 +73,7 @@ Defined in: packages/ai/src/types.ts:1756
 value: object;
 ```
 
-Defined in: packages/ai/src/types.ts:1795
+Defined in: packages/ai/src/types.ts:1793
 
 The payload. Any JSON value, and required.
 

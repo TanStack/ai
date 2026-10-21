@@ -3,7 +3,7 @@ id: ReasoningMessageStartEvent
 title: ReasoningMessageStartEvent
 ---
 
-Defined in: packages/ai/src/types.ts:1964
+Defined in: packages/ai/src/types.ts:1962
 
 Emitted when a reasoning message starts.
 

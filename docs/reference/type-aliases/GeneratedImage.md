@@ -7,7 +7,7 @@ title: GeneratedImage
 type GeneratedImage = GeneratedMediaSource & object;
 ```
 
-Defined in: packages/ai/src/types.ts:2445
+Defined in: packages/ai/src/types.ts:2443
 
 A single generated image
 

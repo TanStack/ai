@@ -3,7 +3,7 @@ id: ReasoningMessageContentEvent
 title: ReasoningMessageContentEvent
 ---
 
-Defined in: packages/ai/src/types.ts:1971
+Defined in: packages/ai/src/types.ts:1969
 
 Emitted when reasoning message content is generated.
 
