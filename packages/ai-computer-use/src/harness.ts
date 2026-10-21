@@ -122,6 +122,7 @@ async function storeImages(
  * - A call with OpenAI safety checks asks the user through `permissions()`,
  *   each time. Without `permissions()`, such a call is refused. The
  *   `bypass` mode runs it with no question.
+ * - The `plan` mode of `permissions()` refuses the `computer` tool.
  *
  * The machines live on the host, and close when the host closes. A thread
  * that stays idle for `idleTimeout` loses its machine.
@@ -168,6 +169,12 @@ export function computerUse({
         middleware: [middleware],
         agentMiddleware: [middleware],
         contribute: [
+          // `execute`, so the plan mode refuses the clicks and the key presses.
+          PermissionRules.item({
+            tool: 'computer',
+            decision: 'allow',
+            kind: 'execute',
+          }),
           PermissionRules.item({ tool: SAFETY_CHECK, decision: 'ask' }),
           PermissionResources.item({
             computer: {

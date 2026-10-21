@@ -92,6 +92,8 @@ await session.settled({ inputId: 'approve-1' })
 
 The other actions run with no question. Anthropic sends no safety checks, so its actions never ask.
 
+In the `plan` mode, the `computer` tool does not run. To ask before every action, add a rule: `permissions({ rules: [{ tool: 'computer', decision: 'ask' }] })`.
+
 CAUTION: Keep `permissions()` in the plugins. Without it, an action with a safety check does not run. In the `bypass` mode, it runs with no question. See [Pick a mode](./permissions#pick-a-mode).
 
 ## 3. Choose how many screenshots the model sees

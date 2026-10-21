@@ -198,6 +198,21 @@ describe('computerUse', () => {
     expect(clicks).toEqual(['click'])
   })
 
+  it('refuses a click in plan mode', async () => {
+    const { session, requests, clicks } = await open(
+      [{ toolCalls: [{ name: 'computer', input: CLICK }] }],
+      { permissions: true },
+    )
+    await session.runCommand({ name: 'mode', input: 'plan' })
+
+    await session.send('click')
+
+    expect(clicks).toEqual([])
+    expect(JSON.stringify(requests[1]?.messages)).toContain(
+      'This tool is not allowed in plan mode.',
+    )
+  })
+
   it('refuses a call with safety checks without permissions()', async () => {
     const { session, requests, clicks } = await open([
       {
