@@ -187,7 +187,8 @@
         {
           "label": "Reasoning",
           "to": "chat/reasoning",
-          "addedAt": "2026-10-09"
+          "addedAt": "2026-10-09",
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "Message Queue",
@@ -269,7 +270,7 @@
           "label": "Streaming UIs",
           "to": "structured-outputs/streaming",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "Multi-Turn Chat",
@@ -866,7 +867,7 @@
           "label": "Embeddings",
           "to": "embeddings",
           "addedAt": "2026-07-10",
-          "updatedAt": "2026-08-12"
+          "updatedAt": "2026-10-21"
         }
       ],
       "tab": "guides"
@@ -1358,7 +1359,7 @@
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
-          "updatedAt": "2026-10-13"
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "LLM Gateway",
@@ -1371,6 +1372,11 @@
           "to": "adapters/cloudflare",
           "addedAt": "2026-09-03",
           "updatedAt": "2026-10-12"
+        },
+        {
+          "label": "Neon AI Gateway",
+          "to": "adapters/neon",
+          "addedAt": "2026-10-21"
         },
         {
           "label": "Claude Code",

@@ -2,7 +2,7 @@
 title: Embeddings
 id: embeddings
 order: 1
-description: "Generate text and multimodal embedding vectors with OpenAI, Cohere, Gemini, Mistral, Amazon Bedrock, Ollama, and Vercel AI Gateway via TanStack AI's embed() API."
+description: "Generate text and multimodal embedding vectors with OpenAI, Cohere, Gemini, Mistral, Amazon Bedrock, Ollama, Vercel AI Gateway, and Neon AI Gateway via TanStack AI's embed() API."
 keywords:
   - tanstack ai
   - embeddings
@@ -18,6 +18,7 @@ keywords:
   - bedrock
   - ollama
   - vercel ai gateway
+  - neon ai gateway
 ---
 
 TanStack AI provides embedding generation through dedicated embedding adapters that follow the same tree-shakeable, per-model-typed architecture as every other activity. The `embed()` function turns text — and, for multimodal models, images — into vectors for semantic search, RAG, clustering, and classification.
@@ -33,6 +34,7 @@ Currently supported:
 - **Amazon Bedrock**: Titan Text Embeddings V2 (text), Titan Multimodal Embeddings G1 (text + image), Cohere Embed v3 on Bedrock (text)
 - **Ollama**: nomic-embed-text, mxbai-embed-large, and any local embedding model (text)
 - **Vercel AI Gateway**: OpenAI-compatible embedding models such as openai/text-embedding-3-small (text)
+- **Neon AI Gateway**: qwen3-embedding-0-6b, gte-large-en, bge-large-en (text, 1024 dimensions)
 
 ## Basic Usage
 
@@ -56,6 +58,18 @@ import { vercelGatewayEmbedding } from "@tanstack/ai-vercel-gateway";
 
 const result = await embed({
   adapter: vercelGatewayEmbedding("openai/text-embedding-3-small"),
+  input: "a red guitar",
+});
+```
+
+Neon AI Gateway uses the same call. The vectors fit a `vector(1024)` pgvector column in your Neon branch:
+
+```typescript
+import { embed } from "@tanstack/ai";
+import { neonEmbedding } from "@tanstack/ai-neon";
+
+const result = await embed({
+  adapter: neonEmbedding("qwen3-embedding-0-6b"),
   input: "a red guitar",
 });
 ```

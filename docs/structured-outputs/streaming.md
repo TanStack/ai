@@ -190,6 +190,7 @@ Streaming structured output works with **every adapter**, but only some support 
 | `@tanstack/ai-byteplus` | Native single-request stream on supported models; unsupported models emit `RUN_ERROR` |
 | `@tanstack/ai-llmgateway` | Native single-request stream (Chat Completions, `response_format: json_schema`) |
 | `@tanstack/ai-cloudflare` | Native single-request stream (Chat Completions, `response_format: json_schema`) |
+| `@tanstack/ai-neon` | Native single-request stream (Chat Completions, `response_format: json_schema`). Claude uses the Anthropic adapter. |
 | `@tanstack/ai-lovable` | Native single-request stream (Responses or Chat Completions) |
 | Other adapters (anthropic, gemini, ollama, …) | Fallback: runs non-streaming `structuredOutput` and emits the final object as one `structured-output.complete` event |
 

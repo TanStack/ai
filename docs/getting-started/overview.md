@@ -142,6 +142,7 @@ With the help of adapters, TanStack AI can connect to various LLM providers. Ava
 - **@tanstack/ai-worldlabs** - World Labs Marble (persistent 3D world generation)
 - **@tanstack/ai-llmgateway** - LLM Gateway (hundreds of models via one OpenAI-compatible endpoint, self-hostable)
 - **@tanstack/ai-cloudflare** - Cloudflare Workers AI (chat, embeddings, image, speech, transcription, evaluate) and AI Gateway routing
+- **@tanstack/ai-neon** - Neon AI Gateway (Claude, GPT, Gemini, and open models, plus embeddings, through one Neon credential)
 - **@tanstack/ai-typesafe** - TypeSafe Jev (typed evaluate decisions)
 - **@tanstack/ai-ollaya** - local Ollaya `laya` models for typed evaluate decisions. No API key.
 - **@tanstack/ai-lovable** - Lovable AI Gateway (Google and OpenAI chat, image, video, embeddings, and speech via one project key)
