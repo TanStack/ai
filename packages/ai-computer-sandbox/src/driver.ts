@@ -149,9 +149,10 @@ export async function createSandboxComputerDriver({
     environment: 'linux',
     async screenshot() {
       const file = `/tmp/${generateId('tanstack-screenshot')}.png`
-      // One round trip: capture, print as base64, delete.
+      // One round trip: capture, print as base64, delete. Not `status`: zsh
+      // (the Daytona shell) makes it read-only.
       const base64 = await run(
-        `${X} scrot --pointer ${file} && base64 -w0 ${file}; status=$?; rm -f ${file}; exit $status`,
+        `${X} scrot --pointer ${file} && base64 -w0 ${file}; code=$?; rm -f ${file}; exit $code`,
       )
       return base64ToUint8Array(base64.trim())
     },

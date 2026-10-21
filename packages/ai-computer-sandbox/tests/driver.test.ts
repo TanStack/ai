@@ -120,7 +120,7 @@ describe('createSandboxComputerDriver', () => {
     expect(await driver.screenshot()).toEqual(PNG)
     expect(calls).toHaveLength(1)
     expect(calls[0]).toMatch(
-      /^exec DISPLAY=:0 scrot --pointer (\/tmp\/tanstack-screenshot-\S+\.png) && base64 -w0 \1; status=\$\?; rm -f \1; exit \$status$/,
+      /^exec DISPLAY=:0 scrot --pointer (\/tmp\/tanstack-screenshot-\S+\.png) && base64 -w0 \1; code=\$\?; rm -f \1; exit \$code$/,
     )
   })
 
