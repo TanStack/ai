@@ -41,3 +41,5 @@ chat({
 await computerUse.close(threadId) // one thread
 await computerUse.close() // every thread, and the browser
 ```
+
+The `ai-core` agent skill routes computer use to `@tanstack/ai-computer-use` and its three drivers.
