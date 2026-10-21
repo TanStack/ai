@@ -67,6 +67,7 @@ async function observe(
   const controller = new AbortController()
   const events: Array<StreamChunk> = []
   for await (const event of chat({
+    threadId: 'thread-1',
     adapter: new SSEAdapter(chunks, done),
     messages: [{ role: 'user', content: 'Reply' }],
     tools: [{ name: 'lookup', description: 'Look up an item', execute }],

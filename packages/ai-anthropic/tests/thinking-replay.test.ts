@@ -198,7 +198,7 @@ describe('Anthropic replay', () => {
       },
     ]
 
-    await drain(chat({ adapter: adapter(), messages }))
+    await drain(chat({ threadId: 'thread-1', adapter: adapter(), messages }))
 
     const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
     const blocks: Array<Block> = payload.messages.flatMap(
@@ -243,6 +243,7 @@ describe('Anthropic replay', () => {
 
     await drain(
       chat({
+        threadId: 'thread-1',
         adapter: adapter(),
         messages: [{ role: 'user', content: 'Weather in Berlin?' }],
         tools: [weather],
@@ -287,6 +288,7 @@ describe('Anthropic replay', () => {
     )
     const chunks: Array<StreamChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: adapter(),
       messages: [{ role: 'user', content: 'Hi' }],
     })) {
@@ -321,13 +323,18 @@ describe('Anthropic replay', () => {
     const first: Array<ModelMessage> = [{ role: 'user', content: 'Hi' }]
     const processor = new StreamProcessor()
     processor.addUserMessage('Hi')
-    for await (const chunk of chat({ adapter: adapter(), messages: first })) {
+    for await (const chunk of chat({
+      threadId: 'thread-1',
+      adapter: adapter(),
+      messages: first,
+    })) {
       processor.processChunk(chunk)
     }
     processor.finalizeStream()
 
     await drain(
       chat({
+        threadId: 'thread-1',
         adapter: adapter(),
         messages: [
           ...processor.getMessages(),
@@ -349,6 +356,7 @@ describe('Anthropic replay', () => {
 
     await drain(
       chat({
+        threadId: 'thread-1',
         adapter: adapter(),
         promptCache: 'none',
         messages: [
@@ -392,6 +400,7 @@ describe('Anthropic replay block order', () => {
 
     await drain(
       chat({
+        threadId: 'thread-1',
         adapter: adapter(),
         messages: [{ role: 'user', content: 'Weather in Berlin and Paris?' }],
         tools: [weather],
@@ -425,6 +434,7 @@ describe('Anthropic replay block order', () => {
 
     await drain(
       chat({
+        threadId: 'thread-1',
         adapter: adapter(),
         messages: [{ role: 'user', content: 'Weather in Berlin?' }],
         tools: [weather],
@@ -464,7 +474,7 @@ describe('Anthropic replay block order', () => {
       { role: 'user', content: 'Go on.' },
     ]
 
-    await drain(chat({ adapter: adapter(), messages }))
+    await drain(chat({ threadId: 'thread-1', adapter: adapter(), messages }))
 
     expect(assistantBlocks(0)).toEqual([
       signed('Think A.', 'sig-a'),
@@ -508,7 +518,14 @@ describe('Anthropic replay block order', () => {
       { role: 'tool', toolCallId: 'call-3', content: 'windy' },
     ]
 
-    await drain(chat({ adapter: adapter(), messages, tools: [weather] }))
+    await drain(
+      chat({
+        threadId: 'thread-1',
+        adapter: adapter(),
+        messages,
+        tools: [weather],
+      }),
+    )
 
     expect(assistantBlocks(0)).toEqual([
       signed('Check Berlin first.', 'sig-1'),
@@ -548,7 +565,14 @@ describe('Anthropic replay block order', () => {
       { role: 'tool', toolCallId: 'call-2', content: 'rainy' },
     ]
 
-    await drain(chat({ adapter: adapter(), messages, tools: [weather] }))
+    await drain(
+      chat({
+        threadId: 'thread-1',
+        adapter: adapter(),
+        messages,
+        tools: [weather],
+      }),
+    )
 
     expect(assistantBlocks(0)).toEqual([
       signed('Check Berlin first.', 'sig-1'),
@@ -579,10 +603,16 @@ describe('Anthropic replay block order', () => {
     ]
 
     await drain(
-      chat({ adapter: adapter(), messages: history(answer), tools: [weather] }),
+      chat({
+        threadId: 'thread-1',
+        adapter: adapter(),
+        messages: history(answer),
+        tools: [weather],
+      }),
     )
     await drain(
       chat({
+        threadId: 'thread-1',
         adapter: adapter(),
         messages: history({
           ...answer,

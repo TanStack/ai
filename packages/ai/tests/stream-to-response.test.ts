@@ -1258,6 +1258,7 @@ describe('toJsonResponse with a structured-output result', () => {
 
   function extractGuitar() {
     return chat({
+      threadId: 'thread-1',
       adapter: structuredAdapter(),
       messages: [{ role: 'user', content: 'recommend a guitar' }],
       outputSchema: GuitarSchema,

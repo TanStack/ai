@@ -233,7 +233,7 @@ export class OpencodeTextAdapter<
       adapter: 'opencode',
       fallback: () => this.generateId(),
     })
-    const threadId = options.threadId ?? this.generateId()
+    const threadId = options.threadId
     // Surfaces custom events from bridged tools (e.g. code mode console logs)
     // on this run's live output stream.
     const channel = createBridgeEventChannel({

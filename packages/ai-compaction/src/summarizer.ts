@@ -24,6 +24,8 @@ export interface SummarizeInput {
   turnPrefixMessages?: Array<ModelMessage>
   /** Aborted when the run is cancelled. */
   signal?: AbortSignal
+  /** The thread id of the run. Pass it to the summary model call. */
+  threadId: string
 }
 
 /**
@@ -231,6 +233,7 @@ export function conversationSummarizer(options: {
         modelOptions: options.modelOptions,
         middleware: [countUsage],
         abortController: controller,
+        threadId: input.threadId,
         stream: false,
       })
       text = result.text

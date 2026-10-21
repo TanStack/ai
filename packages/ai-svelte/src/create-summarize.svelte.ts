@@ -84,6 +84,7 @@ export interface CreateSummarizeReturn<
  *   import { createSummarize, fetchServerSentEvents } from '@tanstack/ai-svelte'
  *
  *   const summarizer = createSummarize({
+ *     threadId: 'article-summary',
  *     connection: fetchServerSentEvents('/api/summarize'),
  *   })
  * </script>

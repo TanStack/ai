@@ -81,6 +81,7 @@ const result = await chat({
   messages: [
     { role: 'user', content: 'Compare weather in Tokyo, Paris, and NYC' },
   ],
+  threadId: 'thread-1',
 })
 ```
 

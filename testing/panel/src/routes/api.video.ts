@@ -19,6 +19,7 @@ export const Route = createFileRoute('/api/video')({
               const { prompt, size = '1280x720', seconds = 8 } = body
 
               const result = await generateVideo({
+                threadId: 'panel-video',
                 adapter,
                 prompt,
                 size,
@@ -54,6 +55,7 @@ export const Route = createFileRoute('/api/video')({
               }
 
               const result = await getVideoJobStatus({
+                threadId: 'panel-video',
                 adapter,
                 jobId,
               })
@@ -88,7 +90,11 @@ export const Route = createFileRoute('/api/video')({
                 )
               }
 
-              const result = await getVideoJobStatus({ adapter, jobId })
+              const result = await getVideoJobStatus({
+                threadId: 'panel-video',
+                adapter,
+                jobId,
+              })
 
               return new Response(
                 JSON.stringify({

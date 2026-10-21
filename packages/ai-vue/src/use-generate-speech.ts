@@ -85,6 +85,7 @@ export interface UseGenerateSpeechReturn<TOutput = TTSResult> extends Omit<
  * import { fetchServerSentEvents } from '@tanstack/ai-client'
  *
  * const { generate, result, isLoading } = useGenerateSpeech({
+ *   threadId: 'welcome-speech',
  *   connection: fetchServerSentEvents('/api/generate/speech'),
  * })
  * </script>

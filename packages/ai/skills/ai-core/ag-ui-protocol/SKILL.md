@@ -27,10 +27,11 @@ import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
   const stream = chat({
     adapter: openaiText('gpt-5.6'),
     messages,
+    threadId,
   })
   return toServerSentEventsResponse(stream)
 }
@@ -66,6 +67,7 @@ export async function POST(req: Request) {
   const stream = chat({
     adapter: openaiText('gpt-5.6'),
     messages: params.messages,
+    threadId: params.threadId,
     tools: mergeAgentTools(serverTools, params.tools),
   })
 
@@ -102,6 +104,7 @@ const abortController = new AbortController()
 const stream = chat({
   adapter: openaiText('gpt-5.6'),
   messages,
+  threadId: 'thread-1',
   abortController,
 })
 const sseStream = toServerSentEventsStream(stream, abortController)
@@ -158,6 +161,7 @@ const abortController = new AbortController()
 const stream = chat({
   adapter: openaiText('gpt-5.6'),
   messages,
+  threadId: 'thread-1',
   abortController,
 })
 const ndjsonStream = toHttpStream(stream, abortController)
@@ -244,6 +248,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 const stream = chat({
   adapter: openaiText('gpt-5.6'),
   messages,
+  threadId: 'thread-1',
 })
 
 for await (const chunk of stream) {

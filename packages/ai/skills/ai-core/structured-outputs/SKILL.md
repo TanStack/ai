@@ -36,6 +36,7 @@ import { z } from 'zod'
 const person = await chat({
   adapter: openaiText('gpt-5.2'),
   messages: [{ role: 'user', content: 'John Doe, 30' }],
+  threadId: 'thread-1',
   outputSchema: z.object({
     name: z.string(),
     age: z.number(),
@@ -86,6 +87,7 @@ const person = await chat({
         'Extract the person info: John Doe is 30 years old, email john@example.com',
     },
   ],
+  threadId: 'thread-1',
   outputSchema: PersonSchema,
 })
 
@@ -134,6 +136,7 @@ const company = await chat({
       content: 'Extract company info from this article: ...',
     },
   ],
+  threadId: 'thread-1',
   outputSchema: CompanySchema,
 })
 
@@ -163,6 +166,7 @@ const stream = chat({
   messages: [
     { role: 'user', content: 'Extract: John Doe is 30, john@example.com' },
   ],
+  threadId: 'thread-1',
   outputSchema: PersonSchema,
   stream: true,
 })
@@ -233,10 +237,11 @@ const PersonSchema = z.object({
 })
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
   const stream = chat({
     adapter: openaiText('gpt-5.2'),
     messages,
+    threadId,
     outputSchema: PersonSchema,
     stream: true,
   })
@@ -259,6 +264,7 @@ const PersonSchema = z.object({
 function PersonExtractor() {
   const { sendMessage, isLoading, partial, final } = useChat({
     connection: fetchServerSentEvents('/api/extract-person'),
+    threadId: 'support-42',
     outputSchema: PersonSchema,
   })
 
@@ -308,6 +314,7 @@ function RecipeBuilder() {
   const { messages, sendMessage } = useChat({
     outputSchema: RecipeSchema,
     connection: fetchServerSentEvents('/api/recipes'),
+    threadId: 'support-42',
   })
 
   return (
@@ -383,6 +390,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: claudeCodeText('claude-opus-4-8'),
     messages,
+    threadId: 'thread-1',
     outputSchema: ReportSchema,
     stream: true,
     middleware: [withSandbox(sandbox)],
@@ -403,6 +411,7 @@ const ReportSchema = z.object({
 function RepoReport() {
   const { final, sendMessage } = useChat({
     connection: fetchServerSentEvents('/api/repo-report'),
+    threadId: 'support-42',
     outputSchema: ReportSchema,
   })
 
@@ -441,6 +450,7 @@ const RecipeSchema = z.object({
 function useRecipeChat() {
   return useChat({
     connection: fetchServerSentEvents('/api/recipes'),
+    threadId: 'support-42',
     outputSchema: RecipeSchema,
   })
 }
@@ -544,6 +554,7 @@ The adapter already handles provider differences (OpenAI uses `response_format`,
 chat({
   adapter,
   messages,
+  threadId: 'thread-1',
   modelOptions: {
     responseFormat: { type: 'json_schema', json_schema: mySchema },
   },
@@ -559,6 +570,7 @@ import { z } from 'zod'
 const person = await chat({
   adapter: openaiText('gpt-5.2'),
   messages: [{ role: 'user', content: 'John Doe, 30' }],
+  threadId: 'thread-1',
   outputSchema: z.object({ name: z.string(), age: z.number() }),
 })
 ```
@@ -585,6 +597,7 @@ const messages = [{ role: 'user' as const, content: 'John Doe, 30' }]
 const untyped = await chat({
   adapter,
   messages,
+  threadId: 'thread-1',
   outputSchema: {
     type: 'object',
     properties: {
@@ -600,6 +613,7 @@ const untyped = await chat({
 const person = await chat({
   adapter,
   messages,
+  threadId: 'thread-1',
   outputSchema: z.object({
     name: z.string(),
     age: z.number(),

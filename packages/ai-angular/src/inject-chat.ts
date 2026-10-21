@@ -43,12 +43,7 @@ export function injectChat<
     InterruptDefinition<any, any, any, any>
   > = readonly [],
 >(
-  options: InjectChatOptions<
-    TTools,
-    TSchema,
-    TContext,
-    TInterrupts
-  > = {} as InjectChatOptions<TTools, TSchema, TContext, TInterrupts>,
+  options: InjectChatOptions<TTools, TSchema, TContext, TInterrupts>,
 ): InjectChatResult<TTools, TSchema, TInterrupts> {
   assertInInjectionContext(injectChat)
 
@@ -80,24 +75,15 @@ export function injectChat<
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),
-    ...(typeof options.threadId === 'string' && options.persistence === true
+    threadId: options.threadId,
+    ...(options.persistence === true
       ? {
           persistence: true,
-          threadId: options.threadId,
           ...(options.history !== undefined && {
             history: options.history,
           }),
         }
-      : typeof options.threadId === 'string' && options.persistence
-        ? {
-            persistence: options.persistence,
-            threadId: options.threadId,
-          }
-        : {
-            ...(options.threadId !== undefined && {
-              threadId: options.threadId,
-            }),
-          }),
+      : { persistence: options.persistence }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
     }),

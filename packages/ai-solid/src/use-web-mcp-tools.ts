@@ -80,6 +80,7 @@ export type UsePageWebMCPToolsOptions = Omit<
  *   filter: (tool) => tool.origin === location.origin,
  * })
  * const chat = useChat({
+ *   threadId: 'support-1',
  *   connection,
  *   get tools() {
  *     return pageTools()

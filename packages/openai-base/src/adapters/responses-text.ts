@@ -536,13 +536,13 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     // tool-call ID and the correlation key for function_call_output.
     const toolCallMetadata = new Map<string, StreamedFunctionCallMetadata>()
 
-    // AG-UI lifecycle tracking. Honor a caller-supplied `runId` (as `threadId`
-    // already does) so the emitted RUN_STARTED matches the id the caller keys
+    // AG-UI lifecycle tracking. Honor a caller-supplied `runId` so the
+    // emitted RUN_STARTED matches the id the caller keys
     // durability by — e.g. a summarize run threading the client's runId through
     // for mid-run reload resumability. Falls back to a generated id.
     const aguiState = {
       runId: options.runId ?? generateId(this.name),
-      threadId: options.threadId ?? generateId(this.name),
+      threadId: options.threadId,
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,
     }
@@ -761,7 +761,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
     const aguiState = {
       runId: generateId(this.name),
-      threadId: chatOptions.threadId ?? generateId(this.name),
+      threadId: chatOptions.threadId,
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,
     }

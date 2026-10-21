@@ -41,12 +41,7 @@ export function useChat<
     InterruptDefinition<any, any, any, any>
   > = readonly [],
 >(
-  options: UseChatOptions<
-    TTools,
-    TSchema,
-    TContext,
-    TInterrupts
-  > = {} as UseChatOptions<TTools, TSchema, TContext, TInterrupts>,
+  options: UseChatOptions<TTools, TSchema, TContext, TInterrupts>,
 ): UseChatReturn<TTools, TSchema, TInterrupts> {
   // Structured-output `partial` / `final` are derived from `messages` —
   // specifically from the structured-output part on the latest assistant
@@ -73,33 +68,22 @@ export function useChat<
     ? { connection: options.connection }
     : { fetcher: options.fetcher }
 
-  // The hook's identity is its `threadId`. When no `threadId` is given the
-  // client mints one after mount, so an ephemeral chat still works but is not
-  // restored on reload.
+  // The hook's identity is its `threadId`.
   const client = new ChatClient<TTools, TContext, TInterrupts>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),
-    ...(typeof options.threadId === 'string' && options.persistence === true
+    threadId: options.threadId,
+    ...(options.persistence === true
       ? {
           persistence: true,
-          threadId: options.threadId,
           ...(options.history !== undefined && {
             history: options.history,
           }),
         }
-      : typeof options.threadId === 'string' && options.persistence
-        ? {
-            persistence: options.persistence,
-            threadId: options.threadId,
-          }
-        : {
-            ...(options.threadId !== undefined && {
-              threadId: options.threadId,
-            }),
-          }),
+      : { persistence: options.persistence }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
     }),

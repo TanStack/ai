@@ -3,7 +3,6 @@ import { createVideoDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import {
   useCallback,
   useEffect,
-  useId,
   useMemo,
   useRef,
   useSyncExternalStore,
@@ -58,11 +57,10 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
    * `` `video-${videoId}-start-frame` ``). It is also sent as the AG-UI thread
    * id on the wire, which the protocol requires.
    *
-   * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations. If
-   * omitted, the client mints a wire id after mount.
+   * Required. A generated id would change on every reload, so persistence
+   * would restore nothing.
    */
-  threadId?: string
+  threadId: string
   /**
    * Server-driven hydration handler for `persistence: true` when the
    * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
@@ -143,6 +141,7 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
  *
  * function VideoGenerator() {
  *   const { generate, result, videoStatus, isLoading } = useGenerateVideo({
+ *     threadId: 'intro-video',
  *     connection: fetchServerSentEvents('/api/generate/video'),
  *     onStatusUpdate: (status) => console.log(`Progress: ${status.progress}%`),
  *   })
@@ -178,10 +177,6 @@ export function useGenerateVideo<TTransformed = void>(
     VideoGenerateResult,
     TTransformed
   >
-  const hookId = useId()
-  // The hook identity is `threadId`. `hookId` is only a React recreation key.
-  const clientIdentity = options.threadId ?? hookId
-
   const optionsRef = useRef(options)
   optionsRef.current = options
   const disposedRef = useRef(false)
@@ -236,15 +231,10 @@ export function useGenerateVideo<TTransformed = void>(
       },
     }
 
-    const persistenceProps =
-      typeof opts.threadId === 'string' && opts.persistence
-        ? {
-            persistence: opts.persistence,
-            threadId: opts.threadId,
-          }
-        : {
-            ...(opts.threadId !== undefined && { threadId: opts.threadId }),
-          }
+    const persistenceProps = {
+      persistence: opts.persistence,
+      threadId: opts.threadId,
+    }
 
     if (opts.connection) {
       return new VideoGenerationClient<TOutput>({
@@ -265,7 +255,7 @@ export function useGenerateVideo<TTransformed = void>(
     throw new Error(
       'useGenerateVideo requires either a connection or fetcher option',
     )
-  }, [clientIdentity, hookId])
+  }, [options.threadId])
 
   const snapshot = useSyncExternalStore(
     client.subscribe,

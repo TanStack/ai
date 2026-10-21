@@ -54,6 +54,7 @@ async function historyAfter(
   })
   await collectChunks(
     chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Go' }],
       tools: [serverTool('lookup', () => ({ found: true }))],
@@ -78,6 +79,7 @@ async function messagesAtFinish(
   const { adapter } = createMockAdapter({ iterations: [turn] })
   await collectChunks(
     chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Go' }],
       tools,
@@ -220,6 +222,7 @@ describe('chat() block order', () => {
     })
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Pick two' }],
         tools: [clientTool('pick')],

@@ -71,7 +71,11 @@ const stream = chat({
 ```typescript
 import { computerSafetyCheck } from '@tanstack/ai-computer-use'
 
-useChat({ connection, interrupts: [computerSafetyCheck] })
+useChat({
+  connection,
+  threadId: 'support-42',
+  interrupts: [computerSafetyCheck],
+})
 ```
 
 `computerSafetyCheck` is the same object as `interrupt`. The client can import it without the driver.

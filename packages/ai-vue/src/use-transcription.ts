@@ -90,6 +90,7 @@ export interface UseTranscriptionReturn<
  * import { fetchServerSentEvents } from '@tanstack/ai-client'
  *
  * const { generate, result, isLoading } = useTranscription({
+ *   threadId: 'meeting-transcript',
  *   connection: fetchServerSentEvents('/api/transcribe'),
  * })
  *

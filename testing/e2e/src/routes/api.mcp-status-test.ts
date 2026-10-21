@@ -50,7 +50,11 @@ export const Route = createFileRoute('/api/mcp-status-test')({
           }
           const taskResult = await taskTool.execute(
             { ids: ['strat', 'tele'] },
-            { toolCallId: 'task-e2e', emitCustomEvent: () => {} },
+            {
+              toolCallId: 'task-e2e',
+              threadId: 'mcp-status-test',
+              emitCustomEvent: () => {},
+            },
           )
 
           const resourceList = await client.resources().catch(() => [])

@@ -25,6 +25,7 @@ function SolidReactiveChatPage() {
         dispose = createRoot((disposeRoot) => {
           const [provider, setProvider] = createSignal('openai')
           const chat = useChat({
+            threadId: 'solid-reactive-chat',
             fetcher: ({ messages, data, threadId, runId }) => {
               setRequests((current) => [
                 ...current,

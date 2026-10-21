@@ -140,7 +140,7 @@ describe('ChatClient resume', () => {
         },
       ],
     ])
-    const client = new ChatClient({ connection: adapter })
+    const client = new ChatClient({ threadId: 'thread-1', connection: adapter })
     await client.append({
       id: 'u1',
       role: 'user',
@@ -169,7 +169,7 @@ describe('ChatClient resume', () => {
         },
       ],
     ])
-    const client = new ChatClient({ connection: adapter })
+    const client = new ChatClient({ threadId: 'thread-1', connection: adapter })
     await client.append({
       id: 'u1',
       role: 'user',
@@ -195,6 +195,7 @@ describe('ChatClient resume', () => {
       ],
     ])
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: adapter,
       onRunIdChange: (runId) => seen.push(runId),
     })
@@ -526,7 +527,7 @@ describe('ChatClient resume', () => {
         },
       ],
     ])
-    const client = new ChatClient({ connection: adapter })
+    const client = new ChatClient({ threadId: 'thread-1', connection: adapter })
 
     await client.sendMessage('hi')
     await expect(client.sendMessage('blocked')).rejects.toThrow(

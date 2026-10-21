@@ -36,6 +36,7 @@ describe('middleware runtime context', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'hello' }],
         tools: [tool],
@@ -72,6 +73,7 @@ describe('middleware runtime context', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'hello' }],
         tools: [tool],

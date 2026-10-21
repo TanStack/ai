@@ -127,11 +127,9 @@ export class GenerationClient<
   private readonly joinRunHandler:
     | ConnectConnectionAdapter['joinRun']
     | undefined
-  private uniqueId: string
   private readonly devtoolsMetadata: AIDevtoolsClientMetadata
   private readonly devtoolsBridge: GenerationDevtoolsBridge<TOutput>
-  private threadId: string
-  private readonly persistenceScope: string | undefined
+  private readonly threadId: string
   // Server-driven mode (`persistence: true`): no local snapshot store; on mount
   // the client hydrates the last generation for `threadId` from the server.
   private readonly serverDriven: boolean = false
@@ -171,14 +169,8 @@ export class GenerationClient<
       GenerationPersistenceOptions &
       GenerationTransport<TInput, TResult>,
   ) {
-    // `threadId` is the only identity. Do not mint a random id during
-    // construct: hooks build this client during render.
-    this.threadId = options.threadId ?? ''
-    this.uniqueId = this.threadId
-    // The persistence scope is the explicit `threadId` and nothing else.
-    // The types require it whenever `persistence` is set. This field keeps a
-    // generated wire id from becoming a storage key for JS callers.
-    this.persistenceScope = options.threadId
+    // `threadId` is the only identity.
+    this.threadId = options.threadId
     this.connection = options.connection
     this.fetcher = options.fetcher
     this.hydrateGenerationHandler = options.hydrateGeneration
@@ -189,15 +181,6 @@ export class GenerationClient<
     // `persistence` is `false`/omitted (ephemeral) or `true` (server-driven:
     // hydrate the last generation for `threadId` from the server on mount).
     this.serverDriven = options.persistence === true
-    // The types require `threadId` alongside `persistence`, so this only fires
-    // for JS callers. Warn rather than fall back silently: keying on the
-    // generated wire id would write a different slot every reload, restoring
-    // nothing while accumulating orphaned records.
-    if (options.persistence && !this.persistenceScope) {
-      console.warn(
-        '[TanStack AI] `persistence` needs a stable `threadId` to key on. Without one nothing will be restored after a reload. Pass a `threadId` derived from your own domain (e.g. `product-123-hero`).',
-      )
-    }
     this.callbacksRef = {
       onResult: options.onResult,
       onError: options.onError,
@@ -229,10 +212,10 @@ export class GenerationClient<
     const client = this
     return {
       get hookId() {
-        return client.uniqueId
+        return client.threadId
       },
       get clientId() {
-        return client.uniqueId
+        return client.threadId
       },
       get threadId() {
         return client.threadId
@@ -250,7 +233,6 @@ export class GenerationClient<
   }
 
   mountDevtools(): void {
-    this.ensureThreadId()
     // Mounting revives a disposed client. Framework hooks call this from
     // their mount effect, so a dispose → remount cycle (e.g. React
     // StrictMode's mount → cleanup → mount replay against the same memoized
@@ -798,18 +780,6 @@ export class GenerationClient<
       ...(metadata?.outputKind ? { outputKind: metadata.outputKind } : {}),
       ...(metadata?.name ? { name: metadata.name } : {}),
     }
-  }
-
-  private ensureThreadId(): string {
-    if (!this.threadId) {
-      this.threadId = this.generateUniqueId('generation')
-    }
-    this.uniqueId = this.threadId
-    return this.threadId
-  }
-
-  private generateUniqueId(prefix: string): string {
-    return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
   }
 
   private createRunContext(

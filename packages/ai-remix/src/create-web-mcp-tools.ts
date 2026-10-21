@@ -80,6 +80,7 @@ export type CreatePageWebMCPToolsOptions = Omit<
  * function Chat(handle: Handle) {
  *   const page = createPageWebMCPTools(handle)
  *   const chat = createChat(handle, {
+ *     threadId: 'support-1',
  *     connection,
  *     get tools() {
  *       return page.tools

@@ -33,7 +33,7 @@ async function sentHeaders(
     },
   })
   const config = { apiKey: 'test-key', httpClient }
-  const options = { logger, model, messages, wrapFetch }
+  const options = { threadId: 'thread-1', logger, model, messages, wrapFetch }
   const stream =
     api === 'chat'
       ? new OpenRouterTextAdapter(config, model).chatStream(options)

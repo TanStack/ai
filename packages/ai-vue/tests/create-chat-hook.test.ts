@@ -23,7 +23,7 @@ describe('createChatHook', () => {
     const wrapper = mount(
       defineComponent({
         setup() {
-          return useChat()
+          return useChat({ threadId: 'thread-1' })
         },
         template: '<div></div>',
       }),

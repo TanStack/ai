@@ -277,6 +277,7 @@ export const Route = createFileRoute('/_database-demo/api/database-demo')({
           }
 
           const stream = chat({
+            threadId: body.threadId,
             adapter: instrumentedAdapter,
             messages,
             tools,

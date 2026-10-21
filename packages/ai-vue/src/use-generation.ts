@@ -56,11 +56,10 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
    * `` `video-${videoId}-start-frame` ``). It is also sent as the AG-UI thread
    * id on the wire, which the protocol requires.
    *
-   * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations. If
-   * omitted, the client mints a wire id after mount.
+   * Required. A generated id would change on every reload, so persistence
+   * would restore nothing.
    */
-  threadId?: string
+  threadId: string
   /**
    * Server-driven hydration handler for `persistence: true` when the
    * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
@@ -147,6 +146,7 @@ export interface UseGenerationReturn<
  * import { fetchServerSentEvents } from '@tanstack/ai-client'
  *
  * const { generate, result, isLoading } = useGeneration({
+ *   threadId: 'custom-gen',
  *   connection: fetchServerSentEvents('/api/generate/custom'),
  * })
  * </script>
@@ -222,17 +222,10 @@ export function useGeneration<
     },
   }
 
-  const persistenceProps =
-    typeof options.threadId === 'string' && options.persistence
-      ? {
-          persistence: options.persistence,
-          threadId: options.threadId,
-        }
-      : {
-          ...(options.threadId !== undefined && {
-            threadId: options.threadId,
-          }),
-        }
+  const persistenceProps = {
+    persistence: options.persistence,
+    threadId: options.threadId,
+  }
 
   let client: GenerationClient<TInput, TResult, TOutput>
 

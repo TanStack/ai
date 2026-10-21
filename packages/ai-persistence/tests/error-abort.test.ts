@@ -428,6 +428,7 @@ describe('generation persistence error/abort hooks', () => {
 
     await expect(
       generateImage({
+        threadId: 'thread-1',
         adapter: imageAdapterThatThrows(new Error('image boom')),
         prompt: 'make an image',
         middleware: [
@@ -452,6 +453,7 @@ describe('generation persistence error/abort hooks', () => {
 
     await expect(
       generateImage({
+        threadId: 'thread-1',
         adapter: imageAdapterThatThrows('image string failure'),
         prompt: 'make an image',
         middleware: [

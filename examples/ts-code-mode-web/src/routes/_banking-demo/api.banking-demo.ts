@@ -225,6 +225,7 @@ export const Route = createFileRoute('/_banking-demo/api/banking-demo')({
 
         try {
           const stream = chat({
+            threadId: body.threadId,
             adapter,
             messages,
             tools: [tool, ...filteredReportTools],

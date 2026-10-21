@@ -15,6 +15,7 @@ const connection = fetchServerSentEvents('/api/resumable')
 
 function ResumablePage() {
   const { messages, sendMessage, isLoading, connectionStatus } = useChat({
+    threadId: 'resumable-demo',
     connection,
   })
   const [input, setInput] = useState(

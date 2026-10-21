@@ -65,6 +65,7 @@
   // Create chat instance - reactive getters mean no $ prefix needed!
   const chat = createChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'guitar-chat',
     tools,
     get forwardedProps() {
       return {

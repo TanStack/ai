@@ -305,7 +305,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
 
     // AG-UI lifecycle tracking
     const runId = options.runId ?? generateId('run')
-    const threadId = options.threadId ?? generateId('thread')
+    const threadId = options.threadId
     const messageId = generateId('msg')
     let reasoningMessageId: string | null = null
     let hasClosedReasoning = false

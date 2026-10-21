@@ -177,6 +177,7 @@ describe('usePageWebMCPTools (Solid)', () => {
         filter: (tool) => tool.name !== 'blocked',
       })
       const chat = useChat({
+        threadId: 'thread-1',
         connection: createMockConnectionAdapter(),
         get tools() {
           return pageTools()

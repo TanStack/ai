@@ -23,6 +23,7 @@ describe('injectChat', () => {
     it('projects one immutable reactive snapshot', () => {
       const onInterruptStateChange = vi.fn()
       const { result, flush } = renderInjectChat({
+        threadId: 'thread-1',
         connection: createMockConnectionAdapter(),
         initialResumeSnapshot: createInterruptResumeSnapshot(),
         onInterruptStateChange,
@@ -76,6 +77,7 @@ describe('injectChat', () => {
         .spyOn(ChatClient.prototype, 'resumeInterruptsUnsafe')
         .mockResolvedValue(true)
       const { result } = renderInjectChat({
+        threadId: 'thread-1',
         connection: createMockConnectionAdapter(),
       })
       const resolver = () => undefined
@@ -95,7 +97,10 @@ describe('injectChat', () => {
 
   it('initializes with default state', () => {
     const adapter = createMockConnectionAdapter()
-    const { result } = renderInjectChat({ connection: adapter })
+    const { result } = renderInjectChat({
+      threadId: 'thread-1',
+      connection: adapter,
+    })
 
     expect(result.messages()).toEqual([])
     expect(result.isLoading()).toBe(false)
@@ -112,7 +117,10 @@ describe('injectChat — streaming', () => {
     const adapter = createMockConnectionAdapter({
       chunks: createTextChunks('Hello there'),
     })
-    const { result, flush } = renderInjectChat({ connection: adapter })
+    const { result, flush } = renderInjectChat({
+      threadId: 'thread-1',
+      connection: adapter,
+    })
 
     await result.sendMessage('Hi')
     await tick()
@@ -132,6 +140,7 @@ describe('injectChat — streaming', () => {
       },
     })
     const { result, flush } = renderInjectChat({
+      threadId: 'thread-1',
       connection: adapter,
       forwardedProps: { provider: 'openai' },
     })
@@ -159,6 +168,7 @@ describe('injectChat — streaming', () => {
       },
     ]
     const { result } = renderInjectChat({
+      threadId: 'thread-1',
       connection: adapter,
       initialMessages,
     })
@@ -169,7 +179,10 @@ describe('injectChat — streaming', () => {
     const adapter = createMockConnectionAdapter({
       chunks: createTextChunks('Hi'),
     })
-    const { result, flush } = renderInjectChat({ connection: adapter })
+    const { result, flush } = renderInjectChat({
+      threadId: 'thread-1',
+      connection: adapter,
+    })
     await result.sendMessage('Hi')
     await tick()
     result.clear()
@@ -182,7 +195,11 @@ describe('injectChat — reactive options', () => {
   it('subscribes/unsubscribes when a live signal flips', async () => {
     const adapter = createMockConnectionAdapter()
     const live = signal(false)
-    const { result, flush } = renderInjectChat({ connection: adapter, live })
+    const { result, flush } = renderInjectChat({
+      threadId: 'thread-1',
+      connection: adapter,
+      live,
+    })
 
     await tick()
     flush()
@@ -205,6 +222,7 @@ describe('injectChat — reactive options', () => {
       const adapter = createMockConnectionAdapter()
       const forwardedProps = signal<Record<string, any>>({ model: 'a' })
       const { flush } = renderInjectChat({
+        threadId: 'thread-1',
         connection: adapter,
         forwardedProps,
       })
@@ -295,7 +313,11 @@ describe('injectChat — structured output', () => {
 
     @Component({ standalone: true, template: '' })
     class StructuredHost {
-      chat = injectChat({ connection: adapter, outputSchema: schema })
+      chat = injectChat({
+        threadId: 'thread-1',
+        connection: adapter,
+        outputSchema: schema,
+      })
     }
     const fixture = TestBed.createComponent(StructuredHost)
     fixture.detectChanges()

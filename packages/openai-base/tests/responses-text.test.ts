@@ -124,6 +124,7 @@ describe('strict fallback warning (#1213)', () => {
 
     for (let i = 0; i < 2; i++) {
       for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
         logger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'hi' }],
@@ -211,6 +212,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       expect(adapter.supportsCombinedToolsAndSchema()).toBe(true)
 
       for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -267,6 +269,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
 
       for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -297,6 +300,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       ])
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of chat({
+        threadId: 'thread-1',
         adapter: new TestResponsesAdapter(testConfig, 'test-model'),
         messages: [{ role: 'user', content: 'Hello' }],
       })) {
@@ -344,6 +348,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const chunks: Array<{ type: string }> = []
       const run = (async () => {
         for await (const chunk of chat({
+          threadId: 'thread-1',
           adapter: new TestResponsesAdapter(testConfig, 'test-model'),
           messages: [{ role: 'user', content: 'Hello' }],
         })) {
@@ -396,6 +401,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -445,6 +451,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -505,6 +512,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -575,6 +583,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -640,6 +649,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Say hello' }],
@@ -711,6 +721,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'What is the meaning of life?' }],
@@ -797,6 +808,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'What is the meaning of life?' }],
@@ -870,6 +882,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Explain' }],
@@ -954,6 +967,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Ask me' }],
@@ -1034,6 +1048,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Weather in Berlin?' }],
@@ -1153,6 +1168,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         testConfig,
         'test-model',
       ).chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Find the latest release.' }],
@@ -1260,6 +1276,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         testConfig,
         'test-model',
       ).chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Search twice.' }],
@@ -1345,6 +1362,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Weather in Berlin?' }],
@@ -1448,6 +1466,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [
@@ -1534,6 +1553,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Weather in Tokyo?' }],
@@ -1618,6 +1638,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'q' }],
@@ -1700,6 +1721,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'q' }],
@@ -1765,6 +1787,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'q' }],
@@ -1842,6 +1865,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'q' }],
@@ -1919,6 +1943,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'q' }],
@@ -1997,6 +2022,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Weather?' }],
@@ -2058,6 +2084,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Answer carefully' }],
@@ -2131,6 +2158,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -2175,6 +2203,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'hi' }],
@@ -2235,6 +2264,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         testConfig,
         'test-model',
       ).chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Find the latest release.' }],
@@ -2304,6 +2334,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -2328,6 +2359,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -2365,6 +2397,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'bad content' }],
@@ -2399,6 +2432,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Write a long story' }],
@@ -2437,6 +2471,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -2470,6 +2505,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -2490,6 +2526,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -2527,6 +2564,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       const result = await adapter.structuredOutput({
         chatOptions: {
+          threadId: 'thread-1',
           logger: testLogger,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Give me a person object' }],
@@ -2579,6 +2617,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       await adapter.structuredOutput({
         chatOptions: {
+          threadId: 'thread-1',
           logger: testLogger,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Give me a person' }],
@@ -2628,6 +2667,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       const result = await adapter.structuredOutput({
         chatOptions: {
+          threadId: 'thread-1',
           logger: testLogger,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Give me a person object' }],
@@ -2670,6 +2710,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       const result = await adapter.structuredOutput({
         chatOptions: {
+          threadId: 'thread-1',
           logger: testLogger,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Give me a person object' }],
@@ -2713,6 +2754,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       await expect(
         adapter.structuredOutput({
           chatOptions: {
+            threadId: 'thread-1',
             logger: testLogger,
             model: 'test-model',
             messages: [{ role: 'user', content: 'Give me a person object' }],
@@ -2742,6 +2784,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       await expect(
         adapter.structuredOutput({
           chatOptions: {
+            threadId: 'thread-1',
             logger: testLogger,
             model: 'test-model',
             messages: [{ role: 'user', content: 'q' }],
@@ -2772,6 +2815,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       await expect(
         adapter.structuredOutput({
           chatOptions: {
+            threadId: 'thread-1',
             logger: testLogger,
             model: 'test-model',
             messages: [{ role: 'user', content: 'q' }],
@@ -2799,6 +2843,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       await expect(
         adapter.structuredOutput({
           chatOptions: {
+            threadId: 'thread-1',
             logger: testLogger,
             model: 'test-model',
             messages: [{ role: 'user', content: 'q' }],
@@ -2845,6 +2890,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -2917,6 +2963,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello world' }],
@@ -2965,6 +3012,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [
@@ -3114,6 +3162,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       setupMockResponsesClient(completedOnly('resp-1'))
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       for await (const _chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages,
@@ -3457,6 +3506,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const execute = vi.fn().mockReturnValue({ temperature: 72 })
 
       for await (const _chunk of chat({
+        threadId: 'thread-1',
         adapter: new TestResponsesAdapter(testConfig, 'test-model'),
         messages: [{ role: 'user', content: 'How is the weather?' }],
         tools: [{ ...weatherTool, execute }],
@@ -3507,6 +3557,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
 
       for await (const _chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [
@@ -3634,6 +3685,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [
@@ -3716,6 +3768,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       const chunks = []
       for await (const chunk of chat({
+        threadId: 'thread-1',
         adapter: new TestResponsesAdapter(testConfig, 'test-model'),
         messages: [{ role: 'user', content: 'Hi' }],
       })) {
@@ -3839,6 +3892,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const execute = vi.fn().mockReturnValue({ temperature: 72 })
 
       for await (const _chunk of chat({
+        threadId: 'thread-1',
         adapter: new TestResponsesAdapter(testConfig, 'test-model'),
         messages: [{ role: 'user', content: 'How is the weather?' }],
         tools: [{ ...weatherTool, execute }],
@@ -3941,6 +3995,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         .mockResolvedValueOnce(createAsyncIterable(secondTurn))
 
       for await (const _chunk of chat({
+        threadId: 'thread-1',
         adapter: new TestResponsesAdapter(testConfig, 'test-model'),
         messages: [{ role: 'user', content: 'How is the weather?' }],
         tools: [{ ...weatherTool, execute: () => ({ temperature: 72 }) }],
@@ -4070,6 +4125,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const execute = vi.fn().mockReturnValue({ temperature: 72 })
 
       for await (const _chunk of chat({
+        threadId: 'thread-1',
         adapter: new TestResponsesAdapter(testConfig, 'test-model'),
         messages: [{ role: 'user', content: 'How is the weather?' }],
         tools: [{ ...weatherTool, execute }],
@@ -4128,6 +4184,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [
@@ -4211,6 +4268,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content }],
@@ -4468,6 +4526,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [
@@ -4621,6 +4680,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'edit the file' }],
@@ -4835,6 +4895,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'delete old.ts' }],
@@ -4852,6 +4913,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [
@@ -4979,6 +5041,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of chat({
+        threadId: 'thread-1',
         adapter: new TestResponsesAdapter(testConfig, 'test-model'),
         messages: [{ role: 'user', content: 'delete old.ts' }],
         tools: [applyPatchTool()],
@@ -5011,6 +5074,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       setupMockResponsesClient(completedResponse(output))
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of chat({
+        threadId: 'thread-1',
         adapter: new TestResponsesAdapter(testConfig, 'test-model'),
         messages: [{ role: 'user', content: 'edit the file' }],
         tools,

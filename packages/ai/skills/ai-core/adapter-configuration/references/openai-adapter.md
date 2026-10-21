@@ -53,6 +53,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: openaiText('gpt-5.5'),
   messages,
+  threadId: 'thread-1',
   // Reasoning: goes out as reasoning.effort, with a summary
   reasoning: { level: 'high', summary: true },
   modelOptions: {

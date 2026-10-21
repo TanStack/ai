@@ -42,10 +42,7 @@ export const Route = createFileRoute('/api/skills-chat')({
 
         const provider: Provider = data.provider || 'openai'
         const model: string | undefined = data.model
-        const threadId: string =
-          typeof data.threadId === 'string' && data.threadId.length > 0
-            ? data.threadId
-            : 'panel-default-thread'
+        const threadId: string = body.threadId
 
         try {
           const adapterConfig = {
@@ -95,6 +92,7 @@ export const Route = createFileRoute('/api/skills-chat')({
 
           const stream = chat({
             ...options,
+            threadId,
             adapter,
             systemPrompts: [SYSTEM_PROMPT],
             tools: [createResourceTool(skillsSource)],

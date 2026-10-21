@@ -525,7 +525,7 @@ export class GeminiTextAdapter<
     const model = options.model
     const { logger } = options
     const runId = options.runId ?? generateId(this.name)
-    const threadId = options.threadId ?? generateId(this.name)
+    const threadId = options.threadId
     const messageId = generateId(this.name)
 
     try {
@@ -864,7 +864,7 @@ export class GeminiTextAdapter<
 
     // AG-UI lifecycle tracking
     const runId = options.runId ?? generateId(this.name)
-    const threadId = options.threadId ?? generateId(this.name)
+    const threadId = options.threadId
     const messageId = generateId(this.name)
     let reasoningMessageId: string | null = null
     let hasClosedReasoning = false

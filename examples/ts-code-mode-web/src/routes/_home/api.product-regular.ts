@@ -83,6 +83,7 @@ export const Route = createFileRoute('/_home/api/product-regular')({
 
         try {
           const stream = chat({
+            threadId: body.threadId,
             adapter: instrumentedAdapter,
             messages,
             tools: [...productTools],

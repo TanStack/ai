@@ -9,8 +9,8 @@ export declare function createChatHook<
 >(
   config: { options: TOptions } & ChatUIFactoryConfig<TOptions, TInput>,
 ): {
-  useAppChat: (overrides?: {
-    threadId?: string
+  useAppChat: (overrides: {
+    threadId: string
     live?: boolean
     forwardedProps?: Record<string, any>
     initialMessages?: ChatUIHost<TOptions>['messages']

@@ -47,6 +47,7 @@ export type CreateSummarizeReturn<TOutput = SummarizationResult> =
  *
  * function Summarizer(handle: Handle) {
  *   const summarizer = createSummarize(handle, {
+ *     threadId: 'article-summary',
  *     connection: fetchServerSentEvents('/api/summarize'),
  *   })
  *
@@ -71,7 +72,7 @@ export type CreateSummarizeReturn<TOutput = SummarizationResult> =
  * ```
  */
 export function createSummarize<TTransformed = void>(
-  handle: Pick<Handle, 'id' | 'update' | 'signal'>,
+  handle: Pick<Handle, 'update' | 'signal'>,
   options: Omit<
     CreateSummarizeOptions,
     'onResult' | 'persistence' | 'threadId'

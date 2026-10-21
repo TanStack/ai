@@ -25,6 +25,7 @@ export const Route = createFileRoute('/api/image/stream')({
 
         try {
           const stream = generateImage({
+            threadId: body.threadId,
             adapter,
             prompt,
             numberOfImages: numberOfImages ?? 1,

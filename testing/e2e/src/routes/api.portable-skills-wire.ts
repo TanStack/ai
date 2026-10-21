@@ -195,6 +195,7 @@ export const Route = createFileRoute('/api/portable-skills-wire')({
 
         try {
           for await (const _ of chat({
+            threadId: 'portable-skills-wire',
             ...createChatOptions({ adapter }),
             messages: [{ role: 'user', content: '[portable-skills-wire] go' }],
             tools: coexistTools,

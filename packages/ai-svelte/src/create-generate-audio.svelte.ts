@@ -84,6 +84,7 @@ export interface CreateGenerateAudioReturn<
  *   import { createGenerateAudio, fetchServerSentEvents } from '@tanstack/ai-svelte'
  *
  *   const audio = createGenerateAudio({
+ *     threadId: 'theme-audio',
  *     connection: fetchServerSentEvents('/api/generate/audio'),
  *   })
  * </script>

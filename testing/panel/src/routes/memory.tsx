@@ -76,12 +76,12 @@ function MemoryPage() {
     () => ({
       provider: selectedModel.provider,
       model: selectedModel.model,
-      threadId,
     }),
-    [selectedModel.provider, selectedModel.model, threadId],
+    [selectedModel.provider, selectedModel.model],
   )
 
   const { messages, sendMessage, isLoading } = useChat({
+    threadId,
     connection: fetchServerSentEvents('/api/memory-chat'),
     forwardedProps: body,
     devtools: { name: 'Memory' },

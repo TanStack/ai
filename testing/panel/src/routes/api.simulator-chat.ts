@@ -273,6 +273,7 @@ export const Route = createFileRoute('/api/simulator-chat')({
           const adapter = createSimulatorAdapter()
 
           const stream = chat({
+            threadId: body.threadId,
             adapter: adapter as any,
             tools: [
               // Server tools with implementations

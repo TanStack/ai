@@ -43,6 +43,7 @@ async function runInputRequiredChat(
 
   const chunks = await collectChunks(
     chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Ask' }],
       tools: [

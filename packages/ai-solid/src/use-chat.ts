@@ -42,12 +42,7 @@ export function useChat<
     InterruptDefinition<any, any, any, any>
   > = readonly [],
 >(
-  options: UseChatOptions<
-    TTools,
-    TSchema,
-    TContext,
-    TInterrupts
-  > = {} as UseChatOptions<TTools, TSchema, TContext, TInterrupts>,
+  options: UseChatOptions<TTools, TSchema, TContext, TInterrupts>,
 ): UseChatReturn<TTools, TSchema, TInterrupts> {
   // The hook's identity is its `threadId`. Reload with the same `threadId`
   // restores the same conversation.
@@ -79,24 +74,15 @@ export function useChat<
       ...(options.initialMessages !== undefined && {
         initialMessages: options.initialMessages,
       }),
-      ...(typeof options.threadId === 'string' && options.persistence === true
+      threadId: options.threadId,
+      ...(options.persistence === true
         ? {
             persistence: true,
-            threadId: options.threadId,
             ...(options.history !== undefined && {
               history: options.history,
             }),
           }
-        : typeof options.threadId === 'string' && options.persistence
-          ? {
-              persistence: options.persistence,
-              threadId: options.threadId,
-            }
-          : {
-              ...(options.threadId !== undefined && {
-                threadId: options.threadId,
-              }),
-            }),
+        : { persistence: options.persistence }),
       ...(options.initialResumeSnapshot !== undefined && {
         initialResumeSnapshot: options.initialResumeSnapshot,
       }),

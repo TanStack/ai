@@ -70,6 +70,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: byteplusText('dola-seed-2-1-turbo-260628'),
   messages,
+  threadId: 'thread-1',
   // Ark thinking.type plus reasoning_effort
   reasoning: 'medium',
   modelOptions: {

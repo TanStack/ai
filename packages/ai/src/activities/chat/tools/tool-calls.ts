@@ -423,6 +423,7 @@ export class ToolCallManager<
           // Execute the tool
           const executionContext = {
             toolCallId: toolCall.id,
+            threadId: finishEvent.threadId,
             context: userContext,
             emitCustomEvent: () => {},
           } as ToolExecutionContext<TContext>
@@ -968,6 +969,8 @@ async function buildClientToolResult(
  *
  * @param toolCalls - Tool calls from the LLM
  * @param tools - Available tools with their configurations
+ * @param threadId - The thread id of the run. Each server tool gets it on
+ *   its context.
  * @param approvals - Map keyed by toolCallId (or `approval_${toolCallId}`) → ToolApprovalResolution
  * @param clientResults - Map of client-side execution results (toolCallId -> result)
  * @param createCustomEventChunk - Factory to create CustomEvent chunks (optional)
@@ -976,12 +979,11 @@ async function buildClientToolResult(
  *   call at a time. Results come back in call order either way.
  * @param repairToolInput - How an input that fails the final check is
  *   repaired: the built-in repair (default), none (`false`), or a function.
- * @param threadId - The thread id of the run. Each server tool gets it on
- *   its context.
  */
 export async function* executeToolCalls<TContext = unknown>(
   toolCalls: Array<ToolCall>,
   tools: ReadonlyArray<AnyTool>,
+  threadId: string,
   approvals: Map<string, ToolApprovalResolution> = new Map(),
   clientResults: Map<string, any> = new Map(),
   createCustomEventChunk?: (
@@ -995,7 +997,6 @@ export async function* executeToolCalls<TContext = unknown>(
   resumeState?: ToolResumeExecutionState,
   toolExecution: NonNullable<TextOptions['toolExecution']> = 'parallel',
   repairToolInput?: TextOptions['repairToolInput'],
-  threadId?: string,
 ): AsyncGenerator<CustomEvent | StreamChunk, ExecuteToolCallsResult, void> {
   const results: Array<ToolResult> = []
   const needsApproval: Array<ApprovalRequest> = []
@@ -1290,7 +1291,7 @@ export async function* executeToolCalls<TContext = unknown>(
       toolCallId: toolCall.id,
       context: userContext,
       abortSignal,
-      ...(threadId !== undefined ? { threadId } : {}),
+      threadId,
       ...(inputResponse !== undefined ? { inputResponse } : {}),
       emitCustomEvent: (
         eventName: string,
@@ -1345,6 +1346,7 @@ export async function* executeToolCalls<TContext = unknown>(
     const rest = yield* executeToolCalls(
       held,
       tools,
+      threadId,
       approvals,
       clientResults,
       createCustomEventChunk,
@@ -1354,7 +1356,6 @@ export async function* executeToolCalls<TContext = unknown>(
       resumeState,
       toolExecution,
       repairToolInput,
-      threadId,
     )
     results.push(...rest.results)
     needsClientExecution.push(...rest.needsClientExecution)

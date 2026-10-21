@@ -85,6 +85,7 @@ export interface UseGenerateSpeechReturn<TOutput = TTSResult> extends Omit<
  *
  * function SpeechGenerator() {
  *   const { generate, result, isLoading } = useGenerateSpeech({
+ *     threadId: 'welcome-speech',
  *     connection: fetchServerSentEvents('/api/generate/speech'),
  *   })
  *

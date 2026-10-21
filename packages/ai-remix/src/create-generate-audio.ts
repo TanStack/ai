@@ -47,6 +47,7 @@ export type CreateGenerateAudioReturn<TOutput = AudioGenerationResult> =
  *
  * function AudioGenerator(handle: Handle) {
  *   const audio = createGenerateAudio(handle, {
+ *     threadId: 'theme-audio',
  *     connection: fetchServerSentEvents('/api/generate/audio'),
  *   })
  *
@@ -68,7 +69,7 @@ export type CreateGenerateAudioReturn<TOutput = AudioGenerationResult> =
  * ```
  */
 export function createGenerateAudio<TTransformed = void>(
-  handle: Pick<Handle, 'id' | 'update' | 'signal'>,
+  handle: Pick<Handle, 'update' | 'signal'>,
   options: Omit<
     CreateGenerateAudioOptions,
     'onResult' | 'persistence' | 'threadId'

@@ -75,6 +75,7 @@ const stream = chat({
   adapter: anthropic('claude-sonnet-4-6'), // Main model
   toolRegistry: toolsRegistry,
   messages,
+  threadId: 'thread-1',
   systemPrompts: [basePrompt, systemPrompt],
 })
 ```

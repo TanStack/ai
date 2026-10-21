@@ -2377,6 +2377,7 @@ describe('StreamProcessor', () => {
         ],
       })
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Search and notify' }],
         tools: [

@@ -36,11 +36,10 @@ export function throwIfConverseStreamError(ev: ConverseStreamOutput): void {
 export async function* processConverseStream(
   stream: AsyncIterable<ConverseStreamOutput>,
   newMessageId: () => string,
-  lifecycle: { threadId?: string; parentRunId?: string; model?: string } = {},
+  lifecycle: { threadId: string; parentRunId?: string; model?: string },
 ): AsyncIterable<AdapterYieldChunk> {
   const runId = newMessageId()
-  const threadId = lifecycle.threadId ?? newMessageId()
-  const { parentRunId, model } = lifecycle
+  const { threadId, parentRunId, model } = lifecycle
   const messageId = newMessageId()
 
   let hasEmittedRunStarted = false

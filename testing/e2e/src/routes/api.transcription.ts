@@ -39,6 +39,7 @@ export const Route = createFileRoute('/api/transcription')({
 
         try {
           const stream = generateTranscription({
+            threadId: body.threadId,
             adapter,
             audio,
             language,

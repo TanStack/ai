@@ -1,6 +1,6 @@
 import { ChatClient } from '@tanstack/ai-client'
 import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   AnyClientTool,
   InferSchemaType,
@@ -39,12 +39,6 @@ export function useChat<
 >(
   options: UseChatOptions<TTools, TSchema, TContext, TInterrupts, TSubagents>,
 ): UseChatReturn<TTools, TSchema, TInterrupts, TSubagents> {
-  // The hook's identity is its `threadId`. Reload with the same `threadId`
-  // restores the same conversation. `hookId` is only a React recreation key
-  // when no `threadId` is given. It is never sent on the wire.
-  const hookId = useId()
-  const clientId = options.threadId ?? hookId
-
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
   type Final = InferSchemaType<NonNullable<TSchema>>
 
@@ -65,7 +59,8 @@ export function useChat<
     )
   optionsRef.current = options
 
-  // Create ChatClient once per clientId. User callbacks read latest options.
+  // Create ChatClient once per threadId. Reload with the same threadId
+  // restores the same conversation. User callbacks read latest options.
   const { client, initialization, serverSnapshot, startPersistenceHydration } =
     useMemo(() => {
       const messagesToUse = options.initialMessages || []
@@ -109,24 +104,15 @@ export function useChat<
         devtoolsBridgeFactory: createChatDevtoolsBridge,
         ...transport,
         initialMessages: messagesToUse,
-        ...(typeof initialOptions.threadId === 'string' && persistence === true
+        threadId: initialOptions.threadId,
+        ...(persistence === true
           ? {
               persistence: true,
-              threadId: initialOptions.threadId,
               ...(initialOptions.history !== undefined && {
                 history: initialOptions.history,
               }),
             }
-          : typeof initialOptions.threadId === 'string' && persistence
-            ? {
-                persistence,
-                threadId: initialOptions.threadId,
-              }
-            : {
-                ...(initialOptions.threadId !== undefined && {
-                  threadId: initialOptions.threadId,
-                }),
-              }),
+          : { persistence }),
         ...(initialOptions.forwardedProps !== undefined && {
           forwardedProps: initialOptions.forwardedProps,
         }),
@@ -198,7 +184,7 @@ export function useChat<
         serverSnapshot: capturedServerSnapshot,
         startPersistenceHydration: releasePersistenceHydration,
       }
-    }, [clientId])
+    }, [options.threadId])
 
   useEffect(() => {
     activeClientRef.current = client

@@ -384,6 +384,7 @@ function SandboxAgentPage() {
   )
 
   const { messages, sendMessage, isLoading, stop, clear } = useChat({
+    threadId,
     connection: fetchServerSentEvents('/api/run'),
     forwardedProps: body,
     onChunk: (chunk) => {

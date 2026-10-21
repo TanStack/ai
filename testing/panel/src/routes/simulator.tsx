@@ -530,6 +530,7 @@ function SimulatorPage() {
   const [input, setInput] = useState('')
 
   const { messages, sendMessage, isLoading, interrupts, stop } = useChat({
+    threadId: 'simulator',
     connection: fetchServerSentEvents('/api/simulator-chat'),
     tools,
     onChunk: (chunk: any) => {

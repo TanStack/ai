@@ -98,6 +98,7 @@ export const Route = createFileRoute('/api/structured')({
           if (mode === 'structured') {
             // Structured output mode - returns validated object
             const result = await chat({
+              threadId: 'panel-structured',
               adapter,
               messages: [
                 {
@@ -123,6 +124,7 @@ export const Route = createFileRoute('/api/structured')({
           } else {
             // One-shot markdown mode - returns streamed text
             const { text: markdown } = await chat({
+              threadId: 'panel-structured',
               adapter,
               stream: false,
               messages: [

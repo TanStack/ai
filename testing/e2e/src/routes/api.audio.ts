@@ -28,7 +28,12 @@ export const Route = createFileRoute('/api/audio')({
         )
 
         try {
-          const result = await generateAudio({ adapter, prompt, duration })
+          const result = await generateAudio({
+            threadId: 'audio',
+            adapter,
+            prompt,
+            duration,
+          })
           return new Response(JSON.stringify({ result }), {
             headers: { 'Content-Type': 'application/json' },
           })

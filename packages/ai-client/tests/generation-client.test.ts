@@ -104,6 +104,7 @@ describe('GenerationClient', () => {
       const onResultChange = vi.fn()
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => mockResult,
         onResult,
         onResultChange,
@@ -124,6 +125,7 @@ describe('GenerationClient', () => {
       const onErrorChange = vi.fn()
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => {
           throw new Error('fetch failed')
         },
@@ -143,6 +145,7 @@ describe('GenerationClient', () => {
       const states: Array<boolean> = []
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => {
           return { id: '1' }
         },
@@ -168,6 +171,7 @@ describe('GenerationClient', () => {
       )
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         fetcher: fetcherSpy,
       })
 
@@ -185,6 +189,7 @@ describe('GenerationClient', () => {
       let callCount = 0
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => {
           callCount++
           return new Promise<{ id: string }>((resolve) => {
@@ -235,6 +240,7 @@ describe('GenerationClient', () => {
       ])
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         connection,
         onResult,
       })
@@ -285,7 +291,7 @@ describe('GenerationClient', () => {
         },
       }
 
-      const client = new GenerationClient({ connection })
+      const client = new GenerationClient({ threadId: 'thread-1', connection })
       const pending = client.generate({ prompt: 'test' })
       await waitForCondition(() => {
         expect(client.getSnapshot().isLoading).toBe(true)
@@ -317,6 +323,7 @@ describe('GenerationClient', () => {
       ])
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         connection,
         onError,
       })
@@ -361,6 +368,7 @@ describe('GenerationClient', () => {
       ])
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         connection,
         onProgress,
       })
@@ -398,6 +406,7 @@ describe('GenerationClient', () => {
       const connection = createMockConnection(chunks)
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         connection,
         onChunk,
       })
@@ -429,6 +438,7 @@ describe('GenerationClient', () => {
       }
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         connection,
         body: { model: 'dall-e-3' },
       })
@@ -440,7 +450,7 @@ describe('GenerationClient', () => {
         { model: 'dall-e-3', prompt: 'sunset', size: '1024x1024' },
         expect.any(AbortSignal),
         expect.objectContaining({
-          threadId: expect.stringMatching(/^generation-/),
+          threadId: 'thread-1',
           runId: expect.stringMatching(/^run-/),
         }),
       )
@@ -452,6 +462,7 @@ describe('GenerationClient', () => {
       let resolvePromise: (value: { id: string }) => void
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => {
           return new Promise<{ id: string }>((resolve) => {
             resolvePromise = resolve
@@ -476,6 +487,7 @@ describe('GenerationClient', () => {
   describe('reset()', () => {
     it('should clear result, error, and return to idle', async () => {
       const client = new GenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => ({ id: '1' }),
       })
 
@@ -506,6 +518,7 @@ describe('GenerationClient', () => {
       const connection: ConnectConnectionAdapter = { connect: connectSpy }
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         connection,
         body: { model: 'old' },
       })
@@ -518,7 +531,7 @@ describe('GenerationClient', () => {
         { model: 'new', prompt: 'test' },
         expect.any(AbortSignal),
         expect.objectContaining({
-          threadId: expect.stringMatching(/^generation-/),
+          threadId: 'thread-1',
           runId: expect.stringMatching(/^run-/),
         }),
       )
@@ -553,6 +566,7 @@ describe('GenerationClient', () => {
       }
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         connection,
         onResult,
       })
@@ -601,6 +615,7 @@ describe('GenerationClient', () => {
       }
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         connection,
         onResult,
       })
@@ -664,6 +679,7 @@ describe('GenerationClient', () => {
       }
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         connection,
       })
 
@@ -733,6 +749,7 @@ describe('GenerationClient', () => {
       }
 
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         connection,
         onResult,
         onStatusUpdate,
@@ -803,6 +820,7 @@ describe('GenerationClient', () => {
       }
 
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         connection,
       })
 
@@ -837,6 +855,7 @@ describe('GenerationClient', () => {
       const onResult = vi.fn()
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => {
           return new Promise<{ id: string }>((resolve) => {
             resolvePromise = resolve
@@ -860,6 +879,7 @@ describe('GenerationClient', () => {
       const onError = vi.fn()
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => {
           throw 'string error'
         },
@@ -911,6 +931,7 @@ describe('GenerationClient', () => {
       ])
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         connection,
         onResult,
       })
@@ -948,6 +969,7 @@ describe('GenerationClient', () => {
       ])
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         connection,
         onChunk,
       })
@@ -965,6 +987,7 @@ describe('GenerationClient', () => {
       let callCount = 0
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => {
           callCount++
           return { id: String(callCount) }
@@ -991,6 +1014,7 @@ describe('GenerationClient', () => {
         { id: string },
         { transformed: boolean }
       >({
+        threadId: 'thread-1',
         fetcher: async () => ({ id: '1' }),
         onResult: (_raw) => ({ transformed: true }),
         onResultChange,
@@ -1007,6 +1031,7 @@ describe('GenerationClient', () => {
       const onResultChange = vi.fn()
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => ({ id: '1' }),
         onResult: () => null,
         onResultChange,
@@ -1025,6 +1050,7 @@ describe('GenerationClient', () => {
       const onResult = vi.fn() // returns void implicitly
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => ({ id: '1', data: 'test' }),
         onResult,
       })
@@ -1063,6 +1089,7 @@ describe('GenerationClient', () => {
         { id: string; images: Array<{ url?: string }> },
         { imageCount: number }
       >({
+        threadId: 'thread-1',
         connection,
         onResult: (raw) => ({ imageCount: raw.images.length }),
       })
@@ -1078,6 +1105,7 @@ describe('GenerationClient', () => {
         { id: string },
         { transformed: boolean }
       >({
+        threadId: 'thread-1',
         fetcher: async () => ({ id: '1' }),
         onResult: () => ({ transformed: true }),
       })
@@ -1096,6 +1124,7 @@ describe('GenerationClient', () => {
         { id: string },
         { transformed: string }
       >({
+        threadId: 'thread-1',
         fetcher: async () => {
           callCount++
           return { id: String(callCount) }
@@ -1171,6 +1200,7 @@ describe('GenerationClient', () => {
       ])
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => response,
         onResult,
       })
@@ -1206,6 +1236,7 @@ describe('GenerationClient', () => {
       )
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => response,
         onResult,
       })
@@ -1237,6 +1268,7 @@ describe('GenerationClient', () => {
       ])
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => response,
         onError,
       })
@@ -1274,6 +1306,7 @@ describe('GenerationClient', () => {
       ])
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => response,
         onChunk,
       })
@@ -1315,6 +1348,7 @@ describe('GenerationClient', () => {
       ])
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => response,
         onProgress,
       })
@@ -1333,6 +1367,7 @@ describe('GenerationClient', () => {
       })
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => errorResponse,
         onError,
       })
@@ -1352,6 +1387,7 @@ describe('GenerationClient', () => {
       })
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => response,
         onError,
       })
@@ -1387,6 +1423,7 @@ describe('GenerationClient', () => {
       })
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         fetcher: fetcherSpy,
       })
 
@@ -1405,6 +1442,7 @@ describe('GenerationClient', () => {
       const states: Array<string> = []
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => ({ id: '1' }),
         onStatusChange: (status) => states.push(status),
       })
@@ -1419,6 +1457,7 @@ describe('GenerationClient', () => {
       const states: Array<string> = []
 
       const client = new GenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => {
           throw new Error('fail')
         },
@@ -2090,6 +2129,7 @@ describe('GenerationClient', () => {
       // a dropped connection, so it must stay `idle` with no error.
       const onError = vi.fn()
       const client = new GenerationClient({
+        threadId: 'thread-1',
         connection: {
           async *connect(_messages, _data, signal) {
             yield {
@@ -2304,6 +2344,7 @@ const runClientKinds: Array<{
     create: (options) => {
       const { fetcher, connection, onResultChange, ...callbacks } = options
       const client = new GenerationClient<{ prompt: string }, { id: string }>({
+        threadId: 'thread-1',
         ...callbacks,
         ...(connection
           ? { connection }
@@ -2322,6 +2363,7 @@ const runClientKinds: Array<{
     create: (options) => {
       const { fetcher, connection, onResultChange, ...callbacks } = options
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         ...callbacks,
         ...(connection
           ? { connection }

@@ -51,6 +51,7 @@ export type CreateTranscriptionReturn<TOutput = TranscriptionResult> =
  *
  * function Transcriber(handle: Handle) {
  *   const transcription = createTranscription(handle, {
+ *     threadId: 'meeting-transcript',
  *     connection: fetchServerSentEvents('/api/transcribe'),
  *   })
  *
@@ -80,7 +81,7 @@ export type CreateTranscriptionReturn<TOutput = TranscriptionResult> =
  * ```
  */
 export function createTranscription<TTransformed = void>(
-  handle: Pick<Handle, 'id' | 'update' | 'signal'>,
+  handle: Pick<Handle, 'update' | 'signal'>,
   options: Omit<
     CreateTranscriptionOptions,
     'onResult' | 'persistence' | 'threadId'

@@ -1601,7 +1601,7 @@ export class AnthropicTextAdapter<
 
     // AG-UI lifecycle tracking
     const runId = options.runId ?? genId()
-    const threadId = options.threadId ?? genId()
+    const threadId = options.threadId
     const messageId = genId()
     let reasoningMessageId: string | null = null
     let hasClosedReasoning = false

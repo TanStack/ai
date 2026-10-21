@@ -133,6 +133,7 @@ describe('Type Safety Tests for chat() function', () => {
     describe('mock-full provider options', () => {
       it('should allow all option groups on mock-full', () => {
         chat({
+          threadId: 'thread-1',
           adapter: mockText('mock-full'),
           messages: [{ role: 'user', content: 'hi' }],
           modelOptions: {
@@ -161,6 +162,7 @@ describe('Type Safety Tests for chat() function', () => {
     describe('mock-reasoning provider options', () => {
       it('should allow reasoning + tools options', () => {
         chat({
+          threadId: 'thread-1',
           adapter: mockText('mock-reasoning'),
           messages: [{ role: 'user', content: 'hi' }],
           modelOptions: {
@@ -198,6 +200,7 @@ describe('Type Safety Tests for chat() function', () => {
     describe('mock-tools-only provider options', () => {
       it('should allow tools + streaming options', () => {
         chat({
+          threadId: 'thread-1',
           adapter: mockText('mock-tools-only'),
           messages: [{ role: 'user', content: 'hi' }],
           modelOptions: {
@@ -235,6 +238,7 @@ describe('Type Safety Tests for chat() function', () => {
     describe('mock-bare provider options', () => {
       it('should allow only the base option', () => {
         chat({
+          threadId: 'thread-1',
           adapter: mockText('mock-bare'),
           messages: [{ role: 'user', content: 'hi' }],
           modelOptions: { user: 'user-1' },

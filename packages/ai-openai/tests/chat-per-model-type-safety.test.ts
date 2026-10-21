@@ -22,6 +22,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
   describe('gpt-5.2 — full superset (reasoning + structured output + tools + streaming + metadata)', () => {
     it('accepts every option group', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('gpt-5.2'),
         messages: [{ role: 'user', content: 'hi' }],
         reasoning: { level: 'medium', summary: true },
@@ -74,6 +75,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
   describe('gpt-5.2-pro — reasoning + tools + streaming + metadata (NO structured output)', () => {
     it('accepts reasoning, tools, and streaming options', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('gpt-5.2-pro'),
         messages: [{ role: 'user', content: 'hi' }],
         reasoning: 'high',
@@ -100,6 +102,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
   describe('gpt-4 — tools + streaming + metadata (NO reasoning, NO structured output)', () => {
     it('accepts tools + streaming + metadata', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('gpt-4'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -137,6 +140,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
   describe('gpt-3.5-turbo — tools + streaming + metadata (NO reasoning, NO structured output)', () => {
     it('accepts tools + streaming options', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('gpt-3.5-turbo'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -161,6 +165,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
   describe('o3 — reasoning + metadata (NO tools, NO streaming, NO structured output)', () => {
     it('accepts reasoning + metadata', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('o3'),
         messages: [{ role: 'user', content: 'hi' }],
         reasoning: 'high',
@@ -334,6 +339,7 @@ describe('OpenAI provider options shape assertions', () => {
 
     it('accepts sampling options through chat() modelOptions', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('gpt-4o'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {

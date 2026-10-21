@@ -88,6 +88,7 @@ export interface CreateGenerateImageReturn<
  *   import { createGenerateImage, fetchServerSentEvents } from '@tanstack/ai-svelte'
  *
  *   const imageGen = createGenerateImage({
+ *     threadId: 'hero-image',
  *     connection: fetchServerSentEvents('/api/generate/image'),
  *   })
  * </script>

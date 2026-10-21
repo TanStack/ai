@@ -30,6 +30,7 @@ describe('VideoGenerationClient', () => {
       const onResultChange = vi.fn()
 
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => mockResult,
         onResult,
         onResultChange,
@@ -49,6 +50,7 @@ describe('VideoGenerationClient', () => {
       const onErrorChange = vi.fn()
 
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => {
           throw new Error('video fetch failed')
         },
@@ -68,6 +70,7 @@ describe('VideoGenerationClient', () => {
       const states: Array<boolean> = []
 
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => ({
           jobId: 'job-1',
           status: 'completed' as const,
@@ -99,6 +102,7 @@ describe('VideoGenerationClient', () => {
       )
 
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         fetcher: fetcherSpy,
       })
 
@@ -120,6 +124,7 @@ describe('VideoGenerationClient', () => {
       let callCount = 0
 
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => {
           callCount++
           return new Promise<{
@@ -206,6 +211,7 @@ describe('VideoGenerationClient', () => {
       ])
 
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         connection,
         onResult,
         onJobCreated,
@@ -267,6 +273,7 @@ describe('VideoGenerationClient', () => {
       ])
 
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         connection,
         onVideoStatusChange,
       })
@@ -306,6 +313,7 @@ describe('VideoGenerationClient', () => {
       ])
 
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         connection,
         onError,
       })
@@ -348,6 +356,7 @@ describe('VideoGenerationClient', () => {
       ])
 
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         connection,
         onProgress,
       })
@@ -383,6 +392,7 @@ describe('VideoGenerationClient', () => {
       ])
 
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         connection,
         onProgress,
       })
@@ -422,6 +432,7 @@ describe('VideoGenerationClient', () => {
       ])
 
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         connection,
         onChunk,
       })
@@ -445,6 +456,7 @@ describe('VideoGenerationClient', () => {
       const connection: ConnectConnectionAdapter = { connect: connectSpy }
 
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         connection,
         body: { model: 'runway-gen3' },
       })
@@ -456,7 +468,7 @@ describe('VideoGenerationClient', () => {
         { model: 'runway-gen3', prompt: 'A sunset', size: '1280x720' },
         expect.any(AbortSignal),
         expect.objectContaining({
-          threadId: expect.stringMatching(/^video-/),
+          threadId: 'thread-1',
           runId: expect.stringMatching(/^run-/),
         }),
       )
@@ -472,6 +484,7 @@ describe('VideoGenerationClient', () => {
       }) => void
 
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => {
           return new Promise<{
             jobId: string
@@ -549,6 +562,7 @@ describe('VideoGenerationClient', () => {
       ])
 
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         connection,
         onJobIdChange,
         onVideoStatusChange,
@@ -584,6 +598,7 @@ describe('VideoGenerationClient', () => {
       const connection: ConnectConnectionAdapter = { connect: connectSpy }
 
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         connection,
         body: { model: 'old' },
       })
@@ -596,7 +611,7 @@ describe('VideoGenerationClient', () => {
         { model: 'new', prompt: 'test' },
         expect.any(AbortSignal),
         expect.objectContaining({
-          threadId: expect.stringMatching(/^video-/),
+          threadId: 'thread-1',
           runId: expect.stringMatching(/^run-/),
         }),
       )
@@ -642,6 +657,7 @@ describe('VideoGenerationClient', () => {
       }
 
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         connection,
         onResult,
         onJobCreated,
@@ -664,6 +680,7 @@ describe('VideoGenerationClient', () => {
       const onError = vi.fn()
 
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => {
           throw 'video error string'
         },
@@ -699,6 +716,7 @@ describe('VideoGenerationClient', () => {
       let callCount = 0
 
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => {
           callCount++
           return {
@@ -723,6 +741,7 @@ describe('VideoGenerationClient', () => {
       const states: Array<string> = []
 
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => ({
           jobId: 'job-1',
           status: 'completed' as const,
@@ -741,6 +760,7 @@ describe('VideoGenerationClient', () => {
       const states: Array<string> = []
 
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         fetcher: async () => {
           throw new Error('fail')
         },

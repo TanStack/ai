@@ -185,6 +185,7 @@ describe('Anthropic client injection', () => {
     const adapter = createAnthropicChatWithClient('claude-opus-4-1', client)
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
     })) {
@@ -214,6 +215,7 @@ describe('Anthropic adapter option mapping', () => {
     } as AnthropicDocumentMetadata & { placeholder: string }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {
@@ -257,6 +259,7 @@ describe('Anthropic adapter option mapping', () => {
     const adapter = createAdapter('claude-opus-4-1')
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {
@@ -322,6 +325,7 @@ describe('Anthropic adapter option mapping', () => {
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       promptCache: 'none',
       messages: [{ role: 'user', content: 'Hi' }],
@@ -364,6 +368,7 @@ describe('Anthropic adapter option mapping', () => {
     const adapter = createAdapter('claude-opus-4-1')
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       systemPrompts: [
@@ -429,6 +434,7 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       promptCache: 'none',
       messages: [{ role: 'user', content: 'Hi' }],
@@ -517,6 +523,7 @@ describe('Anthropic adapter option mapping', () => {
     // Consume the stream to trigger the API call
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       promptCache: 'none',
       messages: [
@@ -598,6 +605,7 @@ describe('Anthropic adapter option mapping', () => {
     const adapter = createAdapter('claude-opus-4-1')
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       modelOptions: {
@@ -622,6 +630,7 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       modelOptions: {
@@ -650,6 +659,7 @@ describe('Anthropic adapter option mapping', () => {
     ]
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       modelOptions: {
@@ -670,6 +680,7 @@ describe('Anthropic adapter option mapping', () => {
     const adapter = createAdapter('claude-opus-4-1')
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       modelOptions: {
@@ -696,6 +707,7 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       modelOptions: {
@@ -728,6 +740,7 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       modelOptions: {
@@ -756,6 +769,7 @@ describe('Anthropic adapter option mapping', () => {
     const adapter = createAdapter('claude-opus-4-1')
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       modelOptions: {
@@ -775,6 +789,7 @@ describe('Anthropic adapter option mapping', () => {
     const adapter = createAdapter('claude-opus-4-1')
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
     })) {
@@ -820,6 +835,7 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Write a long essay' }],
       debug: { logger, errors: true },
@@ -854,6 +870,7 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       modelOptions: { max_tokens: 100 } satisfies AnthropicTextProviderOptions,
@@ -894,6 +911,7 @@ describe('Anthropic adapter option mapping', () => {
     const adapter = createAdapter('claude-opus-4-1')
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'recommend a guitar as json' }],
       outputSchema: z.object({
@@ -935,6 +953,7 @@ describe('Anthropic adapter option mapping', () => {
     await expect(
       createAdapter('claude-opus-4-1').structuredOutput({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'claude-opus-4-1',
           messages: [{ role: 'user', content: 'recommend a guitar as json' }],
           logger: resolveDebugOption(false),
@@ -968,6 +987,7 @@ describe('Anthropic adapter option mapping', () => {
 
     await createAdapter('claude-opus-4-1').structuredOutput({
       chatOptions: {
+        threadId: 'thread-1',
         model: 'claude-opus-4-1',
         messages: [{ role: 'user', content: 'recommend a guitar as json' }],
         reasoning: { level: 'high', summary: true },
@@ -1026,6 +1046,7 @@ describe('Anthropic adapter option mapping', () => {
     })
 
     const result = await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'forecast for Berlin' }],
       tools: [weatherTool],
@@ -1116,6 +1137,7 @@ describe('Anthropic adapter option mapping', () => {
       initialMessages: firstMessages as unknown as Array<UIMessage>,
     })
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: firstMessages,
       outputSchema: RecipeSchema,
@@ -1135,6 +1157,7 @@ describe('Anthropic adapter option mapping', () => {
     )
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [...afterTurn1, { role: 'user', content: 'now make it vegan' }],
       outputSchema: RecipeSchema,
@@ -1192,6 +1215,7 @@ describe('Anthropic adapter option mapping', () => {
     // Multi-turn: user -> assistant(tool_calls) -> tool_result -> follow-up user
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       promptCache: 'none',
       messages: [
@@ -1265,6 +1289,7 @@ describe('Anthropic adapter option mapping', () => {
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         { role: 'user', content: 'What is the weather in Berlin?' },
@@ -1322,6 +1347,7 @@ describe('Anthropic adapter option mapping', () => {
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         { role: 'user', content: 'Think then answer.' },
@@ -1384,6 +1410,7 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {
@@ -1480,6 +1507,7 @@ describe('Anthropic adapter option mapping', () => {
     const adapter = createAdapter('claude-opus-4-1')
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         { role: 'user', content: 'Weather in Berlin and Paris?' },
@@ -1559,6 +1587,7 @@ describe('Anthropic adapter option mapping', () => {
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       promptCache: 'none',
       messages: [
@@ -1676,6 +1705,7 @@ describe('Anthropic adapter option mapping', () => {
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         { role: 'user', content: "what's a good acoustic guitar?" },
@@ -1788,6 +1818,7 @@ describe('Anthropic adapter option mapping', () => {
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       promptCache: 'none',
       messages: [
@@ -1853,6 +1884,7 @@ describe('Anthropic stream processing', () => {
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
     })) {
@@ -1934,6 +1966,7 @@ describe('Anthropic stream processing', () => {
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Weather + fetch' }],
       tools: [weatherTool],
@@ -2053,6 +2086,7 @@ describe('Anthropic stream processing', () => {
 
       const chunks: AdapterYieldChunk[] = []
       for await (const chunk of chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Use the server tool' }],
       })) {
@@ -2174,7 +2208,11 @@ describe('Anthropic stream processing', () => {
     const processor = new StreamProcessor({
       initialMessages: firstMessages as unknown as Array<UIMessage>,
     })
-    for await (const chunk of chat({ adapter, messages: firstMessages })) {
+    for await (const chunk of chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: firstMessages,
+    })) {
       processor.processChunk(chunk)
     }
     processor.finalizeStream()
@@ -2201,6 +2239,7 @@ describe('Anthropic stream processing', () => {
     mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('Sources:'))
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         ...afterTurn1,
@@ -2290,6 +2329,7 @@ describe('Anthropic stream processing', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Fetch it' }],
       debug: { logger, errors: true },
@@ -2356,6 +2396,7 @@ describe('Anthropic stream processing', () => {
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Weather in Berlin?' }],
       tools: [weatherTool],
@@ -2421,6 +2462,7 @@ describe('Anthropic stream processing', () => {
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
       tools: [weatherTool],
@@ -2464,6 +2506,7 @@ describe('Anthropic stream processing', () => {
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter('claude-opus-4-1'),
       messages: [{ role: 'user', content: 'Weather in Berlin and Paris?' }],
       tools: [weatherTool],
@@ -2501,6 +2544,7 @@ describe('Anthropic stream processing', () => {
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter('claude-opus-4-1'),
       messages: [{ role: 'user', content: 'Think twice.' }],
     })) {
@@ -2555,6 +2599,7 @@ describe('Anthropic stream processing', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of createAdapter('claude-opus-4-1').chatStream({
+      threadId: 'thread-1',
       model: 'claude-opus-4-1',
       messages: [{ role: 'user', content: 'Go' }],
       logger: createSilentLogger(),
@@ -2629,6 +2674,7 @@ describe('Anthropic adapter error handling', () => {
     const adapter = createAdapter('claude-opus-4-1')
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'claude-opus-4-1',
       messages: [{ role: 'user', content: 'hi' }],
       logger: { request: () => {}, errors: () => {} } as any,

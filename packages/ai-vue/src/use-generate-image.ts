@@ -90,6 +90,7 @@ export interface UseGenerateImageReturn<
  * import { fetchServerSentEvents } from '@tanstack/ai-client'
  *
  * const { generate, result, isLoading, error, reset } = useGenerateImage({
+ *   threadId: 'hero-image',
  *   connection: fetchServerSentEvents('/api/generate/image'),
  * })
  * </script>

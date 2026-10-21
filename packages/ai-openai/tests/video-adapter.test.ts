@@ -217,9 +217,24 @@ describe('OpenAI Video Adapter', () => {
     it('accepts 8, "8", and "8s" and rejects 6, "6s", and "auto"', () => {
       const typeOnly = () => {
         const adapter = createOpenaiVideo('sora-2', 'test-api-key')
-        void generateVideo({ adapter, prompt: 'x', duration: 8 })
-        void generateVideo({ adapter, prompt: 'x', duration: '8' })
-        void generateVideo({ adapter, prompt: 'x', duration: '8s' })
+        void generateVideo({
+          threadId: 'thread-1',
+          adapter,
+          prompt: 'x',
+          duration: 8,
+        })
+        void generateVideo({
+          threadId: 'thread-1',
+          adapter,
+          prompt: 'x',
+          duration: '8',
+        })
+        void generateVideo({
+          threadId: 'thread-1',
+          adapter,
+          prompt: 'x',
+          duration: '8s',
+        })
         // @ts-expect-error 6 is not a Sora duration
         void generateVideo({ adapter, prompt: 'x', duration: 6 })
         // @ts-expect-error "6s" is not a Sora duration

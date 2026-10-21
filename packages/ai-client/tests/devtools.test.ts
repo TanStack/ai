@@ -236,8 +236,9 @@ describe('ChatClient devtools bridge', () => {
     expect(eventClientMock.emitted('hook:unregistered')).toEqual([])
   })
 
-  it('registers a generated hookId when construct had no threadId', () => {
+  it('registers the threadId as the hookId', () => {
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: createMockConnectionAdapter(),
       devtools: {
         framework: 'react',
@@ -251,7 +252,7 @@ describe('ChatClient devtools bridge', () => {
       [
         'hook:registered',
         expect.objectContaining({
-          hookId: expect.stringMatching(/^thread-/),
+          hookId: 'thread-1',
           displayName: 'Skills',
           lifecycle: 'mounted',
         }),
@@ -261,8 +262,8 @@ describe('ChatClient devtools bridge', () => {
       [
         'client:created',
         expect.objectContaining({
-          clientId: expect.stringMatching(/^thread-/),
-          hookId: expect.stringMatching(/^thread-/),
+          clientId: 'thread-1',
+          hookId: 'thread-1',
         }),
       ],
     ])

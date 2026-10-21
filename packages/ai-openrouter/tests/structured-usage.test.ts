@@ -67,6 +67,7 @@ describe('OpenRouter structured usage', () => {
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.structuredOutputStream({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'openai/gpt-4o-mini',
           messages: [{ role: 'user', content: 'Return an answer.' }],
           logger: resolveDebugOption(false),

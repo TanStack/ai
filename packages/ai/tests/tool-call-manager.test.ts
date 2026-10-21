@@ -599,6 +599,7 @@ describe('executeToolCalls', () => {
       const result = await drainExecuteToolCalls(
         toolCalls,
         [clientToolWithApproval],
+        'thread-1',
         new Map(),
         new Map(),
       )
@@ -621,6 +622,7 @@ describe('executeToolCalls', () => {
       const result = await drainExecuteToolCalls(
         toolCalls,
         [clientToolWithApproval],
+        'thread-1',
         approvals,
         new Map(), // No client results yet
       )
@@ -643,6 +645,7 @@ describe('executeToolCalls', () => {
       const result = await drainExecuteToolCalls(
         toolCalls,
         [clientToolWithApproval],
+        'thread-1',
         approvals,
         clientResults,
       )
@@ -663,6 +666,7 @@ describe('executeToolCalls', () => {
       const result = await drainExecuteToolCalls(
         toolCalls,
         [clientToolWithApproval],
+        'thread-1',
         approvals,
         new Map(),
       )
@@ -681,6 +685,7 @@ describe('executeToolCalls', () => {
       const result = await drainExecuteToolCalls(
         [makeToolCall('call_1', 'get_local_data', '{"key":"myKey"}')],
         [clientToolWithoutApproval],
+        'thread-1',
         new Map(),
         new Map(),
         undefined,
@@ -724,6 +729,7 @@ describe('executeToolCalls', () => {
       const result = await drainExecuteToolCalls(
         toolCalls,
         [clientToolWithApproval],
+        'thread-1',
         approvals,
         clientResults,
       )
@@ -749,6 +755,7 @@ describe('executeToolCalls', () => {
       const result = await drainExecuteToolCalls(
         toolCalls,
         [clientToolWithoutApproval],
+        'thread-1',
         new Map(),
         new Map(),
       )
@@ -767,6 +774,7 @@ describe('executeToolCalls', () => {
       const result = await drainExecuteToolCalls(
         toolCalls,
         [clientToolWithoutApproval],
+        'thread-1',
         new Map(),
         clientResults,
       )
@@ -789,6 +797,7 @@ describe('executeToolCalls', () => {
       const result = await drainExecuteToolCalls(
         toolCalls,
         [tool],
+        'thread-1',
         new Map(),
         clientResults,
       )
@@ -820,6 +829,7 @@ describe('executeToolCalls', () => {
       const result = await drainExecuteToolCalls(
         toolCalls,
         [tool],
+        'thread-1',
         new Map(),
         clientResults,
       )
@@ -840,6 +850,7 @@ describe('executeToolCalls', () => {
       const result = await drainExecuteToolCalls(
         toolCalls,
         [tool],
+        'thread-1',
         new Map(),
         clientResults,
       )
@@ -864,6 +875,7 @@ describe('executeToolCalls', () => {
       const result = await drainExecuteToolCalls(
         toolCalls,
         [tool],
+        'thread-1',
         new Map(),
         clientResults,
       )
@@ -888,6 +900,7 @@ describe('executeToolCalls', () => {
       const result = await drainExecuteToolCalls(
         toolCalls,
         [tool],
+        'thread-1',
         new Map(),
         clientResults,
       )
@@ -907,6 +920,7 @@ describe('executeToolCalls', () => {
       const result = await drainExecuteToolCalls(
         toolCalls,
         [tool],
+        'thread-1',
         new Map(),
         new Map(),
         undefined,
@@ -936,6 +950,7 @@ describe('executeToolCalls', () => {
       const result = await drainExecuteToolCalls(
         toolCalls,
         [serverToolWithApproval],
+        'thread-1',
         new Map(),
         new Map(),
       )
@@ -957,6 +972,7 @@ describe('executeToolCalls', () => {
       const result = await drainExecuteToolCalls(
         toolCalls,
         [serverToolWithApproval],
+        'thread-1',
         approvals,
         new Map(),
       )
@@ -987,6 +1003,7 @@ describe('executeToolCalls', () => {
       const result = await drainExecuteToolCalls(
         toolCalls,
         [serverToolWithApproval, plainClientTool],
+        'thread-1',
         new Map(),
         new Map(),
       )
@@ -1022,6 +1039,7 @@ describe('executeToolCalls', () => {
       const result = await drainExecuteToolCalls(
         toolCalls,
         [serverToolWithApproval, normalTool],
+        'thread-1',
         new Map(), // No approval decision yet
         new Map(),
       )
@@ -1056,6 +1074,7 @@ describe('executeToolCalls', () => {
       const result = await drainExecuteToolCalls(
         toolCalls,
         [serverToolWithApproval, normalTool],
+        'thread-1',
         approvals,
         new Map(),
       )
@@ -1079,6 +1098,7 @@ describe('executeToolCalls', () => {
       const result = await drainExecuteToolCalls(
         [makeToolCall('call_1', 'test_tool', '{')],
         [tool],
+        'thread-1',
       )
 
       expect(execute).not.toHaveBeenCalled()
@@ -1108,6 +1128,7 @@ describe('executeToolCalls', () => {
       const result = await drainExecuteToolCalls(
         toolCalls,
         [tool],
+        'thread-1',
         new Map(),
         new Map(),
       )

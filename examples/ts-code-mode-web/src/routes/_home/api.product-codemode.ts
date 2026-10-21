@@ -267,6 +267,7 @@ export const Route = createFileRoute('/_home/api/product-codemode')({
           }
 
           const stream = chat({
+            threadId: body.threadId,
             adapter: instrumentedAdapter,
             messages,
             tools,

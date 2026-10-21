@@ -338,7 +338,7 @@ export class MistralTextAdapter<
 
     const aguiState = {
       runId: options.runId ?? generateId(this.name),
-      threadId: options.threadId ?? generateId(this.name),
+      threadId: options.threadId,
       messageId: generateId(this.name),
       timestamp,
       hasEmittedRunStarted: false,

@@ -62,6 +62,7 @@ export const Route = createFileRoute('/api/voice')({
           // generateVoice() is Promise-based — there is no streaming variant
           // worth exercising here, the same as embed().
           const result = await generateVoice({
+            threadId: 'voice',
             adapter,
             prompt,
             ...(name ? { name } : {}),

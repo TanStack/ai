@@ -71,7 +71,7 @@ export const Route = createFileRoute('/api/generate/image')({
           ...(input.numberOfImages
             ? { numberOfImages: input.numberOfImages }
             : {}),
-          ...(threadId ? { threadId } : {}),
+          threadId,
           ...(runId ? { runId } : {}),
           stream: true,
           middleware: [

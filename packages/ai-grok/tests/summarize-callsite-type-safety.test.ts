@@ -26,8 +26,16 @@ import { grokSummarize } from '../src/adapters/summarize'
 
 // Never invoked — compile-time call-site assertions only.
 function _callSiteTypeChecks() {
-  void summarize({ adapter: grokSummarize('grok-4.3'), text: '' })
-  void summarize({ adapter: grokSummarize('grok-build-0.1'), text: '' })
+  void summarize({
+    threadId: 'thread-1',
+    adapter: grokSummarize('grok-4.3'),
+    text: '',
+  })
+  void summarize({
+    threadId: 'thread-1',
+    adapter: grokSummarize('grok-build-0.1'),
+    text: '',
+  })
 }
 
 describe('grokSummarize -> summarize() call-site contract', () => {

@@ -70,6 +70,7 @@ export const Route = createFileRoute('/_reporting/api/reports')({
 
         try {
           const stream = chat({
+            threadId: body.threadId,
             adapter,
             messages,
             tools: [tool, ...reportTools],

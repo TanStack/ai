@@ -83,6 +83,7 @@ export interface CreateGenerateSpeechReturn<TOutput = TTSResult> extends Omit<
  *   import { createGenerateSpeech, fetchServerSentEvents } from '@tanstack/ai-svelte'
  *
  *   const speech = createGenerateSpeech({
+ *     threadId: 'welcome-speech',
  *     connection: fetchServerSentEvents('/api/generate/speech'),
  *   })
  * </script>

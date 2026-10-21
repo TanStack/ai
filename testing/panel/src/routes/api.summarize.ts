@@ -72,6 +72,7 @@ export const Route = createFileRoute('/api/summarize')({
               async start(controller) {
                 try {
                   const streamResult = summarize({
+                    threadId: 'panel-summarize',
                     adapter,
                     text,
                     maxLength,
@@ -115,6 +116,7 @@ export const Route = createFileRoute('/api/summarize')({
 
           // Non-streaming mode
           const result = await summarize({
+            threadId: 'panel-summarize',
             adapter,
             text,
             maxLength,

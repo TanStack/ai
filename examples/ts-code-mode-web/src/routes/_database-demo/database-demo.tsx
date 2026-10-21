@@ -923,6 +923,7 @@ function DatabaseDemoPage() {
   )
 
   const { messages, sendMessage, setMessages, isLoading } = useChat({
+    threadId: 'database-demo',
     connection: fetchServerSentEvents('/api/database-demo'),
     forwardedProps: body,
     onCustomEvent: handleCustomEvent,

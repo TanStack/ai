@@ -22,6 +22,7 @@ describe('Gemini per-model chat modelOptions gating', () => {
   describe('gemini-3.1-pro-preview — full superset (advanced thinking + structured output)', () => {
     it('accepts every option group', () => {
       chat({
+        threadId: 'thread-1',
         adapter: geminiText('gemini-3.1-pro-preview'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -63,6 +64,7 @@ describe('Gemini per-model chat modelOptions gating', () => {
   describe('gemini-3.1-flash-lite-preview — structured output', () => {
     it('accepts structured-output schema', () => {
       chat({
+        threadId: 'thread-1',
         adapter: geminiText('gemini-3.1-flash-lite-preview'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -75,6 +77,7 @@ describe('Gemini per-model chat modelOptions gating', () => {
   describe('gemini-3.1-flash-lite — stable id, structured output', () => {
     it('accepts base + structured-output options', () => {
       chat({
+        threadId: 'thread-1',
         adapter: geminiText('gemini-3.1-flash-lite'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -103,6 +106,7 @@ describe('Gemini per-model chat modelOptions gating', () => {
   describe('reasoning gating', () => {
     it('Gemini 3 models take their thinking levels, with no budget', () => {
       chat({
+        threadId: 'thread-1',
         adapter: geminiText('gemini-3.1-pro-preview'),
         messages: [{ role: 'user', content: 'hi' }],
         reasoning: 'high',
@@ -123,11 +127,13 @@ describe('Gemini per-model chat modelOptions gating', () => {
 
     it('Gemini 2.5 models take a token budget, and Flash takes off', () => {
       chat({
+        threadId: 'thread-1',
         adapter: geminiText('gemini-2.5-pro'),
         messages: [{ role: 'user', content: 'hi' }],
         reasoning: { level: 'medium', budgetTokens: 4096 },
       })
       chat({
+        threadId: 'thread-1',
         adapter: geminiText('gemini-2.5-flash'),
         messages: [{ role: 'user', content: 'hi' }],
         reasoning: 'off',

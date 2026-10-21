@@ -452,8 +452,7 @@ export class ChatClient<
   private readonly subagentHandles = new Map<string, SubagentHandle>()
   private readonly stoppedSubagentIds = new Set<string>()
   private connection: SubscribeConnectionAdapter
-  private uniqueId: string
-  private threadId: string
+  private readonly threadId: string
   // Durable chat persistence (optional): messages + resume snapshot as one
   // combined record, so a full page reload restores the transcript, rehydrates
   // pending interrupts, and rejoins an in-flight run. Clear-during-stream
@@ -660,12 +659,8 @@ export class ChatClient<
 
   constructor(options: ChatClientOptions<TTools, TContext, TInterrupts>) {
     assertUniqueInterruptDefinitions(options.interrupts)
-    // Do not mint a random thread id during construct. Framework hooks build
-    // this client during render (SSR included). The wire/devtools identity is
-    // `threadId`; it is assigned here when the caller passed one, or later in
-    // `ensureThreadId()` from attach / mount / send.
-    this.threadId = options.threadId || ''
-    this.uniqueId = this.threadId
+    // `threadId` is the wire, DevTools, and persistence identity.
+    this.threadId = options.threadId
     // `persistence` is `false`/omitted (ephemeral, in-memory), `true`
     // (server-authoritative: cache nothing client-side, hydrate the thread from
     // the server by `threadId` on mount), or a storage adapter
@@ -1114,7 +1109,6 @@ export class ChatClient<
    */
   attach(): void {
     if (this.disposed || this.tailing) return
-    this.ensureThreadId()
     this.tailing = true
 
     // Full page reload with an in-flight run persisted (synchronous store):
@@ -1368,21 +1362,12 @@ export class ChatClient<
   }
 
   mountDevtools(): void {
-    this.ensureThreadId()
     if (this.devtoolsMounted) {
       return
     }
 
     this.devtoolsMounted = true
     this.devtoolsBridge.mountWithTools(this.processor.getMessages().length)
-  }
-
-  private ensureThreadId(): string {
-    if (!this.threadId) {
-      this.threadId = this.generateUniqueId('thread')
-    }
-    this.uniqueId = this.threadId
-    return this.threadId
   }
 
   /**
@@ -1976,10 +1961,10 @@ export class ChatClient<
     const client = this
     return {
       get hookId() {
-        return client.uniqueId
+        return client.threadId
       },
       get clientId() {
-        return client.uniqueId
+        return client.threadId
       },
       get threadId() {
         return client.threadId

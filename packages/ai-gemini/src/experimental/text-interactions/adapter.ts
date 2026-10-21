@@ -259,7 +259,7 @@ export class GeminiTextInteractionsAdapter<
     options: TextOptions<GeminiTextInteractionsProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
     const runId = options.runId ?? generateId(this.name)
-    const threadId = options.threadId ?? generateId(this.name)
+    const threadId = options.threadId
     const timestamp = Date.now()
     const { logger } = options
 
@@ -429,7 +429,7 @@ export class GeminiTextInteractionsAdapter<
     // conversation history on a fresh interaction".
     const effectivePreviousInteractionId =
       chatOptions.modelOptions?.previous_interaction_id ??
-      (threadId ? this.interactionIdByThread.get(threadId) : undefined)
+      this.interactionIdByThread.get(threadId)
 
     const baseRequest = buildInteractionsRequest({
       ...chatOptions,
@@ -534,7 +534,7 @@ export class GeminiTextInteractionsAdapter<
   ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
     const runId = chatOptions.runId ?? generateId(this.name)
-    const threadId = chatOptions.threadId ?? generateId(this.name)
+    const threadId = chatOptions.threadId
     const timestamp = Date.now()
     const effectivePreviousInteractionId =
       chatOptions.modelOptions?.previous_interaction_id ??

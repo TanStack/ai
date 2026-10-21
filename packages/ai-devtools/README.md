@@ -146,6 +146,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: openaiText('gpt-5.2'),
     messages: body.messages,
+    threadId: body.threadId,
   })
 
   return toServerSentEventsResponse(stream)
@@ -203,6 +204,7 @@ const Person = z.object({
 const person = await chat({
   adapter: openaiText('gpt-5.2'),
   messages: [{ role: 'user', content: 'Ada Lovelace, 36' }],
+  threadId: 'thread-1',
   outputSchema: Person,
 })
 ```

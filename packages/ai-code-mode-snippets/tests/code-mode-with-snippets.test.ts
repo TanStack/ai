@@ -45,6 +45,7 @@ describe('codeModeWithSnippets', () => {
     }
 
     const { toolsRegistry } = await codeModeWithSnippets({
+      threadId: 'thread-1',
       config: { driver, tools: [tool] },
       adapter: {} as AnyTextAdapter,
       snippets: { storage: createMemorySnippetStorage([snippet]) },

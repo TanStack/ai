@@ -1416,6 +1416,7 @@ describe('ChatClient native interrupts', () => {
     const interrupt = genericDescriptor('generic-1')
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: { async *connect() {} },
       onInterruptStateChange,
       initialResumeSnapshot: {
@@ -1434,6 +1435,7 @@ describe('ChatClient native interrupts', () => {
     const onInterruptStateChange = vi.fn()
     const outputSchemaHash = hashSchemaInput(lookupDefinition.outputSchema)
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: { async *connect() {} },
       tools,
       onInterruptStateChange,
@@ -1486,6 +1488,7 @@ describe('ChatClient native interrupts', () => {
       ),
     }
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: { async *connect() {} },
       interrupts: [approval],
       onInterruptStateChange,
@@ -2146,6 +2149,7 @@ describe('ChatClient native interrupts', () => {
       }),
     )
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: { async *connect() {} },
       initialResumeSnapshot: malformed,
     })
@@ -2189,6 +2193,7 @@ describe('ChatClient native interrupts', () => {
       let client: ChatClient | undefined
       expect(() => {
         client = new ChatClient({
+          threadId: 'thread-1',
           connection: { async *connect() {} },
           initialResumeSnapshot: malformed,
         })

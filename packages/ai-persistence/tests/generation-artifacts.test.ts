@@ -618,6 +618,7 @@ describe('withGenerationPersistence generation artifacts', () => {
 
     const chunks = await collect(
       generateImage<ImageAdapter<string>, true>({
+        threadId: 'thread-1',
         adapter: imageAdapter(),
         prompt: 'make an image',
         stream: true,
@@ -916,10 +917,11 @@ describe('withGenerationPersistence generation artifacts', () => {
 
     await expect(
       generateImage({
+        // An empty threadId names no scope, and the options name none either.
+        threadId: '',
         adapter: imageAdapter(),
         prompt: 'make an image',
         runId: 'run-unscoped',
-        // Neither the activity nor the options names a scope.
         middleware: [withGenerationPersistence(persistence)],
       }),
     ).rejects.toThrow(/Generation persistence requires a `threadId`/)

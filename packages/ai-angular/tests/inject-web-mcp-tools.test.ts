@@ -211,6 +211,7 @@ describe('injectPageWebMCPTools', () => {
         filter: (tool) => tool.name !== 'blocked',
       })
       chat = injectChat({
+        threadId: 'thread-1',
         connection: createMockConnectionAdapter(),
         tools: this.pageTools,
       })

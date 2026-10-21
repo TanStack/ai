@@ -124,6 +124,7 @@ export const Route = createFileRoute('/api/openai-computer-use-wire')({
         try {
           const stream = batch
             ? chat({
+                threadId: 'openai-computer-use-wire',
                 ...createChatOptions({
                   adapter: createOpenaiChat('gpt-6.1-sol', DUMMY_KEY, {
                     fetch: mockFetch,
@@ -133,6 +134,7 @@ export const Route = createFileRoute('/api/openai-computer-use-wire')({
                 tools: [{ ...computerUseTool({ type: 'computer' }), execute }],
               })
             : chat({
+                threadId: 'openai-computer-use-wire',
                 ...createChatOptions({
                   adapter: createOpenaiChat('computer-use-preview', DUMMY_KEY, {
                     fetch: mockFetch,

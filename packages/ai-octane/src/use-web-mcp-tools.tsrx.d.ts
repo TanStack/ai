@@ -63,7 +63,7 @@ export type UsePageWebMCPToolsOptions = Omit<
  * const pageTools = usePageWebMCPTools({
  *   filter: (tool) => tool.origin === location.origin,
  * })
- * const chat = useChat({ connection, tools: pageTools })
+ * const chat = useChat({ threadId: 'support-1', connection, tools: pageTools })
  * ```
  */
 export declare function usePageWebMCPTools(

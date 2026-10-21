@@ -62,7 +62,7 @@ export const Route = createFileRoute('/api/generate/video')({
           stream: true,
           pollingInterval: 3000,
           maxDuration: 600_000,
-          ...(threadId ? { threadId } : {}),
+          threadId,
           ...(runId ? { runId } : {}),
           middleware: [
             withGenerationPersistence(generationServerPersistence(), {

@@ -77,6 +77,7 @@ describe('createMCPClient', () => {
     const result = await tools[0].execute!(
       { city: 'Brooklyn' },
       {
+        threadId: 'thread-1',
         toolCallId: 't',
         emitCustomEvent: () => {},
       },
@@ -220,7 +221,7 @@ describe('createMCPClient', () => {
     // The call still reaches the server tool by its own name.
     const result = await tools[0].execute!(
       { city: 'Oslo' },
-      { toolCallId: 't', emitCustomEvent: () => {} },
+      { threadId: 'thread-1', toolCallId: 't', emitCustomEvent: () => {} },
     )
     expect(JSON.stringify(result)).toContain('Sunny in Oslo')
   })
@@ -264,7 +265,7 @@ describe('createMCPClient', () => {
     await expect(
       research.execute!(
         { query: 'MCP tasks' },
-        { toolCallId: 't', emitCustomEvent: () => {} },
+        { threadId: 'thread-1', toolCallId: 't', emitCustomEvent: () => {} },
       ),
     ).resolves.toBe('Research complete: MCP tasks')
   })
@@ -281,7 +282,7 @@ describe('createMCPClient', () => {
     await expect(
       tool!.execute!(
         { query: 'typed tasks' },
-        { toolCallId: 't', emitCustomEvent: () => {} },
+        { threadId: 'thread-1', toolCallId: 't', emitCustomEvent: () => {} },
       ),
     ).resolves.toBe('Research complete: typed tasks')
   })
@@ -744,7 +745,10 @@ describe('requestOptions', () => {
     })
     const [tool] = await client.tools()
     await expect(
-      tool!.execute!({}, { toolCallId: 't', emitCustomEvent: () => {} }),
+      tool!.execute!(
+        {},
+        { threadId: 'thread-1', toolCallId: 't', emitCustomEvent: () => {} },
+      ),
     ).rejects.toThrow('Request timed out')
   })
 
@@ -762,7 +766,10 @@ describe('requestOptions', () => {
       }),
     ])
     await expect(
-      tool!.execute!({}, { toolCallId: 't', emitCustomEvent: () => {} }),
+      tool!.execute!(
+        {},
+        { threadId: 'thread-1', toolCallId: 't', emitCustomEvent: () => {} },
+      ),
     ).rejects.toThrow('Request timed out')
   })
 

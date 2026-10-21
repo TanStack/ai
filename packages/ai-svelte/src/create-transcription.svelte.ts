@@ -88,6 +88,7 @@ export interface CreateTranscriptionReturn<
  *   import { createTranscription, fetchServerSentEvents } from '@tanstack/ai-svelte'
  *
  *   const transcription = createTranscription({
+ *     threadId: 'meeting-transcript',
  *     connection: fetchServerSentEvents('/api/transcribe'),
  *   })
  *

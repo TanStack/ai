@@ -86,6 +86,7 @@ export interface UseGenerateAudioReturn<
  * import { fetchServerSentEvents } from '@tanstack/ai-client'
  *
  * const { generate, result, isLoading } = useGenerateAudio({
+ *   threadId: 'theme-audio',
  *   connection: fetchServerSentEvents('/api/generate/audio'),
  * })
  * </script>

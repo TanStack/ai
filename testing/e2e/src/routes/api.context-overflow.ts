@@ -59,6 +59,7 @@ export const Route = createFileRoute('/api/context-overflow')({
         let runError: { code?: string; message: string } | undefined
         try {
           for await (const chunk of chat({
+            threadId: 'context-overflow',
             adapter: apis[api].adapter(),
             messages: [{ role: 'user', content: apis[api].prompt }],
           })) {

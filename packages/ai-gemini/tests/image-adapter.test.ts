@@ -295,6 +295,7 @@ describe('Gemini Image Adapter', () => {
       }
 
       const result = await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A cat wearing a hat',
         numberOfImages: 1,
@@ -337,11 +338,13 @@ describe('Gemini Image Adapter', () => {
       }
 
       const result1 = await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'Test prompt',
       })
 
       const result2 = await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'Test prompt',
       })
@@ -362,6 +365,7 @@ describe('Gemini Image Adapter', () => {
       stubCreate(adapter, mockCreate)
 
       const result = await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A futuristic city',
         size: '16:9_4K',
@@ -395,6 +399,7 @@ describe('Gemini Image Adapter', () => {
       stubCreate(adapter, mockCreate)
 
       const result = await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A red circle',
         // Flash Lite is 1K-only; 2K/4K are rejected at compile time.
@@ -428,6 +433,7 @@ describe('Gemini Image Adapter', () => {
       stubCreate(adapter, mockCreate)
 
       const result = await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A red circle',
         size: '8:1_4K',
@@ -460,6 +466,7 @@ describe('Gemini Image Adapter', () => {
       stubCreate(adapter, mockCreate, mockGenerateImages)
 
       const result = await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A tall banner',
         size: '1:8_512',
@@ -488,6 +495,7 @@ describe('Gemini Image Adapter', () => {
       stubCreate(adapter, mockCreate, mockGenerateImages)
 
       const result = await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A portrait',
         size: '4:5_2K',
@@ -524,6 +532,7 @@ describe('Gemini Image Adapter', () => {
       stubCreate(adapter, mockCreate)
 
       const result = await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A futuristic city',
       })
@@ -546,6 +555,7 @@ describe('Gemini Image Adapter', () => {
       stubCreate(adapter, mockCreate)
 
       const result = await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A simple sketch',
       })
@@ -574,6 +584,7 @@ describe('Gemini Image Adapter', () => {
 
       await expect(
         generateImage({
+          threadId: 'thread-1',
           adapter,
           prompt: 'A test prompt',
         }),
@@ -599,6 +610,7 @@ describe('Gemini Image Adapter', () => {
 
       await expect(
         generateImage({
+          threadId: 'thread-1',
           adapter,
           prompt: 'A test prompt',
         }),
@@ -611,6 +623,7 @@ describe('Gemini Image Adapter', () => {
       const { adapter, mockCreate } = mockedNativeAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A simple sketch',
         modelOptions: {
@@ -645,6 +658,7 @@ describe('Gemini Image Adapter', () => {
       stubCreate(adapter, mockCreate)
 
       const result = await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A futuristic city',
         numberOfImages: 3,
@@ -666,6 +680,7 @@ describe('Gemini Image Adapter', () => {
       const { adapter, mockCreate } = mockedNativeAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A simple sketch',
         numberOfImages: 1,
@@ -683,6 +698,7 @@ describe('Gemini Image Adapter', () => {
       const { adapter, mockCreate } = mockedNativeAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A simple sketch',
       })
@@ -712,6 +728,7 @@ describe('Gemini Image Adapter', () => {
       const { adapter, mockCreate } = mockedNativeAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A quiet harbour',
         modelOptions: { safetySettings },
@@ -728,6 +745,7 @@ describe('Gemini Image Adapter', () => {
 
       await expect(
         generateImage({
+          threadId: 'thread-1',
           adapter,
           prompt: 'A quiet harbour',
           modelOptions: { thinkingConfig: { thinkingBudget: 512 } },
@@ -739,6 +757,7 @@ describe('Gemini Image Adapter', () => {
       const { adapter, mockCreate } = mockedNativeAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A quiet harbour',
         modelOptions: {
@@ -762,6 +781,7 @@ describe('Gemini Image Adapter', () => {
       const { adapter, mockCreate } = mockedNativeAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A quiet harbour',
         modelOptions: { systemInstruction: 'Always render in watercolor.' },
@@ -775,6 +795,7 @@ describe('Gemini Image Adapter', () => {
       const { adapter, mockCreate } = mockedNativeAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A quiet harbour',
         size: '16:9_4K',
@@ -793,6 +814,7 @@ describe('Gemini Image Adapter', () => {
       const { adapter, mockCreate } = mockedNativeAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A quiet harbour',
         modelOptions: { imageConfig: { aspectRatio: '21:9' } },
@@ -809,6 +831,7 @@ describe('Gemini Image Adapter', () => {
       const { adapter, mockCreate } = mockedNativeAdapter()
 
       const result = await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'Make the water greener',
         modelOptions: {
@@ -856,6 +879,7 @@ describe('Gemini Image Adapter', () => {
 
       await expect(
         generateImage({
+          threadId: 'thread-1',
           adapter,
           prompt: 'A quiet harbour',
           modelOptions: { previous_interaction_id: 'int_prev' } as never,
@@ -867,6 +891,7 @@ describe('Gemini Image Adapter', () => {
       const { adapter, mockGenerateImages } = mockedImagenAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A quiet harbour',
         size: '1920x1080',
@@ -911,6 +936,7 @@ describe('Gemini Image Adapter', () => {
       const { adapter, mockGenerateImages } = mockedImagenAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A quiet harbour',
         modelOptions: {
@@ -960,6 +986,7 @@ describe('Gemini Image Adapter', () => {
       const { adapter, mockGenerateImages } = mockedImagenAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A quiet harbour',
         size: '1920x1080',
@@ -978,6 +1005,7 @@ describe('Gemini Image Adapter', () => {
       const { adapter, mockCreate } = mockedNativeAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: [
           { type: 'text', content: 'Not like this' },
@@ -1020,6 +1048,7 @@ describe('Gemini Image Adapter', () => {
       const { adapter, mockCreate } = mockedNativeAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: [
           { type: 'text', content: 'Edit this' },
@@ -1045,6 +1074,7 @@ describe('Gemini Image Adapter', () => {
       const { adapter, mockCreate } = mockedNativeAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: [
           { type: 'text', content: 'Edit this' },
@@ -1090,6 +1120,7 @@ describe('Gemini Image Adapter', () => {
       stubCreate(adapter, mockCreate)
 
       const result = await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A red circle',
       })
@@ -1121,6 +1152,7 @@ describe('Gemini Image Adapter', () => {
       stubCreate(adapter, mockCreate)
 
       const result = await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A red circle',
       })
@@ -1141,7 +1173,11 @@ describe('Gemini Image Adapter', () => {
       stubCreate(adapter, mockCreate)
 
       await expect(
-        generateImage({ adapter, prompt: 'A red circle' }),
+        generateImage({
+          threadId: 'thread-1',
+          adapter,
+          prompt: 'A red circle',
+        }),
       ).rejects.toThrow(/failed/)
     })
 

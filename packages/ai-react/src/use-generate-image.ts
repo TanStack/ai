@@ -49,11 +49,10 @@ export interface UseGenerateImageOptions<TOutput = ImageGenerationResult> {
    * `` `video-${videoId}-start-frame` ``). It is also sent as the AG-UI thread
    * id on the wire, which the protocol requires.
    *
-   * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations. If
-   * omitted, the client mints a wire id after mount.
+   * Required. A generated id would change on every reload, so persistence
+   * would restore nothing.
    */
-  threadId?: string
+  threadId: string
   /**
    * Server-driven hydration handler for `persistence: true` when the
    * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
@@ -127,6 +126,7 @@ export interface UseGenerateImageReturn<TOutput = ImageGenerationResult> {
  *
  * function ImageGenerator() {
  *   const { generate, result, isLoading, error, reset } = useGenerateImage({
+ *     threadId: 'hero-image',
  *     connection: fetchServerSentEvents('/api/generate/image'),
  *   })
  *

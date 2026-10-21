@@ -80,7 +80,7 @@ function createAdapter(response: unknown) {
 
 type SendOptions = Omit<
   TextOptions<AnthropicTextProviderOptions>,
-  'model' | 'logger'
+  'model' | 'logger' | 'threadId'
 >
 
 /** Sends one streaming request and returns the body on the wire. */
@@ -88,6 +88,7 @@ async function send(options: SendOptions) {
   const { adapter, create } = createAdapter(textStream())
   for await (const _chunk of adapter.chatStream({
     ...options,
+    threadId: 'thread-1',
     model: MODEL,
     logger,
   })) {
@@ -408,6 +409,7 @@ describe('Anthropic automatic prompt cache markers', () => {
     })
     await adapter.structuredOutput({
       chatOptions: {
+        threadId: 'thread-1',
         model: MODEL,
         logger,
         messages: [userHi],

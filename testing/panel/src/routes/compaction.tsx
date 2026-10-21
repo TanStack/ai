@@ -51,20 +51,14 @@ function CompactionPage() {
     () => ({
       provider: selectedModel.provider,
       model: selectedModel.model,
-      threadId,
       maxTokens,
       strategy,
     }),
-    [
-      selectedModel.provider,
-      selectedModel.model,
-      threadId,
-      maxTokens,
-      strategy,
-    ],
+    [selectedModel.provider, selectedModel.model, maxTokens, strategy],
   )
 
   const { messages, sendMessage, isLoading } = useChat({
+    threadId,
     connection: fetchServerSentEvents('/api/compaction-chat'),
     forwardedProps: body,
     devtools: { name: 'Compaction' },

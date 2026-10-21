@@ -192,6 +192,7 @@ export const Route = createFileRoute('/api/summarize')({
           // check on the result variable.
           if (shouldStream === false) {
             const summary = await summarize({
+              threadId: body.threadId ?? 'summarize',
               adapter,
               text,
               maxLength,
@@ -201,7 +202,13 @@ export const Route = createFileRoute('/api/summarize')({
               headers: { 'Content-Type': 'application/json' },
             })
           }
-          const stream = summarize({ adapter, text, maxLength, stream: true })
+          const stream = summarize({
+            threadId: body.threadId ?? 'summarize',
+            adapter,
+            text,
+            maxLength,
+            stream: true,
+          })
           return toServerSentEventsResponse(stream)
         } catch (error) {
           console.error('[api.summarize] Error:', error)

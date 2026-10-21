@@ -82,6 +82,7 @@ export type CreatePageWebMCPToolsOptions = Omit<
  *     filter: (tool) => tool.origin === location.origin,
  *   })
  *   const chat = createChat({
+ *     threadId: 'support-1',
  *     connection,
  *     get tools() {
  *       return page.tools

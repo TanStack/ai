@@ -411,7 +411,7 @@ export class BytePlusTextAdapter<
       yield {
         type: EventType.RUN_STARTED,
         runId,
-        threadId: options.chatOptions.threadId ?? generateId(this.name),
+        threadId: options.chatOptions.threadId,
         model: options.chatOptions.model,
         timestamp: Date.now(),
         parentRunId: options.chatOptions.parentRunId,

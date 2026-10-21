@@ -232,40 +232,25 @@ export interface GenerationResumeSnapshot {
 /**
  * The `persistence` / `threadId` identity shared by every generation hook.
  *
- * Turning persistence on **requires** a `threadId`, the stable scope runs are
- * filed under. Without one the client would hydrate by a generated id that
- * changes every reload, so nothing would ever restore; making it a type error
- * means the compiler asks for the scope instead of the runtime inventing one.
- *
- * `threadId` is the only identity for the hook, the AG-UI wire thread, and
- * persistence. There is no separate instance `id`.
+ * `threadId` is always required. It is the stable scope runs are filed under,
+ * and the only identity for the hook, the AG-UI wire thread, and persistence.
+ * There is no separate instance `id`.
  *
  * USAGE: intersect this onto a hook's parameter and subtract `persistence`
  * and `threadId` from the options interface (plus any other keys the hook
- * redeclares, such as `onResult`), leaving that interface a plain (non-union)
- * object so `Pick` / `Omit` composition elsewhere keeps working:
+ * redeclares, such as `onResult`):
  *
  * ```ts
  * options: Omit<UseGenerateImageOptions, 'onResult' | 'persistence' | 'threadId'> & {
  *   onResult?: (result: ImageGenerationResult) => TTransformed
  * } & GenerationPersistenceOptions
  * ```
- *
- * Do NOT bake the union into the options interface itself: a later plain `Omit`
- * over a union collapses it to a single object type and the requirement
- * silently disappears. `use-generation-persistence-types.test.ts` pins this.
  */
-export type GenerationPersistenceOptions =
-  | {
-      persistence: true
-      /** Required by `persistence`. The stable scope runs are filed under. */
-      threadId: string
-    }
-  | {
-      persistence?: false | undefined
-      /** Stable scope for the generation slot (also the wire / DevTools identity). */
-      threadId?: string
-    }
+export type GenerationPersistenceOptions = {
+  persistence?: boolean
+  /** Stable scope for the generation slot (also the wire / DevTools identity). */
+  threadId: string
+}
 
 // ===========================
 // Event Constants
@@ -358,12 +343,10 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
    * threadId: `video-${videoId}-start-frame`
    * ```
    *
-   * **Required whenever `persistence` is set.** An app that cannot name the
-   * scope has nothing to restore *to*, and a generated fallback would key each
-   * reload differently, silently restoring nothing. Optional only for
-   * ephemeral runs. If omitted, the client mints a wire id after mount.
+   * Required. A generated id would key each reload differently, so
+   * persistence would restore nothing.
    */
-  threadId?: string
+  threadId: string
 
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>

@@ -82,11 +82,10 @@ export interface SummarizeActivityOptions<
    */
   runId?: string
   /**
-   * Stable conversation/thread id for correlating this run when persisted — the
-   * slot a reloading client hydrates the last summary by. Pass it whenever
-   * persistence is on; `withGenerationPersistence` refuses a run without one.
+   * Stable conversation/thread id. Required. It is the AG-UI thread id and
+   * the slot a reloading client hydrates the last summary by.
    */
-  threadId?: string
+  threadId: string
   /**
    * Observe-only middleware notified on start, usage, success, and error. Pass
    * `otelMiddleware()` for OpenTelemetry, `withGenerationPersistence()` to
@@ -285,6 +284,7 @@ async function runSummarize(
     focus,
     modelOptions,
     logger,
+    threadId: options.threadId,
     ...(abortControls.signal ? { abortSignal: abortControls.signal } : {}),
   }
 
@@ -395,7 +395,7 @@ async function* runStreamingSummarize(
     modelOptions,
     logger,
     ...(runId !== undefined ? { runId } : {}),
-    ...(threadId !== undefined ? { threadId } : {}),
+    threadId,
   }
 
   // Use real streaming if the adapter supports it
@@ -413,15 +413,11 @@ async function* runStreamingSummarize(
     // forwarding the run identity so its RUN_STARTED matches too. The generation
     // itself goes through `runSummarize`, so middleware (and its result
     // transforms) run exactly as they do for a non-streaming call. Only `runId`
-    // is taken from the resolved wire identity — `threadId` stays the CALLER's,
-    // since a minted one would file the run in a slot no client can hydrate.
+    // comes from the resolved wire identity.
     yield* streamGenerationResult(
       (resolved) =>
         runSummarize({ ...options, stream: false, runId: resolved.runId }),
-      {
-        ...(runId !== undefined ? { runId } : {}),
-        ...(threadId !== undefined ? { threadId } : {}),
-      },
+      { ...(runId !== undefined ? { runId } : {}), threadId },
     )
   } catch (error) {
     logger.errors('summarize activity failed', {

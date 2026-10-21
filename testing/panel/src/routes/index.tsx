@@ -443,6 +443,7 @@ function ChatPage() {
   )
 
   const { messages, sendMessage, isLoading, interrupts, stop } = useChat({
+    threadId: 'panel-chat',
     connection: fetchServerSentEvents('/api/chat'),
     tools,
     onChunk: (chunk: any) => {

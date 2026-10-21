@@ -151,6 +151,7 @@ function subagentsFor(
       run: (ctx) =>
         ctx.chat({
           ...createTextAdapter('openai', undefined, aimockPort, testId),
+          threadId: ctx.threadId,
           messages: [{ role: 'user', content: ctx.input.task }],
           stream: false,
         }),
@@ -173,6 +174,7 @@ function subagentsFor(
       run: async (ctx) =>
         ctx.chat({
           adapter: await ctx.keys.adapter(gpt),
+          threadId: ctx.threadId,
           messages: [{ role: 'user', content: ctx.input.task }],
           stream: false,
         }),

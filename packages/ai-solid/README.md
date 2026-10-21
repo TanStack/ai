@@ -45,6 +45,7 @@ import { useState } from "react";
 function ChatComponent() {
   const { messages, sendMessage, isLoading } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-42",
   });
 
   const [input, setInput] = useState("");
@@ -87,7 +88,7 @@ interface UseChatOptions {
 
   // Configuration
   initialMessages?: UIMessage[] // Starting messages
-  threadId?: string // The only chat identity. Required when persistence is on. Minted after mount if omitted.
+  threadId: string // Required. The only chat identity. Use a stable id for each conversation.
   forwardedProps?: Record<string, any> // Forwarded to AG-UI RunAgentInput.forwardedProps
 
   // Callbacks
@@ -130,6 +131,7 @@ import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 
 const chat = useChat({
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'support-42',
 })
 ```
 
@@ -140,6 +142,7 @@ import { useChat, stream } from '@tanstack/ai-react'
 
 const chat = useChat({
   connection: stream((messages) => serverChatFunction({ messages })),
+  threadId: 'support-42',
 })
 ```
 
@@ -155,7 +158,7 @@ const wsAdapter: ConnectionAdapter = {
   },
 }
 
-const chat = useChat({ connection: wsAdapter })
+const chat = useChat({ connection: wsAdapter, threadId: 'support-42' })
 ```
 
 ### Backend Endpoint
@@ -180,12 +183,13 @@ import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
 
   const stream = chat({
     adapter: openaiText(),
     model: 'gpt-4o',
     messages,
+    threadId,
     tools: [weatherTool], // Optional: auto-executed in loop
     agentLoopStrategy: maxIterations(5), // Optional: control loop
   })
@@ -216,6 +220,7 @@ import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 
 const { messages, sendMessage } = useChat({
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'support-42',
   onChunk: (chunk) => {
     if (chunk.type === 'content') {
       console.log('New token:', chunk.delta)
@@ -241,7 +246,8 @@ await sendMessage('Tell me a joke')
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
 const { sendMessage, isLoading } = useChat({
-  connection: fetchServerSentEvents("/api/chat")
+  connection: fetchServerSentEvents("/api/chat"),
+  threadId: "support-42",
 });
 const [input, setInput] = useState("");
 
@@ -275,6 +281,7 @@ const chat = useChat({
       'X-Custom-Header': 'value',
     },
   }),
+  threadId: 'support-42',
   forwardedProps: {
     userId: '123',
     sessionId: 'abc',
@@ -285,7 +292,10 @@ const chat = useChat({
 #### Programmatic Control
 
 ```typescript
-const { messages, sendMessage, append, reload, stop, clear } = useChat()
+const { messages, sendMessage, append, reload, stop, clear } = useChat({
+  connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'support-42',
+})
 
 // Send a simple message
 await sendMessage('Hello!')
@@ -314,12 +324,12 @@ import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 
 function App() {
   const chat1 = useChat({
-    id: 'chat-1',
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'chat-1',
   })
   const chat2 = useChat({
-    id: 'chat-2',
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'chat-2',
   })
 
   // Each hook manages independent state
@@ -337,13 +347,14 @@ const app = express()
 app.use(express.json())
 
 app.post('/api/chat', async (req, res) => {
-  const { messages } = req.body
+  const { messages, threadId } = req.body
 
   // One line to create streaming response!
   const stream = chat({
     adapter: openaiText(),
     model: 'gpt-4o',
     messages,
+    threadId,
   })
 
   const response = toServerSentEventsResponse(stream)
@@ -377,7 +388,7 @@ import { openaiText } from '@tanstack/ai-openai'
 export const runtime = 'edge'
 
 export async function POST(req: Request) {
-  const { messages } = await req.json()
+  const { messages, threadId } = await req.json()
 
   // One line!
   return toServerSentEventsResponse(
@@ -385,6 +396,7 @@ export async function POST(req: Request) {
       adapter: openaiText(),
       model: 'gpt-4o',
       messages,
+      threadId,
     }),
   )
 }
@@ -401,7 +413,7 @@ export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const { messages } = await request.json()
+        const { messages, threadId } = await request.json()
 
         // One line with automatic tool execution!
         return toServerSentEventsResponse(
@@ -409,6 +421,7 @@ export const Route = createFileRoute('/api/chat')({
             adapter: anthropicText(),
             model: 'claude-sonnet-4-6',
             messages,
+            threadId,
             tools, // Tools with execute functions
           }),
         )

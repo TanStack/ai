@@ -39,6 +39,7 @@ export const Route = createFileRoute('/api/image')({
           )
 
           const result = await generateImage({
+            threadId: 'panel-image',
             adapter,
             prompt,
             numberOfImages,

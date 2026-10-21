@@ -116,7 +116,7 @@ export const Route = createFileRoute('/api/generate/speech')({
             voice,
             format,
             stream: true,
-            ...(threadId ? { threadId } : {}),
+            threadId,
             ...(runId ? { runId } : {}),
             // Copies the synthesized speech into our blob store and rewrites the
             // result to the shared `/api/artifacts` serve URL, so a restored run

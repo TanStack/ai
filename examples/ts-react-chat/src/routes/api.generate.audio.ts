@@ -112,7 +112,7 @@ export const Route = createFileRoute('/api/generate/audio')({
             prompt,
             duration,
             stream: true,
-            ...(threadId ? { threadId } : {}),
+            threadId,
             ...(runId ? { runId } : {}),
             // Copies the generated audio into our blob store and rewrites the
             // result to the shared `/api/artifacts` serve URL, so a restored

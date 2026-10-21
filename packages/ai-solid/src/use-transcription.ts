@@ -90,6 +90,7 @@ export interface UseTranscriptionReturn<
  *
  * function Transcriber() {
  *   const { generate, result, isLoading } = useTranscription({
+ *     threadId: 'meeting-transcript',
  *     connection: fetchServerSentEvents('/api/transcribe'),
  *   })
  *

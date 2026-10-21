@@ -822,6 +822,7 @@ describe('core generateImage() integration', () => {
   it('drives the adapter through the core entry point', async () => {
     const fetchMock = mockFetch(() => jsonResponse(successBody))
     const result = await generateImage({
+      threadId: 'thread-1',
       adapter: adapterWithFetch(fetchMock),
       // Reference images are part of the prompt at the call site: the
       // adapter's modality map has to admit image parts for this to compile.

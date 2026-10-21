@@ -210,9 +210,8 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   parentSubagentRunId?: string
   /**
    * AG-UI thread identifier — a stable per-conversation ID used to
-   * correlate client and server devtools events. Resolves to the
-   * caller-provided `threadId`, or an auto-generated value when none is
-   * supplied.
+   * correlate client and server devtools events. It is the caller's
+   * `threadId`.
    */
   threadId: string
   /** Current lifecycle phase */

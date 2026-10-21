@@ -490,6 +490,7 @@ function AddonManagerPage() {
   )
 
   const { messages, sendMessage, isLoading, stop } = useChat({
+    threadId: 'addon-manager',
     connection: fetchServerSentEvents('/api/addon-chat'),
     tools,
     onChunk: (chunk: any) => {

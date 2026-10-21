@@ -36,6 +36,7 @@ function Chat() {
         Authorization: `Bearer ${token}`,
       },
     }),
+    threadId: 'support-42',
   })
 
   return (
@@ -83,6 +84,7 @@ const { messages, sendMessage } = useChat({
     },
     credentials: 'include',
   }),
+  threadId: 'support-42',
 })
 ```
 
@@ -105,6 +107,7 @@ const { messages, sendMessage } = useChat({
       },
     }),
   ),
+  threadId: 'support-42',
 })
 ```
 
@@ -125,6 +128,7 @@ const { messages, sendMessage } = useChat({
   connection: fetchServerSentEvents('/api/chat', {
     fetchClient: myCustomFetch,
   }),
+  threadId: 'support-42',
 })
 ```
 
@@ -143,6 +147,7 @@ const { messages, sendMessage } = useChat({
       Authorization: `Bearer ${token}`,
     },
   }),
+  threadId: 'support-42',
 })
 ```
 
@@ -164,6 +169,7 @@ const { messages, sendMessage } = useChat({
       headers: { Authorization: `Bearer ${await refreshToken()}` },
     }),
   ),
+  threadId: 'support-42',
 })
 ```
 
@@ -238,6 +244,7 @@ const websocketAdapter: ConnectConnectionAdapter = {
 function Chat() {
   const { messages, sendMessage } = useChat({
     connection: websocketAdapter,
+    threadId: 'support-42',
   })
 
   // ... render messages
@@ -303,6 +310,7 @@ const pushAdapter: SubscribeConnectionAdapter = {
 function Chat() {
   const { messages, sendMessage } = useChat({
     connection: pushAdapter,
+    threadId: 'support-42',
   })
 
   // ... render messages
@@ -346,6 +354,7 @@ const directAdapter = stream(async function* (messages, data) {
 
 const { messages, sendMessage } = useChat({
   connection: directAdapter,
+  threadId: 'support-42',
 })
 ```
 
@@ -484,6 +493,7 @@ const resilientAdapter: ConnectConnectionAdapter = {
 
 const { messages, sendMessage } = useChat({
   connection: resilientAdapter,
+  threadId: 'support-42',
 })
 ```
 

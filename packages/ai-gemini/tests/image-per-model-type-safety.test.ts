@@ -25,11 +25,13 @@ describe('Gemini per-model image size gating', () => {
   describe('gemini-3.1-flash-image — 14 ratios × 512/1K/2K/4K', () => {
     it('accepts the extreme banner ratios and the 512 tier', () => {
       createImageOptions({
+        threadId: 'thread-1',
         adapter: createGeminiImage('gemini-3.1-flash-image', apiKey),
         prompt: 'a wide banner',
         size: '1:8_512',
       })
       createImageOptions({
+        threadId: 'thread-1',
         adapter: createGeminiImage('gemini-3.1-flash-image', apiKey),
         prompt: 'a wide banner',
         size: '8:1_4K',
@@ -38,11 +40,13 @@ describe('Gemini per-model image size gating', () => {
 
     it('accepts the flexible 4:5 / 5:4 ratios', () => {
       createImageOptions({
+        threadId: 'thread-1',
         adapter: createGeminiImage('gemini-3.1-flash-image', apiKey),
         prompt: 'a portrait',
         size: '4:5_1K',
       })
       createImageOptions({
+        threadId: 'thread-1',
         adapter: createGeminiImage('gemini-3.1-flash-image', apiKey),
         prompt: 'a landscape',
         size: '5:4_2K',
@@ -68,11 +72,13 @@ describe('Gemini per-model image size gating', () => {
   describe('gemini-nano-banana-2.1 — 14 ratios × 1K/2K/4K', () => {
     it('accepts 1K/2K/4K, including the banner ratios', () => {
       createImageOptions({
+        threadId: 'thread-1',
         adapter: createGeminiImage('gemini-nano-banana-2.1', apiKey),
         prompt: 'a landscape',
         size: '16:9_4K',
       })
       createImageOptions({
+        threadId: 'thread-1',
         adapter: createGeminiImage('gemini-nano-banana-2.1', apiKey),
         prompt: 'a banner',
         size: '8:1_1K',
@@ -92,11 +98,13 @@ describe('Gemini per-model image size gating', () => {
   describe('gemini-3.1-flash-lite-image — 14 ratios, 1K only', () => {
     it('accepts 1K at any of the 14 ratios', () => {
       createImageOptions({
+        threadId: 'thread-1',
         adapter: createGeminiImage('gemini-3.1-flash-lite-image', apiKey),
         prompt: 'a square',
         size: '1:1_1K',
       })
       createImageOptions({
+        threadId: 'thread-1',
         adapter: createGeminiImage('gemini-3.1-flash-lite-image', apiKey),
         prompt: 'a banner',
         size: '4:1_1K',
@@ -128,6 +136,7 @@ describe('Gemini per-model image size gating', () => {
   describe('gemini-3-pro-image — 10 ratios × 1K/2K/4K', () => {
     it('accepts the flexible 4:5 ratio at 2K', () => {
       createImageOptions({
+        threadId: 'thread-1',
         adapter: createGeminiImage('gemini-3-pro-image', apiKey),
         prompt: 'a portrait',
         size: '4:5_2K',
@@ -162,6 +171,7 @@ describe('Gemini per-model image size gating', () => {
   describe('Imagen models keep pixel sizes', () => {
     it('accepts WIDTHxHEIGHT and rejects aspect-ratio sizes', () => {
       createImageOptions({
+        threadId: 'thread-1',
         adapter: createGeminiImage('imagen-4.0-generate-001', apiKey),
         prompt: 'a cat',
         size: '1024x1024',
@@ -208,6 +218,7 @@ describe('Gemini per-model image modelOptions gating', () => {
   describe('gemini-3.1-flash-image — native (Interactions API)', () => {
     it('accepts the native option set', () => {
       createImageOptions({
+        threadId: 'thread-1',
         adapter: geminiImage('gemini-3.1-flash-image'),
         prompt: 'a quiet harbour',
         modelOptions: {
@@ -224,6 +235,7 @@ describe('Gemini per-model image modelOptions gating', () => {
 
     it('rejects Vertex-only imageConfig fields', () => {
       createImageOptions({
+        threadId: 'thread-1',
         adapter: geminiImage('gemini-3.1-flash-image'),
         prompt: 'a quiet harbour',
         modelOptions: {
@@ -243,6 +255,7 @@ describe('Gemini per-model image modelOptions gating', () => {
       // `personGeneration` would reject a string literal on either shape and
       // would still "pass" with the split reverted.
       createImageOptions({
+        threadId: 'thread-1',
         adapter: geminiImage('gemini-3.1-flash-image'),
         prompt: 'a quiet harbour',
         modelOptions: {
@@ -252,6 +265,7 @@ describe('Gemini per-model image modelOptions gating', () => {
       })
 
       createImageOptions({
+        threadId: 'thread-1',
         adapter: geminiImage('gemini-3.1-flash-image'),
         prompt: 'a quiet harbour',
         modelOptions: {
@@ -263,6 +277,7 @@ describe('Gemini per-model image modelOptions gating', () => {
 
     it('rejects responseModalities — the adapter owns it', () => {
       createImageOptions({
+        threadId: 'thread-1',
         adapter: geminiImage('gemini-3.1-flash-image'),
         prompt: 'a quiet harbour',
         modelOptions: {
@@ -276,6 +291,7 @@ describe('Gemini per-model image modelOptions gating', () => {
   describe('imagen-4.0-generate-001 — Imagen (GenerateImagesConfig)', () => {
     it('accepts the Imagen option set', () => {
       createImageOptions({
+        threadId: 'thread-1',
         adapter: geminiImage('imagen-4.0-generate-001'),
         prompt: 'a quiet harbour',
         modelOptions: {
@@ -289,6 +305,7 @@ describe('Gemini per-model image modelOptions gating', () => {
 
     it('rejects native-only options', () => {
       createImageOptions({
+        threadId: 'thread-1',
         adapter: geminiImage('imagen-4.0-generate-001'),
         prompt: 'a quiet harbour',
         modelOptions: {
@@ -298,6 +315,7 @@ describe('Gemini per-model image modelOptions gating', () => {
       })
 
       createImageOptions({
+        threadId: 'thread-1',
         adapter: geminiImage('imagen-4.0-generate-001'),
         prompt: 'a quiet harbour',
         modelOptions: {

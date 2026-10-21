@@ -306,6 +306,7 @@ describe('provider-executed tools interleaved with signed thinking', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Research and save' }],
           tools: [clientTool('saveDraft')],
@@ -344,6 +345,7 @@ describe('provider-executed tools interleaved with signed thinking', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Research and save' }],
           tools: [clientTool('saveDraft')],
@@ -405,6 +407,7 @@ describe('provider-executed tools interleaved with signed thinking', () => {
 
       await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Research' }],
           tools: [serverTool('lookup', () => ({ found: true }))],
@@ -480,6 +483,7 @@ describe('provider-executed tools interleaved with signed thinking', () => {
 
       await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Research' }],
           tools,
@@ -495,6 +499,7 @@ describe('provider-executed tools interleaved with signed thinking', () => {
       // The next run from this transcript.
       await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: transcript,
           tools,
@@ -530,6 +535,7 @@ describe('provider-executed tools interleaved with signed thinking', () => {
 
       await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Research' }],
           tools: [serverTool('lookup', lookup)],

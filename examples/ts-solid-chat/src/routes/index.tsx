@@ -19,6 +19,7 @@ import { clientTools } from '@/lib/guitar-tools'
 // Create typed chat options for type inference
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'guitar-chat',
   tools: clientTools,
 })
 

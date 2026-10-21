@@ -82,7 +82,12 @@ describe('structured output null normalization', () => {
       }),
     })
 
-    const result = await chat({ adapter, messages, outputSchema })
+    const result = await chat({
+      threadId: 'thread-1',
+      adapter,
+      messages,
+      outputSchema,
+    })
 
     expect(result).toEqual({ title: 'Ship it' })
     expect('note' in result).toBe(false)
@@ -100,7 +105,12 @@ describe('structured output null normalization', () => {
       }),
     })
 
-    const result = await chat({ adapter, messages, outputSchema })
+    const result = await chat({
+      threadId: 'thread-1',
+      adapter,
+      messages,
+      outputSchema,
+    })
 
     expect(result).toEqual({ title: 'Ship it', tag: null })
   })
@@ -126,7 +136,13 @@ describe('structured output null normalization', () => {
         }),
       })
 
-      const stream = chat({ adapter, messages, outputSchema, stream: true })
+      const stream = chat({
+        threadId: 'thread-1',
+        adapter,
+        messages,
+        outputSchema,
+        stream: true,
+      })
       const chunks = await collectChunks(
         stream as unknown as AsyncIterable<StreamChunk>,
       )
@@ -171,6 +187,7 @@ describe('structured output null normalization', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages,
           outputSchema,
@@ -206,7 +223,12 @@ describe('structured output null normalization', () => {
         supportsCombinedToolsAndSchema: true,
       })
 
-      const result = await chat({ adapter, messages, outputSchema })
+      const result = await chat({
+        threadId: 'thread-1',
+        adapter,
+        messages,
+        outputSchema,
+      })
 
       expect(result).toEqual({ title: 'Ship it', tag: null })
       expect('note' in result).toBe(false)
@@ -220,6 +242,7 @@ describe('structured output null normalization', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages,
           outputSchema,

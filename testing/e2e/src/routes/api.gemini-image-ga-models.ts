@@ -56,6 +56,7 @@ export const Route = createFileRoute('/api/gemini-image-ga-models')({
 
         const gaModel = await runStage(() =>
           generateImage({
+            threadId: 'gemini-image-ga-models',
             adapter: createGeminiImage('gemini-3.1-flash-image', DUMMY_KEY, {
               httpOptions: { baseUrl: IMAGE_BASE },
             }),
@@ -69,6 +70,7 @@ export const Route = createFileRoute('/api/gemini-image-ga-models')({
         // to the Imagen endpoint, which the mock does not serve.
         const nanoBanana21 = await runStage(() =>
           generateImage({
+            threadId: 'gemini-image-ga-models',
             adapter: createGeminiImage('gemini-nano-banana-2.1', DUMMY_KEY, {
               httpOptions: { baseUrl: IMAGE_BASE },
             }),

@@ -1,6 +1,6 @@
 import { ChatClient } from '@tanstack/ai-client'
 import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'octane'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'octane'
 import type {
   AnyClientTool,
   InferSchemaType,
@@ -37,10 +37,8 @@ export function useChat<
   options: UseChatOptions<TTools, TSchema, TContext, TInterrupts>,
 ): UseChatReturn<TTools, TSchema, TInterrupts> {
   // The hook's identity is its `threadId`. Reload with the same `threadId`
-  // restores the same conversation. `hookId` is only a recreation key when no
-  // `threadId` is given. It is never sent on the wire.
-  const hookId = useId()
-  const clientId = options.threadId ?? hookId
+  // restores the same conversation.
+  const clientId = options.threadId
 
   const subscribedRef = useRef(false)
   const activeClientRef = useRef<ChatClient | null>(null)
@@ -93,26 +91,15 @@ export function useChat<
       devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
       initialMessages: messagesToUse,
-      ...(typeof initialOptions.threadId === 'string' &&
-      initialOptions.persistence === true
+      threadId: initialOptions.threadId,
+      ...(initialOptions.persistence === true
         ? {
             persistence: true,
-            threadId: initialOptions.threadId,
             ...(initialOptions.history !== undefined && {
               history: initialOptions.history,
             }),
           }
-        : typeof initialOptions.threadId === 'string' &&
-            initialOptions.persistence
-          ? {
-              persistence: initialOptions.persistence,
-              threadId: initialOptions.threadId,
-            }
-          : {
-              ...(initialOptions.threadId !== undefined && {
-                threadId: initialOptions.threadId,
-              }),
-            }),
+        : { persistence: initialOptions.persistence }),
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
       }),

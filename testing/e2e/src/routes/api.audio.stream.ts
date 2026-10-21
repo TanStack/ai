@@ -42,6 +42,7 @@ export const Route = createFileRoute('/api/audio/stream')({
 
         try {
           const stream = generateAudio({
+            threadId: 'audio.stream',
             adapter,
             prompt,
             ...(duration != null ? { duration } : {}),

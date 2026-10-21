@@ -99,9 +99,10 @@ export function toolToBinding(
  * Create event-aware bindings that emit custom events for each external function call.
  * Wraps each binding's execute function to emit events before and after execution.
  *
- * Each call gets the parent tool's `abortSignal` and runtime `context`, so a tool
- * can cancel in-flight work when the run aborts. `toolCallId` and `inputResponse` are not
- * passed: they belong to the parent tool call, not to this nested call.
+ * Each call gets the parent tool's `abortSignal`, `threadId`, and runtime `context`, so a
+ * tool can cancel in-flight work when the run aborts. `toolCallId` and `inputResponse` are
+ * not passed: they belong to the parent tool call, not to this nested call. Without a
+ * parent context, the bindings get no context.
  *
  * @param bindings - Original tool bindings
  * @param emitCustomEvent - Callback to emit custom events to the stream
@@ -112,9 +113,10 @@ export function createEventAwareBindings(
   emitCustomEvent: ToolExecutionContext['emitCustomEvent'],
   parentContext?: ToolExecutionContext,
 ): Record<string, ToolBinding> {
-  const toolContext: ToolExecutionContext = {
-    context: parentContext?.context,
-    abortSignal: parentContext?.abortSignal,
+  const toolContext: ToolExecutionContext | undefined = parentContext && {
+    context: parentContext.context,
+    abortSignal: parentContext.abortSignal,
+    threadId: parentContext.threadId,
     emitCustomEvent,
   }
 
@@ -133,7 +135,7 @@ export function createEventAwareBindings(
 
         const startTime = Date.now()
         try {
-          toolContext.abortSignal?.throwIfAborted()
+          toolContext?.abortSignal?.throwIfAborted()
           const result = await binding.execute(args, toolContext)
 
           // Emit result event

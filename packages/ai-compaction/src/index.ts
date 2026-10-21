@@ -352,6 +352,8 @@ export interface CompactionContext {
   addUsage: (usage: TokenUsage) => void
   /** Aborted when the run is cancelled. Pass it to a model call. */
   signal?: AbortSignal
+  /** The thread id of the run. Pass it to a model call. */
+  threadId: string
 }
 
 /**
@@ -592,11 +594,12 @@ export function summarizeOldest(options: {
     ctx.signal?.addEventListener('abort', stop, { once: true })
     const summarize = async (
       part: Array<ModelMessage>,
-      input: SummarizeInput,
+      input: Omit<SummarizeInput, 'threadId'>,
     ) => {
       try {
         const result = await options.summarize(part, {
           ...input,
+          threadId: ctx.threadId,
           signal: controller.signal,
         })
         const summary = typeof result === 'string' ? result : result.summary
@@ -911,6 +914,7 @@ export function withCompaction(
         )(snapshot, {
           maxTokens: options.maxTokens,
           estimate,
+          threadId: ctx.threadId,
           addUsage: (usage) => {
             spent.usage = sumUsage(spent.usage, usage)
           },
@@ -1016,6 +1020,7 @@ export function withCompaction(
         maxTokens: options.maxTokens,
         estimate,
         signal: ctx.signal,
+        threadId: ctx.threadId,
         addUsage: (usage) => {
           spent.usage = sumUsage(spent.usage, usage)
         },
@@ -1385,6 +1390,7 @@ export function withCompaction(
           maxTokens: options.maxTokens,
           estimate,
           signal: ctx.signal,
+          threadId: ctx.threadId,
           addUsage: (usage) => {
             spent.usage = sumUsage(spent.usage, usage)
           },

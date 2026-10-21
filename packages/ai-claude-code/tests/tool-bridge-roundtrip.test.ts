@@ -200,6 +200,7 @@ describe('claude-code co-located host-tool delegation', () => {
 
     const chunks = await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: 'haiku',
         messages: [{ role: 'user', content: 'use the get_fact tool' }],
         logger: noopLogger,

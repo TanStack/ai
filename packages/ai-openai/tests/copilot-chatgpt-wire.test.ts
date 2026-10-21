@@ -95,6 +95,7 @@ describe('GitHub Copilot wire', () => {
     const { sent, fetch } = recorder(completionsDone)
     await drain(
       copilot(fetch)('gpt-5.6').chatStream({
+        threadId: 'thread-1',
         logger,
         model: 'gpt-5.6',
         messages: hi,
@@ -121,6 +122,7 @@ describe('GitHub Copilot wire', () => {
         fetch,
         'responses',
       )('gpt-5.6').chatStream({
+        threadId: 'thread-1',
         logger,
         model: 'gpt-5.6',
         messages: hi,
@@ -149,6 +151,7 @@ describe('GitHub Copilot wire', () => {
     ])
     const chunks = await drain(
       copilot(fetch)('gpt-5.6').chatStream({
+        threadId: 'thread-1',
         logger,
         model: 'gpt-5.6',
         messages: hi,
@@ -168,6 +171,7 @@ describe('ChatGPT plan wire', () => {
       createOpenaiChat('gpt-5.6', 'chatgpt-access-token', {
         fetch,
       }).chatStream({
+        threadId: 'thread-1',
         logger,
         model: 'gpt-5.6',
         messages: hi,
@@ -202,6 +206,7 @@ describe('ChatGPT Codex backend wire', () => {
         },
         fetch,
       }).chatStream({
+        threadId: 'thread-1',
         logger,
         model: 'gpt-5.6-terra',
         messages: hi,

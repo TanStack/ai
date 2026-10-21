@@ -10,6 +10,7 @@ export const Route = createFileRoute('/server-fn-chat')({
 
 function ServerFnChat() {
   const { messages, sendMessage, isLoading, error, stop } = useChat({
+    threadId: 'server-fn-chat',
     fetcher: ({ messages }, { signal }) =>
       chatFn({ data: { messages }, signal }),
   })

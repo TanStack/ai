@@ -60,6 +60,7 @@ const mcp = await createMCPClient({
 const stream = chat({
   adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'What is the weather in Brooklyn?' }],
+  threadId: 'thread-1',
   tools: await mcp.tools(),
 })
 

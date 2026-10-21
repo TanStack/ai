@@ -27,9 +27,16 @@ export const Route = createFileRoute('/api/tts')({
 
         try {
           const stream = turns
-            ? generateSpeech({ adapter, turns, timestamps, stream: true })
+            ? generateSpeech({
+                adapter,
+                threadId: body.threadId,
+                turns,
+                timestamps,
+                stream: true,
+              })
             : generateSpeech({
                 adapter,
+                threadId: body.threadId,
                 text: text ?? '',
                 voice,
                 timestamps,

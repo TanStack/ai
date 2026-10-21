@@ -200,7 +200,7 @@ export class OpenRouterResponsesTextAdapter<
     // AG-UI lifecycle tracking
     const aguiState = {
       runId: generateId(this.name),
-      threadId: options.threadId ?? generateId(this.name),
+      threadId: options.threadId,
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,
     }
@@ -423,7 +423,7 @@ export class OpenRouterResponsesTextAdapter<
 
     const aguiState = {
       runId: generateId(this.name),
-      threadId: chatOptions.threadId ?? generateId(this.name),
+      threadId: chatOptions.threadId,
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,
     }

@@ -47,10 +47,11 @@ import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 export async function POST(req: Request) {
-  const { prompt, size, numberOfImages } = await req.json()
+  const { prompt, size, numberOfImages, threadId } = await req.json()
 
   const stream = generateImage({
     adapter: openaiImage('gpt-image-1'),
+    threadId,
     prompt,
     size,
     numberOfImages,
@@ -71,6 +72,7 @@ function ImageGenerator() {
   const [prompt, setPrompt] = useState('')
   const { generate, result, isLoading, error, reset } = useGenerateImage({
     connection: fetchServerSentEvents('/api/generate/image'),
+    threadId: 'product-123-hero',
   })
 
   return (
@@ -122,6 +124,7 @@ export const generateImageStreamFn = createServerFn({ method: 'POST' })
     return toServerSentEventsResponse(
       generateImage({
         adapter: openaiImage(data.model ?? 'gpt-image-1'),
+        threadId: 'thread-1',
         prompt: data.prompt,
         stream: true,
       }),
@@ -136,6 +139,7 @@ import { generateImageStreamFn } from '../lib/server-functions'
 function ImageGenerator() {
   const { generate, result, isLoading } = useGenerateImage({
     fetcher: (input) => generateImageStreamFn({ data: input }),
+    threadId: 'product-123-hero',
   })
 
   return (
@@ -181,6 +185,7 @@ import { geminiImage } from '@tanstack/ai-gemini'
 // OpenAI with quality/background options
 const openaiResult = await generateImage({
   adapter: openaiImage('gpt-image-1'),
+  threadId: 'thread-1',
   prompt: 'A cat wearing a hat',
   size: '1024x1024',
   numberOfImages: 2,
@@ -194,6 +199,7 @@ const openaiResult = await generateImage({
 // Gemini native model with aspect-ratio sizes
 const geminiResult = await generateImage({
   adapter: geminiImage('gemini-3.1-flash-image'),
+  threadId: 'thread-1',
   prompt: 'A futuristic cityscape at night',
   size: '16:9_4K',
 })
@@ -202,6 +208,7 @@ const geminiResult = await generateImage({
 // Send only the new prompt. The previous image stays on the server.
 const edited = await generateImage({
   adapter: geminiImage('gemini-3.1-flash-image'),
+  threadId: 'thread-1',
   prompt: 'Make the sky orange',
   modelOptions: { previous_interaction_id: geminiResult.id },
 })
@@ -209,6 +216,7 @@ const edited = await generateImage({
 // Gemini Imagen model. Text-to-image only. No interaction id to chain.
 const imagenResult = await generateImage({
   adapter: geminiImage('imagen-4.0-generate-001'),
+  threadId: 'thread-1',
   prompt: 'A landscape photo',
   modelOptions: { aspectRatio: '16:9' },
 })
@@ -250,6 +258,7 @@ import { openaiImage } from '@tanstack/ai-openai'
 // Image-to-image (OpenAI gpt-image-2 / gpt-image-1, dall-e-2)
 await generateImage({
   adapter: openaiImage('gpt-image-2'),
+  threadId: 'thread-1',
   prompt: [
     { type: 'text', content: 'Turn this into a cinematic product photo' },
     { type: 'image', source: { type: 'url', value: 'https://…/product.png' } },
@@ -260,6 +269,7 @@ await generateImage({
 // — a provider limit, not enforced by the SDK)
 await generateImage({
   adapter: openaiImage('gpt-image-2'),
+  threadId: 'thread-1',
   prompt: [
     { type: 'text', content: 'Apply the second image as style to the first' },
     { type: 'image', source: { type: 'url', value: 'https://…/product.png' } },
@@ -270,6 +280,7 @@ await generateImage({
 // Inpaint via metadata.role === 'mask' (OpenAI gpt-image models, dall-e-2; fal mask_url)
 await generateImage({
   adapter: openaiImage('gpt-image-2'),
+  threadId: 'thread-1',
   prompt: [
     { type: 'text', content: 'Replace the masked region with a tree' },
     { type: 'image', source: { type: 'url', value: 'https://…/photo.png' } },
@@ -288,6 +299,7 @@ import { falVideo } from '@tanstack/ai-fal'
 
 await generateVideo({
   adapter: falVideo('fal-ai/kling-video/v3/pro/image-to-video'),
+  threadId: 'thread-1',
   prompt: [
     { type: 'image', source: { type: 'url', value: 'https://…/first.png' } },
     { type: 'text', content: 'Slow cinematic push-in' },
@@ -358,6 +370,7 @@ import { falAudio } from '@tanstack/ai-fal'
 
 const result = await generateAudio({
   adapter: falAudio('fal-ai/diffrhythm'),
+  threadId: 'thread-1',
   prompt: 'An upbeat electronic track with synths',
   duration: 10,
 })
@@ -373,6 +386,7 @@ import { useGenerateAudio, fetchServerSentEvents } from '@tanstack/ai-react'
 
 const { generate, result, isLoading } = useGenerateAudio({
   connection: fetchServerSentEvents('/api/generate/audio'),
+  threadId: 'product-123-hero',
 })
 
 // Trigger: generate({ prompt: 'Upbeat synths', duration: 10 })
@@ -410,6 +424,7 @@ import { openaiSpeech } from '@tanstack/ai-openai'
 
 const result = await generateSpeech({
   adapter: openaiSpeech('tts-1-hd'),
+  threadId: 'thread-1',
   text: 'Hello, welcome to TanStack AI!',
   voice: 'alloy', // alloy | echo | fable | onyx | nova | shimmer | ash | ballad | coral | sage | verse
   format: 'mp3', // mp3 | opus | aac | flac | wav | pcm
@@ -428,6 +443,7 @@ import { useGenerateSpeech, fetchServerSentEvents } from '@tanstack/ai-react'
 
 const { generate, result, isLoading } = useGenerateSpeech({
   connection: fetchServerSentEvents('/api/generate/speech'),
+  threadId: 'product-123-hero',
 })
 
 // Trigger: generate({ text: 'Hello!', voice: 'alloy' })
@@ -449,6 +465,7 @@ const SECOND_VOICE = 'your-second-voice-id'
 
 const result = await generateSpeech({
   adapter: byteplusSpeech('seed-audio-1.0'),
+  threadId: 'thread-1',
   turns: [
     { text: 'Do you sell picks?', voice: 'en_female_stokie_uranus_bigtts' },
     { text: 'By the till.', voice: SECOND_VOICE },
@@ -496,6 +513,7 @@ import {
 
 const designed = await generateVoice({
   adapter: elevenlabsVoiceDesign('eleven_ttv_v3'),
+  threadId: 'thread-1',
   prompt: 'A warm, gravelly narrator in his sixties with a slight Irish lilt',
   name: 'Irish Narrator', // omit to audition previews instead
 })
@@ -510,6 +528,7 @@ if (!voice) throw new Error('The provider returned no voices.')
 
 const speech = await generateSpeech({
   adapter: elevenlabsSpeech('eleven_v4'),
+  threadId: 'thread-1',
   text: 'Once upon a time...',
   voice: voice.voiceId,
 })
@@ -573,6 +592,7 @@ gpt-4o-mini-transcribe, gpt-4o-transcribe-diarize) and `byteplusTranscription`
 >   const { isRecording, start, stop } = useAudioRecorder()
 >   const { generate } = useTranscription({
 >     connection: fetchServerSentEvents('/api/transcribe'),
+>     threadId: 'voice-note-1',
 >   })
 >
 >   async function finish() {
@@ -596,10 +616,12 @@ import { openaiTranscription } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
   // The client hook below posts { data: { audio: dataUrl, language } }
-  const { audio, language } = (await request.json()).data
+  const body = await request.json()
+  const { audio, language } = body.data
 
   const stream = generateTranscription({
     adapter: openaiTranscription('whisper-1'),
+    threadId: body.threadId,
     audio, // File, Blob, base64 string, or data URL
     language,
     responseFormat: 'verbose_json',
@@ -628,6 +650,7 @@ import { useTranscription, fetchServerSentEvents } from '@tanstack/ai-react'
 
 const { generate, result, isLoading } = useTranscription({
   connection: fetchServerSentEvents('/api/transcribe'),
+  threadId: 'product-123-hero',
 })
 
 // Trigger: generate({ audio: dataUrl, language: 'en' })
@@ -652,7 +675,7 @@ jobs without `url`), the adapter's `getVideo()` returns
 core buffers the whole video in memory and sets `url` to a base64 `data:` URL
 (fine for short clips, an out-of-memory risk on serverless above ~10 MiB).
 Custom adapters must implement `getVideo()`. There is no `getVideoUrl()`.
-To poll from app code, call `getVideoJobStatus({ adapter, jobId })`. Providers that
+To poll from app code, call `getVideoJobStatus({ adapter, threadId, jobId })`. Providers that
 return a URL (Grok, fal, BytePlus) pass through; persistence still re-hosts
 them, which you want because those URLs expire.
 
@@ -688,22 +711,32 @@ import { openaiVideo } from '@tanstack/ai-openai'
 // Non-streaming: manual polling loop
 const { jobId } = await generateVideo({
   adapter: openaiVideo('sora-2'),
+  threadId: 'thread-1',
   prompt: 'A golden retriever playing in sunflowers',
   size: '1280x720',
   duration: 8,
 })
 
-let status = await getVideoJobStatus({ adapter: openaiVideo('sora-2'), jobId })
+let status = await getVideoJobStatus({
+  adapter: openaiVideo('sora-2'),
+  threadId: 'thread-1',
+  jobId,
+})
 while (status.status !== 'completed' && status.status !== 'failed') {
   await new Promise((r) => setTimeout(r, 5000))
-  status = await getVideoJobStatus({ adapter: openaiVideo('sora-2'), jobId })
+  status = await getVideoJobStatus({
+    adapter: openaiVideo('sora-2'),
+    threadId: 'thread-1',
+    jobId,
+  })
 }
 
 // Streaming: server handles polling, client gets real-time updates
 export async function POST(request: Request) {
-  const { prompt } = await request.json()
+  const { prompt, threadId } = await request.json()
   const stream = generateVideo({
     adapter: openaiVideo('sora-2'),
+    threadId,
     prompt,
     stream: true,
     pollingInterval: 3000,
@@ -730,6 +763,7 @@ adapter.availableDurations() // { kind: 'discrete', values: [4, 6, 8] }
 
 const { jobId } = await generateVideo({
   adapter,
+  threadId: 'thread-1',
   prompt: 'A golden retriever playing in sunflowers',
   size: '16:9', // Veo sizes are aspect ratios: '16:9' | '9:16'
   duration: adapter.snapDuration(7), // 6
@@ -760,11 +794,13 @@ import { geminiVideo } from '@tanstack/ai-gemini'
 const omni = geminiVideo('gemini-omni-1.1-flash')
 const first = await generateVideo({
   adapter: omni,
+  threadId: 'thread-1',
   prompt: 'A violinist outdoors',
 })
 // …poll first.jobId to completion, then edit it:
 const edited = await generateVideo({
   adapter: omni,
+  threadId: 'thread-1',
   prompt: 'Make the violin invisible',
   modelOptions: { previous_interaction_id: first.jobId },
 })
@@ -818,6 +854,7 @@ adapter.snapDuration(7.4) // 7
 const sliderSeconds = 7 // raw seconds from a UI control
 const { jobId } = await generateVideo({
   adapter,
+  threadId: 'thread-1',
   prompt: 'A timelapse of clouds',
   duration: adapter.snapDuration(sliderSeconds),
 })
@@ -832,6 +869,7 @@ import { useGenerateVideo, fetchServerSentEvents } from '@tanstack/ai-react'
 
 const { generate, result, jobId, videoStatus, isLoading } = useGenerateVideo({
   connection: fetchServerSentEvents('/api/generate/video'),
+  threadId: 'product-123-hero',
   onJobCreated: (id) => console.log('Job created:', id),
   onStatusUpdate: (status) =>
     console.log(`${status.status} (${status.progress}%)`),
@@ -857,6 +895,7 @@ import { falImage } from '@tanstack/ai-fal'
 
 const result = await generateImage({
   adapter: falImage('fal-ai/flux/dev'),
+  threadId: 'thread-1',
   prompt: 'a serene mountain lake',
 })
 
@@ -993,6 +1032,7 @@ import { useGenerateSpeech, fetchServerSentEvents } from '@tanstack/ai-react'
 
 const { result } = useGenerateSpeech({
   connection: fetchServerSentEvents('/api/generate/speech'),
+  threadId: 'product-123-hero',
   onResult: (raw) => ({
     audioUrl: `data:${raw.contentType};base64,${raw.audio}`,
     duration: raw.duration,
@@ -1059,6 +1099,7 @@ export const generateImageStreamFn = createServerFn({ method: 'POST' })
     // (also a type error: an AsyncIterable is not a valid server-function return)
     return generateImage({
       adapter: openaiImage('gpt-image-1'),
+      threadId: 'thread-1',
       prompt: data.prompt,
       stream: true,
     })
@@ -1078,6 +1119,7 @@ export const generateImageStreamFn = createServerFn({ method: 'POST' })
     return toServerSentEventsResponse(
       generateImage({
         adapter: openaiImage('gpt-image-1'),
+        threadId: 'thread-1',
         prompt: data.prompt,
         stream: true,
       }),
@@ -1099,6 +1141,7 @@ import { openaiImage } from '@tanstack/ai-openai'
 
 const result = await generateImage({
   adapter: openaiImage('dall-e-3'),
+  threadId: 'thread-1',
   prompt: 'A mountain landscape',
 })
 
@@ -1139,6 +1182,7 @@ are not in `GeminiAudioProviderOptions` — don't reach for them via `as any`.
 // WRONG — both fields are silently ignored or rejected by the SDK
 generateAudio({
   adapter: geminiAudio('lyria-3-pro-preview'),
+  threadId: 'thread-1',
   prompt: 'ambient piano',
   modelOptions: {
     responseMimeType: 'audio/wav', // unsupported
@@ -1154,6 +1198,7 @@ import { geminiAudio } from '@tanstack/ai-gemini'
 // CORRECT — shape the prompt itself for what you want
 generateAudio({
   adapter: geminiAudio('lyria-3-pro-preview'),
+  threadId: 'thread-1',
   prompt: 'ambient piano, no vocals',
 })
 ```
@@ -1177,6 +1222,7 @@ import { falAudio } from '@tanstack/ai-fal'
 // For Lyria: put length guidance in the prompt
 generateAudio({
   adapter: geminiAudio('lyria-3-pro-preview'),
+  threadId: 'thread-1',
   prompt: 'A 2-minute ambient piano piece with gentle strings',
   // duration: 120  // ← does nothing; rely on the prompt
 })
@@ -1184,6 +1230,7 @@ generateAudio({
 // For fal: duration works and is translated per-model
 generateAudio({
   adapter: falAudio('fal-ai/minimax-music/v2'),
+  threadId: 'thread-1',
   prompt: 'upbeat synth melody',
   duration: 60, // → music_length_ms: 60_000
 })
@@ -1207,6 +1254,7 @@ import { geminiSpeech } from '@tanstack/ai-gemini'
 
 generateSpeech({
   adapter: geminiSpeech('gemini-2.5-pro-preview-tts'),
+  threadId: 'thread-1',
   text: '[Alice] Hi. [Bob] Hello!',
   modelOptions: {
     multiSpeakerVoiceConfig: {
@@ -1239,6 +1287,7 @@ time rather than getting silently wrong output.
 // WRONG — dall-e-3 has no edit/inputs API; image parts are a type error
 generateImage({
   adapter: openaiImage('dall-e-3'),
+  threadId: 'thread-1',
   prompt: [
     { type: 'text', content: 'Edit this' },
     { type: 'image', source: { type: 'url', value: url } }, // ❌ type error
@@ -1248,6 +1297,7 @@ generateImage({
 // WRONG — Imagen is text-to-image only; same compile-time rejection
 generateImage({
   adapter: geminiImage('imagen-4.0-generate-001'),
+  threadId: 'thread-1',
   prompt: [
     { type: 'text', content: 'Edit this' },
     { type: 'image', source: { type: 'url', value: url } }, // ❌ type error
@@ -1265,6 +1315,7 @@ const url = 'https://…/photo.png'
 // CORRECT — use a model that supports image-conditioned generation
 generateImage({
   adapter: openaiImage('gpt-image-2'), // edits up to 16 images
+  threadId: 'thread-1',
   prompt: [
     { type: 'text', content: 'Edit this' },
     { type: 'image', source: { type: 'url', value: url } },
@@ -1273,6 +1324,7 @@ generateImage({
 
 generateImage({
   adapter: geminiImage('gemini-3.1-flash-image'), // native multimodal
+  threadId: 'thread-1',
   prompt: [
     { type: 'text', content: 'Edit this' },
     { type: 'image', source: { type: 'url', value: url } },
@@ -1296,6 +1348,7 @@ import { openaiSpeech } from '@tanstack/ai-openai'
 // When a speech generation sounds wrong or a transcription returns garbage
 generateSpeech({
   adapter: openaiSpeech('tts-1'),
+  threadId: 'thread-1',
   text: 'Hello',
   debug: { provider: true, output: true }, // raw SDK chunks + yielded chunks
 })

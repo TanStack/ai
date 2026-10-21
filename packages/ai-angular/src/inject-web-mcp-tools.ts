@@ -88,7 +88,7 @@ export type InjectPageWebMCPToolsOptions = Omit<
  * pageTools = injectPageWebMCPTools({
  *   filter: (tool) => tool.origin === location.origin,
  * })
- * chat = injectChat({ connection, tools: this.pageTools })
+ * chat = injectChat({ threadId: 'support-1', connection, tools: this.pageTools })
  * ```
  */
 export function injectPageWebMCPTools(

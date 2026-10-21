@@ -90,6 +90,7 @@ export interface UseGenerateImageReturn<
  *
  * function ImageGenerator() {
  *   const { generate, result, isLoading, error, reset } = useGenerateImage({
+ *     threadId: 'hero-image',
  *     connection: fetchServerSentEvents('/api/generate/image'),
  *   })
  *

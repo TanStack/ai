@@ -74,6 +74,7 @@ const handleModelChange = (e: Event) => {
 // Chat setup
 const { messages, sendMessage, isLoading, interrupts, stop } = useChat({
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'guitar-chat',
   tools,
   get forwardedProps() {
     return {

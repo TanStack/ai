@@ -83,6 +83,7 @@ describe.each(apis)('$api adapter with wrapFetch', ({ adapter, sse }) => {
     wrapFetch?: FetchWrapper,
   ) {
     for await (const _ of instance.chatStream({
+      threadId: 'thread-1',
       logger,
       model,
       messages: [{ role: 'user', content: 'Hi' }],

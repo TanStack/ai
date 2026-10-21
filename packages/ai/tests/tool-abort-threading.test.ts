@@ -26,6 +26,7 @@ describe('executeToolCalls abort threading', () => {
     const gen = executeToolCalls(
       calls as any,
       [tool],
+      'thread-1',
       new Map(),
       new Map(),
       undefined,

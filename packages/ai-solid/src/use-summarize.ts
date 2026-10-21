@@ -87,6 +87,7 @@ export interface UseSummarizeReturn<TOutput = SummarizationResult> extends Omit<
  *
  * function Summarizer() {
  *   const { generate, result, isLoading } = useSummarize({
+ *     threadId: 'article-summary',
  *     connection: fetchServerSentEvents('/api/summarize'),
  *   })
  *

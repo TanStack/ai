@@ -57,7 +57,7 @@ export function createInterruptResumeSnapshot() {
  * await result.current.sendMessage("Hello");
  * ```
  */
-export function renderUseChat(options?: UseChatOptions) {
+export function renderUseChat(options: UseChatOptions) {
   const rendered = renderHook(() => useChat(options))
 
   // Adapt SolidJS hook result to React-like API for test compatibility

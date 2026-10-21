@@ -84,6 +84,7 @@ describe('ChatClient runtime context', () => {
     })
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: adapter,
       context: { localUserId: 'local-1', secretToken: 'secret-value' },
       tools: [tool],
@@ -143,6 +144,7 @@ describe('ChatClient runtime context', () => {
     })
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: adapter,
       context: { localUserId: 'local-1' },
       tools: [tool],
@@ -190,6 +192,7 @@ describe('ChatClient runtime context', () => {
     })
 
     client = new ChatClient({
+      threadId: 'thread-1',
       connection: adapter,
       context: { localUserId: 'initial-user' },
       tools: [tool],
@@ -258,6 +261,7 @@ describe('ChatClient runtime context', () => {
     let client: ChatClient<SnapshotTools, ClientContext>
 
     client = new ChatClient<SnapshotTools, ClientContext>({
+      threadId: 'thread-1',
       connection: adapter,
       context: { localUserId: 'snapshot-user' },
       tools: initialTools,
@@ -307,6 +311,7 @@ describe('ChatClient runtime context', () => {
     }).client(() => JSON.parse('null'))
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: adapter,
       tools: [tool],
     })
@@ -356,7 +361,11 @@ describe('ChatClient runtime context', () => {
       outputSchema: asyncCountSchema,
     }).client(() => ({ count: 1 }))
 
-    const client = new ChatClient({ connection: adapter, tools: [tool] })
+    const client = new ChatClient({
+      threadId: 'thread-1',
+      connection: adapter,
+      tools: [tool],
+    })
     await client.sendMessage('call async output tool')
 
     expect(
@@ -400,6 +409,7 @@ describe('ChatClient runtime context', () => {
     }).client(() => ({ ok: true, note: undefined }))
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: adapter,
       tools: [plainTool, schemaTool],
     })
@@ -450,6 +460,7 @@ describe('ChatClient runtime context', () => {
     })
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: adapter,
       tools: [tool],
     })
@@ -472,6 +483,7 @@ describe('ChatClient runtime context', () => {
     }).client(() => ({ count: 1 }))
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: {
         async *connect() {},
       },

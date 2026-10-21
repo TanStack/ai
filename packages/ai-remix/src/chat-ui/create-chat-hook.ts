@@ -18,7 +18,7 @@ type HeadlessOptions<TOptions> = CreateChatOptions<
 >
 
 type ChatInstanceOverrides<TOptions> = {
-  threadId?: string
+  threadId: string
   live?: boolean
   forwardedProps?: Record<string, any>
   initialMessages?: HeadlessOptions<TOptions>['initialMessages']
@@ -29,7 +29,7 @@ type ChatInstanceOverrides<TOptions> = {
  *
  * Returns a bound `createAppChat`, the UI kit (`ui`), and `useChatContext`.
  * Call `createAppChat(handle)` in a Remix setup function. Render
- * `<ui.Chat chat={chat} />`. Pass instance overrides such as `threadId`
+ * `<ui.Chat chat={chat} />`. Pass `threadId` and other instance overrides
  * into `createAppChat(handle, overrides)`.
  */
 export function createChatHook<const TOptions>({
@@ -45,14 +45,12 @@ export function createChatHook<const TOptions>({
 
   function createAppChat(
     handle: Handle<any>,
-    overrides?: ChatInstanceOverrides<TOptions>,
+    overrides: ChatInstanceOverrides<TOptions>,
   ): ChatUIHost<TOptions> {
-    const chat = overrides
-      ? createUnboundChat(handle, {
-          ...(options as HeadlessOptions<TOptions>),
-          ...overrides,
-        })
-      : createUnboundChat(handle, options as HeadlessOptions<TOptions>)
+    const chat = createUnboundChat(handle, {
+      ...(options as HeadlessOptions<TOptions>),
+      ...overrides,
+    })
     // oxlint-disable-next-line eslint-js/no-restricted-syntax -- return shape always includes partial/final; ChatUIHost gates those on TSchema
     return chat as unknown as ChatUIHost<TOptions>
   }

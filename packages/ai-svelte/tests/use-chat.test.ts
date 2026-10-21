@@ -21,6 +21,7 @@ describe('createChat', () => {
     it('projects one immutable reactive snapshot', async () => {
       const onInterruptStateChange = vi.fn()
       const chat = createChat({
+        threadId: 'thread-1',
         connection: createMockConnectionAdapter(),
         initialResumeSnapshot: createInterruptResumeSnapshot(),
         onInterruptStateChange,
@@ -70,7 +71,10 @@ describe('createChat', () => {
       const unsafe = vi
         .spyOn(ChatClient.prototype, 'resumeInterruptsUnsafe')
         .mockResolvedValue(true)
-      const chat = createChat({ connection: createMockConnectionAdapter() })
+      const chat = createChat({
+        threadId: 'thread-1',
+        connection: createMockConnectionAdapter(),
+      })
       const resolver = () => undefined
       const resume = [{ interruptId: 'one', status: 'cancelled' as const }]
 
@@ -90,6 +94,7 @@ describe('createChat', () => {
     const mockConnection = createMockConnectionAdapter({ chunks: [] })
 
     const chat = createChat({
+      threadId: 'thread-1',
       connection: mockConnection,
     })
 
@@ -136,6 +141,7 @@ describe('createChat', () => {
   it('should subscribe immediately when live is true', () => {
     const mockConnection = createMockConnectionAdapter({ chunks: [] })
     const chat = createChat({
+      threadId: 'thread-1',
       connection: mockConnection,
       live: true,
     })
@@ -156,6 +162,7 @@ describe('createChat', () => {
     ]
 
     const chat = createChat({
+      threadId: 'thread-1',
       connection: mockConnection,
       initialMessages,
     })
@@ -221,6 +228,7 @@ describe('createChat', () => {
     const mockConnection = createMockConnectionAdapter({ chunks: [] })
 
     const chat = createChat({
+      threadId: 'thread-1',
       connection: mockConnection,
     })
 
@@ -237,6 +245,7 @@ describe('createChat', () => {
     })
 
     const chat = createChat({
+      threadId: 'thread-1',
       connection: mockConnection,
       forwardedProps: { provider: 'openai' },
     })
@@ -255,6 +264,7 @@ describe('createChat', () => {
     const mockConnection = createMockConnectionAdapter({ chunks: [] })
 
     const chat = createChat({
+      threadId: 'thread-1',
       connection: mockConnection,
     })
 
@@ -266,6 +276,7 @@ describe('createChat', () => {
     const mockConnection = createMockConnectionAdapter({ chunks: [] })
 
     const chat = createChat({
+      threadId: 'thread-1',
       connection: mockConnection,
     })
 
@@ -277,6 +288,7 @@ describe('createChat', () => {
     const mockConnection = createMockConnectionAdapter({ chunks: [] })
 
     const chat = createChat({
+      threadId: 'thread-1',
       connection: mockConnection,
     })
 
@@ -287,6 +299,7 @@ describe('createChat', () => {
     const mockConnection = createMockConnectionAdapter({ chunks: [] })
 
     const chat = createChat({
+      threadId: 'thread-1',
       connection: mockConnection,
     })
 
@@ -297,6 +310,7 @@ describe('createChat', () => {
     const mockConnection = createMockConnectionAdapter({ chunks: [] })
 
     const chat = createChat({
+      threadId: 'thread-1',
       connection: mockConnection,
     })
 
@@ -307,6 +321,7 @@ describe('createChat', () => {
     const mockConnection = createMockConnectionAdapter({ chunks: [] })
 
     const chat = createChat({
+      threadId: 'thread-1',
       connection: mockConnection,
     })
 
@@ -319,6 +334,7 @@ describe('createChat', () => {
     const mockConnection = createMockConnectionAdapter({ chunks: [] })
 
     const chat = createChat({
+      threadId: 'thread-1',
       connection: mockConnection,
     })
 
@@ -331,6 +347,7 @@ describe('createChat', () => {
     const mockConnection = createMockConnectionAdapter({ chunks: [] })
 
     const chat = createChat({
+      threadId: 'thread-1',
       connection: mockConnection,
     })
 
@@ -343,6 +360,7 @@ describe('createChat', () => {
     const mockConnection = createMockConnectionAdapter({ chunks: [] })
 
     const chat = createChat({
+      threadId: 'thread-1',
       connection: mockConnection,
     })
 
@@ -360,6 +378,7 @@ describe('createChat', () => {
       })
 
       const chat = createChat({
+        threadId: 'thread-1',
         connection: mockConnection,
       })
 
@@ -378,6 +397,7 @@ describe('createChat', () => {
       })
 
       const chat = createChat({
+        threadId: 'thread-1',
         connection: mockConnection,
       })
 
@@ -393,6 +413,7 @@ describe('createChat', () => {
       })
 
       const chat = createChat({
+        threadId: 'thread-1',
         connection: mockConnection,
       })
 
@@ -412,6 +433,7 @@ describe('createChat', () => {
   describe('snapshot', () => {
     it('publishes frozen messages and stops updating after dispose', async () => {
       const chat = createChat({
+        threadId: 'thread-1',
         connection: createMockConnectionAdapter({
           chunks: createTextChunks('Hi'),
         }),

@@ -121,6 +121,7 @@ export const Route = createFileRoute('/_npm-github-chat/api/codemode')({
 
         try {
           const stream = chat({
+            threadId: body.threadId,
             adapter: instrumentedAdapter,
             messages,
             tools: [tool, exportConversationToPdfTool],

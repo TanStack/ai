@@ -130,10 +130,9 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   private readonly fetcher:
     | GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
     | undefined
-  private uniqueId: string
   private readonly devtoolsMetadata: AIDevtoolsClientMetadata
   private readonly devtoolsBridge: VideoDevtoolsBridge<TOutput>
-  private threadId: string
+  private readonly threadId: string
   // Server-driven mode (`persistence: true`): no local snapshot store; on mount
   // the client hydrates the last generation for `threadId` from the server.
   private readonly serverDriven: boolean = false
@@ -177,10 +176,8 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       GenerationPersistenceOptions &
       GenerationTransport<VideoGenerateInput, VideoGenerateResult>,
   ) {
-    // `threadId` is the only identity. Do not mint a random id during
-    // construct: hooks build this client during render.
-    this.threadId = options.threadId ?? ''
-    this.uniqueId = this.threadId
+    // `threadId` is the only identity.
+    this.threadId = options.threadId
     this.connection = options.connection
     this.fetcher = options.fetcher
     this.hydrateGenerationHandler = options.hydrateGeneration
@@ -225,10 +222,10 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     const client = this
     return {
       get hookId() {
-        return client.uniqueId
+        return client.threadId
       },
       get clientId() {
-        return client.uniqueId
+        return client.threadId
       },
       get threadId() {
         return client.threadId
@@ -248,7 +245,6 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   }
 
   mountDevtools(): void {
-    this.ensureThreadId()
     // Mounting revives a disposed client. Framework hooks call this from
     // their mount effect, so a dispose → remount cycle (e.g. React
     // StrictMode's mount → cleanup → mount replay against the same memoized
@@ -900,18 +896,6 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       ...(metadata?.framework ? { framework: metadata.framework } : {}),
       ...(metadata?.name ? { name: metadata.name } : {}),
     }
-  }
-
-  private ensureThreadId(): string {
-    if (!this.threadId) {
-      this.threadId = this.generateUniqueId('video')
-    }
-    this.uniqueId = this.threadId
-    return this.threadId
-  }
-
-  private generateUniqueId(prefix: string): string {
-    return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
   }
 
   private createRunContext(

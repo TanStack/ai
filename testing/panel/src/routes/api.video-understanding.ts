@@ -85,6 +85,7 @@ export const Route = createFileRoute('/api/video-understanding')({
           )
 
           const stream = chat({
+            threadId: body.threadId,
             adapter: geminiText(model),
             systemPrompts: [SYSTEM_PROMPT],
             messages,

@@ -347,9 +347,7 @@ export {
   provideSandboxDurability,
   DurableAttachNotSupportedError,
   DurableRunIdRequiredError,
-  DurableThreadIdRequiredError,
   resolveDurableRunId,
-  resolveDurableThreadId,
   journalOptionsFor,
   alignedIfAttaching,
 } from './durability'

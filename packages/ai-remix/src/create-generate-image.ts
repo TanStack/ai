@@ -51,6 +51,7 @@ export type CreateGenerateImageReturn<TOutput = ImageGenerationResult> =
  *
  * function ImageGenerator(handle: Handle) {
  *   const image = createGenerateImage(handle, {
+ *     threadId: 'hero-image',
  *     connection: fetchServerSentEvents('/api/generate/image'),
  *   })
  *
@@ -69,7 +70,7 @@ export type CreateGenerateImageReturn<TOutput = ImageGenerationResult> =
  * ```
  */
 export function createGenerateImage<TTransformed = void>(
-  handle: Pick<Handle, 'id' | 'update' | 'signal'>,
+  handle: Pick<Handle, 'update' | 'signal'>,
   options: Omit<
     CreateGenerateImageOptions,
     'onResult' | 'persistence' | 'threadId'

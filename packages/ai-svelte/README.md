@@ -37,6 +37,7 @@ yarn add @tanstack/ai-svelte
 
   const chat = createChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-42',
   })
 </script>
 
@@ -81,7 +82,7 @@ This library uses Svelte 5 runes (`$state`) internally, providing a clean API wh
 
 ```svelte
 <script>
-  const chat = createChat({})
+  const chat = createChat({ threadId: 'support-42' })
 
   // No $ needed - these are reactive getters!
   console.log(chat.messages)

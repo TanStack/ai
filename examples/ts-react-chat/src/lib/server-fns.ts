@@ -162,6 +162,7 @@ export const generateSpeechFn = createServerFn({ method: 'POST' })
     }
     return generateSpeech({
       adapter,
+      threadId: 'server-fn-speech',
       text: data.text,
       voice: data.voice,
       format: data.format,
@@ -191,6 +192,7 @@ export const transcribeFn = createServerFn({ method: 'POST' })
     }
     return generateTranscription({
       adapter,
+      threadId: 'server-fn-transcription',
       audio: data.audio,
       language: data.language,
       responseFormat: data.responseFormat,
@@ -220,6 +222,7 @@ export const generateAudioFn = createServerFn({ method: 'POST' })
     }
     return generateAudio({
       adapter,
+      threadId: 'server-fn-audio',
       prompt: data.prompt,
       duration: data.duration,
     })
@@ -237,6 +240,7 @@ export const summarizeFn = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     return summarize({
       adapter: openaiSummarize((data.model ?? 'gpt-4o-mini') as 'gpt-4o-mini'),
+      threadId: 'server-fn-summarize',
       text: data.text,
       maxLength: data.maxLength,
       style: data.style,
@@ -257,6 +261,7 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
     // Create the job
     const { jobId } = await generateVideo({
       adapter,
+      threadId: 'server-fn-video',
       prompt: data.prompt,
       size: data.size as any,
       duration: data.duration,
@@ -265,13 +270,21 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
     // Poll until complete (max 10 minutes)
     const MAX_POLLS = 120
     let polls = 0
-    let status = await getVideoJobStatus({ adapter, jobId })
+    let status = await getVideoJobStatus({
+      adapter,
+      jobId,
+      threadId: 'server-fn-video',
+    })
     while (status.status !== 'completed' && status.status !== 'failed') {
       if (++polls > MAX_POLLS) {
         throw new Error('Video generation timed out')
       }
       await new Promise((r) => setTimeout(r, 5000))
-      status = await getVideoJobStatus({ adapter, jobId })
+      status = await getVideoJobStatus({
+        adapter,
+        jobId,
+        threadId: 'server-fn-video',
+      })
     }
 
     if (status.status === 'failed') {
@@ -388,6 +401,7 @@ export const generateSpeechStreamFn = createServerFn({ method: 'POST' })
     return toServerSentEventsResponse(
       generateSpeech({
         adapter,
+        threadId: 'server-fn-speech',
         text: data.text,
         voice: data.voice,
         format: data.format,
@@ -420,6 +434,7 @@ export const transcribeStreamFn = createServerFn({ method: 'POST' })
     return toServerSentEventsResponse(
       generateTranscription({
         adapter,
+        threadId: 'server-fn-transcription',
         audio: data.audio,
         language: data.language,
         responseFormat: data.responseFormat,
@@ -444,6 +459,7 @@ export const summarizeStreamFn = createServerFn({ method: 'POST' })
         adapter: openaiSummarize(
           (data.model ?? 'gpt-4o-mini') as 'gpt-4o-mini',
         ),
+        threadId: 'server-fn-summarize',
         text: data.text,
         maxLength: data.maxLength,
         style: data.style,
@@ -464,6 +480,7 @@ export const generateVideoStreamFn = createServerFn({ method: 'POST' })
     return toServerSentEventsResponse(
       generateVideo({
         adapter: grokVideo('grok-imagine-video'),
+        threadId: 'server-fn-video',
         prompt: data.prompt,
         size: data.size as any,
         duration: data.duration,
@@ -484,6 +501,7 @@ export const chatFn = createServerFn({ method: 'POST' })
     toServerSentEventsResponse(
       chat({
         adapter: openaiText('gpt-5.2'),
+        threadId: 'server-fn-chat',
         messages: data.messages as any,
         systemPrompts: [
           'You are a helpful assistant. Keep replies short and friendly.',

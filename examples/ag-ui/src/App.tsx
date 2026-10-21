@@ -101,7 +101,7 @@ function AgUiChat({
   placeholder: string
   emptyLabel: string
 }) {
-  const chat = useChat({ connection })
+  const chat = useChat({ threadId: 'ag-ui-chat', connection })
   return (
     <LabelsContext.Provider value={{ placeholder, emptyLabel }}>
       <UI.Chat chat={chat} />

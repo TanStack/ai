@@ -174,16 +174,19 @@ function QueueingPage() {
   // rules of hooks hold. The shared composer broadcasts the same text to all
   // three via their sendMessage functions.
   const fifo = useChat({
+    threadId: 'queueing-fifo',
     connection: fetchServerSentEvents('/api/tanchat'),
     forwardedProps: body,
     queue: FIFO.config,
   })
   const interrupt = useChat({
+    threadId: 'queueing-interrupt',
     connection: fetchServerSentEvents('/api/tanchat'),
     forwardedProps: body,
     queue: INTERRUPT.config,
   })
   const batch = useChat({
+    threadId: 'queueing-batch',
     connection: fetchServerSentEvents('/api/tanchat'),
     forwardedProps: body,
     queue: BATCH.config,

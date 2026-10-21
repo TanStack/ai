@@ -50,6 +50,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: geminiText('gemini-2.5-pro'),
   messages,
+  threadId: 'thread-1',
   // Thinking: a budget on Gemini 2.5, a level on Gemini 3
   reasoning: { level: 'high', budgetTokens: 4096 },
   modelOptions: {

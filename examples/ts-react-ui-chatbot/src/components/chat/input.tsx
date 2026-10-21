@@ -89,6 +89,7 @@ export function ChatPromptInput() {
   }, [])
 
   const { generate: transcribe, isLoading: isTranscribing } = useTranscription({
+    threadId: 'voice-input',
     connection: fetchServerSentEvents('/api/transcribe'),
     byok,
     byokProvider: () => 'openai',

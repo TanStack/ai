@@ -116,6 +116,7 @@ describe('chat({ outputSchema }) — combined event source', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
@@ -142,6 +143,7 @@ describe('chat({ outputSchema }) — combined event source', () => {
     })
 
     const person = await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'extract' }],
       outputSchema: PersonSchema,
@@ -164,6 +166,7 @@ describe('chat({ outputSchema }) — combined event source', () => {
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
@@ -207,6 +210,7 @@ describe('chat({ outputSchema }) — combined event source', () => {
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
@@ -235,6 +239,7 @@ describe('chat({ outputSchema }) — combined event source', () => {
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
@@ -265,6 +270,7 @@ describe('chat({ outputSchema }) — combined event source', () => {
 
     await expect(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,

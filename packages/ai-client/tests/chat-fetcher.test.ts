@@ -19,6 +19,7 @@ describe('ChatClient — fetcher transport', () => {
 
     let finalMessages: Array<UIMessage> = []
     const client = new ChatClient({
+      threadId: 'thread-1',
       fetcher,
       onMessagesChange: (m) => {
         finalMessages = m
@@ -68,6 +69,7 @@ describe('ChatClient — fetcher transport', () => {
 
     let finalMessages: Array<UIMessage> = []
     const client = new ChatClient({
+      threadId: 'thread-1',
       fetcher,
       onMessagesChange: (m) => {
         finalMessages = m
@@ -101,7 +103,7 @@ describe('ChatClient — fetcher transport', () => {
       })
     }
 
-    const client = new ChatClient({ fetcher })
+    const client = new ChatClient({ threadId: 'thread-1', fetcher })
     const sendPromise = client.sendMessage('hi')
     await fetcherStarted
     expect(observedSignal).toBeDefined()
@@ -118,6 +120,7 @@ describe('ChatClient — fetcher transport', () => {
     }
     let observedError: Error | undefined
     const client = new ChatClient({
+      threadId: 'thread-1',
       fetcher,
       onError: (err) => {
         observedError = err
@@ -146,6 +149,7 @@ describe('ChatClient — fetcher transport', () => {
 
     let observedError: Error | undefined
     const client = new ChatClient({
+      threadId: 'thread-1',
       fetcher,
       onError: (err) => {
         observedError = err
@@ -172,6 +176,7 @@ describe('ChatClient — fetcher transport', () => {
     })
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       fetcher,
       forwardedProps: { provider: 'openai' },
     })
@@ -220,6 +225,7 @@ describe('ChatClient — fetcher transport', () => {
 
     let observedError: Error | undefined
     const client = new ChatClient({
+      threadId: 'thread-1',
       fetcher,
       onError: (err) => {
         observedError = err
@@ -242,6 +248,7 @@ describe('ChatClient — fetcher transport', () => {
 
     let observedError: Error | undefined
     const client = new ChatClient({
+      threadId: 'thread-1',
       fetcher,
       onError: (err) => {
         observedError = err
@@ -272,6 +279,7 @@ describe('ChatClient — fetcher transport', () => {
 
     let observedError: Error | undefined
     const client = new ChatClient({
+      threadId: 'thread-1',
       fetcher,
       onError: (err) => {
         observedError = err
@@ -299,6 +307,7 @@ describe('ChatClient — fetcher transport', () => {
 
     let finalMessages: Array<UIMessage> = []
     const client = new ChatClient({
+      threadId: 'thread-1',
       fetcher,
       onMessagesChange: (m) => {
         finalMessages = m
@@ -334,6 +343,7 @@ describe('ChatClient — fetcher transport', () => {
     }
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       fetcher,
       onChunk: (c) => observedChunks.push(c),
     })

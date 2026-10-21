@@ -87,6 +87,7 @@ export interface UseSummarizeReturn<TOutput = SummarizationResult> extends Omit<
  * import { fetchServerSentEvents } from '@tanstack/ai-client'
  *
  * const { generate, result, isLoading } = useSummarize({
+ *   threadId: 'article-summary',
  *   connection: fetchServerSentEvents('/api/summarize'),
  * })
  * </script>

@@ -30,6 +30,7 @@ export const Route = createFileRoute('/api/video/stream')({
         try {
           const stream = generateVideo({
             adapter,
+            threadId: body.threadId,
             prompt,
             stream: true,
             pollingInterval: 500,

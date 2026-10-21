@@ -151,6 +151,7 @@ describe('Groq adapters', () => {
 
       await adapter.structuredOutput({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'llama-3.3-70b-versatile',
           messages: [{ role: 'user', content: 'Return a person as json' }],
           logger: testLogger,
@@ -185,6 +186,7 @@ describe('Groq adapters', () => {
 
       await adapter.structuredOutput({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'moonshotai/kimi-k2-instruct-0905',
           messages: [{ role: 'user', content: 'Return a person as json' }],
           logger: testLogger,
@@ -231,6 +233,7 @@ describe('Groq adapters', () => {
       }
 
       for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
         model: 'llama-3.3-70b-versatile',
         messages: [{ role: 'user', content: 'Hello' }],
         modelOptions,
@@ -325,6 +328,7 @@ describe('Groq AG-UI event emission', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'llama-3.3-70b-versatile',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
@@ -375,6 +379,7 @@ describe('Groq AG-UI event emission', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'llama-3.3-70b-versatile',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
@@ -436,6 +441,7 @@ describe('Groq AG-UI event emission', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'llama-3.3-70b-versatile',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
@@ -529,6 +535,7 @@ describe('Groq AG-UI event emission', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'llama-3.3-70b-versatile',
       messages: [{ role: 'user', content: 'Weather in Berlin?' }],
       tools: [weatherTool],
@@ -583,6 +590,7 @@ describe('Groq AG-UI event emission', () => {
     const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'llama-3.3-70b-versatile',
       messages: [{ role: 'user', content: 'Weather in Berlin?' }],
       tools: [weatherTool],
@@ -643,6 +651,7 @@ describe('Groq AG-UI event emission', () => {
     const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'llama-3.3-70b-versatile',
       messages: [{ role: 'user', content: 'Weather in Berlin?' }],
       tools: [weatherTool],
@@ -693,6 +702,7 @@ describe('Groq AG-UI event emission', () => {
     const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'llama-3.3-70b-versatile',
       messages: [{ role: 'user', content: 'Weather in Berlin?' }],
       tools: [weatherTool],
@@ -742,6 +752,7 @@ describe('Groq AG-UI event emission', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'llama-3.3-70b-versatile',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
@@ -793,6 +804,7 @@ describe('Groq AG-UI event emission', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'llama-3.3-70b-versatile',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
@@ -872,6 +884,7 @@ describe('Groq AG-UI event emission', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'llama-3.3-70b-versatile',
       messages: [{ role: 'user', content: 'Say hello' }],
       logger: testLogger,

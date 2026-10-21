@@ -3,7 +3,6 @@ import { createGenerationDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import {
   useCallback,
   useEffect,
-  useId,
   useMemo,
   useRef,
   useSyncExternalStore,
@@ -63,11 +62,10 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
    * `` `video-${videoId}-start-frame` ``). It is also sent as the AG-UI thread
    * id on the wire, which the protocol requires.
    *
-   * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations. If
-   * omitted, the client mints a wire id after mount.
+   * Required. A generated id would change on every reload, so persistence
+   * would restore nothing.
    */
-  threadId?: string
+  threadId: string
   /**
    * Server-driven hydration handler for `persistence: true` when the
    * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
@@ -206,10 +204,6 @@ export function useGenerationWithDevtoolsIdentity<
   TInput
 > {
   type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
-  const hookId = useId()
-  // The hook identity is `threadId`. `hookId` is only a React recreation key.
-  const clientIdentity = options.threadId ?? hookId
-
   const optionsRef = useRef(options)
   optionsRef.current = options
   const disposedRef = useRef(false)
@@ -261,15 +255,10 @@ export function useGenerationWithDevtoolsIdentity<
       },
     }
 
-    const persistenceProps =
-      typeof opts.threadId === 'string' && opts.persistence
-        ? {
-            persistence: opts.persistence,
-            threadId: opts.threadId,
-          }
-        : {
-            ...(opts.threadId !== undefined && { threadId: opts.threadId }),
-          }
+    const persistenceProps = {
+      persistence: opts.persistence,
+      threadId: opts.threadId,
+    }
 
     if (opts.connection) {
       return new GenerationClient<TInput, TResult, TOutput>({
@@ -290,7 +279,7 @@ export function useGenerationWithDevtoolsIdentity<
     throw new Error(
       'useGeneration requires either a connection or fetcher option',
     )
-  }, [clientIdentity, hookId])
+  }, [options.threadId])
 
   const snapshot = useSyncExternalStore(
     client.subscribe,

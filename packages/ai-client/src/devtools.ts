@@ -581,9 +581,8 @@ function getActiveBridgeRegistry(): Map<string, ActiveDevtoolsBridge> {
 }
 
 /**
- * `{...options}` turns `get hookId()` into a data property. Chat/generation
- * clients mint `threadId` after construct (`ensureThreadId` on mount), so a
- * spread would freeze `hookId: ''` and DevTools could never select the hook.
+ * `{...options}` turns `get hookId()` into a data property. Keep the identity
+ * getters live, so DevTools always reads the client's current values.
  */
 function withLiveClientIdentity<TSnapshot extends object>(
   identity: Pick<

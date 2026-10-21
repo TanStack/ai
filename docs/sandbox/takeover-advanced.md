@@ -202,10 +202,7 @@ Treat it as a bug to fix. Do not catch it and continue. The log already went to 
 
 `threadId` is in every chunk. An attach that makes a new `threadId` replays a stream whose first chunk already differs from the log. Alignment fails at index 0 with `JournalReplayThreadIdMismatchError`, a subclass of `JournalReplayDivergedError`, even though the agent did the same thing.
 
-So an attaching durable run throws `DurableThreadIdRequiredError` when it has no `threadId`:
-
-- A **fresh** durable run needs no caller `threadId`. That run sets it.
-- An **attaching** durable run must reuse the one on the record. `driveRun` in the [setup](./takeover#set-up-the-server) passes `threadId: input.threadId` for this reason.
+So an attaching durable run must pass the `threadId` on the record. `driveRun` in the [setup](./takeover#set-up-the-server) passes `threadId: input.threadId` for this reason.
 
 ## What the RunStore must keep
 

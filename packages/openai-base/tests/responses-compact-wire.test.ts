@@ -173,6 +173,7 @@ describe('Responses adapter compact', () => {
     ).compact({ model, messages: [{ role: 'user', content: 'Plan the trip' }] })
 
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       logger,
       model,
       messages: [...compactedHistory, { role: 'user', content: 'Go on' }],
@@ -234,6 +235,7 @@ describe('Responses adapter compact', () => {
     ).compact({ model, messages: [{ role: 'user', content: 'See the file' }] })
 
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       logger,
       model,
       messages: history,

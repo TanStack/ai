@@ -14,6 +14,11 @@ interface SelectRelevantSnippetsOptions {
   messages: Array<ModelMessage>
 
   /**
+   * Thread id of the conversation. The selection chat uses it.
+   */
+  threadId: string
+
+  /**
    * Snippet index (lightweight metadata)
    */
   snippetIndex: Array<SnippetIndexEntry>
@@ -35,6 +40,7 @@ interface SelectRelevantSnippetsOptions {
 export async function selectRelevantSnippets({
   adapter,
   messages,
+  threadId,
   snippetIndex,
   maxSnippets,
   storage,
@@ -92,6 +98,7 @@ Respond with only the JSON array, no explanation. Example: ["snippet_name_1", "s
     // Use chat to get the selection
     const stream = chat({
       adapter,
+      threadId,
       messages: [
         {
           role: 'user',

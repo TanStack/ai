@@ -155,6 +155,7 @@ describe('raw tool arguments through chat()', () => {
     })
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'check' }],
         tools: [

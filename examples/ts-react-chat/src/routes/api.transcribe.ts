@@ -126,7 +126,7 @@ export const Route = createFileRoute('/api/transcribe')({
             responseFormat,
             modelOptions,
             stream: true,
-            ...(threadId ? { threadId } : {}),
+            threadId,
             ...(runId ? { runId } : {}),
             // Transcription produces text, not media — what gets persisted here
             // is the run record plus the INPUT audio as an artifact, so a

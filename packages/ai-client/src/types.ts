@@ -883,15 +883,14 @@ export type ChatPersistenceOption<
 /**
  * The `persistence` / `threadId` pairing for `ChatClient` and the chat hooks.
  *
- * Persistence that is on (`true` or a storage adapter) requires a `threadId`.
- * A minted id changes every reload, so nothing would restore. The compiler
- * asks for the conversation id instead.
+ * `threadId` is always required. It is the conversation id for the wire,
+ * DevTools, and persistence. Use a stable id for each conversation, for
+ * example the id from your route or database.
  *
- * Omit `persistence`, or set it to `false`, and `threadId` stays optional.
- * The client then mints one after mount for the wire and DevTools.
+ * `history` is allowed only with `persistence: true`.
  *
  * Intersect this onto `ChatClientOptions`. Do not apply a later plain `Omit`
- * to that type: it collapses the union and the requirement disappears. Use
+ * to that type: it collapses the union and the `history` rule disappears. Use
  * {@link DistributedOmit}.
  */
 export type ChatPersistenceOptions<
@@ -909,13 +908,8 @@ export type ChatPersistenceOptions<
       }
     }
   | {
-      persistence: ChatClientPersistence<TTools>
+      persistence?: ChatClientPersistence<TTools> | false | undefined
       threadId: string
-      history?: never
-    }
-  | {
-      persistence?: false | undefined
-      threadId?: string
       history?: never
     }
 
@@ -1217,8 +1211,8 @@ export interface ChatClientBaseOptions<
 
 /**
  * Options for `ChatClient`. Exactly one of `connection` or `fetcher` must be
- * provided — the type-level XOR is enforced via `ChatTransport`. Persistence
- * that is on requires a `threadId` via {@link ChatPersistenceOptions}.
+ * provided — the type-level XOR is enforced via `ChatTransport`. `threadId`
+ * is required. See {@link ChatPersistenceOptions}.
  */
 export type ChatClientOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,

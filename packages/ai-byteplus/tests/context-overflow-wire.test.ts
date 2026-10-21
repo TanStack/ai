@@ -15,6 +15,7 @@ async function runError(status: number, body: object) {
     fetch,
     maxRetries: 0,
   }).chatStream({
+    threadId: 'thread-1',
     logger,
     model,
     messages: [{ role: 'user', content: 'Hi' }],

@@ -96,7 +96,7 @@ describe('useChat() return type', () => {
 
     it('uses threadId as hook identity, not id', () => {
       type O = UseChatOptions<any>
-      expectTypeOf<O['threadId']>().toEqualTypeOf<string | undefined>()
+      expectTypeOf<O['threadId']>().toEqualTypeOf<string>()
       // @ts-expect-error - identity is threadId; hook-level `id` was dropped
       type _Id = O['id']
     })
@@ -115,6 +115,7 @@ describe('useChat() return type', () => {
         }).client(() => ({ ok: true }))
 
         const { messages } = useChat({
+          threadId: 'thread-1',
           connection: { connect: async function* () {} },
           tools: [guitarTool, cartTool],
         })
@@ -144,6 +145,7 @@ describe('useChat() return type', () => {
 
         const tools = [guitarTool, cartTool]
         const { messages } = useChat({
+          threadId: 'thread-1',
           connection: { connect: async function* () {} },
           tools,
         })
@@ -177,6 +179,7 @@ describe('useChat() return type', () => {
         }).client(() => ({ deleted: true }))
 
         const { messages } = useChat({
+          threadId: 'thread-1',
           connection: { connect: async function* () {} },
           tools: [guitarTool, approvalTool],
         })
@@ -226,6 +229,7 @@ describe('useChat() return type', () => {
         }).client(() => ({ deleted: true }))
 
         const { messages } = useChat({
+          threadId: 'thread-1',
           connection: { connect: async function* () {} },
           tools: [regularTool, approvalTool],
         })

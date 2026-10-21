@@ -70,6 +70,7 @@ const structuredOutput = (
 ) =>
   adapter.structuredOutput({
     chatOptions: {
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -143,6 +144,7 @@ async function runChat(
   })
   const events: Array<StreamChunk> = []
   for await (const event of chat({
+    threadId: 'thread-1',
     adapter,
     messages: [{ role: 'user', content: 'Hello' }],
     retry: { maxRetries: 1 },

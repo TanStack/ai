@@ -60,7 +60,7 @@ export type DeepPartial<T> =
  *
  * Call `createChat(handle, options)` in Remix setup with Handle from
  * `remix/ui`. Handle is the first argument of the helper. It is not part of
- * this type. The default id is `options.threadId ?? handle.id`.
+ * this type. `threadId` is required.
  *
  * Pass either `connection` or `fetcher`. The XOR is enforced at the type
  * level via `ChatTransport`.

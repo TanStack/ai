@@ -40,6 +40,7 @@ function mockVoiceAdapter(
 describe('generateVoice', () => {
   it('returns the adapter result', async () => {
     const result = await generateVoice({
+      threadId: 'thread-1',
       adapter: mockVoiceAdapter(),
       prompt: 'A warm, gravelly narrator',
       debug: false,
@@ -61,6 +62,7 @@ describe('generateVoice', () => {
     const abort = new AbortController()
 
     await generateVoice({
+      threadId: 'thread-1',
       adapter: mockVoiceAdapter({ generateVoice: adapterFn }),
       prompt: 'A calm meditation guide',
       referenceAudio: 'QUJD',
@@ -96,6 +98,7 @@ describe('generateVoice', () => {
     })
 
     const pending = generateVoice({
+      threadId: 'thread-1',
       adapter,
       prompt: 'A warm, gravelly narrator',
       abortSignal: abort.signal,
@@ -112,6 +115,7 @@ describe('generateVoice', () => {
 
     await expect(
       generateVoice({
+        threadId: 'thread-1',
         adapter: mockVoiceAdapter({
           generateVoice: () => new Promise(() => {}),
         }),
@@ -136,6 +140,7 @@ describe('generateVoice', () => {
     }
 
     const result = await generateVoice({
+      threadId: 'thread-1',
       adapter: mockVoiceAdapter({
         generateVoice: async () => ({
           id: 'voice-mw',
@@ -177,6 +182,7 @@ describe('generateVoice', () => {
 
     await expect(
       generateVoice({
+        threadId: 'thread-1',
         adapter: mockVoiceAdapter({
           generateVoice: async () => {
             throw new Error('provider exploded')
@@ -196,6 +202,7 @@ describe('generateVoice', () => {
     const adapterFn = vi.fn()
     await expect(
       generateVoice({
+        threadId: 'thread-1',
         adapter: mockVoiceAdapter({ generateVoice: adapterFn }),
         name: 'Nameless',
         debug: false,
@@ -206,6 +213,7 @@ describe('generateVoice', () => {
 
   it('accepts reference audio alone, for clone-only providers', async () => {
     const result = await generateVoice({
+      threadId: 'thread-1',
       adapter: mockVoiceAdapter(),
       referenceAudio: 'QUJD',
       debug: false,
@@ -217,6 +225,7 @@ describe('generateVoice', () => {
   it('streams the result when asked', async () => {
     const chunks = []
     for await (const chunk of generateVoice({
+      threadId: 'thread-1',
       adapter: mockVoiceAdapter(),
       prompt: 'A warm, gravelly narrator',
       stream: true,

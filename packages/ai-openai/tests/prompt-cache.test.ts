@@ -61,6 +61,7 @@ async function sendResponses(
   adapter.sdk.responses.create = create as typeof adapter.sdk.responses.create
   await drain(
     adapter.chatStream({
+      threadId: 'thread-1',
       logger,
       model,
       messages,
@@ -89,6 +90,7 @@ async function sendChat(
     create as typeof adapter.sdk.chat.completions.create
   await drain(
     adapter.chatStream({
+      threadId: 'thread-1',
       logger,
       model: 'gpt-4.1',
       messages,

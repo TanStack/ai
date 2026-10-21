@@ -24,6 +24,7 @@ const adapters = [
     adapter: 'Chat Completions',
     send: (fetch, wrapFetch) =>
       createGroqText(model, 'test-key', { fetch }).chatStream({
+        threadId: 'thread-1',
         logger,
         model,
         messages,

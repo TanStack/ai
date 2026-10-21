@@ -515,7 +515,16 @@ type TextActivityOptionsWithContext<
 > = Omit<
   TextActivityOptions<TAdapter, TSchema, TStream, any, TAgents>,
   'tools' | 'middleware' | 'context' | 'interrupts' | 'toolChoice'
-> & {
+> &
+  TypedChatFields<TTools, TInterrupts, TContext, TMiddleware>
+
+/** The `chat()` fields whose types come from the tools and middleware. */
+type TypedChatFields<
+  TTools,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>,
+  TContext,
+  TMiddleware extends Array<unknown> | undefined,
+> = {
   tools?: TTools
   /** {@link TextActivityOptions.toolChoice}, with the names of `tools` as suggestions. */
   toolChoice?: ToolChoice<ToolNames<TTools>>
@@ -639,8 +648,11 @@ export interface TextActivityOptions<
    * catalog. Optional — defaults to `{ includeDescription: 'none' }`.
    */
   lazyToolsConfig?: LazyToolsConfig
-  /** Thread/conversation ID for AG-UI protocol. Auto-generated if not provided. */
-  threadId?: TextOptions['threadId']
+  /**
+   * Thread/conversation id for the AG-UI protocol. Required. Use a stable id
+   * for each conversation.
+   */
+  threadId: TextOptions['threadId']
   /**
    * How the model uses the tools: `'auto'`, `'none'`, `'required'`, or
    * `{ type: 'tool', name }`. It applies to every model call of this
@@ -780,6 +792,8 @@ export interface TextActivityOptions<
 /**
  * Create typed options for the chat() function without executing.
  * This is useful for pre-defining configurations with full type inference.
+ * `threadId` is optional here. `chat()` still needs it, so pass it on the
+ * call.
  *
  * @example
  * ```ts
@@ -787,7 +801,7 @@ export interface TextActivityOptions<
  *   adapter: anthropicText('claude-sonnet-4-5'),
  * })
  *
- * const stream = chat({ ...chatOptions, messages })
+ * const stream = chat({ ...chatOptions, messages, threadId })
  * ```
  */
 export function createChatOptions<
@@ -806,15 +820,17 @@ export function createChatOptions<
   TContext = unknown,
   const TMiddleware extends Array<unknown> | undefined = undefined,
 >(
-  options: TextActivityOptionsWithContext<
-    TAdapter,
-    TSchema,
-    TStream,
-    TTools,
-    TInterrupts,
-    TContext,
-    TMiddleware
-  >,
+  options: Omit<
+    TextActivityOptions<TAdapter, TSchema, TStream, any>,
+    | 'tools'
+    | 'middleware'
+    | 'context'
+    | 'interrupts'
+    | 'toolChoice'
+    | 'threadId'
+  > & {
+    threadId?: string
+  } & TypedChatFields<TTools, TInterrupts, TContext, TMiddleware>,
 ): Omit<
   TextActivityOptions<
     TAdapter,
@@ -822,8 +838,9 @@ export function createChatOptions<
     TStream,
     InferredContext<TTools, TMiddleware>
   >,
-  'tools' | 'middleware' | 'interrupts' | 'context'
+  'tools' | 'middleware' | 'interrupts' | 'context' | 'threadId'
 > & {
+  threadId?: string
   tools?: TTools
   interrupts?: TInterrupts
   middleware?: ExactMiddlewareOption<TTools, TContext, TInterrupts, TMiddleware>
@@ -1225,7 +1242,7 @@ class TextEngine<
       ? { signal: config.params.abortController.signal }
       : undefined
     this.effectiveSignal = config.params.abortController?.signal
-    this.threadId = config.params.threadId || this.createId('thread')
+    this.threadId = config.params.threadId
     this.runIdOverride = config.params.runId
     this.parentRunIdOverride = config.params.parentRunId
     this.subagentRunIdOverride = config.params.subagentRunId
@@ -2597,6 +2614,7 @@ class TextEngine<
     const generator = executeToolCalls(
       executablePendingCalls,
       this.resolveExecutableTools(executablePendingCalls),
+      this.threadId,
       approvals,
       clientToolResults,
       (eventName, data, options) =>
@@ -2607,7 +2625,6 @@ class TextEngine<
       this.toolResumeState(),
       this.params.toolExecution,
       this.params.repairToolInput,
-      this.threadId,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -2832,6 +2849,7 @@ class TextEngine<
     const generator = executeToolCalls(
       executableToolCalls,
       this.resolveExecutableTools(executableToolCalls),
+      this.threadId,
       approvals,
       clientToolResults,
       (eventName, data, options) =>
@@ -2842,7 +2860,6 @@ class TextEngine<
       this.toolResumeState(),
       this.params.toolExecution,
       this.params.repairToolInput,
-      this.threadId,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -3925,6 +3942,7 @@ class TextEngine<
     return executeToolCalls(
       pendingCalls,
       tools,
+      this.threadId,
       approvals,
       clientToolResults,
       undefined,
@@ -3934,7 +3952,6 @@ class TextEngine<
       this.toolResumeState(),
       undefined,
       this.params.repairToolInput,
-      this.threadId,
     )
   }
 
@@ -5913,13 +5930,12 @@ type RuntimeTextActivityOptions<
 }
 
 /**
- * Resolve the `promptCache` option once, before chat() makes up any ids. The
- * key is the option key, else the caller's threadId. A made-up threadId is
- * never the key: a random key splits OpenAI cache routing.
+ * Resolve the `promptCache` option once. The key is the option key, else the
+ * caller's threadId.
  */
 function resolvePromptCache(options: {
   promptCache?: PromptCacheOptions
-  threadId?: string
+  threadId: string
 }): ResolvedPromptCache {
   const option: Exclude<PromptCacheOptions, string> | undefined =
     typeof options.promptCache === 'string'
@@ -6131,7 +6147,7 @@ async function* streamTextChunks(
     return
   }
   if (bag && agents.length > 0) {
-    const threadId = options.threadId ?? `thread-${Date.now()}`
+    const threadId = options.threadId
     const runId = options.runId ?? `run-${Date.now()}`
     const messages = options.messages ?? []
     // A resume can answer a child's interrupts. Those entries go to the child
@@ -6206,7 +6222,7 @@ async function* runRoutedSubagents(
     yield* runChatEngine(options, engineRef)
     return
   }
-  const threadId = options.threadId ?? `thread-${Date.now()}`
+  const threadId = options.threadId
   const runId = options.runId ?? `run-${Date.now()}`
   const messages = options.messages ?? []
   const turn = readSubagentTurn(messages, options.resume)
@@ -6812,13 +6828,12 @@ async function* fallbackStructuredOutputStream(
   onAdapterError?: (err: unknown) => void,
 ): AsyncIterable<AdapterYieldChunk> {
   const { chatOptions } = options
-  // Synthesize run/thread/message IDs only when the caller didn't supply them.
+  // Synthesize run/message IDs. The run id only when the caller didn't supply one.
   // Prefix `fallback-` (not `mock-`) because this is production fallback code
   // used by adapters without native `structuredOutputStream`, not test fixtures.
   const fallbackRand = Math.random().toString(36).slice(2)
   const runId = chatOptions.runId ?? `fallback-${Date.now()}-${fallbackRand}`
-  const threadId =
-    chatOptions.threadId ?? `fallback-${Date.now()}-${fallbackRand}`
+  const threadId = chatOptions.threadId
   const messageId = `fallback-${Date.now()}-${fallbackRand}`
   const model = chatOptions.model
   const startedAt = Date.now()

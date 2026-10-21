@@ -181,7 +181,11 @@ describe('usePageWebMCPTools (Vue)', () => {
       const pageTools = usePageWebMCPTools({
         filter: (tool) => tool.name !== 'blocked',
       })
-      useChat({ connection: createMockConnectionAdapter(), tools: pageTools })
+      useChat({
+        threadId: 'thread-1',
+        connection: createMockConnectionAdapter(),
+        tools: pageTools,
+      })
       return pageTools
     })
 

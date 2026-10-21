@@ -239,6 +239,7 @@ describe('Bedrock replay parity', () => {
         for (const event of events) yield event
       })(),
       () => 'id-' + id++,
+      { threadId: 'thread-1' },
     ))
       chunks.push(chunk)
     const signatures = chunks.filter(
@@ -351,6 +352,7 @@ describe('Bedrock Converse source lifecycle', () => {
       )
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         model: 'us.amazon.nova-pro-v1:0',
         messages: [{ role: 'user', content: 'Hello' }],
         logger: resolveDebugOption(false),
@@ -477,6 +479,7 @@ describe('Bedrock signed tool-loop replay', () => {
     )
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: history,
       tools: [lookup],
@@ -587,7 +590,7 @@ it('marks a late redacted transition even when the encoded signature is unchange
       for (const event of events) yield event
     })(),
     () => 'reasoning-id',
-    { model: 'model' },
+    { threadId: 'thread-1', model: 'model' },
   ))
     chunks.push(chunk)
   const encrypted = chunks.filter(

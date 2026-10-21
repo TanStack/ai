@@ -99,6 +99,7 @@ export interface InjectGenerateAudioResult<
  * })
  * export class AudioComponent {
  *   private gen = injectGenerateAudio({
+ *     threadId: 'theme-audio',
  *     connection: fetchServerSentEvents('/api/generate/audio'),
  *   })
  *

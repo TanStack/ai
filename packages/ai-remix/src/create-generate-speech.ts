@@ -47,6 +47,7 @@ export type CreateGenerateSpeechReturn<TOutput = TTSResult> =
  *
  * function SpeechGenerator(handle: Handle) {
  *   const speech = createGenerateSpeech(handle, {
+ *     threadId: 'welcome-speech',
  *     connection: fetchServerSentEvents('/api/generate/speech'),
  *   })
  *
@@ -69,7 +70,7 @@ export type CreateGenerateSpeechReturn<TOutput = TTSResult> =
  * ```
  */
 export function createGenerateSpeech<TTransformed = void>(
-  handle: Pick<Handle, 'id' | 'update' | 'signal'>,
+  handle: Pick<Handle, 'update' | 'signal'>,
   options: Omit<
     CreateGenerateSpeechOptions,
     'onResult' | 'persistence' | 'threadId'

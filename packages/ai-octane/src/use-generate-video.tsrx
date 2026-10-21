@@ -1,6 +1,6 @@
 import { VideoGenerationClient } from '@tanstack/ai-client'
 import { createVideoDevtoolsBridge } from '@tanstack/ai-client/devtools'
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'octane'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'octane'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
@@ -21,8 +21,8 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function that returns a completed video result */
   fetcher?: GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
-  /** Unique identifier for this generation instance */
-  id?: string
+  /** Stable scope for this generation. Also the wire and DevTools identity. */
+  threadId: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
@@ -86,6 +86,7 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
  *
  * function VideoGenerator() {
  *   const { generate, result, videoStatus, isLoading } = useGenerateVideo({
+ *     threadId: 'intro-video',
  *     connection: fetchServerSentEvents('/api/generate/video'),
  *     onStatusUpdate: (status) => console.log(`Progress: ${status.progress}%`),
  *   })
@@ -118,8 +119,7 @@ export function useGenerateVideo<TTransformed = void>(
     VideoGenerateResult,
     TTransformed
   >
-  const hookId = useId()
-  const clientId = options.id || hookId
+  const clientId = options.threadId
 
   const [result, setResult] = useState<TOutput | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
@@ -140,7 +140,7 @@ export function useGenerateVideo<TTransformed = void>(
     // return type (which `exactOptionalPropertyTypes` rejects
     // against the strict-optional target).
     const baseOptions = {
-      id: clientId,
+      threadId: clientId,
       body: opts.body,
       devtoolsBridgeFactory: createVideoDevtoolsBridge,
       devtools: {

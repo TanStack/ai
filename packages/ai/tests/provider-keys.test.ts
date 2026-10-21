@@ -175,6 +175,7 @@ async function nestedKeys(host: SubagentBinding, own?: SubagentBinding) {
     description: 'Starts the probe',
     run: (ctx) =>
       ctx.chat({
+        threadId: ctx.threadId,
         adapter,
         subagents: {
           agents: [child],
@@ -279,6 +280,7 @@ async function chatKeys(
     description: 'Starts the probe',
     run: (ctx) =>
       ctx.chat({
+        threadId: ctx.threadId,
         adapter,
         subagents: { agents: [target], router: () => 'probe', ...nested },
       }),
@@ -287,6 +289,7 @@ async function chatKeys(
   const name = nested ? 'lead' : 'probe'
   await collectChunks(
     chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Go' }],
       subagents: { agents, router: () => name, keys },

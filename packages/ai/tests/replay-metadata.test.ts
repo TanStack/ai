@@ -15,6 +15,7 @@ async function capture(adapter: AnyTextAdapter, tools: Array<Tool> = []) {
   let saved: ReadonlyArray<ModelMessage> = []
   const chunks = await collectChunks(
     chat({
+      threadId: 'thread-1',
       adapter,
       messages: [],
       tools,
@@ -216,6 +217,7 @@ describe('replay metadata', () => {
     let saved: ReadonlyArray<ModelMessage> = []
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: { ...adapter, ...source, name: source.provider },
         messages: [],
         stream: true,

@@ -86,6 +86,7 @@ export interface UseGenerateAudioReturn<
  *
  * function AudioGenerator() {
  *   const { generate, result, isLoading } = useGenerateAudio({
+ *     threadId: 'theme-audio',
  *     connection: fetchServerSentEvents('/api/generate/audio'),
  *   })
  *

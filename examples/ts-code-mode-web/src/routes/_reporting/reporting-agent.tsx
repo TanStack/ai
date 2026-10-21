@@ -576,6 +576,7 @@ function ReportingAgentPage() {
   )
 
   const { messages, sendMessage, isLoading, stop } = useChat({
+    threadId: 'reporting-agent',
     connection: fetchServerSentEvents('/api/reports'),
     forwardedProps: body,
     onCustomEvent: handleCustomEvent,

@@ -146,8 +146,8 @@ export type ImageActivityOptions<
    * `GenerationMiddleware` contract for a custom backend.
    */
   middleware?: Array<GenerationMiddleware>
-  /** Stable conversation/thread id for correlating this run when persisted. */
-  threadId?: string
+  /** Stable conversation/thread id. It is the AG-UI thread id and the persistence key. */
+  threadId: string
   /** Stable run id for correlating this run when persisted. */
   runId?: string
   /**
@@ -254,11 +254,8 @@ export function generateImage<
   assertPromptFileSourceSupport(options.adapter, options.prompt)
   if (options.stream) {
     return streamGenerationResult(
-      // Only `runId` is taken from the resolved wire identity. `threadId` stays
-      // the CALLER's: `streamGenerationResult` mints one for the RUN_* chunks
-      // when none was passed, and spreading that over the options would hand
-      // middleware a thread id known to nobody, which persistence would then
-      // file the run under. Matches `generateVideo`.
+      // Only `runId` comes from the resolved wire identity. `threadId` is
+      // the caller's own id.
       (resolved) => runGenerateImage({ ...options, runId: resolved.runId }),
       options,
     ) as ImageActivityResult<TStream>

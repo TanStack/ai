@@ -29,7 +29,7 @@ interface ToolRequest {
 
 /** The `chatStream` options of one call: one user message plus the tool fields. */
 function callOptions(model: string, request: ToolRequest) {
-  return { logger, model, messages, ...request }
+  return { threadId: 'thread-1', logger, model, messages, ...request }
 }
 
 /** An OpenAI-compatible provider on a test URL, for one API. */

@@ -55,11 +55,10 @@ export interface CreateGenerateVideoOptions<TOutput = VideoGenerateResult> {
    * `` `video-${videoId}-start-frame` ``). It is also sent as the AG-UI thread
    * id on the wire, which the protocol requires.
    *
-   * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations. If
-   * omitted, the helper uses `handle.id`.
+   * Required. A generated id would change on every reload, so persistence
+   * would restore nothing.
    */
-  threadId?: string
+  threadId: string
   /**
    * Server-driven hydration handler for `persistence: true` when the
    * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
@@ -147,6 +146,7 @@ export interface CreateGenerateVideoReturn<TOutput = VideoGenerateResult> {
  *
  * function VideoGenerator(handle: Handle) {
  *   const video = createGenerateVideo(handle, {
+ *     threadId: 'intro-video',
  *     connection: fetchServerSentEvents('/api/generate/video'),
  *     onStatusUpdate: (status) => console.log(`Progress: ${status.progress}%`),
  *   })
@@ -171,7 +171,7 @@ export interface CreateGenerateVideoReturn<TOutput = VideoGenerateResult> {
 // parameter is typed as `VideoGenerateResult` and `result` narrows to the
 // transform's return. See issue #848.
 export function createGenerateVideo<TTransformed = void>(
-  handle: Pick<Handle, 'id' | 'update' | 'signal'>,
+  handle: Pick<Handle, 'update' | 'signal'>,
   options: Omit<
     CreateGenerateVideoOptions,
     'onResult' | 'persistence' | 'threadId'
@@ -197,8 +197,6 @@ export function createGenerateVideo<TTransformed = void>(
     if (disposed) return
     void handle.update()
   }
-
-  const threadId = options.threadId ?? handle.id
 
   const baseOptions: Omit<
     VideoGenerationClientOptions<TOutput>,
@@ -276,15 +274,10 @@ export function createGenerateVideo<TTransformed = void>(
     },
   }
 
-  const persistenceProps =
-    typeof options.threadId === 'string' && options.persistence
-      ? {
-          persistence: options.persistence,
-          threadId: options.threadId,
-        }
-      : {
-          threadId,
-        }
+  const persistenceProps = {
+    persistence: options.persistence,
+    threadId: options.threadId,
+  }
 
   let client: VideoGenerationClient<TOutput>
   if (options.connection) {

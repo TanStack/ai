@@ -41,7 +41,10 @@ describe('devtools identification', () => {
 
   it('tags useGeneration as octane', () => {
     renderHook(() =>
-      useGeneration({ connection: createMockConnectionAdapter() }),
+      useGeneration({
+        threadId: 'thread-1',
+        connection: createMockConnectionAdapter(),
+      }),
     )
 
     expect(capturedGeneration[0]?.metadata).toMatchObject({

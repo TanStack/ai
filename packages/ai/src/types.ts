@@ -878,7 +878,7 @@ export type ToolExecutionContext<TContext = unknown> =
      * `ctx.threadId` in middleware. A tool can use it to keep its own state
      * for each conversation.
      */
-    threadId?: string
+    threadId: string
     /**
      * Abort signal for the current chat run. Aborts when the run's
      * `abortController` fires (or middleware aborts). Long-running tools —
@@ -1440,10 +1440,10 @@ export interface TextOptions<
   logger: InternalLogger
 
   /**
-   * Thread ID for AG-UI protocol run correlation.
-   * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
+   * Thread ID for AG-UI protocol run correlation. Required. It is used in
+   * RunStartedEvent and RunFinishedEvent.
    */
-  threadId?: string
+  threadId: string
   /**
    * Automatic prompt caching for this request. `chat()` sets it. When it is
    * absent, the adapter adds no automatic cache fields.
@@ -2153,7 +2153,7 @@ export interface SummarizationOptions<
    * their own.
    */
   runId?: string
-  threadId?: string
+  threadId: string
   /**
    * Internal logger threaded from the summarize() entry point. Adapters must
    * call logger.request() before the SDK call and logger.errors() in catch blocks.
