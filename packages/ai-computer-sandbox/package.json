@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-computer-sandbox",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Sandbox desktop driver for TanStack AI computer use. Works with any @tanstack/ai-sandbox provider.",
   "author": "",
   "license": "MIT",

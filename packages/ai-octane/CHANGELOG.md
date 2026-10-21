@@ -1,5 +1,13 @@
 # @tanstack/ai-octane
 
+## 0.9.1
+
+### Patch Changes
+
+- Updated dependencies [[`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325)]:
+  - @tanstack/ai@0.71.0
+  - @tanstack/ai-client@0.40.1
+
 ## 0.9.0
 
 ### Minor Changes

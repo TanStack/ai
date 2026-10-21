@@ -1,5 +1,16 @@
 # @tanstack/ai-sandbox
 
+## 0.5.25
+
+### Patch Changes
+
+- [#1837](https://github.com/TanStack/ai/pull/1837) [`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325) - The `ai-sandbox` skill now says how to use a sandbox provider for computer use, with `sandboxComputer()` from `@tanstack/ai-computer-sandbox`.
+
+- Updated dependencies [[`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325)]:
+  - @tanstack/ai@0.71.0
+  - @tanstack/ai-persistence@0.10.1
+  - @tanstack/ai-skills@0.1.21
+
 ## 0.5.24
 
 ### Patch Changes
