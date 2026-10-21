@@ -152,10 +152,9 @@ export type { ToolExecutionContext }
  *
  * @internal
  */
-export type CodeModeCallHook = (
-  call: { name: string; args: unknown },
-  run: () => Promise<unknown>,
-) => Promise<unknown>
+export type CodeModeCallHook = ReturnType<
+  NonNullable<CodeModeToolConfig['aroundCalls']>
+>
 
 // ============================================================================
 // Code Mode Tool Types
@@ -286,12 +285,18 @@ export interface CodeModeToolConfig {
    * Called once per program run with the context of the code mode tool call
    * and a signal that aborts when the program ends.
    *
+   * The hook type is written out here, not as `CodeModeCallHook`: a package
+   * that infers a type from this config can then name it.
+   *
    * @internal
    */
   aroundCalls?: (
     context: ToolExecutionContext | undefined,
     signal: AbortSignal,
-  ) => CodeModeCallHook
+  ) => (
+    call: { name: string; args: unknown },
+    run: () => Promise<unknown>,
+  ) => Promise<unknown>
 }
 
 /**
