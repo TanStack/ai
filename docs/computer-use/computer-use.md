@@ -89,6 +89,8 @@ const adapter = anthropicText('claude-opus-5-5')
 
 Need a full Linux desktop or your own computer, and not a browser page? See [Drivers](./drivers).
 
+Does your agent run in a [harness](../harness/overview)? Use the `computerUse()` plugin with the same driver. It stores each screenshot in the media store of the session, and asks about safety checks through `permissions()`. See [Give your agent a computer](../harness/computer-use).
+
 ## One page for each thread
 
 Each `threadId` gets its own machine. With `playwrightComputer()`, the machine is a browser context with one page:

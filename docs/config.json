@@ -1067,7 +1067,7 @@
           "label": "Write a plugin",
           "to": "harness/plugins",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-20"
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "Track usage and cost",
@@ -1182,6 +1182,11 @@
           "to": "harness/mcp",
           "addedAt": "2026-10-13",
           "updatedAt": "2026-10-20"
+        },
+        {
+          "label": "Give your agent a computer",
+          "to": "harness/computer-use",
+          "addedAt": "2026-10-21"
         },
         {
           "label": "Use from any MCP client",

@@ -252,6 +252,41 @@ export const counter = definePlugin({
 - For a long list of records, such as one record for each step, append records to the log and set `keepRecords`. Read them with `ctx.session.keptRecords(type)`. See [Keep records after a truncate](./session-log#keep-records-after-a-truncate).
 - Agents get a state with the same `get` and `update` from `ctx.harness.state({ key, initial })`. See [Share state between agents](./subagents#share-state-between-agents).
 
+## Store a file from a tool
+
+A tool of your plugin makes an image or a PDF. Inline bytes in a tool result stay in the transcript and the log, and each later model call sends them again. Store the bytes with `ctx.session.putMedia`, and return `mediaPart(record)`:
+
+```ts group=harness-plugins
+import { mediaPart } from '@tanstack/ai-harness/media'
+
+declare function drawChart(values: Array<number>): Promise<Uint8Array>
+
+export const charts = definePlugin({
+  name: 'acme/charts',
+  setup: (ctx) => ({
+    tools: [
+      toolDefinition({
+        name: 'draw_chart',
+        description: 'Draw a bar chart of the values',
+        inputSchema: z.object({ values: z.array(z.number()) }),
+      }).server(async ({ values }) => {
+        const record = await ctx.session.putMedia({
+          body: await drawChart(values),
+          mimeType: 'image/png',
+          name: 'chart.png',
+        })
+        return [mediaPart(record)]
+      }),
+    ],
+  }),
+})
+```
+
+- The transcript and the log keep a small `harness-media:` reference. The model gets the bytes.
+- `putMedia` throws a `MediaError` when the file is bigger than `media.maxBytes`, or when its kind is not in `media.kinds`. See [Limit files, and choose what the model reads](./media#limit-files-and-choose-what-the-model-reads).
+
+[Give your agent a computer](./computer-use) stores each screenshot this way.
+
 ## Middleware in every agent
 
 You want to track token cost, or apply a policy, for every model call. But `middleware` runs only in the lead turn. The agents that the lead model calls, the agents you start in the background, and their own children each run a separate chat. Put the same middleware in `agentMiddleware` too. Then it runs in each of those chats.
