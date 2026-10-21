@@ -29,6 +29,7 @@ import { openaiText } from "@tanstack/ai-openai";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
   debug: true,
 });
 ```
@@ -53,6 +54,7 @@ import { openaiText } from "@tanstack/ai-openai";
 chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
   debug: { middleware: false }, // everything except middleware
 });
 ```
@@ -66,6 +68,7 @@ import { openaiText } from "@tanstack/ai-openai";
 chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
   debug: {
     provider: true,
     output: true,
@@ -100,6 +103,7 @@ const logger: Logger = {
 chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
   debug: { logger }, // all categories on, sent to pino
 });
 ```
@@ -140,6 +144,7 @@ import { openaiText } from "@tanstack/ai-openai";
 chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
 });
 ```
 
@@ -191,14 +196,15 @@ import {
 import { adapter } from "./server";
 import { logger } from "./logger";
 
+const threadId = "thread-1";
 const text = "Long article to summarize...";
 const audio = new File([""], "recording.mp3", { type: "audio/mpeg" });
 
-summarize({ adapter, text, debug: true });
-generateImage({ adapter, prompt: "a cat", debug: { logger } });
-generateSpeech({ adapter, text, debug: { request: true } });
-generateAudio({ adapter, prompt: "ambient piano", debug: true });
-generateTranscription({ adapter, audio, debug: { provider: true } });
+summarize({ adapter, text, debug: true, threadId });
+generateImage({ adapter, prompt: "a cat", debug: { logger }, threadId });
+generateSpeech({ adapter, text, debug: { request: true }, threadId });
+generateAudio({ adapter, prompt: "ambient piano", debug: true, threadId });
+generateTranscription({ adapter, audio, debug: { provider: true }, threadId });
 ```
 
 When you stream `generateAudio`, `generateSpeech`, or `generateTranscription` (`stream: true`):

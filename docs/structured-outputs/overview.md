@@ -91,6 +91,7 @@ import { PersonSchema } from "./schemas/person";
 export function PersonExtractor() {
   const { sendMessage, isLoading, final } = useChat({
     connection: fetchServerSentEvents("/api/extract-person"),
+    threadId: "support-chat",
     outputSchema: PersonSchema,
   });
 
@@ -135,6 +136,7 @@ import { PersonSchema } from "./schemas/person";
 const person = await chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "John Doe is 30, john@example.com" }],
+  threadId: "thread-1",
   outputSchema: PersonSchema,
 });
 
@@ -202,6 +204,7 @@ const Person = z.object({ name: z.string(), age: z.number() });
 const person = await chat({
   adapter: openRouterText("qwen/qwen3.7-flash"),
   messages: [{ role: "user", content: "Return Ada Lovelace, age 36." }],
+  threadId: "thread-1",
   outputSchema: Person,
 });
 

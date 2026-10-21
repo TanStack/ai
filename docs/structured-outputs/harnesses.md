@@ -112,6 +112,7 @@ const ReportSchema = z.object({
 export function RepoReport() {
   const { messages, sendMessage, isLoading, final } = useChat({
     connection: fetchServerSentEvents("/api/repo-report"),
+    threadId: "support-chat",
     outputSchema: ReportSchema,
   });
 
@@ -199,6 +200,7 @@ const sandbox = defineSandbox({
 const report = await chat({
   adapter: claudeCodeText("claude-opus-4-8"),
   messages: [{ role: "user", content: "What is this repository about?" }],
+  threadId: "thread-1",
   outputSchema: ReportSchema,
   middleware: [withSandbox(sandbox)],
 });

@@ -58,6 +58,7 @@ import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 export function Chat() {
   const { messages } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return messages.map((message) => (
@@ -111,6 +112,7 @@ import { openaiText } from "@tanstack/ai-openai";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Plan a database migration." }],
+  threadId: "thread-1",
   reasoning: { level: "high", summary: false },
 });
 ```

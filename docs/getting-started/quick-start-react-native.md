@@ -67,6 +67,7 @@ app.post('/chat/http', async (c) => {
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     messages: body.messages,
+    threadId: body.threadId,
   })
 
   return toHttpResponse(stream, {
@@ -141,6 +142,7 @@ export function ChatScreen() {
   const [input, setInput] = useState('')
   const { messages, sendMessage, isLoading, error } = useChat({
     connection: xhrHttpStream(`${baseUrl}/chat/http`),
+    threadId: 'support-chat',
   })
 
   async function send() {
@@ -215,6 +217,7 @@ app.post('/chat/sse', async (c) => {
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     messages: body.messages,
+    threadId: body.threadId,
   })
 
   return toServerSentEventsResponse(stream)

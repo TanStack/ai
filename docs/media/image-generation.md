@@ -45,7 +45,10 @@ import {
 import { openaiImage } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
-  const { input } = await generationParamsFromRequest('image', request)
+  const { input, threadId } = await generationParamsFromRequest('image', request)
+  if (!threadId) {
+    return new Response('Send a threadId.', { status: 400 })
+  }
   if (typeof input.prompt !== 'string') {
     return new Response('Send a text prompt.', { status: 400 })
   }
@@ -53,6 +56,7 @@ export async function POST(request: Request) {
   const stream = generateImage({
     adapter: openaiImage('gpt-image-2.5-flare'),
     prompt: input.prompt,
+    threadId,
     size: '1024x1024',
     stream: true,
   })
@@ -70,6 +74,7 @@ export function ImageGenerator() {
   const [prompt, setPrompt] = useState('')
   const { generate, result, isLoading, error } = useGenerateImage({
     connection: fetchServerSentEvents('/api/generate/image'),
+    threadId: 'image-studio',
   })
 
   return (
@@ -117,6 +122,7 @@ import { openaiImage } from '@tanstack/ai-openai'
 const result = await generateImage({
   adapter: openaiImage('gpt-image-2.5-flare'),
   prompt: 'A beautiful sunset over mountains',
+  threadId: 'thread-1',
 })
 
 console.log(result.images[0]?.b64Json)
@@ -163,12 +169,14 @@ import { geminiImage } from '@tanstack/ai-gemini'
 const native = await generateImage({
   adapter: geminiImage('gemini-nano-banana-2.1'),
   prompt: 'A futuristic cityscape at night',
+  threadId: 'thread-1',
   size: '16:9_4K',
 })
 
 const imagen = await generateImage({
   adapter: geminiImage('imagen-4.0-generate-001'),
   prompt: 'A futuristic cityscape at night',
+  threadId: 'thread-1',
 })
 
 console.log(native.images[0]?.b64Json)
@@ -185,6 +193,7 @@ import { byteplusImage } from '@tanstack/ai-byteplus'
 const result = await generateImage({
   adapter: byteplusImage('dola-seedream-5-0-pro-260628'),
   prompt: 'A futuristic cityscape at night',
+  threadId: 'thread-1',
   size: '2K',
   modelOptions: { watermark: false },
 })
@@ -217,11 +226,13 @@ const adapter = geminiImage('gemini-nano-banana-2.1')
 const first = await generateImage({
   adapter,
   prompt: 'A red bicycle on a quiet street',
+  threadId: 'thread-1',
 })
 
 const edited = await generateImage({
   adapter,
   prompt: 'Make the bicycle blue',
+  threadId: 'thread-1',
   modelOptions: { previous_interaction_id: first.id },
 })
 ```
@@ -254,6 +265,7 @@ await generateImage({
       source: { type: 'url', value: 'https://example.com/product.png' },
     },
   ],
+  threadId: 'thread-1',
 })
 ```
 

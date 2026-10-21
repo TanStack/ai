@@ -90,6 +90,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (

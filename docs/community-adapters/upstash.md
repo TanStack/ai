@@ -150,6 +150,7 @@ import { upstashLocks } from '@upstash/agentkit-tanstack-ai'
 export const stream = chat({
   adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'hi' }],
+  threadId: 'thread-1',
   middleware: [withLocks(upstashLocks())],
 })
 ```

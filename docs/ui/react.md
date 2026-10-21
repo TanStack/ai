@@ -84,7 +84,7 @@ const { useAppChat } = createChatHook({
 })
 
 export function ChatScreen() {
-  const chat = useAppChat()
+  const chat = useAppChat({ threadId: 'support-chat' })
 
   return (
     <main>
@@ -115,7 +115,7 @@ The reply streams into the page as the model writes it.
 ## How it works
 
 - `createChatHook` runs once, at module scope. It binds `chatOptions` to your components.
-- `useAppChat()` creates one chat instance. `chat.AppChat` renders that instance with your components.
+- `useAppChat({ threadId })` creates one chat instance. `chat.AppChat` renders that instance with your components.
 - `layout` places the message list. `message` wraps one message. `Parts` picks a component for each part of that message.
 - `partsComponents.text` renders text. `fallback` catches every part type that you did not register.
 
@@ -240,7 +240,7 @@ const { useAppChat, useChatContext } = createChatHook({
 })
 
 export function ChatScreen() {
-  const chat = useAppChat()
+  const chat = useAppChat({ threadId: 'support-chat' })
   return <chat.AppChat />
 }
 ```
@@ -339,7 +339,7 @@ Part keys:
 - `Messages`, `Interrupts`, `Queue`, `Subagents`
 - `Input`, only when you register `input`. Without it, `<Input />` is a compile error.
 
-`useAppChat()` takes per-instance options: `threadId`, `initialMessages`, `live`, and `forwardedProps`. Keep `tools`, `interrupts`, and `outputSchema` on `chatOptions`. Two instances with different `threadId` values keep separate histories:
+`useAppChat()` takes per-instance options: `threadId` (required), `initialMessages`, `live`, and `forwardedProps`. Keep `tools`, `interrupts`, and `outputSchema` on `chatOptions`. Two instances with different `threadId` values keep separate histories:
 
 ```tsx ignore
 const chat = useAppChat({ threadId: 'support-1' })
@@ -467,7 +467,7 @@ const UI = createChatUI(chatOptions, {
 })
 
 export function ManualChat() {
-  const chat = useChat(chatOptions)
+  const chat = useChat({ ...chatOptions, threadId: 'support-chat' })
   return (
     <UI.Provider chat={chat}>
       <UI.Messages>

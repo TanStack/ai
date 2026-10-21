@@ -87,7 +87,7 @@ import { useChat } from "@tanstack/ai-react";
 import { myAdapter } from "./my-adapter";
 
 export function Chat() {
-  const { messages, sendMessage } = useChat({ connection: myAdapter });
+  const { messages, sendMessage } = useChat({ connection: myAdapter, threadId: "support-chat" });
 
   return (
     <div>
@@ -221,7 +221,7 @@ function websocketConnection(url: string): SubscribeConnectionAdapter {
 const connection = websocketConnection("wss://example.com/chat");
 
 export function Chat() {
-  const { messages, sendMessage } = useChat({ connection });
+  const { messages, sendMessage } = useChat({ connection, threadId: "support-chat" });
 
   return (
     <div>

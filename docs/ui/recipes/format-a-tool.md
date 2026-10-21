@@ -66,7 +66,7 @@ const { useAppChat } = createChatHook({
 })
 
 export function WeatherChat() {
-  const chat = useAppChat()
+  const chat = useAppChat({ threadId: 'support-chat' })
   return <chat.AppChat />
 }
 ```

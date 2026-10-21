@@ -49,6 +49,7 @@ const adapter = createSonioxTranscription("stt-async-v3", process.env.SONIOX_API
 const result = await generateTranscription({
   adapter,
   audio: audioFile,
+  threadId: "thread-1",
 });
 ```
 
@@ -66,6 +67,7 @@ const result = await generateTranscription({
     enableLanguageIdentification: true,
     enableSpeakerDiarization: true,
   },
+  threadId: "thread-1",
 });
 
 console.log(result.text);
@@ -89,6 +91,7 @@ const result = await generateTranscription({
   modelOptions: {
     languageHints: ["en", "es"],
   },
+  threadId: "thread-1",
 });
 ```
 
@@ -124,6 +127,7 @@ const result = await generateTranscription({
       ],
     },
   },
+  threadId: "thread-1",
 });
 ```
 
@@ -154,6 +158,7 @@ const result = await generateTranscription({
       targetLanguage: "es",
     },
   },
+  threadId: "thread-1",
 });
 ```
 
@@ -174,6 +179,7 @@ const result = await generateTranscription({
       languageB: "es",
     },
   },
+  threadId: "thread-1",
 });
 ```
 
@@ -252,6 +258,7 @@ const result = await generateTranscription({
   modelOptions: {
     translation: { type: "one_way", targetLanguage: "es" },
   },
+  threadId: "thread-1",
 });
 
 for (const token of sonioxTokens(result)) {

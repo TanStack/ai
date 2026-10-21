@@ -78,6 +78,7 @@ import { geminiImage } from '@tanstack/ai-gemini'
 const result = await generateImage({
   adapter: geminiImage('imagen-4.0-generate-001'),
   prompt: 'A landscape photo',
+  threadId: 'thread-1',
   modelOptions: {
     aspectRatio: '16:9',
   },
@@ -97,6 +98,7 @@ import { openaiImage } from '@tanstack/ai-openai'
 const result = await generateImage({
   adapter: openaiImage('gpt-image-2.5-flare'),
   prompt: 'A cat wearing a hat',
+  threadId: 'thread-1',
   modelOptions: {
     quality: 'high', // 'high' | 'medium' | 'low' | 'auto'
     background: 'transparent', // 'transparent' | 'opaque' | 'auto'
@@ -117,6 +119,7 @@ import { openaiImage } from '@tanstack/ai-openai'
 const result = await generateImage({
   adapter: openaiImage('dall-e-3'),
   prompt: 'A futuristic car',
+  threadId: 'thread-1',
   modelOptions: {
     quality: 'hd', // 'hd' | 'standard'
     style: 'vivid', // 'vivid' | 'natural'
@@ -133,6 +136,7 @@ import { geminiImage } from '@tanstack/ai-gemini'
 const result = await generateImage({
   adapter: geminiImage('imagen-4.0-generate-001'),
   prompt: 'A beautiful garden',
+  threadId: 'thread-1',
   modelOptions: {
     aspectRatio: '16:9',
     // PersonGeneration enum values: 'DONT_ALLOW' | 'ALLOW_ADULT' | 'ALLOW_ALL'
@@ -153,6 +157,7 @@ import { geminiImage, ThinkingLevel } from '@tanstack/ai-gemini'
 const result = await generateImage({
   adapter: geminiImage('gemini-nano-banana-2.1'),
   prompt: 'A beautiful garden',
+  threadId: 'thread-1',
   size: '16:9_4K',
   modelOptions: {
     seed: 42,
@@ -186,6 +191,7 @@ import {
 const result = await generateImage({
   adapter: geminiImage('gemini-nano-banana-2.1'),
   prompt: 'A beautiful garden',
+  threadId: 'thread-1',
   modelOptions: {
     safetySettings: [
       {
@@ -278,6 +284,7 @@ await generateImage({
       metadata: { role: 'mask' },
     },
   ],
+  threadId: 'thread-1',
 })
 ```
 
@@ -304,6 +311,7 @@ await generateImage({
       source: { type: 'url', value: 'https://example.com/style.png' },
     },
   ],
+  threadId: 'thread-1',
 })
 ```
 
@@ -322,6 +330,7 @@ await generateImage({
     { type: 'text', content: 'more like this' },
     { type: 'image', source: { type: 'url', value: goodExampleUrl } },
   ],
+  threadId: 'thread-1',
 })
 ```
 
@@ -375,6 +384,7 @@ import { unitPrice } from './pricing'
 const result = await generateImage({
   adapter: falImage('fal-ai/flux/dev'),
   prompt: 'a serene mountain lake',
+  threadId: 'thread-1',
 })
 
 if (result.usage?.billed) {
@@ -427,6 +437,7 @@ try {
   const result = await generateImage({
     adapter: openaiImage('dall-e-3'),
     prompt: 'A cat',
+    threadId: 'thread-1',
     size: '512x512', // not a dall-e-3 size, throws at runtime
   })
 } catch (error) {

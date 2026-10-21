@@ -106,6 +106,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage, isLoading, stop } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -161,6 +162,7 @@ const input = ref('')
 
 const { messages, sendMessage, isLoading, stop } = useChat({
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: "support-chat",
 })
 
 function handleSubmit() {
@@ -203,6 +205,7 @@ export function Chat() {
   const [input, setInput] = createSignal("");
   const { messages, sendMessage, isLoading, stop } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -259,6 +262,7 @@ let input = $state('')
 
 const chat = createChat({
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'support-chat',
 })
 
 function handleSubmit() {
@@ -307,6 +311,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage, isLoading, stop } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -385,6 +390,7 @@ import { injectChat, fetchServerSentEvents } from "@tanstack/ai-angular";
 export class ChatComponent {
   chat = injectChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   draft = "";
@@ -420,6 +426,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage, isLoading, stop } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -481,6 +488,7 @@ export const Chat = clientEntry(
   function Chat(handle: Handle) {
     const chat = createChat(handle, {
       connection: fetchServerSentEvents("/api/chat"),
+      threadId: "support-chat",
     });
 
     return () => (

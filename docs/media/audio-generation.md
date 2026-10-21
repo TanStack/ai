@@ -38,11 +38,15 @@ import {
 import { falAudio } from '@tanstack/ai-fal'
 
 export async function POST(request: Request) {
-  const { input } = await generationParamsFromRequest('audio', request)
+  const { input, threadId } = await generationParamsFromRequest('audio', request)
+  if (!threadId) {
+    return new Response('Send a threadId.', { status: 400 })
+  }
 
   const stream = generateAudio({
     adapter: falAudio('fal-ai/minimax-music/v2.6'),
     prompt: input.prompt,
+    threadId,
     duration: input.duration,
     stream: true,
   })
@@ -58,6 +62,7 @@ import { fetchServerSentEvents, useGenerateAudio } from '@tanstack/ai-react'
 export function AudioGenerator() {
   const { generate, result, isLoading, error, reset } = useGenerateAudio({
     connection: fetchServerSentEvents('/api/generate/audio'),
+    threadId: 'audio',
   })
 
   const src = result?.audio.url
@@ -130,6 +135,7 @@ import { geminiAudio } from '@tanstack/ai-gemini'
 const result = await generateAudio({
   adapter: geminiAudio('lyria-3-pro-preview'),
   prompt: 'Uplifting indie pop with layered vocals and jangly guitars',
+  threadId: 'thread-1',
 })
 
 console.log(result.audio.b64Json) // base64 audio bytes
@@ -147,6 +153,7 @@ import { falAudio } from '@tanstack/ai-fal'
 const result = await generateAudio({
   adapter: falAudio('fal-ai/minimax-music/v2.6'),
   prompt: 'City Pop, 80s retro, groovy synth bass, warm female vocal, 104 BPM',
+  threadId: 'thread-1',
 })
 
 console.log(result.audio.url) // URL of the audio file
@@ -162,6 +169,7 @@ import { falAudio } from '@tanstack/ai-fal'
 const result = await generateAudio({
   adapter: falAudio('fal-ai/diffrhythm'),
   prompt: 'An upbeat electronic track with synths',
+  threadId: 'thread-1',
   modelOptions: {
     lyrics: '[verse]\nHello world\n[chorus]\nLa la la',
   },
@@ -177,6 +185,7 @@ import { falAudio } from '@tanstack/ai-fal'
 const result = await generateAudio({
   adapter: falAudio('fal-ai/elevenlabs/sound-effects/v2'),
   prompt: 'Thunderclap followed by heavy rain',
+  threadId: 'thread-1',
   duration: 5,
 })
 ```
@@ -194,6 +203,7 @@ import { falAudio } from '@tanstack/ai-fal'
 const result = await generateAudio({
   adapter: falAudio('fal-ai/minimax-music/v2'),
   prompt: 'A dreamy pop ballad in the style of the 80s',
+  threadId: 'thread-1',
   modelOptions: {
     lyrics_prompt: '[instrumental]',
   },
@@ -232,6 +242,7 @@ import { falAudio } from '@tanstack/ai-fal'
 const result = await generateAudio({
   adapter: falAudio('fal-ai/diffrhythm'),
   prompt: 'An upbeat electronic track',
+  threadId: 'thread-1',
 })
 
 if (result.audio.url) {

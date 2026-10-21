@@ -54,6 +54,7 @@ import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 export function Chat() {
   const { messages } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return messages.map((message) => (
@@ -97,12 +98,14 @@ import { anthropicText } from "@tanstack/ai-anthropic";
 chat({
   adapter: anthropicText("claude-opus-5-5"),
   messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
   reasoning: "max",
 });
 
 chat({
   adapter: anthropicText("claude-haiku-4-5"),
   messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
   // @ts-expect-error claude-haiku-4-5 has no max level
   reasoning: "max",
 });
@@ -133,6 +136,7 @@ import { geminiText } from "@tanstack/ai-gemini";
 const stream = chat({
   adapter: geminiText("gemini-2.5-pro"),
   messages: [{ role: "user", content: "Check this proof." }],
+  threadId: "thread-1",
   reasoning: { level: "high", budgetTokens: 8000 },
 });
 ```

@@ -79,6 +79,7 @@ export async function POST(request: Request) {
     adapter: openaiText('gpt-5.4-mini'), // cheap model that picks snippets
     snippets: { storage, maxSnippetsInContext: 5 },
     messages: convertMessagesToModelMessages(messages),
+    threadId,
   })
 
   const stream = chat({

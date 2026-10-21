@@ -131,6 +131,7 @@ function ImagePage() {
   // When the stream ends, result.images holds the picture.
   const { generate, result, isLoading, error, stop } = useGenerateImage({
     connection: fetchServerSentEvents('/api/generate/image'),
+    threadId: 'image-studio',
     byok,
   })
 
@@ -287,6 +288,7 @@ function ImagePage() {
   // onResult runs when the image arrives. The return value becomes `result`.
   const { generate, result, isLoading, error, stop } = useGenerateImage({
     connection: fetchServerSentEvents('/api/generate/image'),
+    threadId: 'image-studio',
     byok,
     onResult: (raw) => {
       const image = raw.images[0]

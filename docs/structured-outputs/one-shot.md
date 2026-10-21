@@ -51,6 +51,7 @@ const person = await chat({
         "Extract the person info: John Doe is 30 years old, email john@example.com",
     },
   ],
+  threadId: "thread-1",
   outputSchema: PersonSchema,
 });
 
@@ -88,6 +89,7 @@ export async function POST(request: Request) {
   const person = await chat({
     adapter: openaiText("gpt-6.1-sol"),
     messages: [{ role: "user", content: `Extract the person info: ${text}` }],
+    threadId: "thread-1",
     outputSchema: PersonSchema,
   });
 
@@ -148,6 +150,7 @@ import { PersonSchema } from "./schemas/person";
 export function PersonExtractor() {
   const { sendMessage, isLoading, final } = useChat({
     connection: fetchServerSentEvents("/api/extract-person"),
+    threadId: "support-chat",
     outputSchema: PersonSchema,
   });
 
@@ -238,6 +241,7 @@ const article =
 const company = await chat({
   adapter: anthropicText("claude-sonnet-5-5"),
   messages: [{ role: "user", content: `Extract company info: ${article}` }],
+  threadId: "thread-1",
   outputSchema: CompanySchema,
 });
 
@@ -259,6 +263,7 @@ try {
   const person = await chat({
     adapter: openaiText("gpt-6.1-sol"),
     messages: [{ role: "user", content: "John Doe is 30" }],
+    threadId: "thread-1",
     outputSchema: PersonSchema,
   });
   console.log(person.name);
@@ -292,6 +297,7 @@ const schema: JSONSchema = {
 const result = await chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Extract: John is 25 years old" }],
+  threadId: "thread-1",
   outputSchema: schema,
 });
 
@@ -325,6 +331,7 @@ try {
   await chat({
     adapter: openaiText("gpt-6.1-sol"),
     messages: [{ role: "user", content: "John Doe is 30" }],
+    threadId: "thread-1",
     outputSchema: PersonSchema,
   });
 } catch (error) {
@@ -347,6 +354,7 @@ try {
   await chat({
     adapter: openaiText("gpt-6.1-sol"),
     messages: [{ role: "user", content: "John Doe is 30" }],
+    threadId: "thread-1",
     outputSchema: PersonSchema,
   });
 } catch (error) {

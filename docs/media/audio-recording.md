@@ -41,6 +41,7 @@ export function VoiceNote() {
   const { isRecording, isSupported, start, stop } = useAudioRecorder()
   const { generate, result, isLoading } = useTranscription({
     connection: fetchServerSentEvents('/api/transcribe'),
+    threadId: 'transcription',
   })
 
   async function toggle() {
@@ -107,6 +108,7 @@ export function VoiceComposer() {
   const { isRecording, start, stop } = useAudioRecorder()
   const { sendMessage } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
   })
 
   async function toggle() {
@@ -229,7 +231,7 @@ Svelte 5 runes cannot register automatic cleanup. If a recording can still run w
   } from '@tanstack/ai-svelte'
 
   const recorder = createAudioRecorder()
-  const chat = createChat({ connection: fetchServerSentEvents('/api/chat') })
+  const chat = createChat({ connection: fetchServerSentEvents('/api/chat'), threadId: 'support-chat' })
 
   async function toggle() {
     if (!recorder.isRecording) {

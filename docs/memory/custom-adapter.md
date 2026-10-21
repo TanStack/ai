@@ -146,6 +146,7 @@ const memory = pgvectorMemory({ pool, embed })
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   middleware: [memoryMiddleware({ adapter: memory, scope })],
 })
 ```

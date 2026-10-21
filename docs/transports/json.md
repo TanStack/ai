@@ -50,6 +50,7 @@ import { useChat, fetchJson } from "@tanstack/ai-react";
 export function Chat() {
   const { messages, sendMessage, isLoading } = useChat({
     connection: fetchJson("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -118,10 +119,11 @@ const PersonSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const { messages } = await chatParamsFromRequest(request);
+  const { messages, threadId } = await chatParamsFromRequest(request);
   const person = await chat({
     adapter: openaiText("gpt-6.1-sol"),
     messages,
+    threadId,
     outputSchema: PersonSchema,
   });
   // `person` is typed here. Save it before you send it.
@@ -143,6 +145,7 @@ const PersonSchema = z.object({
 export function PersonExtractor() {
   const { sendMessage, isLoading, final } = useChat({
     connection: fetchJson("/api/extract-person"),
+    threadId: "support-chat",
     outputSchema: PersonSchema,
   });
 

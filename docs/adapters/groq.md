@@ -84,6 +84,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -123,6 +124,7 @@ const result = await generateTranscription({
   adapter: groqTranscription("whisper-large-v3-turbo"),
   audio: "https://example.com/recording.mp3",
   language: "en",
+  threadId: "thread-1",
 });
 
 console.log(result.text);
@@ -150,6 +152,7 @@ import { groqSpeech } from "@tanstack/ai-groq";
 const result = await generateSpeech({
   adapter: groqSpeech("canopylabs/orpheus-v1-english"),
   text: "Hello from Groq!",
+  threadId: "thread-1",
   voice: "autumn",
   format: "wav",
 });
@@ -173,6 +176,7 @@ import { groqSummarize } from "@tanstack/ai-groq";
 const result = await summarize({
   adapter: groqSummarize("llama-3.3-70b-versatile"),
   text: "Your long text to summarize...",
+  threadId: "thread-1",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"
 });
@@ -197,6 +201,7 @@ import { groqText } from "@tanstack/ai-groq";
 const stream = chat({
   adapter: groqText("llama-3.3-70b-versatile"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   modelOptions: {
     temperature: 0.7,
     max_completion_tokens: 1024,
@@ -218,6 +223,7 @@ import { groqText } from "@tanstack/ai-groq";
 const stream = chat({
   adapter: groqText("openai/gpt-oss-120b"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   reasoning: "medium",
 });
 ```

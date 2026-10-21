@@ -83,6 +83,7 @@ const adapter = createOpenRouterText(
 const stream = chat({
   adapter,
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   retry: { maxRetries: 3 },
 });
 ```
@@ -114,6 +115,7 @@ import { openRouterResponsesText } from "@tanstack/ai-openrouter";
 const stream = chat({
   adapter: openRouterResponsesText("anthropic/claude-sonnet-5.5"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
 });
 ```
 
@@ -133,6 +135,7 @@ import { openRouterText } from "@tanstack/ai-openrouter";
 const stream = chat({
   adapter: openRouterText("meta-llama/llama-4-maverick"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   modelOptions: {
     provider: {
       order: ["groq", "together"], // provider slugs, in priority order
@@ -171,6 +174,7 @@ import { openRouterText } from "@tanstack/ai-openrouter";
 const stream = chat({
   adapter: openRouterText("deepseek/deepseek-v4-pro"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   modelOptions: {
     variant: "free", // requests deepseek/deepseek-v4-pro:free
   },
@@ -190,6 +194,7 @@ import { openRouterText } from "@tanstack/ai-openrouter";
 const stream = chat({
   adapter: openRouterText("openai/gpt-6-astra"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   modelOptions: {
     plugins: [{ id: "web", maxResults: 5 }],
   },
@@ -230,6 +235,7 @@ import { z } from "zod";
 const person = await chat({
   adapter: openRouterText("openai/gpt-5.6-sol"),
   messages: [{ role: "user", content: "Return Ada Lovelace, age 36." }],
+  threadId: "thread-1",
   modelOptions: { responseFormat: { type: "json_object" } },
   outputSchema: z.object({ name: z.string(), age: z.number() }),
 });
@@ -278,11 +284,12 @@ const AnswerSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages, threadId } = await request.json();
 
   const stream = chat({
     adapter: openRouterText("openai/gpt-5.5"),
     messages,
+    threadId,
     tools: [getWeather],
     outputSchema: AnswerSchema,
     stream: true,
@@ -313,11 +320,12 @@ const AnswerSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages, threadId } = await request.json();
 
   const stream = chat({
     adapter: openRouterResponsesText("openai/gpt-5.5"),
     messages,
+    threadId,
     tools: [getWeather],
     outputSchema: AnswerSchema,
     stream: true,
@@ -341,6 +349,7 @@ const AnswerSchema = z.object({
 export function useAnswer() {
   const { sendMessage, partial, final } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
     outputSchema: AnswerSchema,
   });
 
@@ -373,6 +382,7 @@ import { webSearchTool } from "@tanstack/ai-openrouter/tools";
 const stream = chat({
   adapter: openRouterText("openai/gpt-6.1-sol"),
   messages: [{ role: "user", content: "What's new in AI this week?" }],
+  threadId: "thread-1",
   tools: [
     webSearchTool({
       engine: "exa",
@@ -404,6 +414,7 @@ const stream = chat({
   messages: [
     { role: "user", content: "Summarize https://example.com/article" },
   ],
+  threadId: "thread-1",
   tools: [
     webFetchTool({
       engine: "openrouter",
@@ -439,6 +450,7 @@ function isRunFinished(chunk: StreamChunk): chunk is RunFinishedEvent {
 for await (const chunk of chat({
   adapter: openRouterText("openai/gpt-6.1-sol"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
 })) {
   if (isRunFinished(chunk)) {
     console.log("cost:", chunk.usage?.cost);
@@ -520,6 +532,7 @@ import { useGenerateVideo, fetchServerSentEvents } from "@tanstack/ai-react";
 export function VideoResult() {
   const { result } = useGenerateVideo({
     connection: fetchServerSentEvents("/api/generate/video"),
+    threadId: "video-studio",
   });
 
   return result?.url ? <video src={result.url} controls /> : null;
@@ -610,6 +623,7 @@ const apiKey = await signIn({
 const stream = chat({
   adapter: createOpenRouterText("openai/gpt-6.1-sol", apiKey),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
 });
 ```
 

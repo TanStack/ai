@@ -97,6 +97,7 @@ import { byok } from "./byok";
 export function Chat() {
   const { sendMessage, isLoading } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
     byok,
     forwardedProps: { provider: "openai" },
   });
@@ -278,6 +279,7 @@ import { byok } from "./byok";
 export function Chat({ provider }: { provider: "openai" | "anthropic" }) {
   const { sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
     byok,
     forwardedProps: { provider },
   });
@@ -333,6 +335,7 @@ export const writer = defineAgent({
     ctx.chat({
       adapter: await ctx.keys.adapter(gpt),
       messages: [{ role: "user", content: "Write a short draft." }],
+      threadId: ctx.threadId,
       stream: false,
     }),
 });

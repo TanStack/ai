@@ -38,6 +38,7 @@ import { openaiChatCompletions } from "@tanstack/ai-openai";
 const stream = chat({
   adapter: openaiChatCompletions("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
 });
 ```
 
@@ -54,6 +55,7 @@ const adapter = createOpenaiChatCompletions("gpt-6.1-sol", process.env.OPENAI_AP
 const stream = chat({
   adapter,
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
 });
 ```
 
@@ -68,7 +70,7 @@ import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { createAzureOpenaiText } from "@tanstack/ai-openai";
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages, threadId } = await request.json();
 
   const stream = chat({
     adapter: createAzureOpenaiText("gpt-5.6", process.env.AZURE_OPENAI_API_KEY!, {
@@ -76,6 +78,7 @@ export async function POST(request: Request) {
       deploymentName: "production-chat",
     }),
     messages,
+    threadId,
   });
 
   return toServerSentEventsResponse(stream);
@@ -303,6 +306,7 @@ import { openaiText } from "@tanstack/ai-openai";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   modelOptions: {
     prompt_cache_key: "acme-support",
   },
@@ -353,6 +357,7 @@ const adapter = openaiText("gpt-6.1-sol");
 const stream = chat({
   adapter,
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   middleware: [withCompaction({ maxTokens: 100_000, native: adapter })],
 });
 ```
@@ -381,6 +386,7 @@ const result = await generateTranscription({
   audio: audioFile,
   responseFormat: "verbose_json",
   prompt: "Technical terms: API, SDK",
+  threadId: "thread-1",
   modelOptions: {
     temperature: 0,
     timestamp_granularities: ["word", "segment"],
@@ -409,6 +415,7 @@ const result = await generateTranscription({
       "data:audio/wav;base64,...",
     ],
   },
+  threadId: "thread-1",
 });
 
 for (const segment of result.segments ?? []) {
@@ -439,6 +446,7 @@ import { webSearchTool } from "@tanstack/ai-openai/tools";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "What's new in AI this week?" }],
+  threadId: "thread-1",
   tools: [webSearchTool({ type: "web_search" })],
 });
 ```
@@ -457,6 +465,7 @@ import { webSearchPreviewTool } from "@tanstack/ai-openai/tools";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Latest news about TypeScript" }],
+  threadId: "thread-1",
   tools: [
     webSearchPreviewTool({
       type: "web_search_preview_2025_03_11",
@@ -486,6 +495,7 @@ import { fileSearchTool } from "@tanstack/ai-openai/tools";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "What does the handbook say about PTO?" }],
+  threadId: "thread-1",
   tools: [
     fileSearchTool({
       type: "file_search",
@@ -510,6 +520,7 @@ import { imageGenerationTool } from "@tanstack/ai-openai/tools";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Draw a logo for my app" }],
+  threadId: "thread-1",
   tools: [
     imageGenerationTool({
       quality: "high",
@@ -533,6 +544,7 @@ import { codeInterpreterTool } from "@tanstack/ai-openai/tools";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Analyse this CSV and plot a chart" }],
+  threadId: "thread-1",
   tools: [
     codeInterpreterTool({ type: "code_interpreter", container: { type: "auto" } }),
   ],
@@ -553,6 +565,7 @@ import { mcpTool } from "@tanstack/ai-openai/tools";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "List my GitHub issues" }],
+  threadId: "thread-1",
   tools: [
     mcpTool({
       server_url: "https://mcp.example.com",
@@ -642,6 +655,7 @@ import { localShellTool } from "@tanstack/ai-openai/tools";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Run the test suite and summarise failures" }],
+  threadId: "thread-1",
   tools: [localShellTool()],
 });
 
@@ -679,6 +693,7 @@ import { shellTool } from "@tanstack/ai-openai/tools";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Count lines in all JS files" }],
+  threadId: "thread-1",
   tools: [shellTool({ environment: { type: "local" } })],
 });
 
@@ -723,11 +738,12 @@ import { openaiText } from "@tanstack/ai-openai";
 import { shellTool } from "@tanstack/ai-openai/tools";
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages, threadId } = await request.json();
 
   const stream = chat({
     adapter: openaiText("gpt-6.1-sol"),
     messages,
+    threadId,
     tools: [
       shellTool({
         environment: {
@@ -765,6 +781,7 @@ import { applyPatchTool } from "@tanstack/ai-openai/tools";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Fix the import paths in src/index.ts" }],
+  threadId: "thread-1",
   tools: [applyPatchTool()],
 });
 
@@ -806,6 +823,7 @@ import { customTool } from "@tanstack/ai-openai/tools";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Look up order #1234" }],
+  threadId: "thread-1",
   tools: [
     customTool({
       type: "custom",

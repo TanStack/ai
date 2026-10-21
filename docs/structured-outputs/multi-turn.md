@@ -95,6 +95,7 @@ export function RecipeChat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage, isLoading } = useChat({
     connection: fetchServerSentEvents("/api/structured-chat"),
+    threadId: "support-chat",
     outputSchema: RecipeSchema,
   });
 

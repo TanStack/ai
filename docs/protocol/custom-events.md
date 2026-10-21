@@ -60,6 +60,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: openaiText("gpt-6.1-sol"),
     messages: params.messages,
+    threadId: params.threadId,
     tools: [importRows],
   });
   return toServerSentEventsResponse(stream);
@@ -78,6 +79,7 @@ export function Chat() {
   const [progress, setProgress] = useState("");
   const { sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
     onCustomEvent: (name, value) => {
       if (
         name === "my-app:progress" &&
@@ -117,6 +119,7 @@ import { openaiText } from "@tanstack/ai-openai";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
 });
 
 for await (const chunk of stream) {
@@ -226,6 +229,7 @@ import type { ChatStream } from "@tanstack/ai";
 const stream: ChatStream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
 });
 ```
 
@@ -259,6 +263,7 @@ import { importRows } from "./tools";
 const stream: AsyncIterable<StreamChunk> = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Import these rows" }],
+  threadId: "thread-1",
   tools: [importRows],
 });
 

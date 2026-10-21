@@ -233,6 +233,7 @@ export async function POST(request: Request) {
       maxSnippetsInContext: 5,
     },
     messages,
+    threadId,
   })
 
   const stream = chat({

@@ -143,6 +143,7 @@ const answerOnLastCall: ChatMiddleware = {
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "How do I add a tool?" }],
+  threadId: "thread-1",
   tools: [search],
   agentLoopStrategy: maxIterations(MAX_CALLS),
   middleware: [answerOnLastCall],
@@ -185,6 +186,7 @@ import { openaiText } from "@tanstack/ai-openai";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Hi" }],
+  threadId: "thread-1",
   wrapFetch: (next) => async (input, init) => {
     const started = Date.now();
     const response = await next(input, init);

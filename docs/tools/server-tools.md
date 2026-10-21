@@ -153,7 +153,7 @@ const getCurrentUser = toolDefinition({
 });
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages, threadId } = await request.json();
   // `getSession` and `getDb` are your own app code, not part of TanStack AI.
   const session = await getSession(request);
   const db = getDb();
@@ -161,6 +161,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: openaiText("gpt-6.1-sol"),
     messages,
+    threadId,
     tools: [getCurrentUser],
     context: {
       userId: session.user.id,

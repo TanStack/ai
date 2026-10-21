@@ -85,6 +85,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -123,6 +124,7 @@ import { openRouterText } from "@tanstack/ai-openrouter";
 const stream = chat({
   adapter: openRouterText("openrouter/auto"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   modelOptions: {
     models: [
       "openai/gpt-6.1-sol",
@@ -142,6 +144,7 @@ import { openRouterText } from "@tanstack/ai-openrouter";
 const stream = chat({
   adapter: openRouterText("meta-llama/llama-4-maverick"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   modelOptions: {
     provider: {
       order: ["groq", "together"], // provider slugs, in priority order
@@ -165,6 +168,7 @@ import { webSearchTool } from "@tanstack/ai-openrouter/tools";
 const stream = chat({
   adapter: openRouterText("openai/gpt-6.1-sol"),
   messages: [{ role: "user", content: "What's new in AI this week?" }],
+  threadId: "thread-1",
   tools: [
     webSearchTool({
       engine: "exa",
@@ -203,6 +207,7 @@ import { openRouterImage } from "@tanstack/ai-openrouter";
 const result = await generateImage({
   adapter: openRouterImage("google/gemini-nano-banana-2.1"),
   prompt: "A watercolor lighthouse at dusk",
+  threadId: "thread-1",
   size: "1344x768", // sent as image_config.aspect_ratio ("16:9")
   modelOptions: {
     image_size: "2K", // resolution (Gemini models)
@@ -298,6 +303,7 @@ import { openRouterSummarize } from "@tanstack/ai-openrouter";
 const result = await summarize({
   adapter: openRouterSummarize("google/gemini-3.8-flash"),
   text: "Your long text to summarize...",
+  threadId: "thread-1",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"
 });
@@ -326,6 +332,7 @@ import { openRouterText } from "@tanstack/ai-openrouter";
 const stream = chat({
   adapter: openRouterText("anthropic/claude-sonnet-5.5"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   modelOptions: {
     temperature: 0.7,
     maxCompletionTokens: 1024,
@@ -346,6 +353,7 @@ import { openRouterText } from "@tanstack/ai-openrouter";
 const stream = chat({
   adapter: openRouterText("anthropic/claude-opus-5.5"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   reasoning: "high",
 });
 ```

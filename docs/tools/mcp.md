@@ -52,7 +52,7 @@ export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const { messages } = await request.json()
+        const { messages, threadId } = await request.json()
 
         const mcp = await createMCPClient({
           transport: {
@@ -65,6 +65,7 @@ export const Route = createFileRoute('/api/chat')({
         const stream = chat({
           adapter: openaiText('gpt-6.1-sol'),
           messages,
+          threadId,
           mcp: { clients: [mcp] },
         })
 
@@ -85,6 +86,7 @@ import { fetchServerSentEvents } from '@tanstack/ai-client'
 export function Chat() {
   const { messages, sendMessage, status } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
   })
 
   return (

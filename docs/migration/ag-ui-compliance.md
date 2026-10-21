@@ -257,6 +257,7 @@ import { openaiText } from "@tanstack/ai-openai";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
 });
 
 for await (const chunk of stream) {

@@ -36,6 +36,7 @@ Holds the messages and the run state of one chat, and talks to your server route
   let input = $state("");
   const chat = createChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   const handleSubmit = (e: Event) => {
@@ -63,14 +64,14 @@ Holds the messages and the run state of one chat, and talks to your server route
 
 ### Options
 
-You must pass `connection` or `fetcher`, not both.
+You must pass `threadId`. You must also pass `connection` or `fetcher`, not both.
 
 | Option | What it does |
 | --- | --- |
 | `connection` | Connection adapter, for example `fetchServerSentEvents("/api/chat")`. See [Transports](../transports/overview). |
 | `fetcher` | A function that returns a `Response` or a stream. Use it with server functions. |
 | `tools` | Client tools from `.client()`. They run when the model calls them. Read reactive state in a `get tools()` getter to change them later. See [Client Tools](../tools/client-tools). |
-| `threadId` | The id of this chat. Required when `persistence` is on. If you omit it, the factory makes one after mount. |
+| `threadId` | Required. The id of this chat. Use a stable id for each conversation, for example the id from your route. |
 | `initialMessages` | The messages to show first. |
 | `forwardedProps` | JSON sent to the server in the AG-UI `forwardedProps` field, for example `{ model: "gpt-6.1-sol" }`. |
 | `persistence` | `true` to load the thread from the server, or a storage adapter. See [Chat Persistence](../persistence/chat-persistence). |
@@ -135,6 +136,7 @@ A tool with `needsApproval: true` pauses the run. The pending call shows up in `
 
   const chat = createChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
     tools: [deleteFileTool],
   });
 </script>
@@ -190,6 +192,7 @@ Each factory runs one generation request and keeps its result. See [Generation H
 
   const image = createGenerateImage({
     connection: fetchServerSentEvents("/api/generate/image"),
+    threadId: "image-studio",
   });
 </script>
 
@@ -201,7 +204,7 @@ Each factory runs one generation request and keeps its result. See [Generation H
 </button>
 ```
 
-Options: `connection` or `fetcher`, `body`, `threadId`, `persistence`, `byok`, `byokProvider`, `devtools`, `onResult`, `onError`, `onProgress`, `onChunk`.
+Options: `threadId` (required), `connection` or `fetcher`, `body`, `persistence`, `byok`, `byokProvider`, `devtools`, `onResult`, `onError`, `onProgress`, `onChunk`.
 
 Returns: `generate(input)`, `result`, `isLoading`, `error`, `status`, `stop()`, `reset()`, `runId`, `updateBody(body)`, and `dispose()`. The state fields are reactive getters. The factories do not clean up on their own. When you are done, call `dispose()`.
 

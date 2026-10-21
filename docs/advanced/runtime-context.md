@@ -121,11 +121,12 @@ const auditMiddleware: ChatMiddleware<AppContext> = {
 }
 
 export async function POST(request: Request) {
-  const { messages } = await chatParamsFromRequest(request)
+  const { messages, threadId } = await chatParamsFromRequest(request)
 
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     messages,
+    threadId,
     middleware: [auditMiddleware],
     context: {
       userId: 'user_123',
@@ -163,6 +164,7 @@ const notifyUser = toolDefinition({
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'support-chat',
   tools: [notifyUser],
   context: {
     currentTabId: 'settings',
@@ -190,6 +192,7 @@ import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 export function Chat() {
   const { sendMessage } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
     forwardedProps: {
       tenantId: 'tenant_456',
     },
@@ -231,6 +234,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     messages: params.messages,
+    threadId: params.threadId,
     context,
   })
 
@@ -272,6 +276,7 @@ const tenantMiddleware: ChatMiddleware<TenantContext> = {
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages: [{ role: 'user', content: 'Who am I?' }],
+  threadId: 'thread-1',
   tools: [currentUserTool],
   middleware: [tenantMiddleware],
   context: {
@@ -315,6 +320,7 @@ const inspectClientContext = toolDefinition({
 export function DebugChat() {
   const { sendMessage } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
     tools: [inspectClientContext],
     context: {
       currentTabId: 'settings',
@@ -348,6 +354,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     messages: params.messages,
+    threadId: params.threadId,
     tools: serverTools,
     context: buildRuntimeContextFrom(params.aguiContext),
   })

@@ -119,6 +119,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   // Provider options, typed for this model
   modelOptions: {
     temperature: 0.7,
@@ -164,6 +165,7 @@ const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   systemPrompts: ['You are a helpful assistant.'],
   messages,
+  threadId: 'thread-1',
 })
 ```
 
@@ -183,6 +185,7 @@ const stream = chat({
     'Never fabricate citations.',
   ],
   messages,
+  threadId: 'thread-1',
 })
 ```
 
@@ -325,6 +328,7 @@ const showNotification = showNotificationDef.client(({ message }) => {
 // no addToolOutput or addToolResult call.
 const { messages } = useChat({
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'support-chat',
   tools: [showNotification],
 })
 ```
@@ -424,6 +428,7 @@ import { z } from 'zod'
 const profile = await chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages: [{ role: 'user', content: 'Extract the user profile from this bio…' }],
+  threadId: 'thread-1',
   outputSchema: z.object({
     name: z.string(),
     age: z.number(),
@@ -557,6 +562,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 const firstPass = await chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   agentLoopStrategy: maxIterations(1),
   stream: false,
 })
@@ -624,10 +630,11 @@ const loggingMiddleware: ChatMiddleware<AppContext> = {
 }
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     messages,
+    threadId,
     middleware: [loggingMiddleware],
     context: { userId: 'u_123' }, // each hook gets it as the typed ctx.context
   })
@@ -771,7 +778,7 @@ const traceId = 'trace-123'
 const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 async function handler() {
-  const stream = chat({ adapter: openaiText('gpt-6.1-sol'), messages })
+  const stream = chat({ adapter: openaiText('gpt-6.1-sol'), messages, threadId: 'thread-1' })
 
   // SSE response. Use it with fetchServerSentEvents on the client.
   // Both response helpers take a ResponseInit with an optional abortController,
@@ -784,7 +791,7 @@ async function handler() {
 }
 
 async function handler2() {
-  const stream = chat({ adapter: openaiText('gpt-6.1-sol'), messages })
+  const stream = chat({ adapter: openaiText('gpt-6.1-sol'), messages, threadId: 'thread-1' })
 
   // Newline-delimited JSON response. Use it with fetchHttpStream on the client.
   return toHttpResponse(stream, { abortController })
@@ -792,7 +799,7 @@ async function handler2() {
 
 // Or get the raw ReadableStream, to pipe it somewhere else
 // (for example a Node ServerResponse, or a transform).
-const stream2 = chat({ adapter: openaiText('gpt-6.1-sol'), messages })
+const stream2 = chat({ adapter: openaiText('gpt-6.1-sol'), messages, threadId: 'thread-1' })
 const sseStream = toServerSentEventsStream(stream2, abortController)
 const ndjsonStream = toHttpStream(stream2, abortController)
 ```
@@ -817,15 +824,16 @@ import { useChat, fetchServerSentEvents, fetchHttpStream, stream } from '@tansta
 import { customServerFn } from './server'
 
 // SSE (use with toServerSentEventsResponse)
-useChat({ connection: fetchServerSentEvents('/api/chat') })
+useChat({ connection: fetchServerSentEvents('/api/chat'), threadId: 'support-chat' })
 
 // HTTP stream (use with toHttpResponse or toHttpStream on the server)
-useChat({ connection: fetchHttpStream('/api/chat') })
+useChat({ connection: fetchHttpStream('/api/chat'), threadId: 'support-chat' })
 
 // Custom adapter: return an AsyncIterable<StreamChunk>, for example from a
 // TanStack Start server function or an RPC client
 useChat({
   connection: stream((messages, data) => customServerFn({ messages, data })),
+  threadId: 'support-chat',
 })
 ```
 
@@ -857,6 +865,7 @@ const abortController = new AbortController()
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   abortController,
 })
 
@@ -886,6 +895,7 @@ import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 
 const { messages } = useChat({
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'support-chat',
   onResponse: (response) => console.log('Response started'),
   onChunk: (chunk) => console.log('Chunk received:', chunk),
   onFinish: (message) => console.log('Finished:', message),
@@ -938,6 +948,7 @@ chat({
       ],
     },
   ],
+  threadId: 'thread-1',
 })
 ```
 
@@ -986,6 +997,7 @@ const selectedProvider: keyof typeof adapters = 'openai'
 chat({
   adapter: adapters[selectedProvider](),
   messages,
+  threadId: 'thread-1',
 })
 ```
 
@@ -1028,6 +1040,7 @@ const adapter = openaiText('gpt-6.1-sol')
 chat({
   adapter,
   messages,
+  threadId: 'thread-1',
   modelOptions: {
     // TypeScript autocompletes the options of this model
     service_tier: 'default',
@@ -1049,6 +1062,7 @@ import { openaiText } from '@tanstack/ai-openai'
 const { text, chunks } = await chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages: [{ role: 'user', content: 'Summarize TanStack AI in one sentence.' }],
+  threadId: 'thread-1',
   stream: false,
 })
 // text: string
@@ -1062,7 +1076,7 @@ import { chat, streamToText } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const messages = [{ role: 'user' as const, content: 'Hello' }]
-const stream = chat({ adapter: openaiText('gpt-6.1-sol'), messages })
+const stream = chat({ adapter: openaiText('gpt-6.1-sol'), messages, threadId: 'thread-1' })
 const { text } = await streamToText(stream)
 ```
 

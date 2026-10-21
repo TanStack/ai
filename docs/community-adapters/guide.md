@@ -104,7 +104,7 @@ export class AcmeTextAdapter<TModel extends AcmeModel> extends BaseTextAdapter<
     options: TextOptions<AcmeOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
     const runId = options.runId ?? this.generateId();
-    const threadId = options.threadId ?? this.generateId();
+    const threadId = options.threadId;
     const messageId = this.generateId();
 
     yield { type: EventType.RUN_STARTED, runId, threadId, timestamp: Date.now() };
@@ -172,6 +172,7 @@ import { acmeText } from "./index";
 const stream = chat({
   adapter: acmeText("acme-large"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
 });
 
 for await (const chunk of stream) {

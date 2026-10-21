@@ -87,6 +87,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -125,6 +126,7 @@ import { lovableImage } from "@tanstack/ai-lovable";
 const result = await generateImage({
   adapter: lovableImage("openai/gpt-image-2"),
   prompt: "a red guitar on a wooden bench",
+  threadId: "thread-1",
 });
 ```
 
@@ -146,14 +148,15 @@ const adapter = lovableVideo("google/veo-3.1-lite");
 const { jobId } = await generateVideo({
   adapter,
   prompt: "a red guitar on a wooden bench, slow camera push-in",
+  threadId: "thread-1",
   duration: "4s",
   size: "1280x720",
 });
 
-let status = await getVideoJobStatus({ adapter, jobId });
+let status = await getVideoJobStatus({ adapter, jobId, threadId: "thread-1" });
 while (status.status === "pending" || status.status === "processing") {
   await new Promise((resolve) => setTimeout(resolve, 5000));
-  status = await getVideoJobStatus({ adapter, jobId });
+  status = await getVideoJobStatus({ adapter, jobId, threadId: "thread-1" });
 }
 
 console.log(status.status === "completed" ? status.url : status.error);
@@ -187,6 +190,7 @@ import { lovableSpeech } from "@tanstack/ai-lovable";
 const result = await generateSpeech({
   adapter: lovableSpeech("openai/gpt-4o-mini-tts"),
   text: "Welcome to the guitar shop.",
+  threadId: "thread-1",
   voice: "nova",
 });
 ```
@@ -209,6 +213,7 @@ const result = await generateTranscription({
   adapter: lovableTranscription("openai/gpt-4o-mini-transcribe"),
   audio,
   language: "en",
+  threadId: "thread-1",
 });
 
 console.log(result.text);
@@ -225,6 +230,7 @@ import { lovableSummarize } from "@tanstack/ai-lovable";
 const result = await summarize({
   adapter: lovableSummarize("google/gemini-3.7-flash"),
   text: "The Fender Stratocaster is a versatile electric guitar.",
+  threadId: "thread-1",
 });
 ```
 
@@ -241,6 +247,7 @@ import { lovableText } from "@tanstack/ai-lovable";
 const stream = chat({
   adapter: lovableText("openai/gpt-5.6-sol"),
   messages: [{ role: "user", content: "Plan a database migration." }],
+  threadId: "thread-1",
   reasoning: "xhigh",
 });
 ```
@@ -277,6 +284,7 @@ import { lovableText } from "@tanstack/ai-lovable";
 const stream = chat({
   adapter: lovableText("openai/gpt-5.5", { api: "chat" }),
   messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
 });
 ```
 

@@ -77,6 +77,7 @@ function readAsBase64(file: File): Promise<string> {
 export function AskAboutImage() {
   const { sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   async function send(file: File) {
@@ -191,6 +192,7 @@ const stream = chat({
       ],
     },
   ],
+  threadId: "thread-1",
 });
 ```
 
@@ -272,6 +274,7 @@ const stream = chat({
       ],
     },
   ],
+  threadId: "thread-1",
 });
 ```
 
@@ -368,6 +371,7 @@ const stream = chat({
       ],
     },
   ],
+  threadId: "thread-1",
 });
 ```
 
@@ -382,6 +386,7 @@ import { readAsBase64 } from "./read-as-base64";
 export function ChatWithFileUpload() {
   const { sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   async function handleFileUpload(file: File) {
@@ -432,6 +437,7 @@ import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
 
 const client = new ChatClient({
   connection: fetchServerSentEvents("/api/chat"),
+  threadId: "support-chat",
 });
 
 await client.sendMessage({
@@ -447,6 +453,7 @@ import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
 
 const client = new ChatClient({
   connection: fetchServerSentEvents("/api/chat"),
+  threadId: "support-chat",
   forwardedProps: { model: "gpt-6.1-sol" },
 });
 
@@ -480,14 +487,18 @@ const MessageSchema = z.object({
   content: z.union([z.string(), z.array(ContentPartSchema)]),
 });
 
-const BodySchema = z.object({ messages: z.array(MessageSchema) });
+const BodySchema = z.object({
+  messages: z.array(MessageSchema),
+  threadId: z.string(),
+});
 
 // In an API route handler
-const { messages } = BodySchema.parse(await request.json());
+const { messages, threadId } = BodySchema.parse(await request.json());
 
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages,
+  threadId,
 });
 ```
 

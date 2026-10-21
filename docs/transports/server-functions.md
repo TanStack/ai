@@ -40,10 +40,14 @@ import { openaiText } from "@tanstack/ai-openai";
 import type { UIMessage } from "@tanstack/ai";
 
 export const chatFn = createServerFn({ method: "POST" })
-  .inputValidator((data: { messages: Array<UIMessage> }) => data)
+  .inputValidator((data: { messages: Array<UIMessage>; threadId: string }) => data)
   .handler(({ data }) =>
     toServerSentEventsResponse(
-      chat({ adapter: openaiText("gpt-6.1-sol"), messages: data.messages }),
+      chat({
+        adapter: openaiText("gpt-6.1-sol"),
+        messages: data.messages,
+        threadId: data.threadId,
+      }),
     ),
   );
 ```
@@ -58,8 +62,9 @@ import { chatFn } from "./server/chat.server";
 
 export function Chat() {
   const { messages, sendMessage } = useChat({
-    fetcher: ({ messages }, { signal }) =>
-      chatFn({ data: { messages }, signal }),
+    fetcher: ({ messages, threadId }, { signal }) =>
+      chatFn({ data: { messages, threadId }, signal }),
+    threadId: "support-chat",
   });
 
   return (
@@ -101,8 +106,13 @@ import { openaiText } from "@tanstack/ai-openai";
 
 export function chatServerFn(input: {
   messages: Array<UIMessage> | Array<ModelMessage>;
+  threadId: string;
 }) {
-  return chat({ adapter: openaiText("gpt-6.1-sol"), messages: input.messages });
+  return chat({
+    adapter: openaiText("gpt-6.1-sol"),
+    messages: input.messages,
+    threadId: input.threadId,
+  });
 }
 ```
 
@@ -112,9 +122,14 @@ Then pass the factory to `stream()`:
 import { useChat, stream } from "@tanstack/ai-react";
 import { chatServerFn } from "./server/chat.server";
 
+const threadId = "support-chat";
+
 export function useInProcessChat() {
   return useChat({
-    connection: stream((messages, data) => chatServerFn({ messages, ...data })),
+    connection: stream((messages, data) =>
+      chatServerFn({ messages, ...data, threadId }),
+    ),
+    threadId,
   });
 }
 ```
@@ -142,6 +157,7 @@ export function useRpcChat() {
     connection: rpcStream((messages, data) =>
       api.chat.stream({ messages, ...data }),
     ),
+    threadId: "support-chat",
   });
 }
 ```

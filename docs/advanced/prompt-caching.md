@@ -108,6 +108,7 @@ import { openaiText } from "@tanstack/ai-openai";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Where is my order?" }],
+  threadId: "thread-1",
   promptCache: { retention: "long", key: "acme-support" },
 });
 ```
@@ -138,6 +139,7 @@ export function reviewContract(contract: string) {
   return chat({
     adapter: anthropicText("claude-sonnet-5-5"),
     messages: [{ role: "user", content: `Review this contract:\n\n${contract}` }],
+    threadId: "thread-1",
     // Sent one time only: skip the cache write.
     promptCache: "none",
   });

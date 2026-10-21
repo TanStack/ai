@@ -84,6 +84,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -120,6 +121,7 @@ import { grokImage } from "@tanstack/ai-grok";
 const result = await generateImage({
   adapter: grokImage("grok-imagine-image-2.0"),
   prompt: "A futuristic cityscape at sunset",
+  threadId: "thread-1",
   size: "16:9_2k",
   modelOptions: { quality: "medium" },
 });
@@ -143,15 +145,16 @@ const adapter = grokVideo("grok-imagine-video-1.5");
 const { jobId } = await generateVideo({
   adapter,
   prompt: "A red panda balancing on a bamboo stalk in the rain",
+  threadId: "thread-1",
   size: "16:9_720p", // "aspectRatio" or "aspectRatio_resolution"
   duration: 5, // integer seconds, 1 to 15
 });
 
 // 2. Poll until complete, then read the video URL
-let status = await getVideoJobStatus({ adapter, jobId });
+let status = await getVideoJobStatus({ adapter, jobId, threadId: "thread-1" });
 while (status.status !== "completed" && status.status !== "failed") {
   await new Promise((r) => setTimeout(r, 5000));
-  status = await getVideoJobStatus({ adapter, jobId });
+  status = await getVideoJobStatus({ adapter, jobId, threadId: "thread-1" });
 }
 
 console.log(status.url); // hosted .mp4 URL
@@ -171,6 +174,7 @@ import { grokSpeech } from "@tanstack/ai-grok";
 const result = await generateSpeech({
   adapter: grokSpeech("grok-tts"),
   text: "Hello from Grok!",
+  threadId: "thread-1",
   voice: "default",
   format: "mp3",
 });
@@ -188,6 +192,7 @@ import { audioFile } from "./audio";
 const result = await generateTranscription({
   adapter: grokTranscription("grok-stt"),
   audio: audioFile,
+  threadId: "thread-1",
 });
 
 console.log(result.text);
@@ -207,6 +212,7 @@ import { grokSummarize } from "@tanstack/ai-grok";
 const result = await summarize({
   adapter: grokSummarize("grok-4.3"),
   text: "Your long text to summarize...",
+  threadId: "thread-1",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"
 });
@@ -231,6 +237,7 @@ import { grokWebSearchTool } from "@tanstack/ai-grok/tools";
 const stream = chat({
   adapter: grokText("grok-4.3"),
   messages: [{ role: "user", content: "What's new in AI this week?" }],
+  threadId: "thread-1",
   tools: [grokWebSearchTool()],
 });
 ```
@@ -255,6 +262,7 @@ import { grokText } from "@tanstack/ai-grok";
 const stream = chat({
   adapter: grokText("grok-4.7"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   modelOptions: {
     temperature: 0.7,
     top_p: 0.9,
@@ -279,6 +287,7 @@ import { grokText } from "@tanstack/ai-grok";
 const stream = chat({
   adapter: grokText("grok-4.7"),
   messages: [{ role: "user", content: "Plan a database migration." }],
+  threadId: "thread-1",
   reasoning: "xhigh",
 });
 ```
@@ -350,6 +359,7 @@ const stream = chat({
     location: "global",
   }),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
 });
 ```
 
@@ -388,6 +398,7 @@ const result = await generateImage({
       source: { type: "url", value: "https://example.com/style.png" },
     },
   ],
+  threadId: "thread-1",
 });
 ```
 
@@ -423,6 +434,7 @@ const { jobId } = await generateVideo({
       source: { type: "url", value: "https://example.com/waterfall-still.png" },
     },
   ],
+  threadId: "thread-1",
   size: "16:9_720p",
   duration: 10,
 });
@@ -459,6 +471,7 @@ const { jobId } = await generateVideo({
       metadata: { role: "reference" },
     },
   ],
+  threadId: "thread-1",
   size: "16:9_720p",
   modelOptions: {
     reference_audios: [{ voice_id: "eve" }],
@@ -489,6 +502,7 @@ const edit = await generateVideo({
       source: { type: "url", value: "https://example.com/clip.mp4" },
     },
   ],
+  threadId: "thread-1",
   modelOptions: { mode: "edit" },
 });
 
@@ -502,6 +516,7 @@ const extension = await generateVideo({
       source: { type: "url", value: "https://example.com/clip.mp4" },
     },
   ],
+  threadId: "thread-1",
   duration: 5, // added seconds, not the total
   modelOptions: { mode: "extend" },
 });

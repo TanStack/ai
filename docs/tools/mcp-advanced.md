@@ -483,12 +483,13 @@ import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
   const url = 'https://my-mcp-server.example.com/mcp'
   const mcp = await createMCPClient({ transport: { type: 'http', url } })
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     messages,
+    threadId,
     tools: await mcp.tools(),
     middleware: [
       {
@@ -519,6 +520,7 @@ try {
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     messages,
+    threadId: 'thread-1',
     tools: await mcp.tools(),
   })
   for await (const chunk of stream) {
@@ -544,6 +546,7 @@ await using mcp = await createMCPClient({ transport: { type: 'http', url } })
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   tools: await mcp.tools(),
 })
 for await (const chunk of stream) {

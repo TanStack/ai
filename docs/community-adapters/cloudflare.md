@@ -63,6 +63,7 @@ const response = chat({
   adapter,
   stream: true,
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
 });
 
 const httpResponse = toHttpResponse(response);
@@ -97,6 +98,7 @@ const adapter = createWorkersAiImage(
 const result = await generateImage({
   adapter,
   prompt: "a cat in space",
+  threadId: "thread-1",
 });
 
 console.log(result.images[0]?.b64Json);
@@ -117,6 +119,7 @@ const adapter = createWorkersAiTranscription(
 const result = await generateTranscription({
   adapter,
   audio: audioArrayBuffer,
+  threadId: "thread-1",
 });
 
 console.log(result.text);
@@ -139,6 +142,7 @@ const adapter = createWorkersAiTts("@cf/deepgram/aura-2-en", {
 const result = await generateSpeech({
   adapter,
   text: "Hello world",
+  threadId: "thread-1",
 });
 
 console.log(result.audio);
@@ -158,6 +162,7 @@ const adapter: AnySummarizeAdapter = createWorkersAiSummarize("@cf/facebook/bart
 const result = await summarize({
   adapter,
   text: "Long article here...",
+  threadId: "thread-1",
 });
 
 console.log(result.summary);

@@ -165,10 +165,11 @@ import { openaiText } from "@tanstack/ai-openai";
 import { getProducts, compareProducts, calculateFinancing } from "./tools";
 
 async function handleRequest(request: Request) {
-  const { messages } = await request.json();
+  const { messages, threadId } = await request.json();
   const stream = chat({
     adapter: openaiText("gpt-6.1-sol"),
     messages,
+    threadId,
     tools: [getProducts, compareProducts, calculateFinancing],
     lazyToolsConfig: {
       // 'none' (default) | 'first-sentence' | 'full'

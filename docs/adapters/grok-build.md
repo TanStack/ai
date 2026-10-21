@@ -121,6 +121,7 @@ export function CodingAgent() {
   const [input, setInput] = useState("");
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/agent"),
+    threadId: "support-chat",
   });
 
   return (
@@ -213,6 +214,7 @@ export function useCodingAgent() {
     connection: fetchServerSentEvents("/api/agent", () => ({
       body: { sessionId },
     })),
+    threadId: "support-chat",
     onCustomEvent: (name, value) => {
       if (
         name === "grok-build.session-id" &&
@@ -252,6 +254,7 @@ const lookupTicket = toolDefinition({
 const stream = chat({
   adapter: grokBuildText("grok-build"),
   messages: [{ role: "user", content: "What's the status of ticket T-123?" }],
+  threadId: "thread-1",
   tools: [lookupTicket],
   middleware: [withSandbox(sandbox)],
 });
@@ -271,6 +274,7 @@ You want Grok Build to see only one of your tools, or none of them. Pass `toolCh
 const onlyLookup = chat({
   adapter: grokBuildText("grok-build"),
   messages: [{ role: "user", content: "What's the status of ticket T-123?" }],
+  threadId: "thread-1",
   tools: [lookupTicket],
   toolChoice: { type: "tool", name: "lookup_ticket" },
   middleware: [withSandbox(sandbox)],
@@ -309,6 +313,7 @@ const Report = z.object({
 const report = await chat({
   adapter: grokBuildText("grok-build"),
   messages: [{ role: "user", content: "Review this repo." }],
+  threadId: "thread-1",
   outputSchema: Report,
   middleware: [withSandbox(sandbox)],
 });
@@ -330,6 +335,7 @@ const Report = z.object({
 export function ReportView() {
   const { final, isLoading } = useChat({
     connection: fetchServerSentEvents("/api/repo-report"),
+    threadId: "support-chat",
     outputSchema: Report,
   });
 

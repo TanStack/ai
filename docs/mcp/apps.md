@@ -46,7 +46,7 @@ export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const { messages } = await request.json()
+        const { messages, threadId } = await request.json()
 
         const mcp = await createMCPClient({
           transport: {
@@ -58,6 +58,7 @@ export const Route = createFileRoute('/api/chat')({
         const stream = chat({
           adapter: openaiText('gpt-6.1-sol'),
           messages,
+          threadId,
           mcp: { clients: [mcp] },
         })
 
@@ -81,6 +82,7 @@ import { MCPAppResource } from '@tanstack/ai-react/mcp-apps'
 export function Chat() {
   const { messages, sendMessage, status } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
   })
 
   return (
@@ -172,6 +174,7 @@ export const Route = createFileRoute('/api/chat')({
         const stream = chat({
           adapter: openaiText('gpt-6.1-sol'),
           messages: body.messages,
+          threadId: body.threadId,
           mcp: { clients: [pool] },
         })
 
@@ -231,6 +234,7 @@ export function Chat() {
   const threadId = 'weather-chat'
   const { messages, sendMessage, status } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId,
   })
 
   const bridge = useMcpAppBridge({

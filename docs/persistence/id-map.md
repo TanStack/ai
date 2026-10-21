@@ -218,8 +218,8 @@ export async function POST(request: Request) {
 
 The client sends its `threadId` on the wire for you, so the hook only needs the option. Chat works the same way: the `threadId` that you pass to `useChat` is the one that `chatParamsFromRequest` gives your route, and `withPersistence` stores under it. See [Chat persistence](./chat-persistence) and [Generation persistence](./generation-persistence) for the full setup.
 
-### When you can skip `threadId`
+### `threadId` without persistence
 
-Without persistence, `threadId` is optional. After the view mounts, the client makes a temporary thread id for the protocol. That id is also the DevTools row for the session. The run works, but nobody can find it again, and a reload starts a new conversation. That is fine for a one-shot image that you show and forget.
+`threadId` is required on every hook, also without persistence. The id is also the DevTools row for the session. Without persistence, the run works, but nobody can load it again after a reload. That is fine for a one-shot image that you show and forget.
 
-With `persistence` on, `threadId` is required on the hook and on the activity that the middleware wraps. `withGenerationPersistence` throws when neither the activity nor its own `threadId` override gives one. An app that cannot name the slot has nothing to restore into.
+With `persistence` on, the `threadId` is also the key that the run is stored under. Pass the same id to the hook and to the activity that the middleware wraps.

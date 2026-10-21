@@ -54,11 +54,12 @@ import { openaiText } from "@tanstack/ai-openai";
 import { transferFunds } from "./tools";
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages, threadId } = await request.json();
 
   const stream = chat({
     adapter: openaiText("gpt-6.1-sol"),
     messages,
+    threadId,
     tools: [transferFunds],
     repairToolInput: false,
   });
@@ -75,11 +76,12 @@ import { openaiText } from "@tanstack/ai-openai";
 import { searchProducts } from "./tools";
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages, threadId } = await request.json();
 
   const stream = chat({
     adapter: openaiText("gpt-6.1-sol"),
     messages,
+    threadId,
     tools: [searchProducts],
     repairToolInput: ({ tool, input }) => {
       if (
@@ -294,6 +296,7 @@ import { getUserData, searchProducts } from "@/tools/server";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages,
+  threadId: "thread-1",
   tools: [getUserData, searchProducts],
 });
 ```

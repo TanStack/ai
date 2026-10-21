@@ -120,6 +120,7 @@ export function CodingAgent() {
   const [input, setInput] = useState("");
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/agent"),
+    threadId: "support-chat",
   });
 
   return (
@@ -222,6 +223,7 @@ export function useCodingAgent() {
     connection: fetchServerSentEvents("/api/agent", () => ({
       body: { sessionId },
     })),
+    threadId: "support-chat",
     onCustomEvent: (name, value) => {
       if (
         name === "opencode.session-id" &&
@@ -262,6 +264,7 @@ const lookupTicket = toolDefinition({
 const stream = chat({
   adapter: opencodeText("openai/gpt-5.2"),
   messages: [{ role: "user", content: "What's the status of ticket T-123?" }],
+  threadId: "thread-1",
   tools: [lookupTicket],
   middleware: [withSandbox(sandbox)],
 });
@@ -282,6 +285,7 @@ You want OpenCode to see only one of your tools, or none of them. Pass `toolChoi
 const onlyLookup = chat({
   adapter: opencodeText("openai/gpt-5.2"),
   messages: [{ role: "user", content: "What's the status of ticket T-123?" }],
+  threadId: "thread-1",
   tools: [lookupTicket],
   toolChoice: { type: "tool", name: "lookup_ticket" },
   middleware: [withSandbox(sandbox)],
@@ -320,6 +324,7 @@ const Report = z.object({
 const report = await chat({
   adapter: opencodeText("openai/gpt-5.2"),
   messages: [{ role: "user", content: "Review this repo." }],
+  threadId: "thread-1",
   outputSchema: Report,
   middleware: [withSandbox(sandbox)],
 });
@@ -341,6 +346,7 @@ const Report = z.object({
 export function ReportView() {
   const { final, isLoading } = useChat({
     connection: fetchServerSentEvents("/api/repo-report"),
+    threadId: "support-chat",
     outputSchema: Report,
   });
 
@@ -383,6 +389,7 @@ import { sandbox } from "./sandbox";
 const stream = chat({
   adapter: opencodeText("anthropic/claude-sonnet-4-5"),
   messages: [{ role: "user", content: "Refactor the auth module" }],
+  threadId: "thread-1",
   reasoning: { level: "high", budgetTokens: 8000 },
   middleware: [withSandbox(sandbox)],
 });

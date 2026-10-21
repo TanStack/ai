@@ -91,6 +91,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -127,6 +128,7 @@ import { anthropicSummarize } from "@tanstack/ai-anthropic";
 const result = await summarize({
   adapter: anthropicSummarize("claude-sonnet-4-6"),
   text: "Your long text to summarize...",
+  threadId: "thread-1",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"
 });
@@ -154,6 +156,7 @@ import { webSearchTool } from "@tanstack/ai-anthropic/tools";
 const stream = chat({
   adapter: anthropicText("claude-sonnet-5-5"),
   messages: [{ role: "user", content: "What's new in AI this week?" }],
+  threadId: "thread-1",
   tools: [
     webSearchTool({
       name: "web_search",
@@ -193,6 +196,7 @@ import { anthropicText } from "@tanstack/ai-anthropic";
 const stream = chat({
   adapter: anthropicText("claude-sonnet-5-5"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   modelOptions: {
     max_tokens: 4096,
     stop_sequences: ["END"],
@@ -215,6 +219,7 @@ import { anthropicText } from "@tanstack/ai-anthropic";
 const stream = chat({
   adapter: anthropicText("claude-opus-5-5"),
   messages: [{ role: "user", content: "Plan a database migration." }],
+  threadId: "thread-1",
   reasoning: "xhigh",
 });
 ```
@@ -246,6 +251,7 @@ import { anthropicText } from "@tanstack/ai-anthropic";
 const stream = chat({
   adapter: anthropicText("claude-haiku-4-5"),
   messages: [{ role: "user", content: "Check this proof." }],
+  threadId: "thread-1",
   reasoning: { level: "high", budgetTokens: 8000 },
 });
 ```

@@ -55,6 +55,7 @@ export async function POST() {
   const live = await generateLiveVideo({
     adapter: reactorVideo('helios'),
     prompt: 'A chef tosses noodles in a steel wok, flames leaping',
+    threadId: 'thread-1',
   })
 
   return Response.json({
@@ -147,6 +148,7 @@ import { falLiveVideo } from '@tanstack/ai-fal'
 const live = await generateLiveVideo({
   adapter: falLiveVideo('minimax/h3-max/director'),
   prompt: 'Live shopping stream: a host holds up a gold watch to camera',
+  threadId: 'thread-1',
 })
 
 // live.model is 'fal-ai/minimax-h3-max-director'. Send it to the browser.

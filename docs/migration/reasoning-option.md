@@ -39,6 +39,7 @@ const messages = [{ role: "user" as const, content: "Hello" }];
 chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages,
+  threadId: "thread-1",
   reasoning: "high",
 });
 ```
@@ -82,6 +83,7 @@ const messages = [{ role: "user" as const, content: "Hello" }];
 chat({
   adapter: anthropicText("claude-haiku-4-5"),
   messages,
+  threadId: "thread-1",
   reasoning: { level: "high", budgetTokens: 8000 },
 });
 ```
@@ -104,6 +106,7 @@ chat({
     deploymentName: "prod-chat",
   }),
   messages,
+  threadId: "thread-1",
   reasoning: "high",
 });
 ```

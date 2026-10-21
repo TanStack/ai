@@ -42,6 +42,7 @@ const stream = chat({
       { type: 'image', source: { type: 'url', value: 'https://example.com/photo.jpg' } },
     ],
   }],
+  threadId: 'thread-1',
 })
 ```
 
@@ -178,6 +179,7 @@ const messages = [{ role: 'user' as const, content: 'Help me plan a trip.' }]
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   tools,
   agentLoopStrategy: combineStrategies([
     maxIterations(10),
@@ -267,6 +269,7 @@ const logger: ChatMiddleware = {
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   middleware: [logger],
 })
 ```
@@ -602,6 +605,7 @@ const mcp = await createMCPClient({
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   mcp: { clients: [mcp] },
 })
 ```
@@ -633,6 +637,7 @@ import { MCPAppResource } from '@tanstack/ai-react/mcp-apps'
 export function Chat() {
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'weather-chat',
   })
 
   // Routes widget tool-calls to /api/mcp-apps/call by serverId; only http/https/mailto links pass through.
@@ -745,6 +750,7 @@ import { openaiImage } from '@tanstack/ai-openai'
 const result = await generateImage({
   adapter: openaiImage('gpt-image-2'),
   prompt: 'A sunset over mountains',
+  threadId: 'thread-1',
   size: '1536x1024',
   numberOfImages: 1,
 })
@@ -761,6 +767,7 @@ import { openaiVideo } from '@tanstack/ai-openai'
 const stream = generateVideo({
   adapter: openaiVideo('sora-2'),
   prompt: 'A cat playing piano',
+  threadId: 'thread-1',
   size: '1280x720',
   duration: 8,
   stream: true,          // Stream job lifecycle events
@@ -785,6 +792,7 @@ import { openaiSpeech } from '@tanstack/ai-openai'
 const result = await generateSpeech({
   adapter: openaiSpeech('tts-1-hd'),
   text: 'Hello, world!',
+  threadId: 'thread-1',
   voice: 'nova',
   format: 'opus',
   speed: 1.2,
@@ -804,6 +812,7 @@ const result = await generateTranscription({
   adapter: openaiTranscription('gpt-4o-transcribe'),
   audio: audioFile,
   responseFormat: 'verbose_json', // Includes word-level timestamps
+  threadId: 'thread-1',
 })
 
 // result.words → [{ word: 'Hello', start: 0.0, end: 0.42 }, ...]

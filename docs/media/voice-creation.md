@@ -44,7 +44,10 @@ import {
 import { elevenlabsVoiceDesign } from '@tanstack/ai-elevenlabs'
 
 export async function POST(request: Request) {
-  const { input } = await generationParamsFromRequest('voice', request)
+  const { input, threadId } = await generationParamsFromRequest('voice', request)
+  if (!threadId) {
+    return new Response('Send a threadId.', { status: 400 })
+  }
   if (typeof input.prompt !== 'string') {
     return new Response('Describe the voice in `prompt`.', { status: 400 })
   }
@@ -52,6 +55,7 @@ export async function POST(request: Request) {
   const stream = generateVoice({
     adapter: elevenlabsVoiceDesign('eleven_ttv_v3'),
     prompt: input.prompt,
+    threadId,
     stream: true,
   })
   return toServerSentEventsResponse(stream)
@@ -70,6 +74,7 @@ export function VoiceDesigner() {
     VoiceResult
   >({
     connection: fetchServerSentEvents('/api/generate/voice'),
+    threadId: 'generation',
   })
 
   return (
@@ -127,6 +132,7 @@ import { elevenlabsSpeech, elevenlabsVoiceDesign } from '@tanstack/ai-elevenlabs
 const designed = await generateVoice({
   adapter: elevenlabsVoiceDesign('eleven_ttv_v3'),
   prompt: 'A warm, gravelly narrator in his sixties',
+  threadId: 'thread-1',
 })
 
 const [best] = designed.voices
@@ -135,6 +141,7 @@ if (!best) throw new Error('The provider returned no voices.')
 const speech = await generateSpeech({
   adapter: elevenlabsSpeech('eleven_v4'),
   text: 'Once upon a time, in a village at the edge of the sea...',
+  threadId: 'thread-1',
   voice: best.voiceId,
 })
 
@@ -152,6 +159,7 @@ import { elevenlabsVoiceDesign } from '@tanstack/ai-elevenlabs'
 const result = await generateVoice({
   adapter: elevenlabsVoiceDesign('eleven_ttv_v3'),
   prompt: 'A bright, upbeat product demo host',
+  threadId: 'thread-1',
   name: 'Demo Host',
   description: 'Bright, upbeat, mid-30s',
 })
@@ -187,6 +195,7 @@ const clip = await readFile('./narrator.mp3')
 const result = await generateVoice({
   adapter: elevenlabsVoiceDesign('eleven_ttv_v3'),
   prompt: 'The same speaker, but younger and more energetic',
+  threadId: 'thread-1',
   // Use `new Blob([clip])`, not `clip.buffer`. A Buffer can be a view into a
   // shared pool, so its `.buffer` can hold more than the bytes of the file.
   referenceAudio: new Blob([clip]),

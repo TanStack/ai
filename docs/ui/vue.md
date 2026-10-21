@@ -97,7 +97,7 @@ import { ref } from 'vue'
 import { UIChat } from '@tanstack/ai-vue/ui'
 import { ui, useAppChat } from './chat-ui'
 
-const chat = useAppChat()
+const chat = useAppChat({ threadId: 'support-chat' })
 const draft = ref('')
 
 function send() {
@@ -126,7 +126,7 @@ The reply streams into the page as the model writes it.
 ## How it works
 
 - `createChatHook` runs once, at module scope. It binds `chatOptions` to your components. It returns `ui`, the descriptor that `UIChat` reads.
-- `useAppChat()` creates one chat instance. `UIChat` renders that instance with your components.
+- `useAppChat({ threadId })` creates one chat instance. `UIChat` renders that instance with your components.
 - `layout` places the message list with the `messages` slot. `message` gets one message plus a `parts` slot. The `parts` slot picks a component for each part.
 - `partsComponents.text` renders text. `fallback` catches every part type that you did not register.
 
@@ -352,7 +352,7 @@ The config keys, part keys, and prop types are the same as in React. See [Every 
 - `layout`: the `messages`, `interrupts`, `queue`, and `input` slots.
 - `message`: the `message` prop and the `parts` slot.
 
-`useAppChat()` takes per-instance options: `threadId`, `initialMessages`, `live`, and `forwardedProps`.
+`useAppChat()` takes per-instance options: `threadId` (required), `initialMessages`, `live`, and `forwardedProps`.
 
 ### Approvals and generic interrupts
 
@@ -395,7 +395,7 @@ const StatusLine: Component = defineComponent({
 
 export default defineComponent({
   setup() {
-    const chat = useAppChat()
+    const chat = useAppChat({ threadId: 'support-chat' })
     return () => h(UIChat, { ui, chat })
   },
 })

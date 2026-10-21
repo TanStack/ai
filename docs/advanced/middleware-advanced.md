@@ -485,6 +485,7 @@ function ReviewCard({
 export function ReviewPlanPanel() {
   const { interrupts, sendMessage } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
     interrupts: [reviewPlan],
   })
 
@@ -797,7 +798,7 @@ Each hook gets a `ChatMiddlewareContext` as its first argument. The fields you u
 | `requestId` | `string` | A unique ID for this chat request |
 | `streamId` | `string` | A unique ID for this stream |
 | `runId` | `string` | The AG-UI run ID |
-| `threadId` | `string` | The AG-UI thread ID. The `threadId` that you pass, or a generated value. Use it to correlate events. |
+| `threadId` | `string` | The AG-UI thread ID: the `threadId` that you pass to `chat()`. Use it to correlate events. |
 | `parentRunId` | `string \| undefined` | The paused run that this continuation belongs to |
 | `provider`, `model` | `string` | The provider name and the model ID |
 | `phase` | `ChatMiddlewarePhase` | The current lifecycle phase |
@@ -842,6 +843,7 @@ export const auditMiddleware: ChatMiddleware<AppContext> = {
 chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
   middleware: [auditMiddleware],
   context: {
     userId: session.user.id,
@@ -909,6 +911,7 @@ import { authMiddleware, loggingMiddleware, cachingMiddleware } from "./middlewa
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
   middleware: [authMiddleware, loggingMiddleware, cachingMiddleware],
 });
 ```
@@ -1025,6 +1028,7 @@ const countsChunks = defineChatMiddleware({
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
   // The provider must come before the consumer.
   middleware: [withCounter, countsChunks],
 });
@@ -1072,6 +1076,7 @@ const middleware = createChatMiddleware()
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
   middleware,
 });
 ```

@@ -63,6 +63,7 @@ import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 export function Chat() {
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
   })
   return (
     <div>
@@ -181,7 +182,7 @@ import { useChat, webSocket } from '@tanstack/ai-react'
 const connection = webSocket('/api/chat-ws')
 
 export function Chat() {
-  const { sendMessage } = useChat({ connection })
+  const { sendMessage } = useChat({ connection, threadId: 'support-chat' })
   return <button onClick={() => void sendMessage('Hello')}>Send</button>
 }
 ```

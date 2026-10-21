@@ -34,7 +34,7 @@ export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const { messages } = await request.json()
+        const { messages, threadId } = await request.json()
 
         const mcpClient = await createMCPClient({
           transport: {
@@ -48,6 +48,7 @@ export const Route = createFileRoute('/api/chat')({
         const stream = chat({
           adapter: openaiText('gpt-6.1-sol'),
           messages,
+          threadId,
           mcp: {
             clients: [mcpClient],
             // 'close' is the default. It is shown here so you can see it.
@@ -114,6 +115,7 @@ const internalClient = await createMCPClient({
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   mcp: {
     clients: [githubLinearPool, internalClient],
     connection: 'close',
@@ -154,6 +156,7 @@ const pool = await createMCPClients({
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   mcp: { clients: [github, pool] },
 })
 ```
@@ -204,12 +207,13 @@ export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const { messages } = await request.json()
+        const { messages, threadId } = await request.json()
 
         // keep-alive: chat() never closes sharedPool. It stays warm for the next call.
         const stream = chat({
           adapter: openaiText('gpt-6.1-sol'),
           messages,
+          threadId,
           mcp: {
             clients: [sharedPool],
             connection: 'keep-alive',
@@ -231,6 +235,7 @@ import { fetchServerSentEvents } from '@tanstack/ai-client'
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'support-chat',
 }
 
 export function Chat() {
@@ -275,6 +280,7 @@ const mcpClient = await createMCPClient({
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   mcp: {
     clients: [mcpClient],
     connection: 'close',
@@ -310,6 +316,7 @@ const mcpClient = await createMCPClient({
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   mcp: {
     clients: [mcpClient],
   },
@@ -336,6 +343,7 @@ const optionalClient = await createMCPClient({
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   mcp: {
     clients: [primaryClient, optionalClient],
     connection: 'close',
@@ -381,6 +389,7 @@ const serverB = await createMCPClient({
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   mcp: {
     clients: [serverA, serverB],
     connection: 'close',

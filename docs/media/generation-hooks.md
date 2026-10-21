@@ -40,7 +40,10 @@ import {
 import { openaiImage } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
-  const { input } = await generationParamsFromRequest('image', request)
+  const { input, threadId } = await generationParamsFromRequest('image', request)
+  if (!threadId) {
+    return new Response('Send a threadId.', { status: 400 })
+  }
   if (typeof input.prompt !== 'string') {
     return new Response('Send a text prompt.', { status: 400 })
   }
@@ -48,6 +51,7 @@ export async function POST(request: Request) {
   const stream = generateImage({
     adapter: openaiImage('gpt-image-2.5-flare'),
     prompt: input.prompt,
+    threadId,
     size: '1024x1024',
     stream: true,
   })
@@ -65,6 +69,7 @@ export function ImageGenerator() {
   const [prompt, setPrompt] = useState('')
   const { generate, result, isLoading, error, reset } = useGenerateImage({
     connection: fetchServerSentEvents('/api/generate/image'),
+    threadId: 'image-studio',
   })
 
   return (
@@ -158,6 +163,7 @@ import { useGenerateAudio } from '@tanstack/ai-react'
 import { defineByok, defaultByokStorage } from '@tanstack/ai-client/byok'
 
 const byok = defineByok({ storage: defaultByokStorage() })
+const threadId = 'audio'
 
 export function AudioGenerator() {
   const { generate, result, isLoading, error } = useGenerateAudio({
@@ -170,10 +176,11 @@ export function AudioGenerator() {
           'Content-Type': 'application/json',
           ...options?.headers,
         },
-        body: JSON.stringify(input),
+        body: JSON.stringify({ ...input, threadId }),
         signal: options?.signal,
       })
     },
+    threadId,
   })
 
   return (
@@ -204,24 +211,30 @@ export async function POST(request: Request) {
   if (!apiKey) return byokMissing(falByok)
 
   const body: unknown = await request.json()
-  if (typeof body !== 'object' || body === null || !('prompt' in body)) {
+  if (
+    typeof body !== 'object' ||
+    body === null ||
+    !('prompt' in body) ||
+    !('threadId' in body)
+  ) {
     return new Response('Bad request', { status: 400 })
   }
-  const prompt = body.prompt
-  if (typeof prompt !== 'string') {
+  const { prompt, threadId } = body
+  if (typeof prompt !== 'string' || typeof threadId !== 'string') {
     return new Response('Bad request', { status: 400 })
   }
 
   const stream = generateAudio({
     adapter: falAudio('fal-ai/minimax-music/v2.6', { apiKey }),
     prompt,
+    threadId,
     stream: true,
   })
   return toServerSentEventsResponse(stream)
 }
 ```
 
-The fetcher posts the plain input, so this route reads `prompt` from the top of the body. For `defineByok` and a UI to save keys, see [Bring Your Own Key](../advanced/byok).
+The fetcher posts the input and the `threadId`, so this route reads `prompt` and `threadId` from the top of the body. For `defineByok` and a UI to save keys, see [Bring Your Own Key](../advanced/byok).
 
 ### useGenerateSpeech
 
@@ -245,6 +258,7 @@ import { fetchServerSentEvents, useGenerateSpeech } from '@tanstack/ai-react'
 export function SpeechPlayer() {
   const { generate, result, isLoading } = useGenerateSpeech({
     connection: fetchServerSentEvents('/api/generate/speech'),
+    threadId: 'speech',
   })
 
   return (
@@ -293,6 +307,7 @@ export function Summarizer() {
   const [text, setText] = useState('')
   const { generate, result, isLoading, error } = useSummarize({
     connection: fetchServerSentEvents('/api/summarize'),
+    threadId: 'summary',
   })
 
   return (
@@ -391,7 +406,7 @@ Every hook takes these options:
 | `connection` | `ConnectConnectionAdapter` | Streaming transport (SSE, HTTP stream, or custom) |
 | `fetcher` | `(input, options) => Promise<Result \| Response>` | An async function, or a server function that returns an SSE `Response`. `options` holds `signal` and `headers`. |
 | `body` | `Record<string, any>` | Extra fields sent with each `connection` request |
-| `threadId` | `string` | A stable name for this generation slot. Required when `persistence` is on. Optional otherwise. |
+| `threadId` | `string` | Required. A stable name for this generation slot. |
 | `persistence` | `boolean` | `true` restores the last run for `threadId` from the server when the component mounts |
 | `onResult` | `(result) => TOutput \| null \| void` | React to the result, or change what is stored. See [Result transforms](#result-transforms). |
 | `onError` | `(error: Error) => void` | Called when the run fails |
@@ -440,6 +455,7 @@ import type { TTSResult } from '@tanstack/ai'
 export function SpeechPlayer() {
   const { result } = useGenerateSpeech({
     connection: fetchServerSentEvents('/api/generate/speech'),
+    threadId: 'speech',
     onResult: (raw: TTSResult) => ({
       audioUrl: `data:${raw.contentType};base64,${raw.audio}`,
       duration: raw.duration,
@@ -479,6 +495,7 @@ export function EmbeddingGenerator() {
     EmbeddingResult
   >({
     connection: fetchServerSentEvents('/api/generate/embedding'),
+    threadId: 'generation',
   })
 
   return (

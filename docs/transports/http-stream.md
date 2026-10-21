@@ -48,6 +48,7 @@ import { useChat, fetchHttpStream } from "@tanstack/ai-react";
 export function Chat() {
   const { messages, sendMessage } = useChat({
     connection: fetchHttpStream("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (

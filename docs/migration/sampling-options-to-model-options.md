@@ -75,6 +75,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   modelOptions: {
     temperature: 0.3,
     top_p: 0.9,
@@ -94,6 +95,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: anthropicText('claude-sonnet-4-5'),
   messages,
+  threadId: 'thread-1',
   modelOptions: {
     temperature: 0.3,
     top_p: 0.9,
@@ -113,6 +115,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: geminiText('gemini-3.8-flash'),
   messages,
+  threadId: 'thread-1',
   modelOptions: {
     temperature: 0.3,
     topP: 0.9,
@@ -153,6 +156,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   metadata: { requestId: 'abc-123' },
   modelOptions: {
     temperature: 0.3,

@@ -64,6 +64,7 @@ const sandbox = defineSandbox({
 const stream = chat({
   adapter: claudeCodeText('claude-opus-4-8'),
   messages: [{ role: 'user', content: 'Summarize this repo.' }],
+  threadId: 'thread-1',
   middleware: [withSandbox(sandbox)],
 })
 ```

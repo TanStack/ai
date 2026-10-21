@@ -46,7 +46,10 @@ import {
 import { openaiTranscription } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
-  const { input } = await generationParamsFromRequest('transcription', request)
+  const { input, threadId } = await generationParamsFromRequest('transcription', request)
+  if (!threadId) {
+    return new Response('Send a threadId.', { status: 400 })
+  }
   if (typeof input.audio !== 'string') {
     return new Response('Send the audio as a data URL.', { status: 400 })
   }
@@ -56,6 +59,7 @@ export async function POST(request: Request) {
     audio: input.audio,
     language: input.language,
     stream: true,
+    threadId,
   })
   return toServerSentEventsResponse(stream)
 }
@@ -70,6 +74,7 @@ import { fetchServerSentEvents, useTranscription } from '@tanstack/ai-react'
 export function Transcriber() {
   const { generate, result, isLoading, error } = useTranscription({
     connection: fetchServerSentEvents('/api/transcribe'),
+    threadId: 'transcription',
   })
 
   function handleFile(event: ChangeEvent<HTMLInputElement>) {
@@ -133,6 +138,7 @@ const result = await generateTranscription({
   adapter: openaiTranscription('gpt-4o-transcribe'),
   audio,
   language: 'en',
+  threadId: 'thread-1',
 })
 
 console.log(result.text)

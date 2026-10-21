@@ -159,6 +159,7 @@ const stream = chat({
   messages: [
     { role: 'user', content: 'The tests fail. Find the bug and fix it.' },
   ],
+  threadId: 'thread-1',
   middleware: [withSandbox(repoSandbox)],
 })
 

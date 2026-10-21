@@ -34,6 +34,7 @@ export function Chat() {
       headers: { Authorization: `Bearer ${getToken()}` },
       body: { provider: "openai", model: "gpt-6.1-sol" },
     })),
+    threadId: "support-chat",
   });
 
   return (
@@ -137,6 +138,7 @@ import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 export function SummarizeButton() {
   const { sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
     forwardedProps: { provider: "openai" },
   });
 
@@ -168,7 +170,7 @@ import {
 import { openaiText } from "@tanstack/ai-openai";
 
 export async function POST(request: Request) {
-  const { messages, forwardedProps } = await chatParamsFromRequest(request);
+  const { messages, forwardedProps, threadId } = await chatParamsFromRequest(request);
   const { attachmentIds } = forwardedProps;
   if (Array.isArray(attachmentIds) && attachmentIds.length > 0) {
     // Look up the uploads. Do not add them to `messages`.
@@ -176,6 +178,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: openaiText("gpt-6.1-sol"),
     messages,
+    threadId,
   });
   return toServerSentEventsResponse(stream);
 }

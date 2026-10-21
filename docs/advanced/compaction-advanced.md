@@ -139,11 +139,12 @@ import { openaiText } from '@tanstack/ai-openai'
 import { withCompaction } from '@tanstack/ai-compaction'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
 
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     messages,
+    threadId,
     middleware: [withCompaction({ maxTokens: 100_000, countTokens: 'usage' })],
   })
 
@@ -173,12 +174,13 @@ const windowed = withCompaction({
   countTokens: 'usage',
   strategy: summarizeOldest({
     keepRecentTokens: 8_000,
-    summarize: (messages) =>
+    summarize: (messages, { threadId }) =>
       summarize({
         adapter: openaiSummarize('gpt-6.1-sol'),
         text: messages
           .map((m) => `${m.role}: ${typeof m.content === 'string' ? m.content : ''}`)
           .join('\n'),
+        threadId,
       }),
   }),
 })
@@ -212,12 +214,13 @@ const compaction = withCompaction({
   maxTokens: 100_000,
   background: { atTokens: 80_000 },
   strategy: summarizeOldest({
-    summarize: (messages) =>
+    summarize: (messages, { threadId }) =>
       summarize({
         adapter: openaiSummarize('gpt-6.1-sol'),
         text: messages
           .map((m) => `${m.role}: ${typeof m.content === 'string' ? m.content : ''}`)
           .join('\n'),
+        threadId,
       }),
   }),
 })

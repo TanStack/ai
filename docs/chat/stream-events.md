@@ -29,6 +29,7 @@ import { openaiText } from "@tanstack/ai-openai";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
 });
 
 for await (const chunk of stream) {
@@ -52,6 +53,7 @@ import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 export function Chat() {
   const { messages } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
     onChunk: (chunk) => {
       if (chunk.type === "RUN_FINISHED") {
         console.log("Run done:", chunk.runId);
@@ -150,6 +152,7 @@ const weatherTool = toolDefinition({
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "What is the weather in Paris?" }],
+  threadId: "thread-1",
   tools: [weatherTool],
 });
 
@@ -190,6 +193,7 @@ const weatherTool = toolDefinition({
 
 const { messages } = useChat({
   connection: fetchServerSentEvents("/api/chat"),
+  threadId: "support-chat",
   tools: [weatherTool],
 });
 
@@ -274,6 +278,7 @@ import { anthropicText } from "@tanstack/ai-anthropic";
 const stream = chat({
   adapter: anthropicText("claude-sonnet-5-5"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
 });
 
 for await (const chunk of stream) {
@@ -291,6 +296,7 @@ import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
 const { messages } = useChat({
   connection: fetchServerSentEvents("/api/chat"),
+  threadId: "support-chat",
   onChunk: (chunk) => {
     if (chunk.type === "RUN_ERROR") {
       console.log(chunk.metadata?.tanstack?.retryAfterMs);
@@ -314,6 +320,7 @@ import { anthropicText } from "@tanstack/ai-anthropic";
 const stream = chat({
   adapter: anthropicText("claude-sonnet-5-5"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   retry: { maxRetries: 3, maxWaitMs: 30_000 },
 });
 ```
@@ -350,6 +357,7 @@ import { anthropicText } from "@tanstack/ai-anthropic";
 const stream = chat({
   adapter: anthropicText("claude-sonnet-5-5"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
 });
 
 for await (const chunk of stream) {
@@ -369,6 +377,7 @@ import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
 const { messages } = useChat({
   connection: fetchServerSentEvents("/api/chat"),
+  threadId: "support-chat",
 });
 
 for (const message of messages) {

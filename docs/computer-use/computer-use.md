@@ -90,6 +90,7 @@ export function Chat() {
   const [input, setInput] = useState('')
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
     interrupts: [computerSafetyCheck],
   })
 
@@ -159,7 +160,7 @@ Each `threadId` gets its own machine. With `playwrightComputer()`, the machine i
 - Each thread has its own action queue and its own safety-check approvals.
 - All threads share one Chromium process.
 
-Give a stable `threadId` to `chat()`. If `chat()` gets no `threadId`, it makes a new id for each request. Then each request gets a new page.
+Give a stable `threadId` to `chat()`. If the id changes on each request, each request gets a new page.
 
 `useChat` sends the same thread id with each request of a chat. `chatParamsFromRequest` reads it, as in the route above.
 

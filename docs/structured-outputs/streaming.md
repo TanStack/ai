@@ -61,6 +61,7 @@ import { PersonSchema } from "./schemas/person";
 export function PersonExtractor() {
   const { sendMessage, isLoading, partial, final } = useChat({
     connection: fetchServerSentEvents("/api/extract-person"),
+    threadId: "support-chat",
     outputSchema: PersonSchema,
   });
 
@@ -115,6 +116,7 @@ const PersonSchema = z.object({
 export function PersonRun() {
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/extract-person"),
+    threadId: "support-chat",
     outputSchema: PersonSchema,
   });
 
@@ -230,6 +232,7 @@ import { PersonSchema } from "./schemas/person";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Extract: John Doe is 30, john@example.com" }],
+  threadId: "thread-1",
   outputSchema: PersonSchema,
   stream: true,
 });

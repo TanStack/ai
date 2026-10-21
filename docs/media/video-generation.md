@@ -57,7 +57,10 @@ import {
 import { openaiVideo } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
-  const { input } = await generationParamsFromRequest('video', request)
+  const { input, threadId } = await generationParamsFromRequest('video', request)
+  if (!threadId) {
+    return new Response('Send a threadId.', { status: 400 })
+  }
   if (typeof input.prompt !== 'string') {
     return new Response('Send a text prompt.', { status: 400 })
   }
@@ -65,6 +68,7 @@ export async function POST(request: Request) {
   const stream = generateVideo({
     adapter: openaiVideo('sora-2'),
     prompt: input.prompt,
+    threadId,
     stream: true,
   })
   return toServerSentEventsResponse(stream)
@@ -80,6 +84,7 @@ export function VideoGenerator() {
   const { generate, result, videoStatus, isLoading, error, stop } =
     useGenerateVideo({
       connection: fetchServerSentEvents('/api/generate/video'),
+      threadId: 'video-studio',
     })
 
   return (
@@ -136,6 +141,7 @@ import { openaiVideo } from '@tanstack/ai-openai'
 const stream = generateVideo({
   adapter: openaiVideo('sora-2'),
   prompt: 'A cat playing piano in a jazz bar',
+  threadId: 'thread-1',
   stream: true,
   pollingInterval: 3000,
   maxDuration: 900_000,
@@ -195,6 +201,7 @@ if (duration !== undefined) {
   await generateVideo({
     adapter,
     prompt: 'A cat walking through fog',
+    threadId: 'thread-1',
     duration,
   })
 }
@@ -223,6 +230,7 @@ const { jobId } = await generateVideo({
       source: { type: 'data', value: base64Image, mimeType: 'image/png' },
     },
   ],
+  threadId: 'thread-1',
 })
 ```
 
@@ -257,6 +265,7 @@ await generateVideo({
       metadata: { role: 'end_frame' },
     },
   ],
+  threadId: 'thread-1',
 })
 ```
 

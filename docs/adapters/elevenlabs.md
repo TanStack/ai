@@ -158,6 +158,7 @@ import { elevenlabsSpeech } from "@tanstack/ai-elevenlabs";
 const result = await generateSpeech({
   adapter: elevenlabsSpeech("eleven_v4"),
   text: "Hello from ElevenLabs!",
+  threadId: "thread-1",
   voice: "21m00Tcm4TlvDq8ikWAM",
   format: "mp3",
 });
@@ -181,11 +182,13 @@ import { elevenlabsAudio } from "@tanstack/ai-elevenlabs";
 const music = await generateAudio({
   adapter: elevenlabsAudio("music_v2_5"),
   prompt: "An upbeat synthwave track for a product launch",
+  threadId: "thread-1",
 });
 
 const sfx = await generateAudio({
   adapter: elevenlabsAudio("eleven_text_to_sound_v2"),
   prompt: "A glass shattering on concrete",
+  threadId: "thread-1",
 });
 
 console.log(music.audio, sfx.audio);
@@ -202,6 +205,7 @@ import { elevenlabsTranscription } from "@tanstack/ai-elevenlabs";
 const result = await generateTranscription({
   adapter: elevenlabsTranscription("scribe_v2"),
   audio: "https://example.com/recording.mp3",
+  threadId: "thread-1",
 });
 
 console.log(result.text);
@@ -220,6 +224,7 @@ import { elevenlabsVoiceDesign } from "@tanstack/ai-elevenlabs";
 const result = await generateVoice({
   adapter: elevenlabsVoiceDesign("eleven_ttv_v3"),
   prompt: "A warm, gravelly narrator in his sixties with a slight Irish lilt",
+  threadId: "thread-1",
   name: "Irish Narrator",
 });
 
@@ -371,6 +376,7 @@ const result = await generateSpeech({
     { text: "Who is there?", voice: "6lCwbsX1yVjD49QmpkTR" },
   ],
   timestamps: true,
+  threadId: "thread-1",
 });
 
 // Character timings for the whole clip.

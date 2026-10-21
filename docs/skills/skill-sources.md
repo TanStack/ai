@@ -60,6 +60,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: anthropicText('claude-sonnet-5-5'),
     messages: params.messages,
+    threadId: params.threadId,
     middleware: [withSkills(skillDirectory('./skills'))],
   })
   return toServerSentEventsResponse(stream)
@@ -113,6 +114,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: anthropicText('claude-sonnet-5-5'),
     messages: params.messages,
+    threadId: params.threadId,
     middleware: [withSkills(skills)],
   })
   return toServerSentEventsResponse(stream)

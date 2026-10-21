@@ -120,11 +120,12 @@ const adapter = new MyTextAdapter(
   new OpenAI({ apiKey: 'my-key', baseURL: 'https://api.example.com/v1' }),
 )
 
-chat({ adapter, messages: [{ role: 'user', content: 'Hi' }], reasoning: 'high' })
+chat({ adapter, messages: [{ role: 'user', content: 'Hi' }], reasoning: 'high', threadId: 'thread-1' })
 
 chat({
   adapter,
   messages: [{ role: 'user', content: 'Hi' }],
+  threadId: 'thread-1',
   // @ts-expect-error my-model has no max level
   reasoning: 'max',
 })

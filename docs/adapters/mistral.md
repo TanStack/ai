@@ -83,6 +83,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -135,6 +136,7 @@ const stream = chat({
       ],
     },
   ],
+  threadId: "thread-1",
 });
 ```
 
@@ -164,6 +166,7 @@ const stream = chat({
       ],
     },
   ],
+  threadId: "thread-1",
 });
 ```
 
@@ -189,6 +192,7 @@ const recipe = await chat({
   messages: [
     { role: "user", content: "Give me a chocolate chip cookie recipe." },
   ],
+  threadId: "thread-1",
   outputSchema: recipeSchema,
 });
 
@@ -244,6 +248,7 @@ import { mistralText } from "@tanstack/ai-mistral";
 const stream = chat({
   adapter: mistralText("mistral-large-latest"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   modelOptions: {
     temperature: 0.7,
     top_p: 0.9,
@@ -272,6 +277,7 @@ import { mistralText } from "@tanstack/ai-mistral";
 const stream = chat({
   adapter: mistralText("mistral-medium-latest"),
   messages: [{ role: "user", content: "Why is the sky blue?" }],
+  threadId: "thread-1",
   reasoning: "high",
 });
 ```
@@ -361,6 +367,7 @@ import { mistralText } from "@tanstack/ai-mistral";
 const stream = chat({
   adapter: mistralText("magistral-medium-latest"),
   messages: [{ role: "user", content: "Why is the sky blue?" }],
+  threadId: "thread-1",
 });
 
 for await (const chunk of stream) {
@@ -405,6 +412,7 @@ const stream = chat({
     location: "europe-west4",
   }),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
 });
 ```
 

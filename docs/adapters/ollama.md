@@ -103,6 +103,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -169,6 +170,7 @@ import { ollamaSummarize } from "@tanstack/ai-ollama";
 const result = await summarize({
   adapter: ollamaSummarize("qwen3:8b"),
   text: "Your long text to summarize...",
+  threadId: "thread-1",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"
 });
@@ -193,6 +195,7 @@ import { ollamaText } from "@tanstack/ai-ollama";
 const stream = chat({
   adapter: ollamaText("qwen3:8b"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   modelOptions: {
     options: {
       temperature: 0.7,
@@ -220,6 +223,7 @@ import { ollamaText } from "@tanstack/ai-ollama";
 const stream = chat({
   adapter: ollamaText("qwen3:8b"),
   messages: [{ role: "user", content: "Plan a database migration." }],
+  threadId: "thread-1",
   reasoning: "off",
 });
 ```

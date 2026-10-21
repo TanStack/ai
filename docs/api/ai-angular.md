@@ -32,14 +32,14 @@ import { injectChat, fetchServerSentEvents } from "@tanstack/ai-angular";
 
 export class MyComponent {
   // Field initializer
-  chat = injectChat({ connection: fetchServerSentEvents("/api/chat") });
+  chat = injectChat({ connection: fetchServerSentEvents("/api/chat"), threadId: "support-chat" });
 
   private injector = inject(Injector);
 
   // Later, outside the constructor
   openSecondChat() {
     return runInInjectionContext(this.injector, () =>
-      injectChat({ connection: fetchServerSentEvents("/api/chat") }),
+      injectChat({ connection: fetchServerSentEvents("/api/chat"), threadId: "support-chat" }),
     );
   }
 }
@@ -79,20 +79,21 @@ import { injectChat, fetchServerSentEvents } from "@tanstack/ai-angular";
 export class ChatComponent {
   chat = injectChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 }
 ```
 
 ### Options
 
-You must pass `connection` or `fetcher`, not both.
+You must pass `threadId`. You must also pass `connection` or `fetcher`, not both.
 
 | Option | What it does |
 | --- | --- |
 | `connection` | Connection adapter, for example `fetchServerSentEvents("/api/chat")`. See [Transports](../transports/overview). |
 | `fetcher` | A function that returns a `Response` or a stream. Use it with server functions. |
 | `tools` | Client tools from `.client()`. They run when the model calls them. Reactive. See [Client Tools](../tools/client-tools). |
-| `threadId` | The id of this chat. Required when `persistence` is on. If you omit it, the injectable makes one after mount. |
+| `threadId` | Required. The id of this chat. Use a stable id for each conversation, for example the id from your route. |
 | `initialMessages` | The messages to show first. |
 | `forwardedProps` | JSON sent to the server in the AG-UI `forwardedProps` field, for example `{ model: "gpt-6.1-sol" }`. Reactive. |
 | `persistence` | `true` to load the thread from the server, or a storage adapter. See [Chat Persistence](../persistence/chat-persistence). |
@@ -118,6 +119,7 @@ export class ModelChatComponent {
 
   chat = injectChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
     forwardedProps: () => ({ model: this.model() }),
   });
 }
@@ -184,6 +186,7 @@ const deleteFileTool = toolDefinition({
 export class ApprovalChatComponent {
   chat = injectChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
     tools: [deleteFileTool],
   });
 }
@@ -228,11 +231,12 @@ import { injectGenerateImage, fetchServerSentEvents } from "@tanstack/ai-angular
 export class ImageComponent {
   image = injectGenerateImage({
     connection: fetchServerSentEvents("/api/generate/image"),
+    threadId: "image-studio",
   });
 }
 ```
 
-Options: `connection` or `fetcher`, `body` (reactive), `threadId`, `persistence`, `byok`, `byokProvider`, `devtools`, `onResult`, `onError`, `onProgress`, `onChunk`.
+Options: `threadId` (required), `connection` or `fetcher`, `body` (reactive), `persistence`, `byok`, `byokProvider`, `devtools`, `onResult`, `onError`, `onProgress`, `onChunk`.
 
 Returns: `generate(input)`, `result`, `isLoading`, `error`, `status`, `stop()`, `reset()`, `runId`. The state fields are read-only signals. Cleanup runs in `DestroyRef.onDestroy`.
 

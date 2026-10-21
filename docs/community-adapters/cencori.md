@@ -54,6 +54,7 @@ const adapter = cencori("o1");
 for await (const chunk of chat({
   adapter,
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
 })) {
   if (chunk.type === "TEXT_MESSAGE_CONTENT") {
     console.log(chunk.delta);
@@ -113,6 +114,7 @@ const getWeather = getWeatherDef.server(async ({ location }) => {
 for await (const chunk of chat({
   adapter,
   messages: [{ role: "user", content: "What's the weather in NYC?" }],
+  threadId: "thread-1",
   tools: [getWeather],
 })) {
   if (chunk.type === "TOOL_CALL_START") {

@@ -39,6 +39,7 @@ import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
 
 const client = new ChatClient({
   connection: fetchServerSentEvents("/api/chat"),
+  threadId: "support-chat",
 });
 
 const unsubscribe = client.subscribeSnapshot(() => {
@@ -76,14 +77,14 @@ The connection follows the view because a browser allows only about six connecti
 
 ### Constructor options
 
-You must pass `connection` or `fetcher`, not both.
+You must pass `threadId`. You must also pass `connection` or `fetcher`, not both.
 
 | Option | What it does |
 | --- | --- |
 | `connection` | Connection adapter. See [Connection adapters](#connection-adapters). |
 | `fetcher` | A function that gets `{ messages, data, threadId, runId, ... }` and an abort `signal`, and returns a `Response` or a stream. Use it with server functions. |
 | `tools` | Client tools from `.client()`. The client runs them when the model calls them. See [Client Tools](../tools/client-tools). |
-| `threadId` | The id of this chat. Required when `persistence` is on. If you omit it, the client makes one. |
+| `threadId` | Required. The id of this chat. Use a stable id for each conversation, for example the id from your route. |
 | `persistence` | `true` to load the thread from the server, or a storage adapter. See [Chat Persistence](../persistence/chat-persistence). |
 | `history` | `{ pageSize }`: load only the newest messages first. Only with `persistence: true`. |
 | `initialMessages` | The messages to show first. |
@@ -166,7 +167,7 @@ import {
 import { openaiText } from "@tanstack/ai-openai";
 
 export async function POST(request: Request) {
-  const { messages, forwardedProps } = await chatParamsFromRequest(request);
+  const { messages, forwardedProps, threadId } = await chatParamsFromRequest(request);
   const attachmentIds = forwardedProps.attachmentIds;
   if (Array.isArray(attachmentIds)) {
     // Look up the uploads. Do not add them to `messages`.
@@ -174,6 +175,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: openaiText("gpt-6.1-sol"),
     messages,
+    threadId,
   });
   return toServerSentEventsResponse(stream);
 }
@@ -275,6 +277,7 @@ import { searchProducts } from "./tools";
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),
+  threadId: "support-chat",
   tools: [searchProducts],
 });
 
@@ -310,13 +313,14 @@ import {
 
 const generation = new GenerationClient<ImageGenerateInput, ImageGenerationResult>({
   connection: fetchServerSentEvents("/api/generate/image"),
+  threadId: "generation",
   onResult: (result) => console.log(result.images.length),
 });
 
 await generation.generate({ prompt: "A mountain at sunset" });
 ```
 
-- Options: `connection` or `fetcher`, `body`, `threadId`, `persistence`, `byok`, `byokProvider`, `devtools`, `onResult`, `onError`, `onProgress`, `onChunk`.
+- Options: `threadId` (required), `connection` or `fetcher`, `body`, `persistence`, `byok`, `byokProvider`, `devtools`, `onResult`, `onError`, `onProgress`, `onChunk`.
 - Methods: `generate(input)`, `stop()`, `reset()`, `updateOptions(options)`, `dispose()`, `getResult()`, `getIsLoading()`, `getError()`, `getStatus()`.
 - Snapshot: `result`, `isLoading`, `error`, `status` (`"idle"`, `"generating"`, `"success"`, or `"error"`), and `runId`.
 

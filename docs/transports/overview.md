@@ -58,6 +58,7 @@ import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 export function Chat() {
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -99,6 +100,7 @@ import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 export function StopButton() {
   const { stop, isLoading } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -140,6 +142,7 @@ import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 export function ChatError() {
   const { error } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
     onError: (err) => console.error("Chat failed:", err),
   });
 

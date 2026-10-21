@@ -80,7 +80,7 @@ const { useAppChat } = createChatHook({
 })
 
 export function ChatScreen() {
-  const chat = useAppChat()
+  const chat = useAppChat({ threadId: 'support-chat' })
 
   return (
     <main>
@@ -111,7 +111,7 @@ The reply streams into the page as the model writes it.
 ## How it works
 
 - `createChatHook` runs once, at module scope. It binds `chatOptions` to your components.
-- `useAppChat()` creates one chat instance. `chat.AppChat` renders that instance with your components.
+- `useAppChat({ threadId })` creates one chat instance. `chat.AppChat` renders that instance with your components.
 - `layout` places the message list. `message` wraps one message. `Parts` picks a component for each part of that message.
 - `partsComponents.text` renders text. `fallback` catches every part type that you did not register.
 
@@ -236,7 +236,7 @@ const { useAppChat, useChatContext } = createChatHook({
 })
 
 export function ChatScreen() {
-  const chat = useAppChat()
+  const chat = useAppChat({ threadId: 'support-chat' })
   return <chat.AppChat />
 }
 ```
@@ -300,7 +300,7 @@ You now have a typed chat UI in Preact. Each widget is your own component.
 
 The config keys, part keys, and prop types are the same as in React. See [Every widget slot](./react#every-widget-slot). In Preact, `layout` gets `Messages`, `Interrupts`, and `Queue`, plus `Input` when you register `input`.
 
-`useAppChat()` takes per-instance options: `threadId`, `initialMessages`, `live`, and `forwardedProps`.
+`useAppChat()` takes per-instance options: `threadId` (required), `initialMessages`, `live`, and `forwardedProps`.
 
 ### Approvals, interrupts, and the queue
 

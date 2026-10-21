@@ -605,14 +605,14 @@ export const { useAppChat, useChatContext } = createChatHook({
 })
 ```
 
-Replace `src/routes/index.tsx` with this page. Call `useAppChat()` and render `<chat.AppChat />`.
+Replace `src/routes/index.tsx` with this page. Call `useAppChat()` with a `threadId`, and render `<chat.AppChat />`.
 
 ```tsx ignore
 import { createFileRoute } from '@tanstack/react-router'
 import { useAppChat } from '@/chat-ui'
 
 function ChatPage() {
-  const chat = useAppChat()
+  const chat = useAppChat({ threadId: 'support-chat' })
   return <chat.AppChat />
 }
 

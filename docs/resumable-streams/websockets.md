@@ -72,7 +72,7 @@ import { useChat, webSocket } from '@tanstack/ai-react'
 const connection = webSocket('/api/chat-ws')
 
 export function Chat() {
-  const { messages, sendMessage } = useChat({ connection })
+  const { messages, sendMessage } = useChat({ connection, threadId: 'support-chat' })
   return (
     <div>
       {messages.map((message) => (

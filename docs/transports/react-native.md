@@ -65,6 +65,7 @@ const baseUrl =
 export function ChatScreen() {
   const { messages, sendMessage } = useChat({
     connection: xhrHttpStream(`${baseUrl}/chat/http`),
+    threadId: "support-chat",
   });
 
   return (

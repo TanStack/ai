@@ -122,7 +122,7 @@ export const { createAppChat, ui } = createChatHook({
   import { UIChat } from '@tanstack/ai-svelte/ui'
   import { createAppChat, ui } from './chat-ui'
 
-  const chat = createAppChat()
+  const chat = createAppChat({ threadId: 'support-chat' })
   let draft = $state('')
 
   function send(event: SubmitEvent) {
@@ -150,7 +150,7 @@ The reply streams into the page as the model writes it.
 ## How it works
 
 - `createChatHook` runs once, at module scope. It binds `chatOptions` to your components. It returns `ui`, the descriptor that `UIChat` reads.
-- `createAppChat()` creates one chat instance. `UIChat` renders that instance with your components.
+- `createAppChat({ threadId })` creates one chat instance. `UIChat` renders that instance with your components.
 - `layout` gets the `messages`, `interrupts`, `queue`, and `input` snippets. `message` gets one message plus the `parts` snippet.
 - `partsComponents.text` renders text. A part type with no component renders nothing and warns once in development. Register `partsComponents.fallback` to catch those parts.
 
@@ -272,7 +272,7 @@ The config keys, part keys, and prop types are the same as in React. See [Every 
 - `layout`: the `messages`, `interrupts`, `queue`, and `input` snippets.
 - `message`: the `message` prop and the `parts` snippet.
 
-`createAppChat()` takes per-instance options: `threadId`, `initialMessages`, `live`, and `forwardedProps`.
+`createAppChat()` takes per-instance options: `threadId` (required), `initialMessages`, `live`, and `forwardedProps`.
 
 ### Approvals and generic interrupts
 

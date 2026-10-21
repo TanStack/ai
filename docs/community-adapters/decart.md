@@ -49,6 +49,7 @@ const adapter = createDecartImage("lucy-pro-t2i", process.env.DECART_API_KEY!);
 const result = await generateImage({
   adapter,
   prompt: "A serene mountain landscape at sunset",
+  threadId: "thread-1",
 });
 ```
 
@@ -61,6 +62,7 @@ import { decartImage } from "@decartai/tanstack-ai-adapter";
 const result = await generateImage({
   adapter: decartImage("lucy-pro-t2i"),
   prompt: "A futuristic cityscape at night",
+  threadId: "thread-1",
 });
 
 console.log(result.images[0]?.b64Json);
@@ -81,6 +83,7 @@ import { decartVideo } from "@decartai/tanstack-ai-adapter";
 const { jobId } = await generateVideo({
   adapter: decartVideo("lucy-pro-t2v"),
   prompt: "A cat playing with a ball of yarn",
+  threadId: "thread-1",
 });
 
 console.log("Job started:", jobId);
@@ -96,6 +99,7 @@ const jobId = "example-job-id";
 const status = await getVideoJobStatus({
   adapter: decartVideo("lucy-pro-t2v"),
   jobId,
+  threadId: "thread-1",
 });
 
 console.log("Status:", status.status); // "pending" | "processing" | "completed" | "failed"
@@ -115,7 +119,7 @@ async function createVideo(prompt: string) {
   const adapter = decartVideo("lucy-pro-t2v");
 
   // Create the job
-  const { jobId } = await generateVideo({ adapter, prompt });
+  const { jobId } = await generateVideo({ adapter, prompt, threadId: "thread-1" });
   console.log("Job created:", jobId);
 
   // Poll for completion
@@ -123,7 +127,7 @@ async function createVideo(prompt: string) {
   while (status !== "completed" && status !== "failed") {
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
-    const result = await getVideoJobStatus({ adapter, jobId });
+    const result = await getVideoJobStatus({ adapter, jobId, threadId: "thread-1" });
     status = result.status;
     console.log(`Status: ${status}`);
 
@@ -162,6 +166,7 @@ import { decartImage } from "@decartai/tanstack-ai-adapter";
 const result = await generateImage({
   adapter: decartImage("lucy-pro-t2i"),
   prompt: "A portrait of a robot artist",
+  threadId: "thread-1",
   modelOptions: {
     resolution: "720p",
     orientation: "portrait",
@@ -185,6 +190,7 @@ import { decartVideo } from "@decartai/tanstack-ai-adapter";
 const { jobId } = await generateVideo({
   adapter: decartVideo("lucy-pro-t2v"),
   prompt: "A timelapse of a blooming flower",
+  threadId: "thread-1",
   modelOptions: {
     resolution: "720p",
     orientation: "landscape",

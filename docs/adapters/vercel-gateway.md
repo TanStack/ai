@@ -89,6 +89,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -127,6 +128,7 @@ import { vercelGatewayText } from "@tanstack/ai-vercel-gateway";
 const stream = chat({
   adapter: vercelGatewayText("anthropic/claude-sonnet-5.5"),
   messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
   modelOptions: {
     gateway: {
       order: ["anthropic", "openai"],
@@ -172,6 +174,7 @@ import { vercelGatewayImage } from "@tanstack/ai-vercel-gateway";
 const result = await generateImage({
   adapter: vercelGatewayImage("openai/gpt-image-2.5-flare"),
   prompt: "a red guitar",
+  threadId: "thread-1",
 });
 ```
 
@@ -186,6 +189,7 @@ import { vercelGatewaySummarize } from "@tanstack/ai-vercel-gateway";
 const result = await summarize({
   adapter: vercelGatewaySummarize("anthropic/claude-sonnet-5.5"),
   text: "The Fender Stratocaster is a versatile electric guitar.",
+  threadId: "thread-1",
   stream: false,
 });
 ```
@@ -260,6 +264,7 @@ import { vercelGatewayText } from "@tanstack/ai-vercel-gateway";
 const stream = chat({
   adapter: vercelGatewayText("anthropic/claude-opus-5", { api: "chat" }),
   messages: [{ role: "user", content: "Plan a database migration." }],
+  threadId: "thread-1",
   reasoning: { level: "high", budgetTokens: 8000 },
 });
 ```
@@ -297,6 +302,7 @@ import { vercelGatewayText } from "@tanstack/ai-vercel-gateway";
 const stream = chat({
   adapter: vercelGatewayText("openai/gpt-5.5", { api: "chat" }),
   messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
 });
 ```
 

@@ -35,6 +35,7 @@ import { useChat, fetchServerSentEvents } from "@tanstack/ai-vue";
 const input = ref("");
 const { messages, sendMessage, isLoading } = useChat({
   connection: fetchServerSentEvents("/api/chat"),
+  threadId: "support-chat",
 });
 
 const handleSubmit = () => {
@@ -63,14 +64,14 @@ const handleSubmit = () => {
 
 ### Options
 
-You must pass `connection` or `fetcher`, not both.
+You must pass `threadId`. You must also pass `connection` or `fetcher`, not both.
 
 | Option | What it does |
 | --- | --- |
 | `connection` | Connection adapter, for example `fetchServerSentEvents("/api/chat")`. See [Transports](../transports/overview). |
 | `fetcher` | A function that returns a `Response` or a stream. Use it with server functions. |
 | `tools` | Client tools from `.client()`. They run when the model calls them. Pass a ref or a getter to change them later. See [Client Tools](../tools/client-tools). |
-| `threadId` | The id of this chat. Required when `persistence` is on. If you omit it, the composable makes one after mount. |
+| `threadId` | Required. The id of this chat. Use a stable id for each conversation, for example the id from your route. |
 | `initialMessages` | The messages to show first. |
 | `forwardedProps` | JSON sent to the server in the AG-UI `forwardedProps` field, for example `{ model: "gpt-6.1-sol" }`. |
 | `persistence` | `true` to load the thread from the server, or a storage adapter. See [Chat Persistence](../persistence/chat-persistence). |
@@ -131,6 +132,7 @@ const deleteFileTool = toolDefinition({
 
 const { interrupts } = useChat({
   connection: fetchServerSentEvents("/api/chat"),
+  threadId: "support-chat",
   tools: [deleteFileTool],
 });
 </script>
@@ -186,6 +188,7 @@ import { useGenerateImage, fetchServerSentEvents } from "@tanstack/ai-vue";
 
 const image = useGenerateImage({
   connection: fetchServerSentEvents("/api/generate/image"),
+  threadId: "image-studio",
 });
 </script>
 
@@ -199,7 +202,7 @@ const image = useGenerateImage({
 </template>
 ```
 
-Options: `connection` or `fetcher`, `body`, `threadId`, `persistence`, `byok`, `byokProvider`, `devtools`, `onResult`, `onError`, `onProgress`, `onChunk`.
+Options: `threadId` (required), `connection` or `fetcher`, `body`, `persistence`, `byok`, `byokProvider`, `devtools`, `onResult`, `onError`, `onProgress`, `onChunk`.
 
 Returns: `generate(input)`, `result`, `isLoading`, `error`, `status`, `stop()`, `reset()`, `runId`. The state fields are read-only refs. Cleanup runs in `onScopeDispose`.
 

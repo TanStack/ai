@@ -123,6 +123,7 @@ for await (const chunk of chat({
   adapter,
   tools,
   messages: [{ role: 'user', content: 'Find two sources on the drone market.' }],
+  threadId: 'thread-1',
 })) {
   processor.processChunk(chunk)
 }
@@ -136,6 +137,7 @@ const followUp = chat({
     ...processor.getMessages(),
     { role: 'user', content: 'List the exact sources you used.' },
   ],
+  threadId: 'thread-1',
 })
 ```
 

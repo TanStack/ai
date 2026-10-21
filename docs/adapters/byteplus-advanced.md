@@ -78,6 +78,7 @@ const RecipeSchema = z.object({
 const recipe = await chat({
   adapter: byteplusText("dola-seed-2-1-turbo-260628"),
   messages: [{ role: "user", content: "Give me a recipe for carbonara" }],
+  threadId: "thread-1",
   outputSchema: RecipeSchema,
 });
 
@@ -113,7 +114,10 @@ import {
 import { byteplusVideo } from "@tanstack/ai-byteplus";
 
 export async function POST(request: Request) {
-  const { input } = await generationParamsFromRequest("video", request);
+  const { input, threadId } = await generationParamsFromRequest("video", request);
+  if (!threadId) {
+    return new Response("Send a threadId.", { status: 400 });
+  }
   if (typeof input.prompt !== "string") {
     return new Response("Send a text prompt.", { status: 400 });
   }
@@ -121,6 +125,7 @@ export async function POST(request: Request) {
   const stream = generateVideo({
     adapter: byteplusVideo("dreamina-seedance-2-5-260628"),
     prompt: input.prompt,
+    threadId,
     size: "16:9_720p",
     duration: 5,
     stream: true,
@@ -139,6 +144,7 @@ import { fetchServerSentEvents, useGenerateVideo } from "@tanstack/ai-react";
 export function SeedanceGenerator() {
   const { generate, result, videoStatus, isLoading, error } = useGenerateVideo({
     connection: fetchServerSentEvents("/api/generate/video"),
+    threadId: "video-studio",
   });
 
   return (
@@ -204,6 +210,7 @@ import { byteplusVideo } from "@tanstack/ai-byteplus";
 const { jobId } = await generateVideo({
   adapter: byteplusVideo("dreamina-seedance-2-5-260628"),
   prompt: "a guitar being played in a store",
+  threadId: "thread-1",
   size: "16:9_1080p",
   duration: 10,
   modelOptions: {
@@ -256,6 +263,7 @@ const result = await generateImage({
       source: { type: "url", value: "https://example.com/guitar.png" },
     },
   ],
+  threadId: "thread-1",
 });
 
 console.log(result.images.length);
@@ -297,6 +305,7 @@ import { byteplusSpeech, type BytePlusTTSResult } from "@tanstack/ai-byteplus";
 const result: BytePlusTTSResult = await generateSpeech({
   adapter: byteplusSpeech("seed-audio-1.0"),
   text: "welcome to the guitar store",
+  threadId: "thread-1",
   modelOptions: {
     format: "ogg_opus",
     sample_rate: 48000,
@@ -321,6 +330,7 @@ import { byteplusSpeech } from "@tanstack/ai-byteplus";
 const result = await generateSpeech({
   adapter: byteplusSpeech("seed-audio-1.0"),
   text: "welcome to the guitar store",
+  threadId: "thread-1",
   timestamps: true,
 });
 
@@ -346,6 +356,7 @@ const result = await generateSpeech({
     { text: "By the till.", voice: SECOND_VOICE },
   ],
   timestamps: true,
+  threadId: "thread-1",
 });
 
 for (const segment of result.segments ?? []) {
@@ -367,6 +378,7 @@ import { byteplusSpeech } from "@tanstack/ai-byteplus";
 const result = await generateSpeech({
   adapter: byteplusSpeech("seed-audio-1.0"),
   text: "welcome to the guitar store",
+  threadId: "thread-1",
   modelOptions: {
     watermark: {
       aigc_watermark: true,

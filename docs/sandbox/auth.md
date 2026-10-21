@@ -105,6 +105,7 @@ import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 function Report() {
   const { sendMessage } = useChat({
     connection: fetchServerSentEvents('/api/sandbox-repo-report'),
+    threadId: 'support-chat',
     forwardedProps: { authMode: 'api-key' },
   })
 
@@ -138,10 +139,21 @@ export async function POST(request: Request) {
     'authMode' in forwarded && forwarded.authMode === 'host'
       ? 'host'
       : 'api-key'
+  const threadId =
+    typeof body === 'object' &&
+    body !== null &&
+    'threadId' in body &&
+    typeof body.threadId === 'string'
+      ? body.threadId
+      : undefined
+  if (!threadId) {
+    return new Response('Send a threadId.', { status: 400 })
+  }
 
   const stream = chat({
     adapter: grokBuildText('composer-2.5', { authMode }),
     messages: [{ role: 'user', content: 'Report on this repo' }],
+    threadId,
     stream: true,
     middleware: [withSandbox(sandbox)],
   })

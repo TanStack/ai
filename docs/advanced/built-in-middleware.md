@@ -87,6 +87,7 @@ import { weatherTool, stockTool } from "./tools";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "What's the weather in Paris?" }],
+  threadId: "thread-1",
   tools: [weatherTool, stockTool],
   middleware: [
     toolCacheMiddleware({
@@ -178,6 +179,7 @@ const redisStorage: ToolCacheStorage = {
 const stream = chat({
   adapter,
   messages,
+  threadId: "thread-1",
   tools: [weatherTool],
   middleware: [toolCacheMiddleware({ storage: redisStorage, ttl: 60_000 })],
 });
@@ -245,6 +247,7 @@ import { contentGuardMiddleware } from "@tanstack/ai/middlewares";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Tell me about customer 123-45-6789" }],
+  threadId: "thread-1",
   middleware: [
     contentGuardMiddleware({
       rules: [
@@ -295,6 +298,7 @@ const otel = otelMiddleware({
 const result = await chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages,
+  threadId: "thread-1",
   middleware: [otel],
 });
 ```

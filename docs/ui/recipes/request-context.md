@@ -83,6 +83,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     messages: params.messages,
+    threadId: params.threadId,
     context: { tenantId },
   })
 
@@ -110,7 +111,7 @@ The example above makes sure that `tenantId` is a string, and rejects the reques
 
 ## One chat for each user
 
-If a screen can show more than one chat, pass a `threadId` with `forwardedProps`. Two instances with different thread ids keep separate histories.
+If a screen can show more than one chat, give each instance its own `threadId`. Two instances with different thread ids keep separate histories.
 
 ## Next
 

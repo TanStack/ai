@@ -125,6 +125,7 @@ export function CodingAgent() {
   const [input, setInput] = useState("");
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/agent"),
+    threadId: "support-chat",
   });
 
   return (
@@ -195,6 +196,7 @@ const stream = chat({
   adapter: pi("pi-pro"),
   modelOptions: { reasoningEffort: "high" },
   messages: [{ role: "user", content: "Fix the failing test." }],
+  threadId: "thread-1",
   middleware: [withSandbox(sandbox)],
 });
 ```
@@ -264,6 +266,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: pi("pi-fast"),
     messages: params.messages,
+    threadId: params.threadId,
     middleware: [withSandbox(sandbox)],
     modelOptions: { sessionId },
   });
@@ -295,7 +298,7 @@ const ReportSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const { messages } = await chatParamsFromRequest(request);
+  const { messages, threadId } = await chatParamsFromRequest(request);
 
   const stream = chat({
     adapter: acpCompatibleText("pi-fast", {
@@ -303,6 +306,7 @@ export async function POST(request: Request) {
       command: ({ model }) => `pi --acp -m ${model}`,
     }),
     messages,
+    threadId,
     outputSchema: ReportSchema,
     stream: true,
     middleware: [withSandbox(sandbox)],
@@ -326,6 +330,7 @@ const ReportSchema = z.object({
 export function Report() {
   const { messages, final } = useChat({
     connection: fetchServerSentEvents("/api/report"),
+    threadId: "support-chat",
     outputSchema: ReportSchema,
   });
 

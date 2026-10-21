@@ -143,6 +143,7 @@ const { tools, systemPrompt } = createCodeMode({
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages,
+  threadId: "thread-1",
   tools: [fetchWeather, fetchArchive],
   lazyToolsConfig: { includeDescription: "first-sentence" },
 });

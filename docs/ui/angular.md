@@ -142,7 +142,7 @@ const { injectAppChat, Chat } = createChatHook({
   `,
 })
 export class ChatScreen {
-  chat = injectAppChat()
+  chat = injectAppChat({ threadId: 'support-chat' })
 
   send(event: Event, field: HTMLInputElement) {
     event.preventDefault()
@@ -161,7 +161,7 @@ The reply streams into the page as the model writes it.
 ## How it works
 
 - `createChatHook` runs once, at module scope. It binds `chatOptions` to your components. It returns `injectAppChat` and the `Chat` component (`<ai-chat>`).
-- `injectAppChat()` creates one chat instance. Call it in a field initializer or a constructor.
+- `injectAppChat({ threadId })` creates one chat instance. Call it in a field initializer or a constructor.
 - The layout gets `Messages`, `Interrupts`, `Queue`, and `Input` as component inputs. `message` gets one message plus `Parts`.
 - `partsComponents.text` renders text. `fallback` catches every part type that you did not register.
 
@@ -335,7 +335,7 @@ It passes these inputs to each widget:
 - An interrupt: `interrupt`.
 - A queue item: `item`.
 
-`injectAppChat()` takes per-instance options: `threadId`, `initialMessages`, `live`, and `forwardedProps`. The factory also returns `ChatProvider` and `injectChatContext`.
+`injectAppChat()` takes per-instance options: `threadId` (required), `initialMessages`, `live`, and `forwardedProps`. The factory also returns `ChatProvider` and `injectChatContext`.
 
 ### Approvals and generic interrupts
 

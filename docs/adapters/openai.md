@@ -86,6 +86,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -122,6 +123,7 @@ import { openaiImage } from "@tanstack/ai-openai";
 const result = await generateImage({
   adapter: openaiImage("gpt-image-2.5-flare"),
   prompt: "A futuristic cityscape at sunset",
+  threadId: "thread-1",
   numberOfImages: 1,
   size: "1024x1024",
   modelOptions: {
@@ -143,6 +145,7 @@ import { openaiSpeech } from "@tanstack/ai-openai";
 const result = await generateSpeech({
   adapter: openaiSpeech("tts-1"),
   text: "Hello, welcome to TanStack AI!",
+  threadId: "thread-1",
   voice: "alloy",
   format: "mp3",
 });
@@ -167,6 +170,7 @@ const result = await generateTranscription({
   adapter: openaiTranscription("whisper-1"),
   audio: audioFile, // File object or base64 string
   language: "en",
+  threadId: "thread-1",
 });
 
 console.log(result.text);
@@ -213,6 +217,7 @@ import { openaiSummarize } from "@tanstack/ai-openai";
 const result = await summarize({
   adapter: openaiSummarize("gpt-5-mini"),
   text: "Your long text to summarize...",
+  threadId: "thread-1",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"
 });
@@ -294,6 +299,7 @@ import { webSearchTool } from "@tanstack/ai-openai/tools";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "What's new in AI this week?" }],
+  threadId: "thread-1",
   tools: [webSearchTool({ type: "web_search" })],
 });
 ```
@@ -328,6 +334,7 @@ import { openaiText } from "@tanstack/ai-openai";
 const stream = chat({
   adapter: openaiText("gpt-4.1"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   modelOptions: {
     temperature: 0.7,
     max_output_tokens: 1000,
@@ -351,6 +358,7 @@ import { openaiText } from "@tanstack/ai-openai";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Plan a database migration." }],
+  threadId: "thread-1",
   reasoning: "xhigh",
 });
 ```

@@ -45,6 +45,7 @@ import { myOpenai } from './lib/ai/my-openai'
 const stream = chat({
   adapter: myOpenai('my-fine-tuned-model'),
   messages: [{ role: 'user', content: 'Hello!' }],
+  threadId: 'thread-1',
 })
 
 for await (const chunk of stream) {
@@ -109,6 +110,7 @@ const myAnthropic = extendAdapter(anthropicText, [
 const stream = chat({
   adapter: myAnthropic('ft:claude-3-opus:my-org:custom-task:abc123'),
   messages: [{ role: 'user', content: 'Analyze this text.' }],
+  threadId: 'thread-1',
 })
 ```
 

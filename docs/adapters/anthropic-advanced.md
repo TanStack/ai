@@ -31,6 +31,7 @@ const adapter = createAnthropicChat("claude-sonnet-5-5", process.env.MY_CLAUDE_T
 const stream = chat({
   adapter,
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
 });
 ```
 
@@ -58,6 +59,7 @@ import { anthropicText } from "@tanstack/ai-anthropic";
 const stream = chat({
   adapter: anthropicText("claude-sonnet-5-5"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
 });
 ```
 
@@ -126,6 +128,7 @@ const stream = chat({
     location: "europe-west1",
   }),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
 });
 ```
 
@@ -215,6 +218,7 @@ const stream = chat({
       ],
     },
   ],
+  threadId: "thread-1",
 });
 ```
 
@@ -273,6 +277,7 @@ import { webSearchTool } from "@tanstack/ai-anthropic/tools";
 const stream = chat({
   adapter: anthropicText("claude-opus-5-5"),
   messages: [{ role: "user", content: "What's new in AI this week?" }],
+  threadId: "thread-1",
   tools: [
     webSearchTool({
       name: "web_search",
@@ -297,6 +302,7 @@ import { webFetchTool } from "@tanstack/ai-anthropic/tools";
 const stream = chat({
   adapter: anthropicText("claude-sonnet-4-6"),
   messages: [{ role: "user", content: "Summarise https://example.com" }],
+  threadId: "thread-1",
   tools: [webFetchTool()],
 });
 ```
@@ -315,6 +321,7 @@ import { codeExecutionTool } from "@tanstack/ai-anthropic/tools";
 const stream = chat({
   adapter: anthropicText("claude-sonnet-4-6"),
   messages: [{ role: "user", content: "Plot a histogram of [1,2,2,3,3,3]" }],
+  threadId: "thread-1",
   tools: [
     codeExecutionTool({ name: "code_execution", type: "code_execution_20250825" }),
   ],
@@ -333,11 +340,12 @@ import { anthropicText } from "@tanstack/ai-anthropic";
 import { codeExecutionTool } from "@tanstack/ai-anthropic/tools";
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages, threadId } = await request.json();
 
   const stream = chat({
     adapter: anthropicText("claude-sonnet-4-5"),
     messages,
+    threadId,
     tools: [
       codeExecutionTool(
         { type: "code_execution_20250825", name: "code_execution" },
@@ -438,6 +446,7 @@ import { bashTool } from "@tanstack/ai-anthropic/tools";
 const stream = chat({
   adapter: anthropicText("claude-sonnet-4-6"),
   messages: [{ role: "user", content: "List all TypeScript files in src/" }],
+  threadId: "thread-1",
   tools: [bashTool({ name: "bash", type: "bash_20250124" })],
 });
 ```
@@ -456,6 +465,7 @@ import { textEditorTool } from "@tanstack/ai-anthropic/tools";
 const stream = chat({
   adapter: anthropicText("claude-sonnet-4-6"),
   messages: [{ role: "user", content: "Fix the bug in src/index.ts" }],
+  threadId: "thread-1",
   tools: [
     textEditorTool({ type: "text_editor_20250124", name: "str_replace_editor" }),
   ],
@@ -476,6 +486,7 @@ import { memoryTool } from "@tanstack/ai-anthropic/tools";
 const stream = chat({
   adapter: anthropicText("claude-sonnet-4-6"),
   messages: [{ role: "user", content: "Remember that I prefer metric units" }],
+  threadId: "thread-1",
   tools: [memoryTool()],
 });
 ```
@@ -495,6 +506,7 @@ import { z } from "zod";
 const stream = chat({
   adapter: anthropicText("claude-sonnet-4-6"),
   messages: [{ role: "user", content: "Look up user 42" }],
+  threadId: "thread-1",
   tools: [
     customTool(
       "lookup_user",

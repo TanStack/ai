@@ -37,7 +37,7 @@ import { openaiText } from '@tanstack/ai-openai'
 const researcher = defineAgent({
   name: 'researcher',
   description: 'Looks up facts and sources',
-  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol') }),
+  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol'), threadId: ctx.threadId }),
 })
 
 export async function POST(request: Request) {
@@ -65,6 +65,7 @@ export function Chat() {
   const [input, setInput] = useState('')
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
   })
 
   return (
@@ -148,12 +149,13 @@ const messages = [{ role: 'user' as const, content: 'Capital of France?' }]
 const researcher = defineAgent({
   name: 'researcher',
   description: 'Looks up facts and sources',
-  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol') }),
+  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol'), threadId: ctx.threadId }),
 })
 
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   subagents: {
     agents: [researcher],
     strategy: 'exclusive',
@@ -224,6 +226,7 @@ const researcher = defineAgent({
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   subagents: { agents: [researcher] },
 })
 ```
@@ -256,7 +259,7 @@ import { memoryPersistence, withPersistence } from '@tanstack/ai-persistence'
 const writer = defineAgent({
   name: 'writer',
   description: 'Writes and edits drafts',
-  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol') }),
+  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol'), threadId: ctx.threadId }),
 })
 
 // A continued child loads from this store. Use a durable backend in production.
@@ -357,6 +360,7 @@ import { deleteFile } from './tools'
 export function CleanupPanel() {
   const chat = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
     tools: [deleteFile.client()],
   })
 
@@ -396,12 +400,13 @@ import { openaiText } from '@tanstack/ai-openai'
 const researcher = defineAgent({
   name: 'researcher',
   description: 'Looks up facts',
-  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol') }),
+  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol'), threadId: ctx.threadId }),
 })
 
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages: [{ role: 'user', content: 'Research squids in depth' }],
+  threadId: 'thread-1',
   subagents: {
     agents: [researcher],
     limits: { maxDepth: 2, maxConcurrent: 3, maxCalls: 12, timeoutMs: 120_000 },

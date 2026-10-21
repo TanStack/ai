@@ -44,11 +44,15 @@ import {
 import { openaiSpeech } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
-  const { input } = await generationParamsFromRequest('tts', request)
+  const { input, threadId } = await generationParamsFromRequest('tts', request)
+  if (!threadId) {
+    return new Response('Send a threadId.', { status: 400 })
+  }
 
   const stream = generateSpeech({
     adapter: openaiSpeech('tts-1-hd'),
     text: input.text,
+    threadId,
     voice: input.voice ?? 'alloy',
     stream: true,
   })
@@ -64,6 +68,7 @@ import { fetchServerSentEvents, useGenerateSpeech } from '@tanstack/ai-react'
 export function SpeechPlayer() {
   const { generate, result, isLoading, error } = useGenerateSpeech({
     connection: fetchServerSentEvents('/api/generate/speech'),
+    threadId: 'speech',
   })
 
   return (
@@ -122,6 +127,7 @@ import { elevenlabsSpeech } from '@tanstack/ai-elevenlabs'
 const result = await generateSpeech({
   adapter: elevenlabsSpeech('eleven_v4'),
   text: 'Welcome to TanStack AI.',
+  threadId: 'thread-1',
 })
 ```
 
@@ -148,6 +154,7 @@ const result = await generateSpeech({
     { text: 'We do. Come and try it.', voice: SECOND_VOICE },
   ],
   format: 'mp3',
+  threadId: 'thread-1',
 })
 ```
 
@@ -186,6 +193,7 @@ import { byteplusSpeech } from '@tanstack/ai-byteplus'
 const result = await generateSpeech({
   adapter: byteplusSpeech('seed-audio-1.0'),
   text: 'Welcome to the guitar store.',
+  threadId: 'thread-1',
   timestamps: true,
 })
 
@@ -221,6 +229,7 @@ import { geminiSpeech } from '@tanstack/ai-gemini'
 const result = await generateSpeech({
   adapter: geminiSpeech('gemini-3.1-flash-tts-preview'),
   text: 'Hello from Gemini TTS!',
+  threadId: 'thread-1',
 })
 ```
 
@@ -236,6 +245,7 @@ import { falSpeech } from '@tanstack/ai-fal'
 const result = await generateSpeech({
   adapter: falSpeech('fal-ai/gemini-3.1-flash-tts'),
   text: '[warm, enthusiastic] Welcome to TanStack AI!',
+  threadId: 'thread-1',
   voice: 'Kore',
 })
 ```
@@ -248,6 +258,7 @@ import { falSpeech } from '@tanstack/ai-fal'
 const result = await generateSpeech({
   adapter: falSpeech('fal-ai/kokoro/american-english'),
   text: 'Hello from fal!',
+  threadId: 'thread-1',
   voice: 'af_heart',
   speed: 1.0,
 })
@@ -264,6 +275,7 @@ import { falSpeech } from '@tanstack/ai-fal'
 const result = await generateSpeech({
   adapter: falSpeech('fal-ai/elevenlabs/tts/eleven-v3'),
   text: 'Welcome to TanStack AI.',
+  threadId: 'thread-1',
   voice: 'Rachel',
   modelOptions: {
     stability: 0.5,
@@ -282,6 +294,7 @@ import { byteplusSpeech } from '@tanstack/ai-byteplus'
 const result = await generateSpeech({
   adapter: byteplusSpeech('seed-audio-1.0'),
   text: 'Welcome to TanStack AI!',
+  threadId: 'thread-1',
   voice: 'en_female_stokie_uranus_bigtts',
   format: 'mp3',
 })
@@ -344,6 +357,7 @@ import { openaiSpeech } from '@tanstack/ai-openai'
 const result = await generateSpeech({
   adapter: openaiSpeech('gpt-4o-audio-preview'),
   text: 'High quality speech synthesis',
+  threadId: 'thread-1',
   voice: 'nova',
   format: 'mp3',
   speed: 1.0,
@@ -411,6 +425,7 @@ import { openaiSpeech } from '@tanstack/ai-openai'
 const result = await generateSpeech({
   adapter: openaiSpeech('tts-1-hd'),
   text: 'Hello world!',
+  threadId: 'thread-1',
 })
 
 await writeFile('output.mp3', Buffer.from(result.audio, 'base64'))
@@ -428,6 +443,7 @@ try {
   await generateSpeech({
     adapter: openaiSpeech('tts-1-hd'),
     text: 'Hello!',
+    threadId: 'thread-1',
   })
 } catch (error) {
   if (error instanceof Error) {

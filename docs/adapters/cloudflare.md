@@ -138,6 +138,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -424,6 +425,7 @@ import { cloudflareSummarize } from "@tanstack/ai-cloudflare";
 const result = await summarize({
   adapter: cloudflareSummarize("@cf/zai-org/glm-5.3-flash"),
   text: "Long article text...",
+  threadId: "thread-1",
   stream: false,
 });
 
@@ -453,6 +455,7 @@ import { cloudflareImage } from "@tanstack/ai-cloudflare";
 const result = await generateImage({
   adapter: cloudflareImage("@cf/black-forest-labs/flux-1-schnell"),
   prompt: "a red bicycle on a beach",
+  threadId: "thread-1",
   modelOptions: { steps: 4 },
 });
 
@@ -468,6 +471,7 @@ import { cloudflareTTS } from "@tanstack/ai-cloudflare";
 const result = await generateSpeech({
   adapter: cloudflareTTS("@cf/deepgram/aura-2-en"),
   text: "Hello from the edge.",
+  threadId: "thread-1",
   voice: "luna",
 });
 
@@ -484,6 +488,7 @@ import { audioBuffer } from "./audio";
 const result = await generateTranscription({
   adapter: cloudflareTranscription("@cf/openai/whisper-large-v3-turbo"),
   audio: audioBuffer,
+  threadId: "thread-1",
 });
 
 console.log(result.text, result.segments, result.words);
@@ -513,6 +518,7 @@ import { cloudflareText } from "@tanstack/ai-cloudflare";
 const stream = chat({
   adapter: cloudflareText("@cf/zai-org/glm-5.3-flash"),
   messages: [{ role: "user", content: "Summarize this in one sentence." }],
+  threadId: "thread-1",
   modelOptions: {
     temperature: 0.3,
     max_tokens: 512,

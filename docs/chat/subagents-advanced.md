@@ -79,6 +79,7 @@ const messages = [
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   subagents: {
     agents: [researcher, writer],
     router: async ({ messages: turnMessages, agents }) => {
@@ -142,10 +143,12 @@ const pricer = defineAgent({
 const messages = [
   { role: 'user' as const, content: 'What does Acme cost? Write a post about it.' },
 ]
+const threadId = 'thread-1'
 
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId,
   subagents: {
     agents: [pricer, writer],
     router: async ({ messages: turnMessages, agents }) => {
@@ -162,6 +165,7 @@ const stream = chat({
             await chat({
               adapter: openaiText('gpt-6.1-sol'),
               messages: turnMessages,
+              threadId,
               outputSchema: inputSchema,
             }),
           ]),
@@ -220,6 +224,7 @@ const heroImage = defineAgent({
     ctx.generateImage({
       adapter: openaiImage('gpt-image-2.5-sunburst'),
       prompt: `${ctx.input.prompt}. Brand colors: blue and white.`,
+      threadId: ctx.threadId,
       size: '1536x1024',
     }),
 })
@@ -227,6 +232,7 @@ const heroImage = defineAgent({
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages: [{ role: 'user', content: 'Make a hero image about squids' }],
+  threadId: 'thread-1',
   subagents: { agents: [heroImage] },
 })
 ```
@@ -470,6 +476,7 @@ const writer = defineAgent({
 function Desk() {
   const chat = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
     subagents: [researcher, writer],
   })
   const part = chat.messages[0]?.parts[0]
@@ -578,7 +585,7 @@ const { useAppChat, useChatContext } = createChatHook({
 })
 
 export function ChatScreen() {
-  const chat = useAppChat()
+  const chat = useAppChat({ threadId: 'support-chat' })
   return <chat.AppChat />
 }
 ```
@@ -606,6 +613,7 @@ import { researcher } from './agents'
 export function Briefs() {
   const { messages } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
     subagents: [researcher],
   })
   return messages.flatMap((message) =>

@@ -110,6 +110,7 @@ export function Chat() {
   const [input, setInput] = useState('')
   const { messages, sendMessage, interrupts, resuming } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
     tools: [sendEmailDef],
   })
 
@@ -283,6 +284,7 @@ const deleteLocalData = deleteLocalDataDef.client((input) => {
 
 const { messages, interrupts } = useChat({
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'support-chat',
   tools: [deleteLocalData],
 })
 ```

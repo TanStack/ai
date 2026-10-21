@@ -45,6 +45,7 @@ import { myTool } from "./tools";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   tools: [myTool],
   systemPrompts: ["You are a helpful assistant"],
   agentLoopStrategy: maxIterations(20),
@@ -59,6 +60,7 @@ Required:
 | --- | --- |
 | `adapter` | A text adapter with a model, for example `openaiText("gpt-6.1-sol")`. |
 | `messages` | The conversation. Accepts `UIMessage` and `ModelMessage` items, mixed in one array. |
+| `threadId` | The id of the conversation. Use a stable id, for example `params.threadId` from `chatParamsFromRequest`. |
 
 Common:
 
@@ -92,7 +94,7 @@ Run identity and other options:
 
 | Option | What it does |
 | --- | --- |
-| `threadId`, `runId`, `parentRunId` | AG-UI ids for the thread, the run, and a parent run. They are made for you when you omit them. |
+| `runId`, `parentRunId` | AG-UI ids for the run and a parent run. They are made for you when you omit them. |
 | `resume` | AG-UI interrupt resume answers, from `chatParamsFromRequest`. |
 | `state` | App state put in a `STATE_SNAPSHOT` before an interrupt ends the run. |
 | `promptCache` | Automatic prompt caching. Default `"short"`. `"none"` turns it off. See [Prompt Caching](../advanced/prompt-caching). |
@@ -118,6 +120,7 @@ import { openaiText } from "@tanstack/ai-openai";
 const { text, chunks } = await chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "What is the capital of France?" }],
+  threadId: "thread-1",
   stream: false,
 });
 
@@ -145,6 +148,7 @@ const chatOptions = createChatOptions({
 const stream = chat({
   ...chatOptions,
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
 });
 ```
 
@@ -173,6 +177,7 @@ const getWeather = getWeatherDef.server(async ({ city }) => {
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Weather in Paris?" }],
+  threadId: "thread-1",
   tools: [getWeather],
 });
 ```
@@ -216,10 +221,11 @@ const currentUser = toolDefinition({
 });
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages, threadId } = await request.json();
   const stream = chat({
     adapter: openaiText("gpt-6.1-sol"),
     messages,
+    threadId,
     tools: [currentUser],
     context: { userId: session.user.id, db },
   });
@@ -244,6 +250,7 @@ import { openaiText } from "@tanstack/ai-openai";
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   agentLoopStrategy: maxIterations(20),
 });
 ```
@@ -273,6 +280,7 @@ export async function POST() {
   const stream = chat({
     adapter: openaiText("gpt-6.1-sol"),
     messages: [{ role: "user", content: "Hello!" }],
+    threadId: "thread-1",
   });
   return toServerSentEventsResponse(stream);
 }
@@ -301,6 +309,7 @@ export async function POST(req: Request) {
   const stream = chat({
     adapter: openaiText("gpt-6.1-sol"),
     messages: params.messages,
+    threadId: params.threadId,
     tools: serverTools,
   });
   return toServerSentEventsResponse(stream);
@@ -352,6 +361,7 @@ export async function POST(req: Request) {
   const stream = chat({
     adapter: openaiText("gpt-6.1-sol"),
     messages: params.messages,
+    threadId: params.threadId,
     tools: mergeAgentTools(serverTools, params.tools),
   });
   return toServerSentEventsResponse(stream);
@@ -379,6 +389,7 @@ import { openaiSummarize } from "@tanstack/ai-openai";
 const result = await summarize({
   adapter: openaiSummarize("gpt-6.1-sol"),
   text: "Long text to summarize...",
+  threadId: "thread-1",
   maxLength: 100,
   style: "concise",
 });
@@ -394,7 +405,8 @@ console.log(result.summary);
 | `style` | `"bullet-points"`, `"paragraph"`, or `"concise"`. |
 | `focus` | Topics to focus on. |
 | `stream` | `true` to stream the summary. |
-| `modelOptions`, `middleware`, `abortSignal`, `timeout`, `threadId`, `runId`, `debug` | Same meaning as for the other activities. |
+| `threadId` | Required. The id of the thread that the run belongs to. |
+| `modelOptions`, `middleware`, `abortSignal`, `timeout`, `runId`, `debug` | Same meaning as for the other activities. |
 
 It resolves to a `SummarizationResult`: `{ id, model, summary, usage }`.
 
@@ -457,6 +469,8 @@ Question helpers:
 ## Generation functions
 
 Each function runs one generation with a matching adapter. The guide for each one shows the server and the client side.
+
+The generate functions and `getVideoJobStatus` need a `threadId`, the same as `chat()`.
 
 | Function | What it makes | Guide |
 | --- | --- | --- |

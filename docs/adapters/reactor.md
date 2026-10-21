@@ -64,6 +64,7 @@ export async function POST() {
   const world = await generateWorld({
     adapter: reactorWorld('visko-orbis-stable'),
     prompt: 'A neon cyberpunk city at night, slow aerial drift',
+    threadId: 'thread-1',
   })
 
   return Response.json({
@@ -133,6 +134,7 @@ import { reactorVideo } from '@tanstack/ai-reactor'
 const live = await generateLiveVideo({
   adapter: reactorVideo('helios'),
   prompt: 'A neon cyberpunk city at night, slow aerial drift',
+  threadId: 'thread-1',
 })
 ```
 
@@ -242,6 +244,7 @@ export async function POST(request: Request) {
   const world = await generateWorld({
     adapter: reactorWorld('visko-orbis-stable', { apiKey }),
     prompt: 'A neon cyberpunk city at night, slow aerial drift',
+    threadId: 'thread-1',
   })
 
   return Response.json({

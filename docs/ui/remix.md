@@ -102,7 +102,7 @@ const { createAppChat, ui } = createChatHook({
 export const ChatScreen = clientEntry(
   import.meta.url,
   function ChatScreen(handle: Handle) {
-    const chat = createAppChat(handle)
+    const chat = createAppChat(handle, { threadId: 'support-chat' })
 
     return () => (
       <main>
@@ -135,7 +135,7 @@ The reply streams into the page as the model writes it.
 ## How it works
 
 - `createChatHook` runs once, at module scope. It binds `chatOptions` to your components. It returns `ui`, the kit with `ui.Chat`.
-- `createAppChat(handle)` creates one chat instance inside a setup function. `ui.Chat` renders that instance with your components.
+- `createAppChat(handle, { threadId })` creates one chat instance inside a setup function. `ui.Chat` renders that instance with your components.
 - `layout` places the message list. `message` wraps one message. `Parts` picks a component for each part of that message.
 - `partsComponents.text` renders text. `fallback` catches every part type that you did not register.
 
@@ -291,7 +291,7 @@ You now have a typed chat UI in Remix. Each widget is your own component.
 
 The config keys, part keys, and prop types are the same as in React. See [Every widget slot](./react#every-widget-slot). In Remix, `layout` gets `Messages`, `Interrupts`, `Queue`, and `Input`. If you render `Input` with no registered `input`, it renders nothing and warns once in development.
 
-`createAppChat(handle, overrides)` takes per-instance options: `threadId`, `initialMessages`, `live`, and `forwardedProps`.
+`createAppChat(handle, overrides)` takes per-instance options: `threadId` (required), `initialMessages`, `live`, and `forwardedProps`.
 
 ### Approvals and generic interrupts
 

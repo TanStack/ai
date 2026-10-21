@@ -398,6 +398,7 @@ export async function POST(request: Request) {
       auth: "bearer",
     }),
     messages: params.messages,
+    threadId: params.threadId,
     wrapFetch: copilotHeaders(params.threadId),
   });
   return toServerSentEventsResponse(stream);
@@ -435,6 +436,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: copilot("gpt-6.1-sol"),
     messages: params.messages,
+    threadId: params.threadId,
     modelOptions: { store: false, include: ["reasoning.encrypted_content"] },
     wrapFetch: copilotHeaders(params.threadId),
   });
@@ -468,6 +470,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: createOpenaiChat("gpt-6.1-sol", apiKey),
     messages: params.messages,
+    threadId: params.threadId,
     modelOptions: { store: false },
   });
   return toServerSentEventsResponse(stream);

@@ -97,6 +97,7 @@ let interactionId: string | undefined;
 for await (const chunk of chat({
   adapter: geminiTextInteractions("gemini-3.5-flash"),
   messages: [{ role: "user", content: "Hi, my name is Amir." }],
+  threadId: "thread-1",
 })) {
   if (
     chunk.type === "CUSTOM" &&
@@ -113,6 +114,7 @@ for await (const chunk of chat({
 for await (const chunk of chat({
   adapter: geminiTextInteractions("gemini-3.5-flash"),
   messages: [{ role: "user", content: "What is my name?" }],
+  threadId: "thread-1",
   modelOptions: {
     previous_interaction_id: interactionId,
   },
@@ -147,6 +149,7 @@ export async function POST({ request }: { request: Request }) {
   const stream = chat({
     adapter: geminiTextInteractions("gemini-3.5-flash"),
     messages: params.messages,
+    threadId: params.threadId,
     modelOptions: {
       previous_interaction_id: previousInteractionId,
       store: true, // required for chaining on the next turn
@@ -173,6 +176,7 @@ function GeminiChat() {
 
   const { messages, setMessages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
     forwardedProps,
     onCustomEvent: (eventType, data) => {
       if (
@@ -222,6 +226,7 @@ import { geminiTextInteractions } from "@tanstack/ai-gemini/experimental";
 const stream = chat({
   adapter: geminiTextInteractions("gemini-3.5-flash"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   // Goes out as generation_config.thinking_level and thinking_summaries.
   reasoning: "low",
   modelOptions: {
@@ -303,11 +308,13 @@ const adapter = geminiImage("gemini-3.1-flash-image");
 const first = await generateImage({
   adapter,
   prompt: "A red bicycle on a quiet street",
+  threadId: "thread-1",
 });
 
 const edited = await generateImage({
   adapter,
   prompt: "Make the bicycle blue",
+  threadId: "thread-1",
   modelOptions: { previous_interaction_id: first.id },
 });
 ```
@@ -339,6 +346,7 @@ import { geminiImage } from "@tanstack/ai-gemini";
 const result = await generateImage({
   adapter: geminiImage("imagen-4.0-generate-001"),
   prompt: "A futuristic cityscape at sunset",
+  threadId: "thread-1",
   numberOfImages: 1,
 });
 
@@ -393,6 +401,7 @@ import { geminiImage } from "@tanstack/ai-gemini";
 const result = await generateImage({
   adapter: geminiImage("imagen-4.0-generate-001"),
   prompt: "A landscape photo",
+  threadId: "thread-1",
   modelOptions: {
     aspectRatio: "16:9",
   },
@@ -412,6 +421,7 @@ import { geminiImage } from "@tanstack/ai-gemini";
 const result = await generateImage({
   adapter: geminiImage("imagen-4.0-generate-001"),
   prompt: "...",
+  threadId: "thread-1",
   modelOptions: {
     aspectRatio: "16:9", // "1:1" | "3:4" | "4:3" | "9:16" | "16:9"
     personGeneration: "DONT_ALLOW", // Control person generation
@@ -431,6 +441,7 @@ import { geminiImage, ThinkingLevel } from "@tanstack/ai-gemini";
 const result = await generateImage({
   adapter: geminiImage("gemini-3.1-flash-image"),
   prompt: "A beautiful garden",
+  threadId: "thread-1",
   size: "16:9_4K",
   modelOptions: {
     thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
@@ -462,6 +473,7 @@ const result = await generateSpeech({
     { text: "Hey, how is it going?", voice: "Puck" },
     { text: "Not bad, you?", voice: "Kore" },
   ],
+  threadId: "thread-1",
 });
 ```
 
@@ -488,6 +500,7 @@ import { codeExecutionTool } from "@tanstack/ai-gemini/tools";
 const stream = chat({
   adapter: geminiText("gemini-3.8-flash"),
   messages: [{ role: "user", content: "Calculate the first 10 Fibonacci numbers" }],
+  threadId: "thread-1",
   tools: [codeExecutionTool()],
 });
 ```
@@ -506,6 +519,7 @@ import { fileSearchTool } from "@tanstack/ai-gemini/tools";
 const stream = chat({
   adapter: geminiText("gemini-3.8-flash"),
   messages: [{ role: "user", content: "Find the quarterly revenue figures" }],
+  threadId: "thread-1",
   tools: [
     fileSearchTool({
       fileSearchStoreNames: ["fileSearchStores/my-file-search-store-123"],
@@ -528,6 +542,7 @@ import { googleSearchTool } from "@tanstack/ai-gemini/tools";
 const stream = chat({
   adapter: geminiText("gemini-3.8-flash"),
   messages: [{ role: "user", content: "What's the weather in Tokyo right now?" }],
+  threadId: "thread-1",
   tools: [googleSearchTool()],
 });
 ```
@@ -552,6 +567,7 @@ import { googleSearchRetrievalTool } from "@tanstack/ai-gemini/tools";
 const stream = chat({
   adapter: geminiText("gemini-3.1-pro-preview"),
   messages: [{ role: "user", content: "Explain the latest JavaScript proposals" }],
+  threadId: "thread-1",
   tools: [
     googleSearchRetrievalTool({
       dynamicRetrievalConfig: { mode: "MODE_DYNAMIC", dynamicThreshold: 0.7 },
@@ -574,6 +590,7 @@ import { googleMapsTool } from "@tanstack/ai-gemini/tools";
 const stream = chat({
   adapter: geminiText("gemini-2.5-pro"),
   messages: [{ role: "user", content: "Find coffee shops near Union Square, SF" }],
+  threadId: "thread-1",
   tools: [googleMapsTool()],
 });
 ```
@@ -592,6 +609,7 @@ import { urlContextTool } from "@tanstack/ai-gemini/tools";
 const stream = chat({
   adapter: geminiText("gemini-3.8-flash"),
   messages: [{ role: "user", content: "Summarise https://example.com/article" }],
+  threadId: "thread-1",
   tools: [urlContextTool()],
 });
 ```
@@ -610,6 +628,7 @@ import { computerUseTool } from "@tanstack/ai-gemini/tools";
 const stream = chat({
   adapter: geminiText("gemini-3.1-pro-preview"),
   messages: [{ role: "user", content: "Navigate to example.com in the browser" }],
+  threadId: "thread-1",
   tools: [
     computerUseTool({
       environment: "browser",

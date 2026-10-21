@@ -66,6 +66,7 @@ export function ProviderChat() {
   const [provider, setProvider] = useState('anthropic')
   const { sendMessage } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
     forwardedProps: { provider },
   })
 
@@ -196,6 +197,7 @@ export const Route = createFileRoute('/api/chat')({
           adapter: adapters[provider](),
           systemPrompts: ['You are a helpful assistant.'],
           messages: params.messages,
+          threadId: params.threadId,
           abortController,
         })
 
@@ -232,6 +234,7 @@ export async function POST(request: Request) {
   const result = await generateImage({
     adapter,
     prompt: 'A beautiful sunset over mountains',
+    threadId: 'thread-1',
     size,
   })
 
@@ -275,6 +278,7 @@ export async function POST(request: Request) {
   const result = await summarize({
     adapter: summarizeAdapters[provider](),
     text,
+    threadId: 'thread-1',
     maxLength: 100,
     style: 'concise',
   })

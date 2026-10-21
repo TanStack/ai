@@ -27,22 +27,23 @@ With `stream: true`, `generateVideo()` creates the job and polls it for you. Wit
 import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
 import { openaiVideo } from '@tanstack/ai-openai'
 
-async function createAndAwaitVideo(prompt: string) {
+async function createAndAwaitVideo(prompt: string, threadId: string) {
   const adapter = openaiVideo('sora-2')
 
   // 1. Create the job
   const { jobId } = await generateVideo({
     adapter,
     prompt,
+    threadId,
     size: '1280x720',
     duration: 8,
   })
 
   // 2. Poll until the job is done or fails
-  let status = await getVideoJobStatus({ adapter, jobId })
+  let status = await getVideoJobStatus({ adapter, jobId, threadId })
   while (status.status !== 'completed' && status.status !== 'failed') {
     await new Promise((resolve) => setTimeout(resolve, 5000))
-    status = await getVideoJobStatus({ adapter, jobId })
+    status = await getVideoJobStatus({ adapter, jobId, threadId })
     console.log(`Status: ${status.status} (${status.progress ?? 0}%)`)
   }
 
@@ -53,7 +54,10 @@ async function createAndAwaitVideo(prompt: string) {
   return status.url
 }
 
-const videoUrl = await createAndAwaitVideo('A cat playing piano in a jazz bar')
+const videoUrl = await createAndAwaitVideo(
+  'A cat playing piano in a jazz bar',
+  'thread-1',
+)
 console.log('Video ready:', videoUrl)
 ```
 
@@ -72,15 +76,16 @@ import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
 import { openaiVideo } from '@tanstack/ai-openai'
 
 export const generateVideoFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: string }) => data)
+  .inputValidator((data: { prompt: string; threadId: string }) => data)
   .handler(async ({ data }) => {
     const adapter = openaiVideo('sora-2')
-    const { jobId } = await generateVideo({ adapter, prompt: data.prompt })
+    const { threadId } = data
+    const { jobId } = await generateVideo({ adapter, prompt: data.prompt, threadId })
 
-    let status = await getVideoJobStatus({ adapter, jobId })
+    let status = await getVideoJobStatus({ adapter, jobId, threadId })
     while (status.status !== 'completed' && status.status !== 'failed') {
       await new Promise((r) => setTimeout(r, 5000))
-      status = await getVideoJobStatus({ adapter, jobId })
+      status = await getVideoJobStatus({ adapter, jobId, threadId })
     }
 
     if (status.status === 'failed' || !status.url) {
@@ -94,9 +99,12 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
 import { useGenerateVideo } from '@tanstack/ai-react'
 import { generateVideoFn } from '../lib/server-functions'
 
+const threadId = 'video-studio'
+
 export function VideoGenerator() {
   const { generate, result, isLoading } = useGenerateVideo({
-    fetcher: (input) => generateVideoFn({ data: input }),
+    fetcher: (input) => generateVideoFn({ data: { ...input, threadId } }),
+    threadId,
   })
   // Render the same way as in the quick setup.
 }
@@ -116,12 +124,13 @@ import { generateVideo, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiVideo } from '@tanstack/ai-openai'
 
 export const generateVideoStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: string }) => data)
+  .inputValidator((data: { prompt: string; threadId: string }) => data)
   .handler(({ data }) => {
     return toServerSentEventsResponse(
       generateVideo({
         adapter: openaiVideo('sora-2'),
         prompt: data.prompt,
+        threadId: data.threadId,
         stream: true,
       }),
     )
@@ -132,9 +141,12 @@ export const generateVideoStreamFn = createServerFn({ method: 'POST' })
 import { useGenerateVideo } from '@tanstack/ai-react'
 import { generateVideoStreamFn } from '../lib/server-functions'
 
+const threadId = 'video-studio'
+
 export function VideoGenerator() {
   const { generate, result, jobId, videoStatus, isLoading } = useGenerateVideo({
-    fetcher: (input) => generateVideoStreamFn({ data: input }),
+    fetcher: (input) => generateVideoStreamFn({ data: { ...input, threadId } }),
+    threadId,
   })
   // Render the same way as in the quick setup.
 }
@@ -220,6 +232,7 @@ import { openaiVideo } from '@tanstack/ai-openai'
 const { jobId } = await generateVideo({
   adapter: openaiVideo('sora-2'),
   prompt: 'A beautiful sunset over the ocean',
+  threadId: 'thread-1',
   size: '1280x720', // '1280x720', '720x1280', '1792x1024', '1024x1792'
   duration: '8s', // 4, "4", or "4s" (same forms for 8 and 12)
   modelOptions: {
@@ -245,6 +258,7 @@ import { geminiVideo } from '@tanstack/ai-gemini'
 const { jobId } = await generateVideo({
   adapter: geminiVideo('veo-3.1-generate-preview'),
   prompt: 'A close-up of a luthier carving a guitar neck',
+  threadId: 'thread-1',
   size: '16:9', // aspect ratio: '16:9' or '9:16'
   duration: 8, // typed per model, see below
   modelOptions: {
@@ -275,6 +289,7 @@ adapter.snapDuration(7) // 6, the closest valid duration
 await generateVideo({
   adapter,
   prompt: 'A timelapse of a city skyline at dusk',
+  threadId: 'thread-1',
   duration: adapter.snapDuration(7),
 })
 ```
@@ -308,11 +323,12 @@ const adapter = geminiVideo('gemini-omni-1.1-flash')
 const { jobId } = await generateVideo({
   adapter,
   prompt: 'A woman playing violin outdoors at golden hour',
+  threadId: 'thread-1',
   size: '9:16_1080p', // '16:9' | '9:16', optional _360p/_720p/_1080p/_4k
   duration: 6, // 3-10 seconds. Leave it out for the 10s default.
 })
 
-const status = await getVideoJobStatus({ adapter, jobId })
+const status = await getVideoJobStatus({ adapter, jobId, threadId: 'thread-1' })
 // status.url is 'data:video/mp4;base64,...' when the job is complete
 ```
 
@@ -333,6 +349,7 @@ const adapter = geminiVideo('gemini-omni-1.1-flash')
 const first = await generateVideo({
   adapter,
   prompt: 'A woman playing violin outdoors at golden hour',
+  threadId: 'thread-1',
 })
 
 // Poll first.jobId until it is complete, then:
@@ -341,6 +358,7 @@ const first = await generateVideo({
 const second = await generateVideo({
   adapter,
   prompt: 'Make the violin invisible',
+  threadId: 'thread-1',
   modelOptions: { previous_interaction_id: first.jobId },
 })
 ```
@@ -365,6 +383,7 @@ import { grokVideo } from '@tanstack/ai-grok'
 const { jobId } = await generateVideo({
   adapter: grokVideo('grok-imagine-video-1.5'),
   prompt: 'A beautiful sunset over the ocean',
+  threadId: 'thread-1',
   size: '16:9_720p', // aspect ratio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '3:2' | '2:3'
   // resolution (optional suffix): '480p' | '720p' | '1080p'
   duration: 5, // whole seconds, 1-15
@@ -391,6 +410,7 @@ const { jobId } = await generateVideo({
       source: { type: 'url', value: 'https://example.com/still.png' },
     },
   ],
+  threadId: 'thread-1',
   size: '16:9_720p',
   duration: 5,
 })
@@ -415,6 +435,7 @@ const { jobId } = await generateVideo({
       metadata: { role: 'reference' },
     },
   ],
+  threadId: 'thread-1',
   size: '16:9_720p',
   modelOptions: { reference_audios: [{ voice_id: 'eve' }] },
 })
@@ -440,6 +461,7 @@ const { jobId } = await generateVideo({
       source: { type: 'url', value: 'https://example.com/clip.mp4' },
     },
   ],
+  threadId: 'thread-1',
   duration: 5, // 'extend' mode: seconds added to the clip, not the total
   modelOptions: { mode: 'extend' },
 })
@@ -478,6 +500,7 @@ import { byteplusVideo } from '@tanstack/ai-byteplus'
 const { jobId } = await generateVideo({
   adapter: byteplusVideo('dreamina-seedance-2-5-260628'),
   prompt: 'A beautiful sunset over the ocean',
+  threadId: 'thread-1',
   size: '16:9_720p',
   duration: 5,
   modelOptions: {
@@ -531,6 +554,7 @@ import { openRouterVideo } from '@tanstack/ai-openrouter'
 const { jobId } = await generateVideo({
   adapter: openRouterVideo('bytedance/seedance-2.5'),
   prompt: 'A beautiful sunset over the ocean',
+  threadId: 'thread-1',
   size: '1280x720', // a union for each model, from the OpenRouter model data
   duration: 8, // checked against the durations of the model
   modelOptions: {
@@ -560,6 +584,7 @@ const sliderSeconds = 7 // raw seconds from a UI control
 await generateVideo({
   adapter,
   prompt: 'A timelapse of clouds',
+  threadId: 'thread-1',
   duration: adapter.snapDuration(sliderSeconds),
 })
 ```
@@ -593,6 +618,7 @@ adapter.availableDurations() // { kind: 'discrete', values: ['4s', '6s', '8s'] }
 await generateVideo({
   adapter,
   prompt: 'A timelapse of a city skyline at dusk',
+  threadId: 'thread-1',
   duration: adapter.snapDuration(7), // '6s'
 })
 ```
@@ -655,9 +681,9 @@ import { openaiVideo } from '@tanstack/ai-openai'
 
 try {
   const adapter = openaiVideo('sora-2')
-  const { jobId } = await generateVideo({ adapter, prompt: 'A scene' })
+  const { jobId } = await generateVideo({ adapter, prompt: 'A scene', threadId: 'thread-1' })
 
-  const status = await getVideoJobStatus({ adapter, jobId })
+  const status = await getVideoJobStatus({ adapter, jobId, threadId: 'thread-1' })
   if (status.status === 'failed') {
     console.error('Generation failed:', status.error)
   }

@@ -161,6 +161,7 @@ const sandbox = defineSandbox({
 const stream = chat({
   adapter: grokBuildText('grok-build'),
   messages: [{ role: 'user', content: 'List the project files.' }],
+  threadId: 'thread-1',
   middleware: [withSandbox(sandbox)],
 })
 ```

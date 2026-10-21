@@ -46,7 +46,10 @@ import {
 import { openaiImage } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
-  const { input } = await generationParamsFromRequest('image', request)
+  const { input, threadId } = await generationParamsFromRequest('image', request)
+  if (!threadId) {
+    return new Response('Send a threadId.', { status: 400 })
+  }
   if (typeof input.prompt !== 'string') {
     return new Response('Send a text prompt.', { status: 400 })
   }
@@ -54,6 +57,7 @@ export async function POST(request: Request) {
   const stream = generateImage({
     adapter: openaiImage('gpt-image-2.5-flare'),
     prompt: input.prompt,
+    threadId,
     stream: true,
   })
   return toServerSentEventsResponse(stream)
@@ -68,6 +72,7 @@ import { fetchServerSentEvents, useGenerateImage } from '@tanstack/ai-react'
 export function ImageGenerator() {
   const { generate, result, isLoading, error } = useGenerateImage({
     connection: fetchServerSentEvents('/api/generate/image'),
+    threadId: 'image-studio',
   })
 
   return (
@@ -158,11 +163,12 @@ import { generateImage } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 export const generateImageFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: string }) => data)
+  .inputValidator((data: { prompt: string; threadId: string }) => data)
   .handler(async ({ data }) => {
     return generateImage({
       adapter: openaiImage('gpt-image-2.5-flare'),
       prompt: data.prompt,
+      threadId: data.threadId,
     })
   })
 ```
@@ -173,9 +179,12 @@ Client:
 import { useGenerateImage } from '@tanstack/ai-react'
 import { generateImageFn } from '../lib/server-functions'
 
+const threadId = 'image-studio'
+
 export function ImageGenerator() {
   const { generate, result, isLoading } = useGenerateImage({
-    fetcher: (input) => generateImageFn({ data: input }),
+    fetcher: (input) => generateImageFn({ data: { ...input, threadId } }),
+    threadId,
   })
   // Render the same way as in the quick setup.
 }
@@ -193,12 +202,13 @@ import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 export const generateImageStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: string }) => data)
+  .inputValidator((data: { prompt: string; threadId: string }) => data)
   .handler(({ data }) => {
     return toServerSentEventsResponse(
       generateImage({
         adapter: openaiImage('gpt-image-2.5-flare'),
         prompt: data.prompt,
+        threadId: data.threadId,
         stream: true,
       }),
     )
@@ -211,9 +221,12 @@ Client:
 import { useGenerateImage } from '@tanstack/ai-react'
 import { generateImageStreamFn } from '../lib/server-functions'
 
+const threadId = 'image-studio'
+
 export function ImageGenerator() {
   const { generate, result, isLoading } = useGenerateImage({
-    fetcher: (input) => generateImageStreamFn({ data: input }),
+    fetcher: (input) => generateImageStreamFn({ data: { ...input, threadId } }),
+    threadId,
   })
   // Render the same way as in the quick setup.
 }
@@ -260,6 +273,7 @@ import { fetchServerSentEvents, useGenerateImage } from '@tanstack/ai-react'
 export function ImageGenerator() {
   const { generate, result, error, status } = useGenerateImage({
     connection: fetchServerSentEvents('/api/generate/image'),
+    threadId: 'image-studio',
     onError: (err) => console.error('Generation failed:', err.message),
   })
 

@@ -145,6 +145,7 @@ const runTests = toolDefinition({
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages: [{ role: 'user', content: 'Fix the bug, then run the tests.' }],
+  threadId: 'thread-1',
   tools: [writeFile, runTests],
   toolExecution: 'sequential',
 })
@@ -185,11 +186,12 @@ const weatherFirst: ChatMiddleware = {
 }
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
 
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     messages,
+    threadId,
     tools: [getWeather],
     middleware: [weatherFirst],
   })
@@ -223,6 +225,7 @@ import { maxIterations } from '@tanstack/ai'
 const oneLookup = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages: [{ role: 'user', content: 'Weather in Oslo?' }],
+  threadId: 'thread-1',
   tools: [getWeather],
   toolChoice: 'required',
   agentLoopStrategy: maxIterations(1),

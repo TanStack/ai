@@ -89,6 +89,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -130,6 +131,7 @@ import { geminiImage } from "@tanstack/ai-gemini";
 const result = await generateImage({
   adapter: geminiImage("gemini-nano-banana-2.1"),
   prompt: "A futuristic cityscape at sunset",
+  threadId: "thread-1",
   numberOfImages: 1,
   size: "16:9_4K",
 });
@@ -164,6 +166,7 @@ export async function POST(request: Request) {
         ],
       },
     ],
+    threadId: "thread-1",
   });
 
   return toServerSentEventsResponse(stream);
@@ -183,6 +186,7 @@ import { geminiSpeech } from "@tanstack/ai-gemini";
 const result = await generateSpeech({
   adapter: geminiSpeech("gemini-3.1-flash-tts-preview"),
   text: "Hello from Gemini TTS!",
+  threadId: "thread-1",
 });
 
 console.log(result.audio); // Base64 encoded audio
@@ -222,6 +226,7 @@ import { geminiSummarize } from "@tanstack/ai-gemini";
 const result = await summarize({
   adapter: geminiSummarize("gemini-3.1-pro-preview"),
   text: "Your long text to summarize...",
+  threadId: "thread-1",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"
 });
@@ -248,6 +253,7 @@ import { googleSearchTool } from "@tanstack/ai-gemini/tools";
 const stream = chat({
   adapter: geminiText("gemini-3.8-flash"),
   messages: [{ role: "user", content: "What's the weather in Tokyo right now?" }],
+  threadId: "thread-1",
   tools: [googleSearchTool()],
 });
 ```
@@ -279,6 +285,7 @@ import { geminiText } from "@tanstack/ai-gemini";
 const stream = chat({
   adapter: geminiText("gemini-3.8-flash"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   modelOptions: {
     maxOutputTokens: 2048,
     temperature: 0.7,
@@ -303,6 +310,7 @@ import { geminiText } from "@tanstack/ai-gemini";
 const stream = chat({
   adapter: geminiText("gemini-3.8-flash"),
   messages: [{ role: "user", content: "Plan a database migration." }],
+  threadId: "thread-1",
   reasoning: "high",
 });
 ```
@@ -332,6 +340,7 @@ import { geminiText } from "@tanstack/ai-gemini";
 const stream = chat({
   adapter: geminiText("gemini-2.5-pro"),
   messages: [{ role: "user", content: "Check this proof." }],
+  threadId: "thread-1",
   reasoning: { level: "high", budgetTokens: 8000 },
 });
 ```

@@ -55,6 +55,7 @@ import { mynthImage } from "@mynthio/tanstack-ai-adapter";
 const result = await generateImage({
   adapter: mynthImage("black-forest-labs/flux.2-dev"),
   prompt: "Editorial product photo of a ceramic mug on a linen tablecloth",
+  threadId: "thread-1",
   numberOfImages: 1,
   size: "square",
 });
@@ -75,11 +76,12 @@ import { generateImage, toServerSentEventsResponse } from "@tanstack/ai";
 import { mynthImage } from "@mynthio/tanstack-ai-adapter";
 
 export async function POST(request: Request) {
-  const { prompt, model } = await request.json();
+  const { prompt, model, threadId } = await request.json();
 
   const stream = generateImage({
     adapter: mynthImage(model ?? "auto"),
     prompt,
+    threadId,
     numberOfImages: 1,
     stream: true,
   });
@@ -107,6 +109,7 @@ const result = await generateImage({
       source: { type: "url", value: "https://example.com/photo.jpg" },
     },
   ],
+  threadId: "thread-1",
 });
 ```
 
@@ -134,6 +137,7 @@ const mynth = createMynthImage({
 const result = await generateImage({
   adapter: mynth("google/gemini-3.1-flash-image"),
   prompt: "A playful paper-cut illustration of a city park in spring",
+  threadId: "thread-1",
 });
 
 console.log(result.images[0]?.url);
@@ -187,6 +191,7 @@ import { mynthImage } from "@mynthio/tanstack-ai-adapter";
 const result = await generateImage({
   adapter: mynthImage("recraft/recraft-v4"),
   prompt: "Modern poster design for a jazz festival",
+  threadId: "thread-1",
   numberOfImages: 2,
   size: "portrait",
   modelOptions: {

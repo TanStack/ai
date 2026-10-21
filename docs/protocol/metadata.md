@@ -56,6 +56,7 @@ import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 export function Chat() {
   const { messages } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
     onChunk: (chunk) => {
       if (chunk.type === "RUN_FINISHED") {
         console.log(chunk.usage);

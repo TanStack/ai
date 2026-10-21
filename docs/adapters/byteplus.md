@@ -98,6 +98,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -140,14 +141,15 @@ const adapter = byteplusVideo("dreamina-seedance-2-5-260628");
 const { jobId } = await generateVideo({
   adapter,
   prompt: "a guitar being played in a store",
+  threadId: "thread-1",
   size: "16:9_720p",
   duration: 5,
 });
 
-let status = await getVideoJobStatus({ adapter, jobId });
+let status = await getVideoJobStatus({ adapter, jobId, threadId: "thread-1" });
 while (status.status === "pending" || status.status === "processing") {
   await new Promise((resolve) => setTimeout(resolve, 5000));
-  status = await getVideoJobStatus({ adapter, jobId });
+  status = await getVideoJobStatus({ adapter, jobId, threadId: "thread-1" });
 }
 
 console.log(status.status === "completed" ? status.url : status.error);
@@ -168,6 +170,7 @@ import { byteplusImage } from "@tanstack/ai-byteplus";
 const result = await generateImage({
   adapter: byteplusImage("dola-seedream-5-0-pro-260628"),
   prompt: "a guitar being played in a store",
+  threadId: "thread-1",
   size: "2K",
   modelOptions: { watermark: false },
 });
@@ -193,6 +196,7 @@ import { byteplusSpeech } from "@tanstack/ai-byteplus";
 const result = await generateSpeech({
   adapter: byteplusSpeech("seed-audio-1.0"),
   text: "welcome to the guitar store",
+  threadId: "thread-1",
   voice: "en_female_stokie_uranus_bigtts",
   format: "mp3",
 });
@@ -218,6 +222,7 @@ const result = await generateTranscription({
   adapter: byteplusTranscription("seed-asr"),
   audio: "https://example.com/recording.mp3",
   modelOptions: { enable_punc: true, enable_speaker_info: true },
+  threadId: "thread-1",
 });
 
 console.log(result.text);
@@ -241,6 +246,7 @@ import { byteplusText } from "@tanstack/ai-byteplus";
 const stream = chat({
   adapter: byteplusText("dola-seed-2-1-turbo-260628"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   modelOptions: {
     temperature: 0.7,
     top_p: 0.9,
@@ -265,6 +271,7 @@ import { byteplusText } from "@tanstack/ai-byteplus";
 const stream = chat({
   adapter: byteplusText("glm-5-2-260617"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   reasoning: "off",
 });
 ```

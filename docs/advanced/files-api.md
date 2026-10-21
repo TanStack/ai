@@ -55,6 +55,7 @@ export function AskAboutPdf() {
   const [handle, setHandle] = useState<FileHandle | null>(null);
   const { sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   async function upload(file: File) {
@@ -254,7 +255,11 @@ You can also upload and send in one server function:
 import { chat, fileSourceFromHandle, uploadFile } from "@tanstack/ai";
 import { anthropicFiles, anthropicText } from "@tanstack/ai-anthropic";
 
-export async function askAboutPdf(pdfBase64: string, request: string) {
+export async function askAboutPdf(
+  pdfBase64: string,
+  request: string,
+  threadId: string,
+) {
   // Upload one time. Use the handle again on later turns.
   const handle = await uploadFile({
     adapter: anthropicFiles(),
@@ -272,6 +277,7 @@ export async function askAboutPdf(pdfBase64: string, request: string) {
         ],
       },
     ],
+    threadId,
   });
 }
 ```

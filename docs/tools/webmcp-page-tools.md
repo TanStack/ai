@@ -44,6 +44,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: openaiText('gpt-6-astra'),
     messages: params.messages,
+    threadId: params.threadId,
     tools: mergeAgentTools([], params.tools),
   })
   return toServerSentEventsResponse(stream)
@@ -74,7 +75,7 @@ const connection = fetchServerSentEvents('/api/chat')
 
 export function Chat() {
   const pageTools = usePageWebMCPTools()
-  const { messages, sendMessage } = useChat({ connection, tools: pageTools })
+  const { messages, sendMessage } = useChat({ connection, tools: pageTools, threadId: 'support-chat' })
 
   return (
     <button type="button" onClick={() => sendMessage('Open the help panel')}>
@@ -99,6 +100,7 @@ import {
 const pageTools = usePageWebMCPTools()
 const { sendMessage } = useChat({
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'support-chat',
   tools: pageTools,
 })
 </script>
@@ -125,6 +127,7 @@ export function Chat() {
   const pageTools = usePageWebMCPTools()
   const { sendMessage } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
     get tools() {
       return pageTools()
     },
@@ -153,6 +156,7 @@ export function Chat() {
   const page = createPageWebMCPTools()
   const chat = createChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
     get tools() {
       return page.tools
     },
@@ -179,7 +183,7 @@ const connection = fetchServerSentEvents('/api/chat')
 
 export function Chat() {
   const pageTools = usePageWebMCPTools()
-  const { sendMessage } = useChat({ connection, tools: pageTools })
+  const { sendMessage } = useChat({ connection, tools: pageTools, threadId: 'support-chat' })
 
   return (
     <button type="button" onClick={() => sendMessage('Open the help panel')}>
@@ -210,6 +214,7 @@ export class Chat {
   pageTools = injectPageWebMCPTools()
   chat = injectChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
     tools: this.pageTools,
   })
 
@@ -234,7 +239,7 @@ const connection = fetchServerSentEvents('/api/chat')
 
 export function Chat() {
   const pageTools = usePageWebMCPTools()
-  const { sendMessage } = useChat({ connection, tools: pageTools })
+  const { sendMessage } = useChat({ connection, tools: pageTools, threadId: 'support-chat' })
 
   return (
     <button type="button" onClick={() => sendMessage('Open the help panel')}>
@@ -260,6 +265,7 @@ export const Chat = clientEntry(import.meta.url, function Chat(handle) {
   const page = createPageWebMCPTools(handle)
   const chat = createChat(handle, {
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
     get tools() {
       return page.tools
     },
@@ -349,6 +355,7 @@ import { ChatClient, fetchServerSentEvents, getWebMCPTools } from '@tanstack/ai-
 
 const client = new ChatClient({
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'support-chat',
   tools: await getWebMCPTools(),
 })
 ```
@@ -364,6 +371,7 @@ import {
 
 const client = new ChatClient({
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'support-chat',
 })
 const subscription = new AbortController()
 

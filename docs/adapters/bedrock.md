@@ -107,6 +107,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -227,6 +228,7 @@ const stream = chat({
     region: "us-east-1",
   }),
   messages: [{ role: "user", content: "Check this proof." }],
+  threadId: "thread-1",
   reasoning: { level: "high", budgetTokens: 8000 },
 });
 ```
@@ -347,6 +349,7 @@ const stream = chat({
       ],
     },
   ],
+  threadId: "thread-1",
 });
 ```
 
@@ -390,6 +393,7 @@ const adapter = bedrockText('openai.gpt-oss-20b-1:0', {
 for await (const chunk of chat({
   adapter,
   messages: [{ role: 'user', content: 'What is the capital of France?' }],
+  threadId: 'thread-1',
 })) {
   if (chunk.type === 'TEXT_MESSAGE_CONTENT') process.stdout.write(chunk.delta ?? '')
 }
@@ -417,6 +421,7 @@ const adapter = bedrockText('openai.gpt-oss-120b-1:0', {
 for await (const chunk of chat({
   adapter,
   messages: [{ role: 'user', content: 'Summarize the Bedrock pricing page.' }],
+  threadId: 'thread-1',
 })) {
   if (chunk.type === 'TEXT_MESSAGE_CONTENT') process.stdout.write(chunk.delta ?? '')
 }

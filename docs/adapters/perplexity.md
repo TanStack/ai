@@ -87,6 +87,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -154,6 +155,7 @@ const perplexity = openaiCompatible({
 const stream = chat({
   adapter: perplexity("sonar"),
   messages: [{ role: "user", content: "What is the latest on the Mars rover?" }],
+  threadId: "thread-1",
 });
 ```
 

@@ -92,6 +92,7 @@ function SafetyCheckCard({
 export function Chat() {
   const { interrupts } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
     interrupts: [computerSafetyCheck],
   })
 

@@ -57,6 +57,7 @@ export async function POST() {
   const world = await generateWorld({
     adapter: worldlabsWorld('marble-1.1'),
     prompt: 'A mystical forest with glowing mushrooms',
+    threadId: 'thread-1',
     timeout: 10 * 60 * 1000,
   })
 
@@ -109,6 +110,7 @@ import { worldlabsWorld } from '@tanstack/ai-worldlabs'
 const world = await generateWorld({
   adapter: worldlabsWorld('marble-1.1'),
   prompt: 'A cozy living room',
+  threadId: 'thread-1',
   modelOptions: {
     image: { uri: 'https://example.com/room.jpg' },
     isPano: 'auto',

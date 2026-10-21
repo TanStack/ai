@@ -31,6 +31,7 @@ let answer = ''
 for await (const chunk of chat({
   adapter: fake,
   messages: [{ role: 'user', content: 'Hi' }],
+  threadId: 'thread-1',
 })) {
   if (chunk.type === 'TEXT_MESSAGE_CONTENT') answer += chunk.delta
 }
@@ -71,6 +72,7 @@ fake.setResponses([
 for await (const chunk of chat({
   adapter: fake,
   messages: [{ role: 'user', content: 'Weather in Oslo?' }],
+  threadId: 'thread-1',
   tools: [getWeather],
 })) {
   if (chunk.type === 'TOOL_CALL_RESULT') console.log(chunk.content)
@@ -92,6 +94,7 @@ fake.setResponses([{ error: 'The provider is down' }])
 for await (const chunk of chat({
   adapter: fake,
   messages: [{ role: 'user', content: 'Hi' }],
+  threadId: 'thread-1',
 })) {
   if (chunk.type === 'RUN_ERROR') console.log(chunk.message) // 'The provider is down'
 }

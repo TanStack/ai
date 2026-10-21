@@ -115,6 +115,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
     tools: [savePreference],
   });
 
@@ -219,6 +220,7 @@ const savePreference = savePreferenceDef.client((input) => {
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),
+  threadId: "support-chat",
   tools: [savePreference],
 });
 
@@ -321,6 +323,7 @@ const showToast = toolDefinition({
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),
+  threadId: "support-chat",
   tools: [showToast],
   context: {
     activeProjectId,
@@ -373,10 +376,10 @@ const addToCartClient = addToCartDef.client((input) => {
 });
 
 // Pass the definition: the client runs the tool
-chat({ adapter: openaiText("gpt-6.1-sol"), messages: [], tools: [addToCartDef] });
+chat({ adapter: openaiText("gpt-6.1-sol"), messages: [], tools: [addToCartDef], threadId: "thread-1" });
 
 // Or pass the server implementation: the server runs the tool
-chat({ adapter: openaiText("gpt-6.1-sol"), messages: [], tools: [addToCartServer] });
+chat({ adapter: openaiText("gpt-6.1-sol"), messages: [], tools: [addToCartServer], threadId: "thread-1" });
 ```
 
 Pass only one of the two to a `chat()` call. Both have the same name, and the tool names in one `tools` array must be unique.

@@ -82,6 +82,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -175,6 +176,7 @@ import { llmGatewaySummarize } from "@tanstack/ai-llmgateway";
 const result = await summarize({
   adapter: llmGatewaySummarize("gpt-5.4-mini"),
   text: "Long article text...",
+  threadId: "thread-1",
   stream: false,
 });
 
@@ -194,6 +196,7 @@ import { llmGatewayText } from "@tanstack/ai-llmgateway";
 const stream = chat({
   adapter: llmGatewayText("kimi-k3"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   modelOptions: {
     temperature: 0.7,
     max_completion_tokens: 4096,
@@ -212,6 +215,7 @@ import { llmGatewayText } from "@tanstack/ai-llmgateway";
 const stream = chat({
   adapter: llmGatewayText("kimi-k3"),
   messages: [{ role: "user", content: "Plan a database migration." }],
+  threadId: "thread-1",
   reasoning: "high",
 });
 ```

@@ -148,6 +148,7 @@ function ChatPage() {
   const [input, setInput] = useState('')
   const { messages, sendMessage, isLoading } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
   })
 
   return (
@@ -240,6 +241,7 @@ function ChatPage() {
   const [input, setInput] = useState('')
   const { messages, sendMessage, isLoading, interrupts } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
     interrupts: [computerSafetyCheck],
   })
 

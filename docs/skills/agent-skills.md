@@ -66,6 +66,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: anthropicText('claude-sonnet-5-5'),
     messages: params.messages,
+    threadId: params.threadId,
     middleware: [withSkills(pptx)],
   })
   return toServerSentEventsResponse(stream)
@@ -113,6 +114,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: anthropicText('claude-sonnet-5-5'),
     messages: params.messages,
+    threadId: params.threadId,
     middleware: [withSkills([pptx, brand])],
   })
   return toServerSentEventsResponse(stream)
@@ -146,6 +148,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: anthropicText('claude-sonnet-5-5'),
     messages: params.messages,
+    threadId: params.threadId,
     tools: [createResourceTool(pdf)],
     middleware: [withSkills(pdf)],
   })
@@ -199,6 +202,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: anthropicText('claude-sonnet-5-5'),
     messages: params.messages,
+    threadId: params.threadId,
     tools: [executeShell],
     middleware: [withSkills(extractPdf)],
   })

@@ -44,7 +44,7 @@ export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const { messages } = await request.json()
+        const { messages, threadId } = await request.json()
 
         const mcp = await createMCPClient({
           transport: { type: 'http', url: process.env.MCP_URL! },
@@ -53,6 +53,7 @@ export const Route = createFileRoute('/api/chat')({
         const stream = chat({
           adapter: openaiText('gpt-6.1-sol'),
           messages,
+          threadId,
           // Typed MCP tools, merged with any other tools you pass
           tools: [...(await mcp.tools([searchDef]))],
           // Close after the run ends. Tools run while the response streams.
@@ -99,6 +100,7 @@ const mcp = await createMCPClient({
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages: [{ role: 'user', content: 'What is the weather in Paris?' }],
+  threadId: 'thread-1',
   systemPrompts: mcp.instructions ? [mcp.instructions] : [],
   tools: await mcp.tools(),
 })
@@ -137,6 +139,7 @@ const stream = chat({
       ],
     },
   ],
+  threadId: 'thread-1',
 })
 ```
 
@@ -174,7 +177,7 @@ export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const { messages } = await request.json()
+        const { messages, threadId } = await request.json()
 
         const mcp = await createMCPClient({
           transport: { type: 'http', url: process.env.MCP_URL! },
@@ -196,6 +199,7 @@ export const Route = createFileRoute('/api/chat')({
               // Then add the messages of the user
               ...messages,
             ],
+            threadId,
           })
 
           return toServerSentEventsResponse(stream)
@@ -244,6 +248,7 @@ const controller = new AbortController()
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   tools: await mcp.tools(),
   abortController: controller,
 })
@@ -294,6 +299,7 @@ export const Route = createFileRoute('/api/chat')({
         const stream = chat({
           adapter: openaiText('gpt-6.1-sol'),
           messages: body.messages,
+          threadId: body.threadId,
           tools: await pool.tools(),
           // Close after the run ends. Tools run while the response streams.
           middleware: [
@@ -321,6 +327,7 @@ import { fetchServerSentEvents } from '@tanstack/ai-client'
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'support-chat',
 }
 
 export function Chat() {

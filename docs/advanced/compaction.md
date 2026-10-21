@@ -111,7 +111,7 @@ withCompaction({
 
 ### summarizeOldest
 
-This strategy keeps the meaning of old turns and costs one summary call. Give it a `summarize` function. The function gets the messages to drop and returns the summary:
+This strategy keeps the meaning of old turns and costs one summary call. Give it a `summarize` function. The function gets the messages to drop and an input with the `threadId` of the run. It returns the summary:
 
 ```typescript
 import {
@@ -122,9 +122,16 @@ import {
 } from "@tanstack/ai";
 import type { ModelMessage } from "@tanstack/ai";
 import { openaiSummarize, openaiText } from "@tanstack/ai-openai";
-import { summarizeOldest, withCompaction } from "@tanstack/ai-compaction";
+import {
+  summarizeOldest,
+  withCompaction,
+  type SummarizeInput,
+} from "@tanstack/ai-compaction";
 
-async function summarizeHistory(messages: Array<ModelMessage>) {
+async function summarizeHistory(
+  messages: Array<ModelMessage>,
+  { threadId }: SummarizeInput,
+) {
   const text = messages
     .map((m) => `${m.role}: ${typeof m.content === "string" ? m.content : ""}`)
     .join("\n");
@@ -133,6 +140,7 @@ async function summarizeHistory(messages: Array<ModelMessage>) {
   return summarize({
     adapter: openaiSummarize("gpt-6.1-sol"),
     text,
+    threadId,
   });
 }
 

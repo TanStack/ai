@@ -71,6 +71,7 @@ export async function POST(request: Request) {
   const world = await generateWorld({
     adapter: reactorWorld('visko-orbis-stable'),
     prompt,
+    threadId: 'thread-1',
   })
 
   return Response.json({
@@ -177,6 +178,7 @@ import { worldlabsWorld } from '@tanstack/ai-worldlabs'
 const world = await generateWorld({
   adapter: worldlabsWorld('marble-1.1'),
   prompt: 'A mystical forest with glowing mushrooms',
+  threadId: 'thread-1',
 })
 
 console.log(world.url) // The Marble viewer
@@ -237,6 +239,7 @@ export async function POST(request: Request) {
   const world = await generateWorld({
     adapter: reactorWorld('visko-orbis-stable', { apiKey }),
     prompt: 'A dramatic coastline of black volcanic cliffs at golden hour',
+    threadId: 'thread-1',
   })
 
   return Response.json({

@@ -28,6 +28,7 @@ import { openaiText } from '@tanstack/ai-openai'
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages: [{ role: 'user', content: 'Hello!' }],
+  threadId: 'thread-1',
 })
 
 for await (const chunk of stream) {
@@ -69,11 +70,13 @@ import { openaiSummarize, openaiText } from '@tanstack/ai-openai'
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages: [{ role: 'user', content: 'Hello!' }],
+  threadId: 'thread-1',
 })
 
 const summary = await summarize({
   adapter: openaiSummarize('gpt-5.4-mini'),
   text: 'Long text to summarize.',
+  threadId: 'thread-1',
 })
 ```
 

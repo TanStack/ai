@@ -29,6 +29,7 @@ import { openaiText } from '@tanstack/ai-openai'
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages: [{ role: 'user', content: 'Give me a short answer.' }],
+  threadId: 'thread-1',
   modelOptions: {
     text: {
       format: {
@@ -56,6 +57,7 @@ import { openaiText } from '@tanstack/ai-openai'
 const stream = chat({
   adapter: openaiText('gpt-4-turbo'),
   messages: [{ role: 'user', content: 'Give me a short answer.' }],
+  threadId: 'thread-1',
   modelOptions: {
     text: {}, // TypeScript error: 'text' does not exist in type
   },

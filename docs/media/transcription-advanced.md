@@ -28,6 +28,7 @@ const result = await generateTranscription({
   adapter: groqTranscription('whisper-large-v3-turbo'),
   audio: 'https://example.com/recording.mp3',
   language: 'en',
+  threadId: 'thread-1',
 })
 
 console.log(result.text)
@@ -60,6 +61,7 @@ const result = await generateTranscription({
   audio: 'https://example.com/recording.mp3',
   language: 'en',
   modelOptions: { enable_punc: true, enable_speaker_info: true },
+  threadId: 'thread-1',
 })
 
 console.log(result.text)
@@ -92,6 +94,7 @@ const result = await generateTranscription({
   adapter: falTranscription('fal-ai/whisper'),
   audio: 'https://example.com/recording.mp3',
   language: 'en',
+  threadId: 'thread-1',
 })
 
 console.log(result.text)
@@ -125,12 +128,15 @@ import { generateTranscription } from '@tanstack/ai'
 import { openaiTranscription } from '@tanstack/ai-openai'
 
 export const transcribeFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { audio: string; language?: string }) => data)
+  .inputValidator(
+    (data: { audio: string; language?: string; threadId: string }) => data,
+  )
   .handler(async ({ data }) => {
     return generateTranscription({
       adapter: openaiTranscription('gpt-4o-transcribe'),
       audio: data.audio,
       language: data.language,
+      threadId: data.threadId,
     })
   })
 ```
@@ -139,9 +145,12 @@ export const transcribeFn = createServerFn({ method: 'POST' })
 import { useTranscription } from '@tanstack/ai-react'
 import { transcribeFn } from '../lib/server-functions'
 
+const threadId = 'transcription'
+
 export function Transcriber() {
   const { generate, result, isLoading } = useTranscription({
-    fetcher: (input) => transcribeFn({ data: input }),
+    fetcher: (input) => transcribeFn({ data: { ...input, threadId } }),
+    threadId,
   })
   // Render the same way as in the quick setup.
 }
@@ -156,7 +165,9 @@ import { generateTranscription, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiTranscription } from '@tanstack/ai-openai'
 
 export const transcribeStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { audio: string; language?: string }) => data)
+  .inputValidator(
+    (data: { audio: string; language?: string; threadId: string }) => data,
+  )
   .handler(({ data }) => {
     return toServerSentEventsResponse(
       generateTranscription({
@@ -164,6 +175,7 @@ export const transcribeStreamFn = createServerFn({ method: 'POST' })
         audio: data.audio,
         language: data.language,
         stream: true,
+        threadId: data.threadId,
       }),
     )
   })
@@ -173,6 +185,8 @@ export const transcribeStreamFn = createServerFn({ method: 'POST' })
 import { useTranscription } from '@tanstack/ai-react'
 import { transcribeStreamFn } from '../lib/server-functions'
 
+const threadId = 'transcription'
+
 export function Transcriber() {
   const { generate, result, isLoading } = useTranscription({
     fetcher: (input) => {
@@ -180,9 +194,10 @@ export function Transcriber() {
         throw new Error('Expected base64 or data URL audio')
       }
       return transcribeStreamFn({
-        data: { ...input, audio: input.audio },
+        data: { ...input, audio: input.audio, threadId },
       })
     },
+    threadId,
   })
   // Render the same way as in the quick setup.
 }
@@ -199,19 +214,23 @@ import { openaiTranscription } from '@tanstack/ai-openai'
 export async function POST(request: Request) {
   const formData = await request.formData()
   const audioFile = formData.get('audio')
-  if (!(audioFile instanceof File)) {
-    return new Response('Expected an audio file under "audio".', { status: 400 })
+  const threadId = formData.get('threadId')
+  if (!(audioFile instanceof File) || typeof threadId !== 'string') {
+    return new Response('Send an audio file under "audio" and a threadId.', {
+      status: 400,
+    })
   }
 
   const result = await generateTranscription({
     adapter: openaiTranscription('gpt-4o-transcribe'),
     audio: audioFile,
+    threadId,
   })
   return Response.json(result)
 }
 ```
 
-In the browser, put the file in a `FormData` under `audio` and `POST` it to this route.
+In the browser, put the file in a `FormData` under `audio`. Add the `threadId` under `threadId`. Then `POST` the form to this route.
 
 ## OpenAI model options
 
@@ -225,6 +244,7 @@ const result = await generateTranscription({
   audio: audioFile,
   responseFormat: 'verbose_json',
   prompt: 'Technical terms: API, SDK, CLI',
+  threadId: 'thread-1',
   modelOptions: {
     temperature: 0,
     timestamp_granularities: ['word', 'segment'],
@@ -277,6 +297,7 @@ const result = await generateTranscription({
     known_speaker_names: ['agent', 'customer'],
     known_speaker_references: [agentSampleUrl, customerSampleUrl],
   },
+  threadId: 'thread-1',
 })
 
 for (const segment of result.segments ?? []) {
@@ -336,6 +357,7 @@ try {
   const result = await generateTranscription({
     adapter: openaiTranscription('gpt-4o-transcribe'),
     audio: audioFile,
+    threadId: 'thread-1',
   })
 } catch (error) {
   if (error instanceof Error) {

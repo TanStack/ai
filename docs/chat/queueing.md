@@ -31,6 +31,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, queue, sendMessage, cancelQueued } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
     queue: { whenBusy: "queue", maxSize: 5 },
   });
 
@@ -94,6 +95,7 @@ import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 export function InterruptButton() {
   const { sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -151,6 +153,7 @@ import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 export function useQueuedChat() {
   return useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
     queue: ({ pending, busyReason, queued }) => {
       // Let the user cut in with a message that starts with "!".
       if (typeof pending.content === "string" && pending.content.startsWith("!")) {

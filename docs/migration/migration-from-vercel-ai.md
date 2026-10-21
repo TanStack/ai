@@ -87,11 +87,12 @@ import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
 
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     messages,
+    threadId,
   })
 
   return toServerSentEventsResponse(stream)
@@ -156,6 +157,7 @@ export function Chat() {
   const [input, setInput] = useState('')
   const { messages, sendMessage, isLoading } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
   })
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -260,10 +262,11 @@ const getWeather = getWeatherDef.server(async ({ location }) => {
 
 // 3. Use it in chat
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     messages,
+    threadId,
     tools: [getWeather],
   })
   return toServerSentEventsResponse(stream)

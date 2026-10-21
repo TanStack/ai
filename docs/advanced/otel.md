@@ -57,6 +57,7 @@ const otel = otelMiddleware({
 const { text } = await chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages: [{ role: 'user', content: 'hi' }],
+  threadId: 'thread-1',
   middleware: [otel],
   stream: false,
 })
@@ -125,6 +126,7 @@ const otel = otelMiddleware({
 const result = await generateImage({
   adapter: openaiImage('gpt-image-2'),
   prompt: 'A serene mountain landscape at sunset',
+  threadId: 'thread-1',
   middleware: [otel],
 })
 ```

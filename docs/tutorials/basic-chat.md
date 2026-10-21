@@ -123,6 +123,7 @@ function ChatPage() {
   const [input, setInput] = useState('')
   const { messages, sendMessage, isLoading, error, stop } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
     byok,
   })
 

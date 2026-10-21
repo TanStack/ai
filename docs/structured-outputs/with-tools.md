@@ -53,6 +53,7 @@ Add this to the same file:
 const recommendation = await chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Recommend a product for a developer" }],
+  threadId: "thread-1",
   tools: [getProductPrice],
   outputSchema: RecommendationSchema,
 });
@@ -181,6 +182,7 @@ const ReportSchema = z.object({
 export function Report() {
   const { sendMessage, interrupts, resuming, partial, final } = useChat({
     connection: fetchServerSentEvents("/api/report"),
+    threadId: "support-chat",
     tools: [sendEmailDef],
     outputSchema: ReportSchema,
   });
@@ -252,6 +254,7 @@ const lookupContact = lookupContactDef.client((input) => {
 export function useReport() {
   return useChat({
     connection: fetchServerSentEvents("/api/report"),
+    threadId: "support-chat",
     tools: [lookupContact],
     outputSchema: ReportSchema,
   });

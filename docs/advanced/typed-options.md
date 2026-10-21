@@ -92,6 +92,7 @@ export async function POST(request: Request) {
   const draft = await chat({
     ...supportChatOptions,
     messages: [{ role: 'user', content: `Draft a reply to: ${ticket}` }],
+    threadId: 'thread-1',
     outputSchema: z.object({ subject: z.string(), body: z.string() }),
     stream: false,
   })
@@ -120,6 +121,7 @@ import { openaiImage } from '@tanstack/ai-openai'
 const heroImageOptions = createImageOptions({
   adapter: openaiImage('gpt-image-2.5-sunburst'),
   prompt: 'A glass sphere refracting a sunset over a calm sea',
+  threadId: 'thread-1',
   size: '1536x1024',
   numberOfImages: 1,
 })

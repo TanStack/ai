@@ -63,7 +63,10 @@ import {
 import { falImage } from "@tanstack/ai-fal";
 
 export async function POST(request: Request) {
-  const { input } = await generationParamsFromRequest("image", request);
+  const { input, threadId } = await generationParamsFromRequest("image", request);
+  if (!threadId) {
+    return new Response("Send a threadId.", { status: 400 });
+  }
   if (typeof input.prompt !== "string") {
     return new Response("Send a text prompt.", { status: 400 });
   }
@@ -71,6 +74,7 @@ export async function POST(request: Request) {
   const stream = generateImage({
     adapter: falImage("fal-ai/nano-banana-pro"),
     prompt: input.prompt,
+    threadId,
     stream: true,
   });
 
@@ -86,6 +90,7 @@ import { fetchServerSentEvents, useGenerateImage } from "@tanstack/ai-react";
 export function ImageGenerator() {
   const { generate, result, isLoading, error } = useGenerateImage({
     connection: fetchServerSentEvents("/api/generate/image"),
+    threadId: "image-studio",
   });
 
   return (
@@ -122,6 +127,7 @@ import { falImage } from "@tanstack/ai-fal";
 const result = await generateImage({
   adapter: falImage("fal-ai/z-image/turbo"),
   prompt: "A serene mountain landscape",
+  threadId: "thread-1",
   numberOfImages: 1,
   size: "landscape_16_9",
   modelOptions: {
@@ -153,6 +159,7 @@ const adapter = falVideo("fal-ai/kling-video/v2.6/pro/text-to-video");
 const job = await generateVideo({
   adapter,
   prompt: "A timelapse of a flower blooming",
+  threadId: "thread-1",
   size: "16:9",
   duration: "5",
 });
@@ -160,6 +167,7 @@ const job = await generateVideo({
 const status = await getVideoJobStatus({
   adapter,
   jobId: job.jobId,
+  threadId: "thread-1",
 });
 
 console.log(status.status); // "pending" | "processing" | "completed"
@@ -174,6 +182,7 @@ import { falVideo } from "@tanstack/ai-fal";
 const job = await generateVideo({
   adapter: falVideo("fal-ai/kling-video/v2.6/pro/image-to-video"),
   prompt: "Animate this scene with gentle wind",
+  threadId: "thread-1",
   duration: "5",
   modelOptions: {
     start_image_url: "https://example.com/image.jpg",
@@ -201,6 +210,7 @@ import { falSpeech } from "@tanstack/ai-fal";
 const result = await generateSpeech({
   adapter: falSpeech("fal-ai/gemini-3.1-flash-tts"),
   text: "[warm, enthusiastic] Welcome to TanStack AI! [pause] Let's build something great.",
+  threadId: "thread-1",
   voice: "Kore",
 });
 
@@ -218,6 +228,7 @@ import { falSpeech } from "@tanstack/ai-fal";
 const result = await generateSpeech({
   adapter: falSpeech("fal-ai/elevenlabs/tts/eleven-v3"),
   text: "Welcome to TanStack AI.",
+  threadId: "thread-1",
   modelOptions: {
     voice: "Rachel",
     stability: 0.5,
@@ -239,6 +250,7 @@ const result = await generateTranscription({
   adapter: falTranscription("fal-ai/whisper"),
   audio: "https://example.com/recording.mp3",
   language: "en",
+  threadId: "thread-1",
 });
 
 console.log(result.text);
@@ -263,11 +275,13 @@ import { falAudio } from "@tanstack/ai-fal";
 const music = await generateAudio({
   adapter: falAudio("fal-ai/minimax-music/v2.6"),
   prompt: "City Pop, 80s retro, groovy synth bass, warm female vocal, 104 BPM, nostalgic urban night",
+  threadId: "thread-1",
 });
 
 const sfx = await generateAudio({
   adapter: falAudio("fal-ai/elevenlabs/sound-effects/v2"),
   prompt: "Thunderclap with rain",
+  threadId: "thread-1",
   duration: 5,
 });
 
@@ -283,6 +297,7 @@ import { falAudio } from "@tanstack/ai-fal";
 const song = await generateAudio({
   adapter: falAudio("fal-ai/diffrhythm"),
   prompt: "An upbeat electronic track with synths",
+  threadId: "thread-1",
   modelOptions: {
     lyrics: "[verse]\nHello world\n[chorus]\nLa la la",
   },
@@ -414,6 +429,7 @@ adapter.snapDuration(7); // "6s"
 await generateVideo({
   adapter,
   prompt: "A timelapse of a city skyline at dusk",
+  threadId: "thread-1",
   duration: adapter.snapDuration(7),
 });
 ```

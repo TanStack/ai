@@ -43,6 +43,7 @@ export function CodeModeChat() {
 
   const { messages, sendMessage, isLoading } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
     // Keep each event under the execute_typescript call that sent it.
     onCustomEvent: (eventType, data, { toolCallId }) => {
       if (!toolCallId) return;

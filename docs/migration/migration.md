@@ -57,6 +57,7 @@ import { openaiText } from '@tanstack/ai-openai'
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages: [{ role: 'user', content: 'Hello!' }],
+  threadId: 'thread-1',
 })
 ```
 
@@ -143,6 +144,7 @@ const provider: Provider = 'openai'
 const stream = chat({
   adapter: adapters[provider](),
   messages,
+  threadId: 'thread-1',
 })
 ```
 
@@ -185,6 +187,7 @@ const messages = [{ role: 'user' as const, content: 'Hello!' }]
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   modelOptions: {
     temperature: 0.7,
     max_output_tokens: 1000,
@@ -227,12 +230,13 @@ import { chat, toServerSentEventsStream } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
   const abortController = new AbortController()
 
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     messages,
+    threadId,
     abortController,
   })
 
@@ -350,12 +354,14 @@ import { openaiText } from '@tanstack/ai-openai'
 const { text } = await chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages: [{ role: 'user', content: 'Hello!' }],
+  threadId: 'thread-1',
   stream: false,
 })
 
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages: [{ role: 'user', content: 'Hello!' }],
+  threadId: 'thread-1',
 })
 const { text: streamedText } = await streamToText(stream)
 ```
@@ -399,12 +405,13 @@ import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
   const abortController = new AbortController()
 
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     messages,
+    threadId,
     modelOptions: {
       temperature: 0.7,
       max_output_tokens: 1000,
