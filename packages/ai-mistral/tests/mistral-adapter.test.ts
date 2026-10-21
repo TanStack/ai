@@ -699,7 +699,8 @@ describe('Mistral AG-UI event emission', () => {
     const text: Array<string> = []
 
     for await (const chunk of chat({
-      ...createChatOptions({ threadId: 'thread-1', adapter }),
+      ...createChatOptions({ adapter }),
+      threadId: 'thread-1',
       messages: [{ role: 'user', content: 'Ask me a question' }],
       tools: [askUser],
       agentLoopStrategy: maxIterations(3),
