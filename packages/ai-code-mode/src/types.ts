@@ -139,16 +139,7 @@ export interface ToolBinding {
    * The execute function that will be injected into the sandbox.
    * Accepts optional context for emitting custom events.
    */
-  execute: (args: unknown, context?: ToolBindingContext) => Promise<unknown>
-}
-
-/**
- * The context that a binding gets. It is a `ToolExecutionContext`, but
- * `threadId` is missing when the code ran with no parent tool context (for
- * example, a direct `execute()` call outside `chat()`).
- */
-export type ToolBindingContext = Omit<ToolExecutionContext, 'threadId'> & {
-  threadId?: string
+  execute: (args: unknown, context?: ToolExecutionContext) => Promise<unknown>
 }
 
 // Re-export for convenience

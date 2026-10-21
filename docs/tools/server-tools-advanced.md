@@ -178,7 +178,7 @@ The second argument of a `.server()` function is the `ToolExecutionContext`:
 
 - `context`: your runtime context from `chat({ context })`.
 - `toolCallId`: the ID of this tool call.
-- `threadId`: the thread id of the chat run. Use it to keep tool state for each conversation.
+- `threadId`: the thread id of the chat run. Use it to keep tool state for each conversation. It is missing when the tool runs outside a chat (an MCP server, WebMCP, or a direct `execute()` call).
 - `abortSignal`: aborts when the run aborts. Pass it to long work, so the work stops too.
 - `emitCustomEvent`: sends a custom event to the client while the tool runs.
 

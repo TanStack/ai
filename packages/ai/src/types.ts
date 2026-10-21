@@ -876,9 +876,10 @@ export type ToolExecutionContext<TContext = unknown> =
     /**
      * The thread id of the chat run. `chat()` sets it to the same value as
      * `ctx.threadId` in middleware. A tool can use it to keep its own state
-     * for each conversation.
+     * for each conversation. It is missing when a tool runs outside a chat,
+     * for example from an MCP server, WebMCP, or a direct `execute()` call.
      */
-    threadId: string
+    threadId?: string
     /**
      * Abort signal for the current chat run. Aborts when the run's
      * `abortController` fires (or middleware aborts). Long-running tools —

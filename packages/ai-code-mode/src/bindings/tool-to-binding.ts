@@ -4,7 +4,7 @@ import {
   parseWithStandardSchema,
 } from '@tanstack/ai'
 import type { ToolExecutionContext } from '@tanstack/ai'
-import type { CodeModeTool, ToolBinding, ToolBindingContext } from '../types'
+import type { CodeModeTool, ToolBinding } from '../types'
 
 /**
  * Convert an array of TanStack AI tools to a Record of ToolBindings
@@ -55,7 +55,7 @@ export function toolToBinding(
   }
 
   const toolExecute = tool.execute
-  const execute = async (args: unknown, context?: ToolBindingContext) => {
+  const execute = async (args: unknown, context?: ToolExecutionContext) => {
     let input = args
     if (tool.inputSchema && isStandardSchema(tool.inputSchema)) {
       try {
@@ -69,14 +69,7 @@ export function toolToBinding(
       }
     }
 
-    // A tool context needs a threadId. Without one (no parent run), the tool
-    // gets no context, the same as a direct `execute()` call outside `chat()`.
-    const threadId = context?.threadId
-    let result = await Promise.resolve(
-      context && threadId !== undefined
-        ? toolExecute(input, { ...context, threadId })
-        : toolExecute(input),
-    )
+    let result = await Promise.resolve(toolExecute(input, context))
 
     if (tool.outputSchema && isStandardSchema(tool.outputSchema)) {
       try {
@@ -118,14 +111,12 @@ export function toolToBinding(
 export function createEventAwareBindings(
   bindings: Record<string, ToolBinding>,
   emitCustomEvent: ToolExecutionContext['emitCustomEvent'],
-  parentContext?: ToolBindingContext,
+  parentContext?: ToolExecutionContext,
 ): Record<string, ToolBinding> {
-  const toolContext: ToolBindingContext = {
+  const toolContext: ToolExecutionContext = {
     context: parentContext?.context,
     abortSignal: parentContext?.abortSignal,
-    ...(parentContext?.threadId !== undefined && {
-      threadId: parentContext.threadId,
-    }),
+    threadId: parentContext?.threadId,
     emitCustomEvent,
   }
 

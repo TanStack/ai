@@ -80,28 +80,8 @@ describe('toolToBinding', () => {
     const binding = toolToBinding(def.server(execute))
 
     const result = await binding.execute({})
-    expect(execute).toHaveBeenCalledWith({ n: 7 })
+    expect(execute).toHaveBeenCalledWith({ n: 7 }, undefined)
     expect(result).toEqual({ n: 7 })
-  })
-
-  it('passes a context with a threadId to the tool, and drops one without it', async () => {
-    const def = toolDefinition({
-      name: 'ctx',
-      description: 'reads its context',
-      inputSchema: z.object({}),
-    })
-    const execute = vi.fn(async () => 'ok')
-    const binding = toolToBinding(def.server(execute))
-    const emitCustomEvent = vi.fn()
-
-    await binding.execute({}, { threadId: 'thread-1', emitCustomEvent })
-    await binding.execute({}, { emitCustomEvent })
-
-    expect(execute.mock.calls[0]).toEqual([
-      {},
-      { threadId: 'thread-1', emitCustomEvent },
-    ])
-    expect(execute.mock.calls[1]).toEqual([{}])
   })
 
   it('validates output against the tool schema', async () => {
@@ -260,7 +240,7 @@ describe('createEventAwareBindings', () => {
 
     const ctx = binding.execute.mock.calls[0]![1]
     expect(ctx?.emitCustomEvent).toBe(emitCustomEvent)
-    expect(ctx).not.toHaveProperty('threadId')
+    expect(ctx?.threadId).toBeUndefined()
   })
 
   it('does not run the binding when the parent signal is already aborted', async () => {
