@@ -127,6 +127,48 @@ describe('Anthropic actions', () => {
     ])
   })
 
+  it('releases the keys that went down when a later keyDown throws', async () => {
+    const { driver, calls } = createDriver()
+    driver.keyDown = async (key) => {
+      calls.push(['keyDown', key])
+      if (key === 'Shift') throw new Error('key down failed')
+    }
+    await expect(
+      runComputerAction(driver, {
+        action: 'left_click',
+        coordinate: [1, 2],
+        text: 'ctrl+shift',
+      }),
+    ).rejects.toThrow('key down failed')
+    expect(calls).toEqual([
+      ['keyDown', 'Control'],
+      ['keyDown', 'Shift'],
+      ['keyUp', 'Control'],
+    ])
+  })
+
+  it('releases the remaining keys when one keyUp throws', async () => {
+    const { driver, calls } = createDriver()
+    driver.keyUp = async (key) => {
+      calls.push(['keyUp', key])
+      if (key === 'Shift') throw new Error('key up failed')
+    }
+    await expect(
+      runComputerAction(driver, {
+        action: 'left_click',
+        coordinate: [1, 2],
+        text: 'ctrl+shift',
+      }),
+    ).rejects.toThrow('key up failed')
+    expect(calls).toEqual([
+      ['keyDown', 'Control'],
+      ['keyDown', 'Shift'],
+      ['click', 1, 2, { button: 'left', count: 1 }],
+      ['keyUp', 'Shift'],
+      ['keyUp', 'Control'],
+    ])
+  })
+
   it('clicks at the mouse position when the click has no coordinate', async () => {
     const { calls } = await run({ action: 'left_click' }, { cursor: true })
     expect(calls).toEqual([['click', 7, 9, { button: 'left', count: 1 }]])
@@ -136,6 +178,55 @@ describe('Anthropic actions', () => {
     await expect(run({ action: 'left_click' })).rejects.toThrow(
       '"coordinate" is missing',
     )
+  })
+
+  it('releases the drag button when a later move throws', async () => {
+    const { driver, calls } = createDriver()
+    let moves = 0
+    driver.move = async (x, y) => {
+      calls.push(['move', x, y])
+      moves += 1
+      if (moves === 2) throw new Error('move failed')
+    }
+    await expect(
+      runComputerAction(driver, {
+        action: 'left_click_drag',
+        start_coordinate: [1, 2],
+        coordinate: [3, 4],
+      }),
+    ).rejects.toThrow('move failed')
+    expect(calls).toEqual([
+      ['move', 1, 2],
+      ['mouseDown', 'left'],
+      ['move', 3, 4],
+      ['mouseUp', 'left'],
+    ])
+  })
+
+  it('rejects a key repeat outside 1 to 100 before it presses', async () => {
+    const { driver, calls } = createDriver()
+    await expect(
+      runComputerAction(driver, { action: 'key', text: 'a', repeat: 101 }),
+    ).rejects.toThrow('"repeat"')
+    await expect(
+      runComputerAction(driver, { action: 'key', text: 'a', repeat: 1.5 }),
+    ).rejects.toThrow('"repeat"')
+    expect(calls).toEqual([])
+  })
+
+  it('rejects a hold or a wait longer than 300 seconds', async () => {
+    const { driver, calls } = createDriver()
+    await expect(
+      runComputerAction(driver, {
+        action: 'hold_key',
+        text: 'shift',
+        duration: 301,
+      }),
+    ).rejects.toThrow('"duration"')
+    await expect(
+      runComputerAction(driver, { action: 'wait', duration: 301 }),
+    ).rejects.toThrow('"duration"')
+    expect(calls).toEqual([])
   })
 
   it('drags from the start to the end coordinate', async () => {

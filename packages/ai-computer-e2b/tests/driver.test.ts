@@ -92,10 +92,10 @@ describe('createE2BComputerDriver', () => {
     expect(calls).toEqual(['moveMouse 10 20'])
   })
 
-  it('rejects a coordinate that is not an integer', async () => {
+  it('rounds a coordinate to the nearest pixel', async () => {
     const { driver, calls } = await setup()
-    await expect(driver.move(1.5, 2)).rejects.toThrow('Expected an integer')
-    expect(calls).toEqual([])
+    await driver.move(1.5, 2.2)
+    expect(calls).toEqual(['moveMouse 2 2'])
   })
 
   it('presses and releases buttons', async () => {
@@ -244,5 +244,26 @@ describe('e2bComputer', () => {
       'no screen',
     )
     expect(calls).toEqual(['kill'])
+  })
+
+  it('keeps the setup error when the sandbox kill throws', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { desktop, calls } = fakeDesktop({
+      getScreenSize: () => Promise.reject(new Error('no screen')),
+      kill: async () => {
+        calls.push('kill')
+        throw new Error('kill failed')
+      },
+    })
+    create.mockResolvedValue(desktop)
+    await expect(e2bComputer().create({ threadId: 'a' })).rejects.toThrow(
+      'no screen',
+    )
+    expect(calls).toEqual(['kill'])
+    expect(error).toHaveBeenCalledWith(
+      'Failed to kill the E2B desktop after setup failed.',
+      expect.any(Error),
+    )
+    error.mockRestore()
   })
 })

@@ -137,8 +137,8 @@ export function createPlaywrightComputerDriver({
  * `browser`, the factory launches Chromium once, on the first thread, and
  * `close()` on the factory closes it.
  *
- * Without `browser`, the app installs `playwright-core` and runs
- * `npx playwright-core install chromium` once.
+ * Without `browser`, the factory launches Chromium on the first thread.
+ * Install `playwright-core` and Chromium before that.
  *
  * @param options - The start URL, the display, and the browser or the launch options.
  *
@@ -181,7 +181,13 @@ export function playwrightComputer(options: PlaywrightComputerOptions = {}) {
           close: () => context.close(),
         }
       } catch (error) {
-        await context.close()
+        // Keep the page error. A failed close does not replace it.
+        await context.close().catch((closeError: unknown) => {
+          console.error(
+            'Failed to close the Playwright context after setup failed.',
+            closeError,
+          )
+        })
         throw error
       }
     },

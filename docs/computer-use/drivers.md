@@ -32,7 +32,11 @@ A browser page is not always enough. Sometimes the model must use a desktop app,
 | **`cursor_position`** | No                                        | Yes                                     | Yes                                        |
 | **Setup**             | `playwright-core`, then download Chromium | An E2B API key                          | `@jitsi/robotjs`, and permissions on macOS |
 
-When a driver has `zoom` or `cursorPosition`, the Anthropic adapter turns on that action for the model.
+The Anthropic adapter turns on `zoom` and `cursor_position` only on the computer versions that have those flags.
+
+- `computer_toolset_20260801` turns on both when the driver has the method.
+- `computer_20251124` turns on `zoom` only, and only when the driver has `zoom`.
+- `computer_20250124` turns on neither.
 
 ## Playwright
 

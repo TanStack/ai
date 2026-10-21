@@ -57,7 +57,10 @@ function setup() {
   return { driver: createPlaywrightComputerDriver({ page }), calls }
 }
 
-function createFakeBrowser({ gotoError }: { gotoError?: Error } = {}) {
+function createFakeBrowser({
+  gotoError,
+  closeError,
+}: { gotoError?: Error; closeError?: Error } = {}) {
   const contexts: Array<{
     viewport: { width: number; height: number }
     calls: Array<[string, ...Array<unknown>]>
@@ -78,6 +81,7 @@ function createFakeBrowser({ gotoError }: { gotoError?: Error } = {}) {
         newPage: async () => page,
         close: async () => {
           context.closed = true
+          if (closeError) throw closeError
         },
       }
     },
@@ -236,6 +240,27 @@ describe('playwrightComputer', () => {
     const { browser, contexts } = createFakeBrowser()
     await playwrightComputer({ browser }).create({ threadId: 'a' })
     expect(contexts[0]?.calls).toEqual([])
+  })
+
+  it('keeps the startUrl error when closing the context throws', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { browser, contexts } = createFakeBrowser({
+      gotoError: new Error('net::ERR_NAME_NOT_RESOLVED'),
+      closeError: new Error('close failed'),
+    })
+    const factory = playwrightComputer({
+      browser,
+      startUrl: 'https://tanstack.invalid',
+    })
+    await expect(factory.create({ threadId: 'a' })).rejects.toThrow(
+      'net::ERR_NAME_NOT_RESOLVED',
+    )
+    expect(contexts[0]?.closed).toBe(true)
+    expect(error).toHaveBeenCalledWith(
+      'Failed to close the Playwright context after setup failed.',
+      expect.any(Error),
+    )
+    error.mockRestore()
   })
 
   it('closes the context and rethrows when startUrl fails to load', async () => {

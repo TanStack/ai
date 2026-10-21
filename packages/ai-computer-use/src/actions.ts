@@ -7,6 +7,11 @@ const SCROLL_STEP = 100
 // ponytail: an OpenAI `wait` has no duration. 2 s is the wait in the OpenAI samples.
 const OPENAI_WAIT_MS = 2000
 
+// The Anthropic computer tool docs give these limits: `repeat` is 1 to 100, and a
+// `hold_key` or `wait` duration is up to 300 seconds. Reject here, before any key goes down.
+const MAX_KEY_REPEAT = 100
+const MAX_WAIT_SECONDS = 300
+
 type Point = { x: number; y: number }
 type Input = Record<string, unknown>
 
@@ -58,19 +63,47 @@ function readCoordinate(input: Input, key: string) {
   return { x, y }
 }
 
-/** Presses `keys` in order, runs `action`, then releases them in reverse. */
+function readRepeat(input: Input) {
+  if (input['repeat'] === undefined || input['repeat'] === null) return 1
+  const repeat = readNumber(input, 'repeat')
+  if (!Number.isInteger(repeat) || repeat < 1 || repeat > MAX_KEY_REPEAT) {
+    throw invalid('repeat', `an integer from 1 to ${MAX_KEY_REPEAT}`)
+  }
+  return repeat
+}
+
+function readSeconds(input: Input, key: string) {
+  const value = readNumber(input, key)
+  if (value < 0 || value > MAX_WAIT_SECONDS) {
+    throw invalid(key, `a number from 0 to ${MAX_WAIT_SECONDS}`)
+  }
+  return value
+}
+
+/** Presses `keys` in order, runs `action`, then releases the keys that went down. */
 async function withKeys(
   driver: ComputerDriver,
   keys: Array<string>,
   action: () => Promise<void>,
 ) {
-  for (const key of keys) await driver.keyDown(key)
+  const pressed: Array<string> = []
+  let releaseError: unknown
   try {
+    for (const key of keys) {
+      await driver.keyDown(key)
+      pressed.push(key)
+    }
     await action()
   } finally {
-    const releaseOrder = [...keys].reverse()
-    for (const key of releaseOrder) await driver.keyUp(key)
+    // One failed keyUp does not stop the rest.
+    for (const key of pressed.reverse()) {
+      await driver.keyUp(key).catch((error: unknown) => {
+        releaseError ??= error
+      })
+    }
   }
+  // Reached only when the action succeeded, so an action error wins.
+  if (releaseError !== undefined) throw releaseError
 }
 
 async function drag(driver: ComputerDriver, path: Array<Point>) {
@@ -78,8 +111,11 @@ async function drag(driver: ComputerDriver, path: Array<Point>) {
   if (start === undefined) throw invalid('path', 'a non-empty array')
   await driver.move(start.x, start.y)
   await driver.mouseDown('left')
-  for (const point of rest) await driver.move(point.x, point.y)
-  await driver.mouseUp('left')
+  try {
+    for (const point of rest) await driver.move(point.x, point.y)
+  } finally {
+    await driver.mouseUp('left')
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -147,9 +183,7 @@ async function runAnthropicAction(
       return undefined
     case 'key': {
       const combos = readString(input, 'text').split(/\s+/).filter(Boolean)
-      const hasRepeat =
-        input['repeat'] !== undefined && input['repeat'] !== null
-      const repeat = hasRepeat ? readNumber(input, 'repeat') : 1
+      const repeat = readRepeat(input)
       for (let i = 0; i < repeat; i++) {
         for (const combo of combos) await driver.press(parseKeyCombo(combo))
       }
@@ -191,12 +225,12 @@ async function runAnthropicAction(
     }
     case 'hold_key': {
       const keys = parseKeyCombo(readString(input, 'text'))
-      const ms = readNumber(input, 'duration') * 1000
+      const ms = readSeconds(input, 'duration') * 1000
       await withKeys(driver, keys, () => sleep(ms))
       return undefined
     }
     case 'wait':
-      await sleep(readNumber(input, 'duration') * 1000)
+      await sleep(readSeconds(input, 'duration') * 1000)
       return undefined
     case 'cursor_position': {
       if (!driver.cursorPosition) {

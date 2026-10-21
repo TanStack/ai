@@ -49,7 +49,7 @@ interface ThreadState {
   id: string
   /** The machine from the factory. It stays unset for a driver that the app passed in. */
   driver: Promise<ComputerDriver> | undefined
-  /** The actions of the thread run one at a time on this queue. */
+  /** This thread's last queued action. A shared driver uses one queue for every thread. */
   queue: Promise<unknown>
   /** The number of actions in the queue. */
   pending: number
@@ -134,11 +134,14 @@ function computerToolCalls(ctx: ChatMiddlewareContext) {
 
 /**
  * Create a provider-agnostic computer tool. Each thread gets its own state.
- * With a driver factory, each thread also gets its own machine.
+ * A driver factory gives each thread its own machine. A driver that you pass
+ * in is one machine, and its actions run one at a time across threads.
  *
  * The OpenAI and Anthropic adapters swap the computer tool for their native
- * computer tool. Every action returns a screenshot. `zoom` returns the zoom
- * image, and `cursor_position` returns text.
+ * computer tool. A normal action returns a screenshot. An OpenAI batch
+ * returns one screenshot after the last action. `zoom` returns the zoom
+ * image, and `cursor_position` returns text. Those two do not take another
+ * screenshot.
  *
  * - `tools`: pass it to `chat({ tools })`. It is `[computer]`. When the
  *   driver can navigate, it is `[computer, navigate]`.
@@ -193,15 +196,24 @@ export function createComputerUse({
   // request, so each request gets a new machine. Pass threadId to chat().
   // ponytail: when a person answers a safety check after idleTimeout, the
   // approved action runs on a new machine. Set idleTimeout above that wait.
+  // ponytail: one queue for a shared driver. Per-thread queues if two
+  // threads on one machine must overlap.
   const threads = new Map<string, ThreadState>()
+  const sharesOneMachine = !('create' in driver)
+  let sharedQueue: Promise<unknown> = Promise.resolve()
 
   function startTimer(thread: ThreadState) {
     clearTimeout(thread.timer)
     const isOpen = threads.get(thread.id) === thread
     if (idleTimeout === false || !isOpen) return
     thread.timer = setTimeout(() => {
-      // Nobody waits for an idle close, so a close error has no caller.
-      closeThread(thread).catch(() => undefined)
+      // Nobody waits for an idle close. Log the error so a stuck machine is visible.
+      closeThread(thread).catch((error: unknown) => {
+        console.error(
+          `Failed to close the idle computer thread ${thread.id}.`,
+          error,
+        )
+      })
     }, idleTimeout)
     thread.timer.unref?.()
   }
@@ -253,7 +265,8 @@ export function createComputerUse({
     const thread = threadOf(threadId ?? SHARED_THREAD)
     clearTimeout(thread.timer)
     thread.pending += 1
-    const run = thread.queue.then(async () => {
+    const previous = sharesOneMachine ? sharedQueue : thread.queue
+    const run = previous.then(async () => {
       if (thread.turnFailed) {
         throw new Error(
           'Not executed: an earlier computer action in this turn failed.',
@@ -266,12 +279,18 @@ export function createComputerUse({
         throw error
       }
     })
-    thread.queue = run
+    // Swallow here so the next action runs. `run` still rejects for the caller.
+    // On a shared driver, `settled` follows the actions of other threads, so
+    // closing a thread waits for them too. Closing a thread never closes a
+    // shared driver, so this wait does no harm.
+    const settled = run
       .catch(() => undefined)
       .then(() => {
         thread.pending -= 1
         if (thread.pending === 0) startTimer(thread)
       })
+    if (sharesOneMachine) sharedQueue = settled
+    thread.queue = settled
     return run
   }
 

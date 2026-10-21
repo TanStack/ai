@@ -91,8 +91,8 @@ Coordinates are in pixels, in `display` space. Key names are `KeyboardEvent.key`
 
 Four methods are optional:
 
-- `zoom(region)`: returns PNG bytes of one region at full size. The region has `x`, `y`, `width`, and `height`. The Anthropic adapter then turns on the `zoom` action.
-- `cursorPosition()`: returns the mouse position as `{ x, y }`. The Anthropic adapter then turns on the `cursor_position` action.
+- `zoom(region)`: returns PNG bytes of one region at full size. The region has `x`, `y`, `width`, and `height`. `computer_toolset_20260801` and `computer_20251124` turn on `zoom` when the driver has this method. `computer_20250124` does not.
+- `cursorPosition()`: returns the mouse position as `{ x, y }`. Only `computer_toolset_20260801` turns on `cursor_position`, and only when the driver has this method.
 - `navigate(url)`: opens the URL. `computerUse.tools` then has the `navigate` tool. The tool accepts only `http:` and `https:` URLs.
 - `close()`: frees the machine. `createComputerUse` calls it only on a driver that a factory made.
 
@@ -184,7 +184,7 @@ Your driver does only the small steps. The core builds the rest from them:
 - **Modifier clicks and scrolls**: `keyDown` for each modifier, the action, then `keyUp` in reverse order.
 - **`hold_key` and `wait`**: the core holds the keys or waits, then continues.
 - **Key names**: the core changes OpenAI and Anthropic key names to `KeyboardEvent.key` names.
-- **Screenshots**: after each action, the core waits `screenshotDelay` ms and calls `screenshot()`.
+- **Screenshots**: after a normal action, the core waits `screenshotDelay` ms and calls `screenshot()`. An OpenAI batch waits once, after the last action, then takes one screenshot. `zoom` and `cursor_position` return their own result. The core does not call `screenshot()` for those two.
 
 ## Try it
 

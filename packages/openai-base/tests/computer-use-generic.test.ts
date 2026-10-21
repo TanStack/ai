@@ -155,6 +155,32 @@ describe('portable computer tool on the Responses API', () => {
       acknowledged_safety_checks: [safetyCheck],
     })
   })
+
+  it('keeps safety checks that do not parse on the tool input', async () => {
+    const action = { type: 'click', button: 'left', x: 10, y: 20 }
+    const badChecks = [{ code: 'x' }]
+    const { second, execute } = await runLoop('gpt-6.1-sol', {
+      type: 'computer_call',
+      id: 'cu_bad',
+      call_id: 'call_bad',
+      status: 'completed',
+      action,
+      pending_safety_checks: badChecks,
+    })
+
+    expect(execute.mock.calls[0]?.[0]).toEqual({
+      action,
+      pending_safety_checks: badChecks,
+    })
+    expect(second.input).toContainEqual({
+      type: 'computer_call_output',
+      call_id: 'call_bad',
+      output: screenshotOutput,
+    })
+    expect(JSON.stringify(second.input)).not.toContain(
+      'acknowledged_safety_checks',
+    )
+  })
 })
 
 class TestChatCompletionsAdapter extends OpenAIBaseChatCompletionsTextAdapter<string> {}

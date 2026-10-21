@@ -109,11 +109,11 @@ export async function createE2BComputerDriver({
     screenshot: () => desktop.screenshot('bytes'),
     async click(x, y, { button, count }) {
       // The SDK click methods skip the move when x or y is 0, so move first.
-      await desktop.moveMouse(int(x), int(y))
+      await desktop.moveMouse(Math.round(x), Math.round(y))
       await sdkClick(button, count)
     },
     async move(x, y) {
-      await desktop.moveMouse(int(x), int(y))
+      await desktop.moveMouse(Math.round(x), Math.round(y))
     },
     async mouseDown(button) {
       if (button === 'back' || button === 'forward') {
@@ -130,7 +130,7 @@ export async function createE2BComputerDriver({
       await desktop.mouseRelease(button)
     },
     async scroll(x, y, deltaX, deltaY) {
-      await desktop.moveMouse(int(x), int(y))
+      await desktop.moveMouse(Math.round(x), Math.round(y))
       if (deltaY !== 0) {
         await desktop.scroll(deltaY > 0 ? 'down' : 'up', scrollClicks(deltaY))
       }
@@ -222,7 +222,12 @@ export function e2bComputer(options: E2BComputerOptions = {}) {
       const driver = await createE2BComputerDriver({ desktop }).catch(
         async (error: unknown) => {
           // Keep the setup error. A failed kill does not replace it.
-          await desktop.kill().catch(() => undefined)
+          await desktop.kill().catch((killError: unknown) => {
+            console.error(
+              'Failed to kill the E2B desktop after setup failed.',
+              killError,
+            )
+          })
           throw error
         },
       )

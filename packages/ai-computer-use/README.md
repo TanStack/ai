@@ -22,7 +22,7 @@
 
 Computer use for TanStack AI. The model sees a screen and uses a mouse and a keyboard.
 
-You write the code one time. The same code runs on OpenAI and on Anthropic. A driver controls the machine: a Playwright browser, an E2B desktop, or your own. Each thread gets its own machine.
+You write the code one time. The same code runs on OpenAI and on Anthropic. A driver controls the machine: a Playwright browser, an E2B desktop, or your own. A driver factory gives each thread its own machine. A driver that you pass in is one machine.
 
 ## Installation
 
@@ -85,15 +85,20 @@ await computerUse.close() // every thread, then the browser
 
 ## What it does
 
-- Each `threadId` gets its own machine, action queue, and safety-check approvals. In one thread, actions run one at a time, in call order.
+- In one thread, actions run one at a time, in call order.
+- A driver factory gives each `threadId` its own machine and action queue.
+- A driver that you pass in is one machine. Its actions run one at a time, across all threads.
+- Safety-check approvals belong to one thread.
 - `tools` is `[computer]`. When the driver can navigate, it is `[computer, navigate]`. `navigate` opens only `http:` and `https:` URLs.
-- Every action returns a screenshot. The screenshot comes 500 ms after the action. Set `screenshotDelay` to change it.
+- A normal action returns a screenshot 500 ms later. Set `screenshotDelay` to change that wait.
+- An OpenAI batch returns one screenshot, after the last action.
+- `zoom` returns a region image, and `cursor_position` returns text. Neither takes another screenshot.
 - When an action fails, the other actions of the same model turn do not run.
 - OpenAI can attach safety checks to an action. The action waits until a person approves it. When the person declines, the action does not run.
 
 ## What your application owns
 
-- **A stable thread id.** If `chat()` gets no `threadId`, each request gets a new machine.
+- **A stable thread id.** If `chat()` gets no `threadId`, each request gets a new thread. A driver factory then makes a new machine for that thread.
 - **The idle time.** A thread that stays idle for `idleTimeout` closes. The default is 10 minutes. `false` keeps every thread until `close`.
 - **One server process.** The machines live in the memory of one process.
 - **The network.** The browser can open every address that your server can reach. Run it where that is safe.

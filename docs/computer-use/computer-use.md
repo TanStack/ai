@@ -182,10 +182,8 @@ To show the approval card for a safety check, see [Safety checks](./safety-check
 
 The model clicks, double-clicks, drags, moves the mouse, scrolls, types text, and presses key combos. It can also wait.
 
-- Every action returns a screenshot of the screen.
-- The screenshot comes 500 ms after the action. This time lets the page settle.
-- `zoom` returns an image of one region at full size.
-- `cursor_position` returns the mouse position as text.
+- A normal action returns a screenshot 500 ms later, so the page can settle. An OpenAI batch returns one screenshot after the last action.
+- `zoom` returns an image of one region. `cursor_position` returns the mouse position as text. Neither takes another screenshot.
 - `navigate` opens a URL, then returns a screenshot.
 
 To change the delay, set `screenshotDelay` in ms:
@@ -202,7 +200,7 @@ const computerUse = createComputerUse({
 
 ## Order and failures
 
-In one thread, actions run one at a time, in the order that the model calls them. Two threads run at the same time, each on its own page.
+In one thread, actions run one at a time, in the order that the model calls them. A driver factory gives each thread its own machine, and those threads can run at the same time. A driver that you pass in is one machine. Actions on that machine run one at a time, even from two threads.
 
 If one action fails, the other actions of that model turn do not run. The model gets this result for each of them:
 

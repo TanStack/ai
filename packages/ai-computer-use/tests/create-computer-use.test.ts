@@ -96,6 +96,8 @@ function createDriver(options: DriverOptions = {}) {
 interface FactoryOptions extends DriverOptions {
   /** `create` throws while this returns true. */
   failCreate?: () => boolean
+  /** `close` throws while this returns true. */
+  failClose?: () => boolean
 }
 
 /** A factory that records each created machine and each close. */
@@ -117,6 +119,7 @@ function createFactory(options: FactoryOptions = {}) {
       const { driver, calls } = createDriver(options)
       driver.close = async () => {
         closed.push(threadId)
+        if (options.failClose?.()) throw new Error('close failed')
       }
       machines.set(threadId, calls)
       return driver
@@ -566,6 +569,41 @@ describe('createComputerUse threads', () => {
     expect(machines.get('b')).toEqual(['type', 'screenshot'])
   })
 
+  it('runs two threads one at a time on a shared driver', async () => {
+    const { gate, open } = createGate()
+    const { driver, calls } = createDriver({ clickGate: gate })
+    const computer = setupWith(driver)
+    const first = computer.execute(CLICK, 'call_1', 'a')
+    const second = computer.execute(CLICK, 'call_2', 'b')
+    await new Promise((done) => setTimeout(done, 0))
+
+    expect(calls).toEqual(['click:start'])
+    open()
+    await Promise.all([first, second])
+    expect(calls).toEqual([
+      'click:start',
+      'click:end',
+      'screenshot',
+      'click:start',
+      'click:end',
+      'screenshot',
+    ])
+  })
+
+  it('runs two factory threads at the same time', async () => {
+    const { gate, open } = createGate()
+    const { factory, machines } = createFactory({ clickGate: gate })
+    const computer = setupWith(factory)
+    const first = computer.execute(CLICK, 'call_1', 'a')
+    const second = computer.execute(CLICK, 'call_2', 'b')
+    await new Promise((done) => setTimeout(done, 0))
+
+    expect(machines.get('a')).toEqual(['click:start'])
+    expect(machines.get('b')).toEqual(['click:start'])
+    open()
+    await Promise.all([first, second])
+  })
+
   it('creates one machine for two calls at once on a new thread', async () => {
     const { factory, created, machines } = createFactory()
     const computer = setupWith(factory)
@@ -788,6 +826,25 @@ describe('createComputerUse idle timeout', () => {
     await vi.advanceTimersByTimeAsync(1)
 
     expect(closed).toEqual(['a'])
+  })
+
+  it('logs a close error when the idle timeout closes a thread', async () => {
+    vi.useFakeTimers()
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { factory, closed } = createFactory({ failClose: () => true })
+    const computer = setupWith(factory, { idleTimeout: 1000 })
+    const first = computer.execute(CLICK, 'call_1', 'a')
+    await vi.advanceTimersByTimeAsync(0)
+    await first
+
+    await vi.advanceTimersByTimeAsync(1000)
+
+    expect(closed).toEqual(['a'])
+    expect(error).toHaveBeenCalledWith(
+      'Failed to close the idle computer thread a.',
+      expect.any(Error),
+    )
+    error.mockRestore()
   })
 
   it('never closes a thread with idleTimeout false', async () => {

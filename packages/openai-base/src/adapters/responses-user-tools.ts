@@ -114,24 +114,28 @@ function isComputerActionList(value: unknown): value is ComputerActionList {
   )
 }
 
-/** The safety checks of a computer call, with only their known fields. */
+/**
+ * The safety checks of a computer call, with only their known fields.
+ *
+ * - No list (`undefined` or `null` input): returns `[]`. There are no checks.
+ * - A list that does not parse: returns `null`. Do not turn that into `[]`.
+ *   An unreadable check must stay visible so the tool can refuse it.
+ */
 function safetyChecks(
   value: unknown,
-): Array<ResponseComputerToolCall.PendingSafetyCheck> {
-  if (!Array.isArray(value)) return []
-  return value.flatMap((check) =>
-    isRecord(check) && typeof check.id === 'string'
-      ? [
-          {
-            id: check.id,
-            ...(typeof check.code === 'string' ? { code: check.code } : {}),
-            ...(typeof check.message === 'string'
-              ? { message: check.message }
-              : {}),
-          },
-        ]
-      : [],
-  )
+): Array<ResponseComputerToolCall.PendingSafetyCheck> | null {
+  if (value == null) return []
+  if (!Array.isArray(value)) return null
+  const checks: Array<ResponseComputerToolCall.PendingSafetyCheck> = []
+  for (const check of value) {
+    if (!isRecord(check) || typeof check.id !== 'string') return null
+    checks.push({
+      id: check.id,
+      ...(typeof check.code === 'string' ? { code: check.code } : {}),
+      ...(typeof check.message === 'string' ? { message: check.message } : {}),
+    })
+  }
+  return checks
 }
 
 function readItemId(metadata: unknown): string | undefined {
@@ -199,6 +203,7 @@ export function readUserExecutedCall(
     const hasAction = isComputerAction(action)
     const hasActions = isComputerActionList(actions)
     if (!callId || (!hasAction && !hasActions)) return null
+    const checks = safetyChecks(item.pending_safety_checks)
     return {
       name: options.computerTool ?? 'computer_use_preview',
       callId,
@@ -206,7 +211,8 @@ export function readUserExecutedCall(
       input: {
         ...(hasAction ? { action } : {}),
         ...(hasActions ? { actions } : {}),
-        pending_safety_checks: safetyChecks(item.pending_safety_checks),
+        // Keep a list that did not parse. The computer tool refuses it.
+        pending_safety_checks: checks ?? item.pending_safety_checks,
       },
     }
   }
@@ -322,7 +328,7 @@ export function userToolRequestItem(
       status: 'completed',
       ...(hasAction ? { action } : {}),
       ...(hasActions ? { actions } : {}),
-      pending_safety_checks: safetyChecks(args.pending_safety_checks),
+      pending_safety_checks: safetyChecks(args.pending_safety_checks) ?? [],
     }
   }
 
@@ -407,9 +413,9 @@ export function userToolResultItem(
   if (name === 'computer' || name === 'computer_use_preview') {
     const checks = computer?.failed
       ? []
-      : safetyChecks(
+      : (safetyChecks(
           parseArguments(toolCall.function.arguments).pending_safety_checks,
-        )
+        ) ?? [])
     return {
       type: 'computer_call_output',
       call_id: toolCall.id,
