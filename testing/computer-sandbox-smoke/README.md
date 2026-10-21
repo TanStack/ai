@@ -37,4 +37,5 @@ With OrbStack, run `docker` with `DOCKER_HOST=unix://$HOME/.orbstack/run/docker.
 | `e2b`     | Passed                   | 2026-10-21 |
 | `vercel`  | Passed, with `--install` | 2026-10-21 |
 | `blaxel`  | Passed, with `--install` | 2026-10-21 |
+| `boxd`    | Passed, with `--install` | 2026-10-21 |
 | Others    | Not run: no account keys |            |
