@@ -58,10 +58,10 @@ export interface FileChange {
   from?: string
   /**
    * The change as a unified diff with 3 lines of context. Its paths are
-   * from the workspace root, with `/`. Not set for a binary file, a file
-   * over 1 MiB, a patch over 256 KiB, or a `.env` file. The workspace tools
-   * also send no patch for a file that the permission rules protect.
-   * `snapshots()` does not check the rules: it only never stores `.env`
+   * from the workspace root, with `/`. Not set for a binary file, a patch
+   * over 256 KiB, or a `.env` file. The workspace tools also send no patch
+   * for a file over 1 MiB, or for a file that the permission rules protect.
+   * `snapshots()` does not check these two: it only never stores `.env`
    * files.
    */
   patch?: string

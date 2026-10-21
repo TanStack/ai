@@ -201,6 +201,7 @@ The coding plugins send these events:
 | `tanstack/workspace-tools:job-output` | New output of a job. At most one event each 250 ms, with at most the newest 64 KiB. |
 | `tanstack/workspace-tools:job-ended` | A job ended, after its last output event. |
 | `tanstack/workspace-tools:stranded` | The workspace of the thread is gone. See below. |
+| `tanstack/workspace-tools:file-changed` | A file changed. The value has a unified diff of the change. See [Show live diffs](./custom-ui#show-live-diffs). |
 | `tanstack/snapshots:failed` | A snapshot failed. The turn goes on. |
 
 The formatter also sends `tanstack/formatter:rewrote` and `tanstack/formatter:failed`. See [Format each file after a write](./coding-tools-backends#format-each-file-after-a-write).

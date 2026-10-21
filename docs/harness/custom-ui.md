@@ -212,6 +212,25 @@ waiting?.approve({ editedArgs: { path: 'notes/draft.md' } })
 
 `reject({ payload })` sends data with a no, when the tool's approval schema takes some.
 
+An approval of [`permissions()`](./permissions#answer-an-approval) reads `payload` as the answer of the user:
+
+- `approve()` runs the call one time.
+- `approve({ payload: 'always' })` runs the call, and the plugin saves an `allow` rule for it. See [What `always` saves](./permissions#what-always-saves).
+- `reject({ payload: 'Use pnpm, not npm.' })` refuses the call. The model gets your text as the tool error. An object with a `message` works too.
+- `approve({ editedArgs })` also refuses the call, because this approval cannot run changed arguments. The model gets a tool error that tells it why.
+
+The user types `once`, `always`, or a message for the model. This function sends the answer:
+
+```ts group=harness-custom-ui
+import type { Approval } from '@tanstack/ai-harness/view'
+
+function answerPermission(approval: Approval, reply: string) {
+  if (reply === 'once') approval.approve()
+  else if (reply === 'always') approval.approve({ payload: 'always' })
+  else approval.reject({ payload: reply })
+}
+```
+
 If a turn waits for more than one approval, client tool, or interrupt, the turn continues after you answer all of them.
 
 A background agent run can wait too, for example for an approval of `permissions()`. Its waits are in the same `approvals`, `clientTools`, and `interrupts` lists. The view sends the answer to each of them at once, and the run continues. See [When a background agent waits](./subagents#when-a-background-agent-waits).
@@ -472,6 +491,61 @@ view.on(Deployed, (done) => view.notice({ text: `Deployed to ${done.env}` }))
 ```
 
 `state.plugins` is plugin data, so check its shape before you use it.
+
+### Show live diffs
+
+The agent changes several files in one turn, and your user wants to see each change as it happens. The file tools of [`workspaceTools()`](./coding-tools) send a `FileChanged` event for each file that they change, with a unified diff. This handler prints each diff in color:
+
+```ts group=harness-custom-ui
+import { FileChanged } from '@tanstack/ai-harness/plugins/coding'
+
+function colorLine(line: string) {
+  if (line.startsWith('+++') || line.startsWith('---')) return line
+  if (line.startsWith('+')) return `\u001b[32m${line}\u001b[0m`
+  if (line.startsWith('-')) return `\u001b[31m${line}\u001b[0m`
+  return line
+}
+
+view.on(FileChanged, (file) => {
+  console.log(`${file.change} ${file.path}`)
+  if (file.patch) console.log(file.patch.split('\n').map(colorLine).join('\n'))
+})
+```
+
+When the agent edits a file, the terminal shows `updated /work/repo/src/app.ts`, then the diff. Added lines are green, and deleted lines are red.
+
+Each event has:
+
+- `path`: the absolute path of the file.
+- `change`: `'created'`, `'updated'`, `'deleted'`, or `'moved'`. A move also has `from`, the old path.
+- `patch`: the change as a unified diff in the format of `git diff`, with 3 lines of context. Its paths are relative to the workspace root, with `/`.
+- `additions` and `deletions`: the counts of added and deleted lines in `patch`, for a badge like `+3 -1`.
+- `toolCallId`: the id of the tool call that changed the file. A call from [code mode](./code-mode) has none.
+
+When the events come:
+
+- `write_file`, `edit_file`, and `patch` send the event after the [`afterWrite` hooks](./coding-tools-backends#run-code-after-a-read-or-a-write) run. So the patch also has the change of [`formatter()`](./coding-tools-backends#format-each-file-after-a-write).
+- A `patch` call sends one event for each file. A move is one `'moved'` event.
+- A write that leaves the text as it was sends no event.
+- `bash` sends none. With [`snapshots()`](./snapshots#see-what-a-step-changed), the session also gets `FileChanged` for the files of `bash`, at the end of each model step.
+
+An event has no `patch`, and 0 for both counts, in these cases:
+
+- The file is binary.
+- The patch is over 256 KiB.
+- The file is a `.env` file.
+- The workspace tools also send no patch for a file over 1 MiB, or for a file that `read_file` asks about or denies. `snapshots()` does not check these two.
+
+Like every plugin event, each `FileChanged` goes into the session log, with its patch.
+
+`@tanstack/ai-harness/plugins/coding` runs only in Node. In a browser, import only the `FileChange` type from it. Then make the event from its name:
+
+```ts
+import { createPluginEvent } from '@tanstack/ai-harness'
+import type { FileChange } from '@tanstack/ai-harness/plugins/coding'
+
+export const FileChanged = createPluginEvent<FileChange>('tanstack/workspace-tools:file-changed')
+```
 
 ## A UI in the browser
 
