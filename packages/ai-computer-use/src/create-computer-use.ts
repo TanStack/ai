@@ -82,7 +82,7 @@ const checkedInputSchema = z.object({
 })
 
 /** The safety checks and the action of an input, or `null` when they do not parse. */
-function readCheckedInput(input: unknown) {
+export function readCheckedInput(input: unknown) {
   const parsed = checkedInputSchema.safeParse(input)
   if (!parsed.success) return null
   const { action, actions } = parsed.data

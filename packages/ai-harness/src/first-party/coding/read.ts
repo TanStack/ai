@@ -15,8 +15,8 @@ const MAX_LINE_CHARS = 2000
 const BINARY_CHECK_BYTES = 8 * 1024
 // Media goes to the model as inline base64, and it stays in the transcript,
 // so every model call after it sends it again. 256 KiB keeps that small.
-// ponytail: a plugin cannot put a file in the media store of the session
-// yet. With that, big media could go there as a reference.
+// ponytail: big media could go to the media store of the session with
+// `ctx.session.putMedia`, as a reference. Do it when 256 KiB is too small.
 const MAX_MEDIA_BYTES = 256 * 1024
 const MAX_SUGGESTIONS = 3
 

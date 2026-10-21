@@ -2558,6 +2558,12 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
+      '@tanstack/ai-harness':
+        specifier: workspace:*
+        version: link:../ai-harness
+      '@tanstack/ai-persistence':
+        specifier: workspace:*
+        version: link:../ai-persistence
       '@vitest/coverage-v8':
         specifier: 4.1.10
         version: 4.1.10(vitest@4.1.11)
@@ -3697,7 +3703,7 @@ importers:
     devDependencies:
       '@google/genai':
         specifier: ^2.10.0
-        version: 2.10.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.3.6))
+        version: 2.10.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai

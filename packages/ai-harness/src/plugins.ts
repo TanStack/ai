@@ -757,6 +757,7 @@ const NO_SESSION: PluginSessionApi = {
   authRequired: unavailable('ctx.session'),
   setPluginSetting: unavailable('ctx.session'),
   threadSettings: unavailable('ctx.session'),
+  putMedia: unavailable('ctx.session'),
 }
 
 const NO_SERVICES: PluginServices = {
