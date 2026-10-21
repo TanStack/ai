@@ -23,6 +23,7 @@ import { createMistralText } from '@tanstack/ai-mistral'
 import { createBytePlusText } from '@tanstack/ai-byteplus'
 import { createLLMGatewayText } from '@tanstack/ai-llmgateway'
 import { createCloudflareText } from '@tanstack/ai-cloudflare'
+import { createNeonText } from '@tanstack/ai-neon'
 import { HTTPClient } from '@openrouter/sdk'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type { BytePlusChatModel } from '@tanstack/ai-byteplus'
@@ -115,6 +116,9 @@ const defaultModels: Record<Provider, string> = {
   elevenlabs: '',
   llmgateway: 'gpt-5.6-terra',
   cloudflare: '@cf/zai-org/glm-5.3-flash',
+  neon: 'gemini-3-8-flash',
+  'neon-anthropic': 'claude-sonnet-4-5',
+  'neon-responses': 'gpt-5-3-codex',
 }
 
 export function createTextAdapter(
@@ -406,6 +410,35 @@ export function createTextAdapter(
           accountId: 'e2e-account',
           apiKey: DUMMY_KEY,
           baseURL: openaiUrl,
+          defaultHeaders: testHeaders,
+        }),
+      }),
+    // Neon's baseURL is the bare branch host; the adapter appends each
+    // route. aimock serves `/v1/chat/completions` and strips the `/openai/`
+    // prefix of `/openai/v1/responses` itself.
+    neon: () =>
+      createChatOptions({
+        adapter: createNeonText(model as 'gemini-3-8-flash', DUMMY_KEY, {
+          baseURL: base,
+          defaultHeaders: testHeaders,
+        }),
+      }),
+    // Claude goes to Neon's `/anthropic/v1/messages`, which aimock does not
+    // map, so this fetch moves it to aimock's `/v1/messages`. The unit tests
+    // pin the real path.
+    'neon-anthropic': () =>
+      createChatOptions({
+        adapter: createNeonText(model as 'claude-sonnet-4-5', DUMMY_KEY, {
+          baseURL: base,
+          defaultHeaders: testHeaders,
+          fetch: (input, init) =>
+            fetch(String(input).replace('/anthropic/v1/', '/v1/'), init),
+        }),
+      }),
+    'neon-responses': () =>
+      createChatOptions({
+        adapter: createNeonText(model as 'gpt-5-3-codex', DUMMY_KEY, {
+          baseURL: base,
           defaultHeaders: testHeaders,
         }),
       }),

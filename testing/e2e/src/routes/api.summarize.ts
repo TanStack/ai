@@ -16,6 +16,7 @@ import { createCloudflareSummarize } from '@tanstack/ai-cloudflare'
 import { createOpenRouterSummarize } from '@tanstack/ai-openrouter'
 import { createVercelGatewaySummarize } from '@tanstack/ai-vercel-gateway'
 import { createLovableSummarize } from '@tanstack/ai-lovable'
+import { createNeonSummarize } from '@tanstack/ai-neon'
 import { HTTPClient } from '@openrouter/sdk'
 import type { Provider } from '@/lib/types'
 
@@ -146,6 +147,12 @@ function createSummarizeAdapter(
     lovable: () =>
       createLovableSummarize('openai/gpt-5.5', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
+    // Neon's baseURL is the bare host; the adapter appends `/v1`.
+    neon: () =>
+      createNeonSummarize('gemini-3-8-flash', DUMMY_KEY, {
+        baseURL: llmockBase(aimockPort),
         defaultHeaders: headers,
       }),
   }

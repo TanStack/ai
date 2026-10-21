@@ -38,6 +38,9 @@ export const providers: Provider[] = [
   'elevenlabs',
   'llmgateway',
   'cloudflare',
+  'neon',
+  'neon-anthropic',
+  'neon-responses',
 ]
 
 export { isSupported }

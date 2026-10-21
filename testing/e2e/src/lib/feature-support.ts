@@ -28,6 +28,8 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'byteplus',
     'llmgateway',
     'cloudflare',
+    'neon',
+    'neon-anthropic',
   ]),
   'one-shot-text': new Set([
     'openai',
@@ -49,12 +51,16 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'byteplus',
     'llmgateway',
     'cloudflare',
+    'neon',
+    'neon-anthropic',
   ]),
-  // BytePlus and LLM Gateway both stream their reasoning trace as
+  // BytePlus, LLM Gateway and Neon all stream their reasoning trace as
   // `delta.reasoning_content`, which is exactly the field aimock's
   // OpenAI-compatible chunk builder emits for a fixture's `reasoning` channel —
   // so each adapter's `extractReasoning` override is exercised end-to-end
   // against the shared fixture.
+  // `neon-anthropic` is the Anthropic adapter on Neon's Messages route, so it
+  // gets the same Anthropic thinking stream as `anthropic`.
   // `openai-compatible-legacy` re-keys aimock's reasoning frames to the
   // pre-July-2025 `response.reasoning.delta` event name that OpenAI-compatible
   // endpoints frozen on the older spec still emit (see providers.ts), pinning
@@ -69,6 +75,8 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'llmgateway',
     'cloudflare',
     'openai-compatible-legacy',
+    'neon',
+    'neon-anthropic',
   ]),
   'multi-turn': new Set([
     'openai',
@@ -90,6 +98,8 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'byteplus',
     'llmgateway',
     'cloudflare',
+    'neon',
+    'neon-anthropic',
   ]),
   'tool-calling': new Set([
     'openai',
@@ -114,6 +124,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'byteplus',
     'llmgateway',
     'cloudflare',
+    'neon',
+    'neon-anthropic',
+    'neon-responses',
   ]),
   // OpenAI only: aimock's journal keeps `tool_choice` for Responses requests,
   // but stores Anthropic requests in OpenAI shape without it. Anthropic is
@@ -138,6 +151,8 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'byteplus',
     'llmgateway',
     'cloudflare',
+    'neon',
+    'neon-anthropic',
   ]),
   // Gemini excluded: approval flow timing issues with Gemini's streaming format
   // Vertex uses the same Gemini stream, so it is excluded for the same reason.
@@ -159,6 +174,8 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'byteplus',
     'llmgateway',
     'cloudflare',
+    'neon',
+    'neon-anthropic',
   ]),
   // Ollama excluded: aimock doesn't support content+toolCalls for /api/chat format
   'text-tool-text': new Set([
@@ -180,6 +197,8 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'byteplus',
     'llmgateway',
     'cloudflare',
+    'neon',
+    'neon-anthropic',
   ]),
   'structured-output': new Set([
     'openai',
@@ -201,6 +220,8 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'byteplus',
     'llmgateway',
     'cloudflare',
+    'neon',
+    'neon-anthropic',
   ]),
   // Streaming structured output: only providers with native streaming JSON
   // schema support are listed here. Other providers fall back to the
@@ -221,6 +242,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'byteplus',
     'llmgateway',
     'cloudflare',
+    'neon',
   ]),
   // Multi-turn structured output: every turn produces its own typed
   // `structured-output` part on the assistant message, and historical
@@ -251,6 +273,8 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'byteplus',
     'llmgateway',
     'cloudflare',
+    'neon',
+    'neon-anthropic',
   ]),
   'agentic-structured': new Set([
     'openai',
@@ -272,6 +296,8 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'byteplus',
     'llmgateway',
     'cloudflare',
+    'neon',
+    'neon-anthropic',
   ]),
   // Native-combined-mode adapters only. Each provider's default test model
   // (or per-feature override in `features.ts`) must opt into combined mode
@@ -307,6 +333,8 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'byteplus',
     'llmgateway',
     'cloudflare',
+    'neon',
+    'neon-anthropic',
   ]),
   // OpenAI only: this feature exercises the Responses adapter's PDF
   // `input_file` conversion (base64 `file_data` + filename).
@@ -324,6 +352,8 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'byteplus',
     'llmgateway',
     'cloudflare',
+    'neon',
+    'neon-anthropic',
   ]),
   // byteplus excluded: @tanstack/ai-byteplus ships no summarize adapter —
   // Ark has no summarization endpoint, and api.summarize.ts builds a
@@ -347,6 +377,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'llmgateway',
     'cloudflare',
+    'neon',
   ]),
   'summarize-stream': new Set([
     'openai',
@@ -366,6 +397,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'llmgateway',
     'cloudflare',
+    'neon',
   ]),
   // Embedding (Promise-based `embed()` activity, no streaming). aimock 1.34
   // natively mocks OpenAI's /v1/embeddings (JSON fixture in
@@ -387,6 +419,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'vercel-gateway',
     'lovable',
+    'neon',
   ]),
   // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
   // vercel-gateway uses POST /v1/images/generations, the same path aimock
