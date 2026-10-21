@@ -72,6 +72,7 @@ export async function POST(req: Request) {
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     messages: body.messages, // AG-UI mixed shape. Pass it as it is.
+    threadId: body.threadId, // The client sends it at the top level.
     tools: serverTools,
   })
   return toServerSentEventsResponse(stream)
@@ -86,7 +87,7 @@ Use `chatParamsFromRequest` when you want one of these:
 
 - **A clean 400 response** for a body that is not a valid AG-UI `RunAgentInput`.
 - **`forwardedProps`** for options that the client sends (provider, model, and more).
-- **The AG-UI ids** `threadId`, `runId`, and `parentRunId`, for logs or to send to other services. `chat()` makes these ids when you do not pass them. Read them from `params` only if you use them.
+- **The AG-UI ids** `threadId`, `runId`, and `parentRunId`. `chat()` needs `threadId`, so pass `params.threadId`. `chat()` makes a `runId` when you do not pass one.
 
 ```ts
 import {
@@ -102,6 +103,7 @@ export async function POST(req: Request) {
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     messages: params.messages,
+    threadId: params.threadId,
     tools: serverTools,
   })
   return toServerSentEventsResponse(stream)
@@ -134,6 +136,7 @@ export async function POST(req: Request) {
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     messages: params.messages,
+    threadId: params.threadId,
     // mergeAgentTools returns a plain array. Pass it to `tools`.
     tools: mergeAgentTools(serverTools, params.tools),
   })
@@ -189,6 +192,7 @@ export async function POST(req: Request) {
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     messages: params.messages,
+    threadId: params.threadId,
     tools: mergeAgentTools(serverTools, params.tools),
     modelOptions: {
       temperature:
@@ -281,7 +285,7 @@ For the `for await` loop, see [Stream Events](../chat/stream-events). For `onUsa
 
 The client sends `threadId` as a top-level AG-UI field. It does not put `conversationId` in `forwardedProps`.
 
-- If your server does not use `conversationId`, change nothing. `chat()` makes a `threadId` when you do not pass one.
+- If your server does not use `conversationId`, pass `chat({ threadId: params.threadId })`. `chat()` needs a `threadId` and does not make one.
 - If your server passes `chat({ conversationId })`, pass `chat({ threadId: params.threadId })`.
 - If your middleware reads `ctx.conversationId`, read `ctx.threadId`.
 
@@ -302,7 +306,7 @@ chat({ messages: params.messages, threadId: params.threadId })
 
 ### Set the thread id on the client
 
-To control the thread id of a `ChatClient`, pass `threadId` to the constructor:
+Pass `threadId` to the `ChatClient` constructor. It is required:
 
 ```ts
 import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
@@ -313,7 +317,7 @@ const client = new ChatClient({
 })
 ```
 
-If you do not pass `threadId`, the client makes one. It stays the same for the life of the `ChatClient` instance. Each send gets a new `runId`.
+The client does not make a `threadId`. The one you pass stays the same for the life of the `ChatClient` instance. Each send gets a new `runId`.
 
 ### Map forwarded values into runtime context
 
@@ -340,6 +344,7 @@ const tenantId =
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages: params.messages,
+  threadId: params.threadId,
   tools: serverTools,
   context: {
     userId: session.user.id,

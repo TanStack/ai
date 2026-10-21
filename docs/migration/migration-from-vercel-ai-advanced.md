@@ -518,10 +518,11 @@ import { openaiText } from '@tanstack/ai-openai'
 import { getWeather } from './tools'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     messages,
+    threadId,
     tools: [getWeather],
     agentLoopStrategy: combineStrategies([
       maxIterations(10),
@@ -571,6 +572,7 @@ const firstPass = await chat({
 const followUp = chat({
   adapter: anthropicText('claude-haiku-5-5'),
   messages: [...messages, { role: 'assistant' as const, content: firstPass.text }],
+  threadId: 'thread-1',
   tools: [getWeather],
 })
 ```
@@ -682,10 +684,11 @@ import { openaiText } from '@tanstack/ai-openai'
 import { searchDocs, getWeather } from './tools'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     messages,
+    threadId,
     tools: [searchDocs, getWeather],
     middleware: [
       toolCacheMiddleware({
@@ -1016,6 +1019,7 @@ const tools = [updateUI, saveData]
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'thread-1',
   tools,
 })
 

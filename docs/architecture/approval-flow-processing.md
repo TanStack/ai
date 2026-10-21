@@ -77,7 +77,6 @@ import { deleteProjectDefinition } from './tools'
 
 export function ApprovalQueue() {
   const chat = useChat({
-    id: 'project-chat',
     threadId: 'project-thread',
     connection: fetchServerSentEvents('/api/chat'),
     tools: [deleteProjectDefinition] as const,
