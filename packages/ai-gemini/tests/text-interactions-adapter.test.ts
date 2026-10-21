@@ -482,7 +482,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     const startEvent = chunks.find((c) => c.type === 'TOOL_CALL_START') as any
     expect(startEvent).toBeDefined()
     expect(startEvent.toolCallId).toBe('call_1')
-    expect(startEvent.toolName).toBe('lookup_weather')
+    expect(startEvent.toolCallName).toBe('lookup_weather')
 
     const argsEvent = chunks.find((c) => c.type === 'TOOL_CALL_ARGS') as any
     expect(argsEvent.delta).toBe('{"location":"Madrid"}')
@@ -548,7 +548,7 @@ describe('GeminiTextInteractionsAdapter', () => {
 
     const startEvent = chunks.find((c) => c.type === 'TOOL_CALL_START') as any
     expect(startEvent.toolCallId).toBe('call_frag')
-    expect(startEvent.toolName).toBe('lookup_weather')
+    expect(startEvent.toolCallName).toBe('lookup_weather')
 
     // The last TOOL_CALL_ARGS event carries the fully-accumulated buffer.
     const argsEvents = chunks.filter(

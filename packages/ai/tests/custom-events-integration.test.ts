@@ -72,7 +72,6 @@ describe('Custom Events Integration', () => {
         type: EventType.TOOL_CALL_START,
         toolCallId: 'tc-1',
         toolCallName: 'testTool',
-        toolName: 'testTool',
         timestamp: Date.now(),
         index: 0,
       }),
@@ -91,7 +90,7 @@ describe('Custom Events Integration', () => {
       sc({
         type: EventType.TOOL_CALL_END,
         toolCallId: 'tc-1',
-        toolName: 'testTool',
+        toolCallName: 'testTool',
         timestamp: Date.now(),
         input: { message: 'Hello World' },
       }),

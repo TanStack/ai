@@ -160,7 +160,6 @@ export async function* processConverseStream(
           type: EventType.TOOL_CALL_START,
           toolCallId: id,
           toolCallName: name,
-          toolName: name,
           timestamp: Date.now(),
           index,
         }
@@ -276,7 +275,6 @@ export async function* processConverseStream(
           toolCallId: toolCall.id,
           args: toolCall.arguments,
           toolCallName: toolCall.name,
-          toolName: toolCall.name,
           timestamp: Date.now(),
         }
         toolCallsByIndex.delete(stopIndex)
@@ -319,7 +317,6 @@ export async function* processConverseStream(
       toolCallId: toolCall.id,
       args: toolCall.arguments,
       toolCallName: toolCall.name,
-      toolName: toolCall.name,
       timestamp: Date.now(),
     }
     toolCallsByIndex.delete(index)

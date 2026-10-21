@@ -246,7 +246,6 @@ describe('normalizeStreamChunk', () => {
       type: EventType.TOOL_CALL_START,
       toolCallId: 'tc1',
       toolCallName: 'get_weather',
-      toolName: 'get_weather',
       index: 0,
       parentMessageId: 'm1',
       metadata: { thoughtSignature: 'sig-1' },
@@ -263,7 +262,6 @@ describe('normalizeStreamChunk', () => {
         tanstack: { index: 0 },
       },
     })
-    expect(out[0]).not.toHaveProperty('toolName')
     expect(out[0]).not.toHaveProperty('index')
     expect(out[1]).toEqual({
       type: EventType.REASONING_ENCRYPTED_VALUE,
@@ -297,7 +295,6 @@ describe('normalizeStreamChunk', () => {
       type: EventType.TOOL_CALL_END,
       toolCallId: 'tc1',
       toolCallName: 'get_weather',
-      toolName: 'get_weather',
       parentMessageId: 'm1',
       result: '{"temp":72}',
       input: { q: 'sf' },
@@ -311,7 +308,6 @@ describe('normalizeStreamChunk', () => {
       metadata: {
         tanstack: {
           toolCallName: 'get_weather',
-          toolName: 'get_weather',
           parentMessageId: 'm1',
           output: { temp: 72 },
           input: { q: 'sf' },

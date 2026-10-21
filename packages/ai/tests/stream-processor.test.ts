@@ -4342,7 +4342,6 @@ describe('StreamProcessor', () => {
         type: 'TOOL_CALL_START',
         toolCallId: 'tc-1',
         toolCallName: 'myTool',
-        toolName: 'myTool',
         parentMessageId: 'msg-a',
         timestamp: Date.now(),
       } as StreamChunk)
@@ -4383,7 +4382,6 @@ describe('StreamProcessor', () => {
         chunk(EventType.TOOL_CALL_START, {
           toolCallId: 'tc-1',
           toolCallName: 'lookupWeather',
-          toolName: 'lookupWeather',
           parentMessageId: 'anthropic-msg-1',
         }),
       )
@@ -4431,7 +4429,6 @@ describe('StreamProcessor', () => {
         chunk(EventType.TOOL_CALL_START, {
           toolCallId: 'tc-1',
           toolCallName: 'lookupWeather',
-          toolName: 'lookupWeather',
           parentMessageId: 'anthropic-msg-1',
         }),
       )
@@ -4464,7 +4461,6 @@ describe('StreamProcessor', () => {
         chunk(EventType.TOOL_CALL_START, {
           toolCallId: 'tc-1',
           toolCallName: 'lookupWeather',
-          toolName: 'lookupWeather',
           parentMessageId: 'msg-1',
         }),
       )
@@ -4847,7 +4843,6 @@ describe('StreamProcessor', () => {
         type: 'TOOL_CALL_START',
         toolCallId: 'tc-old',
         toolCallName: 'oldTool',
-        toolName: 'oldTool',
         parentMessageId: 'msg-old',
         timestamp: Date.now(),
       } as StreamChunk)

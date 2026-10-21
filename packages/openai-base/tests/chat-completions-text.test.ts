@@ -670,7 +670,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       expect(toolStartChunk).toBeDefined()
       if (toolStartChunk?.type === 'TOOL_CALL_START') {
         expect(toolStartChunk.toolCallId).toBe('call_abc123')
-        expect(toolStartChunk.toolName).toBe('lookup_weather')
+        expect(toolStartChunk.toolCallName).toBe('lookup_weather')
       }
 
       const toolArgsChunks = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
@@ -680,7 +680,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       expect(toolEndChunk).toBeDefined()
       if (toolEndChunk?.type === 'TOOL_CALL_END') {
         expect(toolEndChunk.toolCallId).toBe('call_abc123')
-        expect(toolEndChunk.toolName).toBe('lookup_weather')
+        expect(toolEndChunk.toolCallName).toBe('lookup_weather')
         expect(toolEndChunk.input).toEqual({ location: 'Berlin' })
       }
 

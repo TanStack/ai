@@ -542,7 +542,7 @@ describe('Groq AG-UI event emission', () => {
     expect(toolStartChunk).toBeDefined()
     if (toolStartChunk?.type === 'TOOL_CALL_START') {
       expect(toolStartChunk.toolCallId).toBe('call_abc123')
-      expect(toolStartChunk.toolName).toBe('lookup_weather')
+      expect(toolStartChunk.toolCallName).toBe('lookup_weather')
     }
 
     const toolArgsChunks = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
@@ -552,7 +552,7 @@ describe('Groq AG-UI event emission', () => {
     expect(toolEndChunk).toBeDefined()
     if (toolEndChunk?.type === 'TOOL_CALL_END') {
       expect(toolEndChunk.toolCallId).toBe('call_abc123')
-      expect(toolEndChunk.toolName).toBe('lookup_weather')
+      expect(toolEndChunk.toolCallName).toBe('lookup_weather')
       expect(toolEndChunk.input).toEqual({ location: 'Berlin' })
     }
 
@@ -600,7 +600,7 @@ describe('Groq AG-UI event emission', () => {
     ])
     const toolCallEnd = chunks.find((chunk) => chunk.type === 'TOOL_CALL_END')
     if (toolCallEnd?.type === 'TOOL_CALL_END') {
-      expect(toolCallEnd.toolName).toBe('lookup_weather')
+      expect(toolCallEnd.toolCallName).toBe('lookup_weather')
       expect(toolCallEnd.input).toEqual({
         location: 'Berlin',
         units: 'celsius',
@@ -660,7 +660,7 @@ describe('Groq AG-UI event emission', () => {
     ])
     const toolCallEnd = chunks.find((chunk) => chunk.type === 'TOOL_CALL_END')
     if (toolCallEnd?.type === 'TOOL_CALL_END') {
-      expect(toolCallEnd.toolName).toBe('lookup_weather')
+      expect(toolCallEnd.toolCallName).toBe('lookup_weather')
       expect(toolCallEnd.input).toEqual({
         location: 'Berlin',
         units: 'celsius',

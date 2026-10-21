@@ -1058,7 +1058,7 @@ const previewTool = computerUseTool({
 
 The model returns a `local_shell` tool call. Your app runs the command. Then your app sends the output back on the next request. `localShellTool()` takes no arguments. Add it to `tools`.
 
-Match `toolName` on `TOOL_CALL_START`. Read `input` on the `TOOL_CALL_END` with the same `toolCallId`. `input.command` is the command. `input.env` is the environment variables.
+Match `toolCallName` on `TOOL_CALL_START`. Read `input` on the `TOOL_CALL_END` with the same `toolCallId`. `input.command` is the command. `input.env` is the environment variables.
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -1073,7 +1073,7 @@ const stream = chat({
 
 let localShellCallId: string | undefined;
 for await (const chunk of stream) {
-  if (chunk.type === "TOOL_CALL_START" && chunk.toolName === "local_shell") {
+  if (chunk.type === "TOOL_CALL_START" && chunk.toolCallName === "local_shell") {
     localShellCallId = chunk.toolCallId;
   }
   if (chunk.type === "TOOL_CALL_END" && chunk.toolCallId === localShellCallId) {
@@ -1090,7 +1090,7 @@ Send the command output as the tool result. Use `{ output: string }`, or a strin
 
 `shellTool()` gives the model a shell. A container environment runs on OpenAI. A local environment runs in your app.
 
-When your app must run the commands, pass `environment: { type: "local" }`. Match `toolName` on `TOOL_CALL_START`. Read `input` on the `TOOL_CALL_END` with the same `toolCallId`. `input.commands` is the command list. `input.timeout_ms` is the time limit. `input.max_output_length` is the output limit.
+When your app must run the commands, pass `environment: { type: "local" }`. Match `toolCallName` on `TOOL_CALL_START`. Read `input` on the `TOOL_CALL_END` with the same `toolCallId`. `input.commands` is the command list. `input.timeout_ms` is the time limit. `input.max_output_length` is the output limit.
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -1105,7 +1105,7 @@ const stream = chat({
 
 let shellCallId: string | undefined;
 for await (const chunk of stream) {
-  if (chunk.type === "TOOL_CALL_START" && chunk.toolName === "shell") {
+  if (chunk.type === "TOOL_CALL_START" && chunk.toolCallName === "shell") {
     shellCallId = chunk.toolCallId;
   }
   if (chunk.type === "TOOL_CALL_END" && chunk.toolCallId === shellCallId) {
@@ -1174,7 +1174,7 @@ Anthropic equivalent — see [Provider Skills](../tools/provider-skills.md).
 
 The model returns an `apply_patch` tool call. Your app applies the diff. Then your app sends the result back. `applyPatchTool()` takes no arguments. Add it to `tools`.
 
-Match `toolName` on `TOOL_CALL_START`. Read `input` on the `TOOL_CALL_END` with the same `toolCallId`. `input.operation` is one file change. `operation.type` is `create_file`, `update_file`, or `delete_file`. `operation.path` is the file path. `create_file` and `update_file` also include `operation.diff`.
+Match `toolCallName` on `TOOL_CALL_START`. Read `input` on the `TOOL_CALL_END` with the same `toolCallId`. `input.operation` is one file change. `operation.type` is `create_file`, `update_file`, or `delete_file`. `operation.path` is the file path. `create_file` and `update_file` also include `operation.diff`.
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -1189,7 +1189,7 @@ const stream = chat({
 
 let patchCallId: string | undefined;
 for await (const chunk of stream) {
-  if (chunk.type === "TOOL_CALL_START" && chunk.toolName === "apply_patch") {
+  if (chunk.type === "TOOL_CALL_START" && chunk.toolCallName === "apply_patch") {
     patchCallId = chunk.toolCallId;
   }
   if (chunk.type === "TOOL_CALL_END" && chunk.toolCallId === patchCallId) {

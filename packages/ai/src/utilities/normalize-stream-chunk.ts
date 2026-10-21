@@ -62,12 +62,6 @@ export function normalizeStreamChunk(
     }
   }
 
-  if (chunk.type === EventType.TOOL_CALL_START) {
-    if (specChunk.toolCallName === undefined && chunk.toolName) {
-      specChunk.toolCallName = chunk.toolName
-    }
-  }
-
   if (chunk.type === EventType.RUN_ERROR && chunk.error != null) {
     if (specChunk.message === undefined && chunk.error.message) {
       specChunk.message = chunk.error.message
@@ -113,9 +107,6 @@ export function normalizeStreamChunk(
     skipLeftover.add('model')
     skipLeftover.add('content')
     skipLeftover.add('args')
-  }
-  if (chunk.type === EventType.TOOL_CALL_START) {
-    skipLeftover.add('toolName')
   }
   // A TOOL_CALL_END sends its arguments once, as `args` made to match
   // `input`. `restorePublicUsage` parses `input` back from it.

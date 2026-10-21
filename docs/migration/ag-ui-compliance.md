@@ -62,7 +62,7 @@ What that means:
 
 - **Wire events.** Spec fields stay at the top. Extra TanStack fields go in `metadata.tanstack`. Custom servers: see [Event metadata](../protocol/metadata).
 - **Wire messages.** Use `content`, `toolCalls`, and fan-out `role: "tool"` / `role: "reasoning"`. There is no `parts` field on the wire.
-- **`chat()` chunks.** In-process `chat()` still yields `toolName`, `TOOL_CALL_END.input`, and TanStack `TokenUsage` (`promptTokens`). The SSE/HTTP wire converts `usage` to the spec array (`inputTokens`).
+- **`chat()` chunks.** In-process `chat()` still yields `TOOL_CALL_END.input` and TanStack `TokenUsage` (`promptTokens`). The SSE/HTTP wire converts `usage` to the spec array (`inputTokens`).
 - **Usage.** Middleware `onUsage` still receives TanStack `TokenUsage` (`promptTokens`, `completionTokens`).
 
 See [Stream Events](../chat/stream-events) for the `for await` branch, and [Middleware](../advanced/middleware) for `onUsage`.

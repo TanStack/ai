@@ -279,7 +279,6 @@ describe('ToolCallManager and MCP input', () => {
       type: EventType.TOOL_CALL_START,
       toolCallId: 'call_1',
       toolCallName: 'askInput',
-      toolName: 'askInput',
       timestamp: Date.now(),
     })
     manager.addToolCallArgsEvent({

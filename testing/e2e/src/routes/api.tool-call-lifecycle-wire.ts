@@ -92,7 +92,6 @@ function createServerToolAdapter(): AnyTextAdapter {
         type: EventType.TOOL_CALL_START,
         toolCallId,
         toolCallName: 'getWeather',
-        toolName: 'getWeather',
         model,
         timestamp: Date.now(),
       }
@@ -107,7 +106,6 @@ function createServerToolAdapter(): AnyTextAdapter {
         type: EventType.TOOL_CALL_END,
         toolCallId,
         toolCallName: 'getWeather',
-        toolName: 'getWeather',
         input: { city: 'NYC' },
         model,
         timestamp: Date.now(),

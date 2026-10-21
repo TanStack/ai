@@ -20,7 +20,6 @@ import type {
 function toolCallStart(fields: {
   toolCallId: string
   toolCallName: string
-  toolName?: string
   index?: number
   metadata?: Record<string, unknown>
   model?: string
@@ -53,7 +52,6 @@ function toolCallArgs(fields: {
 function toolCallEnd(fields: {
   toolCallId: string
   toolCallName?: string
-  toolName?: string
   input?: unknown
   result?: string
   state?: ToolOutputState

@@ -1371,7 +1371,6 @@ describe('ChatClient', () => {
             type: 'TOOL_CALL_START',
             toolCallId: 'stale-tool',
             toolCallName: 'staleTool',
-            toolName: 'staleTool',
             parentMessageId: 'assistant-a',
             timestamp: Date.now(),
             index: 0,
@@ -1437,7 +1436,6 @@ describe('ChatClient', () => {
             type: 'TOOL_CALL_START',
             toolCallId: 'stale-child-tool',
             toolCallName: 'staleTool',
-            toolName: 'staleTool',
             parentMessageId: 'stale-runless-message',
             timestamp: Date.now(),
             index: 0,
@@ -1492,7 +1490,6 @@ describe('ChatClient', () => {
             type: 'TOOL_CALL_START',
             toolCallId: 'stale-parentless-tool',
             toolCallName: 'staleTool',
-            toolName: 'staleTool',
             timestamp: Date.now(),
             index: 0,
           } as StreamChunk
@@ -3283,7 +3280,6 @@ describe('ChatClient', () => {
           type: EventType.TOOL_CALL_START,
           toolCallId: 'tool-1',
           toolCallName: 'show_notification',
-          toolName: 'show_notification',
           timestamp: Date.now(),
         },
         {

@@ -320,7 +320,7 @@ export class ToolCallManager<
       if (toolCall.id === event.toolCallId) return
     }
     const index = (event as AdapterYieldChunk).index ?? this.toolCallsMap.size
-    const name = event.toolCallName ?? event.toolName
+    const name = event.toolCallName
     this.toolCallsMap.set(index, {
       id: event.toolCallId,
       type: 'function',
@@ -468,7 +468,6 @@ export class ToolCallManager<
         type: 'TOOL_CALL_END',
         toolCallId: toolCall.id,
         toolCallName: toolCall.function.name,
-        toolName: toolCall.function.name,
         model: (() => {
           const model = tanstackMetadata(finishEvent)?.model
           return typeof model === 'string' ? model : undefined

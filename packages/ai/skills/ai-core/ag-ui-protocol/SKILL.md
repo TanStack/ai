@@ -193,9 +193,9 @@ All events extend `BaseAGUIEvent` which carries `type`, `timestamp`, optional
 | `TEXT_MESSAGE_START`        | New text message begins. Carries `messageId` and `role`.                                                                    |
 | `TEXT_MESSAGE_CONTENT`      | Incremental text token. Carries `messageId` and `delta` (the new text).                                                     |
 | `TEXT_MESSAGE_END`          | Text message complete. Carries `messageId`.                                                                                 |
-| `TOOL_CALL_START`           | Tool invocation begins. Carries `toolCallId`, `toolName`, and `index`.                                                      |
+| `TOOL_CALL_START`           | Tool invocation begins. Carries `toolCallId`, `toolCallName`, and `index`.                                                  |
 | `TOOL_CALL_ARGS`            | Incremental tool arguments JSON. Carries `toolCallId` and `delta`.                                                          |
-| `TOOL_CALL_END`             | Tool call arguments complete. Carries `toolCallId` and `toolName`.                                                          |
+| `TOOL_CALL_END`             | Tool call arguments complete. Carries `toolCallId`.                                                                         |
 | `REASONING_START`           | Thinking begins. `REASONING_MESSAGE_START` / `_CONTENT` / `_END` stream the text (`delta`), then `REASONING_END`.           |
 | `REASONING_ENCRYPTED_VALUE` | Provider thinking signature. Kept on the thinking part and sent back on the next turn.                                      |
 | `MESSAGES_SNAPSHOT`         | Full conversation transcript snapshot. Carries `messages: Array<UIMessage>`.                                                |

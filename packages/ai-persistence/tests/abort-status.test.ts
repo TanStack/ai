@@ -190,7 +190,6 @@ describe('chat onAbort status', () => {
             type: EventType.TOOL_CALL_START,
             toolCallId: 'tool-1',
             toolCallName: 'cancel',
-            toolName: 'cancel',
             timestamp: 1,
           } satisfies AdapterYieldChunk
           yield {
