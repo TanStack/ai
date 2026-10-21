@@ -588,7 +588,7 @@
           "label": "Serve Tools over HTTP",
           "to": "mcp/server",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-10-21"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Serve Resources and Prompts",

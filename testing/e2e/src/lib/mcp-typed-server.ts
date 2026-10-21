@@ -73,7 +73,7 @@ export const typedServer = createMCPServer({
  *   the `handle` context, and lists one concrete note.
  * - `show_note` links an MCP Apps view through `metadata._meta`.
  * - `setup` serves the `com.example/notes` extension with a `notes/count`
- *   method.
+ *   method that reads the `tenant` from the `handle` context.
  */
 const note = resourceDefinition({
   name: 'note',
@@ -101,14 +101,14 @@ export const statelessServer = createMCPServer({
   sessions: 'stateless',
   tools: [showNote],
   resources: [note],
-  setup: (server) => {
+  setup: (server, context) => {
     server.server.registerCapabilities({
       extensions: { 'com.example/notes': {} },
     })
     server.server.setRequestHandler(
       'notes/count',
       { params: z.object({}) },
-      () => ({ count: 1 }),
+      () => ({ count: 1, tenant: String(context?.tenant) }),
     )
   },
 })

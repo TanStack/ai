@@ -3,7 +3,10 @@ import {
   StreamableHTTPClientTransport,
 } from '@modelcontextprotocol/client'
 import { OAuthError, OAuthErrorCode } from '@modelcontextprotocol/server'
-import type { OAuthTokenVerifier } from '@modelcontextprotocol/server'
+import type {
+  McpServer,
+  OAuthTokenVerifier,
+} from '@modelcontextprotocol/server'
 import { toolDefinition } from '@tanstack/ai'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
@@ -1378,6 +1381,86 @@ describe('createMCPServer', () => {
         expect(onerror).toHaveBeenCalledWith(expect.any(Error))
       }
     }
+  })
+
+  it('gives setup the context of the request that builds the server', async () => {
+    const server = createMCPServer({
+      name: 'tenants',
+      version: '1.0.0',
+      sessions: 'stateless',
+      setup: (built, context) => {
+        built.server.registerCapabilities({
+          extensions: { 'com.example/tenant': {} },
+        })
+        built.server.setRequestHandler(
+          'tenant/get',
+          { params: z.object({}) },
+          () => ({ tenant: context?.tenant }),
+        )
+      },
+    })
+    const tenantResult = z.object({ tenant: z.string() })
+    for (const tenant of ['acme', 'globex']) {
+      await withClient(
+        server,
+        { era: '2026', handleOptions: { context: { tenant } } },
+        async (client) => {
+          const answer = await client.request(
+            { method: 'tenant/get', params: {} },
+            tenantResult,
+          )
+          expect(answer).toEqual({ tenant })
+        },
+      )
+    }
+  })
+
+  it('keeps the opening context on a spec 2025 memory session', async () => {
+    const setup = vi.fn(
+      (built: McpServer, context: Record<string, unknown> | undefined) => {
+        built.server.registerCapabilities({
+          extensions: { 'com.example/tenant': {} },
+        })
+        built.server.setRequestHandler(
+          'tenant/get',
+          { params: z.object({}) },
+          () => ({ tenant: context?.tenant }),
+        )
+      },
+    )
+    const server = createMCPServer({
+      name: 'tenants',
+      version: '1.0.0',
+      sessions: 'memory',
+      tools: [
+        toolDefinition({
+          name: 'tenant',
+          description: 'Reports the tenant',
+          inputSchema: z.object({}),
+        }).server<MCPToolContext<{ tenant: string }>>(
+          async (_args, ctx) => ctx.context.tenant,
+        ),
+      ],
+      setup,
+    })
+    const handleOptions: MCPHandleOptions = { context: { tenant: 'acme' } }
+    await withClient(server, { era: '2025', handleOptions }, async (client) => {
+      const opened = await client.request(
+        { method: 'tenant/get', params: {} },
+        z.object({ tenant: z.string() }),
+      )
+      expect(opened).toEqual({ tenant: 'acme' })
+      handleOptions.context = { tenant: 'globex' }
+      const resumed = await client.request(
+        { method: 'tenant/get', params: {} },
+        z.object({ tenant: z.string() }),
+      )
+      expect(resumed).toEqual({ tenant: 'acme' })
+      const called = await client.callTool({ name: 'tenant', arguments: {} })
+      expect(called.content).toEqual([{ type: 'text', text: 'globex' }])
+    })
+    expect(setup).toHaveBeenCalledTimes(1)
+    expect(setup).toHaveBeenCalledWith(expect.anything(), { tenant: 'acme' })
   })
 
   it('reports SDK errors to onerror', async () => {

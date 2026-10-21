@@ -236,7 +236,7 @@ Use the MCP names: `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWor
 A host skips its confirmation for a tool with `readOnlyHint: true`.
 Set `metadata._meta` to send the MCP tool `_meta`, for example `{ ui: { resourceUri: 'ui://view' } }` for an MCP Apps view.
 Pass `onerror` to `createMCPServer` to log transport and protocol errors from the SDK. `serveMCPStdio` also sends its transport errors there.
-Pass `setup: (server) => {}` to `createMCPServer` to change each SDK `McpServer` before it connects. It must be synchronous. Serve an MCP extension there: `server.server.registerCapabilities({ extensions: { [id]: {} } })`, then `server.server.setRequestHandler(method, { params }, handler)` for each method.
+Pass `setup: (server, context) => {}` to `createMCPServer` to change each SDK `McpServer` before it connects. It must be synchronous. `context` is the `handle` context of the request that builds the server. A spec 2025 session with `sessions: 'memory'` keeps the context of the request that opened the session. Serve an MCP extension there: `server.server.registerCapabilities({ extensions: { [id]: {} } })`, then `server.server.setRequestHandler(method, { params }, handler)` for each method.
 
 A tool with no `outputSchema` can return an MCP `CallToolResult`.
 The server sends it as is: its content blocks, its `structuredContent`, and its `isError`.

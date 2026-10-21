@@ -232,7 +232,7 @@ test.describe('mcp: createMCPServer with auth, output schema, and a task', () =>
     expect(res.ok(), body).toBe(true)
     expect(JSON.parse(body)).toEqual({
       extensions: { 'com.example/notes': {} },
-      counted: { count: 1 },
+      counted: { count: 1, tenant: 'acme' },
     })
   })
 
