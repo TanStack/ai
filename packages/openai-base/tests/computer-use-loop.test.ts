@@ -240,6 +240,20 @@ describe('computer use loop', () => {
     )
   })
 
+  it('fails the run when a computer result has no screenshot', async () => {
+    const { create, chunks } = await runLoop(async () => 'clicked')
+
+    expect(create).toHaveBeenCalledOnce()
+    expect(chunks).toContainEqual(
+      expect.objectContaining({
+        type: 'RUN_ERROR',
+        message: expect.stringContaining(
+          'The computer tool result has no screenshot.',
+        ),
+      }),
+    )
+  })
+
   it('does not acknowledge the safety checks of a failed call', async () => {
     const { create } = await runLoop(async () => {
       throw new Error('A person did not allow the click.')

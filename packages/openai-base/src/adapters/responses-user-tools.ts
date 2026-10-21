@@ -402,7 +402,7 @@ function shellOutputList(content: unknown): Array<{
 export function userToolResultItem(
   toolCall: ToolCallLike,
   content: unknown,
-  computer?: {
+  computer: {
     screenshot: () => ResponseComputerToolCallOutputScreenshot
     failed: boolean
   },
@@ -411,7 +411,7 @@ export function userToolResultItem(
   if (!name) return null
 
   if (name === 'computer' || name === 'computer_use_preview') {
-    const checks = computer?.failed
+    const checks = computer.failed
       ? []
       : (safetyChecks(
           parseArguments(toolCall.function.arguments).pending_safety_checks,
@@ -419,7 +419,7 @@ export function userToolResultItem(
     return {
       type: 'computer_call_output',
       call_id: toolCall.id,
-      output: computer?.screenshot() ?? { type: 'computer_screenshot' },
+      output: computer.screenshot(),
       ...(checks.length > 0 ? { acknowledged_safety_checks: checks } : {}),
     }
   }

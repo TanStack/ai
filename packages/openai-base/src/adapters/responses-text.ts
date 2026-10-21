@@ -2957,9 +2957,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                   failures.push(`Computer call ${owner.id} failed: ${error}`)
                   return lastScreenshot ?? { type: 'computer_screenshot' }
                 }
-                const shot = this.screenshotOf(message.content)
-                if (shot.image_url || shot.file_id) lastScreenshot = shot
-                return shot
+                lastScreenshot = this.screenshotOf(message.content)
+                return lastScreenshot
               },
               failed: error !== undefined,
             })
@@ -3203,6 +3202,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
    * The first image of a tool result, as a computer screenshot. It goes out
    * with `detail: 'original'`, as in OpenAI's computer use guide, so the
    * model sees the screen at full size. The SDK type has no `detail` yet.
+   *
+   * @throws Error when the result has no image. A computer call output
+   *   needs a screenshot.
    */
   private screenshotOf(
     content: ModelMessage['content'],
@@ -3211,7 +3213,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       ? content.find((part) => part.type === 'image')
       : undefined
     const input = image ? this.convertContentPartToInput(image) : undefined
-    if (input?.type !== 'input_image') return { type: 'computer_screenshot' }
+    if (input?.type !== 'input_image' || (!input.image_url && !input.file_id)) {
+      throw new Error(
+        'The computer tool result has no screenshot. Return an image part from the computer tool.',
+      )
+    }
     return {
       type: 'computer_screenshot',
       ...(input.image_url ? { image_url: input.image_url } : {}),
