@@ -1,13 +1,13 @@
 {
-  "name": "@tanstack/ai-computer-e2b",
+  "name": "@tanstack/ai-computer-sandbox",
   "version": "0.0.0",
-  "description": "E2B desktop sandbox driver for TanStack AI computer use.",
+  "description": "Sandbox desktop driver for TanStack AI computer use. Works with any @tanstack/ai-sandbox provider.",
   "author": "",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
-    "directory": "packages/ai-computer-e2b"
+    "directory": "packages/ai-computer-sandbox"
   },
   "type": "module",
   "module": "./dist/esm/index.js",
@@ -41,16 +41,19 @@
     "ai",
     "tanstack",
     "computer-use",
-    "e2b",
-    "sandbox"
+    "sandbox",
+    "xdotool"
   ],
+  "dependencies": {
+    "@tanstack/ai-utils": "workspace:^"
+  },
   "peerDependencies": {
-    "@e2b/desktop": "^2.0.0",
-    "@tanstack/ai-computer-use": "workspace:^"
+    "@tanstack/ai-computer-use": "workspace:^",
+    "@tanstack/ai-sandbox": "workspace:^"
   },
   "devDependencies": {
-    "@e2b/desktop": "^2.5.0",
     "@tanstack/ai-computer-use": "workspace:*",
+    "@tanstack/ai-sandbox": "workspace:*",
     "@vitest/coverage-v8": "4.1.10"
   }
 }

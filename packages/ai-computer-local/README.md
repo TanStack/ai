@@ -24,7 +24,7 @@ Local computer driver for TanStack AI computer use.
 
 Let the model use the machine that runs `chat()`, on Windows, macOS, or Linux. The model sees screenshots of your main screen. Then it moves your real mouse and presses your real keys.
 
-CAUTION: Watch the model while it uses your computer. It can do what you can do there. If you cannot watch it, use `@tanstack/ai-computer-e2b` or a VM.
+CAUTION: Watch the model while it uses your computer. It can do what you can do there. If you cannot watch it, use `@tanstack/ai-computer-sandbox` or a VM.
 
 ## Installation
 

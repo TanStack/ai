@@ -2,16 +2,17 @@
 title: Computer Use Drivers
 id: computer-use-drivers
 order: 2
-description: "Pick the machine that the model uses: a browser page for each thread with Playwright, a full Linux desktop for each thread in an E2B sandbox, or your own computer."
+description: "Pick the machine that the model uses: a browser page for each thread with Playwright, a full Linux desktop for each thread in a sandbox, or your own computer."
 keywords:
   - tanstack ai
   - computer use
   - driver
   - playwrightComputer
-  - e2bComputer
+  - sandboxComputer
   - localComputer
   - playwright
   - e2b
+  - daytona
   - linux desktop
   - sandbox
   - robotjs
@@ -22,15 +23,15 @@ A browser page is not always enough. Sometimes the model must use a desktop app,
 
 ## Pick a driver
 
-|                       | Playwright                                | E2B                                     | Your own computer                          |
+|                       | Playwright                                | Sandbox                                 | Your own computer                          |
 | --------------------- | ----------------------------------------- | --------------------------------------- | ------------------------------------------ |
 | **Machine**           | A browser page for each thread            | A Linux desktop sandbox for each thread | Your mouse, keyboard, and main screen      |
 | **Environment**       | `browser`                                 | `linux`                                 | `windows`, `mac`, or `linux`               |
-| **Runs on**           | Your server                               | E2B cloud                               | The machine that runs `chat()`             |
+| **Runs on**           | Your server                               | Any sandbox provider                    | The machine that runs `chat()`             |
 | **`navigate` tool**   | Yes                                       | No                                      | No                                         |
 | **`zoom`**            | Yes                                       | No                                      | Yes                                        |
 | **`cursor_position`** | No                                        | Yes                                     | Yes                                        |
-| **Setup**             | `playwright-core`, then download Chromium | An E2B API key                          | `@jitsi/robotjs`, and permissions on macOS |
+| **Setup**             | `playwright-core`, then download Chromium | A provider and a desktop image          | `@jitsi/robotjs`, and permissions on macOS |
 
 The Anthropic adapter turns on `zoom` and `cursor_position` only on the computer versions that have those flags.
 
@@ -108,76 +109,88 @@ const computerUse = createComputerUse({
 
 Your app owns this page. `createComputerUse` never closes it.
 
-## E2B
+## Linux desktop in a sandbox
 
-If the model must use any app on a Linux desktop, use E2B. Each thread gets its own desktop in a sandbox, away from your server.
+If the model must use any app on a Linux desktop, use a sandbox. Each thread gets its own desktop, away from your server. The driver works with every [sandbox provider](../sandbox/overview): E2B, Daytona, Docker, and the others.
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
-react: @tanstack/ai-computer-use @tanstack/ai-computer-e2b @e2b/desktop zod
-vue: @tanstack/ai-computer-use @tanstack/ai-computer-e2b @e2b/desktop zod
-solid: @tanstack/ai-computer-use @tanstack/ai-computer-e2b @e2b/desktop zod
-svelte: @tanstack/ai-computer-use @tanstack/ai-computer-e2b @e2b/desktop zod
-preact: @tanstack/ai-computer-use @tanstack/ai-computer-e2b @e2b/desktop zod
-angular: @tanstack/ai-computer-use @tanstack/ai-computer-e2b @e2b/desktop zod
-vanilla: @tanstack/ai-computer-use @tanstack/ai-computer-e2b @e2b/desktop zod
-octane: @tanstack/ai-computer-use @tanstack/ai-computer-e2b @e2b/desktop zod
+react: @tanstack/ai-computer-use @tanstack/ai-computer-sandbox @tanstack/ai-sandbox @tanstack/ai-sandbox-e2b zod
+vue: @tanstack/ai-computer-use @tanstack/ai-computer-sandbox @tanstack/ai-sandbox @tanstack/ai-sandbox-e2b zod
+solid: @tanstack/ai-computer-use @tanstack/ai-computer-sandbox @tanstack/ai-sandbox @tanstack/ai-sandbox-e2b zod
+svelte: @tanstack/ai-computer-use @tanstack/ai-computer-sandbox @tanstack/ai-sandbox @tanstack/ai-sandbox-e2b zod
+preact: @tanstack/ai-computer-use @tanstack/ai-computer-sandbox @tanstack/ai-sandbox @tanstack/ai-sandbox-e2b zod
+angular: @tanstack/ai-computer-use @tanstack/ai-computer-sandbox @tanstack/ai-sandbox @tanstack/ai-sandbox-e2b zod
+vanilla: @tanstack/ai-computer-use @tanstack/ai-computer-sandbox @tanstack/ai-sandbox @tanstack/ai-sandbox-e2b zod
+octane: @tanstack/ai-computer-use @tanstack/ai-computer-sandbox @tanstack/ai-sandbox @tanstack/ai-sandbox-e2b zod
 
 <!-- ::end:tabs -->
 
 1. Set `E2B_API_KEY` in your server environment.
-2. Give `e2bComputer()` to `createComputerUse`.
+2. Give `sandboxComputer()` a provider that makes desktop sandboxes. The E2B `desktop` template is one.
 
 ```ts
 import { createComputerUse } from '@tanstack/ai-computer-use'
-import { e2bComputer } from '@tanstack/ai-computer-e2b'
+import { sandboxComputer } from '@tanstack/ai-computer-sandbox'
+import { e2bSandbox } from '@tanstack/ai-sandbox-e2b'
 
 const computerUse = createComputerUse({
-  driver: e2bComputer({ timeoutMs: 60 * 60_000 }),
+  driver: sandboxComputer({
+    provider: e2bSandbox({ template: 'desktop', timeoutMs: 60 * 60_000 }),
+  }),
 })
 ```
 
-`e2bComputer()` takes `display` and the options of `Sandbox.create` from `@e2b/desktop`:
+`sandboxComputer()` takes these options:
 
-- `display`: the screen size of each sandbox in pixels. The default is 1024 x 768.
-- `apiKey`: the E2B API key. Without it, E2B reads `E2B_API_KEY`.
-- `timeoutMs`: the time in ms after which E2B kills the sandbox.
-- `template`: the sandbox template.
+- `provider`: the sandbox provider. It makes one sandbox for each thread.
+- `display`: the screen size of each desktop in pixels. The default is 1024 x 768.
 
-CAUTION: Set `timeoutMs` above `idleTimeout` plus the longest time that one thread stays in use. E2B kills a sandbox at its `timeoutMs`, also when the thread is busy.
+CAUTION: Set the provider timeout above `idleTimeout` plus the longest time that one thread stays in use. E2B kills a sandbox at its `timeoutMs`, also when the thread is busy.
 
 - There is no `navigate` tool, because a desktop has no address. The model opens the browser on the desktop.
-- When a thread closes or goes idle, `createComputerUse` kills its sandbox.
+- When a thread closes or goes idle, `createComputerUse` destroys its sandbox.
 - One scroll step is 100 pixels.
-- The driver quotes every key name before it goes to the shell.
+- The driver quotes every key name and all typed text before they go to the shell.
+
+### The sandbox image
+
+The image must have `xdotool`, `scrot`, and `xdpyinfo`. When no X display runs, the driver starts one with `Xvfb`. It also starts `startxfce4` when the image has it.
+
+The E2B `desktop` template has all of these. For Docker, Daytona, and the other providers, use an image with the tools. On Debian or Ubuntu:
+
+```dockerfile
+RUN apt-get update && apt-get install -y xvfb xdotool scrot x11-utils
+```
+
+If a tool is missing, the driver throws an error with its name.
 
 ### Share one sandbox
 
-You already have a desktop sandbox. Give it to `createE2BComputerDriver`:
+You already have a desktop sandbox. Give it to `createSandboxComputerDriver`:
 
 ```ts
 import { createComputerUse } from '@tanstack/ai-computer-use'
-import { createE2BComputerDriver } from '@tanstack/ai-computer-e2b'
-import type { E2BDesktopLike } from '@tanstack/ai-computer-e2b'
+import { createSandboxComputerDriver } from '@tanstack/ai-computer-sandbox'
+import { e2bSandbox } from '@tanstack/ai-sandbox-e2b'
 
-// Your sandbox, from `Sandbox.create()` of `@e2b/desktop`.
-declare const desktop: E2BDesktopLike
+const sandbox = await e2bSandbox({ template: 'desktop' }).create({})
 
 const computerUse = createComputerUse({
-  driver: await createE2BComputerDriver({ desktop }),
+  driver: await createSandboxComputerDriver({ sandbox }),
 })
 ```
 
 - Every thread shares this sandbox, so it serves one conversation at a time.
-- `createE2BComputerDriver` is async. It reads the screen size one time, so call it after the desktop is ready.
+- `createSandboxComputerDriver` is async. It starts the desktop if needed, and reads the screen size one time.
 
-Your app owns this sandbox. `createComputerUse` never kills it. When you are done, call `await desktop.kill()`.
+Your app owns this sandbox. `createComputerUse` never destroys it. When you are done, call `await sandbox.destroy()`.
 
 ## Your own computer
 
 If the model must use the apps on the machine that runs `chat()`, use `localComputer()`. The model moves your real mouse, presses your real keys, and reads your main screen.
 
-CAUTION: Watch the model while it uses your computer. It can do what you can do there: read files, send messages, and delete data. If you cannot watch it, use [E2B](#e2b) or a VM.
+CAUTION: Watch the model while it uses your computer. It can do what you can do there: read files, send messages, and delete data. If you cannot watch it, use a [sandbox](#linux-desktop-in-a-sandbox) or a VM.
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
@@ -228,13 +241,16 @@ import { chat } from '@tanstack/ai'
 import type { ModelMessage } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { createComputerUse } from '@tanstack/ai-computer-use'
-import { e2bComputer } from '@tanstack/ai-computer-e2b'
+import { sandboxComputer } from '@tanstack/ai-computer-sandbox'
+import { e2bSandbox } from '@tanstack/ai-sandbox-e2b'
 
 declare const messages: Array<ModelMessage>
 declare const threadId: string
 
 const computerUse = createComputerUse({
-  driver: e2bComputer({ timeoutMs: 60 * 60_000 }),
+  driver: sandboxComputer({
+    provider: e2bSandbox({ template: 'desktop', timeoutMs: 60 * 60_000 }),
+  }),
 })
 
 const stream = chat({

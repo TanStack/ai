@@ -128,7 +128,7 @@
       "owns": [
         "packages/ai-computer-use",
         "packages/ai-computer-playwright",
-        "packages/ai-computer-e2b"
+        "packages/ai-computer-sandbox"
       ],
       "talksTo": ["core"]
     },

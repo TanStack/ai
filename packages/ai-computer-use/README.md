@@ -22,7 +22,7 @@
 
 Computer use for TanStack AI. The model sees a screen and uses a mouse and a keyboard.
 
-You write the code one time. The same code runs on OpenAI and on Anthropic. A driver controls the machine: a Playwright browser, an E2B desktop, or your own. A driver factory gives each thread its own machine. A driver that you pass in is one machine.
+You write the code one time. The same code runs on OpenAI and on Anthropic. A driver controls the machine: a Playwright browser, a Linux desktop in a sandbox, or your own. A driver factory gives each thread its own machine. A driver that you pass in is one machine.
 
 ## Installation
 
@@ -37,8 +37,8 @@ You also need a driver:
 pnpm add @tanstack/ai-computer-playwright playwright-core
 npx playwright-core install chromium
 
-# A Linux desktop in an E2B sandbox for each thread
-pnpm add @tanstack/ai-computer-e2b @e2b/desktop
+# A Linux desktop in a sandbox for each thread (E2B, Daytona, Docker, ...)
+pnpm add @tanstack/ai-computer-sandbox @tanstack/ai-sandbox-e2b
 ```
 
 ## Usage

@@ -2460,18 +2460,6 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(vitest@4.1.11)
 
-  packages/ai-computer-e2b:
-    devDependencies:
-      '@e2b/desktop':
-        specifier: ^2.5.0
-        version: 2.5.0
-      '@tanstack/ai-computer-use':
-        specifier: workspace:*
-        version: link:../ai-computer-use
-      '@vitest/coverage-v8':
-        specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
-
   packages/ai-computer-local:
     devDependencies:
       '@jitsi/robotjs':
@@ -2495,6 +2483,22 @@ importers:
       playwright-core:
         specifier: ^1.57.0
         version: 1.57.0
+
+  packages/ai-computer-sandbox:
+    dependencies:
+      '@tanstack/ai-utils':
+        specifier: workspace:^
+        version: link:../ai-utils
+    devDependencies:
+      '@tanstack/ai-computer-use':
+        specifier: workspace:*
+        version: link:../ai-computer-use
+      '@tanstack/ai-sandbox':
+        specifier: workspace:*
+        version: link:../ai-sandbox
+      '@vitest/coverage-v8':
+        specifier: 4.1.10
+        version: 4.1.10(vitest@4.1.11)
 
   packages/ai-computer-use:
     dependencies:
@@ -3749,6 +3753,42 @@ importers:
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
+
+  testing/computer-sandbox-smoke:
+    dependencies:
+      '@tanstack/ai-computer-sandbox':
+        specifier: workspace:*
+        version: link:../../packages/ai-computer-sandbox
+      '@tanstack/ai-sandbox':
+        specifier: workspace:*
+        version: link:../../packages/ai-sandbox
+      '@tanstack/ai-sandbox-blaxel':
+        specifier: workspace:*
+        version: link:../../packages/ai-sandbox-blaxel
+      '@tanstack/ai-sandbox-boxd':
+        specifier: workspace:*
+        version: link:../../packages/ai-sandbox-boxd
+      '@tanstack/ai-sandbox-daytona':
+        specifier: workspace:*
+        version: link:../../packages/ai-sandbox-daytona
+      '@tanstack/ai-sandbox-docker':
+        specifier: workspace:*
+        version: link:../../packages/ai-sandbox-docker
+      '@tanstack/ai-sandbox-e2b':
+        specifier: workspace:*
+        version: link:../../packages/ai-sandbox-e2b
+      '@tanstack/ai-sandbox-railway':
+        specifier: workspace:*
+        version: link:../../packages/ai-sandbox-railway
+      '@tanstack/ai-sandbox-sprites':
+        specifier: workspace:*
+        version: link:../../packages/ai-sandbox-sprites
+      '@tanstack/ai-sandbox-upstash-box':
+        specifier: workspace:*
+        version: link:../../packages/ai-sandbox-upstash-box
+      '@tanstack/ai-sandbox-vercel':
+        specifier: workspace:*
+        version: link:../../packages/ai-sandbox-vercel
 
   testing/e2e:
     dependencies:
@@ -5471,14 +5511,6 @@ packages:
 
   '@dimforge/rapier3d-compat@0.12.0':
     resolution: {integrity: sha512-uekIGetywIgopfD97oDL5PfeezkFpNhwlzlaEYNOA0N6ghdsOvh/HYjSMek5Q2O1PYvRSDFcqFVJl4r4ZBwOow==}
-
-  '@e2b/desktop@2.5.0':
-    resolution: {integrity: sha512-2RgSRF+YQMNdJeIFNmbBG1CV0beEmLfgMR5BdK3y2oP+VyH/8ymNUjXohpufIIhiVRmY3kaWWQ4LhH2b6ih7rA==}
-    engines: {node: '>=22.19.0'}
-
-  '@e2b/dockerfile-utils@0.1.1':
-    resolution: {integrity: sha512-eDmlWRMrJNzSUbBOf6Y/qTChd1Ys/o3YY8PK6tRQmwkV2u7z3ZS2cak/YJB07odHMT/Z6HJKoUElR/b0N6bHUw==}
-    engines: {node: '>=22'}
 
   '@electric-sql/pglite-socket@0.1.3':
     resolution: {integrity: sha512-LAciWM0M1dCL8hlsxu2venbVZcdxema0BtDfpWYVqr+Y468UADw0pFWidhKw1M8sfJ8rdLT71tjMmnirf/IZRQ==}
@@ -13341,10 +13373,6 @@ packages:
     resolution: {integrity: sha512-P+50lx1nOYpgCFyE1xuz6JVN/TqJivMUiH7v+RW0CUSfb4+NCu8IkC5KruT2sNPgp6aexddQQ77+OZKGpZZJ+Q==}
     engines: {node: '>=20.18.1 <21 || >=22'}
 
-  e2b@2.56.0:
-    resolution: {integrity: sha512-67vAYTERArdKrPujKnAVZuiIKLFX3vQT2gh1+TFphwEmYcXfU2iGKraRxpwn9qWIdUPFVym+KOo+QFhnySWYNQ==}
-    engines: {node: '>=22.19.0'}
-
   eastasianwidth@0.2.0:
     resolution: {integrity: sha512-I88TYZWc9XiYHRQ4/3c5rjjfgkjhLyW2luGIheGERbNQ6OY7yTybanSpDXZa8y7VUP9YmDcYa+eyq4ca7iLqWA==}
 
@@ -16117,14 +16145,8 @@ packages:
   openapi-fetch@0.14.1:
     resolution: {integrity: sha512-l7RarRHxlEZYjMLd/PR0slfMVse2/vvIAGm75/F7J6MlQ8/b9uUQmUF2kCPrQhJqMXSxmYWObVgeYXbFYzZR+A==}
 
-  openapi-fetch@0.17.0:
-    resolution: {integrity: sha512-PsbZR1wAPcG91eEthKhN+Zn92FMHxv+/faECIwjXdxfTODGSGegYv0sc1Olz+HYPvKOuoXfp+0pA2XVt2cI0Ig==}
-
   openapi-typescript-helpers@0.0.15:
     resolution: {integrity: sha512-opyTPaunsklCBpTK8JGef6mfPhLSnyy5a0IN9vKtx3+4aExf+KxEqYwIy3hqkedXIB97u357uLMJsOnm3GVjsw==}
-
-  openapi-typescript-helpers@0.1.0:
-    resolution: {integrity: sha512-OKTGPthhivLw/fHz6c3OPtg72vi86qaMlqbJuVJ23qOvQ+53uw1n7HdmkJFibloF7QEjDrDkzJiOJuockM/ljw==}
 
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
@@ -21493,12 +21515,6 @@ snapshots:
       - supports-color
 
   '@dimforge/rapier3d-compat@0.12.0': {}
-
-  '@e2b/desktop@2.5.0':
-    dependencies:
-      e2b: 2.56.0
-
-  '@e2b/dockerfile-utils@0.1.1': {}
 
   '@electric-sql/pglite-socket@0.1.3(@electric-sql/pglite@0.4.3)':
     dependencies:
@@ -30664,20 +30680,6 @@ snapshots:
     optionalDependencies:
       undici8: undici@8.10.2
 
-  e2b@2.56.0:
-    dependencies:
-      '@bufbuild/protobuf': 2.15.0
-      '@connectrpc/connect': 2.2.0(@bufbuild/protobuf@2.15.0)
-      '@connectrpc/connect-web': 2.2.0(@bufbuild/protobuf@2.15.0)(@connectrpc/connect@2.2.0(@bufbuild/protobuf@2.15.0))
-      '@e2b/dockerfile-utils': 0.1.1
-      chalk: 5.6.2
-      compare-versions: 6.1.1
-      glob: 13.0.6
-      openapi-fetch: 0.17.0
-      platform: 1.3.6
-      tar: 7.5.22
-      undici: 8.11.2
-
   eastasianwidth@0.2.0: {}
 
   ecdsa-sig-formatter@1.0.11:
@@ -34516,13 +34518,7 @@ snapshots:
     dependencies:
       openapi-typescript-helpers: 0.0.15
 
-  openapi-fetch@0.17.0:
-    dependencies:
-      openapi-typescript-helpers: 0.1.0
-
   openapi-typescript-helpers@0.0.15: {}
-
-  openapi-typescript-helpers@0.1.0: {}
 
   optionator@0.9.4:
     dependencies:
@@ -37463,7 +37459,8 @@ snapshots:
   undici@8.10.2:
     optional: true
 
-  undici@8.11.2: {}
+  undici@8.11.2:
+    optional: true
 
   unenv@2.0.0-rc.24:
     dependencies:

@@ -95,7 +95,7 @@ function loadRobot() {
  * All threads share this one machine. `createComputerUse` never closes it.
  *
  * CAUTION: the model can do on this machine what you can do. Use a VM or
- * `e2bComputer` from `@tanstack/ai-computer-e2b` when you cannot watch it.
+ * `sandboxComputer` from `@tanstack/ai-computer-sandbox` when you cannot watch it.
  *
  * Needs `@jitsi/robotjs`. On macOS, give the app that runs Node the
  * Accessibility and Screen Recording permissions. On Linux, it needs X11.
