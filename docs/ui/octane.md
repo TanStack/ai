@@ -251,11 +251,11 @@ Call `useChatContext()` only inside `chat.AppChat`. A call outside that tree thr
 
 ### Type a widget in its own file
 
-Move a widget to its own file and type its props with `PartProps` or `InterruptProps`. Pass `typeof chatOptions` and a key. In a `.tsx` file, the Octane `ToolProps` type has only `part.name`. So for a tool widget, use `PartProps` with the `toolCall` key. Then check `part.name` to get typed `part.input` and `part.output`:
+Move a widget to its own file and type its props with `ToolProps`, `PartProps`, or `InterruptProps`. Pass `typeof chatOptions` and a key. For a tool widget, the key is the tool name, and `part.input` and `part.output` are typed for that tool:
 
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-octane'
-import { createChatHook, type PartProps } from '@tanstack/ai-octane/ui'
+import { createChatHook, type ToolProps } from '@tanstack/ai-octane/ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -272,9 +272,8 @@ const chatOptions = {
 }
 
 export function WeatherTool(
-  props: PartProps<typeof chatOptions, 'toolCall'>,
+  props: ToolProps<typeof chatOptions, 'getWeather'>,
 ) {
-  if (props.part.name !== 'getWeather') return null
   return <strong>{props.part.input?.city}</strong>
 }
 

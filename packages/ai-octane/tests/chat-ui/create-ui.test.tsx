@@ -6,6 +6,8 @@ import { createChatHookContexts } from '../../src/chat-ui/create-ui-contexts.tsr
 import type {
   ChatUIFactoryConfig,
   ChatUIHost,
+  InterruptMixins,
+  PartMixins,
 } from '../../src/chat-ui/create-ui.tsrx'
 import {
   chatOptions,
@@ -21,10 +23,8 @@ import {
 import type { ToolCallState } from '@tanstack/ai-client'
 import type {
   ChatUIInterrupt,
-  ChatUIMessages,
   ChatUISelectedPart,
 } from '@tanstack/ai-client/ui'
-import type { ComponentBody } from 'octane'
 
 function renderToStaticMarkup(ui: Parameters<typeof render>[0]) {
   const { container } = render(ui)
@@ -68,10 +68,6 @@ const baseConfig: ChatUIFactoryConfig<typeof chatOptions> = {
 
 type Config = ChatUIFactoryConfig<typeof chatOptions>
 type InterruptsConfig = NonNullable<Config['interruptsComponents']>
-type Messages = ChatUIMessages<typeof chatOptions>
-// The zero-prop widgets the factory mixes onto a part or interrupt
-// (`PartMixins` / `InterruptMixins` in create-ui.tsrx, not exported).
-type BoundWidget = ComponentBody<Record<string, never>>
 
 // The helper keeps `layout` / `message` / `input` flat for brevity and
 // assembles them into `components`; the shape under test is what reaches
@@ -131,9 +127,9 @@ describe('createChatHook', () => {
     function Screen() {
       const chat = useAppChat({
         threadId: 'thread-1',
-        initialMessages: [messageWithToolResults] as ChatUIHost<
-          typeof chatOptions
-        >['messages'],
+        initialMessages: [messageWithToolResults] as Array<
+          ChatUIHost<typeof chatOptions>['messages'][number]
+        >,
       })
       return <chat.AppChat />
     }
@@ -153,7 +149,7 @@ describe('createChatUI', () => {
     const manual = renderToStaticMarkup(
       <UI.Provider chat={chat}>
         <UI.Messages>
-          {(messages: Messages) => <span>{messages.length}</span>}
+          {(messages) => <span>{messages.length}</span>}
         </UI.Messages>
       </UI.Provider>,
     )
@@ -336,15 +332,14 @@ describe('createChatUI', () => {
     const markup = renderToStaticMarkup(
       <UI.Provider chat={chat}>
         <UI.Messages>
-          {(messages: Messages) =>
+          {(messages) =>
             messages.map((message) => (
               <UI.Message key={message.id} message={message}>
-                {(parts: Array<ChatUISelectedPart>) =>
+                {(parts) =>
                   parts.map((part, index) => (
                     <UI.Part key={index} part={part}>
                       {(
-                        p: ChatUISelectedPart &
-                          Record<'getWeather' | 'Render', BoundWidget>,
+                        p: ChatUISelectedPart & PartMixins<typeof chatOptions>,
                       ) =>
                         part.key === 'toolCall' ? (
                           <p.getWeather />
@@ -381,11 +376,11 @@ describe('createChatUI', () => {
         })}
       >
         <UI.Interrupts>
-          {(interrupts: ReadonlyArray<ChatUIInterrupt>) =>
+          {(interrupts) =>
             interrupts.map((interrupt) => (
               <UI.Interrupt key={interrupt.id} interrupt={interrupt}>
                 {(
-                  item: ChatUIInterrupt & Record<'choosePlan', BoundWidget>,
+                  item: ChatUIInterrupt & InterruptMixins<typeof chatOptions>,
                 ) => {
                   const ChoosePlan = item.choosePlan
                   return <ChoosePlan />
