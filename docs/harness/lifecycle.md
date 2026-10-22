@@ -209,6 +209,8 @@ A host that does not know the harness of a thread still deletes the data. It war
 - A host without `stores.sessions` still closes the open sessions of the thread and deletes its data. It has no index entries, so it finds no child threads.
 - `host.events()` yields a `session-deleted` event. See [Show a live status](./sessions#show-a-live-status).
 
+To remove only the messages of one person and keep the thread, see [Erase the messages of one person](./shared-threads#9-erase-the-messages-of-one-person).
+
 ## What you have now
 
 - Handles that release at the end of a block, so idle sessions close by themselves.

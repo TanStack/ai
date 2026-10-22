@@ -16,6 +16,8 @@ import type { WaitKind } from './waits'
  * - `configure`: change the settings of the thread.
  * - `share`: add or remove members.
  * - `delete`: delete the session.
+ * - `erase`: erase the messages of one user from the session, with
+ *   `host.sessions.eraseUser`.
  * - `fork`: copy the session into a new session.
  * - `transfer`: move the conversation to a new thread, maybe of another
  *   harness, with `host.transfer`.
@@ -29,6 +31,7 @@ export type AccessAction =
   | 'configure'
   | 'share'
   | 'delete'
+  | 'erase'
   | 'fork'
   | 'transfer'
   | 'list'
@@ -276,6 +279,7 @@ function allows(
     case 'configure':
     case 'share':
     case 'delete':
+    case 'erase':
     case 'transfer':
       return role === 'owner'
   }

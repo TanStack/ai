@@ -21,6 +21,7 @@ import {
   asUserMessage,
   createMessageId,
   customEvent,
+  inputMessageId,
   storedUser,
   isSameSender,
   WAKE_METADATA,
@@ -999,7 +1000,8 @@ export abstract class SessionTurnParts<
       const joined = [
         ...steers.map(
           (steer): ModelMessage => ({
-            id: createMessageId(),
+            // Under the id of its input, so `eraseUser` finds its sender.
+            id: inputMessageId(steer.inputId),
             role: 'user',
             content: steer.message,
             ...(steer.wake ? { metadata: WAKE_METADATA } : {}),

@@ -56,7 +56,7 @@ The user who opens a new thread is its owner. Nobody else can open it until the 
 | Answer and cancel | Every run | Only the runs they started | No | No |
 | Answer a `human` wait, and reply as an [operator](./handoffs#reply-as-the-operator) | No | No | Yes | No |
 | Fork | Yes | Yes | No | No |
-| Configure, share, delete, transfer | Yes | No | No | No |
+| Configure, share, delete, erase, transfer | Yes | No | No | No |
 
 The user who waits for a person must not act as that person, so the owner does not get `operator`. To give it to other roles, pass `membersOnly({ operator: { roles: ['owner', 'operator'] } })`.
 
@@ -354,6 +354,30 @@ Call `showWhoIsHere` when the page opens. To update it at once, publish a change
 
 The host does not wait for a hook. A hook that throws or rejects only logs a warning, and the stream goes on.
 
+## 9. Erase the messages of one person
+
+Bob leaves the team and asks you to remove what he wrote. Take him out of the thread, then erase his messages. The thread stays for the others:
+
+```ts group=harness-shared-threads
+await host.sessions.unshare({ threadId: 'team-thread', userId: 'bob', user: ada })
+await host.sessions.eraseUser({
+  harness: assistant,
+  threadId: 'team-thread',
+  userId: 'bob',
+  user: ada,
+})
+```
+
+- Each message of Bob keeps its id and its role, and its content becomes `[removed]`. The turns keep their shape, so the model can go on.
+- The media files that Bob sent in those messages are deleted.
+- `replies: 'remove'` also erases the answers to each message of Bob, up to the next user message. Default: `'keep'`.
+- The host writes a new [snapshot](./durable-sessions#keep-a-long-log-fast-to-open) without that content. Then the log drops every record before it. A reader whose cursor is before the snapshot gets one `harness.gap` event.
+- On a host with `access`, `eraseUser` needs the `erase` action. With `membersOnly()`, only the owner has it.
+
+`eraseUser` throws while a turn runs or waits on the thread, or while another host runs it. Wait until the thread is idle, then call it again.
+
+CAUTION: `eraseUser` changes only the messages. Your own records in the log, the plugin state, and the session title can still hold text of Bob. Remove that data in your own code.
+
 ## What you have now
 
 - Threads that only their members can see, with an owner, members, and viewers.
@@ -362,4 +386,5 @@ The host does not wait for a hook. A hook that throws or rejects only logs a war
 - A message from another person waits for its own turn.
 - Forks that the forker owns, with the members you pick.
 - The threads and credentials of two organizations stay apart.
+- An erase that removes the messages of one person and keeps the thread.
 - A list of who has the thread open now.

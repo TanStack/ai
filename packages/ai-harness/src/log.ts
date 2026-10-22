@@ -156,6 +156,11 @@ export type HarnessRecord =
     }
   /** A note for the transcript. `noteId` is the id of its message. */
   | { type: 'harness.note'; noteId: string; note: string }
+  /**
+   * Erase the messages of the user `userId`: see `host.sessions.eraseUser`.
+   * With `replies: 'remove'`, the answers to those messages too.
+   */
+  | { type: 'harness.erase'; userId: string; replies: 'keep' | 'remove' }
   /** Thread state: settings, config, plugin state, and the rest. */
   | ThreadRecord
 
@@ -212,6 +217,7 @@ const HARNESS_RECORD_TYPES = new Set<string>([
   'harness.revert',
   'harness.job',
   'harness.note',
+  'harness.erase',
   ...THREAD_RECORD_TYPES,
 ])
 
@@ -694,6 +700,94 @@ function indexOfBlock(
   return -1
 }
 
+/**
+ * The id of the user message that the chat input `inputId` adds to the
+ * transcript. Recovery finds the message by this id, so the message goes in
+ * once.
+ */
+export const inputMessageId = (inputId: string) => `user-${inputId}`
+
+/** The text of an erased message. */
+export const ERASED_TEXT = '[removed]'
+
+/**
+ * The ids of the messages that the user `userId` wrote: the message of each
+ * of their inputs, as a person or as an operator, and its files note.
+ */
+export function messageIdsOfUser(state: LogState, userId: string) {
+  const ids = new Set<string>()
+  for (const { inputId, user } of state.inputs.values()) {
+    if (user?.id !== userId) continue
+    for (const id of [inputMessageId(inputId), `operator-${inputId}`]) {
+      ids.add(id)
+      ids.add(`${id}:media`)
+    }
+  }
+  return ids
+}
+
+/**
+ * A message with its id and role, and `[removed]` as its content. The tool
+ * calls stay with `{}` as their arguments, and a tool result keeps its call
+ * id, so a provider still gets turns of a valid shape.
+ */
+function erased(message: ModelMessage): ModelMessage {
+  const { id, role, createdAt, toolCalls, toolCallId } = message
+  return {
+    ...(id !== undefined ? { id } : {}),
+    role,
+    content: ERASED_TEXT,
+    ...(createdAt !== undefined ? { createdAt } : {}),
+    ...(toolCalls
+      ? {
+          toolCalls: toolCalls.map((call) => ({
+            ...call,
+            function: { name: call.function.name, arguments: '{}' },
+          })),
+        }
+      : {}),
+    ...(toolCallId !== undefined ? { toolCallId } : {}),
+  }
+}
+
+/** Fold a `harness.erase` record: see `host.sessions.eraseUser`. */
+function eraseUser(
+  state: LogState,
+  { userId, replies }: { userId: string; replies: 'keep' | 'remove' },
+) {
+  const ids = messageIdsOfUser(state, userId)
+  let isReply = false
+  // The transcript has every message, so the reply rule runs on it.
+  const transcript = state.transcript.map((message) => {
+    const isOwn = message.id !== undefined && ids.has(message.id)
+    // A reply runs from an erased question to the next user message.
+    if (message.role === 'user') {
+      isReply = isOwn && message.id?.startsWith('user-') === true
+    }
+    return isOwn || (isReply && replies === 'remove')
+      ? erased(message)
+      : message
+  })
+  // The model context ends with the same messages as the transcript. The
+  // messages before them (a compaction summary) can quote the user, so the
+  // model context drops them and gets the whole transcript. A later turn
+  // compacts again when it needs to.
+  const shared = state.messages.length - state.modelStart
+  state.messages =
+    state.modelStart > 0
+      ? transcript
+      : transcript.slice(transcript.length - shared)
+  state.transcript = transcript
+  state.modelStart = 0
+  for (const input of state.inputs.values()) {
+    if (input.user?.id !== userId || !('message' in input.input)) continue
+    state.inputs.set(input.inputId, {
+      ...input,
+      input: { ...input.input, message: ERASED_TEXT },
+    })
+  }
+}
+
 /** Fold one entry into `state`. A `project` that throws warns to `logger`. */
 export function foldEntry(
   state: LogState,
@@ -901,6 +995,9 @@ export function foldEntry(
     }
     case 'harness.note':
       state.notes.set(record.noteId, record.note)
+      return
+    case 'harness.erase':
+      eraseUser(state, record)
       return
     case 'harness.settings':
     case 'harness.config':
@@ -1565,6 +1662,12 @@ export interface LogWriter extends EventFeed {
   /** Fold the records that another writer appended, after the queued writes. */
   catchUp: () => Promise<void>
   /**
+   * Write a snapshot at the head of the log now, then drop every record
+   * before it and the events in memory. It acquires the log first, like a
+   * write. Rejects when a step fails.
+   */
+  compact: () => Promise<void>
+  /**
    * The epoch at which this host owns the log, or {@link NO_OWNER_EPOCH} when
    * it does not own it now.
    */
@@ -2008,6 +2111,8 @@ export class SharedLog<TState = unknown> {
             }),
       flush: () => this.flush(),
       catchUp: () => this.enqueue(() => this.catchUp()),
+      compact: () =>
+        isDropped() ? refused() : this.enqueue(() => this.compact()),
       unfence: () => {
         own.fenced = false
       },
@@ -2489,32 +2594,55 @@ export class SharedLog<TState = unknown> {
   /** Save the fold of the whole log at its head, with the epoch of this host. */
   private async snapshot() {
     const { epoch } = this
-    const { seq } = this.state
-    const isStale = seq <= this.snapshotSeq || this.failure !== undefined
+    const isStale =
+      this.state.seq <= this.snapshotSeq || this.failure !== undefined
     if (epoch === undefined || isStale) return
     try {
-      await this.store.putSnapshot({
-        logId: this.logId,
-        epoch,
-        seq,
-        version: SNAPSHOT_VERSION,
-        state: normalize(serialize(this.state, this.versions)),
-      })
-      this.snapshotSeq = seq
-      this.bytesSinceSnapshot = 0
-      this.firstUnsnapshottedAt = undefined
-      this.stopSnapshotTimer()
-      if (this.logRecords === 'since-snapshot') {
-        await this.store.truncate({
-          logId: this.logId,
-          epoch,
-          beforeSeq: seq + 1,
-        })
-      }
+      await this.saveSnapshot(epoch, this.logRecords === 'since-snapshot')
     } catch (error) {
       // Another host took the log: this host reads on. Another lost
       // snapshot or truncate only makes the next open read more records.
       if (error instanceof OwnershipLostError) this.lose(error)
+    }
+  }
+
+  /** See `LogWriter.compact`. */
+  private async compact() {
+    if (this.failure !== undefined) throw this.failure
+    const epoch = await this.own()
+    try {
+      await this.saveSnapshot(epoch, true)
+    } catch (error) {
+      if (error instanceof OwnershipLostError) this.lose(error)
+      throw error
+    }
+    // A reader before the snapshot reads the store, and gets a gap.
+    this.tail = new EventRing({
+      maxBytes: this.eventBytes,
+      from: this.state.seq,
+    })
+  }
+
+  /** Put the snapshot at the head, then drop the records before it when `truncate`. */
+  private async saveSnapshot(epoch: number, truncate: boolean) {
+    const { seq } = this.state
+    await this.store.putSnapshot({
+      logId: this.logId,
+      epoch,
+      seq,
+      version: SNAPSHOT_VERSION,
+      state: normalize(serialize(this.state, this.versions)),
+    })
+    this.snapshotSeq = seq
+    this.bytesSinceSnapshot = 0
+    this.firstUnsnapshottedAt = undefined
+    this.stopSnapshotTimer()
+    if (truncate) {
+      await this.store.truncate({
+        logId: this.logId,
+        epoch,
+        beforeSeq: seq + 1,
+      })
     }
   }
 

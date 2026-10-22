@@ -356,6 +356,18 @@ export function createMediaStore({
     },
     /** The record of `id`, or `null` when it is missing or another thread's. */
     get,
+    /** Delete the file `id`: its bytes and its record. A no-op for another thread's. */
+    async delete(id: string) {
+      const record = await artifact(id)
+      if (!record) return
+      await blobs.delete(record.blobKey)
+      await artifacts.delete(id)
+      const key = `${storeThreadId}/${id}`
+      const encodedText = cache.entries.get(key)
+      if (encodedText === undefined) return
+      cache.entries.delete(key)
+      cache.size -= encodedText.length
+    },
     /** The bytes of `id`, or one `range` of them. */
     load,
     /** The bytes of `id`, or one `range` of them, as a stream. */

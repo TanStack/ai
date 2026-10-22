@@ -411,7 +411,7 @@ export interface OpenSessionOptions<U extends HarnessUser = HarnessUser> {
  * `host.open`. A method never reads or changes the entries of another
  * tenant. With host `access`, each method asks `isAllowed` first: `get` reads, `list`
  * lists, `rename`, `archive`, `unarchive`, and `update` configure, `delete`
- * deletes, `fork` forks, and
+ * deletes, `eraseUser` erases, `fork` forks, and
  * `share` and `unshare` share. A refused action throws `AccessDeniedError`.
  * A child thread is checked through its root thread.
  */
@@ -530,6 +530,33 @@ export interface HostSessions<U extends HarnessUser = HarnessUser> {
    * ```
    */
   delete: (options: { threadId: string; user?: U }) => Promise<void>
+  /**
+   * Erase the messages of the user `userId` from a thread, for example a
+   * person who left a shared thread. Each message of that user keeps its id
+   * and role, and gets `[removed]` as its content, so the turns keep their
+   * shape. Its files, and the media files it sent, are deleted.
+   * `replies: 'remove'` also erases the messages that answer each of those
+   * messages, up to the next user message. Default: `'keep'`.
+   *
+   * The thread gets a new log snapshot without that content, and the log
+   * drops the records before it. A reader whose cursor is before the
+   * snapshot gets a gap. Throws while a turn runs or waits on the thread,
+   * or while another host runs it: erase again when the thread is idle.
+   * With access, it needs the `erase` action, and a thread with no index
+   * entry throws `AccessDeniedError`.
+   *
+   * @example
+   * ```ts
+   * await host.sessions.eraseUser({ harness: assistant, threadId: 't-1', userId: 'bob', user })
+   * ```
+   */
+  eraseUser: (options: {
+    harness: AnyHarness
+    threadId: string
+    userId: string
+    replies?: 'keep' | 'remove'
+    user?: U
+  }) => Promise<void>
   /**
    * Fork a thread into a new thread with `host.fork`, so the fork gets the
    * settings, plugin config, and media too. `{ through: id }` copies the
@@ -3460,6 +3487,29 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
         } finally {
           for (const id of seen)
             purging.delete(logIdOf({ tenantId, logId: id }))
+        }
+      },
+      async eraseUser({ harness, threadId, userId, replies = 'keep', user }) {
+        const call = 'host.sessions.eraseUser'
+        const entry = await checkEntry(call, 'erase', { threadId, user })
+        if (access && !entry) {
+          throw new AccessDeniedError({ action: 'erase', threadId })
+        }
+        checkHarness(entry, harness)
+        const tenantId = user?.tenantId
+        await refuseChild({ tenantId, threadId })
+        const key = sessionKey(harness.name, tenantId, threadId)
+        hold(key)
+        try {
+          const session = await openSession(harness, { threadId }, tenantId)
+          const receipt = await session.eraseUser({ userId, replies })
+          if (receipt.status === 'rejected') {
+            throw new Error(
+              `${call}: thread ${JSON.stringify(threadId)} is busy. A turn runs or waits on it, or another host runs it. Erase again when it is idle.`,
+            )
+          }
+        } finally {
+          await release(key)
         }
       },
       async fork({ harness, threadId, at, members, user }) {

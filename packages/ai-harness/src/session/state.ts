@@ -11,7 +11,7 @@ import { transcriptText } from '../first-party/session-tools'
 import { LogOwnedElsewhereError } from '../ownership'
 import { isRecord } from '../utils'
 import { changedEntry } from '../session-entry'
-import { stableJson, visibleMessages } from '../log'
+import { messageIdsOfUser, stableJson, visibleMessages } from '../log'
 import { agentRunThread, isHumanTarget } from '../log-records'
 import { mediaIdOf, mediaOfMessage, mediaPart } from '../media-ref'
 import {
@@ -947,6 +947,40 @@ export abstract class SessionState<
       await this.endRevert()
       // The notes that came during the revert go after the messages again.
       await this.flushNotes()
+      return { inputId, status: 'accepted' }
+    })
+  }
+
+  /**
+   * Erase the messages of the user `userId`, as `host.sessions.eraseUser`
+   * says: log the erase, write a snapshot, drop the records before it, and
+   * delete the files of those messages. Refused while the session is not
+   * idle, or another host runs the thread (`'busy'`).
+   */
+  async eraseUser({
+    userId,
+    replies,
+  }: {
+    userId: string
+    replies: 'keep' | 'remove'
+  }): Promise<Receipt> {
+    const inputId = createInputId()
+    if (!(await this.ownsIdleThread())) {
+      return { inputId, status: 'rejected', reason: 'busy' }
+    }
+    return this.holding(async () => {
+      const ids = messageIdsOfUser(this.writer.state, userId)
+      const media = this.writer.state.messages
+        .filter((message) => message.id !== undefined && ids.has(message.id))
+        .flatMap((message) => [
+          ...mediaOfMessage(message).map(({ id }) => id),
+          ...(typeof message.content === 'string' || !message.content
+            ? []
+            : message.content.flatMap((part) => mediaIdOf(part) ?? [])),
+        ])
+      await this.writer.append([{ type: 'harness.erase', userId, replies }])
+      await this.writer.compact()
+      for (const id of new Set(media)) await this.mediaStore.delete(id)
       return { inputId, status: 'accepted' }
     })
   }

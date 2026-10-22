@@ -103,6 +103,7 @@ Each action covers these calls:
 | `configure` | Change the thread settings, the plugin config, the title, and the metadata. |
 | `share` | Add or remove members. |
 | `delete` | Remove the session from the index. |
+| `erase` | Erase the messages of one user with `host.sessions.eraseUser`. See [Erase the messages of one person](./shared-threads#9-erase-the-messages-of-one-person). |
 | `fork` | Copy the session into a new session. |
 | `transfer` | Move the conversation to another thread, also of another harness, with `host.transfer`. See [Move a conversation to another harness](./handoffs#5-move-a-conversation-to-another-harness). |
 

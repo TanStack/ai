@@ -472,12 +472,7 @@ export function createMessageId(): string {
   return `msg-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
 }
 
-/**
- * The id of the user message that the chat input `inputId` adds to the
- * transcript. Recovery finds the message by this id, so the message goes in
- * once.
- */
-export const inputMessageId = (inputId: string) => `user-${inputId}`
+export { inputMessageId } from '../log'
 
 export function customEvent(
   name: string,
