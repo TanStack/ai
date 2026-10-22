@@ -590,7 +590,6 @@ describe('otelMiddleware — full usage emission', () => {
     totalTokens: 165,
     promptTokensDetails: { cachedTokens: 80, cacheWriteTokens: 10 },
     completionTokensDetails: { reasoningTokens: 15 },
-    durationSeconds: 2.5,
     cost: 0.0123,
     costDetails: {
       upstreamCost: 0.01,
@@ -607,7 +606,6 @@ describe('otelMiddleware — full usage emission', () => {
     expect(span.attributes['gen_ai.usage.cache_read.input_tokens']).toBe(80)
     expect(span.attributes['gen_ai.usage.cache_creation.input_tokens']).toBe(10)
     expect(span.attributes['gen_ai.usage.reasoning.output_tokens']).toBe(15)
-    expect(span.attributes['tanstack.ai.usage.duration_seconds']).toBe(2.5)
     expect(span.attributes['tanstack.ai.usage.upstream_cost']).toBe(0.01)
     expect(span.attributes['tanstack.ai.usage.upstream_input_cost']).toBe(0.004)
     expect(span.attributes['tanstack.ai.usage.upstream_output_cost']).toBe(
@@ -679,9 +677,6 @@ describe('otelMiddleware — full usage emission', () => {
     ).toBeUndefined()
     expect(
       span.attributes['gen_ai.usage.reasoning.output_tokens'],
-    ).toBeUndefined()
-    expect(
-      span.attributes['tanstack.ai.usage.duration_seconds'],
     ).toBeUndefined()
     expect(span.attributes['tanstack.ai.usage.upstream_cost']).toBeUndefined()
     expect(
@@ -1519,7 +1514,6 @@ describe('otelMiddleware — media activities', () => {
       promptTokens: 0,
       completionTokens: 0,
       totalTokens: 0,
-      unitsBilled: 1,
       cost: 0.04,
     }
 
@@ -1530,7 +1524,6 @@ describe('otelMiddleware — media activities', () => {
     const span = spans[0]!
     expect(span.ended).toBe(true)
     expect(span.attributes['gen_ai.usage.cost']).toBe(0.04)
-    expect(span.attributes['tanstack.ai.usage.units_billed']).toBe(1)
 
     // Media records the duration histogram but NOT the chat token histogram.
     expect(records).toHaveLength(1)
@@ -1790,19 +1783,15 @@ describe('otelMiddleware — media activities', () => {
 })
 
 describe('usageAttributes', () => {
-  it('emits guarded media + cost fields, omitting absent ones', () => {
+  it('emits guarded fields, omitting absent ones', () => {
     const usage: TokenUsage = {
       promptTokens: 10,
       completionTokens: 0,
       totalTokens: 10,
-      durationSeconds: 12.5,
-      unitsBilled: 3,
     }
     const attrs = usageAttributes(usage)
 
     expect(attrs['gen_ai.usage.input_tokens']).toBe(10)
-    expect(attrs['tanstack.ai.usage.duration_seconds']).toBe(12.5)
-    expect(attrs['tanstack.ai.usage.units_billed']).toBe(3)
     // No cost reported → key absent.
     expect('gen_ai.usage.cost' in attrs).toBe(false)
   })

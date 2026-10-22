@@ -4,7 +4,6 @@ import type { WebSearchPreviewToolConfig } from '@tanstack/openai-base'
 
 export {
   type WebSearchPreviewToolConfig,
-  type WebSearchPreviewTool,
   convertWebSearchPreviewToolToAdapterFormat,
 } from '@tanstack/openai-base'
 
@@ -14,7 +13,7 @@ export type OpenAIWebSearchPreviewTool = ProviderTool<
 >
 
 /**
- * Creates a standard Tool from WebSearchPreviewTool parameters, branded as an
+ * Creates a standard Tool from WebSearchPreviewToolConfig parameters, branded as an
  * OpenAI provider tool.
  */
 export function webSearchPreviewTool(

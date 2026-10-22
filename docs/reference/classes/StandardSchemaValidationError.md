@@ -3,7 +3,7 @@ id: StandardSchemaValidationError
 title: StandardSchemaValidationError
 ---
 
-Defined in: [packages/ai/src/activities/chat/tools/schema-converter.ts:443](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/schema-converter.ts#L443)
+Defined in: packages/ai/src/activities/chat/tools/schema-converter.ts:443
 
 Error thrown when Standard Schema validation fails. Carries the original
 `issues` array so consumers (middleware `onError`, callers catching from
@@ -21,7 +21,7 @@ Error thrown when Standard Schema validation fails. Carries the original
 new StandardSchemaValidationError(issues): StandardSchemaValidationError;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/schema-converter.ts:447](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/schema-converter.ts#L447)
+Defined in: packages/ai/src/activities/chat/tools/schema-converter.ts:447
 
 #### Parameters
 
@@ -47,7 +47,7 @@ Error.constructor
 readonly issues: readonly Issue[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/schema-converter.ts:445](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/schema-converter.ts#L445)
+Defined in: packages/ai/src/activities/chat/tools/schema-converter.ts:445
 
 ***
 
@@ -57,7 +57,7 @@ Defined in: [packages/ai/src/activities/chat/tools/schema-converter.ts:445](http
 readonly name: "StandardSchemaValidationError" = 'StandardSchemaValidationError';
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/schema-converter.ts:444](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/schema-converter.ts#L444)
+Defined in: packages/ai/src/activities/chat/tools/schema-converter.ts:444
 
 #### Overrides
 

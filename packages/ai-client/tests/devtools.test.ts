@@ -184,15 +184,6 @@ describe('ChatClient devtools bridge', () => {
     return latestSnapshot?.state?.messages ?? []
   }
 
-  function findToolCallPart(messages: Array<UIMessage>, toolCallId: string) {
-    return messages
-      .flatMap((message) => message.parts)
-      .find(
-        (part): part is Extract<MessagePart, { type: 'tool-call' }> =>
-          part.type === 'tool-call' && part.id === toolCallId,
-      )
-  }
-
   function findStructuredOutputPart(
     messages: Array<UIMessage>,
     messageId: string,
@@ -245,8 +236,9 @@ describe('ChatClient devtools bridge', () => {
     expect(eventClientMock.emitted('hook:unregistered')).toEqual([])
   })
 
-  it('registers a generated hookId when construct had no threadId', () => {
+  it('registers the threadId as the hookId', () => {
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: createMockConnectionAdapter(),
       devtools: {
         framework: 'react',
@@ -260,7 +252,7 @@ describe('ChatClient devtools bridge', () => {
       [
         'hook:registered',
         expect.objectContaining({
-          hookId: expect.stringMatching(/^thread-/),
+          hookId: 'thread-1',
           displayName: 'Skills',
           lifecycle: 'mounted',
         }),
@@ -270,8 +262,8 @@ describe('ChatClient devtools bridge', () => {
       [
         'client:created',
         expect.objectContaining({
-          clientId: expect.stringMatching(/^thread-/),
-          hookId: expect.stringMatching(/^thread-/),
+          clientId: 'thread-1',
+          hookId: 'thread-1',
         }),
       ],
     ])
@@ -1279,8 +1271,6 @@ describe('ChatClient devtools bridge', () => {
           ...createToolCallChunks(
             [{ id: 'call-1', name: 'weather', arguments: '{"city":"Paris"}' }],
             'msg-tool',
-            'test',
-            false,
           ),
         ],
       ],
@@ -1954,138 +1944,6 @@ describe('ChatClient devtools bridge', () => {
     expect(eventClientMock.emitted('structured-output:completed')).toHaveLength(
       2,
     )
-
-    client.dispose()
-  })
-
-  it('emits approval requests that arrive after run finish', async () => {
-    const runContexts: Array<RunAgentInputContext> = []
-    const chunks: Array<StreamChunk> = [
-      ...createToolCallChunks(
-        [
-          {
-            id: 'approval-call-1',
-            name: 'addToCart',
-            arguments: '{"guitarId":"6","quantity":1}',
-          },
-        ],
-        'msg-approval',
-        'test',
-        false,
-      ),
-      {
-        type: EventType.CUSTOM,
-        metadata: { tanstack: { model: 'test' } },
-        timestamp: Date.now(),
-        name: 'approval-requested',
-        value: {
-          toolCallId: 'approval-call-1',
-          toolName: 'addToCart',
-          input: { guitarId: '6', quantity: 1 },
-          approval: { id: 'approval-approval-call-1', needsApproval: true },
-        },
-      },
-    ]
-    const client = createClient({
-      connection: createRunTrackingAdapter([chunks], runContexts),
-    })
-    vi.clearAllMocks()
-
-    await client.sendMessage('add it to cart')
-
-    await waitForCondition(
-      () => eventClientMock.emitted('tools:approval:requested').length > 0,
-    )
-    expect(eventClientMock.emitted('tools:approval:requested')).toEqual([
-      [
-        'tools:approval:requested',
-        expect.objectContaining({
-          hookId: 'thread-1',
-          clientId: 'thread-1',
-          threadId: runContexts[0]?.threadId,
-          runId: runContexts[0]?.runId,
-          streamId: expect.any(String),
-          messageId: expect.any(String),
-          toolCallId: 'approval-call-1',
-          toolName: 'addToCart',
-          input: { guitarId: '6', quantity: 1 },
-          approvalId: 'approval-approval-call-1',
-        }),
-      ],
-    ])
-
-    await waitForCondition(() => {
-      const toolCall = findToolCallPart(
-        latestSnapshotMessages(),
-        'approval-call-1',
-      )
-      return (
-        toolCall?.state === 'approval-requested' &&
-        toolCall.approval?.id === 'approval-approval-call-1'
-      )
-    })
-
-    client.dispose()
-  })
-
-  it('emits approval responses and snapshots the approval decision', async () => {
-    const runContexts: Array<RunAgentInputContext> = []
-    const client = createClient({
-      connection: createRunTrackingAdapter(
-        [createTextChunks('approved', 'msg-after-approval')],
-        runContexts,
-      ),
-      initialMessages: [
-        userMessage,
-        {
-          id: 'msg-approval',
-          role: 'assistant',
-          parts: [
-            {
-              type: 'tool-call',
-              id: 'approval-call-1',
-              name: 'addToCart',
-              arguments: '{"guitarId":"6","quantity":1}',
-              input: { guitarId: '6', quantity: 1 },
-              state: 'approval-requested',
-              approval: {
-                id: 'approval-approval-call-1',
-                needsApproval: true,
-              },
-            },
-          ],
-        },
-      ],
-    })
-    vi.clearAllMocks()
-
-    await client.addToolApprovalResponse({
-      id: 'approval-approval-call-1',
-      approved: true,
-    })
-
-    expect(eventClientMock.emitted('tools:approval:responded')).toEqual([
-      [
-        'tools:approval:responded',
-        expect.objectContaining({
-          hookId: 'thread-1',
-          clientId: 'thread-1',
-          toolCallId: 'approval-call-1',
-          approvalId: 'approval-approval-call-1',
-          approved: true,
-        }),
-      ],
-    ])
-    await waitForCondition(() => {
-      const toolCall = findToolCallPart(
-        latestSnapshotMessages(),
-        'approval-call-1',
-      )
-      return (
-        toolCall?.state === 'approval-responded' &&
-        toolCall.approval?.approved === true
-      )
-    })
 
     client.dispose()
   })

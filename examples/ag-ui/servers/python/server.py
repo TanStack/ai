@@ -297,7 +297,6 @@ class AguiHandler(BaseHTTPRequestHandler):
             self.write_run_error(
                 thread_id, run_id, "no user or assistant messages to send"
             )
-            self.write_done()
             return
 
         message_id = f"msg-{run_id}"
@@ -335,11 +334,9 @@ class AguiHandler(BaseHTTPRequestHandler):
                     "finishReason": "stop",
                 }
             )
-            self.write_done()
         except Exception as error:
             self.log_message("chat error: %s", error)
             self.write_run_error(thread_id, run_id, str(error))
-            self.write_done()
 
     def begin_sse(self) -> None:
         self.send_response(200)
@@ -365,10 +362,6 @@ class AguiHandler(BaseHTTPRequestHandler):
                 "error": {"message": message},
             }
         )
-
-    def write_done(self) -> None:
-        self.wfile.write(b"data: [DONE]\n\n")
-        self.wfile.flush()
 
 
 def main() -> None:

@@ -87,6 +87,7 @@ export class ChatComponent {
   // injectChat is called in a field initializer — this is a valid injection context.
   chat = injectChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-42',
   })
 }
 ```
@@ -102,7 +103,7 @@ All state is exposed as Angular `Signal`s. Read them by calling them as function
 | `chat.isSubscribed()`     | `boolean`            | Whether a live (SSE push) session is active |
 | `chat.connectionStatus()` | `ConnectionStatus`   | Transport connection status                 |
 
-Available methods on the return value: `sendMessage`, `append`, `reload`, `stop`, `clear`, `setMessages`, `addToolResult`, `addToolApprovalResponse`.
+Available methods on the return value: `sendMessage`, `append`, `reload`, `stop`, `clear`, `setMessages`, `addToolResult`.
 
 ## Server endpoint
 
@@ -118,6 +119,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages: body.messages,
+    threadId: body.threadId,
   })
 
   return toServerSentEventsResponse(stream)
@@ -146,20 +148,29 @@ Angular's DI system requires that `inject()` is called during component construc
 ```typescript
 // Field initializer (recommended)
 export class MyComponent {
-  chat = injectChat({ connection: fetchServerSentEvents('/api/chat') })
+  chat = injectChat({
+    connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-42',
+  })
 }
 
 // Constructor
 export class MyComponent {
   chat: ReturnType<typeof injectChat>
   constructor() {
-    this.chat = injectChat({ connection: fetchServerSentEvents('/api/chat') })
+    this.chat = injectChat({
+      connection: fetchServerSentEvents('/api/chat'),
+      threadId: 'support-42',
+    })
   }
 }
 
 // Inside runInInjectionContext
 const chat = runInInjectionContext(injector, () =>
-  injectChat({ connection: fetchServerSentEvents('/api/chat') }),
+  injectChat({
+    connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-42',
+  }),
 )
 ```
 

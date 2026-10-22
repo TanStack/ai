@@ -31,6 +31,7 @@ export type Feature =
   | 'one-shot-text'
   | 'reasoning'
   | 'multi-turn'
+  | 'multi-turn-reasoning'
   | 'tool-calling'
   | 'tool-choice'
   | 'parallel-tool-calls'
@@ -93,6 +94,7 @@ export const ALL_FEATURES: Feature[] = [
   'one-shot-text',
   'reasoning',
   'multi-turn',
+  'multi-turn-reasoning',
   'tool-calling',
   'tool-choice',
   'parallel-tool-calls',

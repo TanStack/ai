@@ -2,7 +2,7 @@
 title: Build an MCP Server
 id: mcp-server
 order: 5
-description: "Serve a tool, a resource, and a prompt from a TanStack Start app. The client keeps those types."
+description: "Serve a tool, a resource, and a prompt over MCP from a TanStack Start app. A typed client calls all three and keeps their types."
 keywords:
   - tanstack ai
   - tutorial
@@ -15,13 +15,11 @@ keywords:
   - tanstack start
 ---
 
-You have a tool, a file, and a prompt. A host cannot call them yet.
+This tutorial serves a tool, a file, and a prompt with `createMCPServer` on a TanStack Start route.
 
-This tutorial serves all three from one TanStack Start app. A page in that app calls the server and shows the three results.
+A page in the same app calls the server with a typed client and shows the three results. It takes about 10 minutes, and you do not need a model key.
 
-The server object keeps the types. `createMCPClient({ server })` checks the tool name, the resource URI, and the prompt arguments. That client calls the server in the same process. It opens no connection, and the server `auth` option does not run.
-
-This tutorial uses React and Start. The short guide is [Serve Tools over HTTP](../mcp/server).
+This tutorial uses React and Start. For the short guide, open [Serve Tools over HTTP](../mcp/server).
 
 ## 1. Create a Start app
 
@@ -31,7 +29,7 @@ npx @tanstack/cli@latest create
 
 Pick React. For more options, see [Start getting started](https://tanstack.com/start/latest/docs/framework/react/quick-start).
 
-Then install these packages:
+Install these packages:
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
@@ -39,23 +37,13 @@ react: @tanstack/ai @tanstack/ai-mcp zod
 
 <!-- ::end:tabs -->
 
-## The server and the page
-
-The server file defines the tool, the resource, and the prompt.
-
-The route sends each HTTP request to that server.
-
-The page calls the server and shows the forecast, the guide, and the brief.
-
 ## 2. Write the server
 
-Create `src/mcp-server.ts`.
+Create `src/mcp-server.ts`. It defines three things:
 
-The tool returns the weather for one city. `outputSchema` makes that result a string for the client.
-
-The resource is a short city guide. A host reads that file by URI.
-
-The prompt asks for a one-day plan. A host renders that prompt with a city name.
+- **A tool**: `get_weather` returns the weather for one city. `outputSchema` makes the result a string for the client.
+- **A resource**: a short city guide. A host reads it by URI.
+- **A prompt**: `trip_brief` asks for a one-day plan. A host renders it with a city name.
 
 ```ts
 import { toolDefinition } from '@tanstack/ai'
@@ -111,15 +99,11 @@ export function handleMcp(request: Request) {
 }
 ```
 
-Create the server once. Export `server`. `handleMcp` calls `fetch` for each request.
-
-`server` carries the tool list, the resource list, and the prompt list. An app that calls the deployed server can use those types with `import type`. [Call the server with types](../mcp/server#call-the-server-with-types) shows how.
+The file creates the server once. `handleMcp` calls `server.fetch` for each request.
 
 ## 3. Mount the route
 
 Create `src/routes/api.mcp.ts`. The route path is `/api/mcp`.
-
-`GET` is the spec 2025 stream. `DELETE` closes that session. `POST` carries the JSON-RPC body.
 
 ```ts ignore
 import { createFileRoute } from '@tanstack/react-router'
@@ -136,20 +120,15 @@ export const Route = createFileRoute('/api/mcp')({
 })
 ```
 
+Each method has a job:
+
+- `POST` carries the JSON-RPC body.
+- `GET` opens the stream from the 2025 spec.
+- `DELETE` closes that session.
+
 ## 4. Call the server from the page
 
-Create `src/lib/call-server.ts`.
-
-Pass `server` to `createMCPClient`. The page does not need a model key.
-
-The call is type-safe:
-
-- `get_weather` is the only tool name.
-- `city` is a string. The result is a string.
-- `file:///city-guide.md` is the only resource URI.
-- `trip_brief` is the only prompt name. `city` is a string.
-
-A wrong name is a type error. A number for `city` is a type error.
+Create `src/lib/call-server.ts`. Pass `server` to `createMCPClient`.
 
 ```ts
 import { createServerFn } from '@tanstack/react-start'
@@ -178,7 +157,15 @@ export const callDesk = createServerFn({ method: 'POST' }).handler(
 )
 ```
 
-Create `src/routes/index.tsx`. The button calls `callDesk`.
+The calls are type-safe:
+
+- `get_weather` is the only tool name. `city` is a string, and the result is a string.
+- `file:///city-guide.md` is the only resource URI.
+- `trip_brief` is the only prompt name. `city` is a string.
+
+A wrong name is a type error. A number for `city` is a type error.
+
+Replace `src/routes/index.tsx` with this page. The button calls `callDesk`.
 
 ```tsx ignore
 import { createFileRoute } from '@tanstack/react-router'
@@ -263,8 +250,25 @@ The page shows `Sunny in Paris`, the city guide, and the trip brief.
 
 The full example is on GitHub: [TanStack/ai `examples/react/mcp-server`](https://github.com/TanStack/ai/tree/main/examples/react/mcp-server).
 
-If the tool must ask the user, open [Ask for Input](../mcp/server-input).
+## How it works
 
-If a tool returns before the work ends, open [MCP Server Tasks](../mcp/server-tasks).
+The app has three parts:
 
-If the server must require a bearer token, open [MCP Server Auth](../mcp/server-auth).
+- **The server file** defines the tool, the resource, and the prompt.
+- **The route** sends each HTTP request at `/api/mcp` to that server. A remote MCP host connects here.
+- **The page** calls the server through `createMCPClient` and shows the results.
+
+The `server` object keeps the types. `createMCPClient({ server })` uses them to check the tool name, the resource URI, and the prompt arguments.
+
+This client calls the server in the same process:
+
+- It opens no network connection.
+- The server `auth` option does not run.
+
+An app that calls the deployed server over HTTP can use the same types with `import type`. [Call the server with types](../mcp/server#call-the-server-with-types) shows how.
+
+Next, pick the one you need:
+
+- The tool must ask the user a question: [Ask for Input](../mcp/server-input).
+- A tool returns before the work ends: [MCP Server Tasks](../mcp/server-tasks).
+- The server must require a bearer token: [MCP Server Auth](../mcp/server-auth).

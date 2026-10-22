@@ -19,6 +19,7 @@ describe('GenerationClient byok', () => {
     await byok.update('elevenlabs', ELEVENLABS_KEY)
     const fetcher = vi.fn(async () => ({ ok: true }))
     const client = new GenerationClient({
+      threadId: 'thread-1',
       fetcher,
       byok,
     })
@@ -30,6 +31,8 @@ describe('GenerationClient byok', () => {
       { prompt: 'hello' },
       {
         signal: expect.any(AbortSignal),
+        threadId: 'thread-1',
+        runId: expect.any(String),
         headers: { 'x-byok-elevenlabs': ELEVENLABS_KEY },
       },
     )
@@ -50,6 +53,7 @@ describe('GenerationClient byok', () => {
     })
     const connection: ConnectConnectionAdapter = { connect }
     const client = new GenerationClient({
+      threadId: 'thread-1',
       connection,
       byok,
       byokProvider: () => 'elevenlabs',
@@ -71,6 +75,7 @@ describe('GenerationClient byok', () => {
     const byok = defineByok({ storage: memoryStorage() })
     await byok.update('elevenlabs', ELEVENLABS_KEY)
     const client = new GenerationClient({
+      threadId: 'thread-1',
       fetcher: async () => {
         throw new ByokMissingError('elevenlabs')
       },
@@ -87,10 +92,71 @@ describe('GenerationClient byok', () => {
     expect(client.getError()).toBeInstanceOf(ByokMissingError)
   })
 
+  it('stops the failed run when the BYOK request subscriber stops', async () => {
+    const byok = defineByok({ storage: memoryStorage() })
+    await byok.update('elevenlabs', ELEVENLABS_KEY)
+    const onErrorChange = vi.fn()
+    let client!: GenerationClient<{ prompt: string }, { id: string }>
+    client = new GenerationClient({
+      threadId: 'thread-1',
+      fetcher: async (): Promise<{ id: string }> => {
+        throw new ByokMissingError('elevenlabs')
+      },
+      byok,
+      byokProvider: () => 'elevenlabs',
+      onErrorChange,
+    })
+    byok.subscribe(() => {
+      if (byok.getSnapshot().prompt) client.stop()
+    })
+
+    await client.generate({ prompt: 'first' })
+
+    expect(client.getStatus()).toBe('idle')
+    expect(client.getError()).toBeUndefined()
+    expect(onErrorChange).not.toHaveBeenCalledWith(expect.any(Error))
+  })
+
+  it('does not let a failed BYOK run overwrite a replacement', async () => {
+    const byok = defineByok({ storage: memoryStorage() })
+    await byok.update('elevenlabs', ELEVENLABS_KEY)
+    let releaseSecond!: (value: { id: string }) => void
+    const secondResult = new Promise<{ id: string }>((resolve) => {
+      releaseSecond = resolve
+    })
+    let secondGenerate: Promise<void> | undefined
+    let replaced = false
+    const client = new GenerationClient({
+      threadId: 'thread-1',
+      fetcher: async (input) => {
+        if (input.prompt === 'first') {
+          throw new ByokMissingError('elevenlabs')
+        }
+        return secondResult
+      },
+      byok,
+      byokProvider: () => 'elevenlabs',
+    })
+    byok.subscribe(() => {
+      if (!byok.getSnapshot().prompt || replaced) return
+      replaced = true
+      client.stop()
+      secondGenerate = client.generate({ prompt: 'second' })
+    })
+
+    await client.generate({ prompt: 'first' })
+
+    expect(client.getStatus()).toBe('generating')
+    expect(client.getError()).toBeUndefined()
+    releaseSecond({ id: 'second' })
+    await secondGenerate
+  })
+
   it('requests a missing key when the fetcher returns a byokMissing Response', async () => {
     const byok = defineByok({ storage: memoryStorage() })
     await byok.update('elevenlabs', ELEVENLABS_KEY)
     const client = new GenerationClient({
+      threadId: 'thread-1',
       fetcher: async () => byokMissing('elevenlabs'),
       byok,
       byokProvider: () => 'elevenlabs',
@@ -108,6 +174,7 @@ describe('GenerationClient byok', () => {
     const byok = defineByok()
     const fetcher = vi.fn()
     const client = new GenerationClient({
+      threadId: 'thread-1',
       fetcher,
       byok,
       byokProvider: () => 'elevenlabs',
@@ -128,6 +195,7 @@ describe('GenerationClient byok', () => {
     await byok.update('elevenlabs', ELEVENLABS_KEY)
     const fetcher = vi.fn(async () => ({ ok: true }))
     const client = new GenerationClient({
+      threadId: 'thread-1',
       fetcher,
       byok,
     })
@@ -138,6 +206,8 @@ describe('GenerationClient byok', () => {
       { prompt: 'hello' },
       {
         signal: expect.any(AbortSignal),
+        threadId: 'thread-1',
+        runId: expect.any(String),
         headers: { 'x-byok-elevenlabs': ELEVENLABS_KEY },
       },
     )
@@ -149,6 +219,7 @@ describe('GenerationClient byok', () => {
     await byok.update('elevenlabs', ELEVENLABS_KEY)
     const fetcher = vi.fn()
     const client = new GenerationClient({
+      threadId: 'thread-1',
       fetcher,
       byok,
     })

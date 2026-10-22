@@ -52,6 +52,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -86,6 +87,7 @@ describe('chat() middleware', () => {
 
       try {
         const stream = chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Hi' }],
           middleware: [middleware],
@@ -121,6 +123,7 @@ describe('chat() middleware', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           interrupts: [review],
           messages: [{ role: 'user', content: 'Hi' }],
@@ -194,6 +197,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -264,6 +268,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -302,6 +307,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -327,6 +333,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         systemPrompts: ['Original'],
@@ -370,6 +377,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         systemPrompts: [
@@ -423,6 +431,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [mw1, mw2],
@@ -461,6 +470,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -520,6 +530,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -546,54 +557,6 @@ describe('chat() middleware', () => {
       })
     })
 
-    it('onChunk does not see REASONING_ENCRYPTED_VALUE from STEP_FINISHED.signature', async () => {
-      const onChunkTypes: Array<string> = []
-
-      const { adapter } = createMockAdapter({
-        iterations: [
-          [
-            ev.runStarted(),
-            ev.stepStarted('think'),
-            {
-              type: EventType.STEP_FINISHED,
-              stepName: 'think',
-              timestamp: Date.now(),
-              signature: 'sig-1',
-            },
-            ev.runFinished('stop'),
-          ],
-        ],
-      })
-
-      const middleware: ChatMiddleware = {
-        name: 'signature-order',
-        onChunk: (_ctx, chunk) => {
-          onChunkTypes.push(chunk.type)
-        },
-      }
-
-      const stream = chat({
-        adapter,
-        messages: [{ role: 'user', content: 'Hi' }],
-        middleware: [middleware],
-      })
-      const publicChunks = await collectChunks(
-        stream as AsyncIterable<StreamChunk>,
-      )
-
-      expect(onChunkTypes).toEqual([
-        'RUN_STARTED',
-        'STEP_STARTED',
-        'STEP_FINISHED',
-        'RUN_FINISHED',
-      ])
-      expect(
-        publicChunks.some(
-          (chunk) => chunk.type === 'REASONING_ENCRYPTED_VALUE',
-        ),
-      ).toBe(true)
-    })
-
     it('should allow chunk transformation', async () => {
       const { adapter } = createMockAdapter({
         iterations: [
@@ -612,6 +575,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -648,6 +612,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -678,6 +643,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -715,6 +681,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [mw1, mw2],
@@ -756,6 +723,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [mw1, mw2],
@@ -797,6 +765,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [tool],
@@ -836,6 +805,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [tool],
@@ -877,6 +847,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [tool],
@@ -944,6 +915,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [toolA, toolB],
@@ -985,6 +957,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [tool],
@@ -1025,6 +998,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -1063,6 +1037,7 @@ describe('chat() middleware', () => {
       const userContext = { userId: 'u-123', sessionId: 's-abc' }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -1093,6 +1068,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -1123,6 +1099,7 @@ describe('chat() middleware', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
       })
@@ -1147,6 +1124,7 @@ describe('chat() middleware', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [],
@@ -1189,6 +1167,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -1234,6 +1213,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -1279,6 +1259,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [tool],
@@ -1325,6 +1306,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -1385,6 +1367,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [tool],
@@ -1475,6 +1458,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [tool],
@@ -1532,6 +1516,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [tool],
@@ -1586,6 +1571,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [],
@@ -1622,6 +1608,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -1660,6 +1647,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -1672,18 +1660,13 @@ describe('chat() middleware', () => {
   })
 
   // ==========================================================================
-  // threadId / conversationId propagation
+  // threadId propagation
   // ==========================================================================
-  describe('threadId / conversationId', () => {
+  describe('threadId', () => {
     const runChatWithMiddleware = async (params: {
       threadId?: string
-      conversationId?: string
-    }): Promise<{
-      ctxThreadId: string | undefined
-      ctxConvId: string | undefined
-    }> => {
+    }): Promise<string | undefined> => {
       let ctxThreadId: string | undefined
-      let ctxConvId: string | undefined
       const { adapter } = createMockAdapter({
         iterations: [
           [ev.runStarted(), ev.textContent('hi'), ev.runFinished('stop')],
@@ -1693,52 +1676,23 @@ describe('chat() middleware', () => {
         name: 'test',
         onStart: (ctx) => {
           ctxThreadId = ctx.threadId
-          ctxConvId = ctx.conversationId
         },
       }
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
         ...params,
       })
       await collectChunks(stream as AsyncIterable<StreamChunk>)
-      return { ctxThreadId, ctxConvId }
+      return ctxThreadId
     }
 
-    it('uses caller-provided threadId for both ctx.threadId and ctx.conversationId (legacy alias)', async () => {
-      const { ctxThreadId, ctxConvId } = await runChatWithMiddleware({
-        threadId: 'thread-7',
-      })
-      expect(ctxThreadId).toBe('thread-7')
-      expect(ctxConvId).toBe('thread-7')
-    })
-
-    it('routes legacy `conversationId` option into threadId resolution', async () => {
-      const { ctxThreadId, ctxConvId } = await runChatWithMiddleware({
-        conversationId: 'conv-42',
-      })
-      // Legacy `conversationId` is an alias for `threadId` — both fields
-      // on the middleware ctx resolve to the same value.
-      expect(ctxThreadId).toBe('conv-42')
-      expect(ctxConvId).toBe('conv-42')
-    })
-
-    it('explicit threadId wins when both are passed', async () => {
-      const { ctxThreadId, ctxConvId } = await runChatWithMiddleware({
-        threadId: 'thread-canonical',
-        conversationId: 'conv-legacy',
-      })
-      expect(ctxThreadId).toBe('thread-canonical')
-      expect(ctxConvId).toBe('thread-canonical')
-    })
-
-    it('auto-generates a threadId when neither is provided', async () => {
-      const { ctxThreadId, ctxConvId } = await runChatWithMiddleware({})
-      expect(ctxThreadId).toMatch(/^thread/)
-      // ctx.conversationId mirrors threadId for backward compat with
-      // middleware that hasn't been migrated yet.
-      expect(ctxConvId).toBe(ctxThreadId)
+    it('uses caller-provided threadId for ctx.threadId', async () => {
+      expect(await runChatWithMiddleware({ threadId: 'thread-7' })).toBe(
+        'thread-7',
+      )
     })
   })
 
@@ -1800,6 +1754,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [tool],
@@ -1882,6 +1837,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [tool],
@@ -1948,6 +1904,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -1984,6 +1941,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         modelOptions: { temperature: 0.1 },
@@ -2023,6 +1981,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -2058,6 +2017,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -2089,6 +2049,7 @@ describe('chat() middleware', () => {
 
       try {
         const stream = chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Hi' }],
           middleware: [middleware],
@@ -2144,6 +2105,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [toolA, toolB],
@@ -2178,6 +2140,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -2231,6 +2194,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [tool],
@@ -2285,6 +2249,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [mw1, mw2],
@@ -2334,6 +2299,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -2366,6 +2332,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         systemPrompts: ['Be helpful'],
@@ -2399,6 +2366,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         metadata: { original: true },
@@ -2429,6 +2397,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -2498,6 +2467,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [tool],
@@ -2552,6 +2522,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [],
@@ -2598,6 +2569,7 @@ describe('chat() middleware', () => {
       // Pass messages with an assistant tool call but NO corresponding tool result
       // This triggers checkForPendingToolCalls
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           { role: 'user', content: 'Hi' },
@@ -2645,6 +2617,7 @@ describe('chat() middleware', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [tool],
@@ -2680,6 +2653,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [tool],
@@ -2714,6 +2688,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           { role: 'user', content: 'Hi' },
@@ -2766,6 +2741,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -2811,6 +2787,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [toolToRemove, toolToKeep],
@@ -2869,6 +2846,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
@@ -2930,6 +2908,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [tool],
@@ -3002,6 +2981,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [tool],
@@ -3070,6 +3050,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [tool],
@@ -3155,6 +3136,7 @@ describe('chat() middleware', () => {
       }
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [toolA, toolB],

@@ -43,6 +43,7 @@ async function runInputRequiredChat(
 
   const chunks = await collectChunks(
     chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Ask' }],
       tools: [
@@ -127,10 +128,20 @@ describe('MCP input interrupt', () => {
     })
   })
 
+  it.each(['approval_required', 'client_tool_input'])(
+    'keeps the 0.x reason %j as a plain reason',
+    async (reason) => {
+      const finished = await runInputRequiredChat('form', {}, reason)
+
+      expect(finished?.outcome).toMatchObject({
+        type: 'interrupt',
+        interrupts: [{ id: 'mcp_input_call_1', reason }],
+      })
+    },
+  )
+
   it.each([
     '',
-    'approval_required',
-    'client_tool_input',
     'tanstack:client_tool_execution',
     0,
     { reason: 'auth_required' },
@@ -269,7 +280,6 @@ describe('ToolCallManager and MCP input', () => {
       type: EventType.TOOL_CALL_START,
       toolCallId: 'call_1',
       toolCallName: 'askInput',
-      toolName: 'askInput',
       timestamp: Date.now(),
     })
     manager.addToolCallArgsEvent({

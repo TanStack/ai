@@ -26,6 +26,7 @@ describe('tool runtime context', () => {
         serverTool.execute(
           { key: 'userId' },
           {
+            threadId: 'thread-1',
             toolCallId: 'tc-1',
             context: { userId: 'user-1', dbName: 'primary' },
             emitCustomEvent: () => {},

@@ -9,9 +9,6 @@ type CodeInterpreterToolConfig = SDKTool.CodeInterpreter
 
 export type { CodeInterpreterToolConfig }
 
-/** @deprecated Renamed to `CodeInterpreterToolConfig`. Will be removed in a future release. */
-export type CodeInterpreterTool = CodeInterpreterToolConfig
-
 /**
  * Converts a standard Tool to OpenAI CodeInterpreterTool format
  */

@@ -43,7 +43,7 @@ describe('chatParamsFromRequestBody', () => {
     expect(result.tools).toEqual([])
     expect(result.forwardedProps).toEqual({ temperature: 0.7 })
     expect(result.aguiContext).toEqual([])
-    expect(result.context).toBe(result.aguiContext)
+    expect('context' in result).toBe(false)
     // Delivery cursor is gone — request parsing never surfaces a `cursor`.
     expect('cursor' in result).toBe(false)
     expect(result.resume).toEqual(validBody.resume)

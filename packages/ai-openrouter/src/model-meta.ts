@@ -23338,3 +23338,45 @@ export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS: ReadonlySet<string> =
     Z_AI_GLM_5_3_FLASH_BATCH.id,
     Z_AI_GLM_5_3_BATCH.id,
   ])
+
+/**
+ * Generated: chat models whose catalog `supported_parameters` include
+ * `response_format` and do not include `structured_outputs`.
+ * Structured output sends JSON mode for these ids.
+ */
+export const OPENROUTER_JSON_OBJECT_ONLY_MODELS: ReadonlySet<string> =
+  new Set<string>([
+    AION_LABS_AION_2_0.id,
+    AION_LABS_AION_3_0.id,
+    AION_LABS_AION_3_0_MINI.id,
+    AION_LABS_AION_3_5.id,
+    AION_LABS_AION_3_5_MINI.id,
+    COGNITIVECOMPUTATIONS_DOLPHIN_MISTRAL_24B_VENICE_EDITION.id,
+    DEEPSEEK_DEEPSEEK_R1.id,
+    GOOGLE_GEMINI_3_1_FLASH_LITE_IMAGE.id,
+    GOOGLE_GEMMA_4_26B_A4B_IT_FREE.id,
+    GOOGLE_GEMMA_4_31B_IT_FREE.id,
+    IBM_GRANITE_GRANITE_4_0_H_MICRO.id,
+    INCLUSIONAI_LING_3_0_FLASH.id,
+    MANCER_WEAVER.id,
+    MICROSOFT_WIZARDLM_2_8X22B.id,
+    MINIMAX_MINIMAX_M2_1.id,
+    MINIMAX_MINIMAX_M2_7.id,
+    NOUSRESEARCH_HERMES_4_405B.id,
+    QWEN_QWEN_2_5_CODER_32B_INSTRUCT.id,
+    QWEN_QWEN3_235B_A22B.id,
+    QWEN_QWEN3_235B_A22B_THINKING_2507.id,
+    QWEN_QWEN3_30B_A3B_THINKING_2507.id,
+    QWEN_QWEN3_8B.id,
+    QWEN_QWEN3_CODER_FLASH.id,
+    QWEN_QWEN3_7_FLASH.id,
+    RELACE_RELACE_SEARCH.id,
+    UNBIASED_PARETO.id,
+    Z_AI_GLM_4_5.id,
+    Z_AI_GLM_4_5V.id,
+    Z_AI_GLM_4_6V.id,
+    Z_AI_GLM_5_TURBO.id,
+    Z_AI_GLM_5_3_FLASHX.id,
+    Z_AI_GLM_5_3_PRIME.id,
+    Z_AI_GLM_5V_TURBO.id,
+  ])

@@ -23,10 +23,6 @@ const IMAGE_MODELS = [
   { value: 'openai/gpt-5-image-mini', label: 'OpenAI GPT-5 Image Mini' },
   { value: 'openai/gpt-5-image', label: 'OpenAI GPT-5 Image' },
   {
-    value: 'google/gemini-2.5-flash-image',
-    label: 'Gemini 2.5 Flash Image',
-  },
-  {
     value: 'google/gemini-nano-banana-2.1',
     label: 'Nano Banana 2.1',
   },

@@ -7,12 +7,10 @@ title: StructuredOutputStream
 type StructuredOutputStream<T> = AsyncIterable<
   | Exclude<StreamChunk, CustomEvent>
   | StructuredOutputStartEvent
-  | StructuredOutputCompleteEvent<T>
-  | ApprovalRequestedEvent
-| ToolInputAvailableEvent>;
+| StructuredOutputCompleteEvent<T>>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1977](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1977)
+Defined in: packages/ai/src/types.ts:1941
 
 Public type for streams returned by `chat({ outputSchema, stream: true })`.
 
@@ -21,10 +19,7 @@ structured-output `CUSTOM` event emitted through this path:
 - `structured-output.complete` — terminal event with typed `value.object: T`
 
 User-actionable waits, such as tool approval and client tool input, are
-represented by `RUN_FINISHED.outcome.type === 'interrupt'` in current core
-streams. Legacy `approval-requested` and `tool-input-available` custom
-events may still be consumed for replay and backward compatibility, but
-they are not the current source of truth for waits.
+represented by `RUN_FINISHED.outcome.type === 'interrupt'`.
 
 Each variant has a literal `name`, so a single discriminated narrow gives
 you a typed `value` with no helper or cast:

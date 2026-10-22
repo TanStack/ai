@@ -8,7 +8,6 @@ import {
 import type {
   AdapterYieldChunk,
   AnyTextAdapter,
-  ChatResumeToolState,
   StreamChunk,
   TokenUsage,
   Tool,
@@ -136,7 +135,6 @@ const interruptFinished = (
       {
         id: 'interrupt-1',
         reason: 'tool_call',
-        message: 'Approve the tool call?',
         toolCallId: 'tool-call-1',
       },
     ],
@@ -154,7 +152,6 @@ const toolStart = (parentMessageId?: string): AdapterYieldChunk => ({
   type: EventType.TOOL_CALL_START,
   toolCallId: 'tool-call-1',
   toolCallName: 'clientSearch',
-  toolName: 'clientSearch',
   timestamp: 1,
   ...(parentMessageId ? { parentMessageId } : {}),
 })
@@ -1026,199 +1023,6 @@ describe('interrupt persistence', () => {
     ).toBe('resolved')
   })
 
-  it('fails closed: an approval resume without an `approved` flag denies the tool', async () => {
-    const persistence = memoryPersistence()
-    await persistence.stores.interrupts!.create({
-      interruptId: 'approval-1',
-      runId: 'r1',
-      threadId: 't1',
-      requestedAt: 1,
-      payload: { toolCallId: 'tc1', metadata: { kind: 'approval' } },
-    })
-
-    const run = mockAdapter([[runStarted(), text('ok'), runFinished('r1')]])
-    await collect(
-      chat({
-        adapter: run.adapter,
-        messages: [],
-        runId: 'r1',
-        threadId: 't1',
-        // Malformed/truncated persisted payload: no `approved` field.
-        resume: [
-          { interruptId: 'approval-1', status: 'resolved', payload: {} },
-        ],
-        middleware: [withPersistence(persistence)],
-      }) as AsyncIterable<StreamChunk>,
-    )
-
-    const approvals = (
-      run.calls[0] as { approvals?: ReadonlyMap<string, boolean> }
-    ).approvals
-    expect(approvals?.get('approval-1')).toBe(false)
-  })
-
-  it('honors an explicit approved:true resume payload', async () => {
-    const persistence = memoryPersistence()
-    await persistence.stores.interrupts!.create({
-      interruptId: 'approval-1',
-      runId: 'r1',
-      threadId: 't1',
-      requestedAt: 1,
-      payload: { toolCallId: 'tc1', metadata: { kind: 'approval' } },
-    })
-
-    const run = mockAdapter([[runStarted(), text('ok'), runFinished('r1')]])
-    await collect(
-      chat({
-        adapter: run.adapter,
-        messages: [],
-        runId: 'r1',
-        threadId: 't1',
-        resume: [
-          {
-            interruptId: 'approval-1',
-            status: 'resolved',
-            payload: { approved: true },
-          },
-        ],
-        middleware: [withPersistence(persistence)],
-      }) as AsyncIterable<StreamChunk>,
-    )
-
-    const approvals = (
-      run.calls[0] as { approvals?: ReadonlyMap<string, boolean> }
-    ).approvals
-    expect(approvals?.get('approval-1')).toBe(true)
-  })
-
-  it('denies the tool when an approval is cancelled', async () => {
-    const persistence = memoryPersistence()
-    await persistence.stores.interrupts!.create({
-      interruptId: 'approval-1',
-      runId: 'r1',
-      threadId: 't1',
-      requestedAt: 1,
-      payload: { toolCallId: 'tc1', metadata: { kind: 'approval' } },
-    })
-
-    const run = mockAdapter([[runStarted(), text('ok'), runFinished('r1')]])
-    const resumeStates: Array<ReadonlySet<string> | undefined> = []
-    const observeResumeState = defineChatMiddleware({
-      name: 'observe-resume-state',
-      onConfig(_ctx, config) {
-        resumeStates.push(config.resumeToolState?.cancelledToolCallIds)
-      },
-    })
-    await collect(
-      chat({
-        adapter: run.adapter,
-        messages: [],
-        runId: 'r1',
-        threadId: 't1',
-        resume: [{ interruptId: 'approval-1', status: 'cancelled' }],
-        middleware: [withPersistence(persistence), observeResumeState],
-      }) as AsyncIterable<StreamChunk>,
-    )
-
-    const approvals = (
-      run.calls[0] as { approvals?: ReadonlyMap<string, boolean> }
-    ).approvals
-    expect(approvals?.get('approval-1')).toBe(false)
-    expect(resumeStates[0]?.has('tc1')).toBe(true)
-    expect(
-      (await persistence.stores.interrupts!.get('approval-1'))?.status,
-    ).toBe('cancelled')
-  })
-
-  it('drops the result of a cancelled client-tool interrupt', async () => {
-    const persistence = memoryPersistence()
-    await persistence.stores.interrupts!.create({
-      interruptId: 'client-1',
-      runId: 'r1',
-      threadId: 't1',
-      requestedAt: 1,
-      payload: { toolCallId: 'tc1', metadata: { kind: 'client_tool' } },
-    })
-
-    const run = mockAdapter([[runStarted(), text('ok'), runFinished('r1')]])
-    const resumeStates: Array<ReadonlySet<string> | undefined> = []
-    const observeResumeState = defineChatMiddleware({
-      name: 'observe-resume-state',
-      onConfig(_ctx, config) {
-        resumeStates.push(config.resumeToolState?.cancelledToolCallIds)
-      },
-    })
-    await collect(
-      chat({
-        adapter: run.adapter,
-        messages: [],
-        runId: 'r1',
-        threadId: 't1',
-        resume: [
-          {
-            interruptId: 'client-1',
-            status: 'cancelled',
-            payload: { answer: 99 },
-          },
-        ],
-        middleware: [withPersistence(persistence), observeResumeState],
-      }) as AsyncIterable<StreamChunk>,
-    )
-
-    // A cancelled client tool never surfaces its payload as a tool result: the
-    // resume state carries no entry for the tool call.
-    const clientToolResults = (
-      run.calls[0] as { clientToolResults?: ReadonlyMap<string, unknown> }
-    ).clientToolResults
-    expect(clientToolResults?.get('tc1')).toBeUndefined()
-    expect(resumeStates[0]?.has('tc1')).toBe(true)
-    expect((await persistence.stores.interrupts!.get('client-1'))?.status).toBe(
-      'cancelled',
-    )
-  })
-
-  it('translates raw legacy client-tool resume payloads', async () => {
-    const persistence = memoryPersistence()
-    await persistence.stores.interrupts!.create({
-      interruptId: 'client-1',
-      runId: 'r1',
-      threadId: 't1',
-      requestedAt: 1,
-      payload: { toolCallId: 'tc1', metadata: { kind: 'client_tool' } },
-    })
-
-    const resumeStates: Array<ChatResumeToolState | undefined> = []
-    await collect(
-      chat({
-        adapter: mockAdapter([[runStarted(), text('ok'), runFinished('r1')]])
-          .adapter,
-        messages: [],
-        runId: 'r1',
-        threadId: 't1',
-        resume: [
-          {
-            interruptId: 'client-1',
-            status: 'resolved',
-            payload: { answer: 42 },
-          },
-        ],
-        middleware: [
-          withPersistence(persistence),
-          defineChatMiddleware({
-            name: 'observe-resume-state',
-            onConfig(_ctx, config) {
-              resumeStates.push(config.resumeToolState)
-            },
-          }),
-        ],
-      }) as AsyncIterable<StreamChunk>,
-    )
-
-    expect(resumeStates[0]?.clientToolResults?.get('tc1')).toEqual({
-      answer: 42,
-    })
-  })
-
   it('tolerates malformed persisted interrupt payloads without crashing', async () => {
     const persistence = memoryPersistence()
     // Payload with the wrong shapes for the defensive parsers: metadata is a
@@ -1433,6 +1237,47 @@ describe('interrupt persistence', () => {
     )
     expect(
       (await persistence.stores.interrupts!.get(interruptId))?.status,
+    ).toBe('pending')
+  })
+
+  it('warns about a 0.x unbound tool interrupt it leaves pending', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.interrupts!.create({
+      interruptId: 'legacy-approval',
+      runId: 'r0',
+      threadId: 't1',
+      requestedAt: 0,
+      payload: {
+        id: 'legacy-approval',
+        reason: 'approval',
+        message: 'Approve?',
+        toolCallId: 'tc-1',
+        metadata: { kind: 'approval', toolName: 'search', input: {} },
+      },
+    })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const { adapter } = mockAdapter([
+        [runStarted(), text('ok'), runFinished('r1')],
+      ])
+      await collect(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'hi' }],
+          runId: 'r1',
+          threadId: 't1',
+          middleware: [withPersistence(persistence)],
+        }) as AsyncIterable<StreamChunk>,
+      )
+      const messages = warn.mock.calls.map((call) => String(call[0]))
+      expect(
+        messages.filter((message) => message.includes("'legacy-approval'")),
+      ).toHaveLength(1)
+    } finally {
+      warn.mockRestore()
+    }
+    expect(
+      (await persistence.stores.interrupts!.get('legacy-approval'))?.status,
     ).toBe('pending')
   })
 
@@ -1720,91 +1565,6 @@ describe('interrupt persistence', () => {
     expect(await persistence.stores.interrupts!.listPending('t1')).toHaveLength(
       2,
     )
-  })
-
-  it('keeps an opaque approval when a generic interrupt is also resumed', async () => {
-    const persistence = memoryPersistence()
-    const review = defineInterrupt({
-      id: 'merge-review',
-      responseSchema: coercedCountSchema,
-    })
-    const first = await collect(
-      chat({
-        adapter: mockAdapter([[runStarted(), runFinished('r1')]]).adapter,
-        interrupts: [review],
-        messages: [{ role: 'user', content: 'hi' }],
-        runId: 'r1',
-        threadId: 't1',
-        middleware: [
-          defineChatMiddleware({
-            onInterruptBoundary(ctx) {
-              if (ctx.phase !== 'afterModel') return
-              return {
-                interrupts: [
-                  review.interrupt({
-                    key: 'review',
-                    reason: 'review',
-                    message: 'Review this plan',
-                  }),
-                ],
-              }
-            },
-          }),
-          withPersistence(persistence),
-        ],
-      }) as AsyncIterable<StreamChunk>,
-    )
-    const terminal = first.find(isInterruptTerminal)
-    const genericId = terminal?.outcome.interrupts[0]?.id
-    if (!genericId) throw new Error('Expected a persisted generic interrupt')
-
-    await persistence.stores.interrupts!.create({
-      interruptId: 'approval-1',
-      runId: 'r1',
-      threadId: 't1',
-      requestedAt: 2,
-      payload: { toolCallId: 'tc1', metadata: { kind: 'approval' } },
-    })
-
-    const resumeStates: Array<ChatResumeToolState | undefined> = []
-    await collect(
-      chat({
-        adapter: mockAdapter([
-          [runStarted(), text('continued'), runFinished('r1')],
-        ]).adapter,
-        interrupts: [review],
-        messages: [],
-        runId: 'r1',
-        threadId: 't1',
-        resume: [
-          {
-            interruptId: 'approval-1',
-            status: 'resolved',
-            payload: { approved: true },
-          },
-          {
-            interruptId: genericId,
-            status: 'resolved',
-            payload: { count: '2' },
-          },
-        ],
-        middleware: [
-          withPersistence(persistence),
-          defineChatMiddleware({
-            name: 'observe-merged-resume-state',
-            onConfig(_ctx, config) {
-              resumeStates.push(config.resumeToolState)
-            },
-            onInterruptResolution() {
-              return { toolResume: 'continue' }
-            },
-          }),
-        ],
-      }) as AsyncIterable<StreamChunk>,
-    )
-
-    expect(resumeStates[0]?.approvals?.get('approval-1')).toBe(true)
-    expect(resumeStates[0]?.genericInterruptRequests?.has(genericId)).toBe(true)
   })
 
   it('commits a mixed resume batch once when the store supports commitBatch', async () => {

@@ -33,7 +33,6 @@ export interface SandboxSnapshotBundle {
   artifacts?: {
     listForThread: (threadId: string) => Promise<ReadonlyArray<ArtifactRecord>>
   }
-  resolveArtifactBlobKey?: (record: ArtifactRecord) => string
 }
 
 export type SandboxSnapshotErrorCode =
@@ -669,12 +668,8 @@ export async function captureSandboxArtifacts(
   const records = await bundle.artifacts.listForThread(threadId)
   const loaded = new Map<string, Uint8Array>()
   const destinationKeys = new Map<string, string>()
-  const resolveBlobKey =
-    bundle.resolveArtifactBlobKey ??
-    ((record: ArtifactRecord) =>
-      record.blobKey ?? `artifacts/${record.runId}/${record.artifactId}`)
   for (const record of records) {
-    const sourceKey = resolveBlobKey(record)
+    const sourceKey = record.blobKey
     if (loaded.has(sourceKey)) continue
     const source = await bundle.blobs.get(sourceKey)
     if (!source)
@@ -686,7 +681,7 @@ export async function captureSandboxArtifacts(
   }
   const output = []
   for (const record of records) {
-    const sourceKey = resolveBlobKey(record)
+    const sourceKey = record.blobKey
     let bytes = getRequiredBlob(loaded, sourceKey)
     bytes = await redactBytes(bytes, resolvedSecrets)
     const key = `sandbox-artifacts/sha256/${await hash(bytes)}`

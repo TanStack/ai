@@ -7,7 +7,7 @@ title: createVoiceOptions
 function createVoiceOptions<TAdapter, TStream>(options): VoiceActivityOptions<TAdapter, TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/generateVoice/index.ts:356](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVoice/index.ts#L356)
+Defined in: packages/ai/src/activities/generateVoice/index.ts:359
 
 Create typed options for the generateVoice() function without executing.
 

@@ -39,13 +39,6 @@ import type { ModelMessage } from '@tanstack/ai'
 function bodyLayers(value: object): Array<object> {
   const layers: Array<object> = [value]
   if (
-    'data' in value &&
-    value.data !== null &&
-    typeof value.data === 'object'
-  ) {
-    layers.push(value.data)
-  }
-  if (
     'forwardedProps' in value &&
     value.forwardedProps !== null &&
     typeof value.forwardedProps === 'object'
@@ -64,7 +57,7 @@ function readForwarded(value: object, key: string): string | undefined {
   return undefined
 }
 
-/** Flatten the nested `data`/`forwardedProps` layers into one object to validate. */
+/** Flatten the body and its `forwardedProps` layer into one object to validate. */
 function flattenRunBody(value: unknown): unknown {
   if (value === null || typeof value !== 'object') return value
   const flat: Record<string, unknown> = {}

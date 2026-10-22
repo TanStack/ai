@@ -81,6 +81,7 @@ describe('createChat', () => {
     const updateOptions = vi.spyOn(ChatClient.prototype, 'updateOptions')
     let tools: Array<AnyClientTool> = []
     const chat = createChat(handle, {
+      threadId: 'thread-1',
       connection: createConnection([textChunk('Hi'), runFinished()]),
       get tools() {
         return tools
@@ -96,6 +97,7 @@ describe('createChat', () => {
   it('records user and assistant messages and calls handle.update after sendMessage', async () => {
     const { handle } = createHandle()
     const chat = createChat(handle, {
+      threadId: 'thread-1',
       connection: createConnection([textChunk('Hi'), runFinished()]),
     })
 
@@ -111,6 +113,7 @@ describe('createChat', () => {
   it('does not call handle.update after the handle signal aborts', async () => {
     const { handle, abort } = createHandle()
     const chat = createChat(handle, {
+      threadId: 'thread-1',
       connection: createConnection([textChunk('Hi'), runFinished()]),
     })
 
@@ -119,6 +122,29 @@ describe('createChat', () => {
 
     await chat.sendMessage('Hello').catch(() => {})
 
+    expect(handle.update).not.toHaveBeenCalled()
+  })
+
+  it('reads the frozen client snapshot and updates on every snapshot change until abort', async () => {
+    const { handle, abort } = createHandle()
+    const chat = createChat(handle, {
+      threadId: 'thread-1',
+      connection: createConnection([textChunk('Hi'), runFinished()]),
+    })
+
+    await chat.sendMessage('Hello')
+    const messages = chat.messages
+    expect(Object.isFrozen(messages)).toBe(true)
+    expect(() => (messages as Array<unknown>).push({})).toThrow(TypeError)
+
+    vi.mocked(handle.update).mockClear()
+    chat.setMessages(messages.slice(0, 1))
+    expect(chat.messages).toHaveLength(1)
+    expect(handle.update).toHaveBeenCalledTimes(1)
+
+    abort.abort()
+    vi.mocked(handle.update).mockClear()
+    chat.setMessages([])
     expect(handle.update).not.toHaveBeenCalled()
   })
 })

@@ -11,4 +11,4 @@ type InterruptResolutionResult =
 };
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:184](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L184)
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:185

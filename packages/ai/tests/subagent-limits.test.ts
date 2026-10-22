@@ -58,6 +58,7 @@ describe('subagent limits', () => {
     const { adapter } = callsInOneTurn('worker', ['c1', 'c2', 'c3'])
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Go' }],
         subagents: { agents: [worker], limits: { maxCalls: 2 } },
@@ -91,6 +92,7 @@ describe('subagent limits', () => {
     const { adapter } = callsInOneTurn('child', ['c1'])
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Go' }],
         subagents: { agents: [child], limits: { maxDepth: 1 } },
@@ -115,12 +117,70 @@ describe('subagent limits', () => {
     const { adapter } = callsInOneTurn('slow', ['c1'])
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Go' }],
         subagents: { agents: [slow], limits: { timeoutMs: 20 } },
       }) as AsyncIterable<StreamChunk>,
     )
     expect(results(chunks).c1.error).toBe('subagent timed out after 20 ms')
+  })
+
+  it('says no time left when the parent deadline is already past', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(0)
+    const grandchild = defineAgent({
+      name: 'grandchild',
+      description: 'Deep',
+      run: async () => 'deep',
+    })
+    const child = defineAgent({
+      name: 'child',
+      description: 'Calls a grandchild',
+      run: (ctx) => {
+        vi.setSystemTime(5_000)
+        return ctx.chat({
+          adapter: callsInOneTurn('grandchild', ['g1']).adapter,
+          subagents: { agents: [grandchild] },
+        })
+      },
+    })
+    try {
+      const { adapter } = callsInOneTurn('child', ['c1'])
+      const chunks = await collectChunks(
+        chat({
+          threadId: 'thread-1',
+          adapter,
+          messages: [{ role: 'user', content: 'Go' }],
+          subagents: { agents: [child], limits: { timeoutMs: 5_000 } },
+        }) as AsyncIterable<StreamChunk>,
+      )
+      expect(JSON.stringify(chunks)).toContain(
+        'subagent limit reached (no time left)',
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('names timeoutMs 0 when that limit is zero', async () => {
+    const worker = defineAgent({
+      name: 'worker',
+      description: 'Works',
+      run: async () => 'done',
+    })
+    const { adapter } = callsInOneTurn('worker', ['c1'])
+    const chunks = await collectChunks(
+      chat({
+        threadId: 'thread-1',
+        adapter,
+        messages: [{ role: 'user', content: 'Go' }],
+        subagents: { agents: [worker], limits: { timeoutMs: 0 } },
+      }) as AsyncIterable<StreamChunk>,
+    )
+    expect(results(chunks).c1.error).toBe(
+      'subagent limit reached (timeoutMs 0)',
+    )
   })
 
   it('refuses children past maxConcurrent in one turn', async () => {
@@ -140,6 +200,7 @@ describe('subagent limits', () => {
     const { adapter } = callsInOneTurn('waiting', ['c1', 'c2', 'c3'])
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Go' }],
         subagents: { agents: [waiting], limits: { maxConcurrent: 2 } },
@@ -171,6 +232,7 @@ describe('subagent limits', () => {
     })
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: createMockAdapter({ iterations: [] }).adapter,
         messages: [{ role: 'user', content: 'Go' }],
         subagents: {

@@ -2,7 +2,7 @@
 title: Adapters
 id: memory-adapters
 order: 3
-description: "Every built-in and vendor memory adapter in @tanstack/ai-memory, with all of their options and an example of each: inMemory, redis, hindsight, mem0, honcho."
+description: "Every built-in and vendor memory adapter in @tanstack/ai-memory, with all options and an example of each: inMemory, redis, hindsight, mem0, honcho."
 keywords:
   - tanstack ai
   - memory
@@ -15,29 +15,32 @@ keywords:
   - options
 ---
 
-Every adapter implements the same `recall`/`save` contract, so they're interchangeable
-in `memoryMiddleware`. This page is the full option reference: each adapter's options with
-an example of each.
+Each memory adapter implements `recall` and `save`. Swap one for another in `memoryMiddleware`.
 
-- [Common options](#common-options), shared by `inMemory()` and `redis()`
-- Adapters: [`inMemory()`](#inmemory), [`redis()`](#redis), [`hindsight()`](#hindsight), [`mem0()`](#mem0), [`honcho()`](#honcho)
-- [Third-party adapters](#third-party-adapters), published outside TanStack AI
+| Adapter | Import | Use it for | Extra install |
+| --- | --- | --- | --- |
+| [`inMemory()`](#inmemory) | `@tanstack/ai-memory/in-memory` | Development, tests, demos | None |
+| [`redis()`](#redis) | `@tanstack/ai-memory/redis` | Production on your own Redis | `ioredis` or `redis` |
+| [`hindsight()`](#hindsight) | `@tanstack/ai-memory/hindsight` | Hindsight server, with memory tools for the model | `@vectorize-io/hindsight-client` |
+| [`mem0()`](#mem0) | `@tanstack/ai-memory/mem0` | mem0 server, over HTTP | None |
+| [`honcho()`](#honcho) | `@tanstack/ai-memory/honcho` | Honcho server | `@honcho-ai/sdk` |
+
+All extra installs are optional peer dependencies. Install only the one that your adapter needs.
 
 ## Common options
 
-`inMemory()` and `redis()` are both client-side rankers built on the same pipeline, so
-they share these options.
+`inMemory()` and `redis()` rank records in your server process with the same code, so they share these options:
 
 | Option | Type | Default | Purpose |
-|--------|------|---------|---------|
-| `topK` | `number` | `6` | Max hits returned by `recall`. |
-| `minScore` | `number` | `0.15` | Drop hits scoring below this. |
-| `kinds` | `Array<MemoryKind>` | all | Restrict recall to these record kinds (`'message'`, `'summary'`, `'fact'`, `'preference'`). |
-| `embedder` | `{ embed(text): Promise<number[]> }` | none | Enable semantic scoring (embeds on both `recall` and `save`). |
-| `extract` | `(turn, scope) => ExtractedFact[]` | none | Persist derived facts on `save`, alongside the raw turn. |
-| `render` | `(hits) => string` | built-in | Replace the prompt renderer. |
+| --- | --- | --- | --- |
+| `topK` | `number` | `6` | Maximum number of hits that `recall` returns. |
+| `minScore` | `number` | `0.15` | Hits with a lower score are dropped. |
+| `kinds` | `Array<MemoryKind>` | all | Recall only these record kinds: `'message'`, `'summary'`, `'fact'`, `'preference'`. |
+| `embedder` | `{ embed(text): Promise<number[]> }` | none | Adds semantic scoring. Runs on `recall` and on `save`. |
+| `extract` | `(turn, scope) => ExtractedFact[]` | none | Saves derived facts on `save`, next to the raw turn. |
+| `render` | `(hits) => string` | built-in | Replaces the prompt renderer. |
 
-Every option, in one adapter:
+All options in one adapter:
 
 ```ts
 import { inMemory } from '@tanstack/ai-memory/in-memory'
@@ -51,7 +54,7 @@ const memory = inMemory({
   kinds: ['message', 'fact', 'preference'], // skip summaries
   embedder: { embed: embedText }, // semantic + lexical scoring
   extract: (turn) => [
-    // store a derived fact in addition to the raw turn
+    // store a derived fact next to the raw turn
     { text: `User said: ${turn.user}`, kind: 'fact', importance: 0.8 },
   ],
   render: (hits) =>
@@ -60,17 +63,12 @@ const memory = inMemory({
 })
 ```
 
-**`extract`** returns `ExtractedFact[]` (`{ text, kind?, importance?, metadata? }`). Return
-`undefined` for a no-op. It's where an LLM-based fact extractor plugs in without the
-adapter taking a hard dependency on any model.
-
-**`embedder`** is invoked on the recall path (to embed the query) and again on save (to
-embed stored text). Without it, scoring is lexical + recency only.
+- **`extract`** returns `ExtractedFact[]` (`{ text, kind?, importance?, metadata? }`), or `undefined` to save nothing extra. Put an LLM-based fact extractor here. The adapter does not depend on a model.
+- **`embedder`** embeds the query on `recall` and the stored text on `save`. With no embedder, the score uses word overlap, recency, and importance only.
 
 ## `inMemory()`
 
-Zero-dependency, `Map`-backed. Takes only the [common options](#common-options) above.
-Records vanish on restart, so use it for dev, tests, and single-process demos.
+Records live in a `Map` and are lost when the process restarts. Each server process has its own `Map`. It takes only the [common options](#common-options).
 
 ```ts
 import { inMemory } from '@tanstack/ai-memory/in-memory'
@@ -80,12 +78,11 @@ const memory = inMemory() // all options are optional
 
 ## `redis()`
 
-Plain-Redis adapter. Adds two options to the [common options](#common-options), and
-requires a client.
+Plain Redis, no vector index. It adds two options to the [common options](#common-options):
 
 | Option | Type | Default | Purpose |
-|--------|------|---------|---------|
-| `redis` | `RedisLike` | (required) | Your Redis client (`ioredis`, or node-redis via `fromNodeRedis`). |
+| --- | --- | --- | --- |
+| `redis` | `RedisLike` | (required) | Your Redis client: `ioredis`, or node-redis through `fromNodeRedis`. |
 | `prefix` | `string` | `'tanstack-ai:memory'` | Key namespace. |
 
 ```ts
@@ -100,8 +97,7 @@ const memory = redis({
 })
 ```
 
-Using **node-redis** (`redis` package) instead of `ioredis`? Its camelCase API doesn't
-match `RedisLike`, so wrap it with `fromNodeRedis`:
+If you use **node-redis** (the `redis` package), wrap the client with `fromNodeRedis`. Its camelCase methods do not match `RedisLike`:
 
 ```ts
 import { createClient } from 'redis'
@@ -113,46 +109,25 @@ await client.connect()
 const memory = redis({ redis: fromNodeRedis(client) })
 ```
 
-`ioredis` and `redis` are both optional peer dependencies. Install whichever you use.
-
-**Scope fields:** index keys are `{prefix}:index:{tenantId|_}:{userId|_}:{threadId}`
-(each segment escaped so `:`, `\`, and `_` in values cannot collide). Missing optional
-dims become `_`, so a write with `tenantId` and a read without it hit **different** keys
-— always pass the same dims you wrote with. There is no dual-read of older layouts; if
-you previously wrote under a different index shape, reindex or wipe.
-
-## Which `Scope` fields each adapter honors
-
-| Adapter | `threadId` | `userId` | `tenantId` | `namespace` |
-|---------|------------|----------|------------|-------------|
-| `inMemory()` | yes (exact) | yes (exact) | yes (exact) | ignored |
-| `redis()` | yes (key segment) | yes (key segment) | yes (key segment) | ignored |
-| `hindsight()` | yes (bank id) | yes (bank id / `user` option) | yes (bank prefix; unset → `_`) | ignored |
-| `mem0()` | yes (`run_id`) | yes (`user_id` / `user` option) | **no** | ignored |
-| `honcho()` | yes (session key) | yes (peer id / `user` option) | yes (session/peer prefix) | ignored |
-
-Optional dims are exact-match (omit ≠ match any). mem0 does not model tenants —
-encode multi-tenant isolation into `user` if needed.
+`redis()` loads all records of a scope and ranks them in your process. This suits up to about 10,000 records per scope. For the key layout, see [Redis keys](#redis-keys).
 
 ## `hindsight()`
 
-Hosted adapter backed by Hindsight. Owns extraction/ranking server-side and exposes
-`retain`/`recall`/`reflect` LLM tools through `recall`. `@vectorize-io/hindsight-client`
-is an optional peer, loaded lazily.
+Hindsight does extraction and ranking on its server. `recall` also gives the model three tools: `hindsight_retain`, `hindsight_recall`, and `hindsight_reflect`. The client package loads only when the adapter first runs.
 
 | Option | Type | Default | Purpose |
-|--------|------|---------|---------|
-| `user` | `string` | `scope.userId` | Durable user id used in the bank key (`{tenant\|_}__{user}__{threadId}`). |
-| `baseUrl` | `string` | `HINDSIGHT_URL` / `http://localhost:8888` | Server URL. |
+| --- | --- | --- | --- |
+| `user` | `string` | `scope.userId`, then `'demo-user'` | User id in the bank id. |
+| `baseUrl` | `string` | `HINDSIGHT_URL` or `http://localhost:8888` | Server URL. |
 | `budget` | `'low' \| 'mid' \| 'high'` | `'mid'` | Recall budget. |
-| `onToolRetain` | `(receipt) => void` | none | Fired when the model calls `hindsight_retain`. |
-| `onToolRecall` | `(query, result) => void` | none | Fired when the model calls `hindsight_recall`. |
+| `onToolRetain` | `(receipt) => void` | none | Runs when the model calls `hindsight_retain`. |
+| `onToolRecall` | `(query, result) => void` | none | Runs when the model calls `hindsight_recall`. |
 
 ```ts
 import { hindsight } from '@tanstack/ai-memory/hindsight'
 
 const memory = hindsight({
-  user: 'alice', // bank = {_}__alice__{threadId} (or tenant__alice__{threadId})
+  user: 'alice',
   baseUrl: 'https://hindsight.internal', // default: HINDSIGHT_URL
   budget: 'high', // deeper recall
   onToolRetain: (receipt) => console.log('model retained', receipt.ok),
@@ -161,17 +136,14 @@ const memory = hindsight({
 })
 ```
 
-Bank id is `{tenantId|_}__{user}__{threadId}`.
-
 ## `mem0()`
 
-Hosted adapter backed by a mem0 server, over plain HTTP (no SDK peer). Requires a running
-mem0 server.
+mem0 does extraction and ranking on its server. The adapter uses plain HTTP, so it needs no SDK. You need a running mem0 server.
 
 | Option | Type | Default | Purpose |
-|--------|------|---------|---------|
-| `user` | `string` | `scope.userId` / `'demo-user'` | mem0 `user_id`. |
-| `baseUrl` | `string` | `MEM0_URL` / `http://localhost:8000` | Server URL. |
+| --- | --- | --- | --- |
+| `user` | `string` | `scope.userId`, then `'demo-user'` | mem0 `user_id`. |
+| `baseUrl` | `string` | `MEM0_URL` or `http://localhost:8000` | Server URL. |
 | `apiKey` | `string` | `MEM0_ADMIN_API_KEY` | Bearer token. |
 | `rerank` | `boolean` | `true` | Ask mem0 to rerank search results. |
 | `threshold` | `number` | `0.1` | Minimum search score. |
@@ -188,20 +160,16 @@ const memory = mem0({
 })
 ```
 
-mem0 requests send `user_id` and `run_id` (`threadId`). `tenantId` is not sent.
-
 ## `honcho()`
 
-Hosted adapter backed by Honcho. `recall` returns a synthesized dialectic answer over the
-user's representation (no discrete fragments). `@honcho-ai/sdk` is an optional peer,
-loaded lazily.
+Honcho stores the turn as messages in a session. `recall` returns one written answer about the user, built by Honcho, with no separate fragments.
 
 | Option | Type | Default | Purpose |
-|--------|------|---------|---------|
-| `user` | `string` | `scope.userId` / `'demo-user'` | User peer id. |
-| `baseURL` | `string` | `HONCHO_URL` / `http://localhost:8001` | Server URL. |
-| `workspaceId` | `string` | `HONCHO_APP_NAME` / `'ai-memory'` | Workspace id. |
-| `apiKey` | `string` | `HONCHO_API_KEY` / `'dev-no-auth'` | API key. |
+| --- | --- | --- | --- |
+| `user` | `string` | `scope.userId`, then `'demo-user'` | User peer id. |
+| `baseURL` | `string` | `HONCHO_URL` or `http://localhost:8001` | Server URL. |
+| `workspaceId` | `string` | `HONCHO_APP_NAME` or `'ai-memory'` | Workspace id. |
+| `apiKey` | `string` | `HONCHO_API_KEY` or `'dev-no-auth'` | API key. |
 | `assistantId` | `string` | `'assistant'` | Assistant peer id. |
 
 ```ts
@@ -216,25 +184,54 @@ const memory = honcho({
 })
 ```
 
-Honcho session key is `{tenantId|_}__{threadId}`; peers are `{tenantId}__{user}` when
-`tenantId` is set, otherwise the bare user id.
+## Which `Scope` fields each adapter honors
+
+| Adapter | `threadId` | `userId` | `tenantId` | `namespace` |
+| --- | --- | --- | --- | --- |
+| `inMemory()` | yes (exact) | yes (exact) | yes (exact) | ignored |
+| `redis()` | yes (key segment) | yes (key segment) | yes (key segment) | ignored |
+| `hindsight()` | yes (bank id) | yes (bank id or `user` option) | yes (bank prefix, `_` when unset) | ignored |
+| `mem0()` | yes (`run_id`) | yes (`user_id` or `user` option) | **no** | ignored |
+| `honcho()` | yes (session key) | yes (peer id or `user` option) | yes (session and peer prefix) | ignored |
+
+An optional field matches exactly. A read with no `tenantId` does not match a record written with one. mem0 does not model tenants, so for multi-tenant isolation, put the tenant into the `user` option.
 
 ## Third-party adapters
 
-These adapters are published and maintained outside TanStack AI. They implement the same
-`recall`/`save` contract, so they drop into `memoryMiddleware` like the ones above.
+These adapters are published outside TanStack AI. They have the same `recall` and `save` methods, so they work in `memoryMiddleware` like the ones above.
 
 | Adapter | Package | Backend | Recall |
 | --- | --- | --- | --- |
 | [`upstashMemory()`](../community-adapters/upstash#memory) | `@upstash/agentkit-tanstack-ai/memory` | Upstash Redis (HTTP client) | BM25 full-text query in Redis Search |
 
-`upstashMemory()` passes `runMemoryAdapterContract` from `@tanstack/ai-memory/testkit`.
-Unlike `redis()`, it ranks in Redis instead of loading records to rank client-side, and
-it honors `namespace` as well as `tenantId`, `userId`, and `threadId`.
+`upstashMemory()` passes `runMemoryAdapterContract` from `@tanstack/ai-memory/testkit`. It ranks inside Redis, so it does not load records into your process. It honors `namespace` as well as `tenantId`, `userId`, and `threadId`.
 
-## Where to go next
+## Advanced
 
-- [Overview](./overview): the `recall`/`save` contract and how a turn flows
-- [Quickstart](./quickstart): wire an adapter into a real `chat()` call
-- [Operating memory](./operating): options, telemetry, devtools events, and failures
-- [Custom Adapter](./custom-adapter): implement `recall`/`save` for a backend that isn't shipped
+### Redis keys
+
+`redis()` writes two kinds of keys:
+
+```text
+{prefix}:record:{id}                                      -> JSON record
+{prefix}:index:{tenantId or _}:{userId or _}:{threadId}   -> Set of record ids
+```
+
+- Each scope value is escaped, so `:`, `\`, and `_` in a value cannot make two scopes share a key.
+- A missing optional field becomes `_`. A write with `tenantId` and a read without it use different keys. Always read with the same fields that you wrote with.
+- The adapter reads only this index layout. If you wrote memory under a different layout, reindex it or delete it.
+- If a stored record is not valid JSON, recall skips it, logs a warning, and leaves it in Redis.
+
+### Vendor ids
+
+- **Hindsight** bank id: `{tenantId or _}__{user}__{threadId}`.
+- **mem0** requests send `user_id` and `run_id` (the `threadId`). They do not send `tenantId`.
+- **Honcho** session key: `{tenantId or _}__{threadId}`. The user peer id is `{tenantId}__{user}` when `tenantId` is set, and the bare user id when it is not.
+
+### How `inMemory()` and `redis()` score
+
+- Each record gets a weighted score: semantic match 0.55, word overlap 0.20, recency 0.15, importance 0.10.
+- Recency halves every 30 days.
+- A raw user or assistant message is saved with importance 0.4. An extracted fact uses the `importance` that `extract` returns, or 0.
+- With no `embedder`, the semantic part is 0.
+- The default renderer quotes each record with `JSON.stringify`, so stored text with new lines or instructions cannot break out of the memory list.

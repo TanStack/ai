@@ -2,7 +2,7 @@
 title: Perplexity Search
 id: perplexity-adapter
 order: 10
-description: "Ground TanStack AI agents on the live web with the Perplexity Search API via @tanstack/ai-perplexity."
+description: "Give a TanStack AI agent live web results with the Perplexity Search API and @tanstack/ai-perplexity, or chat with Sonar."
 keywords:
   - tanstack ai
   - perplexity
@@ -11,129 +11,212 @@ keywords:
   - grounding
 ---
 
-`@tanstack/ai-perplexity` is a **Search API** package. It wraps `POST https://api.perplexity.ai/search` as a TanStack AI tool (and a low-level HTTP client) so an agent can fetch ranked web results for citation and grounding.
+`@tanstack/ai-perplexity` exposes the Perplexity Search API as a tool. Pair it with a chat adapter that calls tools, such as `openaiText` or `anthropicText`.
 
-It does **not** ship a TanStack text adapter. Pair the search tool with a function-calling adapter such as `openaiText` or `anthropicText`. Sonar `chat()` still goes through [`openaiCompatible`](./openai-compatible.md) — Sonar already searches the web and does not accept custom tools.
+Want Sonar, the Perplexity chat model, instead? See [Chat with Sonar](#chat-with-sonar).
 
-## Installation
+## 1. Install
+
+This page uses OpenAI for the chat.
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
-react: @tanstack/ai @tanstack/ai-openai @tanstack/ai-perplexity
-vue: @tanstack/ai @tanstack/ai-openai @tanstack/ai-perplexity
-solid: @tanstack/ai @tanstack/ai-openai @tanstack/ai-perplexity
-svelte: @tanstack/ai @tanstack/ai-openai @tanstack/ai-perplexity
-preact: @tanstack/ai @tanstack/ai-openai @tanstack/ai-perplexity
-angular: @tanstack/ai @tanstack/ai-openai @tanstack/ai-perplexity
-vanilla: @tanstack/ai @tanstack/ai-openai @tanstack/ai-perplexity
-octane: @tanstack/ai @tanstack/ai-openai @tanstack/ai-perplexity
+react: @tanstack/ai @tanstack/ai-react @tanstack/ai-openai @tanstack/ai-perplexity
+vue: @tanstack/ai @tanstack/ai-vue @tanstack/ai-openai @tanstack/ai-perplexity
+solid: @tanstack/ai @tanstack/ai-solid @tanstack/ai-openai @tanstack/ai-perplexity
+svelte: @tanstack/ai @tanstack/ai-svelte @tanstack/ai-openai @tanstack/ai-perplexity
+preact: @tanstack/ai @tanstack/ai-preact @tanstack/ai-openai @tanstack/ai-perplexity
+angular: @tanstack/ai @tanstack/ai-angular @tanstack/ai-openai @tanstack/ai-perplexity
+vanilla: @tanstack/ai @tanstack/ai-client @tanstack/ai-openai @tanstack/ai-perplexity
+octane: @tanstack/ai @tanstack/ai-octane @tanstack/ai-openai @tanstack/ai-perplexity octane
 
 <!-- ::end:tabs -->
 
-Set your API key (get one at <https://console.perplexity.ai/group/keys>):
+## 2. Set the API key
+
+Get a key in the [Perplexity console](https://console.perplexity.ai/group/keys). Put it in the environment of your server, next to the key of your chat provider:
 
 ```bash
-export PERPLEXITY_API_KEY=...
-# PPLX_API_KEY is also accepted
+PERPLEXITY_API_KEY=pplx-...
+OPENAI_API_KEY=sk-...
 ```
 
-## Search tool
+The tool reads `PERPLEXITY_API_KEY` first, then `PPLX_API_KEY`.
 
-Use the tool with a first-class function-calling adapter. Do not pass it to Sonar — Sonar Chat Completions does not register custom tools.
+## 3. Stream a chat with web search from the server
 
-```ts
-import { chat } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
-import { perplexitySearchTool } from '@tanstack/ai-perplexity'
+Add the search tool to `tools`. The model calls it when it needs fresh facts:
 
-const search = perplexitySearchTool({
-  defaultMaxResults: 5,
-})
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { perplexitySearchTool } from "@tanstack/ai-perplexity";
 
-const stream = chat({
-  adapter: openaiText('gpt-5.2'),
-  tools: [search],
-  messages: [
-    { role: 'user', content: 'What were the top AI papers this week?' },
-  ],
-})
+const search = perplexitySearchTool({ defaultMaxResults: 5 });
+
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
+
+  const stream = chat({
+    adapter: openaiText("gpt-6.1-sol"),
+    tools: [search],
+    messages,
+    threadId,
+    runId,
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```
 
-Swap `openaiText` for `anthropicText` (or any other function-calling adapter) the same way.
+To use Claude, swap `openaiText` for `anthropicText`. Any adapter that calls tools works the same way.
 
-The tool input schema accepts:
+## 4. Render the chat
 
-| Field                       | Type                                             | Notes                                                               |
-| --------------------------- | ------------------------------------------------ | ------------------------------------------------------------------- |
-| `query`                     | `string` (required)                              | The search query.                                                   |
-| `max_results`               | `integer` (1–20)                                 | Defaults to `defaultMaxResults` when set, otherwise the API default (10). |
-| `search_domain_filter`      | `string[]`                                       | Max 20. Allowlist (`"nytimes.com"`) **or** denylist (`"-pinterest.com"`) — never both. Hostnames, optional paths, or TLDs. |
-| `search_recency_filter`     | `"hour" \| "day" \| "week" \| "month" \| "year"` | Recency window.                                                     |
-| `search_after_date_filter`  | `string`                                         | `m/d/yyyy` — only results on/after this date.                       |
-| `search_before_date_filter` | `string`                                         | `m/d/yyyy` — only results on/before this date.                      |
+The client is the same for every provider. Point `useChat` at your route:
 
-Output: `{ results: Array<{ title, url, snippet, date?, last_updated? }> }`. The wrapper keeps those citation fields and the optional response `id` on `client.search()`; it does not surface `server_time`.
+```tsx
+import { useState } from "react";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
-The tool exposes a subset of Search API filters (`query` is a single string). `PerplexitySearchClient` also accepts `max_tokens_per_page` and up to 5 queries as `string[]`.
+export function Chat() {
+  const [input, setInput] = useState("");
+  const { messages, sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
+  });
 
-### Direct client
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        sendMessage(input);
+        setInput("");
+      }}
+    >
+      {messages.map((message) => (
+        <p key={message.id}>
+          {message.parts
+            .map((part) => (part.type === "text" ? part.content : ""))
+            .join("")}
+        </p>
+      ))}
+      <input value={input} onChange={(event) => setInput(event.target.value)} />
+    </form>
+  );
+}
+```
 
-If you want to call the Search API outside an agent loop:
+For Vue, Solid, Svelte, Angular, and the other frameworks, see [Quick Start](../getting-started/quick-start#3-render-the-chat).
+
+Ask "What were the top AI papers this week?" and the answer now uses live web results. For more on tools, see [Tools](../tools/tools).
+
+## Search without an agent
+
+To call the Search API in your own code, use `PerplexitySearchClient`:
 
 ```ts
-import { PerplexitySearchClient } from '@tanstack/ai-perplexity'
+import { PerplexitySearchClient } from "@tanstack/ai-perplexity";
 
-const client = new PerplexitySearchClient()
+const client = new PerplexitySearchClient();
 const { results } = await client.search({
-  query: 'mars sample return mission',
+  query: "mars sample return mission",
   max_results: 5,
-  search_recency_filter: 'month',
-})
+  search_recency_filter: "month",
+});
 ```
 
-## Configuration
+The client also takes these, which the tool does not:
+
+- `max_tokens_per_page`: the most content tokens for each page.
+- `query` as an array of up to 5 queries.
+
+## Chat with Sonar
+
+Sonar is the Perplexity chat model. It searches the web by itself and does not take custom tools, so do not give it `perplexitySearchTool`. This package has no Sonar adapter. Use [`openaiCompatible`](./openai-compatible.md):
 
 ```ts
-import { PerplexitySearchClient } from '@tanstack/ai-perplexity'
-
-const client = new PerplexitySearchClient({
-  apiKey: process.env.PERPLEXITY_API_KEY, // explicit key (optional)
-  baseURL: 'https://api.perplexity.ai', // override (optional)
-  fetch: globalThis.fetch, // custom fetch (optional)
-})
-```
-
-## Chat (Sonar)
-
-Sonar already grounds answers on the web. Use [`openaiCompatible`](./openai-compatible.md) from `@tanstack/ai-openai/compatible` — this package does not wrap that adapter, and you should not pass `perplexitySearchTool` here.
-
-```ts
-import { chat } from '@tanstack/ai'
-import { openaiCompatible } from '@tanstack/ai-openai/compatible'
-import { getPerplexityIntegrationHeaders } from '@tanstack/ai-perplexity'
+import { chat } from "@tanstack/ai";
+import { openaiCompatible } from "@tanstack/ai-openai/compatible";
+import { getPerplexityIntegrationHeaders } from "@tanstack/ai-perplexity";
 
 const perplexity = openaiCompatible({
-  name: 'perplexity',
-  baseURL: 'https://api.perplexity.ai',
+  name: "perplexity",
+  baseURL: "https://api.perplexity.ai",
   apiKey: process.env.PERPLEXITY_API_KEY!,
-  models: ['sonar', 'sonar-pro'],
+  models: ["sonar", "sonar-pro"],
   defaultHeaders: getPerplexityIntegrationHeaders(),
-})
+});
 
 const stream = chat({
-  adapter: perplexity('sonar'),
-  messages: [{ role: 'user', content: 'What is the latest on the Mars rover?' }],
-})
+  adapter: perplexity("sonar"),
+  messages: [{ role: "user", content: "What is the latest on the Mars rover?" }],
+  threadId: "thread-1",
+});
 ```
 
-`getPerplexityIntegrationHeaders()` is optional. It adds Perplexity's `X-Pplx-Integration` attribution header (`tanstack/<package-version>`). The Search client sends it automatically; pass it into `openaiCompatible` if you want the same header on Sonar chat requests.
+The OpenAI SDK then calls `POST https://api.perplexity.ai/chat/completions`, the OpenAI-compatible path of Sonar.
 
-The OpenAI SDK then calls `POST https://api.perplexity.ai/chat/completions` (Perplexity's OpenAI-compatible alias for Sonar).
+`getPerplexityIntegrationHeaders()` is optional. It adds the Perplexity attribution header `X-Pplx-Integration` (`tanstack/<package-version>`). The Search client sends this header by itself.
 
-## References
+## Models and options
 
-- Search quickstart: <https://docs.perplexity.ai/docs/search/quickstart>
-- Search API reference: <https://docs.perplexity.ai/api-reference/search-post>
-- Domain filters: <https://docs.perplexity.ai/docs/search/filters/domain-filter>
-- Date / recency filters: <https://docs.perplexity.ai/docs/search/filters/date-time-filters>
-- [OpenAI-compatible adapter](./openai-compatible.md) — Sonar `chat()`
+### Tool options
+
+`perplexitySearchTool(config?)` takes:
+
+- `defaultMaxResults`: the result count when the model does not send one. An integer from 1 to 20.
+- `name`: the tool name. The default is `perplexity_search`.
+- `description`: the tool description that the model sees.
+- `apiKey`, `baseURL`, `fetch`: the same as on `PerplexitySearchClient`. See [Configuration](#configuration).
+
+### Tool input
+
+The model fills these fields when it calls the tool:
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `query` | `string` (required) | The search query. |
+| `max_results` | `integer` (1 to 20) | The default is `defaultMaxResults` when set, else the API default (10). |
+| `search_domain_filter` | `string[]` | Max 20. An allowlist (`"nytimes.com"`) or a denylist (`"-pinterest.com"`), never both. Hostnames, optional paths, or TLDs. |
+| `search_recency_filter` | `"hour" \| "day" \| "week" \| "month" \| "year"` | The recency window. |
+| `search_after_date_filter` | `string` | `m/d/yyyy`. Only results on or after this date. |
+| `search_before_date_filter` | `string` | `m/d/yyyy`. Only results on or before this date. |
+
+### Tool output
+
+The tool returns `{ results: Array<{ title, url, snippet, date?, last_updated? }> }`.
+
+- `client.search()` also returns the optional response `id`.
+- Neither returns `server_time`.
+
+## Advanced
+
+### Configuration
+
+```ts
+import { PerplexitySearchClient } from "@tanstack/ai-perplexity";
+
+const client = new PerplexitySearchClient({
+  apiKey: process.env.PERPLEXITY_API_KEY, // optional, explicit key
+  baseURL: "https://api.perplexity.ai", // optional, override
+  fetch: globalThis.fetch, // optional, custom fetch
+});
+```
+
+The client calls `POST {baseURL}/search` with a bearer token.
+
+### Bring your own key
+
+`perplexityByok` from `@tanstack/ai-perplexity/byok` declares Perplexity for the BYOK store, with `PERPLEXITY_API_KEY` and `PPLX_API_KEY` as its env vars. See [Bring Your Own Key](../advanced/byok).
+
+### Perplexity references
+
+- [Search quickstart](https://docs.perplexity.ai/docs/search/quickstart)
+- [Search API reference](https://docs.perplexity.ai/api-reference/search-post)
+- [Domain filters](https://docs.perplexity.ai/docs/search/filters/domain-filter)
+- [Date and recency filters](https://docs.perplexity.ai/docs/search/filters/date-time-filters)

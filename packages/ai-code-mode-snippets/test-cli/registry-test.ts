@@ -114,6 +114,7 @@ export async function runRegistryTest(): Promise<RegistryTestResult> {
     ]
 
     const codeWithSnippetsResult = await codeModeWithSnippets({
+      threadId: 'test-cli',
       config: {
         driver,
         tools: [addNumbersTool],
@@ -268,6 +269,7 @@ export async function runRegistryTest(): Promise<RegistryTestResult> {
     logStep(2, 'Running chat with toolRegistry')
 
     const stream = chat({
+      threadId: 'test-cli',
       adapter: chatAdapter as any,
       messages: messages as any,
       toolRegistry: registry, // <-- Using the registry, not tools array!
@@ -395,6 +397,7 @@ export async function runRegistryTest(): Promise<RegistryTestResult> {
     ]
 
     const stream2 = chat({
+      threadId: 'test-cli',
       adapter: secondChatAdapter as any,
       messages: messages2 as any,
       toolRegistry: registry,

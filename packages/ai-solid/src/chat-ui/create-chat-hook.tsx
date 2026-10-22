@@ -18,10 +18,9 @@ type HeadlessOptions<TOptions> = UseChatOptions<
 >
 
 type ChatInstanceOverrides<TOptions> = {
-  threadId?: string
+  threadId: string
   live?: boolean
   forwardedProps?: Record<string, any>
-  body?: Record<string, any>
   initialMessages?: HeadlessOptions<TOptions>['initialMessages']
 }
 
@@ -33,7 +32,7 @@ type ChatInstanceOverrides<TOptions> = {
  * Context `useChatContext` reads that instance. Part and interrupt
  * widgets take `part` / `interrupt` as props.
  *
- * Pass instance overrides such as `threadId` into `useAppChat()`.
+ * Pass `threadId` and other instance overrides into `useAppChat()`.
  */
 export function createChatHook<
   const TOptions,
@@ -51,15 +50,11 @@ export function createChatHook<
     chatComponents as ChatUIFactoryConfig<NoInfer<TOptions>, TInput>,
   )
 
-  function useAppChat(overrides?: ChatInstanceOverrides<TOptions>) {
-    const chat = (
-      overrides
-        ? useUnboundChat({
-            ...(options as HeadlessOptions<TOptions>),
-            ...overrides,
-          })
-        : useUnboundChat(options as HeadlessOptions<TOptions>)
-    ) as ChatUIHost<TOptions>
+  function useAppChat(overrides: ChatInstanceOverrides<TOptions>) {
+    const chat = useUnboundChat({
+      ...(options as HeadlessOptions<TOptions>),
+      ...overrides,
+    }) as ChatUIHost<TOptions>
 
     function AppChat() {
       return <ui.Chat chat={chat} />

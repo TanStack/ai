@@ -61,7 +61,6 @@ export interface MessageStreamState {
   totalTextContent: string
   currentSegmentText: string
   lastEmittedText: string
-  hasSeenReasoningEvents: boolean
   thinkingSteps: Map<string, string>
   thinkingStepSignatures: Map<string, string>
   thinkingStepOrder: Array<string>

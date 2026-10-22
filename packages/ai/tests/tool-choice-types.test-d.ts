@@ -41,6 +41,7 @@ expectTypeOf<ToolName>().toEqualTypeOf<
 
 // A tool name of the call.
 chat({
+  threadId: 'thread-1',
   adapter,
   messages,
   tools: [getWeather, getTime],
@@ -49,6 +50,7 @@ chat({
 
 // Any other string still compiles: a provider tool or a lazy tool.
 chat({
+  threadId: 'thread-1',
   adapter,
   messages,
   tools: [getWeather],
@@ -56,8 +58,8 @@ chat({
 })
 
 // The string values, and no tools.
-chat({ adapter, messages, toolChoice: 'required' })
-chat({ adapter, messages, toolChoice: 'none' })
+chat({ threadId: 'thread-1', adapter, messages, toolChoice: 'required' })
+chat({ threadId: 'thread-1', adapter, messages, toolChoice: 'none' })
 
 chat({
   adapter,

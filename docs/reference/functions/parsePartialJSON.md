@@ -7,7 +7,7 @@ title: parsePartialJSON
 function parsePartialJSON(jsonString): any;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/json-parser.ts:56](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/json-parser.ts#L56)
+Defined in: packages/ai/src/activities/chat/stream/json-parser.ts:56
 
 Parse partial JSON string (convenience function)
 

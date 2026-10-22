@@ -2,6 +2,8 @@ import { expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai/client'
 import { normalizeConnectionAdapter, stream } from '../src/connection-adapters'
 
+const RUN_CONTEXT = { threadId: 'thread-1', runId: 'run-1' }
+
 it('waits for a slow subscriber before resolving send', async () => {
   vi.useFakeTimers()
   let release = () => {}
@@ -27,9 +29,11 @@ it('waits for a slow subscriber before resolving send', async () => {
     }
   })()
   let settled = false
-  const sending = adapter.send([]).then(() => {
-    settled = true
-  })
+  const sending = adapter
+    .send([], undefined, undefined, RUN_CONTEXT)
+    .then(() => {
+      settled = true
+    })
   try {
     await vi.advanceTimersByTimeAsync(1000)
     expect(settled).toBe(false)
@@ -60,6 +64,6 @@ it('does not wait for a subscriber that has exited', async () => {
   const consuming = (async () => {
     for await (const _chunk of adapter.subscribe()) break
   })()
-  await adapter.send([])
+  await adapter.send([], undefined, undefined, RUN_CONTEXT)
   await consuming
 })

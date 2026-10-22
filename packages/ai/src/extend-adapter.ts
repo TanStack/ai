@@ -87,7 +87,7 @@ export interface ModelCapabilities<
  * })
  * ```
  */
-// Overload 1 — legacy positional input array (unchanged behavior)
+// Overload 1 — input modalities as a positional array
 export function createModel<
   const TName extends string,
   const TInput extends ReadonlyArray<Modality>,

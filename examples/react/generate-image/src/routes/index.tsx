@@ -18,6 +18,7 @@ function ImagePage() {
   // When the stream ends, result.images holds the picture.
   const { generate, result, isLoading, error, stop, reset } = useGenerateImage({
     connection: fetchServerSentEvents('/api/generate/image'),
+    threadId: 'generate-image',
     byok,
   })
 

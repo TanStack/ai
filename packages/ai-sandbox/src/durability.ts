@@ -165,81 +165,10 @@ export function resolveDurableRunId(
 }
 
 /**
- * An ATTACHING durable run was driven without the run record's `threadId`.
- *
- * The sibling of {@link DurableRunIdRequiredError}, for the other id an attach
- * cannot mint for itself. `threadId` lands in EVERY chunk a harness adapter
- * emits (see each package's `stream/translate.ts`), so a replay that generates a
- * fresh one produces a stream that differs from the stored log in its very first
- * chunk. `alignToStoredLog` then fails at index 0 with a
- * `JournalReplayThreadIdMismatchError` — mid-stream, after the takeover has
- * already claimed the run. Refusing up front is strictly better, and mirrors
- * what `resolveDurableRunId` does for an id whose absence is equally fatal.
- *
- * Core already does its part: `startRunDriver` reads the record and hands
- * `active.threadId` to `drive({ runId, threadId, signal })`. This error exists
- * for the one gap it cannot close — application `drive` code that forgets to
- * forward it into `chat()`.
- */
-export class DurableThreadIdRequiredError extends Error {
-  constructor(readonly adapter: string) {
-    super(
-      `${adapter}: an ATTACHING durable sandboxed run requires the run record's \`threadId\`. ` +
-        `Every emitted chunk carries \`threadId\`, so an attach that generates a fresh one replays a stream whose first chunk ` +
-        `already differs from the stored log, and alignment fails at index 0 (\`JournalReplayThreadIdMismatchError\`) even though ` +
-        `the agent behaved identically. Forward the run record's \`threadId\` — the one \`sandboxRunDriver\` passes to ` +
-        `\`drive({ runId, threadId, signal })\` — into \`chat({ ... })\` on the attach route. ` +
-        `A durable FRESH run needs none: that run is what establishes the \`threadId\`.`,
-    )
-    this.name = 'DurableThreadIdRequiredError'
-  }
-}
-
-/**
- * Resolve the `threadId` a harness adapter will stamp on every chunk.
- *
- * Replaces the bare `options.threadId ?? this.generateId()` in the journaling
- * harness adapters. Only the durable-AND-attaching quadrant throws; the other
- * three keep the generated fallback and are byte-identical to before:
- *
- * | durable | attaching | behavior                                            |
- * | ------- | --------- | --------------------------------------------------- |
- * | no      | no        | fallback — a plain non-durable run                  |
- * | no      | yes       | fallback — not reachable today, and harmless anyway |
- * | yes     | no        | fallback — the FRESH run that ESTABLISHES the id    |
- * | yes     | yes       | throw {@link DurableThreadIdRequiredError}          |
- *
- * The durable-fresh row is the load-bearing one. A fresh durable run legitimately
- * mints its `threadId` (there is no record to reuse one from), so throwing on
- * `durable` alone — the obvious over-simplification — would break every durable
- * run that has ever worked. Only re-entering an existing run has an id it MUST
- * reuse, which is exactly the condition `attach` already expresses.
- *
- * As in `resolveDurableRunId`, the guard runs BEFORE `fallback()`: a generated id
- * must never be minted on this path, not even one that is then discarded.
- */
-export function resolveDurableThreadId(
-  threadId: string | undefined,
-  options: {
-    durable: boolean
-    attaching: boolean
-    adapter: string
-    fallback: () => string
-  },
-): string {
-  if (threadId !== undefined && threadId.length > 0) return threadId
-  if (options.durable && options.attaching) {
-    throw new DurableThreadIdRequiredError(options.adapter)
-  }
-  return options.fallback()
-}
-
-/**
  * An ATTACH was driven into a code path that can never replay a run.
  *
- * The third sibling of {@link DurableRunIdRequiredError} and
- * {@link DurableThreadIdRequiredError}, and the one that is not about a missing
- * id: here every id is present and the path itself is the problem.
+ * The sibling of {@link DurableRunIdRequiredError} that is not about a
+ * missing id: here every id is present and the path itself is the problem.
  *
  * `sandboxRunDriver`'s `drive()` re-invokes `chat()` with `attach: true`. On a
  * JOURNALING path that is genuinely a replay — `spawnNdjson` tails the journal

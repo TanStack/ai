@@ -2,14 +2,12 @@ import { test as base } from '@playwright/test'
 
 const AIMOCK_PORT = 4010
 
-export type AIMockFixture = {
-  testId: string
-  aimockPort: number
-}
+type TestFixtures = { testId: string }
+type WorkerFixtures = { aimockPort: number }
 
 // aimock is started in globalSetup and shared across all workers.
 // Tests only need testId (for sequenceIndex isolation) and aimockPort.
-export const test = base.extend<AIMockFixture>({
+export const test = base.extend<TestFixtures, WorkerFixtures>({
   aimockPort: [
     async ({}, use) => {
       await use(AIMOCK_PORT)

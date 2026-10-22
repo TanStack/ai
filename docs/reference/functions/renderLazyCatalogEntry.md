@@ -10,7 +10,7 @@ function renderLazyCatalogEntry(
    includeDescription?): string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/lazy-tools.ts:22](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/lazy-tools.ts#L22)
+Defined in: packages/ai/src/activities/chat/tools/lazy-tools.ts:22
 
 Render one entry in a lazy-tool catalog according to `includeDescription`.
 - 'none' (default) → bare name (preserves legacy chat behavior)

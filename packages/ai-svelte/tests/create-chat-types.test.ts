@@ -106,6 +106,7 @@ describe('createChat() return type (svelte)', () => {
       const tools = clientTools(tool)
 
       const options: CreateChatOptions<typeof tools> = {
+        threadId: 'thread-1',
         connection: {
           connect: async function* () {},
         },
@@ -136,6 +137,7 @@ describe('createChat() return type (svelte)', () => {
 
       const checkCreateChatCall = () => {
         createChat({
+          threadId: 'thread-1',
           connection: {
             connect: async function* () {},
           },
@@ -144,6 +146,7 @@ describe('createChat() return type (svelte)', () => {
         })
 
         createChat({
+          threadId: 'thread-1',
           connection: {
             connect: async function* () {},
           },
@@ -312,6 +315,7 @@ describe('createChat() registered generic interrupt types', () => {
 
     const check = () => {
       const chat = createChat({
+        threadId: 'thread-1',
         connection: { connect: async function* () {} },
         interrupts: [reviewPlan, acknowledge],
       })
@@ -359,6 +363,7 @@ describe('createChat() registered generic interrupt types', () => {
         needsApproval: true,
       }).client()
       const withoutRegistry = createChat({
+        threadId: 'thread-1',
         connection: { connect: async function* () {} },
         tools: clientTools(existingTool),
       })

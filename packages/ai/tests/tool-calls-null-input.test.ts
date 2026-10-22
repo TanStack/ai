@@ -40,7 +40,9 @@ describe('null tool input normalization', () => {
         },
       ]
 
-      const result = await drainGenerator(executeToolCalls(toolCalls, [tool]))
+      const result = await drainGenerator(
+        executeToolCalls(toolCalls, [tool], 'thread-1'),
+      )
       expect(receivedInput).toHaveBeenCalledWith({})
       expect(result.results).toHaveLength(1)
       expect(result.results[0]!.state).toBeUndefined()
@@ -66,7 +68,7 @@ describe('null tool input normalization', () => {
         },
       ]
 
-      await drainGenerator(executeToolCalls(toolCalls, [tool]))
+      await drainGenerator(executeToolCalls(toolCalls, [tool], 'thread-1'))
       expect(receivedInput).toHaveBeenCalledWith({})
     })
 
@@ -93,7 +95,7 @@ describe('null tool input normalization', () => {
         },
       ]
 
-      await drainGenerator(executeToolCalls(toolCalls, [tool]))
+      await drainGenerator(executeToolCalls(toolCalls, [tool], 'thread-1'))
       expect(receivedInput).toHaveBeenCalledWith({ location: 'NYC' })
     })
   })

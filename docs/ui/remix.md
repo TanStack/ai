@@ -2,7 +2,7 @@
 title: Remix Chat UI
 id: typed-headless-ui-remix
 order: 7
-description: "Build a typed, headless Remix 3 chat UI with createChatHook. Widgets are Remix setup functions."
+description: "Render a streaming chat in Remix 3 with your own components. createChatHook types every tool, part, and interrupt, and widgets are Remix setup functions."
 keywords:
   - tanstack ai
   - createChatHook
@@ -11,17 +11,45 @@ keywords:
   - ToolProps
 ---
 
-Install `@tanstack/ai-remix`. Import the UI factory from `@tanstack/ai-remix/ui`. Call `createChatHook({ options, ...components })` once at module scope. Your app calls `createAppChat(handle)` in a Remix setup function. Render `<ui.Chat chat={chat} />`.
+`createChatHook` from `@tanstack/ai-remix/ui` binds your chat options and components once. Tool calls and approvals stay typed.
 
-The factory needs a `toolsComponents` entry for every tool name in `chatOptions`. It also needs an `interruptsComponents.generic` entry for every interrupt id. `generic.fallback` is optional. Widgets go in `components`, `partsComponents`, `toolsComponents`, and `interruptsComponents`, the same way Form and Table register components.
+Each screen then creates a chat with `createAppChat(handle, { threadId })` and renders it with `ui.Chat`. Each widget is a Remix setup function that reads `handle.props`. You supply every visible component. There is no default markup or style.
 
-Each widget is a Remix setup function. Read props from `handle.props`. If a widget needs live chat, call `useChatContext(handle)` in setup.
+## Quick setup
 
-The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI text adapter.
+1. Install the packages:
 
-The [chat UI recipes](./recipes/index) show the same option groups one at a time. The code there is React, and the shape carries over.
+<!-- ::start:tabs variant="package-manager" mode="install" -->
 
-## Client
+remix: @tanstack/ai @tanstack/ai-remix @tanstack/ai-openai remix
+
+<!-- ::end:tabs -->
+
+2. Put `OPENAI_API_KEY` in your server environment. Then add a `POST` route at `/api/chat`:
+
+```ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
+
+  const stream = chat({
+    adapter: openaiText('gpt-6.1-sol'),
+    messages,
+    threadId,
+    runId,
+  })
+
+  return toServerSentEventsResponse(stream)
+}
+```
+
+3. Create `app/chat.tsx`:
 
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-remix'
@@ -30,22 +58,11 @@ import {
   type LayoutProps,
   type MessageProps,
   type PartProps,
-  type ToolProps,
 } from '@tanstack/ai-remix/ui'
-import { toolDefinition } from '@tanstack/ai'
-import { clientEntry, type Handle } from 'remix/ui'
-import { z } from 'zod'
-
-const getWeather = toolDefinition({
-  name: 'getWeather',
-  description: 'Look up weather',
-  inputSchema: z.object({ city: z.string() }),
-  outputSchema: z.object({ temperature: z.number() }),
-}).client()
+import { clientEntry, on, type Handle } from 'remix/ui'
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
-  tools: [getWeather],
 }
 
 const { createAppChat, ui } = createChatHook({
@@ -53,22 +70,19 @@ const { createAppChat, ui } = createChatHook({
   components: {
     layout(handle: Handle<LayoutProps<typeof chatOptions>>) {
       return () => {
-        const { Messages, Interrupts, Queue, Input } = handle.props
+        const { Messages } = handle.props
         return (
-          <main>
+          <section>
             <Messages />
-            <Interrupts />
-            <Queue />
-            <Input />
-          </main>
+          </section>
         )
       }
     },
     message(handle: Handle<MessageProps<typeof chatOptions>>) {
       return () => {
-        const { Parts } = handle.props
+        const { message, Parts } = handle.props
         return (
-          <article>
+          <article data-role={message.role}>
             <Parts />
           </article>
         )
@@ -76,13 +90,11 @@ const { createAppChat, ui } = createChatHook({
     },
   },
   partsComponents: {
-    fallback(handle: Handle<PartProps<typeof chatOptions>>) {
-      return () => <span>{handle.props.part.type}</span>
+    text(handle: Handle<PartProps<typeof chatOptions, 'text'>>) {
+      return () => <p>{handle.props.part.content}</p>
     },
-  },
-  toolsComponents: {
-    getWeather(handle: Handle<ToolProps<typeof chatOptions, 'getWeather'>>) {
-      return () => <strong>{handle.props.part.input?.city}</strong>
+    fallback() {
+      return () => null
     },
   },
 })
@@ -90,59 +102,203 @@ const { createAppChat, ui } = createChatHook({
 export const ChatScreen = clientEntry(
   import.meta.url,
   function ChatScreen(handle: Handle) {
-    const chat = createAppChat(handle)
-    return () => <ui.Chat chat={chat} />
+    const chat = createAppChat(handle, { threadId: 'support-chat' })
+
+    return () => (
+      <main>
+        <ui.Chat chat={chat} />
+        <form
+          mix={on('submit', (event) => {
+            event.preventDefault()
+            const form = event.currentTarget
+            const text = String(new FormData(form).get('message') ?? '').trim()
+            if (text === '') {
+              return
+            }
+            form.reset()
+            void chat.sendMessage(text)
+          })}
+        >
+          <input name="message" />
+          <button type="submit">Send</button>
+        </form>
+      </main>
+    )
   },
 )
 ```
 
-`layout` receives these components. Render them as tags, not as calls:
+4. Render `<ChatScreen />` and send a message.
 
-- `Messages`
-- `Interrupts`
-- `Queue`
-- `Input`
+The reply streams into the page as the model writes it.
 
-Register `input` on `components` to draw the composer. Until then, `Input` renders nothing. Register `queue` on `components` to draw pending sends. Call `item.cancelQueued()` on a queue item to drop it. `message` receives `Parts`. A tool with an approval receives prop `interrupt`.
+## How it works
 
-## Type a component in its own file
+- `createChatHook` runs once, at module scope. It binds `chatOptions` to your components. It returns `ui`, the kit with `ui.Chat`.
+- `createAppChat(handle, { threadId })` creates one chat instance inside a setup function. `ui.Chat` renders that instance with your components.
+- `layout` places the message list. `message` wraps one message. `Parts` picks a component for each part of that message.
+- `partsComponents.text` renders text. `fallback` catches every part type that you did not register.
 
-Type the `handle.props` of a tool file with `ToolProps`. Share the same `chatOptions` module that you pass to `createChatHook`.
+Render `Messages` and `Parts` as tags, such as `<Messages />`, not as function calls.
 
-```tsx
+## Next steps
+
+Each step adds one thing to the quick setup. The [chat UI recipes](./recipes/index) have the full file for each one. The recipes use React, and the option names are the same in Remix.
+
+### Render a tool
+
+Add the tool to `tools` in `chatOptions`. Then register a component under the tool name in `toolsComponents`. Type its handle with `ToolProps`:
+
+```tsx ignore
+toolsComponents: {
+  getWeather(handle: Handle<ToolProps<typeof chatOptions, 'getWeather'>>) {
+    return () => {
+      const { part } = handle.props
+      if (part.state !== 'complete') return <p>Looking up weather</p>
+      return (
+        <p>
+          {part.input?.city}: {part.output?.temperature}
+        </p>
+      )
+    }
+  },
+},
+```
+
+The factory needs one entry for every tool in `chatOptions`. Full example: [Make a tool look right](./recipes/format-a-tool).
+
+### Ask before a tool runs
+
+Set `needsApproval: true` on the tool. The tool component then gets an `interrupt` prop:
+
+```tsx ignore
+toolsComponents: {
+  deleteFile(handle: Handle<ToolProps<typeof chatOptions, 'deleteFile'>>) {
+    return () => {
+      const { part, interrupt } = handle.props
+      if (interrupt?.status !== 'pending') return <p>{part.input?.path}</p>
+      return (
+        <button
+          mix={on('click', () => interrupt.resolveInterrupt(true))}
+        >
+          Delete {part.input?.path}
+        </button>
+      )
+    }
+  },
+},
+```
+
+`resolveInterrupt(true)` approves. `resolveInterrupt(false)` denies. Full example: [Ask before a tool runs](./recipes/tool-approval).
+
+### Ask the user your own question
+
+Define the question with `defineInterrupt`. Add it to `interrupts` in `chatOptions`. Register a component under its id in `interruptsComponents.generic`, and render `Interrupts` in the layout:
+
+```tsx ignore
+const choosePlan = defineInterrupt({
+  id: 'choosePlan',
+  payloadSchema: z.object({ title: z.string() }),
+  responseSchema: z.string(),
+})
+
+// In createChatHook:
+interruptsComponents: {
+  generic: {
+    choosePlan(
+      handle: Handle<InterruptProps<typeof chatOptions, 'choosePlan'>>,
+    ) {
+      return () => {
+        const { interrupt } = handle.props
+        return (
+          <button mix={on('click', () => interrupt.resolveInterrupt('pro'))}>
+            {interrupt.payload?.title}
+          </button>
+        )
+      }
+    },
+  },
+},
+```
+
+The factory needs one entry for every interrupt id in `chatOptions`. Full example: [Ask the user your own question](./recipes/custom-interrupt).
+
+### Read chat state inside a widget
+
+Mapped components do not get `chat` as a prop. Import `ui` and call `ui.useChatContext(handle)` inside the widget. This also moves the composer into the layout. Create `app/chat-input.tsx`:
+
+```tsx ignore
+import { on, type Handle, type RemixNode } from 'remix/ui'
+import { ui } from './chat'
+
+export function ChatInput(handle: Handle): () => RemixNode {
+  const chat = ui.useChatContext(handle)
+
+  return () => (
+    <form
+      mix={on('submit', (event) => {
+        event.preventDefault()
+        const form = event.currentTarget
+        const text = String(new FormData(form).get('message') ?? '').trim()
+        if (text === '') {
+          return
+        }
+        form.reset()
+        void chat.sendMessage(text)
+      })}
+    >
+      <input name="message" disabled={chat.isLoading} />
+      <button type="submit">Send</button>
+    </form>
+  )
+}
+```
+
+Then:
+
+1. Export `ui` from `app/chat.tsx`.
+2. Register `input: ChatInput` on `components`.
+3. Render `<Input />` in the layout, from `handle.props`.
+4. Remove the form from `ChatScreen`.
+
+The return type on `ChatInput` stops a circular type between the widget and the `ui` that registers it. Call `ui.useChatContext(handle)` only under `ui.Chat` or `ui.Provider`. A call outside that tree throws.
+
+### Render markdown
+
+`TextPart` from `@tanstack/ai-remix/ui` renders the content as plain text, with no markdown. To render markdown, render `part.content` in your own text part with the markdown library of your choice.
+
+### Type a widget in its own file
+
+Type the `handle.props` of a widget with `ToolProps`, `PartProps`, `InterruptProps`, `LayoutProps`, or `MessageProps`. Pass `typeof chatOptions` and a name. Share `chatOptions` from its own module:
+
+```tsx ignore
 import type { ToolProps } from '@tanstack/ai-remix/ui'
 import type { Handle } from 'remix/ui'
 import { chatOptions } from './chat-options'
 
-export function getWeather(handle: Handle<ToolProps<typeof chatOptions, 'getWeather'>>) {
+export function WeatherTool(
+  handle: Handle<ToolProps<typeof chatOptions, 'getWeather'>>,
+) {
   return () => <strong>{handle.props.part.input?.city}</strong>
 }
 ```
 
-Part components use `PartProps<typeof chatOptions, 'text'>`. Then `part` is already a text part.
+You now have a typed chat UI in Remix. Each widget is your own component.
 
-Interrupt components use `InterruptProps<typeof chatOptions, 'choosePlan'>`. Then `interrupt.payload` matches the definition.
+## Advanced
 
-Mapped components do not receive `chat` as a prop. If a component needs live chat, call `ui.useChatContext(handle)`.
+### Slots and props
 
-## Read chat from `ui.useChatContext(handle)`
+The config keys, part keys, and prop types are the same as in React. See [Every widget slot](./react#every-widget-slot). In Remix, `layout` gets `Messages`, `Interrupts`, `Queue`, and `Input`. If you render `Input` with no registered `input`, it renders nothing and warns once in development.
 
-Import the same `ui` kit in a child file. Call `ui.useChatContext(handle)` only under `ui.Chat` or `ui.Provider`. Call it in setup, not in the render function.
+`createAppChat(handle, overrides)` takes per-instance options: `threadId` (required), `initialMessages`, `live`, and `forwardedProps`.
 
-```tsx
-import { ui } from './chat-ui'
-import type { Handle } from 'remix/ui'
+### Approvals and generic interrupts
 
-function MessageCount(handle: Handle) {
-  const chat = ui.useChatContext(handle)
-  return () => <p>{chat.messages.length} messages</p>
-}
-```
+- A tool approval renders in the tool when you read the `interrupt` prop.
+- To show it in the list instead, register a component under `interruptsComponents.tools` and render `Interrupts`.
+- Generic interrupts always render in the list. `generic.fallback` renders an unregistered id and an unbound interrupt. If the copy must be different, branch on `interrupt.kind === 'unbound'`.
 
-`createAppChat(handle)` owns the state. `ui.useChatContext(handle)` reads the instance you passed into `ui.Chat`. A call outside that tree throws.
+### Show queued messages
 
-## Interrupts
-
-Tool approvals sit in the tool when you read the `interrupt` prop. Put a component on `interruptsComponents.tools` to send that approval to the list instead. Generic interrupts always sit in the list under `interruptsComponents.generic`: `{ choosePlan, fallback }`. An unbound interrupt uses `fallback`. If the copy must differ, branch on `interrupt.kind === 'unbound'`.
-
-The full map is on the [React page](./react).
+Register `queue` on `components`, then render `<Queue />` in the layout. A queue component gets one `item`. Call `item.cancelQueued()` to drop it.

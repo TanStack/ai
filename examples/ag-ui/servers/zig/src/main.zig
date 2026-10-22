@@ -203,9 +203,6 @@ fn handleChat(allocator: std.mem.Allocator, io: Io, request: *std.http.Server.Re
         const frame = try agui.runError(allocator, input.threadId, input.runId, message);
         defer allocator.free(frame);
         try agui.writeSse(&response, frame);
-        const done = try agui.sseDone(allocator);
-        defer allocator.free(done);
-        try agui.writeSse(&response, done);
         try response.end();
         return;
     };
@@ -218,9 +215,6 @@ fn handleChat(allocator: std.mem.Allocator, io: Io, request: *std.http.Server.Re
     defer allocator.free(finished);
     try agui.writeSse(&response, finished);
 
-    const done = try agui.sseDone(allocator);
-    defer allocator.free(done);
-    try agui.writeSse(&response, done);
     try response.end();
 }
 
@@ -251,8 +245,5 @@ fn streamErrorOnly(
     defer allocator.free(frame);
     try agui.writeSse(&response, frame);
 
-    const done = try agui.sseDone(allocator);
-    defer allocator.free(done);
-    try agui.writeSse(&response, done);
     try response.end();
 }

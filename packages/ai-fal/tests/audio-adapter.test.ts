@@ -56,6 +56,7 @@ describe('Fal Audio Adapter', () => {
     const adapter = createAdapter()
 
     const result = await generateAudio({
+      threadId: 'thread-1',
       adapter,
       prompt: 'An upbeat electronic track with synths',
       modelOptions: {
@@ -90,6 +91,7 @@ describe('Fal Audio Adapter', () => {
     const adapter = createAdapter()
 
     const result = await generateAudio({
+      threadId: 'thread-1',
       adapter,
       prompt: 'A calm piano piece',
       modelOptions: {
@@ -113,6 +115,7 @@ describe('Fal Audio Adapter', () => {
     const adapter = createAdapter()
 
     await generateAudio({
+      threadId: 'thread-1',
       adapter,
       prompt: 'Test audio',
       duration: 30,
@@ -143,6 +146,7 @@ describe('Fal Audio Adapter', () => {
     const adapter = falAudio('fal-ai/minimax-music/v2', { apiKey: 'test-key' })
 
     await generateAudio({
+      threadId: 'thread-1',
       adapter,
       prompt: 'Upbeat synth pop',
       modelOptions: {
@@ -168,6 +172,7 @@ describe('Fal Audio Adapter', () => {
     const adapter = createAdapter()
 
     const result = await generateAudio({
+      threadId: 'thread-1',
       adapter,
       prompt: 'Explosion sound effect',
       modelOptions: {
@@ -188,6 +193,7 @@ describe('Fal Audio Adapter', () => {
 
     await expect(
       generateAudio({
+        threadId: 'thread-1',
         adapter,
         prompt: 'Test',
         modelOptions: {
@@ -206,6 +212,7 @@ describe('Fal Audio Adapter', () => {
     const adapter = falAudio('fal-ai/elevenlabs/music', { apiKey: 'test-key' })
 
     await generateAudio({
+      threadId: 'thread-1',
       adapter,
       prompt: 'Lo-fi hip-hop',
       duration: 30,
@@ -230,6 +237,7 @@ describe('Fal Audio Adapter', () => {
     })
 
     await generateAudio({
+      threadId: 'thread-1',
       adapter,
       prompt: 'Ambient drone',
       duration: 12,
@@ -252,6 +260,7 @@ describe('Fal Audio Adapter', () => {
     const adapter = falAudio('fal-ai/elevenlabs/music', { apiKey: 'test-key' })
 
     await generateAudio({
+      threadId: 'thread-1',
       adapter,
       prompt: 'Piano loop',
       duration: 30,
@@ -295,6 +304,7 @@ describe('Fal Audio Adapter', () => {
     const adapter = createAdapter()
 
     const result = await generateAudio({
+      threadId: 'thread-1',
       adapter,
       prompt: 'No content type on response',
       modelOptions: { lyrics_prompt: DEFAULT_LYRICS },
@@ -314,6 +324,7 @@ describe('Fal Audio Adapter', () => {
     const adapter = createAdapter()
 
     const result = await generateAudio({
+      threadId: 'thread-1',
       adapter,
       prompt: 'URL without extension',
       modelOptions: { lyrics_prompt: DEFAULT_LYRICS },
@@ -336,6 +347,7 @@ describe('Fal Audio Adapter', () => {
     const adapter = createAdapter()
 
     const result = await generateAudio({
+      threadId: 'thread-1',
       adapter,
       prompt: 'Stripped content type',
       modelOptions: { lyrics_prompt: DEFAULT_LYRICS },
@@ -357,6 +369,7 @@ describe('Fal Audio Adapter', () => {
     })
 
     const result = await generateAudio({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       prompt: 'billed track',
       modelOptions: { lyrics_prompt: DEFAULT_LYRICS },
@@ -367,7 +380,6 @@ describe('Fal Audio Adapter', () => {
       completionTokens: 0,
       totalTokens: 0,
       billed: { quantity: 2.5, unit: 'units' },
-      unitsBilled: 2.5,
     })
   })
 
@@ -383,6 +395,7 @@ describe('Fal Audio Adapter', () => {
     })
 
     const result = await generateAudio({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       prompt: 'unbilled track',
       modelOptions: { lyrics_prompt: DEFAULT_LYRICS },

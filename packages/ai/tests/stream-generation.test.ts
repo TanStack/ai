@@ -49,6 +49,7 @@ describe('generateImage({ stream: true })', () => {
 
     const chunks = await collectChunks(
       generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A beautiful sunset',
         stream: true,
@@ -86,6 +87,7 @@ describe('generateImage({ stream: true })', () => {
 
     const chunks = await collectChunks(
       generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A beautiful sunset',
         stream: true,
@@ -117,6 +119,7 @@ describe('generateImage({ stream: true })', () => {
 
     const chunks = await collectChunks(
       generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'Multiple images',
         stream: true,
@@ -138,6 +141,7 @@ describe('generateImage({ stream: true })', () => {
 
     const chunks = await collectChunks(
       generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'Timestamp test',
         stream: true,
@@ -203,7 +207,7 @@ describe('generateVideo({ stream: true })', () => {
         }
       }),
 
-      getVideoUrl: vi.fn(async () => ({
+      getVideo: vi.fn(async () => ({
         jobId: 'job-123',
         url: 'https://example.com/video.mp4',
         expiresAt: new Date('2030-01-01'),
@@ -216,6 +220,7 @@ describe('generateVideo({ stream: true })', () => {
 
     const chunks = await collectChunks(
       generateVideo({
+        threadId: 'thread-1',
         adapter,
         prompt: 'test',
         stream: true,
@@ -259,6 +264,7 @@ describe('generateVideo({ stream: true })', () => {
 
     const chunks = await collectChunks(
       generateVideo({
+        threadId: 'thread-1',
         adapter,
         prompt: 'test',
         stream: true,
@@ -280,6 +286,7 @@ describe('generateVideo({ stream: true })', () => {
 
     await collectChunks(
       generateVideo({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A flying car',
         size: '1280x720',
@@ -305,6 +312,7 @@ describe('generateVideo({ stream: true })', () => {
 
     const chunks = await collectChunks(
       generateVideo({
+        threadId: 'thread-1',
         adapter,
         prompt: 'test',
         stream: true,
@@ -328,6 +336,7 @@ describe('generateVideo({ stream: true })', () => {
 
     const chunks = await collectChunks(
       generateVideo({
+        threadId: 'thread-1',
         adapter,
         prompt: 'test',
         stream: true,
@@ -348,14 +357,15 @@ describe('generateVideo({ stream: true })', () => {
     }
   })
 
-  it('should emit RUN_ERROR when getVideoUrl throws after completed status', async () => {
+  it('should emit RUN_ERROR when getVideo throws after completed status', async () => {
     const adapter = createMockVideoAdapter({ pollsBeforeComplete: 1 })
-    adapter.getVideoUrl = vi.fn(async () => {
+    adapter.getVideo = vi.fn(async () => {
       throw new Error('Failed to retrieve video URL')
     })
 
     const chunks = await collectChunks(
       generateVideo({
+        threadId: 'thread-1',
         adapter,
         prompt: 'test',
         stream: true,
@@ -380,6 +390,7 @@ describe('generateVideo({ stream: true })', () => {
 
     const chunks = await collectChunks(
       generateVideo({
+        threadId: 'thread-1',
         adapter,
         prompt: 'test',
         stream: true,
@@ -403,6 +414,7 @@ describe('generateVideo({ stream: true })', () => {
 
     const chunks = await collectChunks(
       generateVideo({
+        threadId: 'thread-1',
         adapter,
         prompt: 'test',
         stream: true,
@@ -451,6 +463,7 @@ describe('generateSpeech({ stream: true })', () => {
 
     const chunks = await collectChunks(
       generateSpeech({
+        threadId: 'thread-1',
         adapter,
         text: 'Hello world',
         stream: true,
@@ -491,6 +504,7 @@ describe('generateSpeech({ stream: true })', () => {
 
     const chunks = await collectChunks(
       generateSpeech({
+        threadId: 'thread-1',
         adapter,
         text: 'Hello world',
         stream: true,
@@ -540,6 +554,7 @@ describe('generateTranscription({ stream: true })', () => {
 
     const chunks = await collectChunks(
       generateTranscription({
+        threadId: 'thread-1',
         adapter,
         audio: 'base64-audio-data',
         stream: true,
@@ -579,6 +594,7 @@ describe('generateTranscription({ stream: true })', () => {
 
     const chunks = await collectChunks(
       generateTranscription({
+        threadId: 'thread-1',
         adapter,
         audio: 'base64-audio-data',
         stream: true,

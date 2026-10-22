@@ -96,11 +96,7 @@ export type {
 } from './reconstruct-generation'
 
 // Server helpers: retrieve a persisted generation artifact + its bytes
-export {
-  retrieveArtifact,
-  retrieveBlob,
-  resolveArtifactBlobKey,
-} from './retrieve'
+export { retrieveArtifact, retrieveBlob } from './retrieve'
 
 // Byte-range helpers: parse a `Range` header (routes), clamp a range to an
 // object's real size (store authors)

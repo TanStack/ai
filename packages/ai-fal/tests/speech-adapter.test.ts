@@ -77,6 +77,7 @@ describe('Fal Speech Adapter', () => {
     const adapter = createAdapter()
 
     const result = await generateSpeech({
+      threadId: 'thread-1',
       adapter,
       text: 'Hello, world!',
       modelOptions: {
@@ -108,6 +109,7 @@ describe('Fal Speech Adapter', () => {
     const adapter = createAdapter()
 
     await generateSpeech({
+      threadId: 'thread-1',
       adapter,
       text: 'Test speech',
       voice: 'af_heart',
@@ -132,6 +134,7 @@ describe('Fal Speech Adapter', () => {
     const adapter = createAdapter()
 
     await generateSpeech({
+      threadId: 'thread-1',
       adapter,
       text: 'Test speech',
       modelOptions: {
@@ -157,6 +160,7 @@ describe('Fal Speech Adapter', () => {
 
     await expect(
       generateSpeech({
+        threadId: 'thread-1',
         adapter,
         text: 'Test',
         modelOptions: {
@@ -177,6 +181,7 @@ describe('Fal Speech Adapter', () => {
     const adapter = createAdapter()
 
     const result = await generateSpeech({
+      threadId: 'thread-1',
       adapter,
       text: 'Test',
       modelOptions: {
@@ -210,6 +215,7 @@ describe('Fal Speech Adapter', () => {
     const adapter = createAdapter()
 
     const result = await generateSpeech({
+      threadId: 'thread-1',
       adapter,
       text: 'Long speech',
       modelOptions: { audio_url: REFERENCE_AUDIO },
@@ -258,6 +264,7 @@ describe('Fal Speech Adapter', () => {
 
     await expect(
       generateSpeech({
+        threadId: 'thread-1',
         adapter,
         text: 'Test',
         modelOptions: { audio_url: REFERENCE_AUDIO },
@@ -280,6 +287,7 @@ describe('Fal Speech Adapter', () => {
     const adapter = createAdapter()
 
     const result = await generateSpeech({
+      threadId: 'thread-1',
       adapter,
       text: 'Test',
       modelOptions: { audio_url: REFERENCE_AUDIO },
@@ -307,6 +315,7 @@ describe('Fal Speech Adapter', () => {
     const adapter = createAdapter()
 
     const result = await generateSpeech({
+      threadId: 'thread-1',
       adapter,
       text: 'Test',
       modelOptions: { audio_url: REFERENCE_AUDIO },
@@ -329,6 +338,7 @@ describe('Fal Speech Adapter', () => {
     })
 
     const result = await generateSpeech({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       text: 'billed speech',
       modelOptions: { audio_url: REFERENCE_AUDIO },
@@ -339,7 +349,6 @@ describe('Fal Speech Adapter', () => {
       completionTokens: 0,
       totalTokens: 0,
       billed: { quantity: 3, unit: 'units' },
-      unitsBilled: 3,
     })
   })
 
@@ -355,6 +364,7 @@ describe('Fal Speech Adapter', () => {
     })
 
     const result = await generateSpeech({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       text: 'unbilled speech',
       modelOptions: { audio_url: REFERENCE_AUDIO },

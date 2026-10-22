@@ -130,7 +130,10 @@ function createRunContextCaptureAdapter(chunks: Array<StreamChunk>): {
 describe('injectGeneration', () => {
   it('initializes idle with a fetcher and generates a result', async () => {
     const fetcher = vi.fn(async () => ({ value: 42 }))
-    const { result, flush } = renderInjectGeneration({ fetcher })
+    const { result, flush } = renderInjectGeneration({
+      fetcher,
+      threadId: 'thread-1',
+    })
 
     expect(result.status()).toBe('idle')
     expect(result.result()).toBeNull()
@@ -142,11 +145,14 @@ describe('injectGeneration', () => {
   })
 
   it('throws without connection or fetcher', () => {
-    expect(() => renderInjectGeneration({})).toThrow()
+    expect(() => renderInjectGeneration({ threadId: 'thread-1' })).toThrow(
+      /connection or fetcher/i,
+    )
   })
 
   it('transforms the result when onResult returns a value', async () => {
     const { result, flush } = renderInjectGeneration({
+      threadId: 'thread-1',
       fetcher: async () => ({ id: '1', audio: 'base64data' }),
       onResult: (raw: { id: string; audio: string }) => ({
         playable: raw.audio.length > 0,

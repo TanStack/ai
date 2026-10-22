@@ -9,12 +9,16 @@ keywords:
   - modelOptions
 ---
 
-Your `modelOptions` has a reasoning field, like `reasoning: { effort }`, `thinking`, or `thinkingConfig`, and now it does not type-check. That field moved to one option on `chat()`: `reasoning`. It takes a level (`off` to `max`) or `{ level, summary, budgetTokens }`.
+Move `reasoning`, `thinking`, and `thinkingConfig` out of `modelOptions`. Pass `reasoning` to `chat()` as a level, or as `{ level, summary, budgetTokens }`.
 
-## Move it
+## Upgrade
 
 1. Delete the reasoning field from `modelOptions`.
-2. Set `reasoning` on `chat()`.
+2. Set `reasoning` on `chat()`. Find the old field of your adapter in the [table below](#adapter-by-adapter).
+3. If you set a token budget, move it to `budgetTokens`. See [Budgets](#budgets).
+4. Run your type checker.
+
+There is no codemod for this change.
 
 ```typescript ignore
 // Before
@@ -35,11 +39,12 @@ const messages = [{ role: "user" as const, content: "Hello" }];
 chat({
   adapter: openaiText("gpt-6.1-sol"),
   messages,
+  threadId: "thread-1",
   reasoning: "high",
 });
 ```
 
-The thinking text streams by default. Want it hidden? Pass `reasoning: { level: "high", summary: false }`.
+The thinking text streams by default. To hide it, pass `reasoning: { level: "high", summary: false }`.
 
 ## Adapter by adapter
 
@@ -57,7 +62,7 @@ The thinking text streams by default. Want it hidden? Pass `reasoning: { level: 
 | `ollamaText` | `think` | `reasoning: "high"`, or `"off"` |
 | `codexText` | `modelReasoningEffort` | `reasoning: "high"` |
 
-`"high"` is an example. Use any level that your model has. The types show which ones.
+`"high"` is an example. Use any level that your model has. The types show the levels of your model.
 
 ## Budgets
 
@@ -78,6 +83,7 @@ const messages = [{ role: "user" as const, content: "Hello" }];
 chat({
   adapter: anthropicText("claude-haiku-4-5"),
   messages,
+  threadId: "thread-1",
   reasoning: { level: "high", budgetTokens: 8000 },
 });
 ```
@@ -100,11 +106,12 @@ chat({
     deploymentName: "prod-chat",
   }),
   messages,
+  threadId: "thread-1",
   reasoning: "high",
 });
 ```
 
-Pass only a deployment name as the model, and the adapter has no levels for it. Then `reasoning` is a type error. Pass the OpenAI model name and set `deploymentName`.
+If you pass only a deployment name as the model, the adapter has no levels for it, and `reasoning` is a type error. Pass the OpenAI model name, and set `deploymentName`.
 
 ## Codex
 
@@ -118,4 +125,6 @@ Pass only a deployment name as the model, and the adapter has no levels for it. 
 - `@tanstack/ai-grok`: `GrokReasoning`, `GrokReasoningEffort`, `GrokBuildProviderOptions`.
 - `@tanstack/ai-openrouter`: `ReasoningOptions`. `@tanstack/ai-byteplus`: `BytePlusThinkingOption`, `BytePlusReasoningEffort`.
 
-Done. Your reasoning now works the same on every provider. See [Reasoning](../chat/reasoning) for levels, budgets, and middleware.
+## Done
+
+Your type checker passes, and no `modelOptions` has a reasoning field. One `reasoning` option now sets reasoning on every provider. For levels, budgets, and middleware, see [Reasoning](../chat/reasoning).

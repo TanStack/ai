@@ -38,6 +38,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages,
+    threadId: session.threadId,
     context: { session },
     middleware: [
       memoryMiddleware({

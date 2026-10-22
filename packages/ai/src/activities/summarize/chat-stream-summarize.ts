@@ -403,10 +403,10 @@ export class ChatStreamSummarizeAdapter<
       modelOptions,
       logger: options.logger,
       // Forward the run identity so the wrapped chat stamps it onto RUN_STARTED
-      // (chat uses `runId` as its `runIdOverride`). Conditional spreads keep the
-      // fields absent when unset, under `exactOptionalPropertyTypes`.
+      // (chat uses `runId` as its `runIdOverride`). The conditional spread keeps
+      // `runId` absent when unset, under `exactOptionalPropertyTypes`.
       ...(options.runId !== undefined ? { runId: options.runId } : {}),
-      ...(options.threadId !== undefined ? { threadId: options.threadId } : {}),
+      threadId: options.threadId,
     }
   }
 

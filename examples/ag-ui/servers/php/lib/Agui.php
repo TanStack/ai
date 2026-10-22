@@ -44,11 +44,6 @@ function sse_event(array $payload): string
     return 'data: ' . json_encode($payload, JSON_UNESCAPED_UNICODE) . "\n\n";
 }
 
-function sse_done(): string
-{
-    return "data: [DONE]\n\n";
-}
-
 function run_started(string $threadId, string $runId): string
 {
     return sse_event([
@@ -152,11 +147,9 @@ function stream_text(
         $stream($emit);
         write_sse(text_message_end($messageId));
         write_sse(run_finished($threadId, $runId));
-        write_sse(sse_done());
     } catch (Throwable $error) {
         error_log('[php] chat error: ' . $error->getMessage());
         write_sse(run_error($threadId, $runId, $error->getMessage()));
-        write_sse(sse_done());
     }
 }
 
@@ -165,5 +158,4 @@ function stream_error_only(string $threadId, string $runId, string $message): vo
     begin_sse();
     write_sse(run_started($threadId, $runId));
     write_sse(run_error($threadId, $runId, $message));
-    write_sse(sse_done());
 }

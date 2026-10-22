@@ -72,24 +72,20 @@ const handleModelChange = (e: Event) => {
 }
 
 // Chat setup
-const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
-  useChat({
-    connection: fetchServerSentEvents('/api/chat'),
-    tools,
-    get body() {
-      return {
-        provider: selectedModel.value.provider,
-        model: selectedModel.value.model,
-      }
-    },
-  })
+const { messages, sendMessage, isLoading, interrupts, stop } = useChat({
+  connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'guitar-chat',
+  tools,
+  get forwardedProps() {
+    return {
+      provider: selectedModel.value.provider,
+      model: selectedModel.value.model,
+    }
+  },
+})
 
 const handleSend = (message: string) => {
   sendMessage(message)
-}
-
-const handleApprove = (response: { id: string; approved: boolean }) => {
-  addToolApprovalResponse(response)
 }
 </script>
 
@@ -122,7 +118,38 @@ const handleApprove = (response: { id: string; approved: boolean }) => {
         </div>
       </div>
 
-      <Messages :messages="messages" @approve="handleApprove" />
+      <Messages :messages="messages" />
+
+      <!-- Tool approvals render from the bound `interrupts` list. -->
+      <template v-for="interrupt in interrupts" :key="interrupt.id">
+        <div
+          v-if="interrupt.kind === 'tool-approval'"
+          class="mx-4 mb-2 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg"
+        >
+          <p class="text-white font-medium mb-2">
+            🔒 Approval Required: {{ interrupt.toolName }}
+          </p>
+          <div class="text-gray-300 text-sm mb-3">
+            <pre class="bg-gray-800 p-2 rounded text-xs overflow-x-auto">{{
+              JSON.stringify(interrupt.originalArgs, null, 2)
+            }}</pre>
+          </div>
+          <div class="flex gap-2">
+            <button
+              @click="interrupt.resolveInterrupt(true)"
+              class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              ✓ Approve
+            </button>
+            <button
+              @click="interrupt.resolveInterrupt(false)"
+              class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              ✗ Deny
+            </button>
+          </div>
+        </div>
+      </template>
 
       <ChatInput :is-loading="isLoading" @send="handleSend" @stop="stop" />
     </div>

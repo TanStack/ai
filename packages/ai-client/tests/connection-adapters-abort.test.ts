@@ -5,6 +5,8 @@ import {
 } from '../src/connection-adapters'
 import type { StreamChunk } from '@tanstack/ai/client'
 
+const RUN_CONTEXT = { threadId: 'thread-1', runId: 'run-1' }
+
 describe('Connection Adapters - Abort Signal Handling', () => {
   let originalFetch: typeof fetch
   let fetchMock: ReturnType<typeof vi.fn>
@@ -43,6 +45,7 @@ describe('Connection Adapters - Abort Signal Handling', () => {
         [{ role: 'user', content: 'Hello' }],
         undefined,
         abortSignal,
+        RUN_CONTEXT,
       )
 
       // Consume generator to trigger fetch
@@ -78,6 +81,7 @@ describe('Connection Adapters - Abort Signal Handling', () => {
         [{ role: 'user', content: 'Hello' }],
         undefined,
         providedSignal,
+        RUN_CONTEXT,
       )
 
       for await (const _ of generator) {
@@ -125,6 +129,7 @@ describe('Connection Adapters - Abort Signal Handling', () => {
         [{ role: 'user', content: 'Hello' }],
         undefined,
         abortSignal,
+        RUN_CONTEXT,
       )
 
       const chunks: Array<StreamChunk> = []
@@ -172,6 +177,7 @@ describe('Connection Adapters - Abort Signal Handling', () => {
         [{ role: 'user', content: 'Hello' }],
         undefined,
         abortSignal,
+        RUN_CONTEXT,
       )
 
       const chunks: Array<StreamChunk> = []
@@ -210,6 +216,7 @@ describe('Connection Adapters - Abort Signal Handling', () => {
         [{ role: 'user', content: 'Hello' }],
         undefined,
         abortSignal,
+        RUN_CONTEXT,
       )
 
       for await (const _ of generator) {
@@ -257,6 +264,7 @@ describe('Connection Adapters - Abort Signal Handling', () => {
         [{ role: 'user', content: 'Hello' }],
         undefined,
         abortSignal,
+        RUN_CONTEXT,
       )
 
       const chunks: Array<StreamChunk> = []

@@ -181,9 +181,11 @@ export type ChatUIFactoryConfig<
   context?: ChatUIContextConfig
 }
 
-type BoundWidget = ComponentType<Record<string, never>>
+/** A zero-prop widget bound to the surrounding part or interrupt. */
+export type BoundWidget = ComponentType<Record<string, never>>
 
-type PartMixins<TOptions> = {
+/** The widgets `UI.Part` mixes onto the selected part it passes to children. */
+export type PartMixins<TOptions> = {
   [K in ChatUIPartKey]?: BoundWidget
 } & {
   [K in ChatUIToolName<TOptions>]: BoundWidget
@@ -191,7 +193,8 @@ type PartMixins<TOptions> = {
   Render: BoundWidget
 }
 
-type InterruptMixins<TOptions> = {
+/** The widgets `UI.Interrupt` mixes onto the interrupt it passes to children. */
+export type InterruptMixins<TOptions> = {
   [K in ChatUINamedInterruptId<TOptions>]: BoundWidget
 } & {
   [K in ChatUIToolName<TOptions>]?: BoundWidget

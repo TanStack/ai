@@ -3,7 +3,7 @@ id: MemoryStreamInit
 title: MemoryStreamInit
 ---
 
-Defined in: [packages/ai/src/stream-durability.ts:308](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-durability.ts#L308)
+Defined in: packages/ai/src/stream-durability.ts:308
 
 Explicit construction for [memoryStream](../functions/memoryStream.md), for callers that don't have
 the incoming `Request` — e.g. a TanStack Start server function implementing
@@ -22,7 +22,7 @@ for await (const chunk of replayRunStream(durability)) yield chunk
 optional offset?: string | null;
 ```
 
-Defined in: [packages/ai/src/stream-durability.ts:315](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-durability.ts#L315)
+Defined in: packages/ai/src/stream-durability.ts:315
 
 Resume offset captured by the consumer (`resumeFrom()` returns it).
 Defaults to `null` (a producer / from-start reader).
@@ -35,6 +35,6 @@ Defaults to `null` (a producer / from-start reader).
 runId: string;
 ```
 
-Defined in: [packages/ai/src/stream-durability.ts:310](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-durability.ts#L310)
+Defined in: packages/ai/src/stream-durability.ts:310
 
 The run this durability adapter attaches to.

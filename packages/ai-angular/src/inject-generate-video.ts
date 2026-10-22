@@ -17,7 +17,6 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   InferGenerationOutputFromReturn,
   VideoGenerateInput,
   VideoGenerateResult,
@@ -54,11 +53,10 @@ export interface InjectGenerateVideoOptions<TOutput = VideoGenerateResult> {
    * `` `video-${videoId}-start-frame` ``). It is also sent as the AG-UI thread
    * id on the wire, which the protocol requires.
    *
-   * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations. If
-   * omitted, the client mints a wire id after mount.
+   * Required. A generated id would change on every reload, so persistence
+   * would restore nothing.
    */
-  threadId?: string
+  threadId: string
   /**
    * Server-driven hydration handler for `persistence: true` when the
    * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
@@ -104,12 +102,9 @@ export interface InjectGenerateVideoResult<TOutput = VideoGenerateResult> {
 // parameter is typed as `VideoGenerateResult` and `result` narrows to the
 // transform's return. See issue #848.
 export function injectGenerateVideo<TTransformed = void>(
-  options: Omit<
-    InjectGenerateVideoOptions,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<InjectGenerateVideoOptions, 'onResult'> & {
     onResult?: (result: VideoGenerateResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ): InjectGenerateVideoResult<
   InferGenerationOutputFromReturn<VideoGenerateResult, TTransformed>
 > {
@@ -137,16 +132,8 @@ export function injectGenerateVideo<TTransformed = void>(
 
   const baseOptions = {
     ...(bodySource !== undefined && { body: bodySource() }),
-    ...(typeof options.threadId === 'string' && options.persistence
-      ? {
-          persistence: options.persistence,
-          threadId: options.threadId,
-        }
-      : {
-          ...(options.threadId !== undefined && {
-            threadId: options.threadId,
-          }),
-        }),
+    persistence: options.persistence,
+    threadId: options.threadId,
     ...(options.hydrateGeneration !== undefined && {
       hydrateGeneration: options.hydrateGeneration,
     }),
@@ -181,27 +168,6 @@ export function injectGenerateVideo<TTransformed = void>(
     onStatusUpdate: (s: VideoStatusInfo) => {
       if (!disposed) options.onStatusUpdate?.(s)
     },
-    onResultChange: (r: TOutput | null) => {
-      if (!disposed) result.set(r)
-    },
-    onLoadingChange: (l: boolean) => {
-      if (!disposed) isLoading.set(l)
-    },
-    onErrorChange: (e: Error | undefined) => {
-      if (!disposed) error.set(e)
-    },
-    onStatusChange: (s: GenerationClientState) => {
-      if (!disposed) status.set(s)
-    },
-    onJobIdChange: (id: string | null) => {
-      if (!disposed) jobId.set(id)
-    },
-    onVideoStatusChange: (s: VideoStatusInfo | null) => {
-      if (!disposed) videoStatus.set(s)
-    },
-    onResumeStateChange: (rs: { runId: string } | null) => {
-      if (!disposed) runId.set(rs?.runId ?? null)
-    },
   }
 
   let client: VideoGenerationClient<TOutput>
@@ -220,6 +186,19 @@ export function injectGenerateVideo<TTransformed = void>(
       'injectGenerateVideo requires either a connection or fetcher option',
     )
   }
+
+  const applySnapshot = () => {
+    const next = client.getSnapshot()
+    result.set(next.result)
+    isLoading.set(next.isLoading)
+    error.set(next.error)
+    status.set(next.status)
+    runId.set(next.runId)
+    jobId.set(next.jobId)
+    videoStatus.set(next.videoStatus)
+  }
+  applySnapshot()
+  const unsubscribeSnapshot = client.subscribe(applySnapshot)
 
   if (bodySource) {
     effect(
@@ -242,6 +221,7 @@ export function injectGenerateVideo<TTransformed = void>(
   )
   destroyRef.onDestroy(() => {
     disposed = true
+    unsubscribeSnapshot()
     client.dispose()
   })
 

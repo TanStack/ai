@@ -44,6 +44,7 @@ export const Route = createFileRoute('/_database-demo/api/judge')({
           }
 
           const result = await chat({
+            threadId: 'report-judge',
             adapter,
             messages: [
               {

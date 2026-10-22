@@ -2,7 +2,7 @@
 title: Multi-Turn Structured Chat
 id: structured-outputs-multi-turn
 order: 4
-description: "Build a chat where users iterate on a typed object across multiple turns — each successfully completed structured-output run adds a typed response to message history, and messages[i].parts.find(p => p.type === 'structured-output') is typed by your schema."
+description: "Let users change a typed object over many turns and keep every version on screen. Each run adds an assistant message with its own structured-output part, typed by your schema."
 keywords:
   - tanstack ai
   - structured outputs
@@ -14,58 +14,18 @@ keywords:
   - recipe builder
 ---
 
-You want users to iterate on a structured object across turns. "Give me a pasta recipe under $15" → recipe card lands. "Now make it vegan" → a new recipe card lands; the old one stays visible in history. "Add a salad and make it gluten-free" → third card lands; the first two are still there to compare against.
+Each turn of a structured chat returns the same schema. Earlier objects stay in the thread so the user can compare them.
 
-This is the shape of a structured-output chat: each successfully completed structured-output run adds a structured-output assistant message, every old response stays renderable, and the type of `messages[i].parts.find(p => p.type === 'structured-output').data` is your schema's inferred type — not `unknown`.
+Each structured run adds a new assistant message with its own typed `structured-output` part. Walk `messages` and render one card per part.
 
-By the end of this guide you'll have a chat UI that walks `messages` directly, renders one typed card per successfully completed structured-output run, and keeps history across `sendMessage()` calls.
+## Quick setup
 
-> **Note:** If you only need a single round-trip (one prompt → one object), use [One-Shot Extraction](./one-shot). If you have one turn that streams progressively but no history, use [Streaming UIs](./streaming) — its `partial` / `final` sugar is the right surface. This page is for the case where history matters.
+This setup assumes chat already works in your app and `zod` is installed.
 
-> **React Native recipe app:** The Expo example streams this same multi-turn
-> recipe pattern into native cards with an XHR transport selector. See
-> [Quick Start: React Native](../getting-started/quick-start-react-native) to
-> run it on Expo Go.
-
-## How it lands on the message
-
-When `useChat({ outputSchema })` receives the server's `structured-output.complete` event, the runtime attaches a typed `structured-output` `MessagePart` to the assistant `UIMessage` carrying the structured response. The part looks like this:
+### 1. Define the schema
 
 ```typescript
-import type { DeepPartial } from "@tanstack/ai";
-
-type StructuredOutputPart<TData> = {
-  type: "structured-output";
-  status: "streaming" | "complete" | "error";
-  /** Progressive parse of `raw` — populated while streaming and after complete. */
-  partial?: DeepPartial<TData>;
-  /** Completed typed object — set when `status === "complete"`. */
-  data?: TData;
-  /** Accumulating JSON text. Round-trip source of truth for the next turn. */
-  raw: string;
-  /** Optional reasoning tokens surfaced by thinking models. */
-  reasoning?: string;
-  /** Set when `status === "error"`. */
-  errorMessage?: string;
-};
-```
-
-`TData` flows from `useChat({ outputSchema })` through the framework-package message types (`UIMessage<TTools, TData>` and `MessagePart<TTools, TData>` in `@tanstack/ai-client`, which the React / Vue / Solid / Svelte hooks re-export) down to the structured-output variant. The result: when you call `useChat({ outputSchema: RecipeSchema })`, `messages[i].parts.find(p => p.type === "structured-output")` returns `StructuredOutputPart<Recipe>` — `data` is typed as `Recipe`, `partial` as `DeepPartial<Recipe>`. No manual cast.
-
-> **Note:** The core `@tanstack/ai` package defines `MessagePart<TData>` and `UIMessage<TData>` with a single generic (no `TTools`) — the tools generic lives in `@tanstack/ai-client` and the framework hook packages. If you're building UI, you almost always want to import from your framework package (`@tanstack/ai-react` / `-vue` / `-solid` / `-svelte`) or from `@tanstack/ai-client` — those carry both generics. The core types come into play only if you're working at the adapter layer below the client.
-
-Each new structured response lands on a **new** assistant message with its **own** structured-output part. Earlier responses stay untouched. That's what makes "show history" trivial.
-
-A run may also contain assistant messages without a structured-output part. Native-combined output keeps the structured JSON and its part on one assistant message. On the separate-finalization path, a plain-text assistant message can precede the structured-output assistant message. Find the part by type instead of assuming that every assistant message contains one.
-
-## Server endpoint
-
-The server side is the same as a single-turn streaming endpoint. `chat({ outputSchema, stream: true })` happens to be multi-turn safe out of the box because the server sees the full conversation history on every request and emits one structured-output run per request.
-
-```typescript
-// app/api/structured-chat/route.ts
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
+// schemas/recipe.ts
 import { z } from "zod";
 
 export const RecipeSchema = z.object({
@@ -73,53 +33,70 @@ export const RecipeSchema = z.object({
   cuisine: z.string(),
   servings: z.number(),
   estimatedCostUsd: z.number(),
-  ingredients: z.array(
-    z.object({ item: z.string(), amount: z.string() }),
-  ),
+  ingredients: z.array(z.object({ item: z.string(), amount: z.string() })),
   steps: z.array(z.string()),
   tips: z.array(z.string()),
 });
+```
 
-export type Recipe = z.infer<typeof RecipeSchema>;
+### 2. Add the server endpoint
 
-const SYSTEM_PROMPT = `You are a chef assistant. Always respond with a single recipe matching the JSON schema. When the user asks for modifications, produce a new recipe in the same shape that reflects the change.`;
+The server sees the full history on each request and returns one structured run:
+
+```typescript
+// api/structured-chat.ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { RecipeSchema } from "../schemas/recipe";
+
+const SYSTEM_PROMPT =
+  "You are a chef assistant. Always respond with one recipe that matches the JSON schema. When the user asks for a change, return a new recipe in the same shape.";
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
+
   const stream = chat({
-    adapter: openaiText("gpt-5.5"),
+    adapter: openaiText("gpt-6.1-sol"),
     messages,
+    threadId,
+    runId,
     systemPrompts: [SYSTEM_PROMPT],
     outputSchema: RecipeSchema,
     stream: true,
   });
+
   return toServerSentEventsResponse(stream);
 }
 ```
 
-Behind the scenes, when the client sends turn N, prior `UIMessage.parts` remain intact in the request. The client also mirrors each completed structured-output part's `raw` JSON into assistant content. Server conversion preserves the structured-output marker while adapters consume the provider-facing content. Multi-turn coherence is preserved without you doing anything special.
+### 3. Render one card per turn
 
-## Client: walk the messages
-
-Here's the shape you want. `useChat` exposes `messages` (typed, schema-aware), `sendMessage`, and the hook-level `partial` / `final` sugar for the latest turn. To render history, walk `messages` directly:
-
-```tsx ignore
+```tsx
 import { useState } from "react";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-import type { StructuredOutputPart } from "@tanstack/ai-client";
-import { RecipeSchema, type Recipe } from "./api/structured-chat";
-import { UserBubble } from "./components";
+import { z } from "zod";
 
-// The schema-typed structured-output part. Pulled out so the find()
-// predicate below stays readable.
-type RecipePart = StructuredOutputPart<Recipe>;
+// The same schema as schemas/recipe.ts. In your app, import it from that file.
+const RecipeSchema = z.object({
+  title: z.string(),
+  cuisine: z.string(),
+  servings: z.number(),
+  estimatedCostUsd: z.number(),
+  ingredients: z.array(z.object({ item: z.string(), amount: z.string() })),
+  steps: z.array(z.string()),
+  tips: z.array(z.string()),
+});
 
-function StructuredChatPage() {
+export function RecipeChat() {
   const [input, setInput] = useState("");
-
   const { messages, sendMessage, isLoading } = useChat({
-    outputSchema: RecipeSchema,
     connection: fetchServerSentEvents("/api/structured-chat"),
+    threadId: "support-chat",
+    outputSchema: RecipeSchema,
   });
 
   return (
@@ -127,21 +104,33 @@ function StructuredChatPage() {
       {messages.map((m) => {
         if (m.role === "user") {
           const text = m.parts
-            .filter((p) => p.type === "text")
-            .map((p) => p.content)
+            .map((p) => (p.type === "text" ? p.content : ""))
             .join("");
-          return <UserBubble key={m.id} text={text} />;
+          return <p key={m.id}>You: {text}</p>;
         }
-        if (m.role === "assistant") {
-          // `data` is typed as `Recipe` because the schema generic flows
-          // all the way from useChat through messages[i].parts.
-          const recipePart = m.parts.find(
-            (p): p is RecipePart => p.type === "structured-output",
-          );
-          if (!recipePart) return null;
-          return <RecipeCard key={m.id} part={recipePart} />;
-        }
-        return null;
+
+        const part = m.parts.find(
+          (p): p is Extract<typeof p, { type: "structured-output" }> =>
+            p.type === "structured-output",
+        );
+        if (!part) return null;
+
+        // `data` is the full Recipe. `partial` fills in while the JSON streams.
+        const recipe = part.status === "complete" ? part.data : part.partial;
+
+        return (
+          <article key={m.id}>
+            <h3>{recipe?.title ?? "Cooking..."}</h3>
+            <ul>
+              {recipe?.ingredients?.map((ing, i) => (
+                <li key={i}>
+                  {ing?.amount} {ing?.item}
+                </li>
+              ))}
+            </ul>
+            {part.status === "error" && <p>Failed: {part.errorMessage}</p>}
+          </article>
+        );
       })}
 
       <input
@@ -150,80 +139,94 @@ function StructuredChatPage() {
         disabled={isLoading}
       />
       <button
+        disabled={isLoading}
         onClick={() => {
-          sendMessage(input);
+          void sendMessage(input);
           setInput("");
         }}
-        disabled={isLoading}
       >
         Send
       </button>
     </div>
   );
 }
-
-function RecipeCard({ part }: { part: RecipePart }) {
-  // After you check `part.status === "complete"`, TypeScript knows that
-  // `part.data` is a `Recipe`. No `!` or `?.` is necessary.
-  // While the model streams the JSON, `partial` is `DeepPartial<Recipe>`.
-  const recipe = part.status === "complete" ? part.data : part.partial;
-
-  return (
-    <article>
-      <h3>{recipe?.title ?? "Plating up…"}</h3>
-      {recipe?.cuisine && <p>{recipe?.cuisine}</p>}
-      {recipe?.ingredients?.map((ing, i) => (
-        <li key={i}>
-          {ing?.amount} {ing?.item}
-        </li>
-      ))}
-      {part.status === "error" && (
-        <p>Failed: {part.errorMessage ?? "Stream failed"}</p>
-      )}
-    </article>
-  );
-}
 ```
 
-That's it. The render loop above produces a card per structured response. When the user sends a follow-up, a new structured-output assistant message arrives — the old card stays exactly as it was.
+Ask for a pasta recipe, then send "make it vegan". A second card appears under the first. The first card does not change.
 
-> **See the full pattern in code:** the example app at `examples/ts-react-chat/src/routes/generations.structured-chat.tsx` ships a polished version of this exact recipe-builder UI — empty state, streaming placeholder, cuisine-aware hero banner, ingredients grid, numbered method, chef's tips block. Use it as a reference for visual layout; the data wiring matches what's shown above.
+## How it works
 
-## Streaming the latest turn
+- Each successful structured run adds a new assistant message with its own `structured-output` part. Old parts stay as they are.
+- `part.data` has the type that your schema infers (`Recipe` here). The schema type flows from `useChat({ outputSchema })` into `messages`.
+- On the next turn, the client sends the `raw` JSON of each complete part back as assistant content. The model sees its earlier recipes and can change them.
+- The hook-level `partial` and `final` still work. They show only the latest turn. Use them for a small "latest recipe" widget, and walk `messages` for the history.
 
-A `structured-output` part normally goes `streaming` → `complete` (or `streaming` → `error`). A terminal-only `complete` event can also arrive with no prior streaming deltas. The `data` field only populates on `complete`. While the model is still emitting JSON, only `partial` and `raw` are filled in. Render against `part.data ?? part.partial` and the UI fills in field by field as bytes arrive, then snaps to the completed typed object on the terminal event.
+A run can also hold assistant messages with no structured-output part, for example a plain-text message before the JSON. Always find the part by its type.
 
-The hook-level `partial` and `final` are still available. They're derived from the most recent structured-output part after the latest user message — the same part the render loop above already finds. `partial` returns `{}` between `sendMessage()` and the first chunk (because no structured-output part exists yet to derive from), and `final` returns `null` until the latest turn lands its `complete` event. Use them for sticky-summary widgets ("Latest recipe title: …"); use the `messages` walk for the full history view.
+The example app has a full version of this UI at `examples/ts-react-chat/src/routes/generations.structured-chat.tsx`. For React Native, the Expo example streams the same recipe pattern into native cards. See [Quick Start: React Native](../getting-started/quick-start-react-native).
 
-## Type-safe access without a named alias
+## Advanced
 
-The example above pulls `type RecipePart = StructuredOutputPart<Recipe>` out for readability. If you'd rather not name it, you can narrow inline with `Extract`:
+### The part type
+
+```typescript
+import type { DeepPartial } from "@tanstack/ai";
+
+type StructuredOutputPart<TData> = {
+  type: "structured-output";
+  status: "streaming" | "complete" | "error";
+  /** Progressive parse of `raw`. Set while streaming and after complete. */
+  partial?: DeepPartial<TData>;
+  /** The full object. Set when `status === "complete"`. */
+  data?: TData;
+  /** The JSON text. This is what the next turn sends to the model. */
+  raw: string;
+  /** Reasoning tokens from thinking models, when present. */
+  reasoning?: string;
+  /** Set when `status === "error"`. */
+  errorMessage?: string;
+};
+```
+
+When `status` is `"complete"`, TypeScript knows that `data` is set.
+
+### How the schema type reaches `messages`
+
+`TData` flows from `useChat({ outputSchema })` through `UIMessage<TTools, TData>` and `MessagePart<TTools, TData>` in `@tanstack/ai-client`. The framework hooks use these types. So `messages[i].parts.find(...)` returns `StructuredOutputPart<Recipe>`, with no cast.
+
+You can also import the named type and use it in a predicate:
 
 ```tsx ignore
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-import { RecipeSchema, type Recipe } from "./api/structured-chat";
+import type { StructuredOutputPart } from "@tanstack/ai-client";
+import type { z } from "zod";
+import type { RecipeSchema } from "./schemas/recipe";
 
-const { messages } = useChat({
-  outputSchema: RecipeSchema,
-  connection: fetchServerSentEvents("/api/structured-chat"),
-});
+type RecipePart = StructuredOutputPart<z.infer<typeof RecipeSchema>>;
 
-for (const m of messages) {
-  const recipePart = m.parts.find(
-    (p): p is Extract<typeof p, { type: "structured-output" }> =>
-      p.type === "structured-output",
-  );
-  // `recipePart` is `StructuredOutputPart<Recipe> | undefined`.
-  // `recipePart.data` is `Recipe | undefined`.
-}
+const part = message.parts.find(
+  (p): p is RecipePart => p.type === "structured-output",
+);
 ```
 
-Both forms produce the same typed result. Pick whichever you find more readable.
+The core `@tanstack/ai` package also has `MessagePart<TData>` and `UIMessage<TData>`, with one generic and no `TTools`. You need these only at the adapter layer. For UI code, use the types from your framework package or from `@tanstack/ai-client`.
 
-## What about the round-trip?
+### Part states
 
-When turn N+1 fires, completed structured-output parts remain on their UI messages and are mirrored into provider-facing assistant content using `part.raw`. Streaming and errored parts remain UI state but are excluded from model input.
+A part usually goes from `streaming` to `complete`, or from `streaming` to `error`. A `complete` event can also arrive with no streaming deltas before it.
 
-If `raw` is empty (rare — a terminal-only complete event arrived before any deltas, then the runtime couldn't serialize the `data` either), the part remains in UI state but is excluded from provider-facing content. This avoids sending a blank assistant turn to the model.
+- While the JSON streams, only `partial` and `raw` are set.
+- `data` is set only on `complete`.
+- Render `part.data ?? part.partial` to fill the card field by field, then show the full object at the end.
 
-> **Combining with tools?** Multi-turn structured chats compose with the agent loop the same way single-turn streams do — each turn runs tools first, then produces a structured-output message. See [With Tools](./with-tools) for tool-approval gating and client-tool invocations inside a structured-chat run.
+Between `sendMessage()` and the first chunk, the latest turn has no structured-output part. The hook-level `partial` is `{}` and `final` is `null` in that time. To show a placeholder, check `isLoading` and whether the last message is from the user.
+
+### What the next turn sends
+
+- Complete parts stay on their UI messages. The client copies `part.raw` into the assistant content that goes to the model.
+- The server conversion keeps the structured-output marker. The adapters read the content for the provider.
+- Parts that are still streaming, or that failed, stay in the UI but do not go to the model.
+- If a complete part has an empty `raw` and the runtime cannot serialize `data`, the part stays in the UI but does not go to the model. This rule stops a blank assistant turn from reaching the model.
+
+### With tools
+
+Each turn can run tools first, then return a structured message. Tool approvals and client tools work the same way. See [With Tools](./with-tools).

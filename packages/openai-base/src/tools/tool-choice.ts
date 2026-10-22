@@ -37,6 +37,7 @@ interface HostedToolChoice {
   type:
     | 'file_search'
     | 'web_search_preview'
+    | 'computer'
     | 'computer_use_preview'
     | 'code_interpreter'
     | 'image_generation'

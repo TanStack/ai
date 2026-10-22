@@ -19,10 +19,9 @@ type HeadlessOptions<TOptions> = InjectChatOptions<
 >
 
 type ChatInstanceOverrides<TOptions> = {
-  threadId?: string
+  threadId: string
   live?: HeadlessOptions<TOptions>['live']
   forwardedProps?: HeadlessOptions<TOptions>['forwardedProps']
-  body?: HeadlessOptions<TOptions>['body']
   initialMessages?: HeadlessOptions<TOptions>['initialMessages']
 }
 
@@ -48,16 +47,12 @@ export function createChatHook<
     chatComponents as ChatUIFactoryConfig<NoInfer<TOptions>, TInput>,
   )
 
-  function injectAppChat(overrides?: ChatInstanceOverrides<TOptions>) {
+  function injectAppChat(overrides: ChatInstanceOverrides<TOptions>) {
     assertInInjectionContext(injectAppChat)
-    const chat = (
-      overrides
-        ? injectChat({
-            ...(options as HeadlessOptions<TOptions>),
-            ...overrides,
-          })
-        : injectChat(options as HeadlessOptions<TOptions>)
-    ) as ChatUIHost<TOptions>
+    const chat = injectChat({
+      ...(options as HeadlessOptions<TOptions>),
+      ...overrides,
+    }) as ChatUIHost<TOptions>
     return chat
   }
 
@@ -68,7 +63,7 @@ export function createChatHook<
     ChatProvider: ui.ChatProvider,
   } as {
     injectAppChat: (
-      overrides?: ChatInstanceOverrides<TOptions>,
+      overrides: ChatInstanceOverrides<TOptions>,
     ) => ChatUIHost<TOptions>
     injectChatContext: () => ChatUIHost<TOptions>
     Chat: Type<unknown>

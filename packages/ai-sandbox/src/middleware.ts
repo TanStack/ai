@@ -367,7 +367,7 @@ export interface SandboxMiddlewareOptions<TOffset extends string = string> {
               artifactId: string
               runId: string
               threadId: string
-              blobKey?: string
+              blobKey: string
               name: string
               mimeType: string
               size: number
@@ -535,7 +535,7 @@ export function withSandbox<TOffset extends string = string>(
                       artifactId: string
                       runId: string
                       threadId: string
-                      blobKey?: string
+                      blobKey: string
                       name: string
                       mimeType: string
                       size: number

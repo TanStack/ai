@@ -24,10 +24,12 @@ import type { Provider } from '@/lib/model-selection'
 async function summarizeWith(
   adapter: AnyTextAdapter,
   messages: Array<ModelMessage>,
+  threadId: string,
 ): Promise<string> {
   let text = ''
   for await (const chunk of chat({
     adapter,
+    threadId,
     messages: [
       ...messages,
       {
@@ -66,14 +68,11 @@ export const Route = createFileRoute('/api/compaction-chat')({
         const abortController = new AbortController()
         const body = await request.json()
         const messages = body.messages
-        const data = body.data || {}
+        const data = body.forwardedProps || {}
 
         const provider: Provider = data.provider || 'openai'
         const model: string | undefined = data.model
-        const threadId: string =
-          typeof data.threadId === 'string' && data.threadId.length > 0
-            ? data.threadId
-            : 'panel-default-thread'
+        const threadId: string = body.threadId
         const maxTokens: number =
           typeof data.maxTokens === 'number' && data.maxTokens > 0
             ? data.maxTokens
@@ -115,7 +114,7 @@ export const Route = createFileRoute('/api/compaction-chat')({
           const strategy =
             strategyName === 'summarize'
               ? summarizeOldest({
-                  summarize: (msgs) => summarizeWith(adapter, msgs),
+                  summarize: (msgs) => summarizeWith(adapter, msgs, threadId),
                 })
               : evictOldest()
 
@@ -133,6 +132,7 @@ export const Route = createFileRoute('/api/compaction-chat')({
             middleware: [compaction],
             agentLoopStrategy: maxIterations(5),
             messages,
+            threadId,
             abortController,
           })
 

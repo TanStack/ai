@@ -81,7 +81,7 @@ export async function createMCPClients<
       // default prefix = config key; `prefix: ''` disables; explicit string wins
       const prefix = opts.prefix === undefined ? name : opts.prefix || undefined
       const client = await createMCPClient({ ...opts, prefix })
-      return [name, client] as const
+      return [name, client] as readonly [string, MCPClient<ServerDescriptor>]
     }),
   )
 

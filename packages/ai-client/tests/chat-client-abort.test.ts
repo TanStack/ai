@@ -47,6 +47,7 @@ describe('ChatClient - Abort Signal Handling', () => {
 
   it('should create AbortController and pass signal to adapter', async () => {
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: mockAdapter,
     })
 
@@ -109,6 +110,7 @@ describe('ChatClient - Abort Signal Handling', () => {
     }
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: adapterWithAbort,
     })
 
@@ -162,6 +164,7 @@ describe('ChatClient - Abort Signal Handling', () => {
     }
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: adapterWithPartial,
       onChunk: (chunk) => {
         chunks.push(chunk)
@@ -208,6 +211,7 @@ describe('ChatClient - Abort Signal Handling', () => {
     }
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: adapterWithAbort,
       onError: errorSpy,
     })
@@ -245,6 +249,7 @@ describe('ChatClient - Abort Signal Handling', () => {
     }
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: adapterWithAbort,
     })
 
@@ -286,6 +291,7 @@ describe('ChatClient - Abort Signal Handling', () => {
     }
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: adapter,
     })
 
@@ -330,6 +336,7 @@ describe('ChatClient - Abort Signal Handling', () => {
     }
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: adapter,
       onError: errorSpy,
       onResponse: () => {
@@ -380,6 +387,7 @@ describe('ChatClient - Abort Signal Handling', () => {
 
     let firstCall = true
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: adapter,
       onError: errorSpy,
       onResponse: () => {

@@ -10,12 +10,11 @@ import type {
   QueuedMessage,
 } from '@tanstack/ai-client'
 import { ToolCallDisplay } from '@/components/ToolCallDisplay'
-import { ApprovalPrompt } from '@/components/ApprovalPrompt'
 
 interface ChatUIProps<
   TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
 > {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   isLoading: boolean
   onSendMessage: (text: string) => void
   /** Sends the typed prompt plus an attached image as an image content part. */
@@ -27,11 +26,6 @@ interface ChatUIProps<
    * `BoundInterrupts<TTools>` (library type, not a harness DTO).
    */
   interrupts?: BoundInterrupts<TTools>
-  /** @deprecated Prefer `interrupts` + resolveInterrupt. */
-  addToolApprovalResponse?: (response: {
-    id: string
-    approved: boolean
-  }) => Promise<void>
   /** Renders the image file input (multimodal image features only). */
   showImageInput?: boolean
   /** Renders the PDF file input (multimodal-document feature only). */
@@ -48,7 +42,7 @@ interface ChatUIProps<
    *  `useChat` and auto-sent FIFO once the run settles. Rendered in a
    *  region separate from `messages` so e2e tests can assert queued state
    *  distinctly from the delivered conversation. */
-  queue?: Array<QueuedMessage>
+  queue?: ReadonlyArray<QueuedMessage>
   /** Remove a queued message before it drains. */
   cancelQueued?: (id: string) => void
   /** Block new input while pending interrupts await resolution. */
@@ -64,7 +58,6 @@ export function ChatUI<
   onSendMessageWithImage,
   onSendMessageWithDocument,
   interrupts = [],
-  addToolApprovalResponse,
   showImageInput,
   showDocumentInput,
   onStop,
@@ -219,22 +212,6 @@ export function ChatUI<
                   >
                     {part.content}
                   </div>
-                )
-              }
-              // Prefer bound `interrupts` UI above. Legacy message-part prompts
-              // remain only when no interrupt list was provided (compat path).
-              if (
-                interrupts.length === 0 &&
-                part.type === 'tool-call' &&
-                (part as any).state === 'approval-requested' &&
-                addToolApprovalResponse
-              ) {
-                return (
-                  <ApprovalPrompt
-                    key={i}
-                    part={part}
-                    onRespond={addToolApprovalResponse}
-                  />
                 )
               }
               if (part.type === 'tool-call') {

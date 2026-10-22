@@ -90,7 +90,6 @@ test.describe('multimodal tool result — wire format', () => {
   // ──────────────────────────────────────────────────────────────────────────
   test('anthropic: multimodal tool result completes end-to-end (image structure covered by unit test)', async ({
     request,
-    aimockPort,
     testId,
   }) => {
     const res = await request.post(
@@ -117,7 +116,6 @@ test.describe('multimodal tool result — wire format', () => {
   // ──────────────────────────────────────────────────────────────────────────
   test('gemini: multimodal tool result completes end-to-end (image structure covered by unit test)', async ({
     request,
-    aimockPort,
     testId,
   }) => {
     const res = await request.post(

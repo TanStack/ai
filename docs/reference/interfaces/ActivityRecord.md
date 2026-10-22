@@ -3,7 +3,7 @@ id: ActivityRecord
 title: ActivityRecord
 ---
 
-Defined in: [packages/ai/src/types.ts:574](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L574)
+Defined in: packages/ai/src/types.ts:574
 
 Durable sidecar row for frontend-only AG-UI activity. Never a ModelMessage.
 `index` is the insert position in the reconstructed UI transcript.
@@ -20,4 +20,4 @@ Durable sidecar row for frontend-only AG-UI activity. Never a ModelMessage.
 index: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:575](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L575)
+Defined in: packages/ai/src/types.ts:575

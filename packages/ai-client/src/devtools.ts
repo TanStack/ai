@@ -544,7 +544,7 @@ type AIDevtoolsRunStatus =
 
 export interface AIDevtoolsBridgeOptions<TSnapshot extends object> {
   hookId: string
-  threadId?: string
+  threadId: string
   clientId: string
   metadata: AIDevtoolsClientMetadata
   getSnapshot: () => TSnapshot
@@ -578,49 +578,6 @@ function getActiveBridgeRegistry(): Map<string, ActiveDevtoolsBridge> {
   const registry = new Map<string, ActiveDevtoolsBridge>()
   global[activeBridgeRegistryKey] = registry
   return registry
-}
-
-/**
- * `{...options}` turns `get hookId()` into a data property. Chat/generation
- * clients mint `threadId` after construct (`ensureThreadId` on mount), so a
- * spread would freeze `hookId: ''` and DevTools could never select the hook.
- */
-function withLiveClientIdentity<TSnapshot extends object>(
-  identity: Pick<
-    AIDevtoolsBridgeOptions<TSnapshot>,
-    | 'hookId'
-    | 'clientId'
-    | 'threadId'
-    | 'metadata'
-    | 'getTools'
-    | 'applyToolFixture'
-  >,
-  rest: Pick<AIDevtoolsBridgeOptions<TSnapshot>, 'getSnapshot'> &
-    Partial<
-      Pick<AIDevtoolsBridgeOptions<TSnapshot>, 'getTools' | 'applyToolFixture'>
-    >,
-): AIDevtoolsBridgeOptions<TSnapshot> {
-  return {
-    get hookId() {
-      return identity.hookId
-    },
-    get clientId() {
-      return identity.clientId
-    },
-    get threadId() {
-      return identity.threadId
-    },
-    metadata: identity.metadata,
-    getSnapshot: rest.getSnapshot,
-    ...(rest.getTools || identity.getTools
-      ? { getTools: rest.getTools ?? identity.getTools }
-      : {}),
-    ...(rest.applyToolFixture || identity.applyToolFixture
-      ? {
-          applyToolFixture: rest.applyToolFixture ?? identity.applyToolFixture,
-        }
-      : {}),
-  }
 }
 
 export class ClientDevtoolsBridge<TSnapshot extends object> {
@@ -868,13 +825,7 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
       return fixture.hookId === this.options.hookId
     }
 
-    if (
-      fixture.threadId &&
-      (!this.options.threadId || fixture.threadId !== this.options.threadId)
-    ) {
-      return false
-    }
-    return true
+    return fixture.threadId === this.options.threadId
   }
 
   protected createEnvelope(
@@ -901,7 +852,7 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
       visibility,
       clientId: this.options.clientId,
       hookId: this.options.hookId,
-      ...(this.options.threadId ? { threadId: this.options.threadId } : {}),
+      threadId: this.options.threadId,
       ...(context.runId ? { runId: context.runId } : {}),
       timestamp: Date.now(),
     })
@@ -958,13 +909,11 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
   private lastSkillsStateValue: unknown = null
 
   constructor(options: ChatDevtoolsBridgeOptions) {
-    super(
-      withLiveClientIdentity(options, {
-        getSnapshot: options.getSnapshot,
-        // Thunk defers `this.applyFixture` lookup until after `super` returns.
-        applyToolFixture: (fixture) => this.applyFixture(fixture),
-      }),
-    )
+    super({
+      ...options,
+      // Thunk defers `this.applyFixture` lookup until after `super` returns.
+      applyToolFixture: (fixture) => this.applyFixture(fixture),
+    })
     this.chatOptions = options
     // Auto-attaches run/thread context and auto-emits a snapshot after each
     // event so callers can keep using `this.events.X(...)` with no context arg.
@@ -1199,7 +1148,7 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
   getCurrentRunEventContext(): ChatClientRunEventContext | undefined {
     if (!this.currentRunId) return undefined
     return {
-      threadId: this.currentRunThreadId ?? this.chatOptions.threadId ?? '',
+      threadId: this.currentRunThreadId ?? this.chatOptions.threadId,
       runId: this.currentRunId,
     }
   }
@@ -1209,7 +1158,6 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
   }
 
   findToolCallContext(toolCallId: string): ChatClientEventContext {
-    const base: ChatClientEventContext = { toolCallId }
     const runContext = this.getCurrentRunEventContext()
     if (runContext) {
       return {
@@ -1218,10 +1166,7 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
         toolCallId,
       }
     }
-    if (this.chatOptions.threadId) {
-      return { threadId: this.chatOptions.threadId, toolCallId }
-    }
-    return base
+    return { threadId: this.chatOptions.threadId, toolCallId }
   }
 
   // --- Fixture replay ------------------------------------------------------
@@ -1233,7 +1178,7 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
    */
   async applyFixture(fixture: AIDevtoolsToolFixture): Promise<void> {
     const messages = this.chatOptions.getMessages()
-    const threadId = fixture.threadId ?? this.chatOptions.threadId ?? ''
+    const threadId = fixture.threadId ?? this.chatOptions.threadId
     if (fixture.execute) {
       await this.executeFixture(fixture, messages, threadId)
       return
@@ -1674,11 +1619,7 @@ export class GenerationDevtoolsBridge<TOutput> extends ClientDevtoolsBridge<
   protected readonly getCoreState: () => GenerationDevtoolsCoreState<TOutput>
 
   constructor(options: GenerationDevtoolsBridgeOptions<TOutput>) {
-    super(
-      withLiveClientIdentity(options, {
-        getSnapshot: () => this.buildSnapshot(),
-      }),
-    )
+    super({ ...options, getSnapshot: () => this.buildSnapshot() })
     this.maxRuns = options.maxRuns ?? 20
     this.getCoreState = options.getCoreState
   }
@@ -2165,21 +2106,6 @@ class ChatDevtoolsAwareEventEmitter extends DefaultChatClientEventEmitter {
       toolName,
       output,
       state,
-      context ?? this.helper.getCurrentRunEventContext(),
-    )
-    this.afterEmit()
-  }
-
-  override toolApprovalResponded(
-    approvalId: string,
-    toolCallId: string,
-    approved: boolean,
-    context?: ChatClientRunEventContext,
-  ): void {
-    super.toolApprovalResponded(
-      approvalId,
-      toolCallId,
-      approved,
       context ?? this.helper.getCurrentRunEventContext(),
     )
     this.afterEmit()

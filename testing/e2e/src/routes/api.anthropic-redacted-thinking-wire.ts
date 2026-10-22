@@ -159,6 +159,7 @@ export const Route = createFileRoute('/api/anthropic-redacted-thinking-wire')({
               context: [],
             })
             for await (const chunk of chat({
+              threadId: 'anthropic-redacted-thinking-wire',
               ...createChatOptions({ adapter }),
               messages: params.messages,
               stream: true,
@@ -177,6 +178,7 @@ export const Route = createFileRoute('/api/anthropic-redacted-thinking-wire')({
             ],
           ])
           for await (const _ of chat({
+            threadId: 'anthropic-redacted-thinking-wire',
             ...createChatOptions({
               adapter: createAnthropicChat('claude-sonnet-4-5', DUMMY_KEY, {
                 fetch: sameRun.fetchImpl,
@@ -199,6 +201,7 @@ export const Route = createFileRoute('/api/anthropic-redacted-thinking-wire')({
             [messageStart, ...toolUse(0, 'fail'), ...end('tool_use')],
           ])
           for await (const _ of chat({
+            threadId: 'anthropic-redacted-thinking-wire',
             ...createChatOptions({
               adapter: createAnthropicChat('claude-sonnet-4-5', DUMMY_KEY, {
                 fetch: toolError.fetchImpl,

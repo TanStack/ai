@@ -24,5 +24,6 @@ export type {
   AuthInfo,
   AuthMetadataOptions,
   BearerAuthOptions,
+  McpServer,
   OAuthTokenVerifier,
 } from '@modelcontextprotocol/server'

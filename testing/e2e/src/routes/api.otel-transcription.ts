@@ -40,6 +40,7 @@ export const Route = createFileRoute('/api/otel-transcription')({
           const { tracer, spans } = createLocalCaptureTracer()
 
           await generateTranscription({
+            threadId: 'otel-transcription',
             adapter,
             audio,
             middleware: [otelMiddleware({ tracer, captureContent: true })],

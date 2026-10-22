@@ -258,24 +258,28 @@ describe('Type Safety Tests for generateImage() function', () => {
       it('should allow valid gpt-image-1 sizes', () => {
         // These should all compile - valid sizes for mock-gpt-image-1
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-gpt-image-1'),
           prompt: 'A cute cat',
           size: '1024x1024',
         })
 
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-gpt-image-1'),
           prompt: 'A cute cat',
           size: '1536x1024',
         })
 
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-gpt-image-1'),
           prompt: 'A cute cat',
           size: '1024x1536',
         })
 
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-gpt-image-1'),
           prompt: 'A cute cat',
           size: 'auto',
@@ -319,18 +323,21 @@ describe('Type Safety Tests for generateImage() function', () => {
       it('should allow valid dall-e-3 sizes', () => {
         // These should all compile - valid sizes for mock-dall-e-3
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-dall-e-3'),
           prompt: 'A cute cat',
           size: '1024x1024',
         })
 
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-dall-e-3'),
           prompt: 'A cute cat',
           size: '1792x1024',
         })
 
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-dall-e-3'),
           prompt: 'A cute cat',
           size: '1024x1792',
@@ -383,6 +390,7 @@ describe('Type Safety Tests for generateImage() function', () => {
       it('should allow all gpt-image-1 specific options', () => {
         // This should compile - all valid options for mock-gpt-image-1
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-gpt-image-1'),
           prompt: 'A cute cat',
           modelOptions: {
@@ -398,24 +406,28 @@ describe('Type Safety Tests for generateImage() function', () => {
 
       it('should allow valid quality values for gpt-image-1', () => {
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-gpt-image-1'),
           prompt: 'A cute cat',
           modelOptions: { quality: 'high' },
         })
 
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-gpt-image-1'),
           prompt: 'A cute cat',
           modelOptions: { quality: 'medium' },
         })
 
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-gpt-image-1'),
           prompt: 'A cute cat',
           modelOptions: { quality: 'low' },
         })
 
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-gpt-image-1'),
           prompt: 'A cute cat',
           modelOptions: { quality: 'auto' },
@@ -424,18 +436,21 @@ describe('Type Safety Tests for generateImage() function', () => {
 
       it('should allow valid background values for gpt-image-1', () => {
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-gpt-image-1'),
           prompt: 'A cute cat',
           modelOptions: { background: 'transparent' },
         })
 
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-gpt-image-1'),
           prompt: 'A cute cat',
           modelOptions: { background: 'opaque' },
         })
 
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-gpt-image-1'),
           prompt: 'A cute cat',
           modelOptions: { background: 'auto' },
@@ -444,18 +459,21 @@ describe('Type Safety Tests for generateImage() function', () => {
 
       it('should allow valid output_format values for gpt-image-1', () => {
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-gpt-image-1'),
           prompt: 'A cute cat',
           modelOptions: { output_format: 'png' },
         })
 
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-gpt-image-1'),
           prompt: 'A cute cat',
           modelOptions: { output_format: 'jpeg' },
         })
 
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-gpt-image-1'),
           prompt: 'A cute cat',
           modelOptions: { output_format: 'webp' },
@@ -464,6 +482,7 @@ describe('Type Safety Tests for generateImage() function', () => {
 
       it('should NOT allow dall-e-3 quality values on gpt-image-1', () => {
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-gpt-image-1'),
           prompt: 'A cute cat',
           modelOptions: {
@@ -473,6 +492,7 @@ describe('Type Safety Tests for generateImage() function', () => {
         })
 
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-gpt-image-1'),
           prompt: 'A cute cat',
           modelOptions: {
@@ -484,6 +504,7 @@ describe('Type Safety Tests for generateImage() function', () => {
 
       it('should NOT allow dall-e-3 specific options on gpt-image-1', () => {
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-gpt-image-1'),
           prompt: 'A cute cat',
           modelOptions: {
@@ -493,6 +514,7 @@ describe('Type Safety Tests for generateImage() function', () => {
         })
 
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-gpt-image-1'),
           prompt: 'A cute cat',
           modelOptions: {
@@ -504,6 +526,7 @@ describe('Type Safety Tests for generateImage() function', () => {
 
       it('should NOT allow unknown options on gpt-image-1', () => {
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-gpt-image-1'),
           prompt: 'A cute cat',
           modelOptions: {
@@ -518,6 +541,7 @@ describe('Type Safety Tests for generateImage() function', () => {
       it('should allow all dall-e-3 specific options', () => {
         // This should compile - all valid options for mock-dall-e-3
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-dall-e-3'),
           prompt: 'A cute cat',
           modelOptions: {
@@ -531,12 +555,14 @@ describe('Type Safety Tests for generateImage() function', () => {
 
       it('should allow valid quality values for dall-e-3', () => {
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-dall-e-3'),
           prompt: 'A cute cat',
           modelOptions: { quality: 'hd' },
         })
 
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-dall-e-3'),
           prompt: 'A cute cat',
           modelOptions: { quality: 'standard' },
@@ -545,12 +571,14 @@ describe('Type Safety Tests for generateImage() function', () => {
 
       it('should allow valid style values for dall-e-3', () => {
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-dall-e-3'),
           prompt: 'A cute cat',
           modelOptions: { style: 'vivid' },
         })
 
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-dall-e-3'),
           prompt: 'A cute cat',
           modelOptions: { style: 'natural' },
@@ -559,12 +587,14 @@ describe('Type Safety Tests for generateImage() function', () => {
 
       it('should allow valid response_format values for dall-e-3', () => {
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-dall-e-3'),
           prompt: 'A cute cat',
           modelOptions: { response_format: 'url' },
         })
 
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-dall-e-3'),
           prompt: 'A cute cat',
           modelOptions: { response_format: 'b64_json' },
@@ -573,6 +603,7 @@ describe('Type Safety Tests for generateImage() function', () => {
 
       it('should NOT allow gpt-image-1 quality values on dall-e-3', () => {
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-dall-e-3'),
           prompt: 'A cute cat',
           modelOptions: {
@@ -582,6 +613,7 @@ describe('Type Safety Tests for generateImage() function', () => {
         })
 
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-dall-e-3'),
           prompt: 'A cute cat',
           modelOptions: {
@@ -591,6 +623,7 @@ describe('Type Safety Tests for generateImage() function', () => {
         })
 
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-dall-e-3'),
           prompt: 'A cute cat',
           modelOptions: {
@@ -600,6 +633,7 @@ describe('Type Safety Tests for generateImage() function', () => {
         })
 
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-dall-e-3'),
           prompt: 'A cute cat',
           modelOptions: {
@@ -611,6 +645,7 @@ describe('Type Safety Tests for generateImage() function', () => {
 
       it('should NOT allow gpt-image-1 specific options on dall-e-3', () => {
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-dall-e-3'),
           prompt: 'A cute cat',
           modelOptions: {
@@ -620,6 +655,7 @@ describe('Type Safety Tests for generateImage() function', () => {
         })
 
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-dall-e-3'),
           prompt: 'A cute cat',
           modelOptions: {
@@ -629,6 +665,7 @@ describe('Type Safety Tests for generateImage() function', () => {
         })
 
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-dall-e-3'),
           prompt: 'A cute cat',
           modelOptions: {
@@ -638,6 +675,7 @@ describe('Type Safety Tests for generateImage() function', () => {
         })
 
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-dall-e-3'),
           prompt: 'A cute cat',
           modelOptions: {
@@ -649,6 +687,7 @@ describe('Type Safety Tests for generateImage() function', () => {
 
       it('should NOT allow invalid style values on dall-e-3', () => {
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-dall-e-3'),
           prompt: 'A cute cat',
           modelOptions: {
@@ -660,6 +699,7 @@ describe('Type Safety Tests for generateImage() function', () => {
 
       it('should NOT allow unknown options on dall-e-3', () => {
         generateImage({
+          threadId: 'thread-1',
           adapter: mockImage('mock-dall-e-3'),
           prompt: 'A cute cat',
           modelOptions: {
@@ -689,6 +729,7 @@ describe('Type Safety Tests for generateImage() function', () => {
     it('mock-gpt-image-1: full featured call should work', () => {
       // This should compile - using all features available to mock-gpt-image-1
       generateImage({
+        threadId: 'thread-1',
         adapter: mockImage('mock-gpt-image-1'),
         prompt: 'A professional product photo of a watch',
         size: '1536x1024',
@@ -707,6 +748,7 @@ describe('Type Safety Tests for generateImage() function', () => {
     it('mock-dall-e-3: full featured call should work', () => {
       // This should compile - using all features available to mock-dall-e-3
       generateImage({
+        threadId: 'thread-1',
         adapter: mockImage('mock-dall-e-3'),
         prompt: 'A beautiful sunset over mountains',
         size: '1792x1024',
@@ -722,6 +764,7 @@ describe('Type Safety Tests for generateImage() function', () => {
 
     it('mock-dall-e-3: should error with gpt-image-1 options and sizes', () => {
       generateImage({
+        threadId: 'thread-1',
         adapter: mockImage('mock-dall-e-3'),
         prompt: 'A cute cat',
         // @ts-expect-error - '1536x1024' is not a valid size for mock-dall-e-3
@@ -735,6 +778,7 @@ describe('Type Safety Tests for generateImage() function', () => {
 
     it('mock-gpt-image-1: should error with dall-e-3 options and sizes', () => {
       generateImage({
+        threadId: 'thread-1',
         adapter: mockImage('mock-gpt-image-1'),
         prompt: 'A cute cat',
         // @ts-expect-error - '1792x1024' is not a valid size for mock-gpt-image-1
@@ -750,12 +794,14 @@ describe('Type Safety Tests for generateImage() function', () => {
   describe('Base Options Shared Across Models', () => {
     it('should allow user option on both models', () => {
       generateImage({
+        threadId: 'thread-1',
         adapter: mockImage('mock-gpt-image-1'),
         prompt: 'A cute cat',
         modelOptions: { user: 'user-123' },
       })
 
       generateImage({
+        threadId: 'thread-1',
         adapter: mockImage('mock-dall-e-3'),
         prompt: 'A cute cat',
         modelOptions: { user: 'user-456' },
@@ -865,6 +911,7 @@ describe('Model Size Type Assertions', () => {
 describe('Per-model prompt modality type safety', () => {
   it('allows image parts in the prompt for image-input models', () => {
     generateImage({
+      threadId: 'thread-1',
       adapter: mockImage('mock-gpt-image-1'),
       prompt: [
         { type: 'text', content: 'Make it cinematic' },
@@ -907,10 +954,12 @@ describe('Per-model prompt modality type safety', () => {
 
   it('always accepts plain string prompts', () => {
     generateImage({
+      threadId: 'thread-1',
       adapter: mockImage('mock-gpt-image-1'),
       prompt: 'A cat',
     })
     generateImage({
+      threadId: 'thread-1',
       adapter: mockImage('mock-dall-e-3'),
       prompt: 'A cat',
     })

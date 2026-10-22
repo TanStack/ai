@@ -69,65 +69,14 @@ describe('OpenAI Image Adapter', () => {
         expect(() => validateImageSize('gpt-image-1', undefined)).not.toThrow()
       })
     })
-
-    describe('dall-e-3', () => {
-      it('accepts valid sizes', () => {
-        expect(() => validateImageSize('dall-e-3', '1024x1024')).not.toThrow()
-        expect(() => validateImageSize('dall-e-3', '1792x1024')).not.toThrow()
-        expect(() => validateImageSize('dall-e-3', '1024x1792')).not.toThrow()
-      })
-
-      it('rejects invalid sizes', () => {
-        expect(() => validateImageSize('dall-e-3', '512x512')).toThrow()
-        expect(() => validateImageSize('dall-e-3', '256x256')).toThrow()
-      })
-
-      it('accepts auto size (passes through)', () => {
-        // auto is treated as a pass-through and not validated
-        expect(() => validateImageSize('dall-e-3', 'auto')).not.toThrow()
-      })
-    })
-
-    describe('dall-e-2', () => {
-      it('accepts valid sizes', () => {
-        expect(() => validateImageSize('dall-e-2', '256x256')).not.toThrow()
-        expect(() => validateImageSize('dall-e-2', '512x512')).not.toThrow()
-        expect(() => validateImageSize('dall-e-2', '1024x1024')).not.toThrow()
-      })
-
-      it('rejects invalid sizes', () => {
-        expect(() => validateImageSize('dall-e-2', '1792x1024')).toThrow()
-        expect(() => validateImageSize('dall-e-2', '1024x1792')).toThrow()
-      })
-    })
   })
 
   describe('validateNumberOfImages', () => {
-    describe('dall-e-3', () => {
-      it('only accepts 1 image', () => {
-        expect(() => validateNumberOfImages('dall-e-3', 1)).not.toThrow()
-        expect(() => validateNumberOfImages('dall-e-3', 2)).toThrow()
-        expect(() =>
-          validateNumberOfImages('dall-e-3', undefined),
-        ).not.toThrow()
-      })
-    })
-
-    describe('dall-e-2', () => {
-      it('accepts 1-10 images', () => {
-        expect(() => validateNumberOfImages('dall-e-2', 1)).not.toThrow()
-        expect(() => validateNumberOfImages('dall-e-2', 5)).not.toThrow()
-        expect(() => validateNumberOfImages('dall-e-2', 10)).not.toThrow()
-        expect(() => validateNumberOfImages('dall-e-2', 11)).toThrow()
-        expect(() => validateNumberOfImages('dall-e-2', 0)).toThrow()
-      })
-    })
-
     describe('gpt-image-1', () => {
       it('accepts 1-10 images', () => {
-        expect(() => validateNumberOfImages('gpt-image-1', 1)).not.toThrow()
-        expect(() => validateNumberOfImages('gpt-image-1', 10)).not.toThrow()
-        expect(() => validateNumberOfImages('gpt-image-1', 11)).toThrow()
+        expect(() => validateNumberOfImages(1)).not.toThrow()
+        expect(() => validateNumberOfImages(10)).not.toThrow()
+        expect(() => validateNumberOfImages(11)).toThrow()
       })
     })
   })
@@ -270,13 +219,13 @@ describe('OpenAI Image Adapter', () => {
       adapter.spyOnImagesGenerate().mockResolvedValue(mockResponse)
 
       const result1 = await adapter.generateImages({
-        model: 'dall-e-3',
+        model: 'gpt-image-1',
         prompt: 'Test prompt',
         logger: testLogger,
       })
 
       const result2 = await adapter.generateImages({
-        model: 'dall-e-3',
+        model: 'gpt-image-1',
         prompt: 'Test prompt',
         logger: testLogger,
       })
@@ -416,54 +365,29 @@ describe('OpenAI Image Adapter', () => {
       expect(result.images[0]!.b64Json).toBe('edited-base64')
     })
 
-    it('rejects dall-e-3 with a clear error when the prompt has image parts', async () => {
+    it('rejects more than 16 source images', async () => {
       const adapter = new TestOpenAIImageAdapter(
         { apiKey: 'test-api-key' },
-        'dall-e-3',
+        'gpt-image-1',
       )
 
       await expect(
         adapter.generateImages({
-          model: 'dall-e-3',
+          model: 'gpt-image-1',
           prompt: [
             { type: 'text', content: 'edit' },
-            {
-              type: 'image',
-              source: { type: 'data', value: 'aGk=', mimeType: 'image/png' },
-            },
-          ],
-          logger: testLogger,
-        }),
-      ).rejects.toThrow(/does not support image prompt parts/)
-    })
-
-    it('rejects dall-e-2 when more than one source image is provided', async () => {
-      const adapter = new TestOpenAIImageAdapter(
-        { apiKey: 'test-api-key' },
-        'dall-e-2',
-      )
-
-      await expect(
-        adapter.generateImages({
-          model: 'dall-e-2',
-          prompt: [
-            { type: 'text', content: 'edit' },
-            {
-              type: 'image',
-              source: { type: 'data', value: 'aGk=', mimeType: 'image/png' },
-            },
-            {
-              type: 'image',
+            ...Array.from({ length: 17 }, () => ({
+              type: 'image' as const,
               source: {
-                type: 'data',
-                value: 'YnllCg==',
+                type: 'data' as const,
+                value: 'aGk=',
                 mimeType: 'image/png',
               },
-            },
+            })),
           ],
           logger: testLogger,
         }),
-      ).rejects.toThrow(/at most 1 source image/)
+      ).rejects.toThrow(/at most 16 source image/)
     })
 
     it('routes metadata.role==="mask" to the mask param', async () => {

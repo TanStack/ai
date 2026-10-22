@@ -32,6 +32,7 @@ describe('startHostToolBridge', () => {
     await expect(
       startHostToolBridge([], {
         hostForSandbox: '127.0.0.1',
+        threadId: 'thread-1',
         bindAddress: 'not a valid host',
       }),
     ).rejects.toMatchObject({ code: 'ENOTFOUND' })
@@ -46,7 +47,7 @@ describe('startHostToolBridge', () => {
           return 'high noon'
         }),
       ],
-      { hostForSandbox: '127.0.0.1' },
+      { hostForSandbox: '127.0.0.1', threadId: 'thread-1' },
     )
 
     const client = new Client({ name: 'test', version: '1.0.0' })
@@ -75,7 +76,7 @@ describe('startHostToolBridge', () => {
           throw new Error('kaboom')
         }),
       ],
-      { hostForSandbox: '127.0.0.1' },
+      { hostForSandbox: '127.0.0.1', threadId: 'thread-1' },
     )
     const client = new Client({ name: 'test', version: '1.0.0' })
     const transport = new StreamableHTTPClientTransport(new URL(bridge.url), {
@@ -91,6 +92,7 @@ describe('startHostToolBridge', () => {
   it('rejects requests without the bearer token', async () => {
     bridge = await startHostToolBridge([tool('noop', () => 'ok')], {
       hostForSandbox: '127.0.0.1',
+      threadId: 'thread-1',
     })
     const client = new Client({ name: 'test', version: '1.0.0' })
     const transport = new StreamableHTTPClientTransport(new URL(bridge.url))
@@ -99,7 +101,10 @@ describe('startHostToolBridge', () => {
   })
 
   it('closes while a request is still open', async () => {
-    const open = await startHostToolBridge([], { hostForSandbox: '127.0.0.1' })
+    const open = await startHostToolBridge([], {
+      hostForSandbox: '127.0.0.1',
+      threadId: 'thread-1',
+    })
     // Send headers and part of a body, then never finish the request.
     const req = request(open.url, {
       method: 'POST',

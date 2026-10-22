@@ -215,7 +215,7 @@ function Messages({
   messages,
   toolCallEvents,
 }: {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   toolCallEvents: Map<string, Array<VMEvent>>
 }) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
@@ -454,7 +454,7 @@ function Messages({
 }
 
 // Calculate context sizes for the chat metrics
-function calculateActualSize(messages: Array<UIMessage>): number {
+function calculateActualSize(messages: ReadonlyArray<UIMessage>): number {
   return new TextEncoder().encode(JSON.stringify(messages)).length
 }
 
@@ -496,7 +496,7 @@ function CodeModePage() {
   const npmDataIdCounter = useRef(0)
 
   // Ref to hold current messages for the client tool to access
-  const messagesRef = useRef<Array<UIMessage>>([])
+  const messagesRef = useRef<ReadonlyArray<UIMessage>>([])
 
   const body = useMemo(
     () => ({
@@ -679,8 +679,9 @@ function CodeModePage() {
   )
 
   const { messages, sendMessage, isLoading, stop } = useChat({
+    threadId: 'npm-github-chat',
     connection: fetchServerSentEvents('/api/codemode'),
-    body,
+    forwardedProps: body,
     onCustomEvent: handleCustomEvent,
     tools: [exportPdfClientTool],
   })

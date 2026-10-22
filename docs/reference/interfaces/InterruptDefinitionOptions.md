@@ -3,7 +3,7 @@ id: InterruptDefinitionOptions
 title: InterruptDefinitionOptions
 ---
 
-Defined in: [packages/ai/src/interrupt-definition.ts:44](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L44)
+Defined in: packages/ai/src/interrupt-definition.ts:44
 
 ## Type Parameters
 
@@ -27,7 +27,7 @@ Defined in: [packages/ai/src/interrupt-definition.ts:44](https://github.com/TanS
 id: TId;
 ```
 
-Defined in: [packages/ai/src/interrupt-definition.ts:49](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L49)
+Defined in: packages/ai/src/interrupt-definition.ts:49
 
 ***
 
@@ -37,7 +37,7 @@ Defined in: [packages/ai/src/interrupt-definition.ts:49](https://github.com/TanS
 optional payloadSchema?: TPayloadSchema;
 ```
 
-Defined in: [packages/ai/src/interrupt-definition.ts:50](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L50)
+Defined in: packages/ai/src/interrupt-definition.ts:50
 
 ***
 
@@ -47,4 +47,4 @@ Defined in: [packages/ai/src/interrupt-definition.ts:50](https://github.com/TanS
 optional responseSchema?: TResponseSchema;
 ```
 
-Defined in: [packages/ai/src/interrupt-definition.ts:51](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L51)
+Defined in: packages/ai/src/interrupt-definition.ts:51
