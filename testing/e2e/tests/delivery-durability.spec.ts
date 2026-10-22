@@ -104,6 +104,8 @@ test.describe('delivery durability', () => {
     const joined = parseSse(await join.text())
 
     expect(contentDeltas(joined)).toEqual(['1', '2', '3', '4', '5'])
+    // The joining tab sees the same content the producing tab saw.
+    expect(contentDeltas(joined)).toEqual(contentDeltas(produced))
     // The from-start join replays the run-accepted marker first, then the run.
     expect(eventType(joined[0]!)).toBe('CUSTOM')
     expect(eventType(joined[1]!)).toBe('RUN_STARTED')

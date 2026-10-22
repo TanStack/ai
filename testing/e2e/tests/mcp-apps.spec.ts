@@ -75,7 +75,14 @@ function parseCallResponse(body: string): CallHandlerResponse {
   ) {
     throw new Error(`expected a { ok: boolean } response, got: ${body}`)
   }
-  return parsed
+  return {
+    ok: parsed.ok,
+    result: 'result' in parsed ? parsed.result : undefined,
+    error:
+      'error' in parsed && typeof parsed.error === 'string'
+        ? parsed.error
+        : undefined,
+  }
 }
 
 test.describe('mcp-apps — data + interactive planes', () => {

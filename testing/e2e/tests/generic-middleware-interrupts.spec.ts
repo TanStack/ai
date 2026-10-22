@@ -175,7 +175,7 @@ for (const boundaryCase of boundaryCases) {
       new RegExp(`"boundary":"${boundaryCase.boundary}"`),
     )
 
-    if (boundaryCase.mixed) await resolveMixedBatch(page)
+    if ('mixed' in boundaryCase) await resolveMixedBatch(page)
     else await resolveReview(page)
     await waitForFinished(page)
     await expectAssistantText(page, boundaryCase.result)

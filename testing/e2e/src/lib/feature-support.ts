@@ -70,6 +70,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'cloudflare',
     'openai-compatible-legacy',
   ]),
+  'multi-turn-reasoning': new Set(['anthropic']),
   'multi-turn': new Set([
     'openai',
     'anthropic',
