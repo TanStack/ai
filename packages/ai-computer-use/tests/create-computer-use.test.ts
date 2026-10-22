@@ -189,6 +189,7 @@ function createContext(
     phase,
     iteration: 0,
     chunkIndex: 0,
+    callMetadata: {},
     abort() {},
     retry() {},
     emitCustomEvent() {},

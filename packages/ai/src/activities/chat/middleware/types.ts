@@ -14,6 +14,7 @@ import type {
   RunAgentResumeItem,
   RunErrorEvent,
   StreamChunk,
+  TanStackMessageMetadata,
   TokenUsage,
   Tool,
   ToolCall,
@@ -227,6 +228,12 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   iteration: number
   /** Running count of chunks yielded so far */
   chunkIndex: number
+  /**
+   * The `metadata.tanstack` of the current model call: source, stop reason,
+   * response id, and so on. It changes as chunks arrive. Each assistant
+   * message of the call gets a copy of it.
+   */
+  callMetadata: Readonly<TanStackMessageMetadata>
   /** Abort signal from the chat request */
   signal?: AbortSignal
   /** Abort the chat run with a reason */

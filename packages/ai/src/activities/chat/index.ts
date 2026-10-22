@@ -1265,6 +1265,7 @@ class TextEngine<
       phase: 'init',
       iteration: 0,
       chunkIndex: 0,
+      callMetadata: this.currentCallMetadata,
       signal: this.effectiveSignal,
       abort: (reason?: string) => {
         this.abortReason = reason
@@ -1744,6 +1745,7 @@ class TextEngine<
         model: this.params.model,
       },
     }
+    this.middlewareCtx.callMetadata = this.currentCallMetadata
     this.currentMessageId = this.createId('msg')
     this.currentMessageCreatedAt = new Date()
     this.streamIdentityCaptured = false
@@ -4620,6 +4622,7 @@ class TextEngine<
         model: structuredCallOptions.chatOptions.model,
       },
     }
+    this.middlewareCtx.callMetadata = this.structuredCallMetadata
     const providerStream = this.adapter.structuredOutputStream
       ? this.adapter.structuredOutputStream(structuredCallOptions)
       : fallbackStructuredOutputStream(
