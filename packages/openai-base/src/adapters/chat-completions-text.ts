@@ -1357,21 +1357,26 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
         // Map upstream finish_reason to AG-UI's narrower vocabulary.
         // Collapsing length / content_filter to 'stop' would hide why the
-        // run terminated — surface it instead. Use `tool_calls` only when
-        // a TOOL_CALL_END was actually emitted: an upstream that signalled
-        // `tool_calls` but never produced a started/ended pair must NOT
-        // surface `tool_calls` here, since downstream consumers wait for
-        // tool results that would never arrive. OpenAI's legacy
-        // `function_call` value (from the v1 function-calling API) is
-        // normalized to `tool_calls` — semantically the same termination.
+        // run terminated — surface it instead. A tool call cut off by
+        // `length` still emits TOOL_CALL_END (so the lifecycle balances),
+        // but that must not win over `length`: the core would treat the
+        // unfinished arguments as a parse error and call the model again.
+        // Use `tool_calls` only when a TOOL_CALL_END was actually emitted:
+        // an upstream that signalled `tool_calls` but never produced a
+        // started/ended pair must NOT surface `tool_calls` here, since
+        // downstream consumers wait for tool results that would never
+        // arrive. OpenAI's legacy `function_call` value (from the v1
+        // function-calling API) is normalized to `tool_calls`.
         const finishReason: NonNullable<AdapterYieldChunk['finishReason']> =
-          emittedAnyToolCallEnd
-            ? 'tool_calls'
-            : pendingFinishReason === 'tool_calls'
-              ? 'stop'
-              : pendingFinishReason === 'function_call'
-                ? 'tool_calls'
-                : (pendingFinishReason ?? 'stop')
+          pendingFinishReason === 'length'
+            ? 'length'
+            : emittedAnyToolCallEnd
+              ? 'tool_calls'
+              : pendingFinishReason === 'tool_calls'
+                ? 'stop'
+                : pendingFinishReason === 'function_call'
+                  ? 'tool_calls'
+                  : (pendingFinishReason ?? 'stop')
 
         // Conditional `usage` spread: AG-UI's `RunFinishedEvent.usage` is
         // optional with no `| undefined`; omit the key entirely when no usage
