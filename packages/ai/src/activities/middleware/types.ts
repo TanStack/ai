@@ -70,7 +70,7 @@ export interface GenerationMiddlewareContext<TContext = unknown> {
   provider: string
   /** Model id. Emitted as `gen_ai.request.model`. */
   model: string
-  /** Stable conversation/thread id, when supplied by the caller. */
+  /** Stable conversation/thread id. Always set, except for `getVideoJobStatus` polls. */
   threadId?: string
   /** Stable run id, when supplied by the caller. */
   runId?: string

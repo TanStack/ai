@@ -7,7 +7,7 @@ title: generateImage
 function generateImage<TAdapter, TStream>(options): ImageActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/generateImage/index.ts:246](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/index.ts#L246)
+Defined in: packages/ai/src/activities/generateImage/index.ts:249
 
 Image activity - generates images from text prompts.
 
@@ -43,7 +43,8 @@ import { openaiImage } from '@tanstack/ai-openai'
 
 const result = await generateImage({
   adapter: openaiImage('dall-e-3'),
-  prompt: 'A serene mountain landscape at sunset'
+  prompt: 'A serene mountain landscape at sunset',
+  threadId,
 })
 
 console.log(result.images[0].url)
@@ -55,6 +56,7 @@ console.log(result.images[0].url)
 const result = await generateImage({
   adapter: openaiImage('dall-e-2'),
   prompt: 'A cute robot mascot',
+  threadId,
   numberOfImages: 4,
   size: '512x512'
 })
@@ -70,6 +72,7 @@ result.images.forEach((image, i) => {
 const result = await generateImage({
   adapter: openaiImage('dall-e-3'),
   prompt: 'A professional headshot photo',
+  threadId,
   size: '1024x1024',
   modelOptions: {
     quality: 'hd',

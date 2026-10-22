@@ -214,6 +214,7 @@ describe('chat() capability integration', () => {
     })
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'hello' }],
         middleware: [provider, consumer],
@@ -248,6 +249,7 @@ describe('chat() capability integration', () => {
     })
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'hello' }],
         middleware: [provider, consumer],
@@ -266,6 +268,7 @@ describe('chat() capability integration', () => {
     const { adapter } = createMockAdapter({ iterations: [[]] })
     expect(() =>
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'x' }],
         middleware: [needsSandbox],

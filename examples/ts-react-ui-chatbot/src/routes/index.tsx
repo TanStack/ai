@@ -8,6 +8,7 @@ export const Route = createFileRoute('/')({
 
 function TripDesk() {
   const chat = useAppChat({
+    threadId: 'travel-chat',
     forwardedProps: {
       model: selectedModel,
     },

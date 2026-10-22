@@ -80,6 +80,7 @@ export const Route = createFileRoute('/api/lone-surrogates-wire')({
 
         try {
           const stream = chat({
+            threadId: 'lone-surrogates-wire',
             adapter,
             systemPrompts: [LONE],
             messages: [

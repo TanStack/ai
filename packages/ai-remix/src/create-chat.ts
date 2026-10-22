@@ -32,8 +32,7 @@ import type {
  * wraps ChatClient and calls `handle.update()` when the client snapshot
  * changes, so render reads the latest frozen snapshot through getters.
  *
- * The default thread id is `options.threadId ?? handle.id`. Cleanup runs when
- * `handle.signal` aborts. Do not pass identification in `options.devtools`;
+ * `options.threadId` is required. Cleanup runs when `handle.signal` aborts. Do not pass identification in `options.devtools`;
  * the helper sets `framework: 'remix'` and `hookName: 'createChat'`.
  *
  * @param handle Remix component handle from setup.
@@ -48,6 +47,7 @@ import type {
  * function Chat(handle: Handle) {
  *   const chat = createChat(handle, {
  *     connection: fetchServerSentEvents('/api/chat'),
+ *     threadId: 'support-1',
  *   })
  *   return () => (
  *     <div>
@@ -70,7 +70,7 @@ export function createChat<
     InterruptDefinition<any, any, any, any>
   > = readonly [],
 >(
-  handle: Pick<Handle, 'id' | 'update' | 'signal'>,
+  handle: Pick<Handle, 'update' | 'signal'>,
   options: CreateChatOptions<TTools, TSchema, TContext, TInterrupts>,
 ) {
   let closed = false
@@ -78,7 +78,6 @@ export function createChat<
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
   type Final = InferSchemaType<NonNullable<TSchema>>
 
-  const threadId = options.threadId ?? handle.id
   const transport = options.connection
     ? { connection: options.connection }
     : { fetcher: options.fetcher }
@@ -94,24 +93,18 @@ export function createChat<
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),
+    threadId: options.threadId,
     ...(options.persistence === true
       ? {
           persistence: true,
-          threadId,
           ...(options.history !== undefined && {
             history: options.history,
           }),
         }
-      : options.persistence
-        ? {
-            persistence: options.persistence,
-            threadId,
-          }
-        : { threadId }),
+      : { persistence: options.persistence }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
     }),
-    ...(options.body !== undefined && { body: options.body }),
     ...(options.forwardedProps !== undefined && {
       forwardedProps: options.forwardedProps,
     }),
@@ -232,23 +225,6 @@ export function createChat<
     await client.addToolResult(result)
   }
 
-  /** @deprecated Use a bound `tool-approval` interrupt and `interrupt.resolveInterrupt`. */
-  const addToolApprovalResponse = async (response: {
-    id: string
-    approved: boolean
-  }) => {
-    syncTools()
-    await client.addToolApprovalResponse(response)
-  }
-
-  const resumeInterrupts = async (
-    resumeItems: Array<RunAgentResumeItem>,
-    state?: ChatResumeState,
-  ) => {
-    syncTools()
-    return await client.resumeInterrupts(resumeItems, state)
-  }
-
   const resolveInterrupts = (
     resolution:
       | boolean
@@ -339,9 +315,6 @@ export function createChat<
     get interrupts() {
       return client.getSnapshot().interruptState.interrupts
     },
-    get pendingInterrupts() {
-      return client.getSnapshot().interruptState.interrupts
-    },
     get interruptErrors() {
       return client.getSnapshot().interruptState.interruptErrors
     },
@@ -368,11 +341,9 @@ export function createChat<
     setMessages,
     clear,
     addToolResult,
-    addToolApprovalResponse,
     resolveInterrupts,
     cancelInterrupts,
     retryInterrupts,
     resumeInterruptsUnsafe,
-    resumeInterrupts,
   }
 }

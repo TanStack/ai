@@ -44,6 +44,7 @@ describe('Reactor video adapter', () => {
     )
 
     const result = await generateLiveVideo({
+      threadId: 'thread-1',
       adapter: reactorVideo('helios', {
         apiKey: 'rk_test',
         fetch: fetchImpl,
@@ -69,6 +70,7 @@ describe('Reactor video adapter', () => {
     )
 
     await generateLiveVideo({
+      threadId: 'thread-1',
       adapter: createReactorVideo('fast-h3', 'rk_explicit', {
         fetch: fetchImpl,
       }),
@@ -99,6 +101,7 @@ describe('Reactor video adapter', () => {
 
     await expect(
       generateLiveVideo({
+        threadId: 'thread-1',
         adapter: reactorVideo('helios', {
           apiKey: 'rk_test',
           fetch: fetchImpl,

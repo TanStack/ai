@@ -7,9 +7,6 @@ import type { ProviderTool, Tool } from '@tanstack/ai'
 
 export type FileSearchToolConfig = FileSearch
 
-/** @deprecated Renamed to `FileSearchToolConfig`. Will be removed in a future release. */
-export type FileSearchTool = FileSearchToolConfig
-
 export type GeminiFileSearchTool = ProviderTool<'gemini', 'file_search'>
 
 export function convertFileSearchToolToAdapterFormat(tool: Tool) {

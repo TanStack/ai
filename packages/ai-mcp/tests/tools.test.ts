@@ -227,7 +227,7 @@ describe('callMcpTool', () => {
       expect(tool).toBeDefined()
       const result = await tool!.execute!(
         { query: 'tide' },
-        { toolCallId: 't', emitCustomEvent: () => {} },
+        { threadId: 'thread-1', toolCallId: 't', emitCustomEvent: () => {} },
       )
       expect(result).toBe('Research complete: tide')
     } finally {
@@ -523,7 +523,10 @@ describe('makeMcpExecute', () => {
     })
     const tool = tools.find((t) => t.name === 'always_fails')!
     await expect(
-      tool.execute!({}, { toolCallId: 't', emitCustomEvent: () => {} }),
+      tool.execute!(
+        {},
+        { threadId: 'thread-1', toolCallId: 't', emitCustomEvent: () => {} },
+      ),
     ).rejects.toThrow(/always_fails.*boom/)
     await client.close()
   })
@@ -854,6 +857,7 @@ describe('toServerTools', () => {
     const result = await tool.execute!(
       { city: 'Brooklyn' },
       {
+        threadId: 'thread-1',
         toolCallId: 't',
         emitCustomEvent: () => {},
       },

@@ -272,8 +272,7 @@ export type GeminiExtendedImageAspectRatio =
   | '8:1'
 
 /**
- * Sizes for `gemini-3.1-flash-image` (and its shut-down `-preview` alias):
- * all 14 aspect ratios at 512 / 1K / 2K / 4K. `512` is the wire token for the
+ * Sizes for `gemini-3.1-flash-image`: all 14 aspect ratios at 512 / 1K / 2K / 4K. `512` is the wire token for the
  * 0.5K tier — not `512px`, and the `K` is case-sensitive (`1k` is rejected).
  */
 export type Gemini31FlashImageSize =
@@ -301,20 +300,12 @@ export type GeminiNanoBanana21ImageSize =
   `${GeminiExtendedImageAspectRatio}_${'1K' | '2K' | '4K'}`
 
 /**
- * Sizes for `gemini-3-pro-image` (and its shut-down `-preview` alias): the ten
- * standard aspect ratios at 1K / 2K / 4K. Pro has no 512 tier and none of the
+ * Sizes for `gemini-3-pro-image`: the ten standard aspect ratios at 1K / 2K /
+ * 4K. Pro has no 512 tier and none of the
  * extreme banner ratios on the Gemini API.
  */
 export type Gemini3ProImageSize =
   `${GeminiStandardImageAspectRatio}_${'1K' | '2K' | '4K'}`
-
-/**
- * Sizes for `gemini-2.5-flash-image`: a bare aspect ratio with no resolution
- * suffix, e.g. `'16:9'`. Google documents no `image_size` value or default for
- * this model — it emits a single fixed 1024px-class output — so the adapter
- * sends `aspect_ratio` and omits `image_size` rather than guessing a tier.
- */
-export type Gemini25FlashImageSize = GeminiStandardImageAspectRatio
 
 /**
  * `imageConfig` fields sent as Interactions `response_format`.
@@ -336,7 +327,6 @@ export type GeminiNativeImageSize =
   | Gemini31FlashImageSize
   | Gemini31FlashLiteImageSize
   | Gemini3ProImageSize
-  | Gemini25FlashImageSize
 
 /**
  * Gemini native image models that use the Interactions API path.
@@ -359,11 +349,8 @@ export type GeminiNativeImageSize =
 export const GEMINI_NATIVE_IMAGE_MODELS = [
   'gemini-nano-banana-2.1',
   'gemini-3.1-flash-image',
-  'gemini-3.1-flash-image-preview',
   'gemini-3.1-flash-lite-image',
   'gemini-3-pro-image',
-  'gemini-3-pro-image-preview',
-  'gemini-2.5-flash-image',
 ] as const satisfies ReadonlyArray<GeminiImageModels>
 
 export type GeminiNativeImageModels =
@@ -394,11 +381,8 @@ export function isGeminiNativeImageModel(model: string): boolean {
 export type GeminiImageModelSizeByName = {
   'gemini-nano-banana-2.1': GeminiNanoBanana21ImageSize
   'gemini-3.1-flash-image': Gemini31FlashImageSize
-  'gemini-3.1-flash-image-preview': Gemini31FlashImageSize
   'gemini-3.1-flash-lite-image': Gemini31FlashLiteImageSize
   'gemini-3-pro-image': Gemini3ProImageSize
-  'gemini-3-pro-image-preview': Gemini3ProImageSize
-  'gemini-2.5-flash-image': Gemini25FlashImageSize
 } & {
   [K in Exclude<GeminiImageModels, GeminiNativeImageModels>]: GeminiImageSize
 }
@@ -526,10 +510,8 @@ export function validatePrompt(options: {
  * Format: `"aspectRatio_resolution"`, e.g. `"16:9_4K"` →
  * `{ aspectRatio: "16:9", resolution: "4K" }`.
  *
- * The resolution suffix is optional: `gemini-2.5-flash-image` takes a bare
- * aspect ratio (`"16:9"` → `{ aspectRatio: "16:9" }`) because Google documents
- * no `image_size` for it, and the caller must then omit `imageSize` from the
- * request rather than substituting a default.
+ * The resolution suffix is optional: a bare aspect ratio (`"16:9"` →
+ * `{ aspectRatio: "16:9" }`) leaves `imageSize` out of the request.
  */
 export function parseNativeImageSize(
   size: string,

@@ -102,7 +102,11 @@ function parentAgent(name: string, child: DefinedAgent) {
   return defineAgent({
     name,
     description: `Starts ${child.name}`,
-    run: (ctx) => ctx.chat({ adapter, subagents: { agents: [child] } }),
+    run: (ctx) =>
+      ctx.chat({
+        adapter,
+        subagents: { agents: [child] },
+      }),
   })
 }
 

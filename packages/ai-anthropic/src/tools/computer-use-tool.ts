@@ -27,9 +27,6 @@ export type ComputerUseToolConfig =
   | ComputerUseSingleToolConfig
   | ComputerToolsetConfig
 
-/** @deprecated Renamed to `ComputerUseToolConfig`. Will be removed in a future release. */
-export type ComputerUseTool = ComputerUseToolConfig
-
 /** `computer_20241022` or `computer_20250124`. */
 export type AnthropicComputerUseTool = ProviderTool<'anthropic', 'computer_use'>
 

@@ -15,10 +15,6 @@ write_event() {
   printf 'data: %s\n\n' "$1"
 }
 
-write_done() {
-  printf 'data: [DONE]\n\n'
-}
-
 write_error_response() {
   local status="$1"
   local message="$2"
@@ -218,7 +214,6 @@ handle_chat() {
           error: { message: $message }
         }'
     )"
-    write_done
     return
   fi
 
@@ -310,7 +305,6 @@ handle_chat() {
           error: { message: $message }
         }'
     )"
-    write_done
     return
   fi
 
@@ -330,7 +324,6 @@ handle_chat() {
         finishReason: "stop"
       }'
   )"
-  write_done
 }
 
 handle_connection() {

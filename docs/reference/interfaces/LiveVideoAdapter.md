@@ -3,7 +3,7 @@ id: LiveVideoAdapter
 title: LiveVideoAdapter
 ---
 
-Defined in: [packages/ai/src/activities/generateLiveVideo/adapter.ts:31](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateLiveVideo/adapter.ts#L31)
+Defined in: packages/ai/src/activities/generateLiveVideo/adapter.ts:31
 
 **`Experimental`**
 
@@ -36,7 +36,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [packages/ai/src/activities/generateLiveVideo/adapter.ts:45](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateLiveVideo/adapter.ts#L45)
+Defined in: packages/ai/src/activities/generateLiveVideo/adapter.ts:45
 
 **`Internal`**
 
@@ -56,7 +56,7 @@ providerOptions: TProviderOptions;
 createLiveVideo: (options) => Promise<LiveVideoGenerationResult>;
 ```
 
-Defined in: [packages/ai/src/activities/generateLiveVideo/adapter.ts:55](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateLiveVideo/adapter.ts#L55)
+Defined in: packages/ai/src/activities/generateLiveVideo/adapter.ts:55
 
 **`Experimental`**
 
@@ -83,7 +83,7 @@ prompt so a browser can connect, set the prompt, and start streaming.
 readonly kind: "liveVideo";
 ```
 
-Defined in: [packages/ai/src/activities/generateLiveVideo/adapter.ts:36](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateLiveVideo/adapter.ts#L36)
+Defined in: packages/ai/src/activities/generateLiveVideo/adapter.ts:36
 
 **`Experimental`**
 
@@ -97,7 +97,7 @@ Discriminator for adapter kind - used to determine API shape
 readonly model: TModel;
 ```
 
-Defined in: [packages/ai/src/activities/generateLiveVideo/adapter.ts:40](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateLiveVideo/adapter.ts#L40)
+Defined in: packages/ai/src/activities/generateLiveVideo/adapter.ts:40
 
 **`Experimental`**
 
@@ -111,7 +111,7 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: [packages/ai/src/activities/generateLiveVideo/adapter.ts:38](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateLiveVideo/adapter.ts#L38)
+Defined in: packages/ai/src/activities/generateLiveVideo/adapter.ts:38
 
 **`Experimental`**
 

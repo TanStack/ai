@@ -6,12 +6,10 @@ export type { CreateMcpAppBridgeOptions } from './create-mcp-app-bridge.ts'
 export {
   createPageWebMCPTools,
   createRegisterWebMCPTools,
-  createWebMCPTools,
 } from './create-web-mcp-tools.ts'
 export type {
   CreatePageWebMCPToolsOptions,
   CreateRegisterWebMCPToolsOptions,
-  CreateWebMCPToolsOptions,
 } from './create-web-mcp-tools.ts'
 export type {
   DeepPartial,

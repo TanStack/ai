@@ -36,6 +36,7 @@ describe.each(apis)('$api adapter on a 429', ({ adapter }) => {
     })
     const chunks: Array<StreamChunk> = []
     for await (const chunk of adapter(client).chatStream({
+      threadId: 'thread-1',
       logger,
       model,
       messages: [{ role: 'user', content: 'Hi' }],

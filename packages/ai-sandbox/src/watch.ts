@@ -22,8 +22,6 @@ import type { SandboxFileEvent } from '@tanstack/ai'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 
 export type { SandboxFileEvent } from '@tanstack/ai'
-/** @deprecated alias retained for the low-level watch API. */
-export type FileEvent = SandboxFileEvent
 export type FileEventType = SandboxFileEvent['type']
 
 export interface WatchOptions {

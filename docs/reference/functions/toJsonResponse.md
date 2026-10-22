@@ -9,7 +9,7 @@ title: toJsonResponse
 function toJsonResponse(result, init?): Promise<Response>;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:1684](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1684)
+Defined in: packages/ai/src/stream-to-response.ts:1684
 
 Send a chat run as one JSON body, for hosts that cannot stream a response.
 Pair it with the `fetchJson` connection adapter.
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
 function toJsonResponse<TOffset>(stream, init?): Promise<Response>;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:1688](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1688)
+Defined in: packages/ai/src/stream-to-response.ts:1688
 
 Send a chat run as one JSON body, for hosts that cannot stream a response.
 Pair it with the `fetchJson` connection adapter.
@@ -169,7 +169,7 @@ export async function POST(request: Request) {
 function toJsonResponse(structuredOutput, init?): Promise<Response>;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:1692](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1692)
+Defined in: packages/ai/src/stream-to-response.ts:1692
 
 Send a chat run as one JSON body, for hosts that cannot stream a response.
 Pair it with the `fetchJson` connection adapter.

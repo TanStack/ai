@@ -22,6 +22,7 @@ it('useChat types subagent parts from the server agents', () => {
     })
 
     const chat = useChat({
+      threadId: 'thread-1',
       connection: { connect: async function* () {} },
       subagents: [researcher, writer],
     })
@@ -71,6 +72,7 @@ it('types part.subagent.input from the agent inputSchema', () => {
     })
 
     const chat = useChat({
+      threadId: 'thread-1',
       connection: { connect: async function* () {} },
       subagents: [researcher, writer],
     })

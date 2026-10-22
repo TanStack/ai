@@ -200,7 +200,7 @@ export class OpenRouterResponsesTextAdapter<
     // AG-UI lifecycle tracking
     const aguiState = {
       runId: generateId(this.name),
-      threadId: options.threadId ?? generateId(this.name),
+      threadId: options.threadId,
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,
     }
@@ -423,7 +423,7 @@ export class OpenRouterResponsesTextAdapter<
 
     const aguiState = {
       runId: generateId(this.name),
-      threadId: chatOptions.threadId ?? generateId(this.name),
+      threadId: chatOptions.threadId,
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,
     }
@@ -432,7 +432,6 @@ export class OpenRouterResponsesTextAdapter<
     let accumulatedReasoning = ''
     let hasEmittedTextMessageStart = false
     let reasoningMessageId: string | undefined
-    let stepId: string | undefined
     let hasClosedReasoning = false
     let model: string = chatOptions.model
     let responseId: string | undefined
@@ -464,18 +463,7 @@ export class OpenRouterResponsesTextAdapter<
           model,
           timestamp: Date.now(),
         }
-        if (stepId) {
-          yield {
-            type: EventType.STEP_FINISHED,
-            stepName: stepId,
-            stepId,
-            model,
-            timestamp: Date.now(),
-            content: accumulatedReasoning,
-          }
-        }
         reasoningMessageId = undefined
-        stepId = undefined
         hasClosedReasoning = false
       }
     }.bind(this)
@@ -485,7 +473,6 @@ export class OpenRouterResponsesTextAdapter<
     }): Generator<AdapterYieldChunk> {
       if (reasoningMessageId) return
       reasoningMessageId = generateId(this.name)
-      stepId = generateId(this.name)
       yield {
         type: EventType.REASONING_START,
         messageId: reasoningMessageId,
@@ -498,14 +485,6 @@ export class OpenRouterResponsesTextAdapter<
         role: 'reasoning' as const,
         model,
         timestamp: Date.now(),
-      }
-      yield {
-        type: EventType.STEP_STARTED,
-        stepName: stepId,
-        stepId,
-        model,
-        timestamp: Date.now(),
-        stepType: 'thinking',
       }
     }.bind(this)
 
@@ -953,7 +932,6 @@ export class OpenRouterResponsesTextAdapter<
       this.makeStructuredOutputCompatible.bind(this),
     )
     let accumulatedContent = ''
-    let accumulatedReasoning = ''
 
     let hasStreamedContentDeltas = false
     let hasStreamedReasoningDeltas = false
@@ -962,7 +940,6 @@ export class OpenRouterResponsesTextAdapter<
     let responseId: string | undefined
     let reportedModel: string | undefined
 
-    let stepId: string | null = null
     let hasEmittedTextMessageStart = false
     let reasoningMessageId: string | undefined
     let hasClosedReasoning = false
@@ -974,7 +951,6 @@ export class OpenRouterResponsesTextAdapter<
     const openReasoning = function* (): Generator<AdapterYieldChunk> {
       if (reasoningMessageId) return
       reasoningMessageId = generateId(adapterName)
-      stepId = generateId(adapterName)
       const timestamp = Date.now()
       const currentModel = emitModel()
       yield {
@@ -989,14 +965,6 @@ export class OpenRouterResponsesTextAdapter<
         role: 'reasoning' as const,
         model: currentModel,
         timestamp,
-      }
-      yield {
-        type: EventType.STEP_STARTED,
-        stepName: stepId,
-        stepId,
-        model: currentModel,
-        timestamp,
-        stepType: 'thinking',
       }
     }
 
@@ -1017,20 +985,8 @@ export class OpenRouterResponsesTextAdapter<
         model: currentModel,
         timestamp,
       }
-      if (stepId) {
-        yield {
-          type: EventType.STEP_FINISHED,
-          stepName: stepId,
-          stepId,
-          model: currentModel,
-          timestamp,
-          content: accumulatedReasoning,
-        }
-      }
       reasoningMessageId = undefined
-      stepId = null
       hasClosedReasoning = false
-      accumulatedReasoning = ''
     }
 
     const emitReasoningDelta = function* (
@@ -1039,7 +995,6 @@ export class OpenRouterResponsesTextAdapter<
       if (!text) return
       yield* openReasoning()
       if (!reasoningMessageId) return
-      accumulatedReasoning += text
       hasStreamedReasoningDeltas = true
       yield {
         type: EventType.REASONING_MESSAGE_CONTENT,
@@ -1136,9 +1091,7 @@ export class OpenRouterResponsesTextAdapter<
           hasEmittedTextMessageStart = false
           reasoningMessageId = undefined
           hasClosedReasoning = false
-          stepId = null
           accumulatedContent = ''
-          accumulatedReasoning = ''
         }
 
         // response.failed and response.incomplete are TERMINAL events.
@@ -1379,7 +1332,6 @@ export class OpenRouterResponsesTextAdapter<
                 type: EventType.TOOL_CALL_START,
                 toolCallId: metadata.callId,
                 toolCallName: metadata.name,
-                toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
@@ -1477,7 +1429,6 @@ export class OpenRouterResponsesTextAdapter<
             type: EventType.TOOL_CALL_END,
             toolCallId: metadata.callId,
             toolCallName: name,
-            toolName: name,
             model: model || options.model,
             timestamp: Date.now(),
             args: chunk.arguments,
@@ -1510,7 +1461,6 @@ export class OpenRouterResponsesTextAdapter<
                 type: EventType.TOOL_CALL_START,
                 toolCallId: metadata.callId,
                 toolCallName: metadata.name,
-                toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
@@ -1558,7 +1508,6 @@ export class OpenRouterResponsesTextAdapter<
                 type: EventType.TOOL_CALL_END,
                 toolCallId: metadata.callId,
                 toolCallName: name,
-                toolName: name,
                 model: model || options.model,
                 timestamp: Date.now(),
                 args: rawArgs,
@@ -1638,7 +1587,6 @@ export class OpenRouterResponsesTextAdapter<
                 type: EventType.TOOL_CALL_START,
                 toolCallId: metadata.callId,
                 toolCallName: metadata.name,
-                toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
@@ -1686,7 +1634,6 @@ export class OpenRouterResponsesTextAdapter<
                 type: EventType.TOOL_CALL_END,
                 toolCallId: metadata.callId,
                 toolCallName: name,
-                toolName: name,
                 model: model || options.model,
                 timestamp: Date.now(),
                 args: rawArgs,

@@ -59,6 +59,7 @@ async function send(
 ) {
   create.mockClear()
   for await (const chunk of adapter.chatStream({
+    threadId: 'thread-1',
     logger,
     model: 'test-model',
     ...options,
@@ -279,6 +280,7 @@ describe('Responses function call namespace', () => {
     create.mockImplementation(() => Promise.resolve(namespacedCallStream()))
     const starts: Array<unknown> = []
     for await (const chunk of new ChannelAdapter(both).chatStream({
+      threadId: 'thread-1',
       logger,
       model: 'test-model',
       messages: [{ role: 'user', content: 'Weather in Paris?' }],

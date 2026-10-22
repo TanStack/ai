@@ -29,6 +29,7 @@ describe('generateWorld', () => {
   it('returns the adapter session payload', async () => {
     const adapter = mockWorldAdapter()
     const result = await generateWorld({
+      threadId: 'thread-1',
       adapter,
       prompt: 'A neon city',
       debug: false,
@@ -53,6 +54,7 @@ describe('generateWorld', () => {
     const abort = new AbortController()
 
     await generateWorld({
+      threadId: 'thread-1',
       adapter,
       prompt: 'black volcanic cliffs',
       abortSignal: abort.signal,
@@ -73,6 +75,7 @@ describe('generateWorld', () => {
 
     await expect(
       generateWorld({
+        threadId: 'thread-1',
         adapter,
         prompt: 'x',
         timeout: 50,
@@ -90,6 +93,7 @@ describe('generateWorld', () => {
 
     await expect(
       generateWorld({
+        threadId: 'thread-1',
         adapter,
         prompt: 'x',
         debug: false,

@@ -1,7 +1,7 @@
 ---
 title: ACP-Compatible Harness
 id: acp-compatible-harness
-description: "Plug any Agent Client Protocol (ACP) coding agent into a TanStack AI sandbox with one generic harness adapter — no dedicated package required."
+description: "Run any coding agent that speaks the Agent Client Protocol (ACP) inside a TanStack AI sandbox, with one generic harness adapter and no dedicated package."
 keywords:
   - tanstack ai
   - acp
@@ -12,311 +12,224 @@ keywords:
   - custom adapter
 ---
 
-Coding-agent CLIs that speak the [Agent Client Protocol](https://agentclientprotocol.com) (ACP) — `grok`, `gemini --acp`, and others — expose a long-lived JSON-RPC session you can drive from a sandbox. Instead of a dedicated package per agent, `acpCompatible` builds a `chat()` adapter for **any** ACP-compliant CLI: configure how to launch it once, select a model per call, and pass it into a sandbox.
+`acpCompatible` builds a `chat()` adapter for an ACP agent CLI that has no `@tanstack/ai-*` package. You pass the start command. The adapter runs the agent in a sandbox.
 
-It is the harness equivalent of the [OpenAI-Compatible adapter](./openai-compatible). Use it when your agent speaks ACP but has no `@tanstack/ai-*` package. If a dedicated harness adapter exists ([Grok Build](./grok-build), and others), prefer it — those carry curated per-model metadata and vendor-specific behavior.
+It is the harness version of the [OpenAI-Compatible adapter](./openai-compatible). Does a dedicated harness adapter exist for your agent, such as [Grok Build](./grok-build)? Use that one. It knows the models and the special behavior of its agent.
 
-## Authentication
+You need:
 
-The default `authMode` is `'api-key'`. Set `'host'` when the agent should use
-a CLI login on the machine. The sandbox type does not pick this. See
-[Harness Auth](../sandbox/auth).
+- A sandbox provider. The samples use Docker, so Docker must run on your machine.
+- An agent CLI that runs an ACP server over stdio, installed inside the sandbox. The samples use the `grok` CLI.
+- The API key of that agent, or a CLI login on the machine.
 
-```ts
-import { acpCompatibleText } from "@tanstack/ai-acp"
-
-acpCompatibleText("composer-2.5", {
-  name: "acp",
-  command: ({ model }) => `grok agent -m '${model}' --always-approve stdio`,
-  authMethodId: "xai.api_key",
-})
-
-acpCompatibleText("composer-2.5", {
-  name: "acp",
-  command: ({ model }) => `grok agent -m '${model}' --always-approve stdio`,
-  authMode: "host",
-})
-```
-
-- `'api-key'` (default): call `authenticate` with `authMethodId`.
-- `'host'`: skip ACP `authenticate`. Use the CLI login on the machine.
-
-Pass `outputSchema` on the same `chat()` call. `acpCompatible` adds the schema to the prompt and parses the last assistant text. Native harness tools still run on that turn. Read the typed object from `await chat()`, from `useChat().final`, or from the assistant `structured-output` part. See [Harness Agents](../structured-outputs/harnesses).
-
-## Installation
-
-`acpCompatible` ships in `@tanstack/ai-acp`. You drive it inside a sandbox, so install the sandbox package and a provider too:
+## 1. Install
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
-react: @tanstack/ai-acp @tanstack/ai @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
-vue: @tanstack/ai-acp @tanstack/ai @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
-solid: @tanstack/ai-acp @tanstack/ai @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
-svelte: @tanstack/ai-acp @tanstack/ai @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
-preact: @tanstack/ai-acp @tanstack/ai @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
-angular: @tanstack/ai-acp @tanstack/ai @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
-vanilla: @tanstack/ai-acp @tanstack/ai @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
-octane: @tanstack/ai-acp @tanstack/ai @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+react: @tanstack/ai @tanstack/ai-acp @tanstack/ai-sandbox @tanstack/ai-sandbox-docker @tanstack/ai-grok-build
+vue: @tanstack/ai @tanstack/ai-acp @tanstack/ai-sandbox @tanstack/ai-sandbox-docker @tanstack/ai-grok-build
+solid: @tanstack/ai @tanstack/ai-acp @tanstack/ai-sandbox @tanstack/ai-sandbox-docker @tanstack/ai-grok-build
+svelte: @tanstack/ai @tanstack/ai-acp @tanstack/ai-sandbox @tanstack/ai-sandbox-docker @tanstack/ai-grok-build
+preact: @tanstack/ai @tanstack/ai-acp @tanstack/ai-sandbox @tanstack/ai-sandbox-docker @tanstack/ai-grok-build
+angular: @tanstack/ai @tanstack/ai-acp @tanstack/ai-sandbox @tanstack/ai-sandbox-docker @tanstack/ai-grok-build
+vanilla: @tanstack/ai @tanstack/ai-acp @tanstack/ai-sandbox @tanstack/ai-sandbox-docker @tanstack/ai-grok-build
+octane: @tanstack/ai @tanstack/ai-acp @tanstack/ai-sandbox @tanstack/ai-sandbox-docker @tanstack/ai-grok-build
 
 <!-- ::end:tabs -->
 
-## Basic Usage
+The samples import `GROK_CLI_INSTALL_COMMAND` from `@tanstack/ai-grok-build`, to install the `grok` CLI in the sandbox. For another agent, use its own install command and skip that package.
 
-Configure the harness once with `acpCompatible({ name, command })`, then select a model per call. `command` builds the shell command that launches the agent's ACP server over **stdio** inside the sandbox:
+## 2. Set the API key
+
+Put the key of your agent in the environment of your server. For the `grok` CLI:
+
+```bash
+XAI_API_KEY=xai-...
+```
+
+The sandbox in step 3 gives this key to the agent as a workspace secret. Then the adapter signs in through ACP `authenticate`, with the auth method that you name in `authMethodId`. For Grok, it is `xai.api_key`.
+
+Did the machine already log in to the agent CLI? Set `authMode: 'host'`. The adapter then skips ACP `authenticate`. See [Harness Auth](../sandbox/auth).
+
+## 3. Run the agent from the server
+
+Define the sandbox once. It clones your repo into a Docker container and installs the agent CLI:
 
 ```ts
-import { chat } from '@tanstack/ai'
-import { acpCompatible } from '@tanstack/ai-acp'
+// sandbox.ts
+import { GROK_CLI_INSTALL_COMMAND } from "@tanstack/ai-grok-build";
 import {
   createSecrets,
   defineSandbox,
   defineWorkspace,
   githubRepo,
-  withSandbox,
-} from '@tanstack/ai-sandbox'
-import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
-import { messages } from './chat-context'
+} from "@tanstack/ai-sandbox";
+import { dockerSandbox } from "@tanstack/ai-sandbox-docker";
 
-// Configure the "pi" agent harness once:
-const pi = acpCompatible({
-  name: 'pi',
-  command: ({ model, harnessCwd }) => `pi --acp -m ${model} --cwd ${harnessCwd}`,
-  authMethodId: 'pi-api-key', // when the harness advertises an ACP auth method
-  refusalMessage: 'Pi refused the request.',
-})
-
-const sandbox = defineSandbox({
-  id: 'pi-agent',
-  provider: dockerSandbox({ image: 'node:22' }),
+export const sandbox = defineSandbox({
+  id: "acp-agent",
+  provider: dockerSandbox({ image: "node:22" }),
   workspace: defineWorkspace({
-    source: githubRepo({ repo: 'owner/app' }),
-    setup: ['npm install -g pi-cli'], // install the agent CLI into the image
-    secrets: createSecrets({ PI_API_KEY: process.env.PI_API_KEY ?? '' }),
+    source: githubRepo({ repo: "owner/app" }),
+    setup: [GROK_CLI_INSTALL_COMMAND],
+    secrets: createSecrets({
+      XAI_API_KEY: process.env.XAI_API_KEY ?? "",
+    }),
   }),
-})
-
-const stream = chat({
-  adapter: pi('pi-fast'),
-  messages,
-  middleware: [withSandbox(sandbox)],
-})
+});
 ```
 
-You get the full ACP flow for free: sandbox resolution, `chat()`-tool → MCP bridging, session resume, permission handling, abort, and AG-UI event translation.
-
-## One-Shot Usage
-
-For a single model, skip the harness-factory and build the adapter inline with `acpCompatibleText`:
+Then build the adapter with `acpCompatibleText` and pass it to `chat()`. `command` returns the shell command that starts the ACP server of the agent over stdio:
 
 ```ts
-import { chat } from '@tanstack/ai'
-import { acpCompatibleText } from '@tanstack/ai-acp'
-import { withSandbox } from '@tanstack/ai-sandbox'
-import { sandbox } from './sandbox'
-import { messages } from './chat-context'
+// api/agent.ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { acpCompatibleText } from "@tanstack/ai-acp";
+import { withSandbox } from "@tanstack/ai-sandbox";
+import { sandbox } from "./sandbox";
 
-const stream = chat({
-  adapter: acpCompatibleText('pi-fast', {
-    name: 'pi',
-    command: ({ model }) => `pi --acp -m ${model}`,
-  }),
-  messages,
-  middleware: [withSandbox(sandbox)],
-})
-```
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
 
-## Typed output
-
-Pass `outputSchema` on the same `chat()` call. The agent runs its native tools. Then the adapter parses the last assistant text as JSON.
-
-```ts
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
-import { acpCompatibleText } from '@tanstack/ai-acp'
-import { withSandbox } from '@tanstack/ai-sandbox'
-import { z } from 'zod'
-import { sandbox } from './sandbox'
-import { messages } from './chat-context'
-
-const ReportSchema = z.object({
-  name: z.string(),
-  oneLiner: z.string(),
-})
-
-export async function POST() {
   const stream = chat({
-    adapter: acpCompatibleText('pi-fast', {
-      name: 'pi',
-      command: ({ model }) => `pi --acp -m ${model}`,
+    adapter: acpCompatibleText("composer-2.5", {
+      name: "acp",
+      command: ({ model }) => `grok agent -m '${model}' --always-approve stdio`,
+      authMethodId: "xai.api_key",
     }),
     messages,
-    outputSchema: ReportSchema,
-    stream: true,
+    threadId,
+    runId,
     middleware: [withSandbox(sandbox)],
-  })
-  return toServerSentEventsResponse(stream)
+  });
+
+  return toServerSentEventsResponse(stream);
 }
 ```
 
-On the client, walk `messages[].parts` for tool calls and reasoning. Read the typed object from the `structured-output` part or from `useChat().final`.
+Replace `owner/app` with your repo.
+
+## 4. Render the agent's work
+
+The client is the same as for any chat. Render the text, and show each tool that the agent ran:
 
 ```tsx
-import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
-import { z } from 'zod'
+import { useState } from "react";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
-const ReportSchema = z.object({
-  name: z.string(),
-  oneLiner: z.string(),
-})
-
-function Report() {
-  const { messages, final } = useChat({
-    connection: fetchServerSentEvents('/api/report'),
-    outputSchema: ReportSchema,
-  })
+export function CodingAgent() {
+  const [input, setInput] = useState("");
+  const { messages, sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/agent"),
+    threadId: "support-chat",
+  });
 
   return (
-    <>
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        sendMessage(input);
+        setInput("");
+      }}
+    >
       {messages.map((message) =>
         message.parts.map((part, index) => {
-          if (part.type === 'tool-call') {
-            return <p key={part.id}>{part.name}</p>
+          if (part.type === "text") {
+            return <p key={`${message.id}-${index}`}>{part.content}</p>;
           }
-          if (part.type === 'structured-output') {
-            const report = part.data ?? part.partial
-            return report?.name ? <h2 key={index}>{report.name}</h2> : null
+          if (part.type === "tool-call") {
+            return <code key={part.id}>{part.name}</code>;
           }
-          return null
+          return null;
         }),
       )}
-      {final ? <p>{final.oneLiner}</p> : null}
-    </>
-  )
+      <input value={input} onChange={(event) => setInput(event.target.value)} />
+    </form>
+  );
 }
 ```
 
-See [Harness Agents](../structured-outputs/harnesses) for the full part list and the repo-report example.
+Ask it "Fix the failing test in utils.test.ts". You see the agent's text, plus a line for each tool it used. The agent edited the files inside the container.
 
-## Typed models & options
+## How it works
 
-Like `openaiCompatible`, you can declare the harness's **models** and its
-per-call **options** so the whole thing is type-checked. `models` constrains the
-factory's argument; `modelOptions` is a type-only brand (`{} as { … }`, unused at
-runtime) describing what `chat({ modelOptions })` accepts. Declared options are
-merged with the base ACP options and handed to `command` / `openTransport` as
-`ctx.modelOptions`, so you can turn them into CLI flags:
+`acpCompatible` gives you the full ACP flow:
+
+- It finds the sandbox from `withSandbox(...)` and starts the agent there.
+- It bridges your `chat()` tools into the agent over MCP.
+- It handles session resume, permission requests, and abort.
+- It turns the ACP updates of the agent into `chat()` stream chunks.
+
+## Configure an agent once
+
+For more than one model, configure the agent once with `acpCompatible`. You get a factory. Then pick the model on each call:
 
 ```ts
-import { acpCompatible } from '@tanstack/ai-acp'
+// pi-harness.ts
+import { acpCompatible } from "@tanstack/ai-acp";
 
-const pi = acpCompatible({
-  name: 'pi',
-  models: ['pi-fast', 'pi-pro'],
-  modelOptions: {} as { reasoningEffort?: 'low' | 'high' },
+export const pi = acpCompatible({
+  name: "pi",
+  models: ["pi-fast", "pi-pro"],
+  modelOptions: {} as { reasoningEffort?: "low" | "high" },
   command: ({ model, harnessCwd, modelOptions }) =>
     `pi --acp -m ${model} --cwd ${harnessCwd}` +
-    (modelOptions?.reasoningEffort ? ` --effort ${modelOptions.reasoningEffort}` : ''),
-})
-
-pi('pi-pro') // ok
-// pi('pi-ultra') // type error — not in `models`
+    (modelOptions?.reasoningEffort
+      ? ` --effort ${modelOptions.reasoningEffort}`
+      : ""),
+  authMethodId: "pi-api-key",
+  refusalMessage: "Pi refused the request.",
+});
 ```
 
 ```ts
-import { chat } from '@tanstack/ai'
-import { withSandbox } from '@tanstack/ai-sandbox'
-import { pi } from './pi-harness'
-import { sandbox } from './sandbox'
-import { messages } from './chat-context'
+import { chat } from "@tanstack/ai";
+import { withSandbox } from "@tanstack/ai-sandbox";
+import { pi } from "./pi-harness";
+import { sandbox } from "./sandbox";
 
 const stream = chat({
-  adapter: pi('pi-pro'),
-  modelOptions: { reasoningEffort: 'high' }, // typed against the declared options
-  messages,
+  adapter: pi("pi-pro"),
+  modelOptions: { reasoningEffort: "high" },
+  messages: [{ role: "user", content: "Fix the failing test." }],
+  threadId: "thread-1",
   middleware: [withSandbox(sandbox)],
-})
+});
 ```
 
-The base options are always available on `modelOptions` regardless of what you
-declare: `sessionId` (resume), `cwd`, `authMode`, `authMethodId`, and
-`permissionMode`.
-
-## Configuration
-
-| Field | Purpose |
-| --- | --- |
-| `name` (required) | Harness label, log prefix, and the `<name>.session-id` CUSTOM event name. |
-| `models` | The model ids this harness accepts — declaring them makes `harness('id')` type-safe (unknown ids are rejected). Omit to accept any string. |
-| `modelOptions` | Type-only brand for the per-call options accepted via `chat({ modelOptions })`. Declare with `{} as { … }`; merged with the base options and exposed on `ctx.modelOptions` in `command` / `openTransport`. |
-| `command` | Build the **stdio** launch command from `{ model, cwd, harnessCwd, sandbox, env, modelOptions, signal }`. Required unless `openTransport` is given. |
-| `skillsDir` | The harness's skills directory (relative to the workspace root, e.g. `'.pi/skills'`) — its native convention, like Claude Code's `.claude/skills`. `withSandbox` workspace `gitSkill`s are linked here. Omit and gitSkills are left unlinked (warned). |
-| `openTransport` | Open any `AcpSessionTransport` yourself (e.g. boot a `serve` process and connect over WebSocket). Overrides `command`. |
-| `cwd` | Working directory inside the sandbox (default `/workspace`). |
-| `env` | Extra environment variables for the harness process. |
-| `authMode` | `'api-key'` (default) uses `authMethodId`. `'host'` skips ACP `authenticate`. See [Harness Auth](../sandbox/auth). |
-| `authMethodId` | ACP auth method to select before the session starts. Ignored when `authMode` is `'host'`. |
-| `permissionMode` | `'default'` \| `'acceptEdits'` \| `'bypassPermissions'` (default). |
-| `permissions` | `'headless'` (auto-resolve, default) or `'interactive'` (emit approval-requested events for `ask` prompts). |
-| `onPermissionRequest` | Custom permission handler; overrides `permissions`/`permissionMode`. |
-| `refusalMessage` | `RUN_ERROR` message when the harness refuses a request. |
-| `planEventName` | Emit ACP `plan` updates as a CUSTOM event under this name. |
-| `emitDiff` | Emit the post-run `git diff` of `cwd` as a `file.changed` CUSTOM event (off by default). |
-| `onExtNotification` | Handle vendor `_x/…` JSON-RPC notifications. |
-| `buildPrompt` | Override how chat history maps to the harness prompt. |
-
-This adapter ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the harness process sends the model requests.
-
-## WebSocket and Custom Transports
-
-Some harnesses run an ACP server you reach over WebSocket rather than stdio (the `grok agent serve` pattern). Open the transport yourself with `openTransport` — it receives the same context and returns an `AcpSessionTransport`. Put all teardown in the returned transport's `dispose`:
-
-```ts
-import { acpCompatible, startAcpServerInSandbox } from '@tanstack/ai-acp'
-
-const myAgent = acpCompatible({
-  name: 'my-agent',
-  openTransport: async ({ sandbox, model, harnessCwd, signal }) => {
-    const server = await startAcpServerInSandbox(sandbox, {
-      port: 9100,
-      cwd: harnessCwd,
-      command: `my-agent serve --bind 0.0.0.0:9100 -m ${model}`,
-      readyMarker: 'listening',
-      buildWsUrl: ({ channel, port }) =>
-        `${channel.url.replace(/^http/i, 'ws')}:${port}`,
-      ...(signal ? { signal } : {}),
-    })
-    const ws = await server.connect(signal)
-    return {
-      kind: 'stream',
-      stream: ws.stream,
-      dispose: async () => {
-        ws.close()
-        await server.dispose()
-      },
-    }
-  },
-})
-```
+- `models` makes the factory type-safe. `pi("pi-ultra")` is a type error. Without `models`, the factory takes any string.
+- `modelOptions` is a type-only brand. The value `{} as { ... }` is not used at run time. It types what `chat({ modelOptions })` takes.
+- Your declared options join the base options. `command` and `openTransport` get them as `ctx.modelOptions`, so you can turn them into CLI flags.
+- The base options are always there: `sessionId`, `cwd`, `authMode`, `authMethodId`, and `permissionMode`.
 
 ## Permissions
 
-Inside a sandbox the sandbox itself is the security boundary, so the default `'headless'` strategy with `permissionMode: 'bypassPermissions'` lets the agent edit files and run commands without prompting. To surface tool approvals to a client instead, switch to `'interactive'`:
+Inside a sandbox, the sandbox is the security boundary. So by default, the adapter answers each permission request of the agent with `permissionMode: 'bypassPermissions'`. The agent edits files and runs commands with no prompt.
+
+To send tool approvals to a client, switch to `'interactive'`:
 
 ```ts
-import { acpCompatible } from '@tanstack/ai-acp'
+import { acpCompatible } from "@tanstack/ai-acp";
 
-const pi = acpCompatible({
-  name: 'pi',
+export const pi = acpCompatible({
+  name: "pi",
   command: ({ model }) => `pi --acp -m ${model}`,
-  permissions: 'interactive', // emit approval-requested events for `ask` prompts
-  permissionMode: 'acceptEdits', // still auto-approve file edits
-})
+  permissions: "interactive", // send approval-requested events for `ask` prompts
+  permissionMode: "acceptEdits", // still allow file edits with no prompt
+});
 ```
 
-`chat()`-provided tools bridged into the agent are always auto-approved, regardless of mode.
+- With `'interactive'`, an `ask` prompt sends an approval-requested event. The client approves, then runs the turn again.
+- Your `chat()` tools that the adapter bridges into the agent are always allowed, in every mode.
+- To write your own rules, pass `onPermissionRequest`. It overrides `permissions` and `permissionMode`.
 
 ## Tool choice
 
-You want the agent to see just one of your tools, or none of them. Pass `toolChoice` to `chat()`. It limits only the tools that the adapter bridges into the agent. ACP has no field to turn off the built-in tools of the agent or to force a tool call, so the agent decides when it calls a tool.
+You want the agent to see only one of your tools, or none of them. Pass `toolChoice` to `chat()`. It limits only the tools that the adapter bridges into the agent. ACP has no field to turn off the built-in tools of the agent or to force a tool call. So the agent decides when it calls a tool.
 
 | Value | What the adapter does |
 | --- | --- |
@@ -329,84 +242,226 @@ Each value except `'auto'` logs a warning the first time an adapter instance get
 
 For the values on other adapters, see [Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool).
 
-## Session Resume
+## Session resume
 
-On every run the adapter emits the harness session id as a CUSTOM event named `<name>.session-id` (e.g. `pi.session-id`). Thread that id back through `modelOptions.sessionId` on the next call and the harness resumes the session — only the trailing user message is sent, since the agent already holds the prior context:
+On each run, the adapter sends the session id of the agent as a custom event named `<name>.session-id`, for example `pi.session-id`. Send the id back in `modelOptions.sessionId` on the next call, and the agent continues the session:
 
 ```ts
-import { chat, chatParamsFromRequest, toServerSentEventsResponse } from '@tanstack/ai'
-import { withSandbox } from '@tanstack/ai-sandbox'
-import { pi } from './pi-harness' // the configured `acpCompatible(...)` factory
-import { sandbox } from './sandbox'
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { withSandbox } from "@tanstack/ai-sandbox";
+import { pi } from "./pi-harness";
+import { sandbox } from "./sandbox";
 
 export async function POST(request: Request) {
-  const params = await chatParamsFromRequest(request)
+  const params = await chatParamsFromRequest(request);
   const sessionId =
-    typeof params.forwardedProps.sessionId === 'string'
+    typeof params.forwardedProps.sessionId === "string"
       ? params.forwardedProps.sessionId
-      : undefined
+      : undefined;
 
   const stream = chat({
-    adapter: pi('pi-fast'),
+    adapter: pi("pi-fast"),
     messages: params.messages,
+    threadId: params.threadId,
     middleware: [withSandbox(sandbox)],
     modelOptions: { sessionId },
-  })
+  });
 
-  return toServerSentEventsResponse(stream)
+  return toServerSentEventsResponse(stream);
 }
 ```
 
-## Workspace skills
+On a resumed session, the adapter sends only the last user message. The agent already has the rest. For the client half, see [Resume a session](./claude-code#resume-a-session) on the Claude Code page. Use your `<name>.session-id` as the event name.
 
-When you provision a [workspace](../sandbox/workspace) via `withSandbox`,
-`acpCompatible` projects its skills into the harness — each kind lands where that
-harness expects it:
+## Typed output
 
-| Workspace input | How `acpCompatible` projects it |
+You want a typed object after the agent works. Pass `outputSchema` on the same `chat()` call. The agent runs its own tools. Then the adapter adds the schema to the prompt and parses the last assistant text as JSON.
+
+```ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { acpCompatibleText } from "@tanstack/ai-acp";
+import { withSandbox } from "@tanstack/ai-sandbox";
+import { z } from "zod";
+import { sandbox } from "./sandbox";
+
+const ReportSchema = z.object({
+  name: z.string(),
+  oneLiner: z.string(),
+});
+
+export async function POST(request: Request) {
+  const { messages, threadId } = await chatParamsFromRequest(request);
+
+  const stream = chat({
+    adapter: acpCompatibleText("pi-fast", {
+      name: "pi",
+      command: ({ model }) => `pi --acp -m ${model}`,
+    }),
+    messages,
+    threadId,
+    outputSchema: ReportSchema,
+    stream: true,
+    middleware: [withSandbox(sandbox)],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+On the client, walk `messages[].parts` for tool calls and reasoning. Read the typed object from the `structured-output` part or from `useChat().final`:
+
+```tsx
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { z } from "zod";
+
+const ReportSchema = z.object({
+  name: z.string(),
+  oneLiner: z.string(),
+});
+
+export function Report() {
+  const { messages, final } = useChat({
+    connection: fetchServerSentEvents("/api/report"),
+    threadId: "support-chat",
+    outputSchema: ReportSchema,
+  });
+
+  return (
+    <>
+      {messages.map((message) =>
+        message.parts.map((part, index) => {
+          if (part.type === "tool-call") {
+            return <p key={part.id}>{part.name}</p>;
+          }
+          if (part.type === "structured-output") {
+            const report = part.data ?? part.partial;
+            return report?.name ? <h2 key={index}>{report.name}</h2> : null;
+          }
+          return null;
+        }),
+      )}
+      {final ? <p>{final.oneLiner}</p> : null}
+    </>
+  );
+}
+```
+
+You can also read the object from `await chat()` when you do not stream. See [Harness Agents](../structured-outputs/harnesses) for the full part list and the repo-report example.
+
+## Models and options
+
+`acpCompatible` has no built-in model list. The model is any string that your agent takes, or one of the `models` that you declare.
+
+### Configuration
+
+Pass these to `acpCompatible` or as the second argument of `acpCompatibleText`:
+
+| Field | What it does |
 | --- | --- |
-| `mcpSkill(name, config)` | Passed to the agent over **ACP natively** via `newSession`'s `mcpServers` (secrets/bearer headers resolved). No config file — that's the ACP advantage over file-based harnesses. |
-| `gitSkill({ repo })` | Cloned during bootstrap, then linked into your declared [`skillsDir`](#configuration) (e.g. `.pi/skills`). Omit `skillsDir` and it's left unlinked (with a warning). |
-| `fileSkill({ path, content })` | Written into the workspace root during bootstrap (provider-agnostic). |
-| `instructions` | Written to `AGENTS.md` (and symlinks) during bootstrap. |
-| `agentSkill(name)`, `plugins` | No generic ACP primitive — warned and skipped. Provide a `gitSkill` or MCP server instead. |
+| `name` (required) | The harness label, the log prefix, and the name of the `<name>.session-id` custom event. |
+| `command` | Builds the stdio launch command from `{ model, cwd, harnessCwd, sandbox, env, modelOptions, signal }`. Required unless you pass `openTransport`. |
+| `openTransport` | Opens any `AcpSessionTransport` yourself, for example a WebSocket. It overrides `command`. See [WebSocket and custom transports](#websocket-and-custom-transports). |
+| `models` | The model ids that the harness takes. With this list, unknown ids are a type error. |
+| `modelOptions` | Type-only brand for the per-call options of `chat({ modelOptions })`. Declare it with `{} as { ... }`. |
+| `cwd` | The working directory inside the sandbox. Default `/workspace`. |
+| `env` | More environment variables for the agent process. |
+| `authMode` | `'api-key'` (default) uses `authMethodId`. `'host'` skips ACP `authenticate`. See [Harness Auth](../sandbox/auth). |
+| `authMethodId` | The ACP auth method to select before the session starts. Ignored when `authMode` is `'host'`. |
+| `permissionMode` | `'default'`, `'acceptEdits'`, or `'bypassPermissions'` (default). |
+| `permissions` | `'headless'` (default) answers each request. `'interactive'` sends approval-requested events for `ask` prompts. |
+| `onPermissionRequest` | Your own permission handler. It overrides `permissions` and `permissionMode`. |
 
-`secrets` declared on the workspace are injected into the agent's environment at
-create/resume (never persisted to snapshots), so the harness CLI picks them up
-like any env var.
+More options, for special cases:
 
-## Protocol coverage
+| Field | What it does |
+| --- | --- |
+| `skillsDir` | The skills directory of the agent, relative to the workspace root, for example `'.pi/skills'`. Workspace `gitSkill`s are linked here. Without it, they stay unlinked and the adapter logs a warning. |
+| `refusalMessage` | The `RUN_ERROR` message when the agent refuses a request. |
+| `planEventName` | Send ACP `plan` updates as a custom event with this name. |
+| `emitDiff` | Send the `git diff` of `cwd` after the run as a `file.changed` custom event. Off by default. Needs a git repo at `cwd`. |
+| `onExtNotification` | Handles vendor `_x/...` JSON-RPC notifications. It must not throw. |
+| `buildPrompt` | Changes how the chat history becomes the prompt of the agent. |
 
-`acpCompatible` implements the **client / orchestration** side of ACP — enough to
-drive an agent through a full prompt turn, not the entire protocol surface. It is
-a compliant *minimal* client: everything it doesn't implement is either
-capability-gated (so advertising non-support is the spec-defined behavior) or a
-rendering choice, never a violation.
+This adapter ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the agent process sends the model requests.
 
-**Covered:**
+## Advanced
 
-- `initialize` handshake — sends `clientInfo` + the protocol version, negotiates the version, advertises capabilities.
-- `authenticate` (when the agent advertises auth methods), `session/new`, `session/load` (resume), `session/prompt`, `session/cancel`.
-- `session/request_permission` with all four option kinds, mapped by [permission mode](#permissions).
-- All streamed `session/update`s that carry turn output: `agent_message_chunk`, `agent_thought_chunk` (→ reasoning), `tool_call` / `tool_call_update`, `plan`.
-- All five stop reasons (`end_turn`, `max_tokens`, `max_turn_requests`, `refusal`, `cancelled`).
+### WebSocket and custom transports
 
-**Surfaced as `CUSTOM` stream events** (the AG-UI chat-event protocol has no
-first-class event for non-text assistant output, so these ride on `CUSTOM`):
+Some agents run an ACP server that you reach over WebSocket, not stdio (the `grok agent serve` pattern). Open the transport yourself with `openTransport`. It gets the same context as `command` and returns an `AcpSessionTransport`. Put all teardown in the `dispose` of the transport:
 
-- `<name>.session-id` — the harness session id, for [resume](#session-resume).
-- `<name>.message-content` — non-text agent content (`image` / `audio` / `resource` / `resource_link` blocks). Its `value` is `{ content: <ACP content block> }`. Non-text **tool** content (diffs, terminal, images) is preserved inside the `TOOL_CALL_RESULT` payload.
-- the plan event, when you set `planEventName`.
+```ts
+import { acpCompatible, startAcpServerInSandbox } from "@tanstack/ai-acp";
 
-**Not implemented (by design):**
+export const myAgent = acpCompatible({
+  name: "my-agent",
+  openTransport: async ({ sandbox, model, harnessCwd, signal }) => {
+    const server = await startAcpServerInSandbox(sandbox, {
+      port: 9100,
+      cwd: harnessCwd,
+      command: `my-agent serve --bind 0.0.0.0:9100 -m ${model}`,
+      readyMarker: "listening",
+      buildWsUrl: ({ channel, port }) =>
+        `${channel.url.replace(/^http/i, "ws")}:${port}`,
+      ...(signal ? { signal } : {}),
+    });
+    const ws = await server.connect(signal);
+    return {
+      kind: "stream",
+      stream: ws.stream,
+      dispose: async () => {
+        ws.close();
+        await server.dispose();
+      },
+    };
+  },
+});
+```
 
-- `fs/read_text_file`, `fs/write_text_file`, `terminal/*` — advertised as unsupported. The agent runs inside the sandbox with direct filesystem and shell access, so it never delegates these back to the client.
-- Sending **multimodal prompts** — prompts are sent as text. (Agent multimodal *output* is surfaced via `message-content` above.)
-- Incremental `usage_update` (final turn usage is reported instead), `available_commands_update`, `current_mode_update`, and experimental features (elicitation, NES, providers, session modes/config).
+### Workspace skills
 
-## Next Steps
+When you set up a [workspace](../sandbox/workspace) with `withSandbox`, `acpCompatible` puts its skills where the agent expects them:
 
-- [Sandbox Overview](../sandbox/overview) — how harnesses run inside a sandbox
-- [Grok Build Adapter](./grok-build) — a first-class ACP harness adapter
-- [Sandbox Tools](../sandbox/tools) — bridge your app's tools into the agent
-- [OpenAI-Compatible Adapter](./openai-compatible) — the same idea for model providers
+| Workspace input | What `acpCompatible` does |
+| --- | --- |
+| `mcpSkill(name, config)` | Passes the server to the agent over ACP, in the `mcpServers` of `newSession`, with secrets and bearer headers resolved. No config file is needed. |
+| `gitSkill({ repo })` | Clones the repo during bootstrap, then links it into your [`skillsDir`](#configuration). Without `skillsDir`, it stays unlinked and the adapter logs a warning. |
+| `fileSkill({ path, content })` | Writes the file into the workspace root during bootstrap. |
+| `instructions` | Writes them to `AGENTS.md` (and symlinks) during bootstrap. |
+| `agentSkill(name)`, `plugins` | Skipped with a warning, because ACP has no generic way to pass them. Use a `gitSkill` or an MCP server. |
+
+The workspace `secrets` go into the environment of the agent on create and on resume. They are never saved to snapshots. The agent CLI reads them like any environment variable.
+
+### Protocol coverage
+
+`acpCompatible` implements the client side of ACP: enough to drive an agent through a full prompt turn. It is a minimal client that follows the spec. Each part it does not implement is either gated by a capability, so it advertises no support, or a rendering choice.
+
+It covers:
+
+- The `initialize` handshake. It sends `clientInfo` and the protocol version, agrees on the version, and advertises capabilities.
+- `authenticate` (when the agent advertises auth methods), `session/new`, `session/load` (resume), `session/prompt`, and `session/cancel`.
+- `session/request_permission` with all four option kinds, mapped by the [permission mode](#permissions).
+- The streamed `session/update`s that carry turn output: `agent_message_chunk`, `agent_thought_chunk` (as reasoning), `tool_call`, `tool_call_update`, and `plan`.
+- All five stop reasons: `end_turn`, `max_tokens`, `max_turn_requests`, `refusal`, and `cancelled`.
+
+Some output arrives as `CUSTOM` stream events, because the AG-UI chat events have no event for non-text assistant output:
+
+- `<name>.session-id`: the session id of the agent, for [resume](#session-resume).
+- `<name>.message-content`: non-text agent content (`image`, `audio`, `resource`, or `resource_link` blocks). Its `value` is `{ content: <ACP content block> }`. Non-text tool content (diffs, terminal output, images) stays inside the `TOOL_CALL_RESULT` payload.
+- The plan event, when you set `planEventName`.
+
+It does not implement:
+
+- `fs/read_text_file`, `fs/write_text_file`, and `terminal/*`. It advertises them as unsupported. The agent runs inside the sandbox with direct file and shell access, so it never sends these back to the client.
+- Multimodal prompts. Prompts go to the agent as text. Multimodal output of the agent arrives as `message-content`, shown above.
+- Incremental `usage_update` (the final usage of the turn arrives instead), `available_commands_update`, `current_mode_update`, and the experimental features (elicitation, NES, providers, session modes and config).
+
+To find agents, see the [ACP agents list](https://agentclientprotocol.com/get-started/agents). For how harnesses fit with sandboxes, see [Harnesses](../sandbox/harnesses).

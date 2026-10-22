@@ -16,9 +16,6 @@ const validateMaxNumResults = (maxNumResults: number | undefined) => {
   }
 }
 
-/** @deprecated Renamed to `FileSearchToolConfig`. Will be removed in a future release. */
-export type FileSearchTool = FileSearchToolConfig
-
 /**
  * Converts a standard Tool to OpenAI FileSearchTool format
  */

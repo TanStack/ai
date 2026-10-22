@@ -10,7 +10,11 @@ interface WebMCPToolRegistration {
     readOnlyHint?: boolean
     untrustedContentHint?: boolean
   }
-  execute: (input: object, options: { signal: AbortSignal }) => Promise<unknown>
+  // Optional: Chrome currently calls execute(input) with no options.
+  execute: (
+    input: object,
+    options?: { signal: AbortSignal },
+  ) => Promise<unknown>
 }
 
 interface RegisteredWebMCPTool {

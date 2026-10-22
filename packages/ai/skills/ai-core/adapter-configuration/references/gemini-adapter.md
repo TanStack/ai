@@ -50,6 +50,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: geminiText('gemini-2.5-pro'),
   messages,
+  threadId: 'thread-1',
   // Thinking: a budget on Gemini 2.5, a level on Gemini 3
   reasoning: { level: 'high', budgetTokens: 4096 },
   modelOptions: {
@@ -98,10 +99,9 @@ Note: `GOOGLE_GENAI_API_KEY` does NOT work.
 - All Gemini models are multimodal (text, image, audio, video, document input).
 - Image generation models (`gemini-3-pro-image`, `gemini-3.1-flash-image`, etc.)
   have smaller input limits (65K tokens) compared to text models (1M tokens).
-- Use the GA image ids. `gemini-3-pro-image-preview` and
-  `gemini-3.1-flash-image-preview` were shut down on 2026-06-25 and now 404;
-  they remain in the type union only as deprecated aliases, so a call to them
-  compiles and then fails at runtime.
+- Use the GA image ids: `gemini-3.1-flash-image`, `gemini-3-pro-image`, or
+  `gemini-3.1-flash-lite-image`. The `-preview` ids and `gemini-2.5-flash-image`
+  are not in the type union.
 - `chat({ reasoning })` sends `thinkingConfig.thinkingLevel` on Gemini 3 and
   `thinkingConfig.thinkingBudget` on Gemini 2.5. Only Gemini 2.5 takes
   `budgetTokens`.

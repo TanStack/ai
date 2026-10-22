@@ -40,7 +40,7 @@ export const Route = createFileRoute('/api/voice')({
       POST: async ({ request }) => {
         await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
         const body = await request.json()
-        const data = body.forwardedProps ?? body.data ?? body
+        const data = body.forwardedProps ?? body
         const { prompt, name, provider, testId, aimockPort } = data as {
           prompt: string
           name?: string
@@ -62,6 +62,7 @@ export const Route = createFileRoute('/api/voice')({
           // generateVoice() is Promise-based — there is no streaming variant
           // worth exercising here, the same as embed().
           const result = await generateVoice({
+            threadId: 'voice',
             adapter,
             prompt,
             ...(name ? { name } : {}),

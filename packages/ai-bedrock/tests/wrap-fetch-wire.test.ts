@@ -25,6 +25,7 @@ const adapters = [
     adapter: 'Mantle chat',
     send: (fetch, wrapFetch) =>
       createBedrockChat(model, 'test-key', { fetch }).chatStream({
+        threadId: 'thread-1',
         logger,
         model,
         messages,
@@ -35,6 +36,7 @@ const adapters = [
     adapter: 'Mantle responses',
     send: (fetch, wrapFetch) =>
       createBedrockResponsesText(model, 'test-key', { fetch }).chatStream({
+        threadId: 'thread-1',
         logger,
         model,
         messages,

@@ -11,6 +11,7 @@ describe('ChatClient stream processing', () => {
   it('does not wait for a macrotask after each live chunk', async () => {
     vi.spyOn(performance, 'now').mockReturnValue(0)
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: createMockConnectionAdapter({
         chunks: createTextChunks('ab'),
       }),
@@ -30,6 +31,7 @@ describe('ChatClient stream processing', () => {
     let time = 0
     vi.spyOn(performance, 'now').mockImplementation(() => (time += 9))
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: createMockConnectionAdapter({
         chunks: createTextChunks('ab'),
       }),
@@ -50,6 +52,7 @@ describe('ChatClient stream processing', () => {
     let time = 0
     vi.spyOn(performance, 'now').mockImplementation(() => (time += 9))
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: createMockConnectionAdapter({
         chunks: createTextChunks('ab'),
       }),
@@ -72,6 +75,7 @@ describe('ChatClient stream processing', () => {
     let time = 0
     vi.spyOn(performance, 'now').mockImplementation(() => (time += 9))
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: createMockConnectionAdapter({
         chunks: createTextChunks('ab'),
       }),
@@ -95,6 +99,7 @@ describe('ChatClient stream processing', () => {
     let time = 0
     vi.spyOn(performance, 'now').mockImplementation(() => time)
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: createMockConnectionAdapter({
         chunks: createTextChunks('ab'),
       }),

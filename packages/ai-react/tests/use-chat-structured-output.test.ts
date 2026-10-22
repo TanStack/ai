@@ -83,7 +83,11 @@ describe('useChat({ outputSchema }) — runtime', () => {
     const adapter = createMockConnectionAdapter({ chunks })
 
     const { result } = renderHook(() =>
-      useChat({ connection: adapter, outputSchema: personSchema }),
+      useChat({
+        threadId: 'thread-1',
+        connection: adapter,
+        outputSchema: personSchema,
+      }),
     )
 
     // Initial state.
@@ -129,7 +133,11 @@ describe('useChat({ outputSchema }) — runtime', () => {
     }
 
     const { result } = renderHook(() =>
-      useChat({ connection: adapter, outputSchema: personSchema }),
+      useChat({
+        threadId: 'thread-1',
+        connection: adapter,
+        outputSchema: personSchema,
+      }),
     )
 
     await act(async () => {
@@ -207,7 +215,11 @@ describe('useChat({ outputSchema }) — runtime', () => {
     const adapter = createMockConnectionAdapter({ chunks })
 
     const { result } = renderHook(() =>
-      useChat({ connection: adapter, outputSchema: personSchema }),
+      useChat({
+        threadId: 'thread-1',
+        connection: adapter,
+        outputSchema: personSchema,
+      }),
     )
 
     await act(async () => {
@@ -309,7 +321,11 @@ describe('useChat({ outputSchema }) — runtime', () => {
     }
 
     const { result } = renderHook(() =>
-      useChat({ connection: adapter, outputSchema: personSchema }),
+      useChat({
+        threadId: 'thread-1',
+        connection: adapter,
+        outputSchema: personSchema,
+      }),
     )
 
     await act(async () => {
@@ -419,7 +435,11 @@ describe('useChat({ outputSchema }) — runtime', () => {
     }
 
     const { result } = renderHook(() =>
-      useChat({ connection: adapter, outputSchema: personSchema }),
+      useChat({
+        threadId: 'thread-1',
+        connection: adapter,
+        outputSchema: personSchema,
+      }),
     )
 
     await act(async () => {
@@ -449,7 +469,11 @@ describe('useChat({ outputSchema }) — runtime', () => {
     const adapter = createMockConnectionAdapter({ chunks })
 
     const { result } = renderHook(() =>
-      useChat({ connection: adapter, outputSchema: personSchema }),
+      useChat({
+        threadId: 'thread-1',
+        connection: adapter,
+        outputSchema: personSchema,
+      }),
     )
 
     await act(async () => {
@@ -474,6 +498,7 @@ describe('useChat({ outputSchema }) — runtime', () => {
 
     const { result } = renderHook(() =>
       useChat({
+        threadId: 'thread-1',
         connection: adapter,
         outputSchema: personSchema,
         onChunk,
@@ -520,6 +545,7 @@ describe('useChat({ outputSchema }) — initialMessages handling', () => {
 
     const { result } = renderHook(() =>
       useChat({
+        threadId: 'thread-1',
         connection: adapter,
         outputSchema: personSchema,
         initialMessages: [
@@ -583,7 +609,9 @@ describe('useChat() without outputSchema — runtime', () => {
       ],
     })
 
-    const { result } = renderHook(() => useChat({ connection: adapter }))
+    const { result } = renderHook(() =>
+      useChat({ threadId: 'thread-1', connection: adapter }),
+    )
 
     await act(async () => {
       await result.current.sendMessage('hi')

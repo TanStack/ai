@@ -7,7 +7,7 @@ title: fileReferenceFor
 function fileReferenceFor(source, providerName): string;
 ```
 
-Defined in: [packages/ai/src/utilities/content-source.ts:27](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/content-source.ts#L27)
+Defined in: packages/ai/src/utilities/content-source.ts:27
 
 Resolve the handle `providerName` should send for a file source.
 

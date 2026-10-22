@@ -7,7 +7,7 @@ title: deleteFile
 function deleteFile<TName>(options): Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/files/index.ts:72](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/files/index.ts#L72)
+Defined in: packages/ai/src/activities/files/index.ts:72
 
 Delete a previously uploaded file. Accepts the handle itself (preferred —
 the provider-literal type rejects a foreign provider's handle at compile

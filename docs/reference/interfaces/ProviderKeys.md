@@ -3,7 +3,7 @@ id: ProviderKeys
 title: ProviderKeys
 ---
 
-Defined in: [packages/ai/src/byok/keyed.ts:25](https://github.com/TanStack/ai/blob/main/packages/ai/src/byok/keyed.ts#L25)
+Defined in: packages/ai/src/byok/keyed.ts:25
 
 Finds provider keys for a run. An agent reads it as `ctx.keys`. A host sets
 it on the binding and reads each user's own keys. Without a host,
@@ -17,7 +17,7 @@ it on the binding and reads each user's own keys. Without a host,
 adapter: <TAdapter>(adapter) => Promise<TAdapter>;
 ```
 
-Defined in: [packages/ai/src/byok/keyed.ts:34](https://github.com/TanStack/ai/blob/main/packages/ai/src/byok/keyed.ts#L34)
+Defined in: packages/ai/src/byok/keyed.ts:34
 
 The adapter to call. A plain adapter comes back unchanged. A
 [KeyedAdapter](KeyedAdapter.md) is built with the key from `require`.
@@ -46,7 +46,7 @@ The adapter to call. A plain adapter comes back unchanged. A
 get: (provider) => Promise<string | null>;
 ```
 
-Defined in: [packages/ai/src/byok/keyed.ts:27](https://github.com/TanStack/ai/blob/main/packages/ai/src/byok/keyed.ts#L27)
+Defined in: packages/ai/src/byok/keyed.ts:27
 
 The key for `provider`, or `null` when there is none.
 
@@ -68,7 +68,7 @@ The key for `provider`, or `null` when there is none.
 require: (provider) => Promise<string>;
 ```
 
-Defined in: [packages/ai/src/byok/keyed.ts:29](https://github.com/TanStack/ai/blob/main/packages/ai/src/byok/keyed.ts#L29)
+Defined in: packages/ai/src/byok/keyed.ts:29
 
 The key for `provider`. Throws when there is none.
 

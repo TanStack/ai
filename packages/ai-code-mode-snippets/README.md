@@ -68,6 +68,7 @@ const { toolsRegistry, systemPrompt, selectedSnippets } =
       maxSnippetsInContext: 5,
     },
     messages,
+    threadId: 'thread-1',
   })
 
 // Use in chat
@@ -75,6 +76,7 @@ const stream = chat({
   adapter: anthropic('claude-sonnet-4-6'), // Main model
   toolRegistry: toolsRegistry,
   messages,
+  threadId: 'thread-1',
   systemPrompts: [basePrompt, systemPrompt],
 })
 ```
@@ -164,6 +166,7 @@ Creates Code Mode tools and system prompt with snippets integration.
 - `snippets.storage` - Snippet storage implementation
 - `snippets.maxSnippetsInContext` - Maximum snippets to load into context (default: 5)
 - `messages` - Current conversation messages
+- `threadId` - Thread id of the conversation (required). The snippet selection chat uses it.
 - `snippetsAsTools` - Whether to include snippets as direct tools (default: true)
 
 **Returns:**

@@ -65,6 +65,7 @@ function generateMarble(
   } = {},
 ) {
   return generateWorld({
+    threadId: 'thread-1',
     adapter: worldlabsWorld('marble-1.1', {
       apiKey: 'wlt_test',
       fetch: fetchImpl,
@@ -170,6 +171,7 @@ describe('World Labs world adapter', () => {
     })
 
     const result = await generateWorld({
+      threadId: 'thread-1',
       adapter: createWorldLabsWorld('marble-1.1-plus', 'wlt_explicit', {
         fetch: fetchImpl,
       }),
@@ -209,6 +211,7 @@ describe('World Labs world adapter', () => {
   it('throws when generate returns an error status', async () => {
     await expect(
       generateWorld({
+        threadId: 'thread-1',
         adapter: worldlabsWorld('marble-1.0', {
           apiKey: 'wlt_test',
           fetch: vi.fn(async () => jsonResponse({ detail: 'no credits' }, 402)),

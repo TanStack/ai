@@ -7,7 +7,7 @@ title: resolveResumeRunId
 function resolveResumeRunId(request): string | null;
 ```
 
-Defined in: [packages/ai/src/stream-durability.ts:141](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-durability.ts#L141)
+Defined in: packages/ai/src/stream-durability.ts:141
 
 The run id a request names: `X-Run-Id` header first, then `?runId`.
 

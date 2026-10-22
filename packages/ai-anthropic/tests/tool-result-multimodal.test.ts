@@ -63,6 +63,7 @@ describe('anthropic multimodal tool result', () => {
     )
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         { role: 'user', content: 'look' },

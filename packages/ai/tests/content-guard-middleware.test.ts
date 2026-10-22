@@ -18,6 +18,7 @@ describe('contentGuardMiddleware', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [
@@ -47,6 +48,7 @@ describe('contentGuardMiddleware', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [
@@ -74,6 +76,7 @@ describe('contentGuardMiddleware', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [
@@ -106,6 +109,7 @@ describe('contentGuardMiddleware', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [
@@ -136,6 +140,7 @@ describe('contentGuardMiddleware', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [
@@ -164,6 +169,7 @@ describe('contentGuardMiddleware', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [
@@ -199,6 +205,7 @@ describe('contentGuardMiddleware', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [
@@ -229,6 +236,7 @@ describe('contentGuardMiddleware', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [
@@ -261,6 +269,7 @@ describe('contentGuardMiddleware', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [
@@ -289,6 +298,7 @@ describe('contentGuardMiddleware', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [
@@ -317,6 +327,7 @@ describe('contentGuardMiddleware', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [
@@ -345,6 +356,7 @@ describe('contentGuardMiddleware', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [
@@ -375,6 +387,7 @@ describe('contentGuardMiddleware', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [
@@ -409,6 +422,7 @@ describe('contentGuardMiddleware', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [
@@ -437,6 +451,7 @@ describe('contentGuardMiddleware', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [
@@ -466,6 +481,7 @@ describe('contentGuardMiddleware', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [
@@ -503,6 +519,7 @@ describe('contentGuardMiddleware', () => {
       })
 
       const stream1 = chat({
+        threadId: 'thread-1',
         adapter: adapter1,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [guard],
@@ -523,6 +540,7 @@ describe('contentGuardMiddleware', () => {
       })
 
       const stream2 = chat({
+        threadId: 'thread-1',
         adapter: adapter2,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [guard],

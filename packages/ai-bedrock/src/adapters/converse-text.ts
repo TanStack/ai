@@ -385,7 +385,7 @@ export class BedrockConverseTextAdapter<
   ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
     const runId = this.generateId()
-    const threadId = chatOptions.threadId ?? this.generateId()
+    const threadId = chatOptions.threadId
     const messageId = this.generateId()
 
     let hasEmittedRunStarted = false

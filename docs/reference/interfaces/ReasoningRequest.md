@@ -3,7 +3,7 @@ id: ReasoningRequest
 title: ReasoningRequest
 ---
 
-Defined in: [packages/ai/src/reasoning.ts:72](https://github.com/TanStack/ai/blob/main/packages/ai/src/reasoning.ts#L72)
+Defined in: packages/ai/src/reasoning.ts:72
 
 The `reasoning` an adapter gets in `TextOptions`, after `chat()` normalized it.
 
@@ -15,7 +15,7 @@ The `reasoning` an adapter gets in `TextOptions`, after `chat()` normalized it.
 optional budgetTokens?: number;
 ```
 
-Defined in: [packages/ai/src/reasoning.ts:75](https://github.com/TanStack/ai/blob/main/packages/ai/src/reasoning.ts#L75)
+Defined in: packages/ai/src/reasoning.ts:75
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [packages/ai/src/reasoning.ts:75](https://github.com/TanStack/ai/blo
 level: ReasoningLevel;
 ```
 
-Defined in: [packages/ai/src/reasoning.ts:73](https://github.com/TanStack/ai/blob/main/packages/ai/src/reasoning.ts#L73)
+Defined in: packages/ai/src/reasoning.ts:73
 
 ***
 
@@ -35,4 +35,4 @@ Defined in: [packages/ai/src/reasoning.ts:73](https://github.com/TanStack/ai/blo
 summary: boolean;
 ```
 
-Defined in: [packages/ai/src/reasoning.ts:74](https://github.com/TanStack/ai/blob/main/packages/ai/src/reasoning.ts#L74)
+Defined in: packages/ai/src/reasoning.ts:74

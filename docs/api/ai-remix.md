@@ -2,7 +2,7 @@
 title: "@tanstack/ai-remix"
 id: ai-remix
 order: 9
-description: "API reference for @tanstack/ai-remix. Remix 3 helpers including createChat for streaming chat with full type safety."
+description: "API reference for @tanstack/ai-remix: the createChat helper, generation helpers, and Remix 3 bindings for the headless TanStack AI client."
 keywords:
   - tanstack ai
   - "@tanstack/ai-remix"
@@ -12,9 +12,7 @@ keywords:
   - api reference
 ---
 
-Install `@tanstack/ai-remix`, then call `createChat(handle, options)` in a Remix setup function. The package publishes uncompiled source. Remix compiles JSX through `jsxImportSource` `remix/ui`.
-
-For a typed headless chat UI, see [Remix Chat UI](../ui/remix). Import `createChatHook` from `@tanstack/ai-remix/ui`.
+Remix 3 helpers for TanStack AI. To build your first chat, start with the [Quick Start](../getting-started/quick-start). For a typed chat layout, see [Remix Chat UI](../ui/remix).
 
 ## Installation
 
@@ -24,260 +22,61 @@ remix: @tanstack/ai-remix remix
 
 <!-- ::end:tabs -->
 
-`remix` is a required peer.
+`remix` is a required peer. The package publishes uncompiled source. Remix compiles the JSX through the `remix/ui` `jsxImportSource`.
 
-## `createRegisterWebMCPTools(handle, tools, options?)`
+Every helper takes the component `Handle` as its first argument. Call it in the setup function, not in the render function.
 
-Register executable client tools for a Remix component. Remix removes them when the component `Handle` signal aborts.
-
-For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
-
-```tsx
-import {
-  createRegisterWebMCPTools,
-  type CreateRegisterWebMCPToolsOptions,
-} from '@tanstack/ai-remix'
-import { clientEntry, type Handle } from 'remix/ui'
-import { searchProducts } from './tools'
-
-const tools = [searchProducts]
-const options: CreateRegisterWebMCPToolsOptions<typeof tools> = {
-  onError(error) {
-    console.error(error)
-  },
-}
-
-export const ProductsPage = clientEntry(
-  import.meta.url,
-  function ProductsPage(handle: Handle) {
-    createRegisterWebMCPTools(handle, tools, options)
-    return () => null
-  },
-)
-```
-
-`CreateRegisterWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The helper uses `handle.signal` for registration.
-
-The `context` field is required when a tool declares a required runtime context.
-
-## `createPageWebMCPTools(handle, options?)`
-
-Read the WebMCP tools on the page as client tools. The `tools` field starts empty. When the page adds or removes a tool, the helper updates `tools` and calls `handle.update()`. Read it in a `get tools()` getter on `createChat`.
-
-```ts
-import { createPageWebMCPTools } from '@tanstack/ai-remix'
-import type { Handle } from 'remix/ui'
-
-export function readPageTools(handle: Handle) {
-  return createPageWebMCPTools(handle, {
-    filter: (tool) => tool.origin === location.origin,
-  })
-}
-```
-
-`filter` skips a tool when it returns `false`. `onError` gets a failed WebMCP read. For a complete guide, see [Page WebMCP Tools in Chat](../tools/webmcp-page-tools).
-
-## Server
-
-A Remix controller action can return the same SSE `Response` as any other host.
+The server side is a normal route. A Remix controller action returns the same SSE `Response` as any other host:
 
 ```typescript
 import {
   chat,
   chatParamsFromRequest,
   toServerSentEventsResponse,
-} from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
-import { createController } from 'remix/router'
-import { post, route } from 'remix/routes'
+} from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { createController } from "remix/router";
+import { post, route } from "remix/routes";
 
 const routes = route({
   chat: {
-    stream: post('/chat'),
+    stream: post("/chat"),
   },
-})
+});
 
 export default createController(routes.chat, {
   actions: {
     async stream({ request }) {
-      const { messages, threadId, runId } =
-        await chatParamsFromRequest(request)
+      const { messages, threadId, runId } = await chatParamsFromRequest(request);
 
       const stream = chat({
-        adapter: openaiText('gpt-5.6'),
+        adapter: openaiText("gpt-6.1-sol"),
         messages,
         threadId,
         runId,
-      })
+      });
 
-      return toServerSentEventsResponse(stream)
+      return toServerSentEventsResponse(stream);
     },
   },
-})
+});
 ```
-
-The matching client calls `createChat` and streams from that route. See [Quick Start](../getting-started/quick-start).
 
 ## `createChat(handle, options)`
 
-Manages chat state in a Remix component. Pass the component `Handle` as the first argument. Put `connection` and `tools` in setup. They are not serializable `clientEntry` props.
+Holds the messages and the run state of one chat, and talks to your server route.
 
 ```tsx
-import { createChat, fetchServerSentEvents } from '@tanstack/ai-remix'
-import {
-  createChatClientOptions,
-  type InferChatMessages,
-} from '@tanstack/ai-client'
-import { toolDefinition } from '@tanstack/ai'
-import { clientEntry, on, type Handle } from 'remix/ui'
-import { z } from 'zod'
-
-const updateUIDef = toolDefinition({
-  name: 'updateUI',
-  description: 'Show a notification in the UI',
-  inputSchema: z.object({ message: z.string() }),
-})
-
-export const ChatComponent = clientEntry(
-  import.meta.url,
-  function ChatComponent(handle: Handle) {
-    let notification: string | null = null
-    const updateUI = updateUIDef.client((input) => {
-      notification = input.message
-      return { success: true }
-    })
-    const tools = [updateUI]
-
-    const chatOptions = createChatClientOptions({
-      connection: fetchServerSentEvents('/chat'),
-      tools,
-    })
-
-    type ChatMessages = InferChatMessages<typeof chatOptions>
-
-    const chat = createChat(handle, chatOptions)
-
-    return () => (
-      <div>
-        {notification}
-        {chat.isLoading ? 'Loading' : null}
-        {chat.error ? chat.error.message : null}
-        <button
-          type="button"
-          mix={on('click', () => {
-            void chat.sendMessage('hi')
-          })}
-        >
-          Send
-        </button>
-        {chat.messages.length}
-      </div>
-    )
-  },
-)
-```
-
-Read `chat.messages` and `chat.isLoading` in the render function so each paint sees the latest values. The default thread id is `options.threadId ?? handle.id`. When `handle.signal` aborts, cleanup runs.
-
-### Options you pass first
-
-Extends `ChatClientOptions` from `@tanstack/ai-client`. Pass `connection` or `fetcher`, not both. `Handle` is the first argument, not an option.
-
-- `connection` or `fetcher` - how the helper talks to your server
-- `tools?` - client tool implementations from `.client()`. A `get tools()` getter is read each time a run starts.
-- `threadId?` - the only identity for this chat. Required when persistence is on
-- `initialMessages?` - starting transcript
-- `forwardedProps?` - JSON sent to the server on the AG-UI `forwardedProps` field
-
-### Options you add later
-
-- `live?` - subscribe on setup, unsubscribe on dispose
-- `queue?` - what to do when `sendMessage` runs while a turn is in flight. Default queues
-- `interrupts?` - typed interrupt definitions
-- `context?` - client-only runtime context for client tools. Not sent to the server
-- `onResponse?` / `onChunk?` / `onFinish?` / `onError?` / `onInterruptStateChange?`
-- `devtools?` - display options. The helper always tags `framework: 'remix'`
-- `body?` - deprecated. Use `forwardedProps`
-
-Client tools run automatically.
-
-### Returns
-
-```typescript
-import type { UIMessage } from '@tanstack/ai-remix'
-import type { ModelMessage } from '@tanstack/ai/client'
-import type {
-  BoundInterrupts,
-  MultimodalContent,
-  ChatClientState,
-  ConnectionStatus,
-  QueuedMessage,
-  SendMessageOptions,
-} from '@tanstack/ai-client'
-
-interface CreateChatReturn {
-  messages: ReadonlyArray<UIMessage>
-  sendMessage: (
-    content: string | MultimodalContent,
-    options?: SendMessageOptions,
-  ) => Promise<void>
-  append: (message: ModelMessage | UIMessage) => Promise<void>
-  addToolResult: (result: {
-    toolCallId: string
-    tool: string
-    output: unknown
-    state?: 'output-available' | 'output-error'
-    errorText?: string
-  }) => Promise<void>
-  interrupts: BoundInterrupts
-  resolveInterrupts: (approved: boolean) => void
-  reload: () => Promise<void>
-  stop: () => void
-  isLoading: boolean
-  error: Error | undefined
-  status: ChatClientState
-  isSubscribed: boolean
-  connectionStatus: ConnectionStatus
-  sessionGenerating: boolean
-  isHydrating: boolean
-  setMessages: (messages: ReadonlyArray<UIMessage>) => void
-  clear: () => void
-  queue: ReadonlyArray<QueuedMessage>
-  cancelQueued: (id: string) => void
-  runId: string | null
-}
-```
-
-State fields are getters. `queue` holds sends that wait while a run is busy. `runId` is the in-flight turn, or `null`.
-
-For a tool with `needsApproval: true`, read `chat.interrupts`. Call `interrupt.resolveInterrupt(true)` on the bound `tool-approval` item.
-
-## Connection adapters
-
-Re-exported from `@tanstack/ai-client`:
-
-```typescript
-import {
-  fetchServerSentEvents,
-  fetchHttpStream,
-  fetchJson,
-  stream,
-  type ConnectionAdapter,
-} from '@tanstack/ai-remix'
-```
-
-## Example: basic chat
-
-```tsx
-import { createChat, fetchServerSentEvents } from '@tanstack/ai-remix'
-import { clientEntry, on, type Handle } from 'remix/ui'
+import { createChat, fetchServerSentEvents } from "@tanstack/ai-remix";
+import { clientEntry, on, type Handle } from "remix/ui";
 
 export const Chat = clientEntry(
   import.meta.url,
   function Chat(handle: Handle) {
     const chat = createChat(handle, {
-      connection: fetchServerSentEvents('/chat'),
-    })
+      connection: fetchServerSentEvents("/chat"),
+      threadId: "support-chat",
+    });
 
     return () => (
       <div>
@@ -285,21 +84,21 @@ export const Chat = clientEntry(
           <div key={message.id}>
             <strong>{message.role}:</strong>
             {message.parts
-              .filter((part) => part.type === 'text')
+              .filter((part) => part.type === "text")
               .map((part) => part.content)
-              .join('')}
+              .join("")}
           </div>
         ))}
         <form
-          mix={on('submit', (event) => {
-            event.preventDefault()
-            const form = event.currentTarget
-            const text = String(new FormData(form).get('message') ?? '').trim()
-            if (text === '') {
-              return
+          mix={on("submit", (event) => {
+            event.preventDefault();
+            const form = event.currentTarget;
+            const text = String(new FormData(form).get("message") ?? "").trim();
+            if (text === "") {
+              return;
             }
-            form.reset()
-            void chat.sendMessage(text)
+            form.reset();
+            void chat.sendMessage(text);
           })}
         >
           <input name="message" disabled={chat.isLoading} />
@@ -308,142 +107,293 @@ export const Chat = clientEntry(
           </button>
         </form>
       </div>
-    )
+    );
   },
-)
+);
 ```
 
-## Headless chat UI
+Put `connection` and `tools` in setup. They are not serializable `clientEntry` props.
 
-For a typed chat layout with your own Remix components, see [Remix Chat UI](../ui/remix). Call `createChatHook` from `@tanstack/ai-remix/ui` once at module scope. Your app calls `createAppChat(handle)` and renders `<ui.Chat chat={chat} />`.
+### Options
 
-## Other helpers
+You must pass `threadId`. You must also pass `connection` or `fetcher`, not both.
 
-Each helper takes the Remix `Handle` as the first argument. Call it in setup.
+| Option | What it does |
+| --- | --- |
+| `connection` | Connection adapter, for example `fetchServerSentEvents("/chat")`. See [Transports](../transports/overview). |
+| `fetcher` | A function that returns a `Response` or a stream. Use it with server functions. |
+| `tools` | Client tools from `.client()`. They run when the model calls them. A `get tools()` getter is read each time a run starts. See [Client Tools](../tools/client-tools). |
+| `threadId` | Required. The id of this chat. Use a stable id for each conversation, for example the id from your route. |
+| `initialMessages` | The messages to show first. |
+| `forwardedProps` | JSON sent to the server in the AG-UI `forwardedProps` field, for example `{ model: "gpt-6.1-sol" }`. |
+| `persistence` | `true` to load the thread from the server, or a storage adapter. See [Chat Persistence](../persistence/chat-persistence). |
+| `outputSchema` | A Standard Schema. Adds typed `partial` and `final` to the return value. See [Streaming structured output](../structured-outputs/streaming). |
+| `context` | Client-only runtime context for client tools. It is not sent to the server. |
+| `live` | Subscribe in setup and unsubscribe when the handle aborts. |
+| `queue` | What `sendMessage` does while a run is busy. Default: queue the message. See [Queueing](../chat/queueing). |
+| `interrupts` | Definitions from `defineInterrupt()`. See [Interrupts](../interrupts/overview). |
+| `byok`, `byokProvider` | A keyring from `defineByok()`. See [Bring Your Own Key](../advanced/byok). |
+| `devtools` | Display options for TanStack AI Devtools. The helper always tags `framework: 'remix'`. |
 
-### `createByok(handle, client)`
+The helper also takes the `ChatClient` callbacks (`onResponse`, `onChunk`, `onFinish`, `onError`, `onInterruptStateChange`, `onCustomEvent`) and the other client options. See [`ChatClient` options](./ai-client#constructor-options).
 
-Subscribe to a BYOK snapshot. The return is a getter for the latest snapshot.
+### Returns
+
+State fields are getters. Read them in the render function, so each paint sees the latest values. Cleanup runs when `handle.signal` aborts.
+
+| Field | What it is |
+| --- | --- |
+| `messages` | The `UIMessage` array of the chat. |
+| `sendMessage(content, options?)` | Sends a user message. `content` is a string or `{ content, id?, metadata? }`. `options` takes `whenBusy` and `body`. |
+| `isLoading` | `true` while a response streams. |
+| `error` | The last error, or `undefined`. |
+| `status` | `"ready"`, `"submitted"`, `"streaming"`, or `"error"`. |
+| `stop()` | Stops the current response. |
+| `reload()` | Runs the last user message again. |
+| `append(message)` | Adds a `UIMessage` or `ModelMessage` and starts a run. |
+| `addToolResult(result)` | Gives the result of a client tool by hand: `{ toolCallId, tool, output, state?, errorText? }`. |
+| `setMessages(messages)`, `clear()` | Replace or clear the messages. |
+| `queue`, `cancelQueued(id)` | Messages that wait while a run is busy. See [Queueing](../chat/queueing). |
+| `runId` | The id of the run in flight, or `null`. |
+| `interrupts` | Pending interrupts. Each item has `resolveInterrupt(...)`. See [Interrupts](../interrupts/overview). |
+| `resolveInterrupts`, `cancelInterrupts`, `retryInterrupts`, `resumeInterruptsUnsafe` | Act on all pending interrupts at once. |
+| `interruptErrors`, `resuming` | Errors from the last resume, and `true` while a resume runs. |
+| `isHydrating` | `true` while the chat loads from persistence. |
+| `hasOlderMessages`, `loadOlderMessages()` | Page in older messages. See [Chat Persistence](../persistence/chat-persistence). |
+| `isSubscribed`, `connectionStatus`, `sessionGenerating` | State of the live subscription. |
+| `partial`, `final` | Structured output. Only when you pass `outputSchema`. |
+
+### Example: tool approval
+
+A tool with `needsApproval: true` pauses the run. The pending call shows up in `interrupts`.
 
 ```tsx
-import { createByok } from '@tanstack/ai-remix'
-import type { Handle } from 'remix/ui'
-import { byok } from './byok'
+import { toolDefinition } from "@tanstack/ai";
+import { createChat, fetchServerSentEvents } from "@tanstack/ai-remix";
+import { clientEntry, on, type Handle } from "remix/ui";
+import { z } from "zod";
 
-function Keys(handle: Handle) {
-  const getSnapshot = createByok(handle, byok)
-  return () => <p>{JSON.stringify(getSnapshot().status)}</p>
-}
+const deleteFileTool = toolDefinition({
+  name: "delete_file",
+  description: "Delete a file",
+  needsApproval: true,
+  inputSchema: z.object({ path: z.string() }),
+});
+
+export const ChatWithApproval = clientEntry(
+  import.meta.url,
+  function ChatWithApproval(handle: Handle) {
+    const chat = createChat(handle, {
+      connection: fetchServerSentEvents("/chat"),
+      threadId: "support-chat",
+      tools: [deleteFileTool],
+    });
+
+    return () => (
+      <div>
+        {chat.interrupts.map((interrupt) =>
+          interrupt.kind === "tool-approval" ? (
+            <div key={interrupt.id}>
+              <p>Approve: {interrupt.toolName}</p>
+              <button
+                type="button"
+                mix={on("click", () => interrupt.resolveInterrupt(true))}
+              >
+                Approve
+              </button>
+              <button
+                type="button"
+                mix={on("click", () => interrupt.resolveInterrupt(false))}
+              >
+                Deny
+              </button>
+            </div>
+          ) : null,
+        )}
+      </div>
+    );
+  },
+);
 ```
 
-Call `byok.update(provider, value)` from your own UI to save a key. See [Bring Your Own Key](../advanced/byok).
+See [Tool Approval](../interrupts/tool-approval) for the server side.
 
-### `createRealtimeChat(handle, options)`
+## `createChatHook(options)`
 
-Realtime voice chat. Pass `getToken` and `adapter`.
+This package does not export `createChatHook` from its main entry. `@tanstack/ai-remix/ui` has a `createChatHook` that binds chat options and typed UI components. Call it once at module scope. Then your app calls the returned factory with the handle and renders `<ui.Chat chat={chat} />`. See [Remix Chat UI](../ui/remix).
 
-```tsx
-import { createRealtimeChat } from '@tanstack/ai-remix'
-import { openaiRealtime } from '@tanstack/ai-openai'
-import { on, type Handle } from 'remix/ui'
+## Generation hooks
 
-function VoiceChat(handle: Handle) {
-  const chat = createRealtimeChat(handle, {
-    getToken: () => fetch('/api/realtime-token').then((response) => response.json()),
-    adapter: openaiRealtime(),
-  })
+Each helper runs one generation request and keeps its result. See [Generation Hooks](../media/generation-hooks).
 
-  return () => (
-    <div>
-      <p>Status: {chat.status}</p>
-      <button
-        type="button"
-        mix={on('click', () => {
-          if (chat.status === 'idle') {
-            void chat.connect()
-            return
-          }
-          chat.disconnect()
-        })}
-      >
-        {chat.status === 'idle' ? 'Start' : 'Stop'}
-      </button>
-    </div>
-  )
-}
-```
-
-### `createGeneration(handle, options)`
-
-Base helper for one-shot generation. Pass `connection` or `fetcher`. Call `generate()`.
+| Helper | `generate()` input | `result` |
+| --- | --- | --- |
+| `createGenerateImage` | `ImageGenerateInput` | `ImageGenerationResult` |
+| `createGenerateAudio` | `AudioGenerateInput` | `AudioGenerationResult` |
+| `createGenerateSpeech` | `SpeechGenerateInput` | `TTSResult` |
+| `createTranscription` | `TranscriptionGenerateInput` | `TranscriptionResult` |
+| `createSummarize` | `SummarizeGenerateInput` | `SummarizationResult` |
+| `createGenerateVideo` | `VideoGenerateInput` | `VideoGenerateResult` |
+| `createGeneration` | Your own input type | Your own result type |
 
 ```tsx
-import { createGeneration, fetchServerSentEvents } from '@tanstack/ai-remix'
-import { on, type Handle } from 'remix/ui'
-
-function CustomGenerator(handle: Handle) {
-  const gen = createGeneration(handle, {
-    connection: fetchServerSentEvents('/api/generate/custom'),
-  })
-
-  return () => (
-    <div>
-      <button
-        type="button"
-        mix={on('click', () => {
-          void gen.generate({ prompt: 'Hello' })
-        })}
-      >
-        Generate
-      </button>
-      {gen.isLoading ? <p>Generating</p> : null}
-    </div>
-  )
-}
-```
-
-### `createGenerateImage(handle, options)`
-
-Image generation. `generate()` accepts `ImageGenerateInput`. The result is `ImageGenerationResult`.
-
-```tsx
-import { createGenerateImage, fetchServerSentEvents } from '@tanstack/ai-remix'
-import { on, type Handle } from 'remix/ui'
+import { createGenerateImage, fetchServerSentEvents } from "@tanstack/ai-remix";
+import { on, type Handle } from "remix/ui";
 
 function ImageGenerator(handle: Handle) {
   const image = createGenerateImage(handle, {
-    connection: fetchServerSentEvents('/api/generate/image'),
-  })
+    connection: fetchServerSentEvents("/api/generate/image"),
+    threadId: "image-studio",
+  });
 
   return () => (
-    <div>
-      <button
-        type="button"
-        mix={on('click', () => {
-          void image.generate({ prompt: 'A sunset over mountains' })
-        })}
-      >
-        Generate
-      </button>
-      {image.isLoading ? <p>Generating</p> : null}
-    </div>
-  )
+    <button
+      type="button"
+      disabled={image.isLoading}
+      mix={on("click", () => {
+        void image.generate({ prompt: "A sunset over mountains" });
+      })}
+    >
+      Generate
+    </button>
+  );
 }
 ```
 
-The package also exports `createGenerateAudio`, `createGenerateSpeech`, `createGenerateVideo`, `createTranscription`, `createSummarize`, `createAudioRecorder`, and `createMcpAppBridge`.
+Options: `threadId` (required), `connection` or `fetcher`, `body`, `persistence`, `byok`, `byokProvider`, `devtools`, `onResult`, `onError`, `onProgress`, `onChunk`.
+
+Returns: `generate(input)`, `result`, `isLoading`, `error`, `status`, `stop()`, `reset()`, `runId`. The state fields are getters.
+
+`createGenerateVideo` also returns `jobId` and `videoStatus`, and takes `onJobCreated` and `onStatusUpdate`.
+
+## `createRealtimeChat(handle, options)`
+
+Runs a voice conversation with a realtime model. Pass `getToken` and `adapter`. See [Realtime Chat](../media/realtime-chat).
+
+```tsx
+import { createRealtimeChat } from "@tanstack/ai-remix";
+import { openaiRealtime } from "@tanstack/ai-openai";
+import { on, type Handle } from "remix/ui";
+
+function VoiceChat(handle: Handle) {
+  const chat = createRealtimeChat(handle, {
+    getToken: () => fetch("/api/realtime-token").then((response) => response.json()),
+    adapter: openaiRealtime(),
+  });
+
+  return () => (
+    <button
+      type="button"
+      mix={on("click", () => {
+        if (chat.status === "idle") {
+          void chat.connect();
+          return;
+        }
+        void chat.disconnect();
+      })}
+    >
+      {chat.status === "idle" ? "Start" : "Stop"}
+    </button>
+  );
+}
+```
+
+Returns `status`, `error`, `mode`, `messages`, `connect()`, `disconnect()`, `startListening()`, `stopListening()`, `interrupt()`, `sendText(text)`, `sendImage(data, mimeType)`, `updateSession(config)`, plus audio levels and frequency data for visualizers.
+
+## `createAudioRecorder(handle, options?)`
+
+Records audio from the microphone. See [Audio Recording](../media/audio-recording).
+
+Returns `recording`, `isRecording`, `isSupported` (getters), `start()`, `stop()`, and `cancel()`. Pass `onComplete` to transform the recording. Then `recording` and `stop()` use the transformed type.
+
+## `createByok(handle, client)`
+
+Subscribes to a BYOK keyring. The return value is a function that gives the latest snapshot. See [Bring Your Own Key](../advanced/byok).
+
+```tsx
+import { createByok } from "@tanstack/ai-remix";
+import type { Handle } from "remix/ui";
+import { byok } from "./byok";
+
+function KeyStatus(handle: Handle) {
+  const getSnapshot = createByok(handle, byok);
+
+  return () => {
+    const openai = getSnapshot().status.openai;
+    return <p>{openai && "masked" in openai ? openai.masked : "No key"}</p>;
+  };
+}
+```
+
+The snapshot has `status`, `locked`, `prompt`, and `storageError`. Save a key from your own UI with `byok.update(provider, value)`.
+
+## `createMcpAppBridge(handle, options)`
+
+Creates an MCP App bridge for one thread. Options: `threadId`, `callEndpoint`, `chat`, `fetchImpl`, `onLink`. See [MCP Apps](../mcp/apps).
+
+## `createRegisterWebMCPTools(handle, tools, options?)`
+
+Exposes client tools to the browser WebMCP API. Remix removes them when `handle.signal` aborts. See [WebMCP Tools](../tools/webmcp).
+
+```tsx
+import { createRegisterWebMCPTools } from "@tanstack/ai-remix";
+import { clientEntry, type Handle } from "remix/ui";
+import { searchProducts } from "./tools";
+
+export const ProductsPage = clientEntry(
+  import.meta.url,
+  function ProductsPage(handle: Handle) {
+    createRegisterWebMCPTools(handle, [searchProducts], {
+      onError: (error) => console.error(error),
+    });
+    return () => null;
+  },
+);
+```
+
+Options: `toolOptions`, `context`, and `onError`. `context` is required when a tool declares a required runtime context.
+
+## `createPageWebMCPTools(handle, options?)`
+
+Reads the WebMCP tools that the page registered, as client tools. The `tools` field starts empty. When the page adds or removes a tool, the helper updates `tools` and calls `handle.update()`. Read it in a `get tools()` getter on `createChat`. See [Page WebMCP Tools in Chat](../tools/webmcp-page-tools).
+
+```ts
+import { createPageWebMCPTools } from "@tanstack/ai-remix";
+import type { Handle } from "remix/ui";
+
+export function readPageTools(handle: Handle) {
+  return createPageWebMCPTools(handle, {
+    filter: (tool) => tool.origin === location.origin,
+  });
+}
+```
+
+Options: `filter` (return `false` to skip a tool) and `onError`.
+
+## Re-exports from `@tanstack/ai-client`
+
+You can import these from `@tanstack/ai-remix` directly. See [`@tanstack/ai-client`](./ai-client) for details.
+
+| Group | Exports |
+| --- | --- |
+| Connection adapters | `fetchServerSentEvents`, `fetchHttpStream`, `fetchJson`, `xhrServerSentEvents`, `xhrHttpStream`, `webSocket`, `stream`, `rpcStream` |
+| Typed options | `createChatClientOptions`, `clientTools` |
+| Clients | `ChatClient`, `GenerationClient`, `VideoGenerationClient`, `RealtimeClient`, `AudioRecorder`, `InterruptManager` |
+| WebMCP | `registerWebMCPTools`, `getWebMCPTools`, `subscribeWebMCPTools` |
+| Errors | `UnsupportedResponseStreamError`, `StreamTruncatedError`, `DurableStreamIncompleteError`, `StreamReconnectLimitError` |
+| Stream helpers | `StreamProcessor`, chunk strategies, `parsePartialJSON`, message converters |
+
+The browser persistence adapters (`localStoragePersistence` and the others) are not re-exported here. Import them from `@tanstack/ai-client`. BYOK helpers (`defineByok`, `defaultByokStorage`, and more) are on the `@tanstack/ai-remix/byok` subpath.
 
 ## Types
 
-Re-exported from `@tanstack/ai-client`:
+| Type | What it is |
+| --- | --- |
+| `CreateChatOptions`, `CreateChatReturn` | The options and return value of `createChat`. |
+| `UIMessage<TTools>` | A chat message with typed parts. |
+| `InferChatMessages<T>` | The message type for a `createChatClientOptions` result. |
+| `SendMessageOptions`, `WhenBusy`, `QueueOption`, `QueuedMessage` | Send and queue types. |
+| `DeepPartial<T>` | The type of `partial` while structured output streams. |
+| `Create<Helper>Options`, `Create<Helper>Return` | Options for each helper. The generation and realtime helpers also export a return type. |
 
-- `UIMessage<TTools>`
-- `ChatClientOptions<TTools, TContext>`
-- `InferChatMessages<T>`
-- `QueuedMessage`, `SendMessageOptions`, `WhenBusy`
-
-## Next
-
-- [Quick Start](../getting-started/quick-start)
-- [Tools](../tools/tools)
-- [Client tools](../tools/client-tools)
+Pass a plain tools array to `createChat` or `createChatClientOptions`. Tool names, inputs, and outputs stay typed without `as const`. Import `toolDefinition` from `@tanstack/ai`.

@@ -93,6 +93,7 @@ describe('BytePlusTranscriptionAdapter', () => {
   it('posts to the flash endpoint with the ASR resource header', async () => {
     const fetchMock = asrFetch()
     await generateTranscription({
+      threadId: 'thread-1',
       adapter: adapterWith(fetchMock),
       audio: 'https://example.com/guitar.mp3',
     })
@@ -112,6 +113,7 @@ describe('BytePlusTranscriptionAdapter', () => {
 
   it('maps transcript, segments, words and duration into seconds', async () => {
     const result = await generateTranscription({
+      threadId: 'thread-1',
       adapter: adapterWith(asrFetch()),
       audio: 'https://example.com/guitar.mp3',
       language: 'en-US',
@@ -133,13 +135,13 @@ describe('BytePlusTranscriptionAdapter', () => {
       completionTokens: 0,
       totalTokens: 0,
       billed: { quantity: 2.499, unit: 'seconds' },
-      durationSeconds: 2.499,
     })
     expect(result.id).toMatch(/^byteplus-/)
   })
 
   it('reads the flat transcript spelling when result is absent', async () => {
     const result = await generateTranscription({
+      threadId: 'thread-1',
       adapter: adapterWith(
         asrFetch({
           transcript: 'flat shape',
@@ -157,6 +159,7 @@ describe('BytePlusTranscriptionAdapter', () => {
   it('forwards recognition options and the language hint', async () => {
     const fetchMock = asrFetch()
     await generateTranscription({
+      threadId: 'thread-1',
       adapter: adapterWith(fetchMock),
       audio: 'https://example.com/a.mp3',
       language: 'en-US',
@@ -187,6 +190,7 @@ describe('BytePlusTranscriptionAdapter', () => {
   it('lets modelOptions.language override the generic language', async () => {
     const fetchMock = asrFetch()
     const result = await generateTranscription({
+      threadId: 'thread-1',
       adapter: adapterWith(fetchMock),
       audio: 'https://example.com/a.mp3',
       language: 'en',
@@ -251,6 +255,7 @@ describe('BytePlusTranscriptionAdapter', () => {
     it('sends encoded bytes as audio.data on a real request', async () => {
       const fetchMock = asrFetch()
       await generateTranscription({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock),
         audio: new Uint8Array([1, 2, 3]).buffer as ArrayBuffer,
         modelOptions: { audio_format: 'wav' },
@@ -270,6 +275,7 @@ describe('BytePlusTranscriptionAdapter', () => {
       )
       await expect(
         generateTranscription({
+          threadId: 'thread-1',
           adapter: adapterWith(fetchMock),
           audio: 'https://example.com/a.mp3',
           debug: false,
@@ -283,6 +289,7 @@ describe('BytePlusTranscriptionAdapter', () => {
       const fetchMock = asrFetch({ code: 45000151, message: 'Audio too long' })
       await expect(
         generateTranscription({
+          threadId: 'thread-1',
           adapter: adapterWith(fetchMock),
           audio: 'https://example.com/a.mp3',
           debug: false,
@@ -297,6 +304,7 @@ describe('BytePlusTranscriptionAdapter', () => {
     it('merges configured default headers into the request', async () => {
       const fetchMock = asrFetch()
       await generateTranscription({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock, { 'X-Test-Id': 'abc' }),
         audio: 'https://example.com/a.mp3',
       })
@@ -306,6 +314,7 @@ describe('BytePlusTranscriptionAdapter', () => {
     it('does not let default headers clobber the auth or resource headers', async () => {
       const fetchMock = asrFetch()
       await generateTranscription({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock, {
           'X-Api-Key': 'attacker-key',
           'X-Api-Resource-Id': 'volc.wrong.model',
@@ -324,6 +333,7 @@ describe('BytePlusTranscriptionAdapter', () => {
     it('warns that prompt is ignored', async () => {
       const logger = captureLogger()
       await generateTranscription({
+        threadId: 'thread-1',
         adapter: adapterWith(asrFetch()),
         audio: 'https://example.com/a.mp3',
         prompt: 'guitar shop vocabulary',
@@ -337,6 +347,7 @@ describe('BytePlusTranscriptionAdapter', () => {
     it('warns that a non-json responseFormat is ignored', async () => {
       const logger = captureLogger()
       await generateTranscription({
+        threadId: 'thread-1',
         adapter: adapterWith(asrFetch()),
         audio: 'https://example.com/a.mp3',
         responseFormat: 'srt',
@@ -352,6 +363,7 @@ describe('BytePlusTranscriptionAdapter', () => {
     it('stays quiet for responseFormat json', async () => {
       const logger = captureLogger()
       await generateTranscription({
+        threadId: 'thread-1',
         adapter: adapterWith(asrFetch()),
         audio: 'https://example.com/a.mp3',
         responseFormat: 'json',
@@ -475,6 +487,7 @@ describe('BytePlusTranscriptionAdapter', () => {
     it('warns on an empty transcript with no utterances', async () => {
       const logger = captureLogger()
       await generateTranscription({
+        threadId: 'thread-1',
         adapter: adapterWith(asrFetch({ result: { text: '' } })),
         audio: 'https://example.com/guitar.mp3',
         debug: { logger },
@@ -487,6 +500,7 @@ describe('BytePlusTranscriptionAdapter', () => {
 
     it('surfaces per-word confidence for callers that narrow the type', async () => {
       const result = await generateTranscription({
+        threadId: 'thread-1',
         adapter: adapterWith(
           asrFetch({
             result: {
@@ -524,6 +538,7 @@ describe('BytePlusTranscriptionAdapter', () => {
       )
     await expect(
       generateTranscription({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock),
         audio: 'https://example.com/a.mp3',
         debug: false,
@@ -538,6 +553,7 @@ describe('BytePlusTranscriptionAdapter', () => {
       fetch: fetchMock,
     })
     await generateTranscription({
+      threadId: 'thread-1',
       adapter,
       audio: 'https://example.com/a.mp3',
     })

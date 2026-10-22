@@ -56,6 +56,7 @@ describe('Fal Transcription Adapter', () => {
     const adapter = createAdapter()
 
     const result = await generateTranscription({
+      threadId: 'thread-1',
       adapter,
       audio: 'https://example.com/audio.mp3',
     })
@@ -93,6 +94,7 @@ describe('Fal Transcription Adapter', () => {
     const audioDataUrl = `data:audio/webm;base64,${btoa('fake-audio')}`
 
     await generateTranscription({
+      threadId: 'thread-1',
       adapter,
       audio: audioDataUrl,
     })
@@ -111,6 +113,7 @@ describe('Fal Transcription Adapter', () => {
     const adapter = createAdapter()
 
     await generateTranscription({
+      threadId: 'thread-1',
       adapter,
       audio: 'https://example.com/audio.mp3',
     })
@@ -131,6 +134,7 @@ describe('Fal Transcription Adapter', () => {
     const audioBuffer = new ArrayBuffer(16)
 
     await generateTranscription({
+      threadId: 'thread-1',
       adapter,
       audio: audioBuffer,
     })
@@ -158,6 +162,7 @@ describe('Fal Transcription Adapter', () => {
     const adapter = createAdapter()
 
     const result = await generateTranscription({
+      threadId: 'thread-1',
       adapter,
       audio: 'https://example.com/audio.mp3',
     })
@@ -190,6 +195,7 @@ describe('Fal Transcription Adapter', () => {
     const adapter = createAdapter()
 
     const result = await generateTranscription({
+      threadId: 'thread-1',
       adapter,
       audio: 'https://example.com/audio.mp3',
       language: 'fr',
@@ -219,6 +225,7 @@ describe('Fal Transcription Adapter', () => {
     const adapter = createAdapter()
 
     const result = await generateTranscription({
+      threadId: 'thread-1',
       adapter,
       audio: 'https://example.com/audio.mp3',
     })
@@ -264,6 +271,7 @@ describe('Fal Transcription Adapter', () => {
     const adapter = createAdapter()
 
     const result = await generateTranscription({
+      threadId: 'thread-1',
       adapter,
       audio: 'https://example.com/audio.mp3',
     })
@@ -297,6 +305,7 @@ describe('Fal Transcription Adapter', () => {
     const adapter = createAdapter()
 
     const result = await generateTranscription({
+      threadId: 'thread-1',
       adapter,
       audio: 'https://example.com/audio.mp3',
     })
@@ -313,6 +322,7 @@ describe('Fal Transcription Adapter', () => {
     })
 
     const result = await generateTranscription({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       audio: 'https://example.com/audio.mp3',
     })
@@ -322,7 +332,6 @@ describe('Fal Transcription Adapter', () => {
       completionTokens: 0,
       totalTokens: 0,
       billed: { quantity: 1.5, unit: 'units' },
-      unitsBilled: 1.5,
     })
   })
 
@@ -333,6 +342,7 @@ describe('Fal Transcription Adapter', () => {
     })
 
     const result = await generateTranscription({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       audio: 'https://example.com/audio.mp3',
     })

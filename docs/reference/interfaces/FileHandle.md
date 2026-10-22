@@ -3,7 +3,7 @@ id: FileHandle
 title: FileHandle
 ---
 
-Defined in: [packages/ai/src/activities/files/adapter.ts:41](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/files/adapter.ts#L41)
+Defined in: packages/ai/src/activities/files/adapter.ts:41
 
 A provider-issued file handle returned by [FilesAdapter.upload](FilesAdapter.md#upload) /
 [FilesAdapter.get](FilesAdapter.md#get). Reference it in a message via a `{ type: 'file' }`
@@ -28,7 +28,7 @@ compile time. It defaults to `string` so wire-deserialized handles still fit.
 optional expiresAt?: number;
 ```
 
-Defined in: [packages/ai/src/activities/files/adapter.ts:62](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/files/adapter.ts#L62)
+Defined in: packages/ai/src/activities/files/adapter.ts:62
 
 Expiry as epoch milliseconds when the handle is scheduled to expire.
 
@@ -40,7 +40,7 @@ Expiry as epoch milliseconds when the handle is scheduled to expire.
 optional filename?: string;
 ```
 
-Defined in: [packages/ai/src/activities/files/adapter.ts:64](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/files/adapter.ts#L64)
+Defined in: packages/ai/src/activities/files/adapter.ts:64
 
 Original filename when the provider reports it.
 
@@ -52,7 +52,7 @@ Original filename when the provider reports it.
 id: string;
 ```
 
-Defined in: [packages/ai/src/activities/files/adapter.ts:48](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/files/adapter.ts#L48)
+Defined in: packages/ai/src/activities/files/adapter.ts:48
 
 Provider handle used for lifecycle operations (`get`/`delete`): the
 OpenAI/Anthropic `file_id`, the Gemini file resource name (`files/...`), or
@@ -67,7 +67,7 @@ the wire reference).
 optional mimeType?: string;
 ```
 
-Defined in: [packages/ai/src/activities/files/adapter.ts:58](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/files/adapter.ts#L58)
+Defined in: packages/ai/src/activities/files/adapter.ts:58
 
 MIME type reported by the provider (or echoed from the upload input).
 
@@ -79,7 +79,7 @@ MIME type reported by the provider (or echoed from the upload input).
 provider: TProvider;
 ```
 
-Defined in: [packages/ai/src/activities/files/adapter.ts:50](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/files/adapter.ts#L50)
+Defined in: packages/ai/src/activities/files/adapter.ts:50
 
 The provider that issued the handle (`'openai'`, `'gemini'`, ...).
 
@@ -91,7 +91,7 @@ The provider that issued the handle (`'openai'`, `'gemini'`, ...).
 optional sizeBytes?: number;
 ```
 
-Defined in: [packages/ai/src/activities/files/adapter.ts:60](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/files/adapter.ts#L60)
+Defined in: packages/ai/src/activities/files/adapter.ts:60
 
 File size in bytes when the provider reports it.
 
@@ -103,7 +103,7 @@ File size in bytes when the provider reports it.
 optional uri?: string;
 ```
 
-Defined in: [packages/ai/src/activities/files/adapter.ts:56](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/files/adapter.ts#L56)
+Defined in: packages/ai/src/activities/files/adapter.ts:56
 
 The handle's URL form when the provider exposes one (Gemini file URI, fal
 storage URL). For providers whose handle is an opaque id (OpenAI,

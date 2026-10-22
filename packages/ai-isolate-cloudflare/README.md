@@ -75,6 +75,7 @@ const result = await chat({
   systemPrompts: ['You are a helpful assistant.', systemPrompt],
   tools: [tool],
   messages: [{ role: 'user', content: 'Compare weather in Tokyo and Paris' }],
+  threadId: 'thread-1',
 })
 ```
 

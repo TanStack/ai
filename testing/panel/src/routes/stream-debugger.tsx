@@ -128,8 +128,8 @@ function TestPanel() {
       },
     })
 
-    // Start an assistant message using the new API
-    processor.startAssistantMessage()
+    // Prepare for an assistant message (created on the first content chunk)
+    processor.prepareAssistantMessage()
 
     processorRef.current = processor
     return processor

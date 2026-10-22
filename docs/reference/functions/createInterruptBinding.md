@@ -7,7 +7,7 @@ title: createInterruptBinding
 function createInterruptBinding(request, fields?): InterruptPreEmissionData;
 ```
 
-Defined in: [packages/ai/src/interrupt-definition.ts:221](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L221)
+Defined in: packages/ai/src/interrupt-definition.ts:221
 
 ## Parameters
 

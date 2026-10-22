@@ -3,7 +3,7 @@ id: FileChangedPayload
 title: FileChangedPayload
 ---
 
-Defined in: [packages/ai/src/custom-events.ts:35](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L35)
+Defined in: packages/ai/src/custom-events.ts:35
 
 ## Properties
 
@@ -13,7 +13,7 @@ Defined in: [packages/ai/src/custom-events.ts:35](https://github.com/TanStack/ai
 optional diff?: string;
 ```
 
-Defined in: [packages/ai/src/custom-events.ts:40](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L40)
+Defined in: packages/ai/src/custom-events.ts:40
 
 Unified diff, when the harness can produce one.
 
@@ -25,7 +25,7 @@ Unified diff, when the harness can produce one.
 path: string;
 ```
 
-Defined in: [packages/ai/src/custom-events.ts:38](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L38)
+Defined in: packages/ai/src/custom-events.ts:38
 
 Absolute path inside the sandbox (under the workspace root).
 
@@ -37,7 +37,7 @@ Absolute path inside the sandbox (under the workspace root).
 timestamp: number;
 ```
 
-Defined in: [packages/ai/src/custom-events.ts:41](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L41)
+Defined in: packages/ai/src/custom-events.ts:41
 
 ***
 
@@ -47,4 +47,4 @@ Defined in: [packages/ai/src/custom-events.ts:41](https://github.com/TanStack/ai
 type: "create" | "change" | "delete";
 ```
 
-Defined in: [packages/ai/src/custom-events.ts:36](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L36)
+Defined in: packages/ai/src/custom-events.ts:36

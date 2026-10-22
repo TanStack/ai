@@ -26,12 +26,6 @@ export type InjectRegisterWebMCPToolsOptions<
   onError?: (error: unknown) => void
 }
 
-/** @deprecated Use `InjectRegisterWebMCPToolsOptions`. Removed in 1.0.0. */
-export type InjectWebMCPToolsOptions<
-  TTools extends ReadonlyArray<AnyClientTool>,
-  TContext = InferredClientContext<TTools>,
-> = InjectRegisterWebMCPToolsOptions<TTools, TContext>
-
 /**
  * Registers executable client tools with WebMCP for the current Angular owner.
  *
@@ -74,12 +68,6 @@ export function injectRegisterWebMCPTools<
   })
 }
 
-/**
- * @deprecated Use `injectRegisterWebMCPTools`. Removed in 1.0.0.
- * @alias
- */
-export const injectWebMCPTools = injectRegisterWebMCPTools
-
 /** Options for {@link injectPageWebMCPTools}. */
 export type InjectPageWebMCPToolsOptions = Omit<
   SubscribeWebMCPToolsOptions,
@@ -100,7 +88,7 @@ export type InjectPageWebMCPToolsOptions = Omit<
  * pageTools = injectPageWebMCPTools({
  *   filter: (tool) => tool.origin === location.origin,
  * })
- * chat = injectChat({ connection, tools: this.pageTools })
+ * chat = injectChat({ threadId: 'support-1', connection, tools: this.pageTools })
  * ```
  */
 export function injectPageWebMCPTools(

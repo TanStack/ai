@@ -19,7 +19,7 @@ describe('createChatHook', () => {
       initialMessages,
     })
 
-    const chat = renderHook(() => useChat()).result
+    const chat = renderHook(() => useChat({ threadId: 'thread-1' })).result
 
     expect(chat.messages()).toEqual(initialMessages)
   })

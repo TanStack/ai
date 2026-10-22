@@ -2,7 +2,6 @@ import {
   EventType,
   getChunkRunId as getNormalizedChunkRunId,
   restoreInboundChunk,
-  tanstackMetadata,
   uiMessagesToWire,
   withTanstackMetadata,
 } from '@tanstack/ai/client'
@@ -14,6 +13,7 @@ import {
 import { parseSseDataLine } from './sse-utils'
 import type {
   ModelMessage,
+  RunAgentInput,
   RunAgentResumeItem,
   RunErrorEvent,
   StreamChunk,
@@ -335,8 +335,7 @@ async function* readStreamLines(
 
       for (const line of lines) {
         // Strip a trailing CR so a CRLF stream matches the LF path (and the
-        // XHR reader). Without this an exact-equality check like the `[DONE]`
-        // sentinel in linesToSSEEvents would miss `data: [DONE]\r`.
+        // XHR reader).
         const normalized = line.endsWith('\r') ? line.slice(0, -1) : line
         if (normalized.trim()) {
           yield normalized
@@ -428,22 +427,6 @@ function isJsonRunBody(value: unknown): value is JsonRunBody {
   return hasChunks && hasDone && hasValidOffset
 }
 
-/** Rebuild pre-wire extras after SSE/NDJSON ingest. */
-function restoreInboundUsage(chunk: StreamChunk): StreamChunk {
-  return restoreInboundChunk(chunk)
-}
-
-function sseChunkModel(chunk: StreamChunk): string | undefined {
-  const tanstackModel = tanstackMetadata(chunk)?.model
-  if (typeof tanstackModel === 'string') return tanstackModel
-  const usage = 'usage' in chunk ? chunk.usage : undefined
-  if (Array.isArray(usage)) {
-    const model = (usage[0] as { model?: unknown } | undefined)?.model
-    if (typeof model === 'string') return model
-  }
-  return undefined
-}
-
 /**
  * Parse SSE-format lines into stream events, pairing each chunk with the `id:`
  * offset of the event it arrived on. Shared by the fetch- and XHR-backed SSE
@@ -451,20 +434,13 @@ function sseChunkModel(chunk: StreamChunk): string | undefined {
  *
  * Accepts either `data: {...}` lines or bare JSON lines. Skips comments
  * starting with `:` (proxies and CDNs inject these as keepalives) and the
- * `event:` / `retry:` SSE control fields. A `[DONE]` sentinel is treated as a
- * terminal event: a synthesized RUN_FINISHED is yielded using the most recent
- * upstream `threadId` / `runId` (falling back to `fallbackIds`), so the
- * consumer sees a clean terminal event with real correlation ids.
+ * `event:` / `retry:` SSE control fields.
  *
  * A JSON parse failure throws — the consumer surfaces it as an error.
  */
 async function* linesToSSEEvents(
   lines: AsyncIterable<string>,
-  fallbackIds?: { threadId?: string; runId?: string },
 ): AsyncGenerator<StreamEvent> {
-  let lastThreadId: string | undefined
-  let lastRunId: string | undefined
-  let lastModel: string | undefined
   let pendingId: string | undefined
   for await (const line of lines) {
     if (line === 'id' || line.startsWith('id:')) {
@@ -489,32 +465,7 @@ async function* linesToSSEEvents(
       continue
     }
     const data = parseSseDataLine(line)
-    if (data === '[DONE]') {
-      yield {
-        chunk: withTanstackMetadata(
-          {
-            type: EventType.RUN_FINISHED,
-            threadId: lastThreadId ?? fallbackIds?.threadId ?? '',
-            runId: lastRunId ?? fallbackIds?.runId ?? '',
-            timestamp: Date.now(),
-          },
-          {
-            finishReason: 'stop',
-            ...(lastModel !== undefined ? { model: lastModel } : {}),
-          },
-        ) as StreamChunk,
-      }
-      return
-    }
-    const chunk = restoreInboundUsage(JSON.parse(data) as StreamChunk)
-    if ('threadId' in chunk && typeof chunk.threadId === 'string') {
-      lastThreadId = chunk.threadId
-    }
-    if ('runId' in chunk && typeof chunk.runId === 'string') {
-      lastRunId = chunk.runId
-    }
-    const model = sseChunkModel(chunk)
-    if (model !== undefined) lastModel = model
+    const chunk = restoreInboundChunk(JSON.parse(data) as StreamChunk)
     const id = pendingId
     pendingId = undefined
     yield { chunk, ...(id !== undefined ? { id } : {}) }
@@ -533,9 +484,9 @@ async function* linesToNdjsonEvents(
   for await (const line of lines) {
     const parsed = JSON.parse(line) as unknown
     if (isNdjsonEnvelope(parsed)) {
-      yield { chunk: restoreInboundUsage(parsed.chunk), id: parsed.id }
+      yield { chunk: restoreInboundChunk(parsed.chunk), id: parsed.id }
     } else {
-      yield { chunk: restoreInboundUsage(parsed as StreamChunk) }
+      yield { chunk: restoreInboundChunk(parsed as StreamChunk) }
     }
   }
 }
@@ -716,11 +667,10 @@ async function fetchGenerationHydration(
 async function* responseToSSEEvents(
   response: Response,
   abortSignal?: AbortSignal,
-  fallbackIds?: { threadId?: string; runId?: string },
 ): AsyncGenerator<StreamEvent> {
   await assertResponseOk(response)
   const reader = getResponseStreamReader(response)
-  yield* linesToSSEEvents(readStreamLines(reader, abortSignal), fallbackIds)
+  yield* linesToSSEEvents(readStreamLines(reader, abortSignal))
 }
 
 /** Yield NDJSON stream events (chunk + offset) from a fetch Response body. */
@@ -928,9 +878,9 @@ export interface ConnectConnectionAdapter {
    */
   connect: (
     messages: Array<UIMessage> | Array<ModelMessage>,
-    data?: Record<string, any>,
-    abortSignal?: AbortSignal,
-    runContext?: RunAgentInputContext,
+    data: Record<string, any> | undefined,
+    abortSignal: AbortSignal | undefined,
+    runContext: RunAgentInputContext,
   ) => AsyncIterable<StreamChunk>
   /**
    * Fetch server-driven hydration for a generation `threadId`: the last
@@ -1070,9 +1020,9 @@ export interface SubscribeConnectionAdapter {
    */
   send: (
     messages: Array<UIMessage> | Array<ModelMessage>,
-    data?: Record<string, any>,
-    abortSignal?: AbortSignal,
-    runContext?: RunAgentInputContext,
+    data: Record<string, any> | undefined,
+    abortSignal: AbortSignal | undefined,
+    runContext: RunAgentInputContext,
   ) => Promise<void>
   /**
    * Re-attach to an existing run by id, replaying its stream from the start off
@@ -1147,7 +1097,7 @@ export function normalizeConnectionAdapter(
     )
   }
 
-  // Legacy connect() wrapper
+  // connect() wrapper
   let activeBuffer: Array<StreamChunk> = []
   let activeWaiters: Array<(chunk: StreamChunk | null) => void> = []
   let activeSubscriber: typeof activeWaiters | undefined
@@ -1362,30 +1312,33 @@ function buildRunAgentInputBody(
   data: Record<string, any> | undefined,
   runContext: RunAgentInputContext | undefined,
   options: ResolvedConnectionOptions,
-) {
+): RunAgentInput {
   // Precedence (later spreads win): static adapter `body` is the base,
   // overridden by `runContext.forwardedProps`, overridden by per-message `data`.
+  if (!runContext) {
+    throw new Error(
+      'Connection adapter: connect() and send() need a run context with a threadId. ChatClient and the generation clients pass one. Pass it when you call the adapter yourself.',
+    )
+  }
   const wireMessages = uiMessagesToWire(messages)
   const forwardedProps = {
     ...options.body,
-    ...(runContext?.forwardedProps ?? {}),
+    ...runContext.forwardedProps,
     ...data,
   }
 
   return {
-    threadId: runContext?.threadId ?? generateRunId('thread'),
-    runId: runContext?.runId ?? generateRunId('run'),
-    ...(runContext?.parentRunId !== undefined && {
+    threadId: runContext.threadId,
+    runId: runContext.runId ?? generateRunId('run'),
+    ...(runContext.parentRunId !== undefined && {
       parentRunId: runContext.parentRunId,
     }),
-    ...(runContext?.resume !== undefined && { resume: runContext.resume }),
+    ...(runContext.resume !== undefined && { resume: runContext.resume }),
     state: {},
     messages: wireMessages,
-    tools: runContext?.clientTools ?? [],
+    tools: runContext.clientTools ?? [],
     context: [],
     forwardedProps,
-    // Backward-compat mirror of `forwardedProps` under the legacy field name.
-    data: { ...forwardedProps },
   }
 }
 
@@ -1446,8 +1399,8 @@ export function fetchServerSentEvents(
       // Build AG-UI RunAgentInput payload.
       //
       // Precedence (later spreads win): static adapter `body` is the base,
-      // overridden by `runContext.forwardedProps` (constructor body /
-      // forwardedProps options), overridden by per-message `data` passed
+      // overridden by `runContext.forwardedProps` (the
+      // forwardedProps option), overridden by per-message `data` passed
       // to `connection.send`. Runtime values win over static config —
       // this matches the documented "forwardedProps wins" semantic.
       const requestBody = buildRunAgentInputBody(
@@ -1481,18 +1434,7 @@ export function fetchServerSentEvents(
             body: JSON.stringify(requestBody),
             credentials: resolvedOptions.credentials || 'same-origin',
           },
-          // Thread the run's ids so a `[DONE]`-terminating server that doesn't
-          // stamp them onto events still yields a correlated terminal (parity
-          // with the XHR adapter's xhrSSEParser).
-          (response, sseSignal) =>
-            responseToSSEEvents(response, sseSignal, {
-              ...(runContext?.threadId !== undefined
-                ? { threadId: runContext.threadId }
-                : {}),
-              ...(runContext?.runId !== undefined
-                ? { runId: runContext.runId }
-                : {}),
-            }),
+          responseToSSEEvents,
         ),
         signal,
         resolvedOptions.reconnect,
@@ -1526,9 +1468,7 @@ export function fetchServerSentEvents(
             headers: requestHeaders,
             credentials: resolvedOptions.credentials || 'same-origin',
           },
-          // A `[DONE]` during a join correlates to the joined run id.
-          (response, sseSignal) =>
-            responseToSSEEvents(response, sseSignal, { runId }),
+          responseToSSEEvents,
         ),
         signal,
         resolvedOptions.reconnect,
@@ -1619,8 +1559,8 @@ export function fetchHttpStream(
       // Build AG-UI RunAgentInput payload.
       //
       // Precedence (later spreads win): static adapter `body` is the base,
-      // overridden by `runContext.forwardedProps` (constructor body /
-      // forwardedProps options), overridden by per-message `data` passed
+      // overridden by `runContext.forwardedProps` (the
+      // forwardedProps option), overridden by per-message `data` passed
       // to `connection.send`. Runtime values win over static config —
       // this matches the documented "forwardedProps wins" semantic.
       const requestBody = buildRunAgentInputBody(
@@ -1818,7 +1758,7 @@ async function* pollJsonRun(
       if (signal?.aborted) return
       throw error
     }
-    for (const chunk of body.chunks) yield restoreInboundUsage(chunk)
+    for (const chunk of body.chunks) yield restoreInboundChunk(chunk)
     if (body.done) return
     const offset = body.offset
     if (offset === undefined) {
@@ -2118,7 +2058,7 @@ function readXhrLines(
 
 interface ConfiguredXhrRequest {
   xhr: XMLHttpRequest
-  body: string
+  body: string | null
 }
 
 function createConfiguredXhrRequest(
@@ -2151,14 +2091,15 @@ function createConfiguredXhrRequest(
     xhr.setRequestHeader(name, value)
   }
 
-  const requestBody = buildRunAgentInputBody(
-    messages,
-    data,
-    runContext,
-    options,
-  )
+  // A read-only join is a bodyless GET; a run POSTs the RunAgentInput payload.
+  const body =
+    method === 'GET'
+      ? null
+      : JSON.stringify(
+          buildRunAgentInputBody(messages, data, runContext, options),
+        )
 
-  return { xhr, body: JSON.stringify(requestBody) }
+  return { xhr, body }
 }
 
 async function resolveXhrConnectionOptions(
@@ -2197,8 +2138,7 @@ function xhrEventSource(
       await lines.next()
       return
     }
-    // A read-only join is a bodyless GET; a run POSTs the RunAgentInput payload.
-    request.xhr.send(method === 'GET' ? null : request.body)
+    request.xhr.send(request.body)
     try {
       yield* parseLines(lines)
     } finally {
@@ -2208,17 +2148,6 @@ function xhrEventSource(
       if (!abortSignal?.aborted) request.xhr.abort()
     }
   }
-}
-
-/** SSE line parser bound to the run's ids for a `[DONE]` fallback. */
-function xhrSSEParser(runContext: RunAgentInputContext | undefined) {
-  const fallbackIds: { threadId?: string; runId?: string } = {
-    ...(runContext?.threadId !== undefined
-      ? { threadId: runContext.threadId }
-      : {}),
-    ...(runContext?.runId !== undefined ? { runId: runContext.runId } : {}),
-  }
-  return (lines: AsyncIterable<string>) => linesToSSEEvents(lines, fallbackIds)
 }
 
 /**
@@ -2250,7 +2179,7 @@ export function xhrServerSentEvents(
           messages,
           data,
           runContext,
-          xhrSSEParser(runContext),
+          linesToSSEEvents,
         ),
         signal,
         resolvedOptions.reconnect,
@@ -2269,9 +2198,7 @@ export function xhrServerSentEvents(
           [],
           undefined,
           undefined,
-          // A `[DONE]` during a join correlates to the joined run id (parity
-          // with fetchServerSentEvents.joinRun).
-          (lines) => linesToSSEEvents(lines, { runId }),
+          linesToSSEEvents,
         ),
         signal,
         resolvedOptions.reconnect,
@@ -2588,7 +2515,7 @@ export function webSocket(
       }
       if (isPingFrame(parsed)) return
       const envelopeId = isNdjsonEnvelope(parsed) ? parsed.id : undefined
-      const chunk = restoreInboundUsage(
+      const chunk = restoreInboundChunk(
         isNdjsonEnvelope(parsed) ? parsed.chunk : (parsed as StreamChunk),
       )
 
@@ -2770,7 +2697,7 @@ export function webSocket(
         }
         if (isPingFrame(parsed)) return
         pipe.push(
-          restoreInboundUsage(
+          restoreInboundChunk(
             isNdjsonEnvelope(parsed) ? parsed.chunk : (parsed as StreamChunk),
           ),
         )
@@ -2836,7 +2763,10 @@ export interface StreamConnectionHandlers {
 /**
  * Create a direct stream connection adapter (for server functions or direct streams)
  *
- * @param streamFactory - A function that returns an async iterable of StreamChunks
+ * @param streamFactory - A function that returns an async iterable of
+ *   StreamChunks. It gets `(messages, data, abortSignal, input)`, where `input`
+ *   is the AG-UI `RunAgentInput` for the run (the body the HTTP adapters send).
+ *   Read it on the server with `chatParamsFromRequestBody`.
  * @param handlers - Optional persistence handlers (`hydrate`,
  * `hydrateGeneration`, `joinRun`) that let server-driven persistence work
  * without an HTTP endpoint — each is usually a one-line server-function call
@@ -2845,13 +2775,16 @@ export interface StreamConnectionHandlers {
  * @example
  * ```typescript
  * // With TanStack Start server function
- * const connection = stream(() => serverFunction({ messages }));
+ * const connection = stream((_messages, _data, signal, input) =>
+ *   serverFunction({ data: input, signal }),
+ * );
  *
- * const client = new ChatClient({ connection });
+ * const client = new ChatClient({ connection, threadId });
  *
  * // With generation persistence over server functions
  * const connection = stream(
- *   () => generateImageFn({ data: input }),
+ *   // Read `input` on the server with generationParamsFromBody('image', input).
+ *   (_messages, _data, _signal, input) => generateImageFn({ data: input }),
  *   {
  *     hydrateGeneration: (threadId) => getImageHydrationFn({ data: threadId }),
  *     joinRun: (runId) => joinImageRunFn({ data: runId }),
@@ -2862,16 +2795,22 @@ export interface StreamConnectionHandlers {
 export function stream(
   streamFactory: (
     messages: Array<UIMessage> | Array<ModelMessage>,
-    data?: Record<string, any>,
-    abortSignal?: AbortSignal,
+    data: Record<string, any> | undefined,
+    abortSignal: AbortSignal | undefined,
+    input: RunAgentInput,
   ) => AsyncIterable<StreamChunk>,
   handlers?: StreamConnectionHandlers,
 ): ConnectConnectionAdapter {
   return {
-    async *connect(messages, data, abortSignal) {
+    async *connect(messages, data, abortSignal, runContext) {
       // Pass messages as-is (UIMessages with parts preserved)
       // Server-side chat() handles conversion to ModelMessages
-      yield* streamFactory(messages, data, abortSignal)
+      yield* streamFactory(
+        messages,
+        data,
+        abortSignal,
+        buildRunAgentInputBody(messages, data, runContext, {}),
+      )
     },
     ...(handlers?.hydrate ? { hydrate: handlers.hydrate } : {}),
     ...(handlers?.hydrateGeneration
@@ -2964,7 +2903,9 @@ async function* abortableIterable<T>(
 /**
  * Create an RPC stream connection adapter (for RPC-based streaming like Cap'n Web RPC)
  *
- * @param rpcCall - A function that accepts messages and returns an async iterable of StreamChunks
+ * @param rpcCall - A function that returns an async iterable of StreamChunks.
+ *   It gets the same `(messages, data, abortSignal, input)` arguments as
+ *   `stream()`.
  * @param handlers - Optional persistence handlers (`hydrate`,
  * `hydrateGeneration`, `joinRun`) that let server-driven persistence work
  * without an HTTP endpoint — each is usually a one-line RPC call
@@ -2973,15 +2914,15 @@ async function* abortableIterable<T>(
  * @example
  * ```typescript
  * // With Cap'n Web RPC
- * const connection = rpcStream((messages, data) =>
- *   api.streamMurfResponse(messages, data)
+ * const connection = rpcStream((_messages, _data, _signal, input) =>
+ *   api.streamMurfResponse(input)
  * );
  *
- * const client = new ChatClient({ connection });
+ * const client = new ChatClient({ connection, threadId });
  *
  * // With generation persistence over RPC
  * const connection = rpcStream(
- *   (messages, data) => api.streamMurfResponse(messages, data),
+ *   (_messages, _data, _signal, input) => api.streamMurfResponse(input),
  *   {
  *     hydrateGeneration: (threadId) => api.getGenerationHydration(threadId),
  *     joinRun: (runId) => api.replayRun(runId),
@@ -2992,16 +2933,22 @@ async function* abortableIterable<T>(
 export function rpcStream(
   rpcCall: (
     messages: Array<UIMessage> | Array<ModelMessage>,
-    data?: Record<string, any>,
-    abortSignal?: AbortSignal,
+    data: Record<string, any> | undefined,
+    abortSignal: AbortSignal | undefined,
+    input: RunAgentInput,
   ) => AsyncIterable<StreamChunk>,
   handlers?: StreamConnectionHandlers,
 ): ConnectConnectionAdapter {
   return {
-    async *connect(messages, data, abortSignal) {
+    async *connect(messages, data, abortSignal, runContext) {
       // Pass messages as-is (UIMessages with parts preserved)
       // Server-side chat() handles conversion to ModelMessages
-      yield* rpcCall(messages, data, abortSignal)
+      yield* rpcCall(
+        messages,
+        data,
+        abortSignal,
+        buildRunAgentInputBody(messages, data, runContext, {}),
+      )
     },
     ...(handlers?.hydrate ? { hydrate: handlers.hydrate } : {}),
     ...(handlers?.hydrateGeneration

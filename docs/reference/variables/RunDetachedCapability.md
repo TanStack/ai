@@ -7,7 +7,7 @@ title: RunDetachedCapability
 const RunDetachedCapability: Capability<true, "run-detached">;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:414](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L414)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:414
 
 Whether this run's teardown DID detach — the disconnect was survived, the
 agent is still working, and a later attach can take the run over.

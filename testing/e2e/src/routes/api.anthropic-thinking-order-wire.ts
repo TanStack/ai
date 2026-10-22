@@ -234,6 +234,7 @@ export const Route = createFileRoute('/api/anthropic-thinking-order-wire')({
               context: [],
             })
             for await (const chunk of chat({
+              threadId: 'anthropic-thinking-order-wire',
               ...createChatOptions({ adapter: replayAdapter }),
               messages: params.messages,
               stream: true,
@@ -250,6 +251,7 @@ export const Route = createFileRoute('/api/anthropic-thinking-order-wire')({
           interruptClient.addUserMessage('Find the largest arena, then pick')
           const events: Array<unknown> = []
           for await (const chunk of chat({
+            threadId: 'anthropic-thinking-order-wire',
             ...createChatOptions({
               adapter: createAnthropicChat('claude-sonnet-4-5', DUMMY_KEY, {
                 fetch: interrupt.fetchImpl,
@@ -314,6 +316,7 @@ export const Route = createFileRoute('/api/anthropic-thinking-order-wire')({
               context: [],
             })
             for await (const chunk of chat({
+              threadId: 'anthropic-thinking-order-wire',
               ...createChatOptions({ adapter: clientToolsAdapter }),
               messages: params.messages,
               tools: [sizeTool],

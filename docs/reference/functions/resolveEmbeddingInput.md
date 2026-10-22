@@ -7,7 +7,7 @@ title: resolveEmbeddingInput
 function resolveEmbeddingInput(input): ResolvedEmbeddingItem[];
 ```
 
-Defined in: [packages/ai/src/utilities/embedding-input.ts:42](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/embedding-input.ts#L42)
+Defined in: packages/ai/src/utilities/embedding-input.ts:42
 
 Resolve each embedding input item into its text and image constituents,
 preserving input order (result[i] corresponds to input[i] and to the

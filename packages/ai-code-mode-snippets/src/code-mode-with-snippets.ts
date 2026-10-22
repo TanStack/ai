@@ -45,12 +45,14 @@ export type { CodeModeWithSnippetsOptions, CodeModeWithSnippetsResult }
  *     maxSnippetsInContext: 5,
  *   },
  *   messages,
+ *   threadId,
  * });
  *
  * const stream = chat({
  *   adapter: openaiText('gpt-4o'),  // Main model
  *   toolRegistry: toolsRegistry,  // Dynamic tool registry
  *   messages,
+ *   threadId,
  *   systemPrompts: [BASE_PROMPT, systemPrompt],
  * });
  * ```
@@ -60,6 +62,7 @@ export async function codeModeWithSnippets({
   adapter,
   snippets,
   messages,
+  threadId,
   snippetsAsTools = true,
 }: CodeModeWithSnippetsOptions): Promise<CodeModeWithSnippetsResult> {
   const { storage, maxSnippetsInContext = 5 } = snippets
@@ -71,6 +74,7 @@ export async function codeModeWithSnippets({
   const selectedSnippets = await selectRelevantSnippets({
     adapter,
     messages,
+    threadId,
     snippetIndex,
     maxSnippets: maxSnippetsInContext,
     storage,

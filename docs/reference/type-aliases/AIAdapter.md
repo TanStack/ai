@@ -21,6 +21,6 @@ type AIAdapter =
   | AnyFilesAdapter;
 ```
 
-Defined in: [packages/ai/src/activities/index.ts:370](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/index.ts#L370)
+Defined in: packages/ai/src/activities/index.ts:370
 
 Union of all adapter types across every activity kind

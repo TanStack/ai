@@ -54,6 +54,7 @@ pnpm add @tanstack/ai-isolate-cloudflare
 import { chat, toolDefinition } from '@tanstack/ai'
 import { createCodeMode } from '@tanstack/ai-code-mode'
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
+import { openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
 
 // Define tools that the LLM can call from inside the sandbox
@@ -74,13 +75,13 @@ const { tool, systemPrompt } = createCodeMode({
 })
 
 const result = await chat({
-  adapter: yourAdapter,
-  model: 'gpt-4o',
+  adapter: openaiText('gpt-6.1-sol'),
   systemPrompts: ['You are a helpful assistant.', systemPrompt],
   tools: [tool],
   messages: [
     { role: 'user', content: 'Compare weather in Tokyo, Paris, and NYC' },
   ],
+  threadId: 'thread-1',
 })
 ```
 

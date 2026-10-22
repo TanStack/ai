@@ -2371,7 +2371,7 @@ describe('conversationSummarizer', () => {
     const { fake, requests } = fakeSummaryModel()
     const result = await conversationSummarizer({ adapter: fake })(
       [text('user', 'fix the bug'), text('assistant', 'done')],
-      {},
+      { threadId: 'thread-1' },
     )
 
     expect(result).toEqual({
@@ -2393,6 +2393,7 @@ describe('conversationSummarizer', () => {
     }
     expect(userOf(requests[0])).toContain('[User]: fix the bug')
     expect(userOf(requests[0])).toContain('[Assistant]: done')
+    expect(requests[0]?.threadId).toBe('thread-1:compaction')
   })
 
   it('writes text parts and a tag for each other part', async () => {
@@ -2411,7 +2412,7 @@ describe('conversationSummarizer', () => {
         },
         { role: 'assistant', content: null },
       ],
-      {},
+      { threadId: 'thread-1' },
     )
 
     expect(userOf(requests[0])).toContain('[User]: look at this\\n[image]')
@@ -2427,7 +2428,7 @@ describe('conversationSummarizer', () => {
     }
     await conversationSummarizer({ adapter: fake })(
       [earlier, text('user', 'new step')],
-      { previousSummary: 'old facts' },
+      { threadId: 'thread-1', previousSummary: 'old facts' },
     )
 
     expect(systemOf(requests[0])).toContain('You update a checkpoint summary')
@@ -2443,7 +2444,7 @@ describe('conversationSummarizer', () => {
     const { fake, requests } = fakeSummaryModel()
     await conversationSummarizer({ adapter: fake })(
       [text('user', 'new task')],
-      { turnPrefix: true },
+      { threadId: 'thread-1', turnPrefix: true },
     )
     expect(systemOf(requests[0])).toContain(
       'the first part of the current turn',
@@ -2457,7 +2458,9 @@ describe('conversationSummarizer', () => {
       toolCallId: 't1',
     }
     const first = fakeSummaryModel()
-    await conversationSummarizer({ adapter: first.fake })([tool], {})
+    await conversationSummarizer({ adapter: first.fake })([tool], {
+      threadId: 'thread-1',
+    })
     expect(userOf(first.requests[0])).toContain('y'.repeat(2000))
     expect(userOf(first.requests[0])).not.toContain('y'.repeat(2001))
 
@@ -2465,7 +2468,7 @@ describe('conversationSummarizer', () => {
     await conversationSummarizer({
       adapter: second.fake,
       maxToolResultChars: 10,
-    })([tool], {})
+    })([tool], { threadId: 'thread-1' })
     expect(userOf(second.requests[0])).toContain('y'.repeat(10))
     expect(userOf(second.requests[0])).not.toContain('y'.repeat(11))
   })
@@ -2480,6 +2483,7 @@ describe('conversationSummarizer', () => {
       adapter: withDetails.fake,
       details,
     })([text('user', 'edit b.ts')], {
+      threadId: 'thread-1',
       previousSummary: 'old',
       previousDetails: 'a.ts',
     })
@@ -2492,7 +2496,7 @@ describe('conversationSummarizer', () => {
     const plain = await conversationSummarizer({
       adapter: without.fake,
       details: () => undefined,
-    })([text('user', 'hi')], {})
+    })([text('user', 'hi')], { threadId: 'thread-1' })
     expect(plain).toMatchObject({ summary: 'the summary' })
   })
 
@@ -2501,7 +2505,7 @@ describe('conversationSummarizer', () => {
     const details = vi.fn<Details>(() => undefined)
     await conversationSummarizer({ adapter: fake, details })(
       [summaryOf('old facts'), text('user', 'new step')],
-      { previousSummary: 'old facts' },
+      { threadId: 'thread-1', previousSummary: 'old facts' },
     )
     expect(details).toHaveBeenCalledWith({
       messages: [text('user', 'new step')],
@@ -2584,6 +2588,7 @@ describe('conversationSummarizer', () => {
     const early = fakeSummaryModel()
     await expect(
       conversationSummarizer({ adapter: early.fake })([text('user', 'hi')], {
+        threadId: 'thread-1',
         signal: AbortSignal.abort(new Error('stop')),
       }),
     ).rejects.toThrow('stop')
@@ -2592,6 +2597,7 @@ describe('conversationSummarizer', () => {
     // A reason that is not an Error: it throws its own error.
     await expect(
       conversationSummarizer({ adapter: early.fake })([text('user', 'hi')], {
+        threadId: 'thread-1',
         signal: AbortSignal.abort('stop'),
       }),
     ).rejects.toThrow('The summary was aborted.')
@@ -2610,6 +2616,7 @@ describe('conversationSummarizer', () => {
     ])
     await expect(
       conversationSummarizer({ adapter: late })([text('user', 'hi')], {
+        threadId: 'thread-1',
         signal: controller.signal,
       }),
     ).rejects.toThrow('stop')

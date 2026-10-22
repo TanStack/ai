@@ -3,7 +3,7 @@ id: ResolvedPromptCache
 title: ResolvedPromptCache
 ---
 
-Defined in: [packages/ai/src/types.ts:1276](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1276)
+Defined in: packages/ai/src/types.ts:1277
 
 What chat() gives the adapter.
 
@@ -15,7 +15,7 @@ What chat() gives the adapter.
 optional key?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1278](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1278)
+Defined in: packages/ai/src/types.ts:1279
 
 ***
 
@@ -25,4 +25,4 @@ Defined in: [packages/ai/src/types.ts:1278](https://github.com/TanStack/ai/blob/
 retention: PromptCacheRetention;
 ```
 
-Defined in: [packages/ai/src/types.ts:1277](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1277)
+Defined in: packages/ai/src/types.ts:1278

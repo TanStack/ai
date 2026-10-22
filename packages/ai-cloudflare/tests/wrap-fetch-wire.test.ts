@@ -28,6 +28,7 @@ const adapters = [
         apiKey: 'test-key',
         fetch,
       }).chatStream({
+        threadId: 'thread-1',
         logger,
         model,
         messages,

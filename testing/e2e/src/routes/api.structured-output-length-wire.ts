@@ -97,6 +97,7 @@ export const Route = createFileRoute('/api/structured-output-length-wire')({
           })
           errors[`compatible-${label}`] = await errorOf(() =>
             chat({
+              threadId: 'structured-output-length-wire',
               ...createChatOptions({ adapter: compatible('gpt-4o') }),
               messages: [{ role: 'user', content: 'Give me a title' }],
               outputSchema,
@@ -110,6 +111,7 @@ export const Route = createFileRoute('/api/structured-output-length-wire')({
           })
           errors[`openrouter-${label}`] = await errorOf(() =>
             chat({
+              threadId: 'structured-output-length-wire',
               ...createChatOptions({ adapter: openRouter }),
               messages: [{ role: 'user', content: 'Give me a title' }],
               outputSchema,
@@ -142,6 +144,7 @@ export const Route = createFileRoute('/api/structured-output-length-wire')({
         })
         errors['anthropic-truncated'] = await errorOf(() =>
           chat({
+            threadId: 'structured-output-length-wire',
             ...createChatOptions({ adapter: anthropic }),
             messages: [{ role: 'user', content: 'Give me a title' }],
             outputSchema,
@@ -170,6 +173,7 @@ export const Route = createFileRoute('/api/structured-output-length-wire')({
           (baseURL) =>
             errorOf(() =>
               chat({
+                threadId: 'structured-output-length-wire',
                 ...createChatOptions({
                   adapter: createMistralText(
                     'mistral-large-latest',
@@ -194,6 +198,7 @@ export const Route = createFileRoute('/api/structured-output-length-wire')({
           (baseURL) =>
             errorOf(() =>
               chat({
+                threadId: 'structured-output-length-wire',
                 ...createChatOptions({
                   adapter: createOllamaChat('mistral', { baseURL }),
                 }),

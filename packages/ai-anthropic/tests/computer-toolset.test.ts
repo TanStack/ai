@@ -79,6 +79,7 @@ describe('anthropic computer toolset', () => {
     const adapter = new AnthropicTextAdapter({ apiKey: 'k' }, 'claude-opus-5-5')
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Open the settings.' }],
       tools: [
@@ -122,6 +123,7 @@ describe('anthropic computer toolset', () => {
     const adapter = new AnthropicTextAdapter({ apiKey: 'k' }, 'claude-opus-5-5')
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Click the button.' }],
       tools: [tool],
@@ -178,6 +180,7 @@ describe('anthropic computer toolset', () => {
     const adapter = new AnthropicTextAdapter({ apiKey: 'k' }, 'claude-opus-4-6')
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         { role: 'user', content: 'Click the button.' },

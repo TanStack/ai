@@ -3,7 +3,7 @@ name: ai-core/ag-ui-protocol
 description: >
   Server-side AG-UI streaming protocol implementation: StreamChunk event
   types (RUN_STARTED, TEXT_MESSAGE_START/CONTENT/END, TOOL_CALL_START/ARGS/END,
-  RUN_FINISHED, RUN_ERROR, STEP_STARTED/STEP_FINISHED, STATE_SNAPSHOT/DELTA,
+  RUN_FINISHED, RUN_ERROR, REASONING_*, STATE_SNAPSHOT/DELTA,
   CUSTOM), toServerSentEventsStream() for SSE format, toHttpStream() for
   NDJSON format. For backends serving AG-UI events without client packages.
 type: sub-skill
@@ -27,10 +27,11 @@ import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
   const stream = chat({
     adapter: openaiText('gpt-5.6'),
     messages,
+    threadId,
   })
   return toServerSentEventsResponse(stream)
 }
@@ -66,6 +67,7 @@ export async function POST(req: Request) {
   const stream = chat({
     adapter: openaiText('gpt-5.6'),
     messages: params.messages,
+    threadId: params.threadId,
     tools: mergeAgentTools(serverTools, params.tools),
   })
 
@@ -85,7 +87,7 @@ export async function POST(req: Request) {
 
 ### 1. SSE Format — toServerSentEventsStream / toServerSentEventsResponse
 
-**Wire format:** Each event is `data: <JSON>\n\n`. Stream ends with `data: [DONE]\n\n`.
+**Wire format:** Each event is `data: <JSON>\n\n`. The last event is `RUN_FINISHED` (or `RUN_ERROR`). There is no `[DONE]` line.
 
 ```typescript group=sse-response
 import {
@@ -102,6 +104,7 @@ const abortController = new AbortController()
 const stream = chat({
   adapter: openaiText('gpt-5.6'),
   messages,
+  threadId: 'thread-1',
   abortController,
 })
 const sseStream = toServerSentEventsStream(stream, abortController)
@@ -158,6 +161,7 @@ const abortController = new AbortController()
 const stream = chat({
   adapter: openaiText('gpt-5.6'),
   messages,
+  threadId: 'thread-1',
   abortController,
 })
 const ndjsonStream = toHttpStream(stream, abortController)
@@ -187,23 +191,23 @@ adapters from `@tanstack/ai-react` (or the framework-specific package).
 All events extend `BaseAGUIEvent` which carries `type`, `timestamp`, optional
 `model`, and optional `rawEvent`.
 
-| Event Type             | Description                                                                                                                 |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `RUN_STARTED`          | First event in a stream. Carries `runId` and optional `threadId`.                                                           |
-| `TEXT_MESSAGE_START`   | New text message begins. Carries `messageId` and `role`.                                                                    |
-| `TEXT_MESSAGE_CONTENT` | Incremental text token. Carries `messageId` and `delta` (the new text).                                                     |
-| `TEXT_MESSAGE_END`     | Text message complete. Carries `messageId`.                                                                                 |
-| `TOOL_CALL_START`      | Tool invocation begins. Carries `toolCallId`, `toolName`, and `index`.                                                      |
-| `TOOL_CALL_ARGS`       | Incremental tool arguments JSON. Carries `toolCallId` and `delta`.                                                          |
-| `TOOL_CALL_END`        | Tool call arguments complete. Carries `toolCallId` and `toolName`.                                                          |
-| `STEP_STARTED`         | Thinking/reasoning step begins. Carries `stepId` and optional `stepType`.                                                   |
-| `STEP_FINISHED`        | Thinking step complete. Carries `stepId`, `delta`, and optional `content`.                                                  |
-| `MESSAGES_SNAPSHOT`    | Full conversation transcript snapshot. Carries `messages: Array<UIMessage>`.                                                |
-| `STATE_SNAPSHOT`       | Full application state snapshot. Carries `state: Record<string, unknown>`.                                                  |
-| `STATE_DELTA`          | Incremental state update. Carries `delta: Record<string, unknown>`.                                                         |
-| `CUSTOM`               | Extension point. Carries `name` (string) and optional `value` (unknown).                                                    |
-| `RUN_FINISHED`         | Stream complete. Carries `runId` and `finishReason` (`'stop'` / `'length'` / `'content_filter'` / `'tool_calls'` / `null`). |
-| `RUN_ERROR`            | Error during stream. Carries `message`, optional `code` and `runId`; a nested `error: { message, code? }` copy is kept too. |
+| Event Type                  | Description                                                                                                                 |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `RUN_STARTED`               | First event in a stream. Carries `runId` and optional `threadId`.                                                           |
+| `TEXT_MESSAGE_START`        | New text message begins. Carries `messageId` and `role`.                                                                    |
+| `TEXT_MESSAGE_CONTENT`      | Incremental text token. Carries `messageId` and `delta` (the new text).                                                     |
+| `TEXT_MESSAGE_END`          | Text message complete. Carries `messageId`.                                                                                 |
+| `TOOL_CALL_START`           | Tool invocation begins. Carries `toolCallId`, `toolCallName`, and `index`.                                                  |
+| `TOOL_CALL_ARGS`            | Incremental tool arguments JSON. Carries `toolCallId` and `delta`.                                                          |
+| `TOOL_CALL_END`             | Tool call arguments complete. Carries `toolCallId`.                                                                         |
+| `REASONING_START`           | Thinking begins. `REASONING_MESSAGE_START` / `_CONTENT` / `_END` stream the text (`delta`), then `REASONING_END`.           |
+| `REASONING_ENCRYPTED_VALUE` | Provider thinking signature. Kept on the thinking part and sent back on the next turn.                                      |
+| `MESSAGES_SNAPSHOT`         | Full conversation transcript snapshot. Carries `messages: Array<UIMessage>`.                                                |
+| `STATE_SNAPSHOT`            | Full application state snapshot. Carries `state: Record<string, unknown>`.                                                  |
+| `STATE_DELTA`               | Incremental state update. Carries `delta: Record<string, unknown>`.                                                         |
+| `CUSTOM`                    | Extension point. Carries `name` (string) and optional `value` (unknown).                                                    |
+| `RUN_FINISHED`              | Stream complete. Carries `runId` and `finishReason` (`'stop'` / `'length'` / `'content_filter'` / `'tool_calls'` / `null`). |
+| `RUN_ERROR`                 | Error during stream. Carries `message`, optional `code` and `runId`; a nested `error: { message, code? }` copy is kept too. |
 
 **Typical event sequence for a text-only response:**
 
@@ -220,8 +224,8 @@ RUN_STARTED -> TEXT_MESSAGE_START -> TEXT_MESSAGE_CONTENT* -> TEXT_MESSAGE_END
 ```
 
 **Type aliases:** `StreamChunk` is an alias for `AGUIEvent` (the discriminated
-union of all event interfaces). `StreamChunkType` is an alias for `AGUIEventType`
-(the string union of all event type literals).
+union of all event interfaces). For event type names, use the `EventType`
+enum, or `` `${EventType}` `` for the string union.
 
 ### 4. Typed CUSTOM Events — `ChatStream` and `KnownCustomEvent`
 
@@ -244,6 +248,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 const stream = chat({
   adapter: openaiText('gpt-5.6'),
   messages,
+  threadId: 'thread-1',
 })
 
 for await (const chunk of stream) {
@@ -309,9 +314,10 @@ Source: docs/protocol/sse-protocol.md
 
 Not all event types appear in every stream:
 
-- `STEP_STARTED` / `STEP_FINISHED` only appear with thinking-enabled models
+- `REASONING_*` events only appear with thinking-enabled models
   (e.g., `o3`, `claude-sonnet-4-5` with extended thinking). Standard models
-  skip these entirely.
+  skip these entirely. TanStack AI adapters do not send `STEP_STARTED` /
+  `STEP_FINISHED` for thinking.
 - `TOOL_CALL_START` / `TOOL_CALL_ARGS` / `TOOL_CALL_END` only appear when
   the model invokes tools. A text-only response has none.
 - `STATE_SNAPSHOT` / `STATE_DELTA` only appear when server code explicitly
@@ -320,7 +326,7 @@ Not all event types appear in every stream:
   full transcript snapshot.
 - `CUSTOM` events are application-defined and never emitted by default.
 
-Code that expects a fixed sequence (e.g., always waiting for `STEP_FINISHED`
+Code that expects a fixed sequence (e.g., always waiting for `REASONING_END`
 before processing text) will hang or break on models that don't emit those events.
 
 Source: docs/protocol/chunk-definitions.md

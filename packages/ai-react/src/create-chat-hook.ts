@@ -4,7 +4,10 @@ import type {
   InterruptDefinition,
   SchemaInput,
 } from '@tanstack/ai/client'
-import type { InferredClientContext } from '@tanstack/ai-client'
+import type {
+  DistributedOmit,
+  InferredClientContext,
+} from '@tanstack/ai-client'
 import type { UseChatOptions } from './types'
 
 type ChatHookOverrides<
@@ -14,10 +17,9 @@ type ChatHookOverrides<
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>,
   TSubagents extends ReadonlyArray<{ name: string }> | undefined,
 > = {
-  threadId?: string
+  threadId: string
   live?: boolean
   forwardedProps?: Record<string, any>
-  body?: Record<string, any>
   initialMessages?: UseChatOptions<
     TTools,
     TSchema,
@@ -31,8 +33,8 @@ type ChatHookOverrides<
  * Bind chat options once at module scope. The returned `useChat` hook
  * creates a chat instance from those options.
  *
- * Pass per-call overrides for instance keys such as `threadId`,
- * `initialMessages`, `live`, and `forwardedProps`. Do not change `tools`,
+ * Pass `threadId` on every call. You can also override `initialMessages`,
+ * `live`, and `forwardedProps` per call. Do not change `tools`,
  * `interrupts`, or `outputSchema` here. Those stay on the factory options.
  *
  * Rename the hook at the call site if you already import `useChat` from
@@ -57,9 +59,20 @@ export function createChatHook<
   > = readonly [],
   const TSubagents extends ReadonlyArray<{ name: string }> | undefined =
     undefined,
->(options: UseChatOptions<TTools, TSchema, TContext, TInterrupts, TSubagents>) {
+>(
+  options: DistributedOmit<
+    UseChatOptions<TTools, TSchema, TContext, TInterrupts, TSubagents>,
+    'threadId'
+  > & {
+    // Plain keys so TypeScript can infer the generics through the Omit.
+    tools?: TTools
+    outputSchema?: TSchema
+    interrupts?: TInterrupts
+    subagents?: TSubagents
+  },
+) {
   function useChat(
-    overrides?: ChatHookOverrides<
+    overrides: ChatHookOverrides<
       TTools,
       TSchema,
       TContext,
@@ -67,10 +80,14 @@ export function createChatHook<
       TSubagents
     >,
   ) {
-    if (!overrides) {
-      return useUnboundChat(options)
-    }
-    return useUnboundChat({ ...options, ...overrides })
+    // `overrides` carries the required `threadId`.
+    return useUnboundChat({ ...options, ...overrides } as UseChatOptions<
+      TTools,
+      TSchema,
+      TContext,
+      TInterrupts,
+      TSubagents
+    >)
   }
 
   return { useChat }

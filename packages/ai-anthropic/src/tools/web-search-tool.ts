@@ -7,9 +7,6 @@ import type { ProviderTool, Tool } from '@tanstack/ai'
 
 export type WebSearchToolConfig = WebSearchTool20250305
 
-/** @deprecated Renamed to `WebSearchToolConfig`. Will be removed in a future release. */
-export type WebSearchTool = WebSearchToolConfig
-
 export type AnthropicWebSearchTool = ProviderTool<'anthropic', 'web_search'>
 
 const validateDomains = (tool: WebSearchToolConfig) => {

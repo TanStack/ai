@@ -56,17 +56,17 @@ describe('grokRealtimeToken request body', () => {
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockResolvedValue(
-        makeSessionResponse(1_700_000_000, 'grok-voice-think-fast-1.0'),
+        makeSessionResponse(1_700_000_000, 'grok-voice-fast-1.0'),
       )
     globalThis.fetch = fetchMock as unknown as typeof fetch
 
     await realtimeToken({
-      adapter: grokRealtimeToken({ model: 'grok-voice-think-fast-1.0' }),
+      adapter: grokRealtimeToken({ model: 'grok-voice-fast-1.0' }),
     })
 
     const init = fetchMock.mock.calls[0]![1]!
     const body = JSON.parse(init.body as string) as Record<string, unknown>
-    expect(body).toEqual({ session: { model: 'grok-voice-think-fast-1.0' } })
+    expect(body).toEqual({ session: { model: 'grok-voice-fast-1.0' } })
   })
 
   it("defaults to xAI's current recommended model when no model is given", async () => {

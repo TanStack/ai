@@ -55,6 +55,7 @@ const adapter = bedrockText('us.anthropic.claude-haiku-4-5-20251001-v1:0', {
 for await (const chunk of chat({
   adapter,
   messages: [{ role: 'user', content: 'Hello from Bedrock!' }],
+  threadId: 'thread-1',
 })) {
   if (chunk.type === 'TEXT_MESSAGE_CONTENT')
     process.stdout.write(chunk.delta ?? '')

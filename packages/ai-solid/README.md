@@ -15,436 +15,198 @@
     />
   </picture>
 </div>
-# @tanstack/ai-react
 
-React hooks for building AI chat interfaces with TanStack AI.
+# @tanstack/ai-solid
+
+Solid primitives for building AI chat interfaces with TanStack AI.
 
 ## Installation
 
 ```bash
-npm install @tanstack/ai-react @tanstack/ai-client
+npm install @tanstack/ai-solid
+# or
+pnpm add @tanstack/ai-solid
+# or
+yarn add @tanstack/ai-solid
 ```
 
-## useChat Hook
+## useChat
 
-The `useChat` hook manages chat state, handles streaming responses, and provides a complete chat interface in a single hook.
+`useChat` manages chat state, streams responses, and runs client tools. You own the input state. Call `sendMessage()` from any trigger: a form, a button, or a keyboard shortcut.
 
-**Design Philosophy (v5 API):**
+`useChat` returns Solid accessors. Call `messages()`, `isLoading()`, `error()`, and `interrupts()` to read them.
 
-- You control input state
-- Just call `sendMessage()` when ready
-- No form-centric API - use buttons, keyboard events, or any trigger
-- More flexible and less opinionated
+### Basic usage
 
-### Basic Usage
+```tsx
+import { For, createSignal } from 'solid-js'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
 
-```typescript
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-import { useState } from "react";
-
-function ChatComponent() {
+export function Chat() {
   const { messages, sendMessage, isLoading } = useChat({
-    connection: fetchServerSentEvents("/api/chat"),
-  });
+    threadId: 'support-42',
+    connection: fetchServerSentEvents('/api/chat'),
+  })
+  const [input, setInput] = createSignal('')
 
-  const [input, setInput] = useState("");
-
-  const handleSend = () => {
-    sendMessage(input);
-    setInput("");
-  };
+  const send = () => {
+    const text = input().trim()
+    if (!text) return
+    void sendMessage(text)
+    setInput('')
+  }
 
   return (
     <div>
-      {messages.map((m) => (
-        <div key={m.id}>
-          <strong>{m.role}:</strong> {m.content}
-        </div>
-      ))}
+      <For each={messages()}>
+        {(message) => (
+          <div>
+            <strong>{message.role}: </strong>
+            <For each={message.parts}>
+              {(part) => (part.type === 'text' ? part.content : null)}
+            </For>
+          </div>
+        )}
+      </For>
 
       <input
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && handleSend()}
-        disabled={isLoading}
+        value={input()}
+        onInput={(event) => setInput(event.currentTarget.value)}
+        onKeyDown={(event) => event.key === 'Enter' && send()}
+        disabled={isLoading()}
       />
-      <button onClick={handleSend} disabled={isLoading || !input.trim()}>
+      <button onClick={send} disabled={isLoading() || !input().trim()}>
         Send
       </button>
     </div>
-  );
-}
-```
-
-### API
-
-#### Options
-
-```typescript
-interface UseChatOptions {
-  // Connection adapter (required)
-  connection: ConnectionAdapter
-
-  // Configuration
-  initialMessages?: UIMessage[] // Starting messages
-  threadId?: string // The only chat identity. Required when persistence is on. Minted after mount if omitted.
-  forwardedProps?: Record<string, any> // Forwarded to AG-UI RunAgentInput.forwardedProps
-  /** @deprecated Use `forwardedProps` instead. */
-  body?: Record<string, any>
-
-  // Callbacks
-  onResponse?: (response?: Response) => void
-  onChunk?: (chunk: StreamChunk) => void
-  onFinish?: (message: UIMessage) => void
-  onError?: (error: Error) => void
-}
-```
-
-#### Return Value
-
-```typescript
-interface UseChatReturn {
-  messages: UIMessage[] // Current conversation
-  sendMessage: (content: string) => Promise<void> // Send a message
-  append: (message) => Promise<void> // Add message programmatically
-  reload: () => Promise<void> // Reload last response
-  stop: () => void // Stop current generation
-  isLoading: boolean // Is generating a response
-  error: Error | undefined // Current error
-  setMessages: (messages) => void // Set messages manually
-  clear: () => void // Clear all messages
-}
-```
-
-## Connection Adapters
-
-Connection adapters provide flexible streaming for different scenarios. See the complete guides:
-
-- 📖 [Connection Adapters Guide](../../docs/CONNECTION_ADAPTERS_GUIDE.md) - Complete guide with examples
-- 📖 [Connection Adapters API](../ai-client/CONNECTION_ADAPTERS.md) - API reference
-
-### Quick Examples
-
-**SSE (Most Common):**
-
-```typescript
-import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
-
-const chat = useChat({
-  connection: fetchServerSentEvents('/api/chat'),
-})
-```
-
-**Server Functions:**
-
-```typescript
-import { useChat, stream } from '@tanstack/ai-react'
-
-const chat = useChat({
-  connection: stream((messages) => serverChatFunction({ messages })),
-})
-```
-
-**Custom (e.g., WebSockets):**
-
-```typescript
-import { useChat } from '@tanstack/ai-react'
-import type { ConnectionAdapter } from '@tanstack/ai-client'
-
-const wsAdapter: ConnectionAdapter = {
-  async *connect(messages) {
-    // Your WebSocket logic
-  },
-}
-
-const chat = useChat({ connection: wsAdapter })
-```
-
-### Backend Endpoint
-
-Your backend should use the `chat()` method which **automatically handles tool execution in a loop**:
-
-1. Receive POST requests with this body:
-
-```typescript
-{
-  messages: Message[];
-  data?: Record<string, any>;
-}
-```
-
-2. Use `chat()` to stream responses (with automatic tool execution):
-
-```typescript
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
-
-export async function POST(request: Request) {
-  const { messages } = await request.json()
-
-  const stream = chat({
-    adapter: openaiText(),
-    model: 'gpt-4o',
-    messages,
-    tools: [weatherTool], // Optional: auto-executed in loop
-    agentLoopStrategy: maxIterations(5), // Optional: control loop
-  })
-
-  // Convert to HTTP streaming response with SSE headers
-  return toServerSentEventsResponse(stream)
-}
-```
-
-The response streams `StreamChunk` objects as Server-Sent Events:
-
-```
-data: {"type":"content","delta":"Hello","content":"Hello",...}
-data: {"type":"tool_call","toolCall":{...},...}
-data: {"type":"tool_result","toolCallId":"...","content":"...",...}
-data: {"type":"content","delta":" world","content":"Hello world",...}
-data: {"type":"done","finishReason":"stop","usage":{...}}
-```
-
-**Note:** The `chat()` method automatically executes tools and emits `tool_result` chunks - you don't need to handle tool execution manually!
-
-### Advanced Usage
-
-#### With Callbacks
-
-```typescript
-import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
-
-const { messages, sendMessage } = useChat({
-  connection: fetchServerSentEvents('/api/chat'),
-  onChunk: (chunk) => {
-    if (chunk.type === 'content') {
-      console.log('New token:', chunk.delta)
-    }
-  },
-  onFinish: (message) => {
-    console.log('Final message:', message)
-    // Save to database, log analytics, etc.
-  },
-  onError: (error) => {
-    console.error('Chat error:', error)
-    // Show toast notification, log error, etc.
-  },
-})
-
-// Send messages programmatically
-await sendMessage('Tell me a joke')
-```
-
-#### Flexible Triggering
-
-```typescript
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-
-const { sendMessage, isLoading } = useChat({
-  connection: fetchServerSentEvents("/api/chat")
-});
-const [input, setInput] = useState("");
-
-// Button click
-<button onClick={() => sendMessage(input)}>Send</button>
-
-// Enter key
-<input onKeyDown={(e) => e.key === "Enter" && sendMessage(input)} />
-
-// Voice input
-<button onClick={async () => {
-  const transcript = await voiceToText();
-  sendMessage(transcript);
-}}>🎤 Speak</button>
-
-// Predefined prompts
-<button onClick={() => sendMessage("Explain quantum computing")}>
-  Ask about quantum computing
-</button>
-```
-
-#### With Custom Headers
-
-```typescript
-import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
-
-const chat = useChat({
-  connection: fetchServerSentEvents('/api/chat', {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'X-Custom-Header': 'value',
-    },
-  }),
-  forwardedProps: {
-    userId: '123',
-    sessionId: 'abc',
-  },
-})
-```
-
-#### Programmatic Control
-
-```typescript
-const { messages, sendMessage, append, reload, stop, clear } = useChat()
-
-// Send a simple message
-await sendMessage('Hello!')
-
-// Add a message with more control
-await append({
-  role: 'user',
-  content: 'Hello!',
-  id: 'custom-id',
-})
-
-// Reload the last AI response
-await reload()
-
-// Stop the current generation
-stop()
-
-// Clear all messages
-clear()
-```
-
-#### Multiple Chats
-
-```typescript
-import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
-
-function App() {
-  const chat1 = useChat({
-    id: 'chat-1',
-    connection: fetchServerSentEvents('/api/chat'),
-  })
-  const chat2 = useChat({
-    id: 'chat-2',
-    connection: fetchServerSentEvents('/api/chat'),
-  })
-
-  // Each hook manages independent state
-}
-```
-
-## Example Backend (Node.js/Express)
-
-```typescript
-import express from 'express'
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
-
-const app = express()
-app.use(express.json())
-
-app.post('/api/chat', async (req, res) => {
-  const { messages } = req.body
-
-  // One line to create streaming response!
-  const stream = chat({
-    adapter: openaiText(),
-    model: 'gpt-4o',
-    messages,
-  })
-
-  const response = toServerSentEventsResponse(stream)
-
-  // Copy headers and stream to Express response
-  response.headers.forEach((value, key) => {
-    res.setHeader(key, value)
-  })
-
-  const reader = response.body?.getReader()
-  if (reader) {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      res.write(value)
-    }
-  }
-  res.end()
-})
-
-app.listen(3000)
-```
-
-## Example Backend (Next.js App Router)
-
-```typescript
-// app/api/chat/route.ts
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
-
-export const runtime = 'edge'
-
-export async function POST(req: Request) {
-  const { messages } = await req.json()
-
-  // One line!
-  return toServerSentEventsResponse(
-    chat({
-      adapter: openaiText(),
-      model: 'gpt-4o',
-      messages,
-    }),
   )
 }
 ```
 
-## Example Backend (TanStack Start)
+### Options
 
-```typescript
-import { createFileRoute } from '@tanstack/react-router'
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
-import { anthropicText } from '@tanstack/ai-anthropic'
+| Option            | Description                                                                   |
+| ----------------- | ----------------------------------------------------------------------------- |
+| `threadId`        | Required. The chat identity. Use a stable id for each conversation.           |
+| `connection`      | Required. A connection adapter, such as `fetchServerSentEvents('/api/chat')`. |
+| `tools`           | Client tools, and tool definitions that type tool parts and approvals.        |
+| `initialMessages` | Messages to start with.                                                       |
+| `forwardedProps`  | Sent to the server as AG-UI `RunAgentInput.forwardedProps`.                   |
+| `onChunk`         | Called for each stream chunk.                                                 |
+| `onFinish`        | Called with the final assistant message.                                      |
+| `onError`         | Called when the run fails.                                                    |
 
-export const Route = createFileRoute('/api/chat')({
-  server: {
-    handlers: {
-      POST: async ({ request }) => {
-        const { messages } = await request.json()
+### Return value
 
-        // One line with automatic tool execution!
-        return toServerSentEventsResponse(
-          chat({
-            adapter: anthropicText(),
-            model: 'claude-sonnet-4-6',
-            messages,
-            tools, // Tools with execute functions
-          }),
-        )
-      },
-    },
-  },
+| Value                                | Description                                 |
+| ------------------------------------ | ------------------------------------------- |
+| `messages()`                         | The current conversation.                   |
+| `isLoading()`, `status()`, `error()` | Run state.                                  |
+| `sendMessage(content)`               | Sends a user message.                       |
+| `append(message)`                    | Adds a message and starts a run.            |
+| `reload()`                           | Runs the last user message again.           |
+| `stop()`                             | Stops the current run.                      |
+| `clear()`, `setMessages(messages)`   | Replace the conversation.                   |
+| `interrupts()`, `resuming()`         | Paused tool approvals and other interrupts. |
+
+## Connection adapters
+
+```ts
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
+
+const token = localStorage.getItem('token') ?? ''
+
+const chat = useChat({
+  threadId: 'support-42',
+  connection: fetchServerSentEvents('/api/chat', {
+    headers: { Authorization: `Bearer ${token}` },
+  }),
 })
 ```
 
-## TypeScript Types
+`fetchHttpStream`, `fetchJson`, `webSocket`, `stream` (for server functions), and custom `ConnectionAdapter` objects are also available. See [Transports](https://tanstack.com/ai/latest/docs/transports/overview).
 
-All types are fully exported:
+## Tool approval
 
-```typescript
-import type {
-  UIMessage,
-  UseChatOptions,
-  UseChatReturn,
-  ChatRequestBody,
-} from '@tanstack/ai-react'
+Mark a tool `needsApproval: true` on the server. When the run pauses, the approval appears in `interrupts()`. Resolve it on the item with `resolveInterrupt`:
+
+```tsx
+import { For, Show } from 'solid-js'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
+import { transferTool } from '../tools/transfer'
+
+export function TransferApprovals() {
+  const { interrupts, resuming } = useChat({
+    threadId: 'account-42',
+    connection: fetchServerSentEvents('/api/chat'),
+    tools: [transferTool] as const,
+  })
+
+  return (
+    <For each={interrupts()}>
+      {(interrupt) => (
+        <Show
+          when={
+            interrupt.kind === 'tool-approval' &&
+            interrupt.toolName === 'transfer'
+          }
+        >
+          <button
+            disabled={!interrupt.canResolve || resuming()}
+            onClick={() => interrupt.resolveInterrupt(true)}
+          >
+            Approve
+          </button>
+          <button
+            disabled={!interrupt.canResolve || resuming()}
+            onClick={() => interrupt.resolveInterrupt(false)}
+          >
+            Reject
+          </button>
+        </Show>
+      )}
+    </For>
+  )
+}
 ```
 
-## Features
+The full server and client code is in [Tool Approval](https://tanstack.com/ai/latest/docs/interrupts/tool-approval).
 
-- ✅ Automatic message state management
-- ✅ Streaming response handling
-- ✅ Loading and error states
-- ✅ Simple `sendMessage()` API (v5 style)
-- ✅ You control input state (flexible)
-- ✅ Abort/stop generation
-- ✅ Reload last response
-- ✅ Clear conversation
-- ✅ Custom headers and body data (via connection adapter options)
-- ✅ Callback hooks for lifecycle events
-- ✅ Multiple concurrent chats
-- ✅ Full TypeScript support
+## Server endpoint
+
+Use `chat()` on the server. It runs server tools in a loop and streams the result. `chatParamsFromRequest` reads `messages`, `threadId`, and `runId` from the request body:
+
+```ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
+
+  const stream = chat({
+    adapter: openaiText('gpt-6.1-sol'),
+    messages,
+    threadId,
+    runId,
+  })
+
+  return toServerSentEventsResponse(stream)
+}
+```
+
+## Chat UI components
+
+`createChatHook` from `@tanstack/ai-solid/ui` binds your chat options and your components once, with typed tool parts and interrupts. See [Solid Chat UI](https://tanstack.com/ai/latest/docs/ui/solid).
+
+## More
+
+- [Quick Start](https://tanstack.com/ai/latest/docs/getting-started/quick-start)
+- [Transports](https://tanstack.com/ai/latest/docs/transports/overview)
+- [OpenTelemetry](https://tanstack.com/ai/latest/docs/advanced/otel)
 
 ## License
 

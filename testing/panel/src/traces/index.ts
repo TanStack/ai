@@ -1,13 +1,13 @@
 /**
- * Sample trace files for testing the stream processor
+ * Sample trace files for testing the stream processor.
  *
- * These are extracted from unit tests in @tanstack/ai-client
+ * Each trace is a list of AG-UI events, as the server streams them.
  */
 
 import type { ChunkRecording } from '@tanstack/ai'
 
 // Helper to create a base recording
-function createRecording(chunks: any[]): ChunkRecording {
+function createRecording(chunks: Array<any>): ChunkRecording {
   return {
     version: '1.0',
     timestamp: Date.now(),
@@ -19,574 +19,206 @@ function createRecording(chunks: any[]): ChunkRecording {
   }
 }
 
+const event = (type: string, fields: Record<string, unknown> = {}) => ({
+  type,
+  timestamp: Date.now(),
+  ...fields,
+})
+
+const runStarted = () =>
+  event('RUN_STARTED', { runId: 'run-1', threadId: 'thread-1' })
+
+const runFinished = (
+  finishReason: 'stop' | 'tool_calls',
+  outcome?: Record<string, unknown>,
+) =>
+  event('RUN_FINISHED', {
+    runId: 'run-1',
+    threadId: 'thread-1',
+    ...(outcome ? { outcome } : {}),
+    metadata: { tanstack: { finishReason } },
+  })
+
+/** A text message, streamed as one content event per delta. */
+const text = (deltas: Array<string>, messageId = 'msg-1') => [
+  event('TEXT_MESSAGE_START', { messageId, role: 'assistant' }),
+  ...deltas.map((delta) => event('TEXT_MESSAGE_CONTENT', { messageId, delta })),
+  event('TEXT_MESSAGE_END', { messageId }),
+]
+
+const toolStart = (toolCallId: string, toolCallName: string) =>
+  event('TOOL_CALL_START', { toolCallId, toolCallName })
+
+const toolArgs = (toolCallId: string, delta: string) =>
+  event('TOOL_CALL_ARGS', { toolCallId, delta })
+
+const toolEnd = (toolCallId: string) => event('TOOL_CALL_END', { toolCallId })
+
+/** A tool call, with its arguments streamed as one args event per delta. */
+const toolCall = (
+  toolCallId: string,
+  toolCallName: string,
+  argDeltas: Array<string>,
+) => [
+  toolStart(toolCallId, toolCallName),
+  ...argDeltas.map((delta) => toolArgs(toolCallId, delta)),
+  toolEnd(toolCallId),
+]
+
 /**
  * Simple text streaming - "Hello world!" character by character
  */
 export const textSimple = createRecording([
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: 'H',
-    content: 'H',
-    role: 'assistant',
-  },
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: 'e',
-    content: 'He',
-    role: 'assistant',
-  },
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: 'l',
-    content: 'Hel',
-    role: 'assistant',
-  },
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: 'l',
-    content: 'Hell',
-    role: 'assistant',
-  },
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: 'o',
-    content: 'Hello',
-    role: 'assistant',
-  },
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: ' ',
-    content: 'Hello ',
-    role: 'assistant',
-  },
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: 'w',
-    content: 'Hello w',
-    role: 'assistant',
-  },
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: 'o',
-    content: 'Hello wo',
-    role: 'assistant',
-  },
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: 'r',
-    content: 'Hello wor',
-    role: 'assistant',
-  },
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: 'l',
-    content: 'Hello worl',
-    role: 'assistant',
-  },
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: 'd',
-    content: 'Hello world',
-    role: 'assistant',
-  },
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: '!',
-    content: 'Hello world!',
-    role: 'assistant',
-  },
-  {
-    type: 'done',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    finishReason: 'stop',
-  },
+  runStarted(),
+  ...text('Hello world!'.split('')),
+  runFinished('stop'),
 ])
 
 /**
  * Text with punctuation - multiple sentences
  */
 export const textPunctuation = createRecording([
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: 'Hello',
-    content: 'Hello',
-    role: 'assistant',
-  },
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: ' world',
-    content: 'Hello world',
-    role: 'assistant',
-  },
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: '!',
-    content: 'Hello world!',
-    role: 'assistant',
-  },
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: ' How',
-    content: 'Hello world! How',
-    role: 'assistant',
-  },
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: ' are',
-    content: 'Hello world! How are',
-    role: 'assistant',
-  },
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: ' you?',
-    content: 'Hello world! How are you?',
-    role: 'assistant',
-  },
-  {
-    type: 'done',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    finishReason: 'stop',
-  },
+  runStarted(),
+  ...text(['Hello', ' world', '!', ' How', ' are', ' you?']),
+  runFinished('stop'),
 ])
 
 /**
  * Single tool call with streaming arguments
  */
 export const toolCallSingle = createRecording([
-  {
-    type: 'tool_call',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    toolCall: {
-      id: 'call_1',
-      type: 'function',
-      function: { name: 'getWeather', arguments: '{"lo' },
-    },
-    index: 0,
-  },
-  {
-    type: 'tool_call',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    toolCall: {
-      id: 'call_1',
-      type: 'function',
-      function: { name: 'getWeather', arguments: 'cation":' },
-    },
-    index: 0,
-  },
-  {
-    type: 'tool_call',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    toolCall: {
-      id: 'call_1',
-      type: 'function',
-      function: { name: 'getWeather', arguments: ' "Paris"}' },
-    },
-    index: 0,
-  },
-  {
-    type: 'done',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    finishReason: 'tool_calls',
-  },
+  runStarted(),
+  ...toolCall('call_1', 'getWeather', ['{"lo', 'cation":', ' "Paris"}']),
+  runFinished('tool_calls'),
 ])
 
 /**
  * Multiple parallel tool calls
  */
 export const toolCallParallel = createRecording([
-  {
-    type: 'tool_call',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    toolCall: {
-      id: 'call_1',
-      type: 'function',
-      function: { name: 'getWeather', arguments: '{"lo' },
-    },
-    index: 0,
-  },
-  {
-    type: 'tool_call',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    toolCall: {
-      id: 'call_2',
-      type: 'function',
-      function: { name: 'getTime', arguments: '{"ci' },
-    },
-    index: 1,
-  },
-  {
-    type: 'tool_call',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    toolCall: {
-      id: 'call_1',
-      type: 'function',
-      function: { name: 'getWeather', arguments: 'cation":"Paris"}' },
-    },
-    index: 0,
-  },
-  {
-    type: 'tool_call',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    toolCall: {
-      id: 'call_2',
-      type: 'function',
-      function: { name: 'getTime', arguments: 'ty":"Tokyo"}' },
-    },
-    index: 1,
-  },
-  {
-    type: 'done',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    finishReason: 'tool_calls',
-  },
+  runStarted(),
+  toolStart('call_1', 'getWeather'),
+  toolArgs('call_1', '{"lo'),
+  toolStart('call_2', 'getTime'),
+  toolArgs('call_2', '{"ci'),
+  toolArgs('call_1', 'cation":"Paris"}'),
+  toolArgs('call_2', 'ty":"Tokyo"}'),
+  toolEnd('call_1'),
+  toolEnd('call_2'),
+  runFinished('tool_calls'),
 ])
 
 /**
  * Tool call followed by text (tool result response)
  */
 export const toolCallWithText = createRecording([
-  {
-    type: 'tool_call',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    toolCall: {
-      id: 'call_1',
-      type: 'function',
-      function: { name: 'getWeather', arguments: '{"location":"Paris"}' },
-    },
-    index: 0,
-  },
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: 'The weather in Paris is',
-    content: 'The weather in Paris is',
-    role: 'assistant',
-  },
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: ' sunny',
-    content: 'The weather in Paris is sunny',
-    role: 'assistant',
-  },
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: ' and warm.',
-    content: 'The weather in Paris is sunny and warm.',
-    role: 'assistant',
-  },
-  {
-    type: 'done',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    finishReason: 'stop',
-  },
+  runStarted(),
+  ...toolCall('call_1', 'getWeather', ['{"location":"Paris"}']),
+  ...text(['The weather in Paris is', ' sunny', ' and warm.']),
+  runFinished('stop'),
 ])
 
 /**
- * Tool result chunk
+ * Tool result event
  */
 export const toolResult = createRecording([
-  {
-    type: 'tool_call',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    toolCall: {
-      id: 'call_1',
-      type: 'function',
-      function: { name: 'calculate', arguments: '{"expression":"2+2"}' },
-    },
-    index: 0,
-  },
-  {
-    type: 'done',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    finishReason: 'tool_calls',
-  },
-  {
-    type: 'tool_result',
-    id: 'msg-2',
-    model: 'test',
-    timestamp: Date.now(),
+  runStarted(),
+  ...toolCall('call_1', 'calculate', ['{"expression":"2+2"}']),
+  event('TOOL_CALL_RESULT', {
+    messageId: 'tool-result-1',
     toolCallId: 'call_1',
     content: '4',
-  },
-  {
-    type: 'content',
-    id: 'msg-2',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: 'The result is 4.',
-    content: 'The result is 4.',
-    role: 'assistant',
-  },
-  {
-    type: 'done',
-    id: 'msg-2',
-    model: 'test',
-    timestamp: Date.now(),
-    finishReason: 'stop',
-  },
+    role: 'tool',
+  }),
+  ...text(['The result is 4.'], 'msg-2'),
+  runFinished('stop'),
 ])
 
 /**
- * Thinking/reasoning chunks (Claude-style)
+ * Thinking/reasoning events
  */
 export const thinking = createRecording([
-  {
-    type: 'thinking',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
+  runStarted(),
+  event('REASONING_START', { messageId: 'reasoning-1' }),
+  event('REASONING_MESSAGE_START', {
+    messageId: 'reasoning-1',
+    role: 'reasoning',
+  }),
+  event('REASONING_MESSAGE_CONTENT', {
+    messageId: 'reasoning-1',
     delta: 'Let me think about this...',
-    content: 'Let me think about this...',
-  },
-  {
-    type: 'thinking',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
+  }),
+  event('REASONING_MESSAGE_CONTENT', {
+    messageId: 'reasoning-1',
     delta: ' I need to consider the weather patterns.',
-    content:
-      'Let me think about this... I need to consider the weather patterns.',
-  },
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: 'Based on my analysis, ',
-    content: 'Based on my analysis, ',
-    role: 'assistant',
-  },
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: 'it looks like rain.',
-    content: 'Based on my analysis, it looks like rain.',
-    role: 'assistant',
-  },
-  {
-    type: 'done',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    finishReason: 'stop',
-  },
+  }),
+  event('REASONING_MESSAGE_END', { messageId: 'reasoning-1' }),
+  event('REASONING_END', { messageId: 'reasoning-1' }),
+  ...text(['Based on my analysis, ', 'it looks like rain.']),
+  runFinished('stop'),
 ])
 
 /**
- * Approval requested flow
+ * Approval requested flow: the run stops with an approval interrupt
  */
 export const approvalRequested = createRecording([
-  {
-    type: 'tool_call',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    toolCall: {
-      id: 'call_1',
-      type: 'function',
-      function: { name: 'deleteFile', arguments: '{"path":"/tmp/test.txt"}' },
-    },
-    index: 0,
-  },
-  {
-    type: 'done',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    finishReason: 'tool_calls',
-  },
-  {
-    type: 'approval-requested',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    toolCallId: 'call_1',
-    toolName: 'deleteFile',
-    input: { path: '/tmp/test.txt' },
-    approval: { id: 'approval_call_1', needsApproval: true },
-  },
+  runStarted(),
+  ...toolCall('call_1', 'deleteFile', ['{"path":"/tmp/test.txt"}']),
+  runFinished('tool_calls', {
+    type: 'interrupt',
+    interrupts: [
+      {
+        id: 'approval_call_1',
+        reason: 'tool_call',
+        toolCallId: 'call_1',
+        metadata: {
+          kind: 'approval',
+          toolName: 'deleteFile',
+          input: { path: '/tmp/test.txt' },
+        },
+      },
+    ],
+  }),
 ])
 
 /**
- * Client tool input available
+ * Client tool flow: the run stops with a client tool interrupt
  */
 export const toolInputAvailable = createRecording([
-  {
-    type: 'tool_call',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    toolCall: {
-      id: 'call_1',
-      type: 'function',
-      function: { name: 'getUserLocation', arguments: '{}' },
-    },
-    index: 0,
-  },
-  {
-    type: 'done',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    finishReason: 'tool_calls',
-  },
-  {
-    type: 'tool-input-available',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    toolCallId: 'call_1',
-    toolName: 'getUserLocation',
-    input: {},
-  },
+  runStarted(),
+  ...toolCall('call_1', 'getUserLocation', ['{}']),
+  runFinished('tool_calls', {
+    type: 'interrupt',
+    interrupts: [
+      {
+        id: 'client_tool_call_1',
+        reason: 'tanstack:client_tool_execution',
+        toolCallId: 'call_1',
+        metadata: {
+          kind: 'client_tool',
+          toolName: 'getUserLocation',
+          input: {},
+        },
+      },
+    ],
+  }),
 ])
 
 /**
- * Error chunk
+ * Error event
  */
 export const error = createRecording([
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: 'Starting...',
-    content: 'Starting...',
-    role: 'assistant',
-  },
-  {
-    type: 'error',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    error: { message: 'Rate limit exceeded', code: 'rate_limit' },
-  },
+  runStarted(),
+  event('TEXT_MESSAGE_START', { messageId: 'msg-1', role: 'assistant' }),
+  event('TEXT_MESSAGE_CONTENT', { messageId: 'msg-1', delta: 'Starting...' }),
+  event('RUN_ERROR', { message: 'Rate limit exceeded', code: 'rate_limit' }),
 ])
 
 /**
- * Delta-only chunks (no accumulated content)
+ * Many small content deltas
  */
 export const deltaOnly = createRecording([
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: 'Hello',
-  },
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: ' world',
-  },
-  {
-    type: 'content',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    delta: '!',
-  },
-  {
-    type: 'done',
-    id: 'msg-1',
-    model: 'test',
-    timestamp: Date.now(),
-    finishReason: 'stop',
-  },
+  runStarted(),
+  ...text(['Hello', ' ', 'world', '!']),
+  runFinished('stop'),
 ])

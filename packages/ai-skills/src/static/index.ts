@@ -2,7 +2,7 @@
  * `staticSkills` — wrap a build-time-generated catalog as a {@link SkillSource}.
  *
  * Edge-safe: this file imports no `node:*` modules. The Vite plugin that GLOBS
- * `skills/**​/SKILL.md` and emits the catalog lives in `@tanstack/ai-skills/node`
+ * `skills/<name>/SKILL.md` files and emits the catalog lives in `@tanstack/ai-skills/node`
  * (it needs `node:fs`); the emitted catalog is plain data consumed here.
  *
  * The generated catalog is `as const`, so `T` is the literal union of skill

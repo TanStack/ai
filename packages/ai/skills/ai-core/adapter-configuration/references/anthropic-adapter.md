@@ -59,6 +59,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: anthropicText('claude-sonnet-4-6'),
   messages,
+  threadId: 'thread-1',
   modelOptions: {
     // Sampling
     temperature: 0.7,
@@ -81,10 +82,9 @@ chat({
         tool_configuration: { enabled: true },
       },
     ],
-    // Container (skills)
+    // Container reuse. Load skills with codeExecutionTool(config, { skills }).
     container: {
       id: 'container-id',
-      skills: [{ skill_id: 'analysis', type: 'anthropic' }],
     },
     // Sampling
     top_k: 40,
@@ -113,6 +113,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: anthropicText('claude-sonnet-5'), // or 'claude-fable-5', 'claude-opus-4-8'
   messages,
+  threadId: 'thread-1',
   // Adaptive thinking; the level goes out as output_config.effort
   reasoning: 'xhigh',
   modelOptions: {

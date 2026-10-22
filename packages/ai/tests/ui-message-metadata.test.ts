@@ -257,12 +257,18 @@ describe('UIMessage.metadata', () => {
       threadId: 'thread',
       metadata: { tanstack: { responseId: 'prior-response' } },
     })
-    const provisionalId = processor.startAssistantMessage()
     processor.processChunk({
       type: EventType.RUN_STARTED,
       runId: 'next-run',
       threadId: 'thread',
     })
+    // Reasoning before the server names the message opens a provisional row.
+    processor.processChunk({
+      type: EventType.REASONING_MESSAGE_CONTENT,
+      messageId: 'reasoning',
+      delta: 'Thinking',
+    })
+    const provisionalId = processor.getCurrentAssistantMessageId()!
     processor.processChunk({
       type: EventType.CUSTOM,
       name: 'structured-output.start',

@@ -11,7 +11,7 @@ export const Route = createFileRoute('/api/transcription')({
         await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
         const abortController = new AbortController()
         const body = await request.json()
-        const data = body.forwardedProps ?? body.data ?? body
+        const data = body.forwardedProps ?? body
         const {
           audio,
           language,
@@ -39,6 +39,7 @@ export const Route = createFileRoute('/api/transcription')({
 
         try {
           const stream = generateTranscription({
+            threadId: body.threadId,
             adapter,
             audio,
             language,

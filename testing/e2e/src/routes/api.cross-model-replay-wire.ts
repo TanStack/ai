@@ -195,6 +195,7 @@ export const Route = createFileRoute('/api/cross-model-replay-wire')({
             'cross-model-1',
             (messages) =>
               chat({
+                threadId: 'cross-model-replay-wire',
                 ...createChatOptions({ adapter: anthropic }),
                 messages,
                 tools: [weatherTool],
@@ -208,6 +209,7 @@ export const Route = createFileRoute('/api/cross-model-replay-wire')({
 
           await sendTurn('And tomorrow?', 'cross-model-2', (messages) =>
             chat({
+              threadId: 'cross-model-replay-wire',
               ...createChatOptions({ adapter: openai }),
               messages,
               tools: [weatherTool],

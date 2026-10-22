@@ -7,7 +7,7 @@ title: canonicalizeInterruptResolutions
 function canonicalizeInterruptResolutions(resolutions): object;
 ```
 
-Defined in: [packages/ai/src/interrupts.ts:139](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L139)
+Defined in: packages/ai/src/interrupts.ts:137
 
 ## Parameters
 

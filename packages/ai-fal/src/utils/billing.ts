@@ -88,7 +88,6 @@ export function buildFalUsage(
     completionTokens: 0,
     totalTokens: 0,
     billed: { quantity: unitsBilled, unit: 'units' },
-    unitsBilled,
   }
 }
 

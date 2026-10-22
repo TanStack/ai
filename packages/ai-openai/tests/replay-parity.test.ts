@@ -53,6 +53,7 @@ describe('OpenAI factory replay', () => {
         },
       ]
       for await (const _chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger,
         model: adapter.model,
         messages,
@@ -111,6 +112,7 @@ describe('OpenAI factory replay', () => {
       ]
       const original = JSON.stringify(messages)
       for await (const _chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger,
         model: adapter.model,
         messages,

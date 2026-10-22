@@ -407,7 +407,7 @@ function ChatFeature({
     threadId: chatId,
     ...transport,
     tools,
-    body: {
+    forwardedProps: {
       provider,
       feature,
       testId,

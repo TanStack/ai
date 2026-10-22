@@ -11,6 +11,7 @@ class Probe<
 > extends GroqTextAdapter<TModel> {
   request(reasoning: ReasoningRequest) {
     return this.mapOptionsToRequest({
+      threadId: 'thread-1',
       model: this.model,
       logger,
       messages: [{ role: 'user', content: 'hi' }],

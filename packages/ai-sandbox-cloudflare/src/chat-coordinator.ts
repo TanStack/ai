@@ -185,6 +185,7 @@ export abstract class ChatSandboxCoordinator<
         const token =
           crypto.randomUUID() + crypto.randomUUID().replace(/-/g, '')
         const core = createToolBridgeCore(tools, {
+          threadId: options.threadId,
           ...(options.context !== undefined
             ? { context: options.context }
             : {}),

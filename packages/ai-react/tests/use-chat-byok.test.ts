@@ -51,6 +51,7 @@ describe('useChat byok', () => {
 
     const { result } = renderHook(() =>
       useChat({
+        threadId: 'thread-1',
         connection: recordingConnection(record),
         byok,
         forwardedProps: { provider: 'openai', model: 'gpt-5.5' },
@@ -78,6 +79,7 @@ describe('useChat byok', () => {
     const { result, rerender } = renderHook(
       ({ provider }: { provider: 'openai' | 'anthropic' }) =>
         useChat({
+          threadId: 'thread-1',
           connection: recordingConnection(record),
           byok,
           byokProvider: () => provider,
