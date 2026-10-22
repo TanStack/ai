@@ -162,6 +162,27 @@ The [run journal](./journal) reads this flag to decide how to read a run's outpu
 
 A bring-your-own provider must set this flag too. For the reason behind each value, see [Providers (Advanced)](./providers-advanced#killableprocesses-per-provider).
 
+### Stop a file call
+
+Each `handle.fs` method takes an optional last argument, `{ signal }`. When the signal aborts, the call rejects with an `AbortError`:
+
+```ts
+import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
+
+const handle = await localProcessSandbox().create({})
+const controller = new AbortController()
+
+const text = await handle.fs.read('/workspace/README.md', {
+  signal: controller.signal,
+})
+```
+
+- E2B gives the signal to each file call. Then an abort also stops a call that already started.
+- Local process gives the signal to `read`, `readBytes`, and `write`. Its other methods check the signal before the call starts.
+- The other bundled providers check the signal before the call starts.
+
+`bootstrapWorkspace(handle, workspace, { signal })` gives its signal to each file call that it makes. A bring-your-own provider must reject a call when the signal is already aborted.
+
 ## Advanced
 
 Each provider has its own options and limits: idle timers, ports, network rules, non-root users, and snapshot behavior. Read them in [Providers (Advanced)](./providers-advanced) before you go to production.

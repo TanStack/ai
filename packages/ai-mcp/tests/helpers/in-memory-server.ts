@@ -217,7 +217,7 @@ export async function makeServerWithMixedTools() {
     'get_weather',
     {
       description: 'Get weather for a city',
-      inputSchema: { city: z.string() },
+      inputSchema: z.object({ city: z.string() }),
       annotations: { readOnlyHint: true },
     },
     async ({ city }) => ({
@@ -228,7 +228,7 @@ export async function makeServerWithMixedTools() {
     'set_alert',
     {
       description: 'Create a weather alert',
-      inputSchema: { city: z.string() },
+      inputSchema: z.object({ city: z.string() }),
     },
     async ({ city }) => ({
       content: [{ type: 'text' as const, text: `Alert set for ${city}` }],

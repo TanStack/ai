@@ -42,6 +42,10 @@ class FakeXMLHttpRequest {
     this.requestHeaders[name] = value
   }
 
+  getResponseHeader(_name: string): string | null {
+    return null
+  }
+
   readonly send = vi.fn((body?: string): void => {
     this.requestBody = body
   })

@@ -11,7 +11,7 @@ import {
   isElevenLabsMusicModel,
   isElevenLabsSoundEffectsModel,
 } from '../model-meta'
-import type { ElevenLabsClient } from '@elevenlabs/elevenlabs-js'
+import type { ElevenLabs, ElevenLabsClient } from '@elevenlabs/elevenlabs-js'
 import type {
   AudioGenerationOptions,
   AudioGenerationResult,
@@ -184,7 +184,8 @@ export class ElevenLabsAudioAdapter<
 
     const stream = await this.client.textToSoundEffects.convert({
       text: options.prompt,
-      modelId,
+      // The SDK types list only the sound models it knew at release.
+      modelId: modelId as ElevenLabs.SfxModelId,
       ...(options.duration != null
         ? { durationSeconds: options.duration }
         : {}),

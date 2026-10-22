@@ -13,7 +13,7 @@ export const Route = createFileRoute('/api/openrouter-structured-usage')({
         const reasoning = params.get('reasoning')
         const envelope = {
           id: 'gen-usage',
-          model: 'anthropic/claude-sonnet-4',
+          model: 'anthropic/claude-opus-4.1',
           object: 'chat.completion.chunk',
           created: 1,
         }
@@ -51,7 +51,7 @@ export const Route = createFileRoute('/api/openrouter-structured-usage')({
         const usageReports: Array<unknown> = []
         // This model uses structuredOutputStream instead of the combined tools/schema path.
         const adapter = createOpenRouterText(
-          'anthropic/claude-sonnet-4',
+          'anthropic/claude-opus-4.1',
           'test-key',
           {
             httpClient: new HTTPClient({

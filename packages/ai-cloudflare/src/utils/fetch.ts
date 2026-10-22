@@ -6,18 +6,24 @@ import type { CloudflareGatewayOptions, FetchLike } from './config'
  * {...}}`) that has no `choices` field. The OpenAI Chat Completions stream
  * reader indexes `chunk.choices[0]` on every event, so give such events an
  * empty `choices` array (OpenAI's own usage-only trailer shape) and keep the
- * usage totals they carry.
+ * usage totals they carry. SSE allows `data:` without the space, and CR, LF
+ * or CRLF line ends.
  */
 export function normalizeSseResponse(response: Response): Response {
   const contentType = response.headers.get('content-type') ?? ''
-  if (!response.body || !contentType.includes('text/event-stream')) {
+  if (
+    !response.body ||
+    !contentType.toLowerCase().includes('text/event-stream')
+  ) {
     return response
   }
   let buffer = ''
   const fixLine = (line: string): string => {
-    if (!line.startsWith('data: ') || line === 'data: [DONE]') return line
+    if (!line.startsWith('data:')) return line
+    const data = line.slice(line.startsWith('data: ') ? 6 : 5)
+    if (data === '[DONE]') return line
     try {
-      const event = JSON.parse(line.slice(6)) as Record<string, unknown>
+      const event = JSON.parse(data) as Record<string, unknown>
       if (event && typeof event === 'object' && !('choices' in event)) {
         return `data: ${JSON.stringify({ ...event, choices: [] })}`
       }
@@ -32,7 +38,9 @@ export function normalizeSseResponse(response: Response): Response {
       new TransformStream<string, string>({
         transform(chunk, controller) {
           buffer += chunk
-          const lines = buffer.split('\n')
+          // ponytail: a CRLF split across two chunks adds one blank line.
+          // That only ends the current event at its last line.
+          const lines = buffer.split(/\r\n|\r|\n/)
           buffer = lines.pop() ?? ''
           for (const line of lines) controller.enqueue(`${fixLine(line)}\n`)
         },

@@ -19,6 +19,8 @@ Each send puts the key on an `x-byok-*` header.
 
 This setup takes about 10 minutes. You need a chat that already works with `useChat`.
 
+To save the key on your server instead, see [Keep Keys on the Server](./server-keys).
+
 ### 1. Create a store
 
 Import BYOK from the `/byok` subpath of your framework package. Vue, Solid, Svelte, Preact, Angular, Octane, and Remix have the same subpath.

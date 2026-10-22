@@ -2875,7 +2875,7 @@
     "name": "DeepSeek V4.1 Flash",
     "display_name": "DeepSeek V4.1 Flash",
     "created": 1788998400,
-    "description": "deepseek-v4.1-flash provided by deepseek, alibaba, deepinfra, fireworks, together-ai, novita, baidu, entrim, luminal, sciforium, scx-ai-gp, runware, consensusprotocol",
+    "description": "deepseek-v4.1-flash provided by deepseek, alibaba, deepinfra, fireworks, together-ai, novita, baidu, entrim, reka-ai, luminal, sciforium, scx-ai-gp, runware, consensusprotocol",
     "family": "deepseek",
     "architecture": {
       "input_modalities": ["text", "image"],
@@ -3087,6 +3087,36 @@
         "stability": "stable"
       },
       {
+        "providerId": "reka-ai",
+        "externalId": "deepseek41-flash",
+        "pricing": {
+          "prompt": "0.0000003",
+          "completion": "0.0000012",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0.000000006",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "streaming": true,
+        "vision": true,
+        "cancellation": false,
+        "tools": true,
+        "parallelToolCalls": false,
+        "reasoning": true,
+        "reasoning_efforts": [
+          "none",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "max_output": 393216,
+        "stability": "stable"
+      },
+      {
         "providerId": "luminal",
         "externalId": "deepseek-ai/DeepSeek-V4.1-Flash",
         "pricing": {
@@ -3225,7 +3255,7 @@
     "name": "DeepSeek V4.1 Flash 1017",
     "display_name": "DeepSeek V4.1 Flash 1017",
     "created": 1792195200,
-    "description": "deepseek-v4.1-flash-1017 provided by deepseek, alibaba, together-ai, novita, inference.net, deepinfra",
+    "description": "deepseek-v4.1-flash-1017 provided by deepseek, alibaba, together-ai, novita, inference.net, deepinfra, reka-ai",
     "family": "deepseek",
     "architecture": {
       "input_modalities": ["text", "image"],
@@ -3385,6 +3415,36 @@
           "max"
         ],
         "max_output": 393216
+      },
+      {
+        "providerId": "reka-ai",
+        "externalId": "deepseek41-flash-20261017",
+        "pricing": {
+          "prompt": "0.00000015",
+          "completion": "0.0000006",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0.000000003",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "streaming": true,
+        "vision": true,
+        "cancellation": false,
+        "tools": true,
+        "parallelToolCalls": false,
+        "reasoning": true,
+        "reasoning_efforts": [
+          "none",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "max_output": 393216,
+        "stability": "stable"
       }
     ],
     "pricing": {
@@ -17634,11 +17694,11 @@
       }
     ],
     "pricing": {
-      "prompt": "0.168e-6",
-      "completion": "0.336e-6",
+      "prompt": "0.14e-6",
+      "completion": "0.28e-6",
       "image": "0",
       "request": "0",
-      "input_cache_read": "0.0034e-6",
+      "input_cache_read": "0.0028e-6",
       "input_cache_write": "0",
       "input_cache_write_1h": "0",
       "web_search": "0",
@@ -17659,7 +17719,8 @@
     ],
     "json_output": true,
     "structured_outputs": false,
-    "free": false
+    "free": false,
+    "deactivated_at": "2026-10-23T00:00:00.000Z"
   },
   {
     "id": "mimo-v2.5-pro",
@@ -17771,11 +17832,11 @@
       }
     ],
     "pricing": {
-      "prompt": "0.522e-6",
-      "completion": "1.044e-6",
+      "prompt": "0.435e-6",
+      "completion": "0.87e-6",
       "image": "0",
       "request": "0",
-      "input_cache_read": "0.0043e-6",
+      "input_cache_read": "0.0036e-6",
       "input_cache_write": "0",
       "input_cache_write_1h": "0",
       "web_search": "0",
@@ -17796,7 +17857,8 @@
     ],
     "json_output": true,
     "structured_outputs": false,
-    "free": false
+    "free": false,
+    "deactivated_at": "2026-10-23T00:00:00.000Z"
   },
   {
     "id": "mimo-v2.6-flash",

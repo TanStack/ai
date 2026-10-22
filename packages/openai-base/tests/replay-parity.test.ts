@@ -1132,7 +1132,7 @@ describe('OpenAI replay parity', () => {
 
 describe('Responses answer items on replay', () => {
   /** Turn 1 with one answer item. Returns the saved transcript. */
-  async function firstTurn() {
+  async function firstTurn(before: Array<Record<string, unknown>> = []) {
     const answer = {
       type: 'message',
       id: 'msg_answer',
@@ -1145,7 +1145,10 @@ describe('Responses answer items on replay', () => {
       [
         {
           ...responseCompleted,
-          response: { ...responseCompleted.response, output: [answer] },
+          response: {
+            ...responseCompleted.response,
+            output: [...before, answer],
+          },
         },
       ],
       true,
@@ -1196,6 +1199,17 @@ describe('Responses answer items on replay', () => {
         phase: 'final_answer',
         content: [{ type: 'output_text', text: 'Hi there', annotations: [] }],
       },
+    ])
+  })
+
+  it('leaves the id out when the reasoning item of the answer is lost (B13)', async () => {
+    const reasoning = { type: 'reasoning', id: 'rs_1', summary: [] }
+    const saved = await firstTurn([reasoning])
+    expect(saved.at(-1)?.metadata?.tanstack?.reasoningItem).toBe(true)
+    // A stored transcript that kept the message but not its reasoning.
+    const lost = saved.map(({ thinking: _thinking, ...message }) => message)
+    expect(await secondTurnInput(lost)).toEqual([
+      { type: 'message', role: 'assistant', content: 'Hi there' },
     ])
   })
 
