@@ -532,15 +532,18 @@ export type BoundTextActivityOptions<
   TContext = unknown,
   TMiddleware extends Array<unknown> | undefined = undefined,
   TAgents extends ReadonlyArray<DefinedAgent> = ReadonlyArray<DefinedAgent>,
-> = Omit<
-  TextActivityOptions<TAdapter, TSchema, TStream, any, TAgents>,
-  'tools' | 'middleware' | 'context' | 'interrupts' | 'toolChoice' | 'threadId'
-> & { threadId?: string } & TypedChatFields<
-    TTools,
-    TInterrupts,
-    TContext,
-    TMiddleware
+> = WithOptionalThreadId<
+  Omit<
+    TextActivityOptions<TAdapter, TSchema, TStream, any, TAgents>,
+    'tools' | 'middleware' | 'context' | 'interrupts' | 'toolChoice'
   >
+> &
+  TypedChatFields<TTools, TInterrupts, TContext, TMiddleware>
+
+/** Activity options with an optional `threadId`. */
+export type WithOptionalThreadId<T> = Omit<T, 'threadId'> & {
+  threadId?: string
+}
 
 /** The `chat()` fields whose types come from the tools and middleware. */
 type TypedChatFields<
@@ -847,27 +850,26 @@ export function createChatOptions<
   TContext = unknown,
   const TMiddleware extends Array<unknown> | undefined = undefined,
 >(
-  options: Omit<
-    TextActivityOptions<TAdapter, TSchema, TStream, any>,
-    | 'tools'
-    | 'middleware'
-    | 'context'
-    | 'interrupts'
-    | 'toolChoice'
-    | 'threadId'
-  > & {
-    threadId?: string
-  } & TypedChatFields<TTools, TInterrupts, TContext, TMiddleware>,
-): Omit<
-  TextActivityOptions<
+  options: BoundTextActivityOptions<
     TAdapter,
     TSchema,
     TStream,
-    InferredContext<TTools, TMiddleware>
+    TTools,
+    TInterrupts,
+    TContext,
+    TMiddleware
   >,
-  'tools' | 'middleware' | 'interrupts' | 'context' | 'threadId'
+): WithOptionalThreadId<
+  Omit<
+    TextActivityOptions<
+      TAdapter,
+      TSchema,
+      TStream,
+      InferredContext<TTools, TMiddleware>
+    >,
+    'tools' | 'middleware' | 'interrupts' | 'context'
+  >
 > & {
-  threadId?: string
   tools?: TTools
   interrupts?: TInterrupts
   middleware?: ExactMiddlewareOption<TTools, TContext, TInterrupts, TMiddleware>

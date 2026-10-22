@@ -8,7 +8,6 @@ import type {
   GenerationClientOptions,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   GenerationRestoredResult,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
@@ -179,12 +178,9 @@ export function createGeneration<
   TTransformed = void,
 >(
   handle: RemixHandle,
-  options: Omit<
-    CreateGenerationOptions<TInput, TResult>,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<CreateGenerationOptions<TInput, TResult>, 'onResult'> & {
     onResult?: (result: TResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ) {
   type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
 
@@ -204,10 +200,9 @@ export function createGeneration<
   // local source is `Record<string, any> | undefined`). Callbacks
   // wrap optional ones in non-returning bodies so `?.()`'s
   // implicit `undefined` doesn't pollute the function return type.
-  const clientOptions: Omit<
-    GenerationClientOptions<TInput, TResult, TOutput>,
-    'persistence' | 'threadId'
-  > = {
+  const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
+    persistence: options.persistence,
+    threadId: options.threadId,
     ...(options.body !== undefined && { body: options.body }),
     ...(options.hydrateGeneration !== undefined && {
       hydrateGeneration: options.hydrateGeneration,
@@ -266,22 +261,15 @@ export function createGeneration<
     },
   }
 
-  const persistenceProps = {
-    persistence: options.persistence,
-    threadId: options.threadId,
-  }
-
   let client: GenerationClient<TInput, TResult, TOutput>
   if (options.connection) {
     client = new GenerationClient<TInput, TResult, TOutput>({
       ...clientOptions,
-      ...persistenceProps,
       connection: options.connection,
     })
   } else if (options.fetcher) {
     client = new GenerationClient<TInput, TResult, TOutput>({
       ...clientOptions,
-      ...persistenceProps,
       fetcher: options.fetcher,
     })
   } else {

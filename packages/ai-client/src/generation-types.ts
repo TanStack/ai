@@ -235,16 +235,6 @@ export interface GenerationResumeSnapshot {
  * `threadId` is always required. It is the stable scope runs are filed under,
  * and the only identity for the hook, the AG-UI wire thread, and persistence.
  * There is no separate instance `id`.
- *
- * USAGE: intersect this onto a hook's parameter and subtract `persistence`
- * and `threadId` from the options interface (plus any other keys the hook
- * redeclares, such as `onResult`):
- *
- * ```ts
- * options: Omit<UseGenerateImageOptions, 'onResult' | 'persistence' | 'threadId'> & {
- *   onResult?: (result: ImageGenerationResult) => TTransformed
- * } & GenerationPersistenceOptions
- * ```
  */
 export type GenerationPersistenceOptions = {
   persistence?: boolean

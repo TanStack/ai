@@ -2,10 +2,7 @@ import { createGeneration } from './create-generation.ts'
 import { reconstructImageResult } from '@tanstack/ai-client'
 import type { Handle } from 'remix/ui'
 import type { ImageGenerationResult } from '@tanstack/ai'
-import type {
-  GenerationPersistenceOptions,
-  ImageGenerateInput,
-} from '@tanstack/ai-client'
+import type { ImageGenerateInput } from '@tanstack/ai-client'
 import type {
   CreateGenerationOptions,
   CreateGenerationReturn,
@@ -71,12 +68,9 @@ export type CreateGenerateImageReturn<TOutput = ImageGenerationResult> =
  */
 export function createGenerateImage<TTransformed = void>(
   handle: Pick<Handle, 'update' | 'signal'>,
-  options: Omit<
-    CreateGenerateImageOptions,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<CreateGenerateImageOptions, 'onResult'> & {
     onResult?: (result: ImageGenerationResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ) {
   const devtools = {
     ...options.devtools,

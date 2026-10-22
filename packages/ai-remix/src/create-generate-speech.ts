@@ -2,10 +2,7 @@ import { createGeneration } from './create-generation.ts'
 import { reconstructSpeechResult } from '@tanstack/ai-client'
 import type { Handle } from 'remix/ui'
 import type { TTSResult } from '@tanstack/ai'
-import type {
-  GenerationPersistenceOptions,
-  SpeechGenerateInput,
-} from '@tanstack/ai-client'
+import type { SpeechGenerateInput } from '@tanstack/ai-client'
 import type {
   CreateGenerationOptions,
   CreateGenerationReturn,
@@ -71,12 +68,9 @@ export type CreateGenerateSpeechReturn<TOutput = TTSResult> =
  */
 export function createGenerateSpeech<TTransformed = void>(
   handle: Pick<Handle, 'update' | 'signal'>,
-  options: Omit<
-    CreateGenerateSpeechOptions,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<CreateGenerateSpeechOptions, 'onResult'> & {
     onResult?: (result: TTSResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ) {
   const devtools = {
     ...options.devtools,

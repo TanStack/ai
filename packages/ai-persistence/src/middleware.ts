@@ -80,7 +80,6 @@ import type {
   MessagePage,
   RunStore,
 } from './types'
-import { artifactBlobKey } from './retrieve'
 
 /**
  * How generated media is turned into durable artifacts: which pieces of a
@@ -940,6 +939,20 @@ function extensionForMime(mimeType: string | undefined): string {
     default:
       return 'bin'
   }
+}
+
+/**
+ * The DEFAULT blob-store key a generation artifact's bytes are stored under,
+ * used when `withGenerationPersistence` is given no `storageKey` mapper.
+ *
+ * Reads use the record's `blobKey` instead: a record written with a custom
+ * `storageKey` carries its real key there, and recomputing the default would
+ * look in the wrong place.
+ */
+function artifactBlobKey(
+  ref: Pick<ArtifactRecord, 'runId' | 'artifactId'>,
+): string {
+  return `artifacts/${ref.runId}/${ref.artifactId}`
 }
 
 function defaultArtifactName(
@@ -2149,11 +2162,11 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         // `config.resume`, so the engine skips its ephemeral reconstruction
         // (which needs a parentRunId and the client message history the
         // persistence flow deliberately omits).
-        if ((config.resume?.length ?? 0) > 0) {
+        if (config.resume?.length) {
           const resumeToolState = await durableGenericResumeState(
             ctx,
             ownedPending,
-            config.resume ?? [],
+            config.resume,
             config.tools,
           )
           patch.resume = []

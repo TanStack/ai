@@ -6,22 +6,6 @@ import type {
 } from './types'
 
 /**
- * The DEFAULT blob-store key a generation artifact's bytes are stored under,
- * used when `withGenerationPersistence` is given no `storageKey` mapper.
- *
- * Reads use the record's `blobKey` instead: a record written with a custom
- * `storageKey` carries its real key there, and recomputing the default would
- * look in the wrong place.
- *
- * @internal
- */
-export function artifactBlobKey(
-  ref: Pick<ArtifactRecord, 'runId' | 'artifactId'>,
-): string {
-  return `artifacts/${ref.runId}/${ref.artifactId}`
-}
-
-/**
  * Look up a persisted generation artifact's metadata by id. Returns `null` when
  * the persistence has no `artifacts` store or no record matches — so a serve
  * handler can map that straight to a 404.

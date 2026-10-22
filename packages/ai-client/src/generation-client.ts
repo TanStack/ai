@@ -217,17 +217,10 @@ export class GenerationClient<
   }
 
   private buildDevtoolsBridgeOptions(): GenerationDevtoolsBridgeOptions<TOutput> {
-    const client = this
     return {
-      get hookId() {
-        return client.threadId
-      },
-      get clientId() {
-        return client.threadId
-      },
-      get threadId() {
-        return client.threadId
-      },
+      hookId: this.threadId,
+      clientId: this.threadId,
+      threadId: this.threadId,
       metadata: this.devtoolsMetadata,
       getCoreState: () => ({
         input: this.input,

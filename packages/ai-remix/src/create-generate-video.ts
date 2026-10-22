@@ -7,7 +7,6 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   InferGenerationOutputFromReturn,
   VideoGenerateInput,
   VideoGenerateResult,
@@ -172,12 +171,9 @@ export interface CreateGenerateVideoReturn<TOutput = VideoGenerateResult> {
 // transform's return. See issue #848.
 export function createGenerateVideo<TTransformed = void>(
   handle: Pick<Handle, 'update' | 'signal'>,
-  options: Omit<
-    CreateGenerateVideoOptions,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<CreateGenerateVideoOptions, 'onResult'> & {
     onResult?: (result: VideoGenerateResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ) {
   type TOutput = InferGenerationOutputFromReturn<
     VideoGenerateResult,
@@ -198,10 +194,9 @@ export function createGenerateVideo<TTransformed = void>(
     void handle.update()
   }
 
-  const baseOptions: Omit<
-    VideoGenerationClientOptions<TOutput>,
-    'persistence' | 'threadId'
-  > = {
+  const baseOptions: VideoGenerationClientOptions<TOutput> = {
+    persistence: options.persistence,
+    threadId: options.threadId,
     ...(options.body !== undefined && { body: options.body }),
     ...(options.hydrateGeneration !== undefined && {
       hydrateGeneration: options.hydrateGeneration,
@@ -274,22 +269,15 @@ export function createGenerateVideo<TTransformed = void>(
     },
   }
 
-  const persistenceProps = {
-    persistence: options.persistence,
-    threadId: options.threadId,
-  }
-
   let client: VideoGenerationClient<TOutput>
   if (options.connection) {
     client = new VideoGenerationClient<TOutput>({
       ...baseOptions,
-      ...persistenceProps,
       connection: options.connection,
     })
   } else if (options.fetcher) {
     client = new VideoGenerationClient<TOutput>({
       ...baseOptions,
-      ...persistenceProps,
       fetcher: options.fetcher,
     })
   } else {

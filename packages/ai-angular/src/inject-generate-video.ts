@@ -17,7 +17,6 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   InferGenerationOutputFromReturn,
   VideoGenerateInput,
   VideoGenerateResult,
@@ -103,12 +102,9 @@ export interface InjectGenerateVideoResult<TOutput = VideoGenerateResult> {
 // parameter is typed as `VideoGenerateResult` and `result` narrows to the
 // transform's return. See issue #848.
 export function injectGenerateVideo<TTransformed = void>(
-  options: Omit<
-    InjectGenerateVideoOptions,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<InjectGenerateVideoOptions, 'onResult'> & {
     onResult?: (result: VideoGenerateResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ): InjectGenerateVideoResult<
   InferGenerationOutputFromReturn<VideoGenerateResult, TTransformed>
 > {

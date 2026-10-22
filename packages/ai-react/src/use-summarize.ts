@@ -6,7 +6,6 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   InferGenerationOutputFromReturn,
   SummarizeGenerateInput,
 } from '@tanstack/ai-client'
@@ -143,12 +142,9 @@ export interface UseSummarizeReturn<TOutput = SummarizationResult> {
  * ```
  */
 export function useSummarize<TTransformed = void>(
-  options: Omit<
-    UseSummarizeOptions,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<UseSummarizeOptions, 'onResult'> & {
     onResult?: (result: SummarizationResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ): UseSummarizeReturn<
   InferGenerationOutputFromReturn<SummarizationResult, TTransformed>
 > {

@@ -1953,17 +1953,10 @@ export class ChatClient<
   private buildDevtoolsBridgeOptions(
     devtools: ChatClientOptions['devtools'],
   ): ChatDevtoolsBridgeOptions {
-    const client = this
     return {
-      get hookId() {
-        return client.threadId
-      },
-      get clientId() {
-        return client.threadId
-      },
-      get threadId() {
-        return client.threadId
-      },
+      hookId: this.threadId,
+      clientId: this.threadId,
+      threadId: this.threadId,
       metadata: {
         hookName: devtools?.hookName ?? 'useChat',
         outputKind: devtools?.outputKind ?? 'chat',

@@ -15,7 +15,6 @@ import type {
   GenerationClientOptions,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   GenerationRestoredResult,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
@@ -165,12 +164,9 @@ export function useGeneration<
   TResult,
   TTransformed = void,
 >(
-  options: Omit<
-    UseGenerationOptions<TInput, TResult>,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<UseGenerationOptions<TInput, TResult>, 'onResult'> & {
     onResult?: (result: TResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ): UseGenerationReturn<
   InferGenerationOutputFromReturn<TResult, TTransformed>,
   TInput
@@ -192,12 +188,9 @@ export function useGenerationWithDevtoolsIdentity<
   TResult,
   TTransformed = void,
 >(
-  options: Omit<
-    UseGenerationOptions<TInput, TResult>,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<UseGenerationOptions<TInput, TResult>, 'onResult'> & {
     onResult?: (result: TResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
   devtoolsIdentity: GenerationDevtoolsIdentity,
 ): UseGenerationReturn<
   InferGenerationOutputFromReturn<TResult, TTransformed>,
@@ -215,10 +208,9 @@ export function useGenerationWithDevtoolsIdentity<
     // local source is `Record<string, any> | undefined`). Callbacks
     // wrap optional ones in non-returning bodies so `?.()`'s
     // implicit `undefined` doesn't pollute the function return type.
-    const clientOptions: Omit<
-      GenerationClientOptions<TInput, TResult, TOutput>,
-      'persistence' | 'threadId'
-    > = {
+    const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
+      persistence: opts.persistence,
+      threadId: opts.threadId,
       body: opts.body,
       ...(opts.hydrateGeneration !== undefined && {
         hydrateGeneration: opts.hydrateGeneration,
@@ -255,15 +247,9 @@ export function useGenerationWithDevtoolsIdentity<
       },
     }
 
-    const persistenceProps = {
-      persistence: opts.persistence,
-      threadId: opts.threadId,
-    }
-
     if (opts.connection) {
       return new GenerationClient<TInput, TResult, TOutput>({
         ...clientOptions,
-        ...persistenceProps,
         connection: opts.connection,
       })
     }
@@ -271,7 +257,6 @@ export function useGenerationWithDevtoolsIdentity<
     if (opts.fetcher) {
       return new GenerationClient<TInput, TResult, TOutput>({
         ...clientOptions,
-        ...persistenceProps,
         fetcher: opts.fetcher,
       })
     }

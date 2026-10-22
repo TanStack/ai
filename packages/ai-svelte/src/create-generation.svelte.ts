@@ -7,7 +7,6 @@ import type {
   GenerationClientOptions,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   GenerationRestoredResult,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
@@ -174,12 +173,9 @@ export function createGeneration<
   TResult,
   TTransformed = void,
 >(
-  options: Omit<
-    CreateGenerationOptions<TInput, TResult>,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<CreateGenerationOptions<TInput, TResult>, 'onResult'> & {
     onResult?: (result: TResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ): CreateGenerationReturn<
   InferGenerationOutputFromReturn<TResult, TTransformed>,
   TInput
@@ -198,10 +194,9 @@ export function createGeneration<
   // `exactOptionalPropertyTypes`. Assigning `undefined` directly would be
   // rejected — the optional caller `options.body` may be undefined, in which
   // case we want the key to be absent.
-  const clientOptions: Omit<
-    GenerationClientOptions<TInput, TResult, TOutput>,
-    'persistence' | 'threadId'
-  > = {
+  const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
+    persistence: options.persistence,
+    threadId: options.threadId,
     body: options.body,
     ...(options.hydrateGeneration !== undefined && {
       hydrateGeneration: options.hydrateGeneration,
@@ -235,23 +230,16 @@ export function createGeneration<
     },
   }
 
-  const persistenceProps = {
-    persistence: options.persistence,
-    threadId: options.threadId,
-  }
-
   let client: GenerationClient<TInput, TResult, TOutput>
 
   if (options.connection) {
     client = new GenerationClient<TInput, TResult, TOutput>({
       ...clientOptions,
-      ...persistenceProps,
       connection: options.connection,
     })
   } else if (options.fetcher) {
     client = new GenerationClient<TInput, TResult, TOutput>({
       ...clientOptions,
-      ...persistenceProps,
       fetcher: options.fetcher,
     })
   } else {

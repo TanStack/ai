@@ -62,15 +62,6 @@ export function normalizeStreamChunk(
     }
   }
 
-  if (chunk.type === EventType.RUN_ERROR && chunk.error != null) {
-    if (specChunk.message === undefined && chunk.error.message) {
-      specChunk.message = chunk.error.message
-    }
-    if (specChunk.code === undefined && chunk.error.code !== undefined) {
-      specChunk.code = chunk.error.code
-    }
-  }
-
   const tanstack: MetadataRecord = {}
 
   if (

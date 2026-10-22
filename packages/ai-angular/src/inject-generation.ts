@@ -18,7 +18,6 @@ import type {
   GenerationClientOptions,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   GenerationRestoredResult,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
@@ -142,12 +141,9 @@ export function injectGeneration<
   TResult,
   TTransformed = void,
 >(
-  options: Omit<
-    InjectGenerationOptions<TInput, TResult>,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<InjectGenerationOptions<TInput, TResult>, 'onResult'> & {
     onResult?: (result: TResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ): InjectGenerationResult<
   InferGenerationOutputFromReturn<TResult, TTransformed>,
   TInput
@@ -169,10 +165,9 @@ export function injectGeneration<
   const bodySource =
     options.body !== undefined ? toReactive(options.body) : undefined
 
-  const clientOptions: Omit<
-    GenerationClientOptions<TInput, TResult, TOutput>,
-    'persistence' | 'threadId'
-  > = {
+  const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
+    persistence: options.persistence,
+    threadId: options.threadId,
     ...(bodySource !== undefined && { body: bodySource() }),
     ...(options.hydrateGeneration !== undefined && {
       hydrateGeneration: options.hydrateGeneration,
@@ -206,22 +201,15 @@ export function injectGeneration<
     },
   }
 
-  const persistenceProps = {
-    persistence: options.persistence,
-    threadId: options.threadId,
-  }
-
   let client: GenerationClient<TInput, TResult, TOutput>
   if (options.connection) {
     client = new GenerationClient({
       ...clientOptions,
-      ...persistenceProps,
       connection: options.connection,
     })
   } else if (options.fetcher) {
     client = new GenerationClient({
       ...clientOptions,
-      ...persistenceProps,
       fetcher: options.fetcher,
     })
   } else {

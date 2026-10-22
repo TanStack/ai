@@ -427,11 +427,6 @@ function isJsonRunBody(value: unknown): value is JsonRunBody {
   return hasChunks && hasDone && hasValidOffset
 }
 
-/** Rebuild pre-wire extras after SSE/NDJSON ingest. */
-function restoreInboundUsage(chunk: StreamChunk): StreamChunk {
-  return restoreInboundChunk(chunk)
-}
-
 /**
  * Parse SSE-format lines into stream events, pairing each chunk with the `id:`
  * offset of the event it arrived on. Shared by the fetch- and XHR-backed SSE
@@ -470,7 +465,7 @@ async function* linesToSSEEvents(
       continue
     }
     const data = parseSseDataLine(line)
-    const chunk = restoreInboundUsage(JSON.parse(data) as StreamChunk)
+    const chunk = restoreInboundChunk(JSON.parse(data) as StreamChunk)
     const id = pendingId
     pendingId = undefined
     yield { chunk, ...(id !== undefined ? { id } : {}) }
@@ -489,9 +484,9 @@ async function* linesToNdjsonEvents(
   for await (const line of lines) {
     const parsed = JSON.parse(line) as unknown
     if (isNdjsonEnvelope(parsed)) {
-      yield { chunk: restoreInboundUsage(parsed.chunk), id: parsed.id }
+      yield { chunk: restoreInboundChunk(parsed.chunk), id: parsed.id }
     } else {
-      yield { chunk: restoreInboundUsage(parsed as StreamChunk) }
+      yield { chunk: restoreInboundChunk(parsed as StreamChunk) }
     }
   }
 }
@@ -1328,7 +1323,7 @@ function buildRunAgentInputBody(
   const wireMessages = uiMessagesToWire(messages)
   const forwardedProps = {
     ...options.body,
-    ...(runContext.forwardedProps ?? {}),
+    ...runContext.forwardedProps,
     ...data,
   }
 
@@ -1763,7 +1758,7 @@ async function* pollJsonRun(
       if (signal?.aborted) return
       throw error
     }
-    for (const chunk of body.chunks) yield restoreInboundUsage(chunk)
+    for (const chunk of body.chunks) yield restoreInboundChunk(chunk)
     if (body.done) return
     const offset = body.offset
     if (offset === undefined) {
@@ -2520,7 +2515,7 @@ export function webSocket(
       }
       if (isPingFrame(parsed)) return
       const envelopeId = isNdjsonEnvelope(parsed) ? parsed.id : undefined
-      const chunk = restoreInboundUsage(
+      const chunk = restoreInboundChunk(
         isNdjsonEnvelope(parsed) ? parsed.chunk : (parsed as StreamChunk),
       )
 
@@ -2702,7 +2697,7 @@ export function webSocket(
         }
         if (isPingFrame(parsed)) return
         pipe.push(
-          restoreInboundUsage(
+          restoreInboundChunk(
             isNdjsonEnvelope(parsed) ? parsed.chunk : (parsed as StreamChunk),
           ),
         )

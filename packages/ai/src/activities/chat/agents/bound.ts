@@ -25,6 +25,7 @@ import type {
   BoundTextActivityOptions,
   TextActivityOptions,
   TextActivityResult,
+  WithOptionalThreadId,
 } from '../index'
 import type { AnyTextAdapter } from '../adapter'
 import type { InterruptDefinition } from '../../../interrupt-definition'
@@ -152,9 +153,6 @@ export interface SubagentBinding {
     done: Promise<unknown>
   }>
 }
-
-/** Activity options with an optional `threadId`. The child run fills it. */
-type WithOptionalThreadId<T> = Omit<T, 'threadId'> & { threadId?: string }
 
 /**
  * Activity functions bound to one child run. Each takes the same options as

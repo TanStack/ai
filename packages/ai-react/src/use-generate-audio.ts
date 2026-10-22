@@ -7,7 +7,6 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 import type { ByokClient } from '@tanstack/ai-client/byok'
@@ -144,12 +143,9 @@ export interface UseGenerateAudioReturn<TOutput = AudioGenerationResult> {
  * ```
  */
 export function useGenerateAudio<TTransformed = void>(
-  options: Omit<
-    UseGenerateAudioOptions,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<UseGenerateAudioOptions, 'onResult'> & {
     onResult?: (result: AudioGenerationResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ): UseGenerateAudioReturn<
   InferGenerationOutputFromReturn<AudioGenerationResult, TTransformed>
 > {

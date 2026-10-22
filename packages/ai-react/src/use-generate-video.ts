@@ -13,7 +13,6 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   InferGenerationOutputFromReturn,
   VideoGenerateInput,
   VideoGenerateResult,
@@ -164,12 +163,9 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
 // parameter is typed as `VideoGenerateResult` and `result` narrows to the
 // transform's return. See issue #848.
 export function useGenerateVideo<TTransformed = void>(
-  options: Omit<
-    UseGenerateVideoOptions,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<UseGenerateVideoOptions, 'onResult'> & {
     onResult?: (result: VideoGenerateResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ): UseGenerateVideoReturn<
   InferGenerationOutputFromReturn<VideoGenerateResult, TTransformed>
 > {
@@ -189,10 +185,9 @@ export function useGenerateVideo<TTransformed = void>(
     // `?.()`'s implicit `undefined` doesn't widen the function
     // return type (which `exactOptionalPropertyTypes` rejects
     // against the strict-optional target).
-    const baseOptions: Omit<
-      VideoGenerationClientOptions<TOutput>,
-      'persistence' | 'threadId'
-    > = {
+    const baseOptions: VideoGenerationClientOptions<TOutput> = {
+      persistence: opts.persistence,
+      threadId: opts.threadId,
       body: opts.body,
       ...(opts.hydrateGeneration !== undefined && {
         hydrateGeneration: opts.hydrateGeneration,
@@ -231,15 +226,9 @@ export function useGenerateVideo<TTransformed = void>(
       },
     }
 
-    const persistenceProps = {
-      persistence: opts.persistence,
-      threadId: opts.threadId,
-    }
-
     if (opts.connection) {
       return new VideoGenerationClient<TOutput>({
         ...baseOptions,
-        ...persistenceProps,
         connection: opts.connection,
       })
     }
@@ -247,7 +236,6 @@ export function useGenerateVideo<TTransformed = void>(
     if (opts.fetcher) {
       return new VideoGenerationClient<TOutput>({
         ...baseOptions,
-        ...persistenceProps,
         fetcher: opts.fetcher,
       })
     }

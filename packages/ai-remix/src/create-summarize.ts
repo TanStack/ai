@@ -2,10 +2,7 @@ import { createGeneration } from './create-generation.ts'
 import { reconstructSummarizeResult } from '@tanstack/ai-client'
 import type { Handle } from 'remix/ui'
 import type { SummarizationResult } from '@tanstack/ai'
-import type {
-  GenerationPersistenceOptions,
-  SummarizeGenerateInput,
-} from '@tanstack/ai-client'
+import type { SummarizeGenerateInput } from '@tanstack/ai-client'
 import type {
   CreateGenerationOptions,
   CreateGenerationReturn,
@@ -73,12 +70,9 @@ export type CreateSummarizeReturn<TOutput = SummarizationResult> =
  */
 export function createSummarize<TTransformed = void>(
   handle: Pick<Handle, 'update' | 'signal'>,
-  options: Omit<
-    CreateSummarizeOptions,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<CreateSummarizeOptions, 'onResult'> & {
     onResult?: (result: SummarizationResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ) {
   const devtools = {
     ...options.devtools,
