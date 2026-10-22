@@ -1,18 +1,30 @@
 /**
  * `supports` blocks for newly synced native-provider models.
  *
- * Input modalities come from OpenRouter. Features come from
- * `supported_parameters`. Server-tool lists are the current first-party
- * vocabulary for that provider, written only when the catalog lists `tools`
- * or `tool_choice`. Anthropic thinking flags follow the same parameter
- * split as `buildAnthropicProviderOptionsType`.
+ * Input modalities and `supported_parameters` come from the native
+ * modelschemas catalog (OpenRouter fills a field only when the native row
+ * is empty). Server-tool lists are the current first-party vocabulary for
+ * openai, anthropic, gemini and grok, written only when the catalog lists
+ * `tools` or `tool_choice`. Anthropic thinking flags follow the same
+ * parameter split as `buildAnthropicProviderOptionsType`.
  */
 
-export type SyncedProvider = 'openai' | 'anthropic' | 'gemini' | 'grok'
+export const SYNCED_PROVIDERS = [
+  'openai',
+  'anthropic',
+  'gemini',
+  'grok',
+  'groq',
+  'mistral',
+  'byteplus',
+] as const
+
+export type SyncedProvider = (typeof SYNCED_PROVIDERS)[number]
 
 export interface ProviderSupportsInput {
   provider: SyncedProvider
   inputModalities: Array<string>
+  outputModalities?: Array<string>
   supportedParameters?: Array<string>
   reasoningMandatory?: boolean
 }
@@ -83,9 +95,10 @@ const ANTHROPIC_BASE_OPTIONS = [
 
 /**
  * Per-model Anthropic provider-options intersection, inferred from the
- * OpenRouter catalog. Does not copy another model's tool list. Thinking is
- * not here: `chat({ reasoning })` sets it, with the levels of each model's
- * `reasoning` field in `model-meta.ts`.
+ * modelschemas capabilities (OpenRouter's when the native row has none).
+ * Does not copy another model's tool list. Thinking is not here:
+ * `chat({ reasoning })` sets it, with the levels of each model's `reasoning`
+ * field in `model-meta.ts`.
  *
  * - sampling listed → sampling options.
  * - no sampling (Sonnet 5, Opus 4.7+, Fable 5) → `max_tokens` only.
@@ -198,6 +211,41 @@ export function buildProviderSupportsBody(
         lines.push(`    capabilities: ${quoteList(capabilities)},`)
       }
       lines.push(toolsLine(hasTools, GROK_SERVER_TOOLS))
+      return lines.join('\n')
+    }
+    case 'groq':
+    case 'mistral': {
+      const features = ['streaming']
+      if (hasTools) features.push('tools')
+      if (hasStructured) {
+        features.push('json_object', 'json_schema')
+      }
+      if (hasReasoning) features.push('reasoning')
+      if (input.inputModalities.includes('image')) features.push('vision')
+      const lines = [
+        `    input: ${inputList},`,
+        `    output: ['text'],`,
+        `    endpoints: ['chat'],`,
+        `    features: ${quoteList(features)},`,
+      ]
+      // Groq hosted tools (browser_search, …) are per-model; never guess them.
+      if (input.provider === 'groq') lines.push(`    tools: [] as const,`)
+      return lines.join('\n')
+    }
+    case 'byteplus': {
+      // No `structured_outputs`: the runtime gate is the live-probed
+      // BYTEPLUS_STRUCTURED_OUTPUT_CHAT_MODELS list, which a sync cannot update.
+      const capabilities: Array<string> = []
+      if (hasReasoning) capabilities.push('reasoning')
+      if (hasTools) capabilities.push('tool_calling')
+      const output = quoteList(
+        input.outputModalities?.length ? input.outputModalities : ['text'],
+      )
+      const lines = [`    input: ${inputList},`, `    output: ${output},`]
+      if (capabilities.length > 0) {
+        lines.push(`    capabilities: ${quoteList(capabilities)},`)
+      }
+      lines.push(`    tools: [] as const,`)
       return lines.join('\n')
     }
   }

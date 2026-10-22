@@ -44,11 +44,15 @@ jobs:
         id: elevenlabs
         continue-on-error: true
         run: pnpm generate:models:elevenlabs
+        env:
+          MODELSCHEMAS_API_KEY: ${{ secrets.MODELSCHEMAS_API_KEY }}
 
       - name: Sync provider models
         id: provider
         continue-on-error: true
         run: pnpm exec tsx scripts/sync-provider-models.ts
+        env:
+          MODELSCHEMAS_API_KEY: ${{ secrets.MODELSCHEMAS_API_KEY }}
 
       - name: Format
         run: pnpm format
@@ -87,14 +91,14 @@ jobs:
 
           if [ -z "$EXISTING_PR" ] || [ "$EXISTING_PR" = "null" ]; then
             BODY=$(cat <<'PRBODY'
-          Automated daily sync of model metadata from OpenRouter, Vercel AI Gateway, Lovable AI Gateway, LLM Gateway, and modelschemas (ElevenLabs text-to-speech, music, sound effects, and voice design).
+          Automated daily sync of model metadata from OpenRouter, Vercel AI Gateway, Lovable AI Gateway, LLM Gateway, and modelschemas (native provider models, plus ElevenLabs text-to-speech, music, sound effects, and voice design).
 
           - Fetches the latest model list from OpenRouter (chat + `GET /api/v1/videos/models`)
           - Fetches the latest model list from Vercel AI Gateway
           - Fetches the latest model list from Lovable AI Gateway
           - Fetches the latest model list from LLM Gateway (`GET /v1/models`)
           - Converts to the internal adapter format
-          - Syncs provider-specific model metadata for affected packages
+          - Inserts new native-provider models from modelschemas (`@modelschemas/client`)
           - Inserts new ElevenLabs text-to-speech, music, sound-effect, and voice-design models from modelschemas
           - Creates a patch changeset for all changed packages
           PRBODY

@@ -2,10 +2,10 @@
  * File-mutation helpers for `sync-provider-models.ts`.
  *
  * Kept here so the insert path (chat array + type maps) can be unit-tested
- * without running the full OpenRouter fetch.
+ * without running the full modelschemas fetch.
  */
 
-type ArrayRef = '.name' | '.id'
+export type ArrayRef = '.name' | '.id'
 
 export function insertConstants(
   content: string,
@@ -16,13 +16,21 @@ export function insertConstants(
   if (exportIndex === -1) {
     return content + block
   }
-  return content.slice(0, exportIndex) + block + content.slice(exportIndex)
+  // Insert above the export's JSDoc, so the comment stays on its export.
+  const doc = /\n\/\*\*(?:(?!\*\/)[\s\S])*\*\/\s*$/.exec(
+    content.slice(0, exportIndex),
+  )
+  const at = doc ? doc.index : exportIndex
+  return content.slice(0, at) + block + content.slice(at)
 }
 
 /**
  * Insert entries immediately AFTER the opening bracket. Each inserted line
  * carries its own trailing comma so the existing body does not need a
  * comma-guess. See the grok-4.5 single-line array breakage.
+ *
+ * Every insert helper throws when its anchor is missing: the constants are
+ * already in the file, and nothing would reference them.
  */
 function addToArray(
   content: string,
@@ -35,8 +43,7 @@ function addToArray(
   const afterDecl = declIndex === -1 ? -1 : declIndex + decl.length
   const bracket = afterDecl === -1 ? -1 : content.indexOf('[', afterDecl)
   if (declIndex === -1 || bracket === -1 || bracket - afterDecl > 40) {
-    console.warn(`  Warning: Could not find array '${arrayName}' in file`)
-    return content
+    throw new Error(`Could not find array '${arrayName}' in file`)
   }
 
   const newEntries = entries
@@ -56,8 +63,7 @@ function addToTypeMap(
   )
   const match = pattern.exec(content)
   if (!match) {
-    console.warn(`  Warning: Could not find type map '${typeName}' in file`)
-    return content
+    throw new Error(`Could not find type map '${typeName}' in file`)
   }
 
   const newEntries = entries.join('\n')
@@ -74,8 +80,7 @@ function addToObjectMap(
   )
   const match = pattern.exec(content)
   if (!match) {
-    console.warn(`  Warning: Could not find object map '${mapName}' in file`)
-    return content
+    throw new Error(`Could not find object map '${mapName}' in file`)
   }
 
   const newEntries = entries.join('\n')
