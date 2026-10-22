@@ -64,7 +64,7 @@ export const Route = createFileRoute('/api/video-understanding')({
       POST: async ({ request }) => {
         const abortController = new AbortController()
         const body = await request.json()
-        const data = body.data || {}
+        const data = body.forwardedProps || {}
         const mode: 'agentic' | 'single-pass' =
           data.mode === 'agentic' ? 'agentic' : 'single-pass'
         const video: GeminiUploadedFile | undefined = data.video
@@ -85,6 +85,7 @@ export const Route = createFileRoute('/api/video-understanding')({
           )
 
           const stream = chat({
+            threadId: body.threadId,
             adapter: geminiText(model),
             systemPrompts: [SYSTEM_PROMPT],
             messages,

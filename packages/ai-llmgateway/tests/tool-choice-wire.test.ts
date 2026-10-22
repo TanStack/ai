@@ -30,6 +30,7 @@ async function sentBody(request: ToolRequest) {
   }
   const adapter = createLLMGatewayText(model, 'test-key', { fetch })
   for await (const _ of adapter.chatStream({
+    threadId: 'thread-1',
     logger,
     model,
     messages,

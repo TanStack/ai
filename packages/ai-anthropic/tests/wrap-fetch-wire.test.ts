@@ -52,6 +52,7 @@ async function streamTag(wrapFetch?: FetchWrapper) {
   sentTag = null
   const adapter = createAnthropicChat(model, 'test-key', { fetch: baseFetch })
   for await (const _ of adapter.chatStream({
+    threadId: 'thread-1',
     logger,
     model,
     messages,
@@ -69,6 +70,7 @@ describe('anthropic wrapFetch', () => {
       fetch: baseFetch,
     })
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       logger,
       model,
       messages,
@@ -96,6 +98,7 @@ describe('anthropic wrapFetch', () => {
     for (const wrapFetch of [addTag, undefined]) {
       sentTag = null
       for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
         logger,
         model,
         messages,
@@ -112,7 +115,13 @@ describe('anthropic wrapFetch', () => {
     sentTag = null
     const adapter = createAnthropicChat(model, 'test-key', { fetch: baseFetch })
     await adapter.structuredOutput({
-      chatOptions: { logger, model, messages, wrapFetch: addTag },
+      chatOptions: {
+        threadId: 'thread-1',
+        logger,
+        model,
+        messages,
+        wrapFetch: addTag,
+      },
       outputSchema: { type: 'object', properties: {} },
     })
     expect(sentTag).toBe('yes')

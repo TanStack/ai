@@ -144,7 +144,7 @@ it('requires every tool name and interrupt id', () => {
   expectTypeOf(useChatContext).toBeFunction()
 
   const checkBoundHook = () => {
-    const chat = useAppChat()
+    const chat = useAppChat({ threadId: 'thread-1' })
     expectTypeOf(chat).toMatchTypeOf<ChatUIHost<typeof chatOptions>>()
     expectTypeOf(chat.AppChat).not.toBeAny()
   }

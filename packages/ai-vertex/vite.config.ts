@@ -3,6 +3,9 @@ import { tanstackViteConfig } from '@tanstack/vite-config'
 import packageJson from './package.json'
 
 const config = defineConfig({
+  // ai-gemini can resolve a second copy of @google/genai (a different zod
+  // peer). One copy keeps the test mock on the class ai-gemini constructs.
+  resolve: { dedupe: ['@google/genai'] },
   test: {
     name: packageJson.name,
     dir: './',

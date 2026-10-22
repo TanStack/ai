@@ -47,13 +47,6 @@ import type { StartRunInput } from '@tanstack/ai-sandbox-cloudflare/agent'
 function bodyLayers(value: object): Array<object> {
   const layers: Array<object> = [value]
   if (
-    'data' in value &&
-    value.data !== null &&
-    typeof value.data === 'object'
-  ) {
-    layers.push(value.data)
-  }
-  if (
     'forwardedProps' in value &&
     value.forwardedProps !== null &&
     typeof value.forwardedProps === 'object'
@@ -81,7 +74,7 @@ const FORWARDED_KEYS = [
   'grokTransport',
 ] as const
 
-/** Flatten the nested `data`/`forwardedProps` layers into one object to validate. */
+/** Flatten the body and its `forwardedProps` layer into one object to validate. */
 function flattenRunBody(value: unknown): unknown {
   if (value === null || typeof value !== 'object') return value
   const flat: Record<string, unknown> = {}

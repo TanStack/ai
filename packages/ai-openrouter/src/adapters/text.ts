@@ -20,6 +20,10 @@ import { clientForCall } from '../internal/wrap-fetch'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
 import {
+  openRouterUsesJsonObject,
+  withJsonModePrompt,
+} from '../internal/json-object-mode'
+import {
   OPENROUTER_MODEL_INPUT_MODALITIES,
   OPENROUTER_MODEL_REASONING,
 } from '../model-meta'
@@ -199,7 +203,7 @@ export class OpenRouterTextAdapter<
     // AG-UI lifecycle tracking (mutable state object for ESLint compatibility)
     const aguiState = {
       runId: generateId(this.name),
-      threadId: options.threadId ?? generateId(this.name),
+      threadId: options.threadId,
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,
     }
@@ -289,16 +293,23 @@ export class OpenRouterTextAdapter<
   /**
    * Generate structured output via OpenRouter's `responseFormat`. Uses
    * `stream: false`. Default is strict `json_schema` from `outputSchema`.
-   * Callers can opt into JSON mode with
-   * `modelOptions.responseFormat: { type: 'json_object' }`.
+   * JSON mode is `modelOptions.responseFormat: { type: 'json_object' }`, or
+   * a catalog model that has a response format and no strict structured
+   * outputs. JSON mode adds the schema as a system prompt.
    */
   async structuredOutput(
     options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
-    const chatRequest = this.mapOptionsToRequest(chatOptions)
+    const jsonMode = openRouterUsesJsonObject(
+      chatOptions.model || this.model,
+      chatOptions.modelOptions,
+    )
+    const chatRequest = this.mapOptionsToRequest(
+      jsonMode ? withJsonModePrompt(chatOptions, outputSchema) : chatOptions,
+    )
     const responseFormat = this.resolveStructuredResponseFormat(
-      chatRequest.responseFormat,
+      jsonMode,
       outputSchema,
     )
 
@@ -438,15 +449,21 @@ export class OpenRouterTextAdapter<
     options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
   ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
-    const chatRequest = this.mapOptionsToRequest(chatOptions)
+    const jsonMode = openRouterUsesJsonObject(
+      chatOptions.model || this.model,
+      chatOptions.modelOptions,
+    )
+    const chatRequest = this.mapOptionsToRequest(
+      jsonMode ? withJsonModePrompt(chatOptions, outputSchema) : chatOptions,
+    )
     const responseFormat = this.resolveStructuredResponseFormat(
-      chatRequest.responseFormat,
+      jsonMode,
       outputSchema,
     )
 
     const aguiState = {
       runId: generateId(this.name),
-      threadId: chatOptions.threadId ?? generateId(this.name),
+      threadId: chatOptions.threadId,
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,
     }
@@ -456,7 +473,6 @@ export class OpenRouterTextAdapter<
     let hasEmittedTextMessageStart = false
     let reasoningMessageId: string | undefined
     let hasClosedReasoning = false
-    let stepId: string | undefined
     let lastModel: string | undefined
     let responseId: string | undefined
     let finishReason: string | null | undefined
@@ -479,18 +495,7 @@ export class OpenRouterTextAdapter<
           model: lastModel || chatOptions.model,
           timestamp: Date.now(),
         }
-        if (stepId) {
-          yield {
-            type: EventType.STEP_FINISHED,
-            stepName: stepId,
-            stepId,
-            model: lastModel || chatOptions.model,
-            timestamp: Date.now(),
-            content: accumulatedReasoning,
-          }
-        }
         reasoningMessageId = undefined
-        stepId = undefined
         hasClosedReasoning = false
       }
     }.bind(this)
@@ -573,7 +578,6 @@ export class OpenRouterTextAdapter<
         if (reasoningText) {
           if (!reasoningMessageId) {
             reasoningMessageId = generateId(this.name)
-            stepId = generateId(this.name)
             yield {
               type: EventType.REASONING_START,
               messageId: reasoningMessageId,
@@ -586,14 +590,6 @@ export class OpenRouterTextAdapter<
               role: 'reasoning' as const,
               model: chunk.model || chatOptions.model,
               timestamp: Date.now(),
-            }
-            yield {
-              type: EventType.STEP_STARTED,
-              stepName: stepId,
-              stepId,
-              model: chunk.model || chatOptions.model,
-              timestamp: Date.now(),
-              stepType: 'thinking',
             }
           }
           accumulatedReasoning += reasoningText
@@ -788,15 +784,14 @@ export class OpenRouterTextAdapter<
   /**
    * Resolve the provider request format for a schema-bearing call.
    *
-   * Explicit `modelOptions.responseFormat: { type: 'json_object' }` is
-   * forwarded. Every other value is replaced with strict `json_schema`
-   * generated from `outputSchema`.
+   * `json_object` in JSON mode. Every other call gets strict
+   * `json_schema` from `outputSchema`.
    */
   protected resolveStructuredResponseFormat(
-    requested: ChatRequest['responseFormat'],
+    jsonMode: boolean,
     outputSchema: JSONSchema,
   ): NonNullable<ChatRequest['responseFormat']> {
-    if (requested?.type === 'json_object') {
+    if (jsonMode) {
       return { type: 'json_object' }
     }
 
@@ -881,11 +876,6 @@ export class OpenRouterTextAdapter<
     // Reasoning lifecycle (driven by inline reasoning extraction below).
     let reasoningMessageId: string | undefined
     let hasClosedReasoning = false
-    // Legacy STEP_STARTED/STEP_FINISHED pair emitted alongside REASONING_*
-    // for back-compat with consumers (UI, devtools) that haven't migrated
-    // to the spec REASONING_* events yet.
-    let stepId: string | undefined
-    let accumulatedReasoning = ''
     // Track whether ANY tool call lifecycle was actually completed across the
     // entire stream. Lets us downgrade a `tool_calls` finishReason to `stop`
     // when the upstream signalled tool calls but never produced a complete
@@ -972,7 +962,6 @@ export class OpenRouterTextAdapter<
         if (reasoningText) {
           if (!reasoningMessageId) {
             reasoningMessageId = generateId(this.name)
-            stepId = generateId(this.name)
             yield {
               type: EventType.REASONING_START,
               messageId: reasoningMessageId,
@@ -986,18 +975,7 @@ export class OpenRouterTextAdapter<
               model: chunk.model || options.model,
               timestamp: Date.now(),
             }
-            // Legacy STEP_STARTED (single emission, paired with the
-            // STEP_FINISHED below when reasoning closes).
-            yield {
-              type: EventType.STEP_STARTED,
-              stepName: stepId,
-              stepId,
-              model: chunk.model || options.model,
-              timestamp: Date.now(),
-              stepType: 'thinking',
-            }
           }
-          accumulatedReasoning += reasoningText
           yield {
             type: EventType.REASONING_MESSAGE_CONTENT,
             messageId: reasoningMessageId,
@@ -1032,16 +1010,6 @@ export class OpenRouterTextAdapter<
               messageId: reasoningMessageId,
               model: chunk.model || options.model,
               timestamp: Date.now(),
-            }
-            if (stepId) {
-              yield {
-                type: EventType.STEP_FINISHED,
-                stepName: stepId,
-                stepId,
-                model: chunk.model || options.model,
-                timestamp: Date.now(),
-                content: accumulatedReasoning,
-              }
             }
           }
 
@@ -1105,7 +1073,6 @@ export class OpenRouterTextAdapter<
                 type: EventType.TOOL_CALL_START,
                 toolCallId: toolCall.id,
                 toolCallName: toolCall.name,
-                toolName: toolCall.name,
                 parentMessageId: aguiState.messageId,
                 model: chunk.model || options.model,
                 timestamp: Date.now(),
@@ -1176,7 +1143,6 @@ export class OpenRouterTextAdapter<
                 type: EventType.TOOL_CALL_END,
                 toolCallId: toolCall.id,
                 toolCallName: toolCall.name,
-                toolName: toolCall.name,
                 model: chunk.model || options.model,
                 timestamp: Date.now(),
                 args: toolCall.arguments,
@@ -1238,7 +1204,6 @@ export class OpenRouterTextAdapter<
             type: EventType.TOOL_CALL_END,
             toolCallId: toolCall.id,
             toolCallName: toolCall.name,
-            toolName: toolCall.name,
             model: lastModel || options.model,
             timestamp: Date.now(),
             args: toolCall.arguments,
@@ -1274,16 +1239,6 @@ export class OpenRouterTextAdapter<
             messageId: reasoningMessageId,
             model: lastModel || options.model,
             timestamp: Date.now(),
-          }
-          if (stepId) {
-            yield {
-              type: EventType.STEP_FINISHED,
-              stepName: stepId,
-              stepId,
-              model: lastModel || options.model,
-              timestamp: Date.now(),
-              content: accumulatedReasoning,
-            }
           }
         }
 
@@ -1483,16 +1438,11 @@ export class OpenRouterTextAdapter<
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
-    // Attach json_schema only when outputSchema is set, every routed model
-    // is in the combined set, and the caller did not opt into JSON mode.
+    // Attach json_schema only when outputSchema is set and the combined gate
+    // passes (every routed model is in the combined set, and not JSON mode).
     const combinedOutputSchema: JSONSchema | undefined = options.outputSchema
-    const requestedResponseFormat =
-      options.modelOptions != null && 'responseFormat' in options.modelOptions
-        ? options.modelOptions.responseFormat
-        : undefined
     const combinedSchema =
       combinedOutputSchema &&
-      requestedResponseFormat?.type !== 'json_object' &&
       this.supportsCombinedToolsAndSchema(options.modelOptions)
         ? this.makeStructuredOutputCompatible(
             combinedOutputSchema,
@@ -1538,13 +1488,17 @@ export class OpenRouterTextAdapter<
 
   /**
    * Combined mode is safe only when this model and every `modelOptions.models`
-   * fallback are in `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`.
-   * `:variant` suffixes are routing directives and do not change the gate.
+   * fallback are in `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`. JSON mode
+   * is never combined: the schema goes in a system prompt on a separate
+   * structured-output request, not on the tool-calling turns.
    */
   supportsCombinedToolsAndSchema(
     modelOptions?: ResolveProviderOptions<TModel>,
   ): boolean {
-    return openRouterSupportsCombinedToolsAndSchema(this.model, modelOptions)
+    return (
+      !openRouterUsesJsonObject(this.model, modelOptions) &&
+      openRouterSupportsCombinedToolsAndSchema(this.model, modelOptions)
+    )
   }
 
   /**

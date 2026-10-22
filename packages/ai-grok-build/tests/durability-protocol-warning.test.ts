@@ -236,6 +236,7 @@ describe(
 
       const chunks = await collect(
         defaultProtocolAdapter('node fake-grok-ndjson.mjs').chatStream({
+          threadId: 'thread-1',
           model: 'grok-build',
           runId,
           messages: [{ role: 'user', content: 'say pong' }],
@@ -267,6 +268,7 @@ describe(
 
       const chunks = await collect(
         adapter().chatStream({
+          threadId: 'thread-1',
           model: 'grok-build',
           messages: [{ role: 'user', content: 'say pong' }],
           logger,
@@ -297,6 +299,7 @@ describe(
 
       const chunks = await collect(
         adapter().chatStream({
+          threadId: 'thread-1',
           model: 'grok-build',
           messages: [{ role: 'user', content: 'say pong' }],
           logger,
@@ -349,6 +352,7 @@ describe(
 
       const chunks = await collect(
         journalingAdapter.chatStream({
+          threadId: 'thread-1',
           model: 'grok-build',
           // The journaling (`chatStreamNdjson`) path requires a caller-supplied
           // `runId` once durability is wired — `resolveDurableRunId` throws
@@ -382,6 +386,7 @@ describe(
 
       const chunks = await collect(
         adapter().chatStream({
+          threadId: 'thread-1',
           model: 'grok-build',
           messages: [{ role: 'user', content: 'say pong' }],
           logger,

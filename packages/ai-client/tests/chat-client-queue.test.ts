@@ -77,7 +77,11 @@ describe('ChatClient message queue', () => {
   it('enqueues (not drops) a send while streaming and reports via onQueueChange', async () => {
     const { connection, release } = createHoldingConnection()
     const onQueueChange = vi.fn()
-    const client = new ChatClient({ connection, onQueueChange })
+    const client = new ChatClient({
+      threadId: 'thread-1',
+      connection,
+      onQueueChange,
+    })
 
     const firstSend = client.sendMessage('first')
     await vi.waitFor(() => {
@@ -100,7 +104,7 @@ describe('ChatClient message queue', () => {
 
   it('cancelQueued removes a queued item before it drains', async () => {
     const { connection, release } = createHoldingConnection()
-    const client = new ChatClient({ connection })
+    const client = new ChatClient({ threadId: 'thread-1', connection })
 
     const firstSend = client.sendMessage('first')
     await vi.waitFor(() => {
@@ -121,7 +125,11 @@ describe('ChatClient message queue', () => {
 
   it("whenBusy: 'drop' ignores a mid-stream send", async () => {
     const { connection, release } = createHoldingConnection()
-    const client = new ChatClient({ connection, queue: 'drop' })
+    const client = new ChatClient({
+      threadId: 'thread-1',
+      connection,
+      queue: 'drop',
+    })
 
     const firstSend = client.sendMessage('first')
     await vi.waitFor(() => {
@@ -194,7 +202,7 @@ function createErroringHoldingConnection(): {
 describe('ChatClient queue drain', () => {
   it('drains FIFO after the stream settles, in order', async () => {
     const { connection, release } = createSequencedHoldingConnection()
-    const client = new ChatClient({ connection })
+    const client = new ChatClient({ threadId: 'thread-1', connection })
 
     const firstSend = client.sendMessage('first')
     await vi.waitFor(() => {
@@ -219,7 +227,11 @@ describe('ChatClient queue drain', () => {
 
   it('batch drain merges string queued items with newlines', async () => {
     const { connection, release } = createSequencedHoldingConnection()
-    const client = new ChatClient({ connection, queue: { drain: 'batch' } })
+    const client = new ChatClient({
+      threadId: 'thread-1',
+      connection,
+      queue: { drain: 'batch' },
+    })
 
     const firstSend = client.sendMessage('first')
     await vi.waitFor(() => {
@@ -244,7 +256,11 @@ describe('ChatClient queue drain', () => {
 
   it('batch drain flattens multimodal queued items into ContentPart[]', async () => {
     const { connection, release } = createSequencedHoldingConnection()
-    const client = new ChatClient({ connection, queue: { drain: 'batch' } })
+    const client = new ChatClient({
+      threadId: 'thread-1',
+      connection,
+      queue: { drain: 'batch' },
+    })
 
     const firstSend = client.sendMessage('first')
     await vi.waitFor(() => {
@@ -289,7 +305,7 @@ describe('ChatClient queue drain', () => {
 
   it('flushes the queue on stop()', async () => {
     const { connection, release } = createHoldingConnection()
-    const client = new ChatClient({ connection })
+    const client = new ChatClient({ threadId: 'thread-1', connection })
 
     const firstSend = client.sendMessage('first')
     await vi.waitFor(() => {
@@ -309,7 +325,7 @@ describe('ChatClient queue drain', () => {
 
   it('flushes the queue when the stream errors', async () => {
     const { connection, release } = createErroringHoldingConnection()
-    const client = new ChatClient({ connection })
+    const client = new ChatClient({ threadId: 'thread-1', connection })
 
     const firstSend = client.sendMessage('first')
     await vi.waitFor(() => {
@@ -333,7 +349,7 @@ describe('ChatClient queue drain', () => {
 
   it('flushes the queue on clear()', async () => {
     const { connection, release } = createHoldingConnection()
-    const client = new ChatClient({ connection })
+    const client = new ChatClient({ threadId: 'thread-1', connection })
 
     const firstSend = client.sendMessage('first')
     await vi.waitFor(() => {
@@ -354,7 +370,11 @@ describe('ChatClient queue drain', () => {
 describe('ChatClient queue policy branches', () => {
   it("whenBusy: 'interrupt' aborts the in-flight stream and sends immediately", async () => {
     const { connection, release } = createSequencedHoldingConnection()
-    const client = new ChatClient({ connection, queue: 'interrupt' })
+    const client = new ChatClient({
+      threadId: 'thread-1',
+      connection,
+      queue: 'interrupt',
+    })
 
     const firstSend = client.sendMessage('first')
     await vi.waitFor(() => {
@@ -383,7 +403,7 @@ describe('ChatClient queue policy branches', () => {
   it('per-call whenBusy override beats the client default', async () => {
     const { connection, release } = createSequencedHoldingConnection()
     // Default is queue; override one send to interrupt.
-    const client = new ChatClient({ connection })
+    const client = new ChatClient({ threadId: 'thread-1', connection })
 
     const firstSend = client.sendMessage('first')
     await vi.waitFor(() => {
@@ -418,6 +438,7 @@ describe('ChatClient queue policy branches', () => {
   it("maxSize + onOverflow: 'reject' drops the newest when full", async () => {
     const { connection, release } = createHoldingConnection()
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection,
       queue: { maxSize: 1, onOverflow: 'reject' },
     })
@@ -438,6 +459,7 @@ describe('ChatClient queue policy branches', () => {
   it("maxSize + onOverflow: 'drop-oldest' rotates the queue", async () => {
     const { connection, release } = createHoldingConnection()
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection,
       queue: { maxSize: 1, onOverflow: 'drop-oldest' },
     })
@@ -458,6 +480,7 @@ describe('ChatClient queue policy branches', () => {
   it('maxSize: 0 never enqueues under drop-oldest', async () => {
     const { connection, release } = createHoldingConnection()
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection,
       queue: { maxSize: 0, onOverflow: 'drop-oldest' },
     })
@@ -479,6 +502,7 @@ describe('ChatClient queue policy branches', () => {
     let seenId: string | undefined
     let seenBusyReason: string | undefined
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection,
       queue: ({ pending, busyReason }) => {
         seenId = pending.id
@@ -509,6 +533,7 @@ describe('ChatClient queue policy branches', () => {
   it('QueueStrategy drop and per-call whenBusy override', async () => {
     const { connection, release } = createHoldingConnection()
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection,
       queue: () => ({ action: 'drop' }),
     })
@@ -535,7 +560,7 @@ describe('ChatClient queue policy branches', () => {
 
   it('concurrent rapid sends do not strand user messages without streams', async () => {
     const { connection, release } = createSequencedHoldingConnection()
-    const client = new ChatClient({ connection })
+    const client = new ChatClient({ threadId: 'thread-1', connection })
 
     // Fire several sends without awaiting between them (composer spam).
     const sends = [
@@ -576,7 +601,7 @@ describe('ChatClient queue policy branches', () => {
 
   it('flushes the queue on reload()', async () => {
     const { connection, release } = createSequencedHoldingConnection()
-    const client = new ChatClient({ connection })
+    const client = new ChatClient({ threadId: 'thread-1', connection })
 
     const firstSend = client.sendMessage('first')
     await vi.waitFor(() => {
@@ -597,7 +622,7 @@ describe('ChatClient queue policy branches', () => {
 
   it('flushes the queue on unsubscribe()', async () => {
     const { connection, release } = createHoldingConnection()
-    const client = new ChatClient({ connection })
+    const client = new ChatClient({ threadId: 'thread-1', connection })
 
     const firstSend = client.sendMessage('first')
     await vi.waitFor(() => {
@@ -634,7 +659,7 @@ describe('ChatClient queue policy branches', () => {
     }
 
     // FIFO: each drained send keeps its own body.
-    const fifoClient = new ChatClient({ connection })
+    const fifoClient = new ChatClient({ threadId: 'thread-1', connection })
     const firstFifo = fifoClient.sendMessage('first', { tag: 'seed' })
     await vi.waitFor(() => {
       expect(fifoClient.getIsLoading()).toBe(true)
@@ -668,6 +693,7 @@ describe('ChatClient queue policy branches', () => {
       },
     }
     const batchClient = new ChatClient({
+      threadId: 'thread-1',
       connection: batchConnection,
       queue: { drain: 'batch' },
     })
@@ -705,7 +731,7 @@ describe('ChatClient queue policy branches', () => {
     }
 
     // Hook-style calls: body rides in sendOptions, positional arg unused.
-    const client = new ChatClient({ connection })
+    const client = new ChatClient({ threadId: 'thread-1', connection })
     const firstSend = client.sendMessage('first', undefined, {
       body: { tag: 'seed' },
     })
@@ -736,7 +762,11 @@ describe('ChatClient queue policy branches', () => {
         yield* createTextChunks('done', `msg-${call}`)
       },
     }
-    const client = new ChatClient({ connection, queue: { drain: 'batch' } })
+    const client = new ChatClient({
+      threadId: 'thread-1',
+      connection,
+      queue: { drain: 'batch' },
+    })
 
     const firstSend = client.sendMessage('first')
     await vi.waitFor(() => {
@@ -795,7 +825,7 @@ describe('ChatClient queue policy branches', () => {
         yield* createTextChunks('should-not-run', `msg-${call}`)
       },
     }
-    const client = new ChatClient({ connection })
+    const client = new ChatClient({ threadId: 'thread-1', connection })
 
     const firstSend = client.sendMessage('first')
     await vi.waitFor(() => {
@@ -834,7 +864,7 @@ describe('ChatClient queue policy branches', () => {
         yield* createTextChunks('done', `msg-${call}`)
       },
     }
-    const client = new ChatClient({ connection })
+    const client = new ChatClient({ threadId: 'thread-1', connection })
 
     const firstSend = client.sendMessage('first')
     await vi.waitFor(() => {

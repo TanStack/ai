@@ -3,7 +3,7 @@ id: UIResourcePart
 title: UIResourcePart
 ---
 
-Defined in: [packages/ai/src/types.ts:657](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L657)
+Defined in: packages/ai/src/types.ts:657
 
 ## Properties
 
@@ -13,7 +13,7 @@ Defined in: [packages/ai/src/types.ts:657](https://github.com/TanStack/ai/blob/m
 optional meta?: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/types.ts:671](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L671)
+Defined in: packages/ai/src/types.ts:671
 
 Reserved for future passthrough of the resource/tool `_meta.ui` (e.g. frame-size hints).
  Currently always `undefined` — nothing populates this field yet.
@@ -26,7 +26,7 @@ Reserved for future passthrough of the resource/tool `_meta.ui` (e.g. frame-size
 resource: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:660](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L660)
+Defined in: packages/ai/src/types.ts:660
 
 The ui:// resource object in MCP-native shape — fed straight to the renderer.
 
@@ -62,7 +62,7 @@ uri: string;
 optional serverId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:662](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L662)
+Defined in: packages/ai/src/types.ts:662
 
 Pool prefix / config key — routes interactive calls to the right MCP server.
 
@@ -74,7 +74,7 @@ Pool prefix / config key — routes interactive calls to the right MCP server.
 toolCallId: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:665](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L665)
+Defined in: packages/ai/src/types.ts:665
 
 Links the widget to the originating tool call — correlates it with the
  sibling ToolCallPart/ToolResultPart in the same message.
@@ -87,7 +87,7 @@ Links the widget to the originating tool call — correlates it with the
 toolName: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:668](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L668)
+Defined in: packages/ai/src/types.ts:668
 
 Server-native (unprefixed) MCP tool name whose UI this resource renders.
  Required by the renderer (`@mcp-ui/client`'s `AppRenderer` `toolName` prop).
@@ -100,4 +100,4 @@ Server-native (unprefixed) MCP tool name whose UI this resource renders.
 type: "ui-resource";
 ```
 
-Defined in: [packages/ai/src/types.ts:658](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L658)
+Defined in: packages/ai/src/types.ts:658

@@ -7,7 +7,7 @@ title: RunStatus
 type RunStatus = "running" | "interrupted" | TerminalRunStatus;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:37](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L37)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:37
 
 Lifecycle status of one run (one agent turn within a conversation).
 

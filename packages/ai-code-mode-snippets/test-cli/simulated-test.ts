@@ -147,6 +147,7 @@ export async function runSimulatedTest(): Promise<TestResult> {
     // Note: We use the selection adapter for snippet selection, then the chat adapter for the actual chat
     const { toolsRegistry: registry1, systemPrompt: systemPrompt1 } =
       await codeModeWithSnippets({
+        threadId: 'test-cli',
         config: {
           driver,
           tools: [addNumbersTool],
@@ -171,6 +172,7 @@ export async function runSimulatedTest(): Promise<TestResult> {
     logStep(3, 'Executing chat with mock adapter')
 
     const stream1 = chat({
+      threadId: 'test-cli',
       adapter: phase1ChatAdapter as any,
       messages: messages1 as any,
       toolRegistry: registry1, // Use the registry instead of tools array
@@ -299,6 +301,7 @@ export async function runSimulatedTest(): Promise<TestResult> {
       systemPrompt: systemPrompt2,
       selectedSnippets,
     } = await codeModeWithSnippets({
+      threadId: 'test-cli',
       config: {
         driver,
         tools: [addNumbersTool],
@@ -336,6 +339,7 @@ export async function runSimulatedTest(): Promise<TestResult> {
     logStep(3, 'Executing chat with mock adapter')
 
     const stream2 = chat({
+      threadId: 'test-cli',
       adapter: phase2ChatAdapter as any,
       messages: messages2 as any,
       toolRegistry: registry2, // Use the registry instead of tools array

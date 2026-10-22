@@ -3,7 +3,7 @@ id: BaseRerankAdapter
 title: BaseRerankAdapter
 ---
 
-Defined in: [packages/ai/src/activities/rerank/adapter.ts:63](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/rerank/adapter.ts#L63)
+Defined in: packages/ai/src/activities/rerank/adapter.ts:63
 
 Abstract base class for rerank adapters.
 Extend this class to implement a rerank adapter for a specific provider.
@@ -32,7 +32,7 @@ Generic parameters match RerankAdapter - all pre-resolved by the provider functi
 new BaseRerankAdapter<TModel, TProviderOptions>(config?, model): BaseRerankAdapter<TModel, TProviderOptions>;
 ```
 
-Defined in: [packages/ai/src/activities/rerank/adapter.ts:78](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/rerank/adapter.ts#L78)
+Defined in: packages/ai/src/activities/rerank/adapter.ts:78
 
 #### Parameters
 
@@ -56,7 +56,7 @@ Defined in: [packages/ai/src/activities/rerank/adapter.ts:78](https://github.com
 ~types: object;
 ```
 
-Defined in: [packages/ai/src/activities/rerank/adapter.ts:72](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/rerank/adapter.ts#L72)
+Defined in: packages/ai/src/activities/rerank/adapter.ts:72
 
 **`Internal`**
 
@@ -80,7 +80,7 @@ providerOptions: TProviderOptions;
 protected config: RerankAdapterConfig;
 ```
 
-Defined in: [packages/ai/src/activities/rerank/adapter.ts:76](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/rerank/adapter.ts#L76)
+Defined in: packages/ai/src/activities/rerank/adapter.ts:76
 
 ***
 
@@ -90,7 +90,7 @@ Defined in: [packages/ai/src/activities/rerank/adapter.ts:76](https://github.com
 readonly kind: "rerank";
 ```
 
-Defined in: [packages/ai/src/activities/rerank/adapter.ts:67](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/rerank/adapter.ts#L67)
+Defined in: packages/ai/src/activities/rerank/adapter.ts:67
 
 Discriminator for adapter kind
 
@@ -106,7 +106,7 @@ Discriminator for adapter kind
 readonly model: TModel;
 ```
 
-Defined in: [packages/ai/src/activities/rerank/adapter.ts:69](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/rerank/adapter.ts#L69)
+Defined in: packages/ai/src/activities/rerank/adapter.ts:69
 
 The model this adapter is configured for
 
@@ -122,7 +122,7 @@ The model this adapter is configured for
 abstract readonly name: string;
 ```
 
-Defined in: [packages/ai/src/activities/rerank/adapter.ts:68](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/rerank/adapter.ts#L68)
+Defined in: packages/ai/src/activities/rerank/adapter.ts:68
 
 Adapter name identifier
 
@@ -138,7 +138,7 @@ Adapter name identifier
 protected generateId(): string;
 ```
 
-Defined in: [packages/ai/src/activities/rerank/adapter.ts:87](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/rerank/adapter.ts#L87)
+Defined in: packages/ai/src/activities/rerank/adapter.ts:87
 
 #### Returns
 
@@ -152,7 +152,7 @@ Defined in: [packages/ai/src/activities/rerank/adapter.ts:87](https://github.com
 abstract rerank(options): Promise<RerankAdapterResult>;
 ```
 
-Defined in: [packages/ai/src/activities/rerank/adapter.ts:83](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/rerank/adapter.ts#L83)
+Defined in: packages/ai/src/activities/rerank/adapter.ts:83
 
 Rerank the given (pre-serialized) documents against the query, returning
 scored indices into `options.documents`. The activity layer maps these

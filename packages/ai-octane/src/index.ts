@@ -6,12 +6,10 @@ export type { UseMcpAppBridgeOptions } from './use-mcp-app-bridge.tsrx'
 export {
   usePageWebMCPTools,
   useRegisterWebMCPTools,
-  useWebMCPTools,
 } from './use-web-mcp-tools.tsrx'
 export type {
   UsePageWebMCPToolsOptions,
   UseRegisterWebMCPToolsOptions,
-  UseWebMCPToolsOptions,
 } from './use-web-mcp-tools.tsrx'
 export type {
   DeepPartial,

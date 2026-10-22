@@ -56,6 +56,7 @@ const stream = chat({
   messages: [
     { role: 'user', content: 'What were the top AI papers this week?' },
   ],
+  threadId: 'thread-1',
 })
 ```
 
@@ -107,6 +108,7 @@ const stream = chat({
   messages: [
     { role: 'user', content: 'What is the latest on the Mars rover?' },
   ],
+  threadId: 'thread-1',
 })
 ```
 

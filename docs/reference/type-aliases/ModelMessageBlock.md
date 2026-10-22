@@ -19,7 +19,7 @@ type ModelMessageBlock =
 };
 ```
 
-Defined in: [packages/ai/src/types.ts:423](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L423)
+Defined in: packages/ai/src/types.ts:423
 
 One block of an assistant `ModelMessage`, in the order the model sent it.
 Each entry points into a field of the message. See `ModelMessage.blockOrder`.

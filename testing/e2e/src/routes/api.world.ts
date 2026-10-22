@@ -81,6 +81,7 @@ export const Route = createFileRoute('/api/world')({
         try {
           if (body.provider === 'worldlabs') {
             const result = await generateWorld({
+              threadId: 'world',
               adapter: worldlabsWorld('marble-1.1', {
                 apiKey: 'wlt_e2e',
                 fetch: worldLabsFetch(fail),
@@ -104,6 +105,7 @@ export const Route = createFileRoute('/api/world')({
             : jsonFetch({ jwt: 'jwt-e2e', expires_at: EXPIRES_AT })
 
           const result = await generateWorld({
+            threadId: 'world',
             adapter: reactorWorld('visko-orbis-stable', {
               apiKey: 'rk_e2e',
               fetch: fetchImpl,

@@ -5,9 +5,7 @@ order: 13
 description: "Copy one selected checkpoint into an empty thread without changing the source thread."
 ---
 
-A user wants to try a new idea from an older workspace. The original thread
-must stay unchanged. `snapshots.fork` copies one selected checkpoint into an
-empty destination thread.
+`snapshots.fork` copies one checkpoint into an empty thread. The original thread stays unchanged.
 
 The method copies the checkpoint that you pass. It does not copy the latest
 checkpoint unless that id is the one you pass.

@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import type { ConnectionAdapter } from '@tanstack/ai-react'
 import {
-  ChatMessage,
+  ThinkingPart,
   createChatHookContexts,
   createChatUI,
 } from '@tanstack/ai-react/ui'
@@ -78,9 +78,17 @@ const UI = createChatUI(
           </div>
         )
       },
-      message: ({ message }) => <ChatMessage message={message} />,
+      message: ({ message, Parts }) => (
+        <div data-message-role={message.role}>
+          <Parts />
+        </div>
+      ),
     },
-    partsComponents: { fallback: () => null },
+    partsComponents: {
+      text: ({ part }) => <div>{part.content}</div>,
+      thinking: ({ part }) => <ThinkingPart content={part.content} />,
+      fallback: () => null,
+    },
   },
 )
 
@@ -93,7 +101,7 @@ function AgUiChat({
   placeholder: string
   emptyLabel: string
 }) {
-  const chat = useChat({ connection })
+  const chat = useChat({ threadId: 'ag-ui-chat', connection })
   return (
     <LabelsContext.Provider value={{ placeholder, emptyLabel }}>
       <UI.Chat chat={chat} />

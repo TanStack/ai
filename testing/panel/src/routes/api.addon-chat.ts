@@ -54,6 +54,7 @@ export const Route = createFileRoute('/api/addon-chat')({
 
         try {
           const stream = chat({
+            threadId: body.threadId,
             adapter: openaiText('gpt-4o'),
             tools: [
               // Just the definitions - client will handle execution

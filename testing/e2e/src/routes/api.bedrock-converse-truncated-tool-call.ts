@@ -71,6 +71,7 @@ export const Route = createFileRoute(
         let runError: string | undefined
         try {
           for await (const chunk of chat({
+            threadId: 'bedrock-converse-truncated-tool-call',
             ...createChatOptions({ adapter }),
             tools: [lookupWeather],
             messages: [

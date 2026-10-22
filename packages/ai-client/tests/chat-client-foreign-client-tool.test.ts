@@ -54,7 +54,11 @@ describe('client tools from a foreign AG-UI server', () => {
       inputSchema: z.object({}),
     }).client(execute)
     const { connection, requests } = foreignServer()
-    const client = new ChatClient({ connection, tools: [ping] })
+    const client = new ChatClient({
+      threadId: 'thread-1',
+      connection,
+      tools: [ping],
+    })
 
     await client.sendMessage('ping me')
 
@@ -73,7 +77,11 @@ describe('client tools from a foreign AG-UI server', () => {
       needsApproval: true,
     }).client(execute)
     const { connection, requests } = foreignServer()
-    const client = new ChatClient({ connection, tools: [ping] })
+    const client = new ChatClient({
+      threadId: 'thread-1',
+      connection,
+      tools: [ping],
+    })
 
     await client.sendMessage('ping me')
     await new Promise((resolve) => setTimeout(resolve, 20))

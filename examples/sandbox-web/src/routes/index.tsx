@@ -355,7 +355,7 @@ function SandboxAgentChat({ initialThreadId }: { initialThreadId: string }) {
         return response
       },
     }),
-    body,
+    forwardedProps: body,
     onChunk: (chunk) => {
       const sessionId = readSessionId(chunk)
       if (sessionId !== undefined) setHarnessSessionId(sessionId)

@@ -96,6 +96,7 @@ describe('useChat() return type', () => {
         }).client(() => ({ ok: true }))
 
         const { messages } = useChat({
+          threadId: 'thread-1',
           connection: { connect: async function* () {} },
           // plain array literal — the `const` modifier on useChat's TTools
           // captures the tuple + literal tool names, so no `clientTools(...)`
@@ -129,6 +130,7 @@ describe('useChat() return type', () => {
         // Separate const, NO clientTools, NO `as const`:
         const tools = [guitarTool, cartTool]
         const { messages } = useChat({
+          threadId: 'thread-1',
           connection: { connect: async function* () {} },
           tools,
         })
@@ -155,6 +157,7 @@ describe('useChat() return type', () => {
       const tools = clientTools(tool)
 
       const options: UseChatOptions<typeof tools> = {
+        threadId: 'thread-1',
         connection: {
           connect: async function* () {},
         },
@@ -185,6 +188,7 @@ describe('useChat() return type', () => {
 
       const checkUseChatCall = () => {
         useChat({
+          threadId: 'thread-1',
           connection: {
             connect: async function* () {},
           },
@@ -193,6 +197,7 @@ describe('useChat() return type', () => {
         })
 
         useChat({
+          threadId: 'thread-1',
           connection: {
             connect: async function* () {},
           },
@@ -361,6 +366,7 @@ describe('useChat() registered generic interrupt types', () => {
 
     const check = () => {
       const chat = useChat({
+        threadId: 'thread-1',
         connection: { connect: async function* () {} },
         interrupts: [reviewPlan, acknowledge],
       })
@@ -408,6 +414,7 @@ describe('useChat() registered generic interrupt types', () => {
         needsApproval: true,
       }).client()
       const withoutRegistry = useChat({
+        threadId: 'thread-1',
         connection: { connect: async function* () {} },
         tools: clientTools(existingTool),
       })

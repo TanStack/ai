@@ -92,6 +92,7 @@ export const Route = createFileRoute('/api/search')({
         try {
           const response = await chat({
             adapter: groqText('openai/gpt-oss-20b'),
+            threadId: 'search',
             messages: [{ role: 'user', content }],
             systemPrompts: [SYSTEM_PROMPT],
             outputSchema: groqOutputSchema,

@@ -3,15 +3,10 @@ export { createChatHook } from './create-chat-hook'
 export { useByok } from './use-byok'
 export { useMcpAppBridge } from './use-mcp-app-bridge'
 export type { UseMcpAppBridgeOptions } from './use-mcp-app-bridge'
-export {
-  usePageWebMCPTools,
-  useRegisterWebMCPTools,
-  useWebMCPTools,
-} from './use-web-mcp-tools'
+export { usePageWebMCPTools, useRegisterWebMCPTools } from './use-web-mcp-tools'
 export type {
   UsePageWebMCPToolsOptions,
   UseRegisterWebMCPToolsOptions,
-  UseWebMCPToolsOptions,
 } from './use-web-mcp-tools'
 export type {
   UseChatOptions,

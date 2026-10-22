@@ -228,12 +228,11 @@ export const Route = createFileRoute('/api/sandbox-triage-durable')({
         let params: Awaited<ReturnType<typeof chatParamsFromRequestBody>>
         try {
           const body = (await request.json()) as {
-            data?: TriageData
             forwardedProps?: TriageData
           }
-          const layer = body.data ?? body.forwardedProps
+          const layer = body.forwardedProps
           if (layer == null || typeof layer !== 'object') {
-            throw new Error('body.data (or forwardedProps) is required')
+            throw new Error('body.forwardedProps is required')
           }
           data = layer
           params = await chatParamsFromRequestBody(body)

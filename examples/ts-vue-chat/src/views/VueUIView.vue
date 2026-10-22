@@ -196,7 +196,7 @@ const { useAppChat, ui } = createChatHook({
   },
 })
 
-const chat = useAppChat()
+const chat = useAppChat({ threadId: 'vue-ui' })
 </script>
 
 <template>

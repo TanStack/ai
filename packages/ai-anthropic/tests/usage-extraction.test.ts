@@ -49,7 +49,7 @@ vi.mock('@anthropic-ai/sdk', () => {
 })
 
 const createAdapter = () =>
-  new AnthropicTextAdapter({ apiKey: 'test-key' }, 'claude-opus-4-1')
+  new AnthropicTextAdapter({ apiKey: 'test-key' }, 'claude-sonnet-4-5')
 
 function createMockStream(
   chunks: Array<Record<string, unknown>>,
@@ -93,7 +93,7 @@ describe('Anthropic usage extraction', () => {
           type: 'message',
           role: 'assistant',
           content: [],
-          model: 'claude-opus-4-1',
+          model: 'claude-sonnet-4-5',
           usage: {
             input_tokens: 100,
             output_tokens: 0,
@@ -127,6 +127,7 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
     })) {
@@ -151,7 +152,7 @@ describe('Anthropic usage extraction', () => {
           type: 'message',
           role: 'assistant',
           content: [],
-          model: 'claude-opus-4-1',
+          model: 'claude-sonnet-4-5',
           usage: {
             input_tokens: 100,
             output_tokens: 0,
@@ -189,6 +190,7 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
     })) {
@@ -217,7 +219,7 @@ describe('Anthropic usage extraction', () => {
             type: 'message',
             role: 'assistant',
             content: [],
-            model: 'claude-opus-4-1',
+            model: 'claude-sonnet-4-5',
             usage: { input_tokens: 12, output_tokens: 0 },
           },
         },
@@ -237,6 +239,7 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
     })) {
@@ -261,7 +264,7 @@ describe('Anthropic usage extraction', () => {
           type: 'message',
           role: 'assistant',
           content: [],
-          model: 'claude-opus-4-1',
+          model: 'claude-sonnet-4-5',
           usage: {
             input_tokens: 100,
             output_tokens: 0,
@@ -299,6 +302,7 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
     })) {
@@ -324,7 +328,7 @@ describe('Anthropic usage extraction', () => {
           type: 'message',
           role: 'assistant',
           content: [],
-          model: 'claude-opus-4-1',
+          model: 'claude-sonnet-4-5',
           usage: {
             input_tokens: 100,
             output_tokens: 0,
@@ -358,6 +362,7 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
     })) {
@@ -382,7 +387,7 @@ describe('Anthropic usage extraction', () => {
           type: 'message',
           role: 'assistant',
           content: [],
-          model: 'claude-opus-4-1',
+          model: 'claude-sonnet-4-5',
           usage: {
             input_tokens: 100,
             output_tokens: 0,
@@ -416,6 +421,7 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
     })) {
@@ -438,7 +444,7 @@ describe('Anthropic usage extraction', () => {
           type: 'message',
           role: 'assistant',
           content: [],
-          model: 'claude-opus-4-1',
+          model: 'claude-sonnet-4-5',
           usage: {
             input_tokens: 13,
             output_tokens: 1,
@@ -475,6 +481,7 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Say hello in five words.' }],
       modelOptions: { max_tokens: 3 },
@@ -515,7 +522,7 @@ describe('Anthropic usage extraction', () => {
               type: 'message',
               role: 'assistant',
               content: [],
-              model: 'claude-opus-4-1',
+              model: 'claude-sonnet-4-5',
               usage: {
                 input_tokens: 13,
                 output_tokens: 1,
@@ -536,7 +543,8 @@ describe('Anthropic usage extraction', () => {
 
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of createAdapter().chatStream({
-        model: 'claude-opus-4-1',
+        threadId: 'thread-1',
+        model: 'claude-sonnet-4-5',
         messages: [{ role: 'user', content: 'Hello' }],
         logger: createSilentLogger(),
       })) {
@@ -564,7 +572,7 @@ describe('Anthropic usage extraction', () => {
             type: 'message',
             role: 'assistant',
             content: [],
-            model: 'claude-opus-4-1',
+            model: 'claude-sonnet-4-5',
             usage: {
               input_tokens: 13,
               output_tokens: 1,
@@ -593,7 +601,8 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of createAdapter().chatStream({
-      model: 'claude-opus-4-1',
+      threadId: 'thread-1',
+      model: 'claude-sonnet-4-5',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: createSilentLogger(),
     })) {
@@ -620,7 +629,7 @@ describe('Anthropic usage extraction', () => {
             type: 'message',
             role: 'assistant',
             content: [],
-            model: 'claude-opus-4-1',
+            model: 'claude-sonnet-4-5',
             usage: { input_tokens: 13, output_tokens: 1 },
           },
         },
@@ -631,7 +640,8 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of createAdapter().chatStream({
-      model: 'claude-opus-4-1',
+      threadId: 'thread-1',
+      model: 'claude-sonnet-4-5',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: createSilentLogger(),
     })) {

@@ -1,5 +1,29 @@
 # @tanstack/ai-bedrock
 
+## 0.6.2
+
+### Patch Changes
+
+- Updated dependencies [[`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325), [`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325), [`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325)]:
+  - @tanstack/ai@0.71.0
+  - @tanstack/openai-base@0.16.0
+
+## 0.6.1
+
+### Patch Changes
+
+- [#1750](https://github.com/TanStack/ai/pull/1750) [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b) - Keep the provider's raw tool argument string for replay.
+  - Adapters now send the raw argument string as `args` on `TOOL_CALL_END`.
+  - The tool call in the history keeps that exact string when it is the same JSON value as the parsed input, so the next request sends the provider's own bytes back (for example `1.50`, or an id past `Number.MAX_SAFE_INTEGER`). When the parsed input differs, only the changed values are written again.
+  - The `TOOL_CALL_END` that reaches the client carries the same string in `metadata.tanstack.args`, so the client history matches the server history. It no longer also carries `metadata.tanstack.input`: in-process `chat()` and `StreamProcessor` parse `input` from `args`. Run the client and the server on the same release: an older client ignores `args`, so it builds the tool input from the streamed deltas only, and a tool call with no deltas (for example an Anthropic server tool) gets no input.
+  - History converters for Bedrock and the Gemini Interactions API send malformed tool arguments as `{}` instead of failing the request.
+  - Gemini Interactions: the initial `step.arguments` snapshot goes out as a `TOOL_CALL_ARGS` delta only when no argument deltas follow, so the deltas always add up to the final arguments.
+  - Malformed tool arguments are no longer turned into `{}` by an adapter. The tool gets a "Failed to parse tool arguments as JSON" error that the model can repair. Mistral still ends the run with an error on malformed arguments, as before.
+
+- Updated dependencies [[`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`5f95dbd`](https://github.com/TanStack/ai/commit/5f95dbd08f2780442000ac52074ea747d1b44187), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`3292bad`](https://github.com/TanStack/ai/commit/3292bad7b26990c5aa4676cc9d9fe33b1741fc1a), [`ee374b4`](https://github.com/TanStack/ai/commit/ee374b4753adfc2ae305edad03f1ac9a588321fa), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`4298480`](https://github.com/TanStack/ai/commit/429848047c8c514f29855f8a99a7260253eb5d5b), [`761a652`](https://github.com/TanStack/ai/commit/761a652a3d3f8d31017e11034a4844c8c81af0f6), [`f68da51`](https://github.com/TanStack/ai/commit/f68da51f63f999b70ac7aaf5aebc0109a7e9daf7), [`85c2956`](https://github.com/TanStack/ai/commit/85c2956c68f3226ef409b3a4e54d5be82198931e), [`30fa651`](https://github.com/TanStack/ai/commit/30fa651d173e519db8de50c9f888ded71b951640), [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b)]:
+  - @tanstack/ai@0.70.0
+  - @tanstack/openai-base@0.15.0
+
 ## 0.6.0
 
 ### Minor Changes

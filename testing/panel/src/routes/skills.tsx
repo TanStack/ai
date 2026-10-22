@@ -45,14 +45,14 @@ function SkillsPage() {
     () => ({
       provider: selectedModel.provider,
       model: selectedModel.model,
-      threadId,
     }),
-    [selectedModel.provider, selectedModel.model, threadId],
+    [selectedModel.provider, selectedModel.model],
   )
 
   const { messages, sendMessage, isLoading } = useChat({
+    threadId,
     connection: fetchServerSentEvents('/api/skills-chat'),
-    body,
+    forwardedProps: body,
     devtools: { name: 'Skills' },
   })
 

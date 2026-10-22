@@ -179,7 +179,6 @@ export function createToolCallChunks(
       type: 'TOOL_CALL_START',
       toolCallId: toolCall.id,
       toolCallName: toolCall.name,
-      toolName: toolCall.name,
       model,
       timestamp: Date.now(),
       index: i,

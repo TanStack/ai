@@ -78,10 +78,6 @@ pub fn sse_event(payload: Value) -> String {
     format!("data: {}\n\n", payload)
 }
 
-pub fn sse_done() -> String {
-    "data: [DONE]\n\n".to_string()
-}
-
 pub fn run_started(thread_id: &str, run_id: &str) -> String {
     sse_event(json!({
         "type": "RUN_STARTED",

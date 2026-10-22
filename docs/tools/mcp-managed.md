@@ -2,7 +2,7 @@
 title: Managed MCP with chat()
 id: mcp-managed
 order: 9
-description: "Hand live MCP clients and pools to chat() via the mcp option and let it own tool discovery and connection lifecycle for you."
+description: "Pass MCP clients and pools to chat() in the mcp option. chat() finds their tools and closes the connections for you."
 keywords:
   - tanstack ai
   - mcp
@@ -16,22 +16,12 @@ keywords:
   - needsApproval
 ---
 
-You have one or more live [MCP clients](./mcp) (or pools) and you want the model to use their tools — without writing boilerplate `await client.tools()` calls and `try/finally close()` blocks for every route. By the end of this guide you'll hand those clients to `chat()` via the `mcp` option and let it handle both discovery and lifecycle for you.
+Pass MCP clients to `chat()` in the `mcp` option. `chat()` loads their tools and closes the clients when the run ends.
 
-> `createMCPClient` tries protocol `2026-07-28` first. If the server does not support that protocol, the client uses the 2025 initialize handshake.
->
-> Package names for an `@modelcontextprotocol/sdk` import are in [MCP SDK packages](../migration/mcp-sdk).
+## Quick setup
 
-> **Managed (`mcp` prop) vs manual (`tools` spread)**
->
-> - Use `mcp: { clients: [...] }` when you want **discovery + lifecycle** managed for you and you are happy with runtime-typed (`unknown`-argument) tools.
-> - Use `tools: [...await client.tools([toolDefinition(...)])]` when you need **fully-typed MCP tools** — the defs overload gives you Zod-validated, TypeScript-typed arguments. See [Manual MCP: typed tools, resources & prompts](./mcp-manual) and [Three Modes of Type Safety](./mcp#three-modes-of-type-safety).
->
-> Both coexist in the same `chat()` call. Tools from `mcp.clients` are merged with any tools you pass explicitly via `tools`.
-
-## Hand a client to `chat()`
-
-The simplest path: create a client, hand it to `chat()`, and let the run clean it up. `connection` defaults to `'close'`, so the client is closed automatically once the run ends — on success, error, or abort.
+1. Make a client in your chat route.
+2. Pass it in `mcp.clients`.
 
 ```ts ignore
 // src/routes/api.chat.ts
@@ -44,7 +34,7 @@ export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const { messages } = await request.json()
+        const { messages, threadId } = await request.json()
 
         const mcpClient = await createMCPClient({
           transport: {
@@ -54,14 +44,14 @@ export const Route = createFileRoute('/api/chat')({
           },
         })
 
-        // chat() discovers mcpClient's tools and closes the connection when done.
-        // No try/finally needed.
+        // chat() finds the tools of mcpClient and closes it when the run ends.
         const stream = chat({
-          adapter: openaiText('gpt-5.5'),
+          adapter: openaiText('gpt-6.1-sol'),
           messages,
+          threadId,
           mcp: {
             clients: [mcpClient],
-            // connection: 'close' is the default — shown here for clarity
+            // 'close' is the default. It is shown here so you can see it.
             connection: 'close',
           },
         })
@@ -73,11 +63,23 @@ export const Route = createFileRoute('/api/chat')({
 })
 ```
 
-The examples below show only the part that changes — the client setup and the `chat()` call. They all drop into the same route handler shape as above.
+That is all. There is no `try/finally`. Your `useChat` code does not change.
+
+## How it works
+
+- Before the first model call, `chat()` calls `tools()` on each client at the same time and merges the results into one tool set.
+- Tools from `mcp.clients` merge with any tools that you pass in `tools`. You can use both in one call.
+- `connection: 'close'` (the default) closes each client when the run ends: on success, on error, and on abort.
+- `connection: 'keep-alive'` never closes the clients. You own them.
+
+> [!NOTE]
+> Tools from `mcp` have arguments of type `unknown` at compile time. For Zod-validated, typed arguments, spread `await client.tools([toolDefinition(...)])` into `tools` yourself. See [Manual MCP](./mcp-manual) and [Three Modes of Type Safety](./mcp-advanced#three-modes-of-type-safety).
+
+The samples below show only the client setup and the `chat()` call. They go into the same route as above.
 
 ## Multiple servers and pools
 
-Pass any mix of `MCPClient` instances and `MCPClients` pools. Their tools are discovered in parallel and merged into one flat tool set. Pools auto-prefix each server's tools with the config key to prevent name collisions.
+Pass any mix of `MCPClient` instances and `MCPClients` pools. A pool adds the config key as a prefix to the tool names of each server, so the names do not collide.
 
 ```ts
 import { chat } from '@tanstack/ai'
@@ -86,7 +88,7 @@ import { createMCPClient, createMCPClients } from '@tanstack/ai-mcp'
 
 const messages = [{ role: 'user' as const, content: 'Hello' }]
 
-// A pool of two servers — their tools are prefixed "github_" and "linear_"
+// A pool of two servers. Their tools get the prefixes "github_" and "linear_".
 const githubLinearPool = await createMCPClients({
   github: {
     transport: {
@@ -109,10 +111,11 @@ const internalClient = await createMCPClient({
   transport: { type: 'http', url: process.env.INTERNAL_MCP_URL! },
 })
 
-// All three servers' tools are merged: github_*, linear_*, plus internal tools
+// The tools of all three servers merge: github_*, linear_*, and the internal tools
 const stream = chat({
-  adapter: openaiText('gpt-5.5'),
+  adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   mcp: {
     clients: [githubLinearPool, internalClient],
     connection: 'close',
@@ -122,7 +125,7 @@ const stream = chat({
 
 ## Limit which tools the model gets
 
-`chat({ mcp })` sends every tool that each client discovers. To hide tools, or to require approval, set `toolFilter` or `needsApproval` on the client. `chat()` uses the options of each client:
+`chat({ mcp })` sends every tool that each client finds. To hide tools, or to ask for approval, set `toolFilter` or `needsApproval` on the client. `chat()` uses the options of each client:
 
 ```ts
 import { chat } from '@tanstack/ai'
@@ -151,8 +154,9 @@ const pool = await createMCPClients({
 })
 
 const stream = chat({
-  adapter: openaiText('gpt-5.5'),
+  adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   mcp: { clients: [github, pool] },
 })
 ```
@@ -164,13 +168,16 @@ A `toolFilter` list is strict. If the server has no tool with a listed name, or 
 
 `chat()` handles this like any other [discovery failure](#handling-discovery-failures). By default, the run fails before the first model call.
 
-The hints come from the server, and a compromised server can send false hints. For the trust rules and the list form, see [Limit and Gate Tools](./mcp#limit-and-gate-tools).
+> [!WARNING]
+> The hints come from the server, and a compromised server can send false hints. For the trust rules and the list form, see [Limit and Gate Tools](./mcp-advanced#limit-and-gate-tools).
 
 ## Keep connections warm
 
-Creating a new MCP connection on every request adds latency. For production routes with high request rates, create your pool once at module level and pass `connection: 'keep-alive'` so `chat()` never closes it. The pool stays ready for the next request. (Shown as a full route because the placement — module scope vs. handler scope — is the point.)
+A new MCP connection on each request adds latency. On a busy route, make the pool once at module level and pass `connection: 'keep-alive'`. Then `chat()` never closes the pool, and the next request uses the same connections.
 
-**Server route (`src/routes/api.chat.ts`):**
+Where you make the pool is important here, so this is a full route.
+
+Server route (`src/routes/api.chat.ts`):
 
 ```ts ignore
 import { createFileRoute } from '@tanstack/react-router'
@@ -178,7 +185,7 @@ import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClients } from '@tanstack/ai-mcp'
 
-// Created once when the module loads. Shared across all requests.
+// Made once when the module loads. All requests share it.
 const sharedPool = await createMCPClients({
   github: {
     transport: {
@@ -200,12 +207,13 @@ export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const { messages } = await request.json()
+        const { messages, threadId } = await request.json()
 
-        // keep-alive: sharedPool is never closed by chat(); stays warm for next call
+        // keep-alive: chat() never closes sharedPool. It stays warm for the next call.
         const stream = chat({
-          adapter: openaiText('gpt-5.5'),
+          adapter: openaiText('gpt-6.1-sol'),
           messages,
+          threadId,
           mcp: {
             clients: [sharedPool],
             connection: 'keep-alive',
@@ -219,7 +227,7 @@ export const Route = createFileRoute('/api/chat')({
 })
 ```
 
-**Client component (`src/components/Chat.tsx`):**
+Client component (`src/components/Chat.tsx`):
 
 ```tsx
 import { useChat } from '@tanstack/ai-react'
@@ -227,6 +235,7 @@ import { fetchServerSentEvents } from '@tanstack/ai-client'
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'support-chat',
 }
 
 export function Chat() {
@@ -255,7 +264,7 @@ export function Chat() {
 
 ## Lazy tool discovery
 
-When your MCP server exposes dozens of tools, sending every schema to the model inflates prompt size and cost. Set `lazyTools: true` to defer sending tool schemas until the model explicitly requests them.
+A server with dozens of tools makes the prompt big and expensive. Set `lazyTools: true` to send a tool schema only when the model asks for it:
 
 ```ts
 import { chat } from '@tanstack/ai'
@@ -269,24 +278,27 @@ const mcpClient = await createMCPClient({
 })
 
 const stream = chat({
-  adapter: openaiText('gpt-5.5'),
+  adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   mcp: {
     clients: [mcpClient],
     connection: 'close',
-    // Tools are registered but schemas are withheld until the model asks
+    // The tools are registered, but their schemas wait until the model asks
     lazyTools: true,
   },
 })
 ```
 
-`lazyTools: true` is forwarded to each source's `tools({ lazy: true })` call. See [Lazy Tool Discovery](./lazy-tool-discovery) for how the model discovers and loads lazy tools at runtime, and [the standalone lazy discovery section](./mcp#lazy-tool-discovery) for using `{ lazy: true }` directly with `client.tools()`.
+`chat()` passes `lazyTools: true` to the `tools({ lazy: true })` call of each source. See [Lazy Tool Discovery](./lazy-tool-discovery) for how the model finds lazy tools. To use `{ lazy: true }` on `client.tools()` directly, see [Lazy Tool Discovery for MCP](./mcp-advanced#lazy-tool-discovery).
 
-## Handling discovery failures
+## Advanced
 
-By default, if any source fails during discovery, `chat()` throws immediately (fail-fast). When `connection: 'close'`, any sources that did connect are cleaned up before the error propagates — no leaked connections.
+### Handling discovery failures
 
-**Fail-fast (default):**
+By default, if one source fails during discovery, `chat()` fails at once. With `connection: 'close'`, `chat()` first closes the sources that did connect. No connection stays open.
+
+Fail fast (the default):
 
 ```ts
 import { chat } from '@tanstack/ai'
@@ -300,19 +312,18 @@ const mcpClient = await createMCPClient({
 })
 
 // If discovery fails, chat() throws before the first model call.
-// mcpClient is closed automatically (connection: 'close' default).
+// mcpClient closes automatically (connection: 'close' is the default).
 const stream = chat({
-  adapter: openaiText('gpt-5.5'),
+  adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   mcp: {
     clients: [mcpClient],
   },
 })
 ```
 
-**Skip a flaky server and proceed:**
-
-Use `onDiscoveryError` to log the problem and return normally — the failing source is skipped and the run continues with the remaining clients' tools.
+Skip a flaky server and continue: use `onDiscoveryError` to log the error and return normally. `chat()` skips the failed source and runs with the tools of the other clients.
 
 ```ts
 import { chat } from '@tanstack/ai'
@@ -330,25 +341,31 @@ const optionalClient = await createMCPClient({
 })
 
 const stream = chat({
-  adapter: openaiText('gpt-5.5'),
+  adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   mcp: {
     clients: [primaryClient, optionalClient],
     connection: 'close',
     onDiscoveryError(error, source) {
-      // Log the failure but let the run proceed without this source's tools.
-      // Throw here (or re-throw `error`) to fail the whole run instead.
+      // Log the failure, and let the run continue without the tools of this source.
+      // Throw here (or throw `error` again) to fail the whole run instead.
       console.warn('MCP discovery failed for a source, skipping.', error)
     },
   },
 })
 ```
 
-> Sources passed to `onDiscoveryError` may have already connected before discovery failed. When `connection: 'close'`, they are still closed at the end of the run — even if their tools were skipped.
+> [!NOTE]
+> A source that `onDiscoveryError` gets can be connected already. With `connection: 'close'`, `chat()` still closes it when the run ends, even though it skipped its tools.
 
-## Tool name collisions
+### Tool name collisions
 
-If two sources in `mcp.clients` expose a tool with the same name, the run fails with an `MCPDuplicateToolNameError` (exported from `@tanstack/ai`) after merging the discovered tools. Note that `chat()` runs lazily — discovery happens when the stream is first consumed, so the error surfaces **through the stream** (the SSE response errors), not as a synchronous throw you can `try/catch` at the `chat()` call site. The fix is to prevent the collision up front: assign a `prefix` to one of the clients, or use `createMCPClients` (which auto-prefixes using the config key).
+If two sources in `mcp.clients` have a tool with the same name, the run fails with `MCPDuplicateToolNameError` (exported from `@tanstack/ai`).
+
+`chat()` is lazy. Discovery starts when something first reads the stream. So the error comes through the stream (the SSE response fails). You cannot catch it with a `try/catch` around the `chat()` call.
+
+Prevent the collision instead. Give one of the clients a `prefix`, or use `createMCPClients`, which adds the config key as a prefix:
 
 ```ts
 import { chat } from '@tanstack/ai'
@@ -357,22 +374,22 @@ import { createMCPClient } from '@tanstack/ai-mcp'
 
 const messages = [{ role: 'user' as const, content: 'Hello' }]
 
-// Both servers expose a tool called "search". Without prefixes the run
-// would fail with MCPDuplicateToolNameError. The prefix option resolves
-// the clash.
+// Both servers have a tool called "search". Without prefixes, the run
+// fails with MCPDuplicateToolNameError. The prefix option prevents this.
 const serverA = await createMCPClient({
   transport: { type: 'http', url: process.env.SERVER_A_URL! },
-  prefix: 'alpha', // tools become "alpha_search", etc.
+  prefix: 'alpha', // tools become "alpha_search", and so on
 })
 
 const serverB = await createMCPClient({
   transport: { type: 'http', url: process.env.SERVER_B_URL! },
-  prefix: 'beta', // tools become "beta_search", etc.
+  prefix: 'beta', // tools become "beta_search", and so on
 })
 
 const stream = chat({
-  adapter: openaiText('gpt-5.5'),
+  adapter: openaiText('gpt-6.1-sol'),
   messages,
+  threadId: 'thread-1',
   mcp: {
     clients: [serverA, serverB],
     connection: 'close',
@@ -380,8 +397,4 @@ const stream = chat({
 })
 ```
 
-For the standalone `pool.tools()` collision behavior and the general `prefix` strategy, see [Tool Name Collisions](./mcp#tool-name-collisions) and [Disable or override the prefix](./mcp#disable-or-override-the-prefix).
-
-## Going further
-
-> **Need fully-typed tools, resources, or prompts in the run?** The `mcp` prop gives you runtime-typed tools and discovery. To spread `toolDefinition`-typed MCP tools, inject MCP resources and prompts, or cancel in-flight MCP calls, see [Manual MCP: typed tools, resources & prompts](./mcp-manual).
+For collisions in `pool.tools()` and the `prefix` options, see [Tool Name Collisions](./mcp-advanced#tool-name-collisions) and [Disable or override the prefix](./mcp-advanced#disable-or-override-the-prefix).

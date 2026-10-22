@@ -97,12 +97,12 @@ function DirectImageGeneration() {
 
   const hookReturn = useGenerateImage({
     threadId,
-    fetcher: (input) =>
+    fetcher: (input, options) =>
       generateImageFn({
         data: {
           ...input,
           prompt: resolveMediaPrompt(input.prompt).text,
-          threadId,
+          threadId: options.threadId,
         },
       }),
     // No GET route on a server function — supply the hydrate handler yourself.
@@ -129,12 +129,12 @@ function ServerFnImageGeneration() {
 
   const hookReturn = useGenerateImage({
     threadId,
-    fetcher: (input) =>
+    fetcher: (input, options) =>
       generateImageStreamFn({
         data: {
           ...input,
           prompt: resolveMediaPrompt(input.prompt).text,
-          threadId,
+          threadId: options.threadId,
         },
       }),
     hydrateGeneration: (id) => getImageHydrationFn({ data: id }),

@@ -34,6 +34,7 @@ async function sentBody(request: ToolRequest) {
     { tool_choice?: 'none' }
   >({ accountId: 'test-account', apiKey: 'test-key', fetch }, model)
   for await (const _ of adapter.chatStream({
+    threadId: 'thread-1',
     logger,
     model,
     messages,

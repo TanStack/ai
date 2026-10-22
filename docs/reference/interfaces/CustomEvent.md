@@ -3,7 +3,7 @@ id: CustomEvent
 title: CustomEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1745](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1745)
+Defined in: packages/ai/src/types.ts:1754
 
 Custom event for extensibility.
 
@@ -17,8 +17,6 @@ Custom event for extensibility.
 
 - [`StructuredOutputCompleteEvent`](StructuredOutputCompleteEvent.md)
 - [`StructuredOutputStartEvent`](StructuredOutputStartEvent.md)
-- [`ApprovalRequestedEvent`](ApprovalRequestedEvent.md)
-- [`ToolInputAvailableEvent`](ToolInputAvailableEvent.md)
 - [`UIResourceEvent`](UIResourceEvent.md)
 - [`SandboxFileCustomEvent`](SandboxFileCustomEvent.md)
 - [`SandboxFileDiffEvent`](SandboxFileDiffEvent.md)
@@ -42,7 +40,7 @@ Custom event for extensibility.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1747](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1747)
+Defined in: packages/ai/src/types.ts:1756
 
 Extra information attached to this event.
 
@@ -60,4 +58,4 @@ Omit.metadata
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1746](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1746)
+Defined in: packages/ai/src/types.ts:1755

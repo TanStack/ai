@@ -50,12 +50,11 @@ export async function repoReportPost(request: Request): Promise<Response> {
   let data: ReportBody
   try {
     const body = (await request.json()) as {
-      data?: ReportBody
       forwardedProps?: ReportBody
     }
-    const layer = body.data ?? body.forwardedProps
+    const layer = body.forwardedProps
     if (layer == null || typeof layer !== 'object') {
-      throw new Error('body.data (or forwardedProps) is required')
+      throw new Error('body.forwardedProps is required')
     }
     data = layer
   } catch (error) {

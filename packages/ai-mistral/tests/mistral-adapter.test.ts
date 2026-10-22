@@ -563,7 +563,7 @@ describe('Mistral AG-UI event emission', () => {
     expect(toolStartChunk).toBeDefined()
     if (toolStartChunk?.type === 'TOOL_CALL_START') {
       expect(toolStartChunk.toolCallId).toBe('call_abc123')
-      expect(toolStartChunk.toolName).toBe('lookup_weather')
+      expect(toolStartChunk.toolCallName).toBe('lookup_weather')
     }
 
     const toolArgsChunks = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
@@ -573,7 +573,7 @@ describe('Mistral AG-UI event emission', () => {
     expect(toolEndChunk).toBeDefined()
     if (toolEndChunk?.type === 'TOOL_CALL_END') {
       expect(toolEndChunk.toolCallId).toBe('call_abc123')
-      expect(toolEndChunk.toolName).toBe('lookup_weather')
+      expect(toolEndChunk.toolCallName).toBe('lookup_weather')
       expect(toolEndChunk.input).toEqual({
         location: 'Berlin',
         note: null,
@@ -700,6 +700,7 @@ describe('Mistral AG-UI event emission', () => {
 
     for await (const chunk of chat({
       ...createChatOptions({ adapter }),
+      threadId: 'thread-1',
       messages: [{ role: 'user', content: 'Ask me a question' }],
       tools: [askUser],
       agentLoopStrategy: maxIterations(3),

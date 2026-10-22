@@ -2,7 +2,7 @@
 title: Cohere
 id: cohere-adapter
 order: 11
-description: "Use Cohere with TanStack AI via @tanstack/ai-cohere: embed-v4.0 multimodal embeddings for semantic search and RAG, plus rerank models for relevance."
+description: "Use Cohere in TanStack AI with @tanstack/ai-cohere: embed-v4.0 multimodal embeddings for semantic search and RAG, and rerank models to sort results by relevance."
 keywords:
   - tanstack ai
   - cohere
@@ -16,14 +16,11 @@ keywords:
   - adapter
 ---
 
-The Cohere adapter covers the two retrieval steps of a RAG pipeline:
+The Cohere adapter embeds text and images, and it reranks documents for a query. This package has no `chat()`, `summarize()`, or media generation.
 
-- **Embeddings** (`cohereEmbedding`): turn text, images, and fused text+image inputs into vectors with `embed()`.
-- **Reranking** (`cohereRerank`): reorder candidate documents by relevance to a query with `rerank()`.
+For those, use [OpenAI](./openai), [Anthropic](./anthropic), or [Gemini](./gemini). The adapter calls the HTTP API of Cohere with `fetch`, with no SDK dependency.
 
-It does not support `chat()`, `summarize()`, or media generation. Use OpenAI, Anthropic, or Gemini for those. The adapter talks to Cohere's HTTP API directly over `fetch`, with no SDK dependency.
-
-## Installation
+## 1. Install
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
@@ -38,7 +35,17 @@ octane: @tanstack/ai @tanstack/ai-cohere
 
 <!-- ::end:tabs -->
 
-## Embeddings
+## 2. Set the API key
+
+Get a key from the [Cohere dashboard](https://dashboard.cohere.com/api-keys). Put it in the environment of your server:
+
+```bash
+COHERE_API_KEY=your-cohere-api-key
+```
+
+`cohereEmbedding` and `cohereRerank` read `COHERE_API_KEY`. To pass the key in code, see [Explicit API keys](#explicit-api-keys).
+
+## 3. Embed documents
 
 ```typescript
 import { embed } from "@tanstack/ai";
@@ -54,11 +61,37 @@ console.log(result.embeddings[0]?.vector);
 console.log(result.usage?.promptTokens);
 ```
 
-`inputType` is required by Cohere's API. Use `search_document` at index time and `search_query` at query time (or `classification` / `clustering` for those workloads). TanStack AI enforces this at the type level, so `modelOptions` is required for Cohere embedding calls.
+The Cohere API requires `inputType`, and the types require `modelOptions` on every Cohere embedding call:
 
-### Multimodal Embeddings
+- `search_document`: when you index documents.
+- `search_query`: when you embed the search query.
+- `classification` or `clustering`: for those workloads.
 
-embed-v4.0 embeds images alongside text. An image part produces an image vector. A nested array of parts (`[textPart, imagePart]`) fuses text and image into one vector, which suits product catalogs and screenshot search. The outer array is the item list, so nest to fuse:
+## 4. Rerank results
+
+```typescript
+import { rerank } from "@tanstack/ai";
+import { cohereRerank } from "@tanstack/ai-cohere";
+
+const { rerankedDocuments } = await rerank({
+  adapter: cohereRerank("rerank-v3.5"),
+  query: "talk about rain",
+  documents: ["sunny day at the beach", "rainy afternoon in the city"],
+});
+
+console.log(rerankedDocuments[0]); // 'rainy afternoon in the city'
+```
+
+You now have both retrieval steps. For object documents, RAG pipelines, the options, and the result shape, see [Reranking](../rerank/rerank).
+
+## Multimodal embeddings
+
+embed-v4.0 embeds images next to text:
+
+- An image part gives an image vector.
+- A nested array of parts (`[textPart, imagePart]`) joins text and image into one vector. Use it for product catalogs and screenshot search.
+
+The outer array is the list of items, so nest the parts to join them:
 
 ```typescript
 import { embed } from "@tanstack/ai";
@@ -96,27 +129,11 @@ const result = await embed({
 console.log(result.embeddings.length); // 2
 ```
 
-Cohere's API does not fetch remote image URLs. Pass base64 data (or a `data:` URI), or opt into adapter-side downloading:
+The Cohere API does not fetch remote image URLs. Pass base64 data (or a `data:` URI), or turn on [downloads in the adapter](#image-urls).
 
-```typescript
-import { embed } from "@tanstack/ai";
-import { cohereEmbedding } from "@tanstack/ai-cohere";
+## Shorter vectors
 
-const adapter = cohereEmbedding("embed-v4.0", { allowUrlFetch: true });
-
-const result = await embed({
-  adapter,
-  input: {
-    type: "image",
-    source: { type: "url", value: "https://example.com/guitar.png" },
-  },
-  modelOptions: { inputType: "search_document" },
-});
-```
-
-### Requesting Dimensions
-
-embed-v4.0 supports Matryoshka output dimensions via the top-level `dimensions` option:
+embed-v4.0 takes the top-level `dimensions` option (`256`, `512`, `1024`, or `1536`):
 
 ```typescript
 import { embed } from "@tanstack/ai";
@@ -130,24 +147,9 @@ const result = await embed({
 });
 ```
 
-## Reranking
+## Rerank options
 
-```typescript
-import { rerank } from "@tanstack/ai";
-import { cohereRerank } from "@tanstack/ai-cohere";
-
-const { rerankedDocuments } = await rerank({
-  adapter: cohereRerank("rerank-v3.5"),
-  query: "talk about rain",
-  documents: ["sunny day at the beach", "rainy afternoon in the city"],
-});
-
-console.log(rerankedDocuments[0]); // 'rainy afternoon in the city'
-```
-
-For the full reranking guide, with object documents, RAG pipelines, options, and the result shape, see [Reranking](../rerank/rerank).
-
-Per-request rerank options go on `modelOptions`:
+Rerank options for one request go in `modelOptions`:
 
 ```typescript
 import { rerank } from "@tanstack/ai";
@@ -167,30 +169,18 @@ console.log(ranking);
 
 ## Models
 
-| Model                      | Capability | Description                                                       |
-| -------------------------- | ---------- | ----------------------------------------------------------------- |
-| `embed-v4.0`               | Embeddings | Multimodal (text + images), Matryoshka `dimensions` support        |
-| `rerank-v3.5`              | Reranking  | Latest multilingual reranker (recommended)                         |
-| `rerank-english-v3.0`      | Reranking  | English-optimized reranker                                         |
-| `rerank-multilingual-v3.0` | Reranking  | Multilingual reranker                                              |
+| Model | Activity | Notes |
+| --- | --- | --- |
+| `embed-v4.0` | Embeddings | Text and images, `dimensions` support |
+| `rerank-v3.5` | Reranking | Newest multilingual reranker. Recommended |
+| `rerank-english-v3.0` | Reranking | Tuned for English |
+| `rerank-multilingual-v3.0` | Reranking | Multilingual reranker |
 
-## Environment Variables
+## Advanced
 
-Both adapters read your API key from the environment:
+### Explicit API keys
 
-```bash
-COHERE_API_KEY=your-cohere-api-key
-```
-
-| Variable         | Required | Description         |
-| ---------------- | -------- | ------------------- |
-| `COHERE_API_KEY` | Yes      | Your Cohere API key |
-
-Get a key from the [Cohere dashboard](https://dashboard.cohere.com/api-keys).
-
-## Explicit API Keys
-
-To pass a key directly instead of reading the environment, use the `create*` factories:
+To pass a key in code, not from the environment, use the `create*` factories:
 
 ```typescript
 import {
@@ -205,9 +195,29 @@ const embedAdapter = createCohereEmbedding(
 const rerankAdapter = createCohereRerank("rerank-v3.5", "your-cohere-api-key");
 ```
 
-## Behind a proxy
+### Image URLs
 
-Route every request through a gateway, such as Cloudflare AI Gateway or a corporate proxy, with `baseURL` and `defaultHeaders`. These two option names are the same on every TanStack AI adapter, so one gateway config works for all of them.
+To let the adapter download `http(s)` image URLs and send them as base64, set `allowUrlFetch`:
+
+```typescript
+import { embed } from "@tanstack/ai";
+import { cohereEmbedding } from "@tanstack/ai-cohere";
+
+const adapter = cohereEmbedding("embed-v4.0", { allowUrlFetch: true });
+
+const result = await embed({
+  adapter,
+  input: {
+    type: "image",
+    source: { type: "url", value: "https://example.com/guitar.png" },
+  },
+  modelOptions: { inputType: "search_document" },
+});
+```
+
+### Behind a proxy
+
+Send every request through a gateway, such as Cloudflare AI Gateway or a corporate proxy, with `baseURL` and `defaultHeaders`. These two option names are the same on every TanStack AI adapter, so one gateway config works for all of them.
 
 ```typescript
 import { createCohereEmbedding } from "@tanstack/ai-cohere";
@@ -220,35 +230,19 @@ const adapter = createCohereEmbedding("embed-v4.0", process.env.COHERE_API_KEY!,
 
 `baseUrl` and `headers` are aliases of the same two options. If you set both forms, `baseURL` and `defaultHeaders` win.
 
-## API Reference
+### API reference
 
-### `cohereEmbedding(model, config?)`
+| Factory | Creates |
+| --- | --- |
+| `cohereEmbedding(model, config?)` | Embedding adapter. Reads `COHERE_API_KEY` |
+| `createCohereEmbedding(model, apiKey, config?)` | Embedding adapter with an explicit API key |
+| `cohereRerank(model, config?)` | Rerank adapter. Reads `COHERE_API_KEY` |
+| `createCohereRerank(model, apiKey, config?)` | Rerank adapter with an explicit API key |
 
-Creates an embedding adapter using `COHERE_API_KEY` from the environment.
+Config for both adapters:
 
-- `model`: `"embed-v4.0"`
-- `config.baseURL`: override the API base URL (default `https://api.cohere.com`). `baseUrl` is an alias.
+- `config.baseURL`: the API base URL (default `https://api.cohere.com`). `baseUrl` is an alias.
 - `config.defaultHeaders`: extra request headers. `headers` is an alias.
-- `config.allowUrlFetch`: download `http(s)` image URLs and inline them as base64 (default `false`)
+- `config.allowUrlFetch` (embeddings only): download `http(s)` image URLs and send them as base64. Default `false`.
 
-### `createCohereEmbedding(model, apiKey, config?)`
-
-Same as `cohereEmbedding` with an explicit API key.
-
-### `cohereRerank(model, config?)`
-
-Creates a rerank adapter using `COHERE_API_KEY` from the environment.
-
-- `model`: one of the rerank models above
-- `config.baseURL`: override the API base URL (default `https://api.cohere.com`). `baseUrl` is an alias.
-- `config.defaultHeaders`: extra request headers. `headers` is an alias.
-
-### `createCohereRerank(model, apiKey, config?)`
-
-Same as `cohereRerank` with an explicit API key.
-
-## Next Steps
-
-- [Embeddings guide](../embeddings.md): the full `embed()` API
-- [Reranking guide](../rerank/rerank): full walkthrough including RAG pipelines
-- [Generation Hooks](../media/generation-hooks.md): usage and lifecycle middleware
+For the full APIs, see the [Embeddings guide](../embeddings.md), the [Reranking guide](../rerank/rerank), and [Generation Hooks](../media/generation-hooks.md) for usage and lifecycle middleware.

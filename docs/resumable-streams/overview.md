@@ -1,7 +1,7 @@
 ---
 title: Resumable Streams
 id: overview
-description: "Reconnect to an in-flight AI response without re-running the model. Plug in a durability adapter, add a GET handler, and streams survive refreshes and dropped connections."
+description: "Reconnect to a running AI response after a refresh or a dropped connection, without a second model call. Add a durability adapter and a GET handler."
 keywords:
   - resumable streams
   - resume stream
@@ -12,49 +12,15 @@ keywords:
   - last-event-id
 ---
 
-A resumable stream lets a client reconnect to an in-flight response after a page
-refresh, a dropped connection, or a suspended tab, without calling the provider
-again.
+A resumable stream keeps the reply log when the connection drops. A refresh continues that reply and does not call the model again.
 
-You turn it on by plugging a **durability adapter** into your streaming
-response. The adapter records every chunk to an ordered log before delivery and
-tags each event with an opaque offset. On reconnect the client resends the last
-offset and the server replays from the log instead of re-running the model.
+The server records every chunk in a log. The client reconnects and gets only the chunks it missed.
 
-This is the delivery layer: it resumes a live stream. Saving the conversation so
-it survives a reload or reaches another device is a separate layer. For how the
-two fit together and when to pick each, see
-[Durability and Persistence](../persistence/overview).
+## Quick setup
 
-The log is kept per **run** — one `RUN_STARTED` → `RUN_FINISHED` execution, not
-a whole conversation. If the thread/run distinction is new, see
-[Threads and runs](../chat/stream-events#threads-and-runs).
+### 1. Record the stream on the server
 
-Three steps: pick an adapter, wrap your response with it, add a `GET` handler.
-
-## 1. Pick an adapter
-
-- `memoryStream(request)` from `@tanstack/ai` keeps the log in process memory.
-  Zero setup, ideal for development. Single process only.
-- `durableStream(request, options)` from `@tanstack/ai-durable-stream` writes to
-  an external [Durable Streams](https://durablestreams.com) backend. Use this in
-  production, where requests span many processes.
-- `upstashStream(request)` from `@upstash/agentkit-tanstack-ai` writes to Upstash
-  Redis Streams. It is a third-party adapter, see
-  [Upstash](../community-adapters/upstash#resumable-streams).
-
-Using a different store (Redis, Postgres, a queue)? Implement the four-method
-`StreamDurability` interface: see [Custom Durability Adapter](./custom-adapter).
-
-## 2. Wrap your server response
-
-Pass the adapter as `durability` to one of these helpers:
-
-- `toServerSentEventsResponse` (SSE). Its `GET` handler uses `resumeServerSentEventsResponse`.
-- `toHttpResponse` (NDJSON). Its `GET` handler uses `resumeHttpResponse`.
-- `toJsonResponse` (one JSON body per request). Its `GET` handler uses `resumeJsonResponse`. See [JSON](../transports/json).
-
-Add a `GET` handler so a reload or a second tab can re-attach to a run:
+Pass a durability adapter to the response, and add a `GET` handler that replays the log:
 
 ```ts
 import {
@@ -69,7 +35,7 @@ import { openaiText } from '@tanstack/ai-openai'
 export async function POST(request: Request) {
   const { messages, threadId, runId } = await chatParamsFromRequest(request)
   const stream = chat({
-    adapter: openaiText('gpt-5.5'),
+    adapter: openaiText('gpt-6.1-sol'),
     messages,
     threadId,
     runId,
@@ -85,24 +51,50 @@ export async function GET(request: Request) {
 }
 ```
 
-For production, swap `memoryStream(request)` for
-`durableStream(request, options)`. Everything else stays the same.
+`memoryStream(request)` keeps the log in process memory. It needs no setup, and it is good for development.
 
-That `GET` only ever *replays*: the run's producer is the `POST` that started it,
-so if that host dies the log stops growing. For a sandboxed coding agent, whose
-work outlives the request that launched it, the same `GET` can also take the run
-over and keep driving it — pass `driver: sandboxRunDriver({ … })` alongside the
-adapter. See [Takeover & Detached Runs](../sandbox/takeover).
+### 2. Use any HTTP connection in the client
 
-> **One gotcha:** on a dropped connection the client reconnects by re-sending
-> the same `POST`. The model is not re-run (the log is replayed), but any side
-> effects your handler runs around the stream (saving the user's message,
-> creating a run row, counting usage) would fire a second time. Guard them
-> behind a resume check so they only run on a fresh request.
+You do not wire anything. `useChat` reconnects by itself:
 
-The adapter already knows whether this is a resume: `resumeFrom()` returns the
-offset on a reconnect and `null` on a fresh request. Build the adapter once,
-check it, then reuse it for the response:
+```tsx
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+
+export function Chat() {
+  const { messages, sendMessage } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
+  })
+  return (
+    <div>
+      {messages.map((message) => (
+        <div key={message.id}>{message.role}</div>
+      ))}
+      <button type="button" onClick={() => void sendMessage('Hello')}>
+        Send
+      </button>
+    </div>
+  )
+}
+```
+
+Send a long prompt. While the reply streams, turn the network off in your browser dev tools, then turn it on again. The reply continues from where it stopped.
+
+## How it works
+
+- The durability adapter writes every chunk to an ordered log before it sends the chunk.
+- Each event gets an opaque offset.
+- On reconnect, the client sends the last offset it got. The server replays the log from there.
+
+The log is kept per **run**: one execution from `RUN_STARTED` to `RUN_FINISHED`, not a whole conversation. If threads and runs are new to you, see [Threads and runs](../chat/stream-events#threads-and-runs).
+
+This is the delivery layer. It resumes a live stream. To keep the conversation after a reload or on another device, you need persistence, which is a separate layer. See [Persistence](../persistence/overview). Most apps use both.
+
+## Guard one-time side effects
+
+On a dropped connection, the client reconnects with the same `POST`. The log replays, so the model does not run again. But other work in your handler runs a second time. Examples are a save of the user message, a new run row, or a usage count.
+
+`resumeFrom()` tells you which case you have. It returns the offset on a reconnect, and `null` on a new request. Make the adapter once, check it, then use it for the response:
 
 ```ts
 import {
@@ -119,14 +111,14 @@ export async function POST(request: Request) {
   const durability = memoryStream(request)
   const { messages, threadId, runId } = await chatParamsFromRequest(request)
 
-  // null on a fresh request, non-null on a reconnect. Do one-time work once.
+  // null on a new request, an offset on a reconnect. Do one-time work once.
   if (durability.resumeFrom() === null) {
     await saveUserMessage(threadId, messages)
     await countUsage(runId)
   }
 
   const stream = chat({
-    adapter: openaiText('gpt-5.5'),
+    adapter: openaiText('gpt-6.1-sol'),
     messages,
     threadId,
     runId,
@@ -137,50 +129,49 @@ export async function POST(request: Request) {
 }
 ```
 
-## 3. Client: nothing to wire
+## Pick an adapter for production
 
-Reconnect is automatic. Use `useChat` with any HTTP connection adapter and a
-dropped connection resumes itself:
+`memoryStream` works in one process only. In production, requests reach many processes, so use a shared log:
 
-```tsx
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+| Adapter | Package | Use it for |
+| --- | --- | --- |
+| `memoryStream(request)` | `@tanstack/ai` | Development, one process |
+| `durableStream(request, options)` | `@tanstack/ai-durable-stream` | Production, on a [Durable Streams](https://durablestreams.com) backend |
+| `upstashStream(request)` | `@upstash/agentkit-tanstack-ai` | Upstash Redis Streams. A third-party adapter, see [Upstash](../community-adapters/upstash#resumable-streams) |
 
-export function Chat() {
-  const chat = useChat({
-    connection: fetchServerSentEvents('/api/chat'),
-  })
+To change adapters, replace `memoryStream(request)`. The rest of the code stays the same.
 
-  return <button onClick={() => void chat.sendMessage('Hello')}>Send</button>
-}
-```
+For a different store (Redis, Postgres, a queue), implement the four-method `StreamDurability` interface. See [Custom Durability Adapter](./custom-adapter).
 
-For NDJSON, swap `fetchServerSentEvents` for `fetchHttpStream` (with the server
-on `toHttpResponse`). The XHR adapters (`xhrServerSentEvents`, `xhrHttpStream`)
-work the same way, for runtimes without streaming `fetch`.
+## Other transports
 
-For one JSON body per request, use `fetchJson` with the server on
-`toJsonResponse`. The client polls until the run ends. See
-[JSON](../transports/json#long-runs-and-reloads).
+Each response helper has a matching resume helper for the `GET`:
 
-## Or go full-duplex: WebSockets
+| Response helper | Format | Resume helper | Client connection |
+| --- | --- | --- | --- |
+| `toServerSentEventsResponse` | SSE | `resumeServerSentEventsResponse` | `fetchServerSentEvents` or `xhrServerSentEvents` |
+| `toHttpResponse` | NDJSON | `resumeHttpResponse` | `fetchHttpStream` or `xhrHttpStream` |
+| `toJsonResponse` | One JSON body per request | `resumeJsonResponse` | `fetchJson` |
 
-SSE and NDJSON open one connection per turn. If you want a single persistent
-socket that carries the whole conversation instead, wrap it with
-`toWebSocketStream` (or `toWebSocketResponse` on Cloudflare) and pair it with
-the client's `webSocket()` adapter:
+- The XHR connections work the same way, for runtimes without streaming `fetch`.
+- With `fetchJson`, the client polls until the run ends. See [JSON](../transports/json#long-runs-and-reloads).
+
+## Use one WebSocket for the whole chat
+
+SSE and NDJSON open one connection per turn. For one socket that stays open for the full conversation, use `toWebSocketStream` on the server (or `toWebSocketResponse` on Cloudflare), with the `webSocket()` connection in the client:
 
 ```ts
 import { chat, memoryStream, toWebSocketStream } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import type { WebSocketLike } from '@tanstack/ai'
 
-// `socket` is a server socket you already accepted (see WebSockets for how,
-// on Node vs Cloudflare) and `request` is the handshake request.
-function handleChatSocket(socket: WebSocketLike, request: Request) {
+// `socket` is a server socket that you already accepted (see WebSockets for
+// Node and Cloudflare) and `request` is the handshake request.
+export function handleChatSocket(socket: WebSocketLike, request: Request) {
   toWebSocketStream(socket, request, {
     durability: (ctx) => memoryStream(ctx.request),
     onRun: ({ messages, threadId, runId }) =>
-      chat({ adapter: openaiText('gpt-5.5'), messages, threadId, runId }),
+      chat({ adapter: openaiText('gpt-6.1-sol'), messages, threadId, runId }),
   })
 }
 ```
@@ -191,16 +182,24 @@ import { useChat, webSocket } from '@tanstack/ai-react'
 const connection = webSocket('/api/chat-ws')
 
 export function Chat() {
-  const { messages, sendMessage } = useChat({ connection })
+  const { sendMessage } = useChat({ connection, threadId: 'support-chat' })
   return <button onClick={() => void sendMessage('Hello')}>Send</button>
 }
 ```
 
-The socket resumes the same way SSE and NDJSON do: a dropped connection
-reopens with the last offset and replays only what's missing. See
-[WebSockets](./websockets) for the wire protocol, reconnect details, and
-hosting on Node vs Cloudflare.
+A dropped socket opens again with the last offset and replays only what is missing. But closing the socket stops the run on the server, so the replay ends at the drop. The reply does not continue. [WebSockets](./websockets) covers the wire protocol, reconnects, and hosting.
 
-That covers the common case. For the durability contract, terminal and error
-handling, reconnect tuning, attaching to a run by id, Cloudflare deployment, and
-production process-death concerns, see [Advanced](./advanced).
+## Let another host take over a sandbox run
+
+The `GET` above only *replays*. The `POST` that started the run produces the chunks, so if that host stops, the log stops growing.
+
+A sandboxed coding agent does work that outlives the request that started it. For that case, the same `GET` can take the run over and keep it going. Pass `driver: sandboxRunDriver({ ... })` next to the adapter. See [Takeover & Detached Runs](../sandbox/takeover).
+
+## Advanced
+
+[Advanced](./advanced) covers these topics:
+
+- The durability contract, and how terminal events and errors work.
+- Reconnect tuning.
+- How to attach to a run by id.
+- Cloudflare deployment, and what happens when a process stops in production.

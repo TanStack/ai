@@ -40,6 +40,7 @@ export const Route = createFileRoute('/api/otel-media')({
           const { tracer, spans } = createLocalCaptureTracer()
 
           await generateImage({
+            threadId: 'otel-media',
             adapter,
             prompt,
             middleware: [otelMiddleware({ tracer, captureContent: true })],

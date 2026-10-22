@@ -3,7 +3,7 @@ id: MediaInputMetadata
 title: MediaInputMetadata
 ---
 
-Defined in: [packages/ai/src/types.ts:2308](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2308)
+Defined in: packages/ai/src/types.ts:2267
 
 Metadata convention for image / video / audio inputs to media generation.
 Carried on `ImagePart.metadata` / `VideoPart.metadata` / `AudioPart.metadata`
@@ -17,7 +17,7 @@ when used as conditioning inputs to `generateImage()` or `generateVideo()`.
 optional role?: MediaInputRole;
 ```
 
-Defined in: [packages/ai/src/types.ts:2310](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2310)
+Defined in: packages/ai/src/types.ts:2269
 
 Optional role hint disambiguating the part's intent for the adapter
 
@@ -29,7 +29,7 @@ Optional role hint disambiguating the part's intent for the adapter
 optional tag?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2319](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2319)
+Defined in: packages/ai/src/types.ts:2278
 
 Optional user-defined label for this input (e.g. `'woman-in-red-dress'`).
 **Informational only** — adapters never read it and the SDK never

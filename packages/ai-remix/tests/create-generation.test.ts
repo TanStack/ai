@@ -6,7 +6,6 @@ import type { ImageGenerationResult } from '@tanstack/ai'
 function createMockHandle() {
   const controller = new AbortController()
   return {
-    id: 'handle-1',
     update: vi.fn(async () => new AbortController().signal),
     signal: controller.signal,
   }
@@ -22,6 +21,7 @@ describe('createGenerateImage', () => {
     }
 
     const gen = createGenerateImage(handle, {
+      threadId: 'thread-1',
       fetcher: async () => mockResult,
     })
 
@@ -35,7 +35,7 @@ describe('createGenerateImage', () => {
 describe('createGeneration', () => {
   it('throws when connection and fetcher are both missing', () => {
     const handle = createMockHandle()
-    expect(() => createGeneration(handle, {})).toThrow(
+    expect(() => createGeneration(handle, { threadId: 'thread-1' })).toThrow(
       'createGeneration requires either a connection or fetcher option',
     )
   })

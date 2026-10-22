@@ -7,7 +7,7 @@ title: realtimeToken
 function realtimeToken(options): Promise<RealtimeToken>;
 ```
 
-Defined in: [packages/ai/src/realtime/index.ts:29](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/index.ts#L29)
+Defined in: packages/ai/src/realtime/index.ts:29
 
 Generate a realtime token using the provided adapter.
 

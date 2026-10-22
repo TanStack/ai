@@ -58,6 +58,7 @@ async function sentBody(model: AnthropicChatModel, options: CallOptions) {
     fetch: captureFetch,
   })
   for await (const _ of adapter.chatStream({
+    threadId: 'thread-1',
     logger,
     model,
     messages: [{ role: 'user', content: 'Weather in Paris?' }],

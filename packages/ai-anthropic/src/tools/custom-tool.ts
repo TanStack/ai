@@ -23,9 +23,6 @@ export interface CustomToolConfig {
   cache_control?: CacheControl | null
 }
 
-/** @deprecated Renamed to `CustomToolConfig`. Will be removed in a future release. */
-export type CustomTool = CustomToolConfig
-
 export function convertCustomToolToAdapterFormat(tool: Tool): CustomToolConfig {
   const metadata =
     (tool.metadata as { cacheControl?: CacheControl | null } | undefined) || {}

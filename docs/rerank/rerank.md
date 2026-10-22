@@ -2,7 +2,7 @@
 title: Reranking
 id: rerank
 order: 1
-description: "Reorder candidate documents by relevance to a query with TanStack AI's rerank() API and the Cohere adapter — the precision step for RAG and search."
+description: "Sort candidate documents by how well they answer a query with rerank(). Use it as the precision step for RAG and search, with Cohere or OpenRouter."
 keywords:
   - tanstack ai
   - rerank
@@ -14,76 +14,34 @@ keywords:
   - cohere
 ---
 
-You have a query and a list of candidate documents — chunks from a vector
-search, rows from a keyword query, FAQ entries — and you need them ordered by
-how well they actually answer the query. Vector similarity gets you close, but
-a dedicated reranking model is far more precise. By the end of this guide
-you'll have that list reordered, with a relevance score per document.
+`rerank()` sorts candidate documents by relevance to a query. Use it after vector search or keyword search.
 
-`rerank()` is the precision step in a retrieval pipeline: retrieve a broad set
-of candidates cheaply, then rerank to surface the few that matter.
+`rerank()` sends the query and the candidates to a reranking model. You get the documents back sorted by relevance, with a score for each.
 
-## Providers
+## Quick setup
 
-Reranking is available from two adapters today:
-
-- **Cohere** (`@tanstack/ai-cohere`) — `cohereRerank('rerank-v3.5')`, talking to Cohere directly.
-- **OpenRouter** (`@tanstack/ai-openrouter`) — `openRouterRerank('cohere/rerank-v3.5')`, routing rerank through your existing OpenRouter key.
-
-Both implement the same `rerank()` activity — swap the adapter, keep the call.
-
-## Installation
-
-Cohere:
+1. Install the core package and the Cohere adapter:
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
-react: @tanstack/ai-cohere
-vue: @tanstack/ai-cohere
-solid: @tanstack/ai-cohere
-svelte: @tanstack/ai-cohere
-preact: @tanstack/ai-cohere
-angular: @tanstack/ai-cohere
-vanilla: @tanstack/ai-cohere
-octane: @tanstack/ai-cohere
+react: @tanstack/ai @tanstack/ai-cohere
+vue: @tanstack/ai @tanstack/ai-cohere
+solid: @tanstack/ai @tanstack/ai-cohere
+svelte: @tanstack/ai @tanstack/ai-cohere
+preact: @tanstack/ai @tanstack/ai-cohere
+angular: @tanstack/ai @tanstack/ai-cohere
+vanilla: @tanstack/ai @tanstack/ai-cohere
+octane: @tanstack/ai @tanstack/ai-cohere
 
 <!-- ::end:tabs -->
 
-OpenRouter:
+2. Put your key on the server. The adapter reads it at runtime:
 
-<!-- ::start:tabs variant="package-manager" mode="install" -->
+```bash
+COHERE_API_KEY=your-cohere-api-key
+```
 
-react: @tanstack/ai-openrouter
-vue: @tanstack/ai-openrouter
-solid: @tanstack/ai-openrouter
-svelte: @tanstack/ai-openrouter
-preact: @tanstack/ai-openrouter
-angular: @tanstack/ai-openrouter
-vanilla: @tanstack/ai-openrouter
-octane: @tanstack/ai-openrouter
-
-<!-- ::end:tabs -->
-
-Peer dependency:
-
-<!-- ::start:tabs variant="package-manager" mode="install" -->
-
-react: @tanstack/ai
-vue: @tanstack/ai
-solid: @tanstack/ai
-svelte: @tanstack/ai
-preact: @tanstack/ai
-angular: @tanstack/ai
-vanilla: @tanstack/ai
-octane: @tanstack/ai
-
-<!-- ::end:tabs -->
-
-## Basic Usage
-
-Pass a `query` and an array of `documents`. The result's `rerankedDocuments`
-are ordered most-relevant first, and `ranking` carries the relevance score and
-the original index of each.
+3. Call `rerank()` on the server:
 
 ```typescript
 import { rerank } from '@tanstack/ai'
@@ -100,11 +58,116 @@ console.log(rerankedDocuments[0]) // 'rainy afternoon in the city'
 console.log(ranking[0]) // { index: 1, score: 0.98, document: 'rainy afternoon in the city' }
 ```
 
-The adapter reads `COHERE_API_KEY` from the environment. To pass a key
-explicitly, use `createCohereRerank('rerank-v3.5', 'co-...')`.
+The most relevant document is now first.
 
-To rerank through OpenRouter instead, swap the adapter — everything else stays
-the same:
+## How it works
+
+- `rerankedDocuments` holds your documents, most relevant first.
+- `ranking` holds the same order with a `score` and the original `index` for each document.
+- `topN` keeps only the best N results. Leave it out to get all of them back.
+- Every rerank adapter uses the same `rerank()` call. To change provider, change the adapter.
+
+## Use it in a RAG pipeline
+
+Reranking is the second stage after a broad, cheap retrieval. Fetch many candidates with vector search. Then rerank and keep only the best few for the prompt:
+
+```typescript ignore
+import { rerank } from '@tanstack/ai'
+import { cohereRerank } from '@tanstack/ai-cohere'
+import { vectorSearch } from './my-vector-store'
+
+async function retrieveContext(query: string) {
+  // 1. Fetch many candidates cheaply.
+  const candidates = await vectorSearch(query, { limit: 50 })
+
+  // 2. Rerank and keep the most relevant few for the prompt.
+  const { rerankedDocuments } = await rerank({
+    adapter: cohereRerank('rerank-v3.5'),
+    query,
+    documents: candidates.map((c) => c.text),
+    topN: 5,
+  })
+
+  return rerankedDocuments
+}
+```
+
+To make the vectors for that first stage, see [Embeddings](../embeddings).
+
+## Rerank objects, not only strings
+
+Pass JSON-serializable objects to keep an id or metadata with each document. The result gives back your original object, with full types:
+
+```typescript
+import { rerank } from '@tanstack/ai'
+import { cohereRerank } from '@tanstack/ai-cohere'
+
+const chunks = [
+  { id: 'doc-1', text: 'A heavy gaming desktop with an RTX card.' },
+  { id: 'doc-2', text: 'A lightweight ultrabook with all-day battery.' },
+]
+
+const { ranking } = await rerank({
+  adapter: cohereRerank('rerank-v3.5'),
+  query: 'best laptop for travel',
+  documents: chunks,
+})
+
+// `document` is the original object, so `id` is typed.
+console.log(ranking[0]?.document.id) // 'doc-2'
+```
+
+## Call it from the browser
+
+`rerank()` needs your API key, so it runs on the server. Put it in a route and call the route from the client.
+
+Server route:
+
+```typescript
+import { rerank } from '@tanstack/ai'
+import { cohereRerank } from '@tanstack/ai-cohere'
+
+export async function POST(request: Request) {
+  const body: unknown = await request.json()
+  if (
+    typeof body !== 'object' ||
+    body === null ||
+    !('query' in body) ||
+    typeof body.query !== 'string' ||
+    !('documents' in body) ||
+    !Array.isArray(body.documents)
+  ) {
+    return new Response('Invalid request body', { status: 400 })
+  }
+
+  const result = await rerank({
+    adapter: cohereRerank('rerank-v3.5'),
+    query: body.query,
+    documents: body.documents,
+    topN: 3,
+  })
+
+  return Response.json(result)
+}
+```
+
+Client:
+
+```typescript
+export async function rerankDocuments(query: string, documents: Array<string>) {
+  const res = await fetch('/api/rerank', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, documents }),
+  })
+  const result = await res.json()
+  return result.rerankedDocuments
+}
+```
+
+## Use OpenRouter instead
+
+OpenRouter routes rerank through your existing OpenRouter key. Install `@tanstack/ai-openrouter`, then swap the adapter:
 
 ```typescript
 import { rerank } from '@tanstack/ai'
@@ -122,49 +185,34 @@ console.log(rerankedDocuments[0]) // 'rainy afternoon in the city'
 
 `openRouterRerank` reads `OPENROUTER_API_KEY` from the environment.
 
-## Reranking Object Documents
+## Try the example
 
-Documents don't have to be strings. Pass JSON-serializable objects and the
-original object is returned in the result — fully typed — so you can carry an
-id or metadata through the rerank and read it back off the ranked results.
+`examples/ts-react-rerank` is a small TanStack Start app. It shows a list of support articles, a query box, and the original order next to the reranked order with scores. A dropdown switches between the Cohere and OpenRouter adapters.
 
-```typescript
-import { rerank } from '@tanstack/ai'
-import { cohereRerank } from '@tanstack/ai-cohere'
-
-const chunks = [
-  { id: 'doc-1', text: 'A heavy gaming desktop with an RTX card.' },
-  { id: 'doc-2', text: 'A lightweight ultrabook with all-day battery.' },
-]
-
-const { ranking } = await rerank({
-  adapter: cohereRerank('rerank-v3.5'),
-  query: 'best laptop for travel',
-  documents: chunks,
-})
-
-// `document` is the original object — `id` is available and type-safe.
-console.log(ranking[0]?.document.id) // 'doc-2'
+```bash
+cd examples/ts-react-rerank
+pnpm install
+cp .env.example .env   # add COHERE_API_KEY and/or OPENROUTER_API_KEY
+pnpm dev
 ```
 
-Object documents are serialized to JSON before being sent to the provider; the
-ranking is mapped back to your original elements by index.
+## Advanced
 
-## Options
+### Options
 
-| Option        | Type                          | Description                                                              |
-| ------------- | ----------------------------- | ------------------------------------------------------------------------ |
-| `adapter`     | `RerankAdapter`               | A rerank adapter created with a model (e.g. `cohereRerank('rerank-v3.5')`) |
-| `query`       | `string`                      | The search query documents are scored against — required                |
-| `documents`   | `Array<string \| object>`     | Candidate documents to rerank — required                                 |
-| `topN`        | `number`                      | Return only the top N results                                            |
-| `abortSignal` | `AbortSignal`                 | Cancel the in-flight request                                             |
-| `modelOptions`| provider options              | Provider-specific options (see below)                                    |
-| `middleware`  | `Array<GenerationMiddleware>` | Observe-only lifecycle hooks (usage, finish, error, abort)               |
+| Option         | Type                          | Description                                                             |
+| -------------- | ----------------------------- | ----------------------------------------------------------------------- |
+| `adapter`      | `RerankAdapter`               | A rerank adapter with a model, for example `cohereRerank('rerank-v3.5')` |
+| `query`        | `string`                      | The query to score documents against. Required.                         |
+| `documents`    | `Array<string \| object>`     | The candidate documents. Required.                                      |
+| `topN`         | `number`                      | Return only the top N results                                           |
+| `abortSignal`  | `AbortSignal`                 | Cancel the request                                                      |
+| `modelOptions` | provider options              | Provider-specific options (see below)                                   |
+| `middleware`   | `Array<GenerationMiddleware>` | Observe-only lifecycle hooks (usage, finish, error, abort)              |
 
-### Provider Options
+### Cohere options
 
-Cohere rerank accepts:
+Cohere rerank accepts `maxTokensPerDoc`. It caps the tokens kept per document when Cohere splits long inputs. The Cohere default is 4096.
 
 ```typescript
 import { rerank } from '@tanstack/ai'
@@ -175,7 +223,6 @@ const { ranking } = await rerank({
   query: 'refund policy',
   documents: ['Returns accepted within 30 days.', 'Free shipping over $50.'],
   modelOptions: {
-    // Cap tokens kept per document when chunking long inputs (Cohere default: 4096).
     maxTokensPerDoc: 512,
   },
 })
@@ -183,7 +230,17 @@ const { ranking } = await rerank({
 console.log(ranking)
 ```
 
-## Result Shape
+### API keys
+
+- `cohereRerank` reads `COHERE_API_KEY`.
+- `openRouterRerank` reads `OPENROUTER_API_KEY`.
+- To pass a Cohere key in code, use `createCohereRerank('rerank-v3.5', 'co-...')`.
+
+### Object documents on the wire
+
+The adapter serializes object documents to JSON before it sends them to the provider. Then it maps the ranking back to your original objects by index.
+
+### Result shape
 
 ```typescript
 import type { TokenUsage } from '@tanstack/ai'
@@ -193,9 +250,9 @@ interface RerankResult<TDocument = string> {
   model: string
   // Scored results, most relevant first.
   ranking: Array<{ index: number; score: number; document: TDocument }>
-  // The documents reordered by relevance (ranking.map(r => r.document)).
+  // The documents in relevance order (ranking.map(r => r.document)).
   rerankedDocuments: Array<TDocument>
-  // Rerank typically bills in provider "search units"
+  // Rerank usually bills in provider "search units"
   // (usage.billed = { quantity, unit: 'units' }). Some providers (for example
   // OpenRouter) also report totalTokens and cost. Cohere reports only search
   // units and leaves token counts at 0.
@@ -203,94 +260,9 @@ interface RerankResult<TDocument = string> {
 }
 ```
 
-## Server Endpoint
+### Cancel a request
 
-Reranking runs on the server (it needs your API key). Wrap it in an API route
-and call it from the client over `fetch`:
-
-```typescript ignore
-// routes/api/rerank.ts
-import { rerank } from '@tanstack/ai'
-import { cohereRerank } from '@tanstack/ai-cohere'
-import { createFileRoute } from '@tanstack/react-router'
-
-export const Route = createFileRoute('/api/rerank')({
-  server: {
-    handlers: {
-      POST: async ({ request }) => {
-        const body: unknown = await request.json()
-        if (
-          typeof body !== 'object' ||
-          body === null ||
-          !('query' in body) ||
-          typeof body.query !== 'string' ||
-          !('documents' in body) ||
-          !Array.isArray(body.documents)
-        ) {
-          return new Response('Invalid request body', { status: 400 })
-        }
-        const { query, documents } = body
-        const topN = 'topN' in body && typeof body.topN === 'number'
-          ? body.topN
-          : undefined
-
-        const result = await rerank({
-          adapter: cohereRerank('rerank-v3.5'),
-          query,
-          documents,
-          topN,
-        })
-
-        return Response.json(result)
-      },
-    },
-  },
-})
-```
-
-```typescript ignore
-// client.ts — call the endpoint and use the reordered documents
-async function rerankDocuments(query: string, documents: Array<string>) {
-  const res = await fetch('/api/rerank', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, documents, topN: 3 }),
-  })
-  const result = await res.json()
-  return result.rerankedDocuments
-}
-```
-
-## In a RAG Pipeline
-
-Reranking shines as the second stage after a cheap, broad retrieval. Over-fetch
-candidates with vector search, then rerank to keep only the most relevant few
-for the prompt:
-
-```typescript ignore
-import { rerank } from '@tanstack/ai'
-import { cohereRerank } from '@tanstack/ai-cohere'
-import { vectorSearch } from './my-vector-store'
-
-async function retrieveContext(query: string) {
-  // 1. Over-fetch candidates cheaply.
-  const candidates = await vectorSearch(query, { limit: 50 })
-
-  // 2. Rerank and keep the most relevant handful for the prompt.
-  const { rerankedDocuments } = await rerank({
-    adapter: cohereRerank('rerank-v3.5'),
-    query,
-    documents: candidates.map((c) => c.text),
-    topN: 5,
-  })
-
-  return rerankedDocuments
-}
-```
-
-## Cancellation
-
-Pass an `abortSignal` to cancel an in-flight request:
+Pass an `abortSignal`:
 
 ```typescript
 import { rerank } from '@tanstack/ai'
@@ -309,11 +281,9 @@ const result = await rerank({
 console.log(result.rerankedDocuments)
 ```
 
-## Observability
+### Track usage
 
-Attach observe-only middleware to track usage, completion, errors, and
-cancellation — the same `GenerationMiddleware` contract the media activities
-use:
+Add observe-only middleware to track usage, completion, errors, and cancellation. It is the same `GenerationMiddleware` contract that the media activities use. See [Middleware](../advanced/middleware).
 
 ```typescript
 import { rerank } from '@tanstack/ai'
@@ -340,16 +310,12 @@ const result = await rerank({
 console.log(result.rerankedDocuments)
 ```
 
-> **Tip:** Pass `otelMiddleware()` to emit OpenTelemetry spans for rerank
-> calls. See [OpenTelemetry](../advanced/otel).
+> [!TIP]
+> Pass `otelMiddleware()` to emit OpenTelemetry spans for rerank calls. See [OpenTelemetry](../advanced/otel).
 
-## Environment Variables
+### Errors
 
-The Cohere rerank adapter uses:
-
-- `COHERE_API_KEY`: Your Cohere API key
-
-## Error Handling
+An empty `documents` array throws before any request goes out. Provider errors reject the promise:
 
 ```typescript
 import { rerank } from '@tanstack/ai'
@@ -369,25 +335,4 @@ try {
 }
 ```
 
-> Passing an empty `documents` array throws before any request is made.
-
-## Runnable Example
-
-`examples/ts-react-rerank` is a small TanStack Start app that runs everything
-on this page: a fixed corpus of support articles listed newest-first, a query
-box, and a side-by-side view of the original order against the reranked order
-with scores. The provider dropdown switches between the Cohere and OpenRouter
-adapters over the same `rerank()` call.
-
-```bash
-cd examples/ts-react-rerank
-pnpm install
-cp .env.example .env   # add COHERE_API_KEY and/or OPENROUTER_API_KEY
-pnpm dev
-```
-
-## Next Steps
-
-- [Cohere Adapter](../adapters/cohere) — models, configuration, and explicit API keys
-- [OpenRouter Adapter](../adapters/openrouter) — rerank through your OpenRouter key
-- [Middleware](../advanced/middleware) — lifecycle hooks for usage and errors
+For models and explicit keys, see the [Cohere adapter](../adapters/cohere) and the [OpenRouter adapter](../adapters/openrouter).

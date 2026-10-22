@@ -14,8 +14,15 @@
     "verbatimModuleSyntax": true,
     "types": ["node"],
     "strict": true,
-    "jsxImportSource": "octane"
+    "jsxImportSource": "octane",
+    // Mirrors the vite.config.ts alias: these subpaths ship as source but are
+    // missing from the package `exports`.
+    "paths": {
+      "@octanejs/testing-library/*": [
+        "./node_modules/@octanejs/testing-library/src/*"
+      ]
+    }
   },
-  "include": ["./src/"],
-  "exclude": ["node_modules", "dist", "tests"]
+  "include": ["./src/", "./tests/"],
+  "exclude": ["node_modules", "dist"]
 }

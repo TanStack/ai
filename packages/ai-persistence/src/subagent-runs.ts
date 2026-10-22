@@ -520,6 +520,8 @@ export function createSubagentRunRecorder(stores: {
     return {
       messages: [...task, ...transcript],
       ...(info !== undefined && { agent: info.name }),
+      // A resume reads the waiting call from here, not from the client card.
+      ...(waits && { pending: messages.slice(marker.base ?? 0) }),
     }
   }
 

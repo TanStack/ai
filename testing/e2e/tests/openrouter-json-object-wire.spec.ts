@@ -4,6 +4,7 @@ type JournalEntry = {
   headers?: Record<string, string>
   body: {
     response_format?: Record<string, unknown>
+    messages?: Array<{ role: string; content: unknown }>
   } | null
 }
 
@@ -36,6 +37,39 @@ test.describe('openrouter — json_object structured output', () => {
 
     expect(captured?.body?.response_format).toEqual({
       type: 'json_object',
+    })
+  })
+
+  test('sends json_object and the schema prompt for qwen/qwen3.7-flash (#1005)', async ({
+    request,
+    aimockPort,
+    testId,
+  }) => {
+    const response = await request.post(
+      `/api/openrouter-json-object-wire?via=catalog&testId=${encodeURIComponent(testId)}`,
+    )
+    expect(response.ok()).toBe(true)
+    expect(await response.json()).toEqual({
+      ok: true,
+      result: { name: 'Alice', age: 30 },
+    })
+
+    const journalResponse = await request.get(
+      `http://127.0.0.1:${aimockPort}/v1/_requests`,
+    )
+    const entries = (await journalResponse.json()) as Array<JournalEntry>
+    const captured = entries.find(
+      (entry) =>
+        entry.headers?.['x-test-id'] === testId &&
+        entry.body?.response_format != null,
+    )
+
+    expect(captured?.body?.response_format).toEqual({
+      type: 'json_object',
+    })
+    expect(captured?.body?.messages?.[0]).toEqual({
+      role: 'system',
+      content: expect.stringContaining('"required":["name","age"]'),
     })
   })
 })

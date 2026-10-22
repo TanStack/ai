@@ -5,9 +5,7 @@ order: 17
 description: "Give a chat() run host tools that save and fork this thread without letting the model pick thread ids."
 ---
 
-You want the agent to mark a version or open a new direction. The route already
-knows `threadId` and `runId`. `createSnapshotTools` turns those values into
-host tools that you spread into `chat()`.
+`createSnapshotTools` turns `threadId` and `runId` into host tools. Spread those tools into `chat()` so the agent can save or fork a snapshot.
 
 The model can pass a label or a checkpoint id on this thread. It cannot pass a
 thread id. Your factory mints every new thread id.

@@ -24,6 +24,7 @@ export const Route = createFileRoute('/api/azure-openai-wire')({
             ? body.testId
             : undefined
         const { text } = await chat({
+          threadId: 'azure-openai-wire',
           adapter: createAzureOpenaiText('gpt-5.5', 'azure-e2e-key', {
             baseURL: `${LLMOCK_DEFAULT_BASE}/openai/v1`,
             deploymentName: 'e2e-deployment',

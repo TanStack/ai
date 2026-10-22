@@ -239,6 +239,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
       })
@@ -262,6 +263,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hello' }],
       })
@@ -281,6 +283,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hello' }],
         systemPrompts: ['You are a helpful assistant'],
@@ -297,6 +300,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hello' }],
         modelOptions: {
@@ -335,6 +339,7 @@ describe('chat()', () => {
       })
 
       const result = await chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         stream: false,
@@ -375,6 +380,7 @@ describe('chat()', () => {
       })
 
       const result = await chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Weather in NYC?' }],
         tools: [serverTool('getWeather', executeSpy)],
@@ -429,6 +435,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Weather?' }],
         tools: [serverTool('getWeather', executeSpy)],
@@ -480,6 +487,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Do something' }],
         tools: [
@@ -539,6 +547,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Weather?' }],
         tools: [serverTool('getWeather', () => ({ temp: 72 }))],
@@ -595,6 +604,7 @@ describe('chat()', () => {
       })
       await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Check it' }],
           tools: [tool],
@@ -677,6 +687,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Weather and time?' }],
         tools: [
@@ -761,6 +772,7 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Search' }],
           tools: [clientTool('clientSearch')],
@@ -809,6 +821,7 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           runId: 'interrupt-run',
           messages: [{ id: 'user-1', role: 'user', content: 'Search' }],
@@ -841,6 +854,7 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           runId: 'interrupt-run',
           messages: [{ role: 'user', content: 'Search' }],
@@ -878,6 +892,7 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [
             {
@@ -931,6 +946,7 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ id: 'user-1', role: 'user', content: 'Search' }],
           tools: [clientTool('clientSearch')],
@@ -980,6 +996,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Search for test' }],
         tools: [clientTool('clientSearch')],
@@ -1028,6 +1045,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Search for test' }],
         tools: [clientTool('clientSearch')],
@@ -1094,6 +1112,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Search and notify' }],
         tools: [
@@ -1109,7 +1128,7 @@ describe('chat()', () => {
       expect(searchExecute).toHaveBeenCalledTimes(1)
 
       // TOOL_CALL_RESULT with content should be emitted for the server tool
-      // (TOOL_CALL_END is also emitted but `result`/`toolName` are stripped by strip-to-spec middleware)
+      // (TOOL_CALL_END is also emitted but `result` is stripped by strip-to-spec middleware)
       const toolResultChunks = chunks.filter(
         (c) =>
           c.type === 'TOOL_CALL_RESULT' && 'content' in c && (c as any).content,
@@ -1161,6 +1180,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           { role: 'user', content: 'Weather and notify?' },
@@ -1198,7 +1218,7 @@ describe('chat()', () => {
       expect(weatherExecute).toHaveBeenCalledTimes(1)
 
       // TOOL_CALL_RESULT with content should be emitted for the server tool
-      // (TOOL_CALL_END is also emitted but `result`/`toolName` are stripped by strip-to-spec middleware)
+      // (TOOL_CALL_END is also emitted but `result` is stripped by strip-to-spec middleware)
       const toolResultChunks = chunks.filter(
         (c) =>
           c.type === 'TOOL_CALL_RESULT' && 'content' in c && (c as any).content,
@@ -1251,6 +1271,7 @@ describe('chat()', () => {
         iterations: [[ev.runStarted(), ev.runFinished('stop')]],
       })
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           { role: 'user', content: 'Change it' },
@@ -2607,6 +2628,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Do something' }],
         tools: [clientTool('clientDanger', { needsApproval: true })],
@@ -2650,6 +2672,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Search for test' }],
         tools: [clientTool('clientSearch')],
@@ -2701,6 +2724,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Use the lazy tool' }],
         tools: [lazyServerTool('missingLazyTool', () => ({ ok: true }))],
@@ -2733,6 +2757,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           { role: 'user', content: 'Weather?' },
@@ -2787,6 +2812,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           { role: 'user', content: 'Weather?' },
@@ -2831,6 +2857,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           { role: 'user', content: 'Weather?' },
@@ -2879,6 +2906,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           { role: 'user', content: 'Weather and time?' },
@@ -2927,6 +2955,7 @@ describe('chat()', () => {
       const { adapter } = createMockAdapter({ iterations: [] })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           { role: 'user', content: 'Weather and notify?' },
@@ -2970,7 +2999,7 @@ describe('chat()', () => {
       ).toEqual([EventType.TOOL_CALL_RESULT])
     })
 
-    it('should replace pendingExecution placeholder with the real tool result and supply both toolCallName/toolName (issue #532)', async () => {
+    it('should replace pendingExecution placeholder with the real tool result (issue #532)', async () => {
       const executeSpy = vi.fn().mockReturnValue({ status: 'ok' })
 
       const { adapter, calls } = createMockAdapter({
@@ -2990,6 +3019,7 @@ describe('chat()', () => {
       // `approval-responded` part and converts the rest into ModelMessages,
       // which includes a placeholder `tool` message marked pendingExecution.
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           {
@@ -3083,6 +3113,7 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Look it up' }],
           tools: [serverTool('lookup', lookup)],
@@ -3153,6 +3184,7 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Look it up' }],
           tools: [serverTool('lookup', () => ({ found: true }))],
@@ -3208,6 +3240,7 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Remove and ask' }],
           tools: [
@@ -3258,6 +3291,7 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Look it up' }],
           tools: [serverTool('lookup', () => ({ found: true }))],
@@ -3301,6 +3335,7 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Look it up' }],
           tools: [serverTool('lookup', lookup)],
@@ -3358,6 +3393,7 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Look it up' }],
           tools: [serverTool('lookup', () => ({ found: true }))],
@@ -3389,6 +3425,7 @@ describe('chat()', () => {
 
       await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Look it up' }],
           tools: [serverTool('lookup', () => ({ found: true }))],
@@ -3421,6 +3458,7 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Ask' }],
           tools: [clientTool('ask')],
@@ -3453,6 +3491,7 @@ describe('chat()', () => {
       // A client history that still has the cut calls without results.
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [
             { role: 'user', content: 'Look up, remove, and ask' },
@@ -3503,6 +3542,7 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           interrupts: [review],
           middleware: [
@@ -3581,6 +3621,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Weather?' }],
         tools: [serverTool('getWeather', executeSpy)],
@@ -3613,6 +3654,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Repeat' }],
         tools: [serverTool('repeater', executeSpy)],
@@ -3647,6 +3689,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Repeat' }],
         tools: [serverTool('repeater', executeSpy)],
@@ -3691,6 +3734,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Go' }],
         tools: [serverTool('repeater', executeSpy)],
@@ -3731,6 +3775,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Fan out' }],
         tools: [serverTool('repeater', executeSpy)],
@@ -3786,6 +3831,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Fan out' }],
         tools: [serverTool('repeater', executeSpy)],
@@ -3824,6 +3870,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'None' }],
         tools: [serverTool('repeater', executeSpy)],
@@ -3859,6 +3906,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           { role: 'user', content: 'Resume with many pending tools' },
@@ -3949,6 +3997,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         abortController,
@@ -3981,6 +4030,7 @@ describe('chat()', () => {
       await expect(
         collectChunks(
           chat({
+            threadId: 'thread-1',
             adapter,
             messages: [
               {
@@ -4012,6 +4062,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
       })
@@ -4038,6 +4089,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
       })
@@ -4075,6 +4127,7 @@ describe('chat()', () => {
 
       // Use a plain JSON Schema (not Standard Schema) so no validation step
       const result = await chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Generate a person' }],
         outputSchema: {
@@ -4112,6 +4165,7 @@ describe('chat()', () => {
       })
 
       await chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Summarize weather' }],
         tools: [serverTool('getWeather', () => ({ temp: 72 }))],
@@ -4149,6 +4203,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Think about it' }],
       })
@@ -4184,6 +4239,7 @@ describe('chat()', () => {
 
       await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Think about it' }],
           middleware: [
@@ -4213,6 +4269,7 @@ describe('chat()', () => {
       const { adapter } = createMockAdapter({})
 
       const options = createChatOptions({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hello' }],
         modelOptions: { temperature: 0.7 },
@@ -4260,6 +4317,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Do two things' }],
         tools: [serverTool('tool1', tool1Spy), serverTool('tool2', tool2Spy)],
@@ -4303,6 +4361,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Check inventory' }],
         tools: [serverTool('getInventory', toolSpy)],
@@ -4354,6 +4413,7 @@ describe('chat()', () => {
 
       await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Check inventory' }],
           tools: [serverTool('getInventory', toolSpy)],
@@ -4401,6 +4461,7 @@ describe('chat()', () => {
 
         await collectChunks(
           chat({
+            threadId: 'thread-1',
             adapter,
             messages: [{ role: 'user', content: 'Check inventory' }],
             tools: [serverTool('getInventory', () => ({ result: 'ok' }))],
@@ -4447,6 +4508,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Check inventory' }],
         tools: [serverTool('getInventory', toolSpy)],
@@ -4471,6 +4533,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [],
       })
@@ -4485,6 +4548,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
       })
@@ -4500,6 +4564,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         modelOptions: { customParam: 'value' } as any,
@@ -4530,6 +4595,7 @@ describe('chat()', () => {
       })
 
       const result = await chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         stream: false,
@@ -4591,6 +4657,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Weather in NYC?' }],
         tools: [lazyServerTool('getWeather', weatherExecute)],
@@ -4628,6 +4695,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [
@@ -4695,6 +4763,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Weather in NYC?' }],
         tools: [lazyServerTool('getWeather', weatherExecute)],
@@ -4726,6 +4795,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [serverTool('normalTool', executeSpy)],
@@ -4786,6 +4856,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Weather?' }],
         tools: [lazyServerTool('getWeather', weatherExecute)],
@@ -4865,6 +4936,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'go' }],
         tools: [
@@ -4926,7 +4998,7 @@ describe('chat()', () => {
       expect((runFinished as any).threadId).toBe('thread-1')
     })
 
-    it('should keep spec toolCallName on TOOL_CALL_START and drop toolName', async () => {
+    it('should keep spec toolCallName on TOOL_CALL_START', async () => {
       const { adapter } = createMockAdapter({
         iterations: [
           [
@@ -4951,6 +5023,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Weather' }],
         tools: [serverTool('get_weather', () => ({ temp: 72 }))],
@@ -4961,7 +5034,6 @@ describe('chat()', () => {
       const toolStartChunks = chunks.filter((c) => c.type === 'TOOL_CALL_START')
       for (const toolStart of toolStartChunks) {
         expect(toolStart.toolCallName).toBe('get_weather')
-        expect(toolStart.toolName).toBe('get_weather')
       }
     })
 
@@ -4979,6 +5051,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hello' }],
       })
@@ -5019,6 +5092,7 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Hello' }],
           middleware: [{ name: 'capture-usage', onUsage }],
@@ -5062,6 +5136,7 @@ describe('chat()', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Weather?' }],
         tools: [serverTool('get_weather', () => ({ temp: 72 }))],
@@ -5098,6 +5173,7 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           interrupts: [review],
           middleware: [
@@ -5337,6 +5413,7 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           interrupts: [review],
           runId: 'before-model-run',
@@ -5390,6 +5467,7 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           interrupts: [decision],
           middleware: [
@@ -5645,6 +5723,7 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           interrupts: [review],
           middleware: [
@@ -5714,7 +5793,12 @@ describe('chat()', () => {
           iterations: [
             [
               ev.runStarted(),
-              ev.stepStarted('step-signed'),
+              {
+                type: EventType.REASONING_MESSAGE_START,
+                messageId: 'step-signed',
+                role: 'reasoning',
+                timestamp: Date.now(),
+              },
               {
                 type: EventType.REASONING_MESSAGE_CONTENT,
                 messageId: 'step-signed',
@@ -5728,7 +5812,12 @@ describe('chat()', () => {
                 encryptedValue: 'sig-1',
                 timestamp: Date.now(),
               },
-              ev.stepStarted('redacted_thinking-1'),
+              {
+                type: EventType.REASONING_MESSAGE_START,
+                messageId: 'redacted_thinking-1',
+                role: 'reasoning',
+                timestamp: Date.now(),
+              },
               {
                 type: EventType.REASONING_ENCRYPTED_VALUE,
                 subtype: 'message',
@@ -5852,6 +5941,7 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           interrupts: [review],
           middleware: [
@@ -5905,6 +5995,7 @@ describe('chat()', () => {
         Reflect.apply(chat, undefined, [
           {
             adapter,
+            threadId: 'thread-1',
             interrupts: [first, second],
             messages: [{ role: 'user', content: 'Hello' }],
           },
@@ -5921,6 +6012,7 @@ describe('chat()', () => {
 
       await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [
             { role: 'user', content: 'hi' },
@@ -5969,6 +6061,7 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ id: 'user-1', role: 'user', content: 'Search' }],
           tools: [clientTool('clientSearch')],
@@ -5995,5 +6088,18 @@ describe('chat()', () => {
         adapterMessages.every((message) => message.role !== 'activity'),
       ).toBe(true)
     })
+  })
+})
+
+describe('chat() threadId', () => {
+  it.each([undefined, ''])('throws when threadId is %j', (threadId) => {
+    const { adapter } = createMockAdapter({ iterations: [] })
+    expect(() =>
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'hi' }],
+        threadId: threadId as unknown as string,
+      }),
+    ).toThrow('chat() needs a threadId')
   })
 })

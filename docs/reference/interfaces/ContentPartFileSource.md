@@ -3,7 +3,7 @@ id: ContentPartFileSource
 title: ContentPartFileSource
 ---
 
-Defined in: [packages/ai/src/types.ts:264](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L264)
+Defined in: packages/ai/src/types.ts:264
 
 A provider-issued file handle (Files API). AG-UI `FileSource`: the handle
 is opaque, do not fetch or parse it.
@@ -33,7 +33,7 @@ by the activity-layer preflight before mapping starts.
 optional provider?: TProvider;
 ```
 
-Defined in: [packages/ai/src/types.ts:272](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L272)
+Defined in: packages/ai/src/types.ts:272
 
 The adapter name of the provider that issued the handle (`'openai'`,
 `'gemini'`, ...), the same id TanStack reports as the usage provider.

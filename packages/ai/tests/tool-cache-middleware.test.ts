@@ -44,6 +44,7 @@ describe('toolCacheMiddleware', () => {
     })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       tools: [tool],
@@ -84,6 +85,7 @@ describe('toolCacheMiddleware', () => {
     })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       tools: [tool],
@@ -137,6 +139,7 @@ describe('toolCacheMiddleware', () => {
 
     // Only cache getWeather
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       tools: [weatherTool, stockTool],
@@ -318,6 +321,7 @@ describe('toolCacheMiddleware', () => {
     const spyTool = serverTool('lookup', executeSpy)
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       tools: [spyTool],
@@ -385,6 +389,7 @@ describe('toolCacheMiddleware', () => {
     })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       tools: [spyTool],
@@ -434,6 +439,7 @@ describe('toolCacheMiddleware', () => {
 
     // Custom keyFn that only uses the query field, ignoring page
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       tools: [tool],
@@ -485,6 +491,7 @@ describe('toolCacheMiddleware', () => {
     })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       tools: [tool],
@@ -552,6 +559,7 @@ describe('toolCacheMiddleware', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [tool],
@@ -602,6 +610,7 @@ describe('toolCacheMiddleware', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [tool],
@@ -760,6 +769,7 @@ describe('toolCacheMiddleware', () => {
 
       await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter: adapter1,
           messages: [{ role: 'user', content: 'Hi' }],
           tools: [tool],
@@ -785,6 +795,7 @@ describe('toolCacheMiddleware', () => {
 
       await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter: adapter2,
           messages: [{ role: 'user', content: 'Hi' }],
           tools: [tool],

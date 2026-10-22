@@ -27,6 +27,7 @@ async function reasoningFor(
   const create = vi.fn().mockResolvedValue(noEvents())
   adapter.sdk.responses.create = create as typeof adapter.sdk.responses.create
   for await (const _chunk of adapter.chatStream({
+    threadId: 'thread-1',
     logger,
     model,
     messages: [{ role: 'user', content: 'hi' }],
@@ -95,6 +96,7 @@ describe('OpenAI Chat Completions chat({ reasoning })', () => {
     adapter.sdk.chat.completions.create =
       create as typeof adapter.sdk.chat.completions.create
     for await (const _chunk of adapter.chatStream({
+      threadId: 'thread-1',
       logger,
       model: 'gpt-5.2',
       messages: [{ role: 'user', content: 'hi' }],

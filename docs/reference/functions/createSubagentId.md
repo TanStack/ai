@@ -7,7 +7,7 @@ title: createSubagentId
 function createSubagentId(): string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:141](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L141)
+Defined in: packages/ai/src/activities/chat/agents/spawn.ts:251
 
 ## Returns
 

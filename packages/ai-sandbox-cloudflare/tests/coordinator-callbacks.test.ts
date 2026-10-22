@@ -30,7 +30,10 @@ vi.mock('@tanstack/ai', async (importOriginal) => {
           (provisioner = value),
       } as never)
       if (!provisioner) throw new Error('bridge provisioner was not provided')
-      mocks.provisioned = provisioner.provision([], { provider: 'test' })
+      mocks.provisioned = provisioner.provision([], {
+        provider: 'test',
+        threadId: 'thread-1',
+      })
       return (async function* () {})()
     }),
   }

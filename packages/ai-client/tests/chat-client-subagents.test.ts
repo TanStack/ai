@@ -75,6 +75,7 @@ describe('ChatClient subagents', () => {
     ]
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: createMockConnectionAdapter({ chunks }),
     })
     await client.sendMessage('hi')
@@ -107,6 +108,7 @@ describe('ChatClient subagents', () => {
     ]
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: createMockConnectionAdapter({ chunks }),
     })
     await client.sendMessage('hi')
@@ -133,7 +135,7 @@ describe('ChatClient subagents', () => {
       },
     }
 
-    const client = new ChatClient({ connection })
+    const client = new ChatClient({ threadId: 'thread-1', connection })
     const sendPromise = client.sendMessage('hi')
     await vi.waitFor(() => {
       expect(client.getSubagents()).toHaveLength(1)
@@ -187,7 +189,7 @@ describe('ChatClient subagents', () => {
       },
     }
 
-    const client = new ChatClient({ connection })
+    const client = new ChatClient({ threadId: 'thread-1', connection })
     const sendPromise = client.sendMessage('hi')
     await vi.waitFor(() => {
       const nested = client.getSubagents()[0]?.messages[0]?.parts
@@ -238,7 +240,7 @@ describe('ChatClient subagents', () => {
       },
     }
 
-    const client = new ChatClient({ connection })
+    const client = new ChatClient({ threadId: 'thread-1', connection })
     const first = client.sendMessage('hi')
     await vi.waitFor(() => {
       expect(client.getSubagents()[0]?.messages[0]?.parts).toEqual([
@@ -262,6 +264,7 @@ describe('ChatClient subagents', () => {
 describe('ChatClient subagent handles for restored messages', () => {
   it('gives restored cards a handle, and drops it after clear()', () => {
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: createMockConnectionAdapter({ chunks: [] }),
       initialMessages: [
         {
@@ -299,6 +302,7 @@ describe('ChatClient subagent handles for restored messages', () => {
 
   it('accepts frozen snapshot messages back without throwing', () => {
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: createMockConnectionAdapter({ chunks: [] }),
       initialMessages: [
         {
@@ -326,6 +330,7 @@ describe('ChatClient subagent handles for restored messages', () => {
     expect(typeof client.getSubagents()[0]?.stop).toBe('function')
 
     const fork = new ChatClient({
+      threadId: 'thread-1',
       connection: createMockConnectionAdapter({ chunks: [] }),
       initialMessages: [...saved],
     })
@@ -336,6 +341,7 @@ describe('ChatClient subagent handles for restored messages', () => {
 
   it('accepts a frozen nested subagent card back without throwing', () => {
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: createMockConnectionAdapter({ chunks: [] }),
       initialMessages: [
         {
@@ -391,6 +397,7 @@ describe('ChatClient subagent handles for restored messages', () => {
 
   it('gives a nested card a handle with stop', () => {
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: createMockConnectionAdapter({ chunks: [] }),
       initialMessages: [
         {

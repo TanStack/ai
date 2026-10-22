@@ -109,6 +109,7 @@ ${snippetGuidance}`
   )
 
   const result = await chat({
+    threadId: 'structured-output',
     adapter,
     messages: [{ role: 'user' as const, content: prompt }],
     tools: allTools,

@@ -108,6 +108,7 @@ interface ModelMeta<TProviderOptions = unknown> {
       | 'code_interpreter'
       | 'mcp'
       | 'computer_use'
+      | 'computer'
       | 'local_shell'
       | 'shell'
       | 'apply_patch'
@@ -156,6 +157,7 @@ const GPT5_2 = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -196,6 +198,7 @@ const GPT5_2_PRO = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -276,6 +279,7 @@ const GPT5_1 = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -359,6 +363,7 @@ const GPT5 = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -400,6 +405,7 @@ const GPT5_MINI = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -450,6 +456,7 @@ const GPT5_NANO = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -490,6 +497,7 @@ const GPT5_PRO = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -728,6 +736,7 @@ const O3_DEEP_RESEARCH = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -764,6 +773,7 @@ const O4_MINI_DEEP_RESEARCH = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -799,6 +809,7 @@ const O3_PRO = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -952,6 +963,7 @@ const O3 = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -998,6 +1010,7 @@ const O4_MINI = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -1051,6 +1064,7 @@ const GPT4_1 = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -1102,6 +1116,7 @@ const GPT4_1_MINI = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -1154,6 +1169,7 @@ const GPT4_1_NANO = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -1191,33 +1207,6 @@ const O1_PRO = {
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
-    OpenAIToolsOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
->
-
-const COMPUTER_USE_PREVIEW = {
-  name: 'computer-use-preview',
-  context_window: 8_192,
-  max_output_tokens: 1_024,
-  knowledge_cutoff: '2023-10-01',
-  pricing: {
-    input: {
-      normal: 3,
-    },
-    output: {
-      normal: 12,
-    },
-  },
-  supports: {
-    input: ['text', 'image'],
-    output: ['text'],
-    endpoints: ['chat', 'batch'],
-    features: ['function_calling'],
-    tools: ['computer_use'],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
@@ -1307,34 +1296,6 @@ const O3_MINI = {
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
-    OpenAIToolsOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
->
-
-const GPT_4O_MINI_AUDIO = {
-  name: 'gpt-4o-mini-audio',
-  context_window: 128_000,
-  max_output_tokens: 16_384,
-  knowledge_cutoff: '2023-10-01',
-  pricing: {
-    // todo audio tokens
-    input: {
-      normal: 0.15,
-    },
-    output: {
-      normal: 0.6,
-    },
-  },
-  supports: {
-    input: ['text', 'audio'],
-    output: ['text', 'audio'],
-    endpoints: ['chat-completions'],
-    features: ['function_calling', 'streaming'],
-    tools: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
@@ -1466,34 +1427,6 @@ const GPT_4O = {
     OpenAIMetadataOptions
 >
 
-const GPT_4O_AUDIO = {
-  name: 'gpt-4o-audio',
-  context_window: 128_000,
-  max_output_tokens: 16_384,
-  knowledge_cutoff: '2023-10-01',
-  pricing: {
-    // todo audio tokens
-    input: {
-      normal: 2.5,
-    },
-    output: {
-      normal: 10,
-    },
-  },
-  supports: {
-    input: ['text', 'audio'],
-    output: ['text', 'audio'],
-    endpoints: ['chat-completions'],
-    features: ['streaming', 'function_calling'],
-    tools: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions &
-    OpenAIToolsOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
->
-
 const GPT_4O_MINI = {
   name: 'gpt-4o-mini',
   context_window: 128_000,
@@ -1596,37 +1529,6 @@ const GPT_4_TURBO = {
     OpenAIMetadataOptions
 >
 
-const CHATGPT_40 = {
-  name: 'chatgpt-4o-latest',
-  context_window: 128_000,
-  max_output_tokens: 4_096,
-  knowledge_cutoff: '2023-10-01',
-  pricing: {
-    input: {
-      normal: 5,
-    },
-    output: {
-      normal: 15,
-    },
-  },
-  supports: {
-    input: ['text', 'image'],
-    output: ['text'],
-    endpoints: ['chat', 'chat-completions'],
-    features: ['predicted_outcomes', 'streaming'],
-    tools: [
-      'web_search',
-      'web_search_preview',
-      'file_search',
-      'image_generation',
-      'code_interpreter',
-      'mcp',
-    ],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
->
-
 const GPT_5_1_CODEX_MINI = {
   name: 'gpt-5.1-codex-mini',
   context_window: 400_000,
@@ -1662,84 +1564,6 @@ const GPT_5_1_CODEX_MINI = {
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
->
-
-const CODEX_MINI_LATEST = {
-  name: 'codex-mini-latest',
-  context_window: 200_000,
-  max_output_tokens: 100_000,
-  knowledge_cutoff: '2024-06-01',
-  pricing: {
-    input: {
-      normal: 1.5,
-      cached: 0.375,
-    },
-    output: {
-      normal: 6,
-    },
-  },
-  supports: {
-    input: ['text', 'image'],
-    output: ['text'],
-    endpoints: ['chat'],
-    features: ['streaming', 'function_calling', 'structured_outputs'],
-    tools: [
-      'file_search',
-      'code_interpreter',
-      'mcp',
-      'local_shell',
-      'shell',
-      'apply_patch',
-    ],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions &
-    OpenAIStructuredOutputOptions &
-    OpenAIToolsOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
->
-
-const DALL_E_2 = {
-  name: 'dall-e-2',
-  pricing: {
-    // todo image tokens
-    input: {
-      normal: 0.016,
-    },
-    output: {
-      normal: 0.02,
-    },
-  },
-  supports: {
-    input: ['text'],
-    output: ['image'],
-    endpoints: ['image-generation', 'image-edit'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
->
-
-const DALL_E_3 = {
-  name: 'dall-e-3',
-  pricing: {
-    // todo image tokens
-    input: {
-      normal: 0.04,
-    },
-    output: {
-      normal: 0.08,
-    },
-  },
-  supports: {
-    input: ['text'],
-    output: ['image'],
-    endpoints: ['image-generation', 'image-edit'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
 >
 
 const GPT_3_5_TURBO = {
@@ -2027,6 +1851,7 @@ const GPT_5_4_MINI = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -2072,6 +1897,7 @@ const GPT_5_4_NANO = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -2117,6 +1943,7 @@ const GPT_5_4_IMAGE_2 = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -2132,52 +1959,6 @@ const GPT_5_4_IMAGE_2 = {
     },
   },
   reasoning: EFFORT_NONE_LOW_TO_XHIGH,
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions &
-    OpenAIStructuredOutputOptions &
-    OpenAIToolsOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
->
-
-const GPT_5_6 = {
-  name: 'gpt-5.6',
-  context_window: 1_050_000,
-  max_output_tokens: 128_000,
-  knowledge_cutoff: '2026-02-16',
-  supports: {
-    input: ['image', 'text'],
-    output: ['text'],
-    endpoints: ['chat', 'chat-completions'],
-    features: [
-      'streaming',
-      'function_calling',
-      'structured_outputs',
-      'distillation',
-    ],
-    tools: [
-      'web_search',
-      'web_search_preview',
-      'file_search',
-      'image_generation',
-      'code_interpreter',
-      'mcp',
-      'computer_use',
-      'local_shell',
-      'shell',
-      'apply_patch',
-    ],
-  },
-  pricing: {
-    input: {
-      normal: 5,
-      cached: 0.5,
-    },
-    output: {
-      normal: 30,
-    },
-  },
-  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -2210,6 +1991,7 @@ const GPT_5_6_SOL = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -2257,6 +2039,7 @@ const GPT_5_6_TERRA = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -2304,6 +2087,7 @@ const GPT_5_6_LUNA = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -2350,6 +2134,7 @@ const GPT_5_5 = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -2395,6 +2180,7 @@ const GPT_5_5_PRO = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -2439,6 +2225,7 @@ const GPT_CHAT_LATEST = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -2566,6 +2353,7 @@ const GPT_6_ASTRA = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'shell',
       'apply_patch',
     ],
@@ -2634,6 +2422,7 @@ const GPT_6_LUNA = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'shell',
       'apply_patch',
     ],
@@ -2702,6 +2491,7 @@ const GPT_6_SOL = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'shell',
       'apply_patch',
     ],
@@ -2770,6 +2560,7 @@ const GPT_6_1_SOL = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -2810,6 +2601,7 @@ const GPT_6_1_SOL_PRO = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -2876,25 +2668,19 @@ export const OPENAI_CHAT_MODELS = [
   // Audio-enabled chat models
   GPT_AUDIO.name,
   GPT_AUDIO_MINI.name,
-  GPT_4O_AUDIO.name,
-  GPT_4O_MINI_AUDIO.name,
   // ChatGPT models
   GPT_5_1_CHAT.name,
   GPT_5_CHAT.name,
-  CHATGPT_40.name,
   // Specialized
   GPT_5_1_CODEX_MINI.name,
-  CODEX_MINI_LATEST.name,
   // Preview models
   GPT_4O_SEARCH_PREVIEW.name,
   GPT_4O_MINI_SEARCH_PREVIEW.name,
-  COMPUTER_USE_PREVIEW.name,
   // Legacy reasoning
   O1.name,
   O1_PRO.name,
 
   // GPT-5.6 / 5.5 / 5.4 extended family
-  GPT_5_6.name,
   GPT_5_6_SOL.name,
   GPT_5_6_TERRA.name,
   GPT_5_6_LUNA.name,
@@ -2911,17 +2697,18 @@ export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number]
 /**
  * Whether a model rejects the `temperature` / `top_p` sampling knobs.
  *
- * OpenAI's reasoning models — the o-series (`o1`, `o3`, `o4`, …) and the GPT-5
- * reasoning family — return `400 Unsupported parameter: 'temperature'` if either
- * is sent. Their `*-chat-latest` counterparts are ordinary chat models that
- * still accept them, so those are excluded. Matching by name (rather than a
- * per-model flag) keeps future `gpt-5.x` reasoning models covered automatically.
- * See the note in `text/text-provider-options.ts`.
+ * OpenAI reasoning models return `400 Unsupported parameter: 'temperature'`
+ * if either is sent with a reasoning effort other than `none`. The caller
+ * checks the effort. `*-chat-latest` models still accept them.
+ * A model in `OPENAI_MODEL_REASONING` is a reasoning model, so a future
+ * family is covered when its catalog row has `reasoning`. Name checks stay
+ * for o-series and GPT-5 snapshots that are not in the catalog yet.
  */
 export function openAIModelRejectsSamplingParams(model: string): boolean {
+  if (model.endsWith('-chat-latest')) return false
+  if (Object.hasOwn(OPENAI_MODEL_REASONING, model)) return true
   if (/^o\d/.test(model)) return true
-  if (model.startsWith('gpt-5') && !model.endsWith('-chat-latest')) return true
-  if (model === 'codex-mini-latest') return true
+  if (model.startsWith('gpt-5')) return true
   return false
 }
 
@@ -2947,8 +2734,6 @@ export const OPENAI_IMAGE_MODELS = [
   GPT_IMAGE_2.name,
   GPT_IMAGE_1.name,
   GPT_IMAGE_1_MINI.name,
-  DALL_E_3.name,
-  DALL_E_2.name,
 ] as const
 
 export type OpenAIImageModel = (typeof OPENAI_IMAGE_MODELS)[number]
@@ -2991,7 +2776,7 @@ export type OpenAIVideoModel = (typeof OPENAI_VIDEO_MODELS)[number]
 export const OPENAI_TTS_MODELS = [
   'tts-1',
   'tts-1-hd',
-  'gpt-4o-audio-preview',
+  'gpt-4o-mini-tts',
 ] as const
 
 export type OpenAITTSModel = (typeof OPENAI_TTS_MODELS)[number]
@@ -3132,9 +2917,6 @@ export type OpenAIChatModelProviderOptionsByName = {
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  [CHATGPT_40.name]: OpenAIBaseOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
   [O3.name]: OpenAIBaseOptions & OpenAIMetadataOptions
   [O3_PRO.name]: OpenAIBaseOptions & OpenAIMetadataOptions
   [O3_MINI.name]: OpenAIBaseOptions & OpenAIMetadataOptions
@@ -3151,12 +2933,6 @@ export type OpenAIChatModelProviderOptionsByName = {
   [GPT_AUDIO_MINI.name]: OpenAIBaseOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  [GPT_4O_AUDIO.name]: OpenAIBaseOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
-  [GPT_4O_MINI_AUDIO.name]: OpenAIBaseOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
 
   // Chat-only models
   [GPT_5_1_CHAT.name]: OpenAIBaseOptions &
@@ -3168,11 +2944,6 @@ export type OpenAIChatModelProviderOptionsByName = {
 
   // Codex models
   [GPT_5_1_CODEX_MINI.name]: OpenAIBaseOptions &
-    OpenAIStructuredOutputOptions &
-    OpenAIToolsOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
-  [CODEX_MINI_LATEST.name]: OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -3191,10 +2962,6 @@ export type OpenAIChatModelProviderOptionsByName = {
     OpenAIMetadataOptions
 
   // Special models
-  [COMPUTER_USE_PREVIEW.name]: OpenAIBaseOptions &
-    OpenAIToolsOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
   [GPT_5_4_MINI.name]: OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
@@ -3206,11 +2973,6 @@ export type OpenAIChatModelProviderOptionsByName = {
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_5_4_IMAGE_2.name]: OpenAIBaseOptions &
-    OpenAIStructuredOutputOptions &
-    OpenAIToolsOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
-  [GPT_5_6.name]: OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -3334,22 +3096,16 @@ export type OpenAIChatModelToolCapabilitiesByName = {
   [GPT_3_5_TURBO.name]: typeof GPT_3_5_TURBO.supports.tools
   [GPT_AUDIO.name]: typeof GPT_AUDIO.supports.tools
   [GPT_AUDIO_MINI.name]: typeof GPT_AUDIO_MINI.supports.tools
-  [GPT_4O_AUDIO.name]: typeof GPT_4O_AUDIO.supports.tools
-  [GPT_4O_MINI_AUDIO.name]: typeof GPT_4O_MINI_AUDIO.supports.tools
   [GPT_5_1_CHAT.name]: typeof GPT_5_1_CHAT.supports.tools
   [GPT_5_CHAT.name]: typeof GPT_5_CHAT.supports.tools
-  [CHATGPT_40.name]: typeof CHATGPT_40.supports.tools
   [GPT_5_1_CODEX_MINI.name]: typeof GPT_5_1_CODEX_MINI.supports.tools
-  [CODEX_MINI_LATEST.name]: typeof CODEX_MINI_LATEST.supports.tools
   [GPT_4O_SEARCH_PREVIEW.name]: typeof GPT_4O_SEARCH_PREVIEW.supports.tools
   [GPT_4O_MINI_SEARCH_PREVIEW.name]: typeof GPT_4O_MINI_SEARCH_PREVIEW.supports.tools
-  [COMPUTER_USE_PREVIEW.name]: typeof COMPUTER_USE_PREVIEW.supports.tools
   [O1.name]: typeof O1.supports.tools
   [O1_PRO.name]: typeof O1_PRO.supports.tools
   [GPT_5_4_MINI.name]: typeof GPT_5_4_MINI.supports.tools
   [GPT_5_4_NANO.name]: typeof GPT_5_4_NANO.supports.tools
   [GPT_5_4_IMAGE_2.name]: typeof GPT_5_4_IMAGE_2.supports.tools
-  [GPT_5_6.name]: typeof GPT_5_6.supports.tools
   [GPT_5_6_SOL.name]: typeof GPT_5_6_SOL.supports.tools
   [GPT_5_6_TERRA.name]: typeof GPT_5_6_TERRA.supports.tools
   [GPT_5_6_LUNA.name]: typeof GPT_5_6_LUNA.supports.tools
@@ -3393,12 +3149,9 @@ export type OpenAIModelInputModalitiesByName = {
   [GPT_4O.name]: typeof GPT_4O.supports.input
   [GPT_4O_MINI.name]: typeof GPT_4O_MINI.supports.input
   [GPT_4_TURBO.name]: typeof GPT_4_TURBO.supports.input
-  [CHATGPT_40.name]: typeof CHATGPT_40.supports.input
   [GPT_5_1_CHAT.name]: typeof GPT_5_1_CHAT.supports.input
   [GPT_5_CHAT.name]: typeof GPT_5_CHAT.supports.input
   [GPT_5_1_CODEX_MINI.name]: typeof GPT_5_1_CODEX_MINI.supports.input
-  [CODEX_MINI_LATEST.name]: typeof CODEX_MINI_LATEST.supports.input
-  [COMPUTER_USE_PREVIEW.name]: typeof COMPUTER_USE_PREVIEW.supports.input
   [O3.name]: typeof O3.supports.input
   [O3_PRO.name]: typeof O3_PRO.supports.input
   [O3_DEEP_RESEARCH.name]: typeof O3_DEEP_RESEARCH.supports.input
@@ -3410,8 +3163,6 @@ export type OpenAIModelInputModalitiesByName = {
   // Models with text + audio input
   [GPT_AUDIO.name]: typeof GPT_AUDIO.supports.input
   [GPT_AUDIO_MINI.name]: typeof GPT_AUDIO_MINI.supports.input
-  [GPT_4O_AUDIO.name]: typeof GPT_4O_AUDIO.supports.input
-  [GPT_4O_MINI_AUDIO.name]: typeof GPT_4O_MINI_AUDIO.supports.input
 
   // Text-only models
   [GPT_4.name]: typeof GPT_4.supports.input
@@ -3422,7 +3173,6 @@ export type OpenAIModelInputModalitiesByName = {
   [GPT_5_4_MINI.name]: typeof GPT_5_4_MINI.supports.input
   [GPT_5_4_NANO.name]: typeof GPT_5_4_NANO.supports.input
   [GPT_5_4_IMAGE_2.name]: typeof GPT_5_4_IMAGE_2.supports.input
-  [GPT_5_6.name]: typeof GPT_5_6.supports.input
   [GPT_5_6_SOL.name]: typeof GPT_5_6_SOL.supports.input
   [GPT_5_6_TERRA.name]: typeof GPT_5_6_TERRA.supports.input
   [GPT_5_6_LUNA.name]: typeof GPT_5_6_LUNA.supports.input
@@ -3466,12 +3216,9 @@ export const OPENAI_MODEL_INPUT_MODALITIES: Readonly<
   [GPT_4O.name]: GPT_4O.supports.input,
   [GPT_4O_MINI.name]: GPT_4O_MINI.supports.input,
   [GPT_4_TURBO.name]: GPT_4_TURBO.supports.input,
-  [CHATGPT_40.name]: CHATGPT_40.supports.input,
   [GPT_5_1_CHAT.name]: GPT_5_1_CHAT.supports.input,
   [GPT_5_CHAT.name]: GPT_5_CHAT.supports.input,
   [GPT_5_1_CODEX_MINI.name]: GPT_5_1_CODEX_MINI.supports.input,
-  [CODEX_MINI_LATEST.name]: CODEX_MINI_LATEST.supports.input,
-  [COMPUTER_USE_PREVIEW.name]: COMPUTER_USE_PREVIEW.supports.input,
   [O3.name]: O3.supports.input,
   [O3_PRO.name]: O3_PRO.supports.input,
   [O3_DEEP_RESEARCH.name]: O3_DEEP_RESEARCH.supports.input,
@@ -3481,8 +3228,6 @@ export const OPENAI_MODEL_INPUT_MODALITIES: Readonly<
   [O1_PRO.name]: O1_PRO.supports.input,
   [GPT_AUDIO.name]: GPT_AUDIO.supports.input,
   [GPT_AUDIO_MINI.name]: GPT_AUDIO_MINI.supports.input,
-  [GPT_4O_AUDIO.name]: GPT_4O_AUDIO.supports.input,
-  [GPT_4O_MINI_AUDIO.name]: GPT_4O_MINI_AUDIO.supports.input,
   [GPT_4.name]: GPT_4.supports.input,
   [GPT_3_5_TURBO.name]: GPT_3_5_TURBO.supports.input,
   [O3_MINI.name]: O3_MINI.supports.input,
@@ -3491,7 +3236,6 @@ export const OPENAI_MODEL_INPUT_MODALITIES: Readonly<
   [GPT_5_4_MINI.name]: GPT_5_4_MINI.supports.input,
   [GPT_5_4_NANO.name]: GPT_5_4_NANO.supports.input,
   [GPT_5_4_IMAGE_2.name]: GPT_5_4_IMAGE_2.supports.input,
-  [GPT_5_6.name]: GPT_5_6.supports.input,
   [GPT_5_6_SOL.name]: GPT_5_6_SOL.supports.input,
   [GPT_5_6_TERRA.name]: GPT_5_6_TERRA.supports.input,
   [GPT_5_6_LUNA.name]: GPT_5_6_LUNA.supports.input,
@@ -3540,7 +3284,6 @@ const OPENAI_REASONING = {
   [GPT_5_4_MINI.name]: GPT_5_4_MINI.reasoning,
   [GPT_5_4_NANO.name]: GPT_5_4_NANO.reasoning,
   [GPT_5_4_IMAGE_2.name]: GPT_5_4_IMAGE_2.reasoning,
-  [GPT_5_6.name]: GPT_5_6.reasoning,
   [GPT_5_6_SOL.name]: GPT_5_6_SOL.reasoning,
   [GPT_5_6_TERRA.name]: GPT_5_6_TERRA.reasoning,
   [GPT_5_6_LUNA.name]: GPT_5_6_LUNA.reasoning,

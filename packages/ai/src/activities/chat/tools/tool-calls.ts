@@ -320,7 +320,7 @@ export class ToolCallManager<
       if (toolCall.id === event.toolCallId) return
     }
     const index = (event as AdapterYieldChunk).index ?? this.toolCallsMap.size
-    const name = event.toolCallName ?? event.toolName
+    const name = event.toolCallName
     this.toolCallsMap.set(index, {
       id: event.toolCallId,
       type: 'function',
@@ -423,6 +423,7 @@ export class ToolCallManager<
           // Execute the tool
           const executionContext = {
             toolCallId: toolCall.id,
+            threadId: finishEvent.threadId,
             context: userContext,
             emitCustomEvent: () => {},
           } as ToolExecutionContext<TContext>
@@ -468,7 +469,6 @@ export class ToolCallManager<
         type: 'TOOL_CALL_END',
         toolCallId: toolCall.id,
         toolCallName: toolCall.function.name,
-        toolName: toolCall.function.name,
         model: (() => {
           const model = tanstackMetadata(finishEvent)?.model
           return typeof model === 'string' ? model : undefined
@@ -555,11 +555,7 @@ interface McpInputRequiredThrow {
 }
 
 /** Reasons that clients read as another kind of interrupt. */
-const RESERVED_INTERRUPT_REASONS = new Set([
-  'approval_required',
-  'client_tool_input',
-  'tanstack:client_tool_execution',
-])
+const RESERVED_INTERRUPT_REASONS = new Set(['tanstack:client_tool_execution'])
 
 /** The reason a thrown input request names, when it can use it. */
 function inputRequestReason(reason: unknown) {
@@ -973,6 +969,8 @@ async function buildClientToolResult(
  *
  * @param toolCalls - Tool calls from the LLM
  * @param tools - Available tools with their configurations
+ * @param threadId - The thread id of the run. Each server tool gets it on
+ *   its context.
  * @param approvals - Map keyed by toolCallId (or `approval_${toolCallId}`) → ToolApprovalResolution
  * @param clientResults - Map of client-side execution results (toolCallId -> result)
  * @param createCustomEventChunk - Factory to create CustomEvent chunks (optional)
@@ -985,6 +983,7 @@ async function buildClientToolResult(
 export async function* executeToolCalls<TContext = unknown>(
   toolCalls: Array<ToolCall>,
   tools: ReadonlyArray<AnyTool>,
+  threadId: string,
   approvals: Map<string, ToolApprovalResolution> = new Map(),
   clientResults: Map<string, any> = new Map(),
   createCustomEventChunk?: (
@@ -1292,6 +1291,7 @@ export async function* executeToolCalls<TContext = unknown>(
       toolCallId: toolCall.id,
       context: userContext,
       abortSignal,
+      threadId,
       ...(inputResponse !== undefined ? { inputResponse } : {}),
       emitCustomEvent: (
         eventName: string,
@@ -1346,6 +1346,7 @@ export async function* executeToolCalls<TContext = unknown>(
     const rest = yield* executeToolCalls(
       held,
       tools,
+      threadId,
       approvals,
       clientResults,
       createCustomEventChunk,

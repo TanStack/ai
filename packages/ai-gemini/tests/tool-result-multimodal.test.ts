@@ -74,6 +74,7 @@ describe('gemini multimodal tool result', () => {
     const adapter = createTextAdapter()
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         { role: 'user', content: 'look' },
@@ -137,6 +138,7 @@ describe('gemini multimodal tool result', () => {
     const adapter = createTextAdapter()
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         { role: 'user', content: 'look' },
@@ -209,6 +211,7 @@ describe('gemini multimodal tool result', () => {
     const adapter = createTextAdapter()
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         { role: 'user', content: 'look' },

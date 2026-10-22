@@ -106,6 +106,7 @@ async function runPoolChat(transport: Transport, connection?: 'keep-alive') {
     seenTools = names
   })
   const stream = chat({
+    threadId: 'thread-1',
     adapter,
     messages: [{ role: 'user', content: 'hi' }],
     mcp: {

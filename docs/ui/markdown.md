@@ -2,7 +2,7 @@
 title: Highlight markdown code
 id: ui-markdown-highlight
 order: 9
-description: "Color fenced code in TextPart with TanStack Highlight."
+description: "Color the fenced code blocks in model replies. Pass a TanStack Highlight highlighter to TextPart."
 keywords:
   - tanstack ai
   - TextPart
@@ -11,23 +11,29 @@ keywords:
   - syntax highlighting
 ---
 
-Model replies include fenced code. `TextPart` renders those fences as plain text until you pass a `highlighter`.
+Pass a TanStack Highlight `highlighter` to `TextPart`. Fenced code then renders with token colors.
 
-Build a TanStack Highlight callback. Pass it to `TextPart`. Token colors then show on fenced blocks.
+`TextPart` is in the React, Vue, and Solid UI packages. If your app still passes `remarkPlugins` or `rehypePlugins`, start with [TextPart markdown](../migration/text-part-markdown).
 
-If your app still passes `remarkPlugins` or `rehypePlugins`, start with [TextPart markdown](../migration/text-part-markdown).
+## Quick setup
 
-## 1. Install TanStack Highlight
+These steps use React. For Vue and Solid, steps 1 to 3 are the same. Step 4 is different. See [Vue and Solid](#vue-and-solid).
 
-```sh
-pnpm add @tanstack/highlight
-```
+### 1. Install TanStack Highlight
 
-Use `@tanstack/highlight` 0.0.6 or newer. The Markdown adapter lives in that package.
+<!-- ::start:tabs variant="package-manager" mode="install" -->
 
-## 2. Create the highlighter
+react: @tanstack/highlight
+vue: @tanstack/highlight
+solid: @tanstack/highlight
 
-Create `src/markdown-highlighter.ts`. Register only the languages your models emit.
+<!-- ::end:tabs -->
+
+Use `@tanstack/highlight` 0.0.6 or newer. The markdown adapter is in that package.
+
+### 2. Create the highlighter
+
+Create `src/markdown-highlighter.ts`. Register only the languages that your models write:
 
 ```ts
 import { createHighlighter } from '@tanstack/highlight/core'
@@ -37,23 +43,23 @@ import { plaintext } from '@tanstack/highlight/languages/plaintext'
 import { ts } from '@tanstack/highlight/languages/ts'
 import { tsx } from '@tanstack/highlight/languages/tsx'
 import { createTanStackMarkdownHighlighter } from '@tanstack/highlight/markdown'
-import type { CodeHighlighter } from '@tanstack/markdown'
 
 const highlighter = createHighlighter({
   languages: [plaintext, js, json, ts, tsx],
 })
 
-export const highlightMarkdownCode: CodeHighlighter =
+export const highlightMarkdownCode =
   createTanStackMarkdownHighlighter(highlighter)
 ```
 
-Unknown fence languages render as escaped plain text.
+A fence with an unknown language renders as escaped plain text.
 
-> **CAUTION:** Highlighter output is inserted as trusted HTML. Use `createTanStackMarkdownHighlighter`. Do not pass a highlighter that returns unescaped source text.
+> [!WARNING]
+> Use `createTanStackMarkdownHighlighter`. `TextPart` inserts the highlighter output as trusted HTML. A highlighter that returns unescaped source text lets model output inject HTML.
 
-## 3. Create the theme CSS
+### 3. Create the theme CSS
 
-Create `src/markdown-highlight-theme.ts`. Point the selectors at a `.markdown-renderer` wrapper.
+Create `src/markdown-highlight-theme.ts`. Point the selectors at a `.markdown-renderer` wrapper:
 
 ```ts
 import { createThemeCss } from '@tanstack/highlight/theme'
@@ -70,28 +76,9 @@ export const markdownHighlightCss = createThemeCss({
 })
 ```
 
-## 4. Pass it to TextPart
+### 4. Use it in the chat
 
-Put `markdown-renderer` on the `TextPart` wrapper so the theme CSS matches.
-
-```tsx
-import { TextPart } from '@tanstack/ai-react/ui'
-import { highlightMarkdownCode } from './markdown-highlighter'
-
-export function Reply({ content }: { content: string }) {
-  return (
-    <TextPart
-      content={content}
-      highlighter={highlightMarkdownCode}
-      className="markdown-renderer"
-    />
-  )
-}
-```
-
-## 5. Wire it into createChatHook
-
-Inject the CSS once in `layout`. Register `TextPart` as `partsComponents.text`.
+Register `TextPart` as `partsComponents.text`. Pass the highlighter, and put `markdown-renderer` on the wrapper so that the theme CSS matches. Inject the CSS once in `layout`:
 
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-react'
@@ -151,18 +138,24 @@ const { useAppChat, useChatContext } = createChatHook({
 })
 
 export function ChatScreen() {
-  const chat = useAppChat()
+  const chat = useAppChat({ threadId: 'support-chat' })
   return <chat.AppChat />
 }
 ```
 
 Send a prompt that returns a fenced `ts` block. The fence now shows token colors.
 
+## How it works
+
+- `createHighlighter` tokenizes code for the languages that you register.
+- `createTanStackMarkdownHighlighter` turns it into the `CodeHighlighter` that TanStack Markdown calls for each fence. It escapes the source text.
+- `createThemeCss` writes CSS for the token classes, one theme for light mode and one for dark mode.
+
 ## Vue and Solid
 
-Use the same highlighter file and the same theme file. The `TextPart` import changes. Inject `markdownHighlightCss` once at the app root.
+Use the same highlighter file and the same theme file. Inject `markdownHighlightCss` once, at the app root. Then pass the highlighter to `TextPart` from your UI package.
 
-### Vue
+Vue:
 
 ```ts
 import { defineComponent, h } from 'vue'
@@ -182,7 +175,7 @@ export default defineComponent({
 })
 ```
 
-### Solid
+Solid:
 
 ```tsx
 import { TextPart } from '@tanstack/ai-solid/ui'
@@ -199,10 +192,11 @@ export function Reply(props: { content: string }) {
 }
 ```
 
-Vue and Solid have no `components` map. Tag swaps go through a TanStack Markdown `extension`.
+You now have colored code in model replies.
 
-## Later
+## Advanced
 
-- More languages: import them from `@tanstack/highlight/languages/*` and add them to `createHighlighter`.
-- Fence metadata and line numbers: see the [TanStack Markdown highlighting guide](https://tanstack.com/markdown/latest/docs/guides/syntax-highlighting).
-- React tag swaps (`a`, `img`): pass `components` on `TextPart`. That map uses normal HTML props, not `react-markdown` extras such as `inline`.
+- **More languages:** import them from `@tanstack/highlight/languages/*` and add them to `createHighlighter`.
+- **Fence metadata and line numbers:** read the [TanStack Markdown highlighting guide](https://tanstack.com/markdown/latest/docs/guides/syntax-highlighting).
+- **Tag swaps in React** (`a`, `img`): pass `components` to `TextPart`. That map uses normal HTML props.
+- **Tag swaps in Vue and Solid:** these `TextPart` components have no `components` map. Use a TanStack Markdown extension.

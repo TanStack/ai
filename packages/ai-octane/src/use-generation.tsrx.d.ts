@@ -21,8 +21,8 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for one-shot generation (no streaming protocol needed) */
   fetcher?: GenerationFetcher<TInput, TResult>
-  /** Unique identifier for this generation instance */
-  id?: string
+  /** Stable scope for this generation. Also the wire and DevTools identity. */
+  threadId: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */

@@ -7,7 +7,7 @@ title: resolveMediaPrompt
 function resolveMediaPrompt(prompt): ResolvedMediaPrompt;
 ```
 
-Defined in: [packages/ai/src/utilities/media-prompt.ts:45](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/media-prompt.ts#L45)
+Defined in: packages/ai/src/utilities/media-prompt.ts:45
 
 Decompose a [MediaPrompt](../type-aliases/MediaPrompt.md) into flattened text and per-modality part
 buckets, preserving prompt order everywhere. This is the single downrev

@@ -3,7 +3,7 @@ id: ResolvedMediaPrompt
 title: ResolvedMediaPrompt
 ---
 
-Defined in: [packages/ai/src/utilities/media-prompt.ts:23](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/media-prompt.ts#L23)
+Defined in: packages/ai/src/utilities/media-prompt.ts:23
 
 A [MediaPrompt](../type-aliases/MediaPrompt.md) decomposed into the views adapters consume.
 
@@ -24,7 +24,7 @@ themselves — the SDK does not inject or substitute markers.
 audios: AudioPart<MediaInputMetadata>[];
 ```
 
-Defined in: [packages/ai/src/utilities/media-prompt.ts:36](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/media-prompt.ts#L36)
+Defined in: packages/ai/src/utilities/media-prompt.ts:36
 
 Audio parts in prompt order.
 
@@ -36,7 +36,7 @@ Audio parts in prompt order.
 images: ImagePart<MediaInputMetadata>[];
 ```
 
-Defined in: [packages/ai/src/utilities/media-prompt.ts:32](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/media-prompt.ts#L32)
+Defined in: packages/ai/src/utilities/media-prompt.ts:32
 
 Image parts in prompt order.
 
@@ -48,7 +48,7 @@ Image parts in prompt order.
 parts: MediaPromptPart[];
 ```
 
-Defined in: [packages/ai/src/utilities/media-prompt.ts:30](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/media-prompt.ts#L30)
+Defined in: packages/ai/src/utilities/media-prompt.ts:30
 
 The prompt as ordered parts; a string prompt becomes one text part.
 
@@ -60,7 +60,7 @@ The prompt as ordered parts; a string prompt becomes one text part.
 text: string;
 ```
 
-Defined in: [packages/ai/src/utilities/media-prompt.ts:28](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/media-prompt.ts#L28)
+Defined in: packages/ai/src/utilities/media-prompt.ts:28
 
 Text parts concatenated verbatim (paragraph-separated). Empty string
 for media-only prompts.
@@ -73,6 +73,6 @@ for media-only prompts.
 videos: VideoPart<MediaInputMetadata>[];
 ```
 
-Defined in: [packages/ai/src/utilities/media-prompt.ts:34](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/media-prompt.ts#L34)
+Defined in: packages/ai/src/utilities/media-prompt.ts:34
 
 Video parts in prompt order.

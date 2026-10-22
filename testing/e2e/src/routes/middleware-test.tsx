@@ -149,7 +149,14 @@ function MiddlewareTestPage() {
   >({
     threadId: `mw-test-${testId ?? 'manual'}-${scenario}-${middlewareMode}-${provider ?? 'openai'}-${model ?? 'default'}`,
     connection: fetchServerSentEvents('/api/middleware-test'),
-    body: { scenario, middlewareMode, testId, aimockPort, provider, model },
+    forwardedProps: {
+      scenario,
+      middlewareMode,
+      testId,
+      aimockPort,
+      provider,
+      model,
+    },
     tools: clientToolList,
     interrupts: [reviewPlan],
     persistence:

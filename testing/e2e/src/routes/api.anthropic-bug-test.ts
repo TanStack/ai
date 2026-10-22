@@ -110,6 +110,7 @@ export const Route = createFileRoute('/api/anthropic-bug-test')({
           const chunks: Array<unknown> = []
           try {
             for await (const chunk of chat({
+              threadId: 'anthropic-bug-test',
               ...createChatOptions({ adapter }),
               messages,
             })) {
@@ -143,6 +144,7 @@ export const Route = createFileRoute('/api/anthropic-bug-test')({
         const chunks: Array<unknown> = []
         try {
           for await (const chunk of chat({
+            threadId: 'anthropic-bug-test',
             ...createChatOptions({ adapter }),
             // The real bug surface: a user tool + webFetchTool() in the same
             // request. Pre-fix this combination caused

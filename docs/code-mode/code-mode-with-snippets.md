@@ -2,7 +2,7 @@
 title: Code Mode with Snippets
 id: code-mode-with-snippets
 order: 3
-description: "Teach Code Mode to save and reuse working code as named snippets backed by persistent storage — faster follow-up requests and composable agent memory."
+description: "Let Code Mode save working code as named snippets in storage, then call them again on later requests."
 keywords:
   - tanstack ai
   - code mode
@@ -14,60 +14,18 @@ keywords:
   - snippet storage
 ---
 
-Snippets extend [Code Mode](./code-mode.md) with a persistent library of reusable TypeScript snippets. When the LLM writes a useful piece of code — say, a function that fetches and ranks NPM packages — it can save that code as a _snippet_. On future requests, relevant snippets are loaded from storage and made available as first-class tools the LLM can call without re-writing the logic.
+A snippet is a TypeScript function you put in the Code Mode prompt. The model calls that function instead of writing the same program again.
 
-> **Different from agent-authoring skills.** The snippets on this page are _runtime_ snippets the chat LLM saves and reuses. If you're looking to teach your coding assistant (Claude Code, Cursor, etc.) how TanStack AI itself works, see [Agent Skills (TanStack Intent)](../getting-started/agent-skills).
+Snippets let the model save working code under a name. On later requests, the saved snippets load from storage, and the model calls them as tools.
 
-## Overview
+> [!NOTE]
+> These snippets are runtime code that the chat model saves. To teach your coding assistant (Claude Code, Cursor) how TanStack AI works, see [Agent Skills (TanStack Intent)](../getting-started/agent-skills).
 
-The snippets system has two integration paths:
+## Quick setup
 
-| Approach | Entry point | Snippet selection | Best for |
-|----------|-------------|----------------|----------|
-| **High-level** | `codeModeWithSnippets()` | Automatic (LLM-based) | New projects, turnkey setup |
-| **Manual** | Individual functions (`snippetsToTools`, `createSnippetManagementTools`, etc.) | You decide which snippets to load | Full control, existing setups |
+You need the route from the [Code Mode quick setup](./code-mode#quick-setup) first.
 
-Both paths share the same storage, trust, and execution primitives — they differ only in how snippets are selected and assembled.
-
-## How It Works
-
-A request with snippets enabled goes through these stages:
-
-```text
-┌─────────────────────────────────────────────────────┐
-│ 1. Load snippet index (metadata only, no code)        │
-├─────────────────────────────────────────────────────┤
-│ 2. Select relevant snippets (LLM call — fast model)   │
-├─────────────────────────────────────────────────────┤
-│ 3. Build tool registry                              │
-│    ├── execute_typescript (Code Mode sandbox)        │
-│    ├── search_snippets / get_snippet / register_snippet   │
-│    └── snippet tools (one per selected snippet)         │
-├─────────────────────────────────────────────────────┤
-│ 4. Generate system prompt                           │
-│    ├── Code Mode type stubs                         │
-│    └── Snippet library documentation                  │
-├─────────────────────────────────────────────────────┤
-│ 5. Main chat() call (strong model)                  │
-│    ├── Can call snippet tools directly                │
-│    ├── Can write code via execute_typescript         │
-│    └── Can register new snippets for future use       │
-└─────────────────────────────────────────────────────┘
-```
-
-### LLM calls
-
-There are **two** LLM interactions per request when using the high-level API:
-
-1. **Snippet selection** (`selectRelevantSnippets`) — A single chat call using the adapter you provide. It sends the last 5 conversation messages plus a catalog of snippet names/descriptions, and asks the model to return a JSON array of relevant snippet names. This should be a cheap/fast model (e.g., `gpt-4o-mini`, `claude-haiku-4-5`).
-
-2. **Main chat** — The primary `chat()` call with your full model. This is where the LLM reasons, calls tools, writes code, and registers snippets.
-
-The selection call is lightweight — it only sees snippet metadata (names, descriptions, usage hints), not full code. If there are no snippets in storage or no messages, it short-circuits and skips the LLM call entirely.
-
-## High-Level API: `codeModeWithSnippets()`
-
-### Installation
+1. Install the snippets package:
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
@@ -82,68 +40,117 @@ octane: @tanstack/ai-code-mode-snippets
 
 <!-- ::end:tabs -->
 
-### Usage
+2. Replace `createCodeMode` in your route with `codeModeWithSnippets`. It needs a storage and a cheap model that picks the snippets for each request:
 
 ```typescript
-import { chat, maxIterations, toServerSentEventsStream } from '@tanstack/ai'
-import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
+// app/api/chat/route.ts (Next.js). Any route that takes a Request works.
+import {
+  chat,
+  chatParamsFromRequest,
+  convertMessagesToModelMessages,
+  maxIterations,
+  toServerSentEventsResponse,
+  toolDefinition,
+} from '@tanstack/ai'
 import { codeModeWithSnippets } from '@tanstack/ai-code-mode-snippets'
 import { createFileSnippetStorage } from '@tanstack/ai-code-mode-snippets/storage'
+import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
 import { openaiText } from '@tanstack/ai-openai'
-import { myTool1, myTool2 } from './tools'
+import { z } from 'zod'
 
-const messages = [{ role: 'user' as const, content: 'Hello' }]
+const fetchWeather = toolDefinition({
+  name: 'fetchWeather',
+  description: 'Get current weather for a city',
+  inputSchema: z.object({ location: z.string() }),
+  outputSchema: z.object({ temperature: z.number(), condition: z.string() }),
+}).server(async ({ location }) => ({
+  temperature: location.length + 10,
+  condition: 'sunny',
+}))
+
 const storage = createFileSnippetStorage({ directory: './.snippets' })
 const driver = createNodeIsolateDriver()
 
-const { toolsRegistry, systemPrompt, selectedSnippets } = await codeModeWithSnippets({
-  config: {
-    driver,
-    tools: [myTool1, myTool2],
-    timeout: 60_000,
-    memoryLimit: 128,
-  },
-  adapter: openaiText('gpt-5-mini'),  // cheap model for snippet selection
-  snippets: {
-    storage,
-    maxSnippetsInContext: 5,
-  },
-  messages,  // current conversation
-})
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
 
-const stream = chat({
-  adapter: openaiText('gpt-5.5'),  // strong model for reasoning
-  tools: toolsRegistry.getTools(),
-  messages,
-  systemPrompts: ['You are a helpful assistant.', systemPrompt],
-  agentLoopStrategy: maxIterations(15),
-})
+  const { toolsRegistry, systemPrompt } = await codeModeWithSnippets({
+    config: { driver, tools: [fetchWeather] },
+    adapter: openaiText('gpt-5.4-mini'), // cheap model that picks snippets
+    snippets: { storage, maxSnippetsInContext: 5 },
+    messages: convertMessagesToModelMessages(messages),
+    threadId,
+  })
+
+  const stream = chat({
+    adapter: openaiText('gpt-6.1-sol'), // strong model for the real work
+    systemPrompts: ['You are a helpful weather assistant.', systemPrompt],
+    tools: toolsRegistry.getTools(),
+    messages,
+    threadId,
+    runId,
+    agentLoopStrategy: maxIterations(15),
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
-`codeModeWithSnippets` returns:
+3. Send "Compare the weather in Tokyo and Paris. Save the code as a snippet."
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `toolsRegistry` | `ToolRegistry` | Mutable registry containing all tools. Pass to `chat()` via `tools: toolsRegistry.getTools()`. |
-| `systemPrompt` | `string` | Combined Code Mode + snippet library documentation. |
-| `selectedSnippets` | `Array<Snippet>` | Snippets the selection model chose for this conversation. |
+4. Look in `./.snippets/`. It holds a new folder with `code.ts` and `meta.json`.
 
-### What goes into the registry
+5. Start a new chat and ask the same kind of question. The cheap model picks the saved snippet, and the main model calls it as a tool instead of writing the code again.
 
-The registry is populated with:
+## How it works
 
-- **`execute_typescript`** — The Code Mode sandbox tool. Inside the sandbox, snippets are also available as `snippet_*` functions (loaded dynamically at execution time).
-- **`search_snippets`** — Search the snippet library by query. Returns matching snippet metadata.
-- **`get_snippet`** — Retrieve full details (including code) for a specific snippet.
-- **`register_snippet`** — Save working code as a new snippet. Newly registered snippets are immediately added to the registry as callable tools.
-- **One tool per selected snippet** — Each selected snippet becomes a direct tool (prefixed with `[SNIPPET]` in its description) that the LLM can call without going through `execute_typescript`.
+Each request goes through these steps:
 
-## Manual API
+1. `codeModeWithSnippets` loads the snippet index. The index holds names and descriptions, with no code.
+2. The cheap model reads the last 5 messages and the index, then picks the snippets that match.
+3. The registry gets the Code Mode tool, the snippet management tools, and one tool for each picked snippet.
+4. The strong model in `chat()` can call a snippet tool, write new code with `execute_typescript`, or save new code with `register_snippet`.
 
-If you want full control — for example, loading all snippets instead of using LLM-based selection — use the lower-level functions directly. This is the approach used in the `ts-code-mode-web` example.
+If storage is empty or there are no messages, step 2 makes no model call.
+
+The registry holds these tools:
+
+- `execute_typescript`: the Code Mode sandbox. Inside it, every saved snippet is also a `snippet_<name>` function.
+- `search_snippets`: searches the library by query and returns the snippet metadata.
+- `get_snippet`: returns one snippet in full, code included.
+- `register_snippet`: saves working code as a new snippet.
+- One tool for each picked snippet. Its description starts with `[SNIPPET]`.
+
+A new snippet is callable inside `execute_typescript` right away, as `snippet_<name>`. It shows up as a direct tool on the next request.
+
+## Pick a storage
+
+- **`createFileSnippetStorage`:** saves snippets to disk. It imports `node:fs` and `node:path`, so it is only on the `@tanstack/ai-code-mode-snippets/storage` subpath. Use it on Node.
+- **`createMemorySnippetStorage`:** keeps snippets in memory. It has no `node:fs` dependency, so the package root exports it, and it runs in Workers and browsers. Use it for tests, demos, and the edge.
 
 ```typescript
-import { chat, maxIterations } from '@tanstack/ai'
+import { createMemorySnippetStorage } from '@tanstack/ai-code-mode-snippets'
+
+const storage = createMemorySnippetStorage()
+```
+
+The memory storage is also on the `/storage` subpath.
+
+## Advanced
+
+### Pick the snippets yourself
+
+`codeModeWithSnippets` asks a model to pick snippets. To skip that model call, load the snippets yourself and build the tools with the lower-level functions. The `ts-code-mode-web` example uses this approach.
+
+This example loads every snippet. It uses the `fetchWeather` tool from the quick setup, moved to `./tools`:
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  maxIterations,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { createCodeMode } from '@tanstack/ai-code-mode'
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
 import {
@@ -154,9 +161,8 @@ import {
 } from '@tanstack/ai-code-mode-snippets'
 import { createFileSnippetStorage } from '@tanstack/ai-code-mode-snippets/storage'
 import { openaiText } from '@tanstack/ai-openai'
-import { myTool1, myTool2, BASE_PROMPT } from './tools'
+import { fetchWeather } from './tools'
 
-const messages = [{ role: 'user' as const, content: 'Hello' }]
 const trustStrategy = createAlwaysTrustedStrategy()
 const storage = createFileSnippetStorage({
   directory: './.snippets',
@@ -164,82 +170,137 @@ const storage = createFileSnippetStorage({
 })
 const driver = createNodeIsolateDriver()
 
-// 1. Create Code Mode tool + prompt
-const { tool: codeModeTool, systemPrompt: codeModePrompt } =
-  createCodeMode({
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
+
+  // 1. The Code Mode tool and prompt
+  const { tool: codeModeTool, systemPrompt: codeModePrompt } = createCodeMode({
     driver,
-    tools: [myTool1, myTool2],
-    timeout: 60_000,
-    memoryLimit: 128,
+    tools: [fetchWeather],
   })
 
-// 2. Load all snippets and convert to tools
-const allSnippets = await storage.loadAll()
-const snippetIndex = await storage.loadIndex()
+  // 2. Load every snippet and turn each one into a tool
+  const allSnippets = await storage.loadAll()
+  const snippetIndex = await storage.loadIndex()
+  const snippetTools = snippetsToTools({
+    snippets: allSnippets,
+    driver,
+    tools: [fetchWeather],
+    storage,
+  })
 
-const snippetTools = allSnippets.length > 0
-  ? snippetsToTools({
-      snippets: allSnippets,
-      driver,
-      tools: [myTool1, myTool2],
-      storage,
-      timeout: 60_000,
-      memoryLimit: 128,
-    })
-  : []
+  // 3. The search, get, and register tools
+  const managementTools = createSnippetManagementTools({
+    storage,
+    trustStrategy,
+  })
 
-// 3. Create management tools
-const managementTools = createSnippetManagementTools({
-  storage,
-  trustStrategy,
-})
+  // 4. The prompt that documents the snippet library
+  const snippetsPrompt = createSnippetsSystemPrompt({
+    selectedSnippets: allSnippets,
+    totalSnippetCount: snippetIndex.length,
+    snippetsAsTools: true,
+  })
 
-// 4. Generate snippet library prompt
-const snippetsPrompt = createSnippetsSystemPrompt({
-  selectedSnippets: allSnippets,
-  totalSnippetCount: snippetIndex.length,
-  snippetsAsTools: true,
-})
+  const stream = chat({
+    adapter: openaiText('gpt-6.1-sol'),
+    tools: [codeModeTool, ...managementTools, ...snippetTools],
+    messages,
+    threadId,
+    runId,
+    systemPrompts: ['You are a helpful assistant.', codeModePrompt, snippetsPrompt],
+    agentLoopStrategy: maxIterations(15),
+  })
 
-// 5. Assemble and call chat()
-const stream = chat({
-  adapter: openaiText('gpt-5.5'),
-  tools: [codeModeTool, ...managementTools, ...snippetTools],
-  messages,
-  systemPrompts: [BASE_PROMPT, codeModePrompt, snippetsPrompt],
-  agentLoopStrategy: maxIterations(15),
-})
+  return toServerSentEventsResponse(stream)
+}
 ```
 
-This approach skips the selection LLM call entirely — you load whichever snippets you want and pass them in directly.
+`snippetsToTools` also takes `timeout` (default `30000`) and `memoryLimit` (default `128`).
 
-## Snippet Storage
+### What `codeModeWithSnippets` takes and returns
 
-Snippets are persisted through the `SnippetStorage` interface. Two implementations are provided:
+Options:
 
-### File storage (production)
+| Option | Type | Description |
+|--------|------|-------------|
+| `config` | `CodeModeToolConfig` | The same options as [`createCodeMode`](./code-mode#createcodemode-options). |
+| `adapter` | text adapter | The model that picks snippets. A cheap, fast model is enough. |
+| `snippets.storage` | `SnippetStorage` | Where snippets live. |
+| `snippets.maxSnippetsInContext` | `number` | Most snippets to load for one request. Default: `5`. |
+| `messages` | `Array<ModelMessage>` | The conversation, for snippet selection. |
+| `snippetsAsTools` | `boolean` | Exposes picked snippets as direct tools. Default: `true`. |
 
-`createFileSnippetStorage` is Node-only — it imports `node:fs` / `node:path` — so
-it lives behind the `/storage` subpath rather than the package root. This keeps
-the root export safe to bundle for Cloudflare Workers and browser builds; only
-reach for the subpath in a Node runtime.
+Return value:
 
-```typescript
-import { createFileSnippetStorage } from '@tanstack/ai-code-mode-snippets/storage'
-import { createDefaultTrustStrategy } from '@tanstack/ai-code-mode-snippets'
+| Property | Type | Description |
+|----------|------|-------------|
+| `toolsRegistry` | `ToolRegistry` | All the tools. Give them to `chat()` with `tools: toolsRegistry.getTools()`. |
+| `systemPrompt` | `string` | The Code Mode prompt plus the snippet library docs. |
+| `selectedSnippets` | `Array<Snippet>` | The snippets that the selection model picked. |
 
-const trustStrategy = createDefaultTrustStrategy()
-const storage = createFileSnippetStorage({
-  directory: './.snippets',
-  trustStrategy,  // optional, defaults to createDefaultTrustStrategy()
-})
-```
+### How selection works
 
-Creates a directory structure:
+On each request, `selectRelevantSnippets`:
+
+1. Takes the last 5 messages.
+2. Builds a catalog from the index: name, description, and the first usage hint of each snippet.
+3. Asks the adapter for a JSON array of matching snippet names, with at most `maxSnippetsInContext` names.
+4. Loads the full snippets for those names.
+
+If the model returns invalid JSON, the selection is empty. The request continues with no preloaded snippets, and the model can still search and use snippets with the management tools.
+
+### Snippets as tools or as sandbox functions
+
+`snippetsAsTools` (default `true`) controls how the model calls a picked snippet:
+
+| Mode | How the model calls a snippet | Good | Less good |
+|------|-------------------------------|------|-----------|
+| As tools (`true`) | A direct tool call to the snippet | Simpler for the model. Shows in the tool-call UI. Validates the input. | One tool per snippet in the tool list. |
+| As sandbox functions (`false`) | `await snippet_fetch_data({ ... })` inside `execute_typescript` | Snippets combine in code. Fewer top-level tools. | The model must write code to use them. |
+
+With `true`, the system prompt documents each snippet with its schema, usage hints, and an example call. With `false`, snippets appear as typed `snippet_*` functions in the sandbox type stubs.
+
+### Snippet lifecycle
+
+**Saving.** After useful code runs in `execute_typescript`, the system prompt tells the model to call `register_snippet` with these fields:
+
+- `name`: a snake_case name. It becomes the tool name.
+- `description`: what the snippet does.
+- `code`: TypeScript that reads an `input` variable.
+- `inputSchema` and `outputSchema`: JSON Schema strings.
+- `usageHints`: when to use the snippet.
+- `dependsOn`: other snippets that this one calls.
+
+**Running.** When the model calls a snippet tool:
+
+1. The snippet code gets `const input = <serialized input>;` in front of it.
+2. The TypeScript syntax is stripped.
+3. A fresh sandbox context starts with the `external_*` bindings.
+4. The code runs and returns its result.
+5. The success or failure count updates in the background.
+
+With `codeModeWithSnippets`, code in `execute_typescript` can call both `external_*` and `snippet_*` functions. The code of a snippet tool gets only the `external_*` functions.
+
+### Storage
+
+Both storages implement `SnippetStorage`:
+
+| Method | Description |
+|--------|-------------|
+| `loadIndex()` | Loads the metadata of all snippets, with no code. |
+| `loadAll()` | Loads all snippets, code included. |
+| `get(name)` | Gets one snippet by name. |
+| `save(snippet)` | Creates or updates a snippet. |
+| `delete(name)` | Removes a snippet. |
+| `search(query, options?)` | Searches snippets by text. |
+| `updateStats(name, success)` | Records one execution result, for trust tracking. |
+
+The file storage writes this layout:
 
 ```text
 .snippets/
-  _index.json              # Lightweight catalog for fast loading
+  _index.json              # Small catalog for fast loading
   fetch_github_stats/
     meta.json              # Description, schemas, hints, stats
     code.ts                # TypeScript source
@@ -248,35 +309,11 @@ Creates a directory structure:
     code.ts
 ```
 
-### Memory storage (testing & edge runtimes)
+`createFileSnippetStorage` takes `directory` and an optional `trustStrategy` (default: `createDefaultTrustStrategy()`).
 
-```typescript
-import { createMemorySnippetStorage } from '@tanstack/ai-code-mode-snippets'
+### Trust strategies
 
-const storage = createMemorySnippetStorage()
-```
-
-Keeps everything in memory — no `node:fs` dependency, so it is re-exported from
-the package root and is safe to use in Workers and browsers. Useful for tests,
-demos, and edge deployments. (It is also available from the `/storage` subpath.)
-
-### Storage interface
-
-Both implementations satisfy this interface:
-
-| Method | Description |
-|--------|-------------|
-| `loadIndex()` | Load lightweight metadata for all snippets (no code) |
-| `loadAll()` | Load all snippets with full details including code |
-| `get(name)` | Get a single snippet by name |
-| `save(snippet)` | Create or update a snippet |
-| `delete(name)` | Remove a snippet |
-| `search(query, options?)` | Search snippets by text query |
-| `updateStats(name, success)` | Record an execution result for trust tracking |
-
-## Trust Strategies
-
-Snippets start untrusted and earn trust through successful executions. The trust level is metadata only — it does not currently gate execution. Four built-in strategies are available:
+A snippet starts untrusted and earns trust with successful runs. The trust level is metadata only. It does not block a run.
 
 ```typescript group=code-mode-with-snippets
 import {
@@ -287,12 +324,12 @@ import {
 } from '@tanstack/ai-code-mode-snippets'
 ```
 
-| Strategy | Initial level | Provisional | Trusted |
-|----------|--------------|-------------|---------|
-| **Default** | `untrusted` | 10+ runs, ≥90% success | 100+ runs, ≥95% success |
-| **Relaxed** | `untrusted` | 3+ runs, ≥80% success | 10+ runs, ≥90% success |
-| **Always trusted** | `trusted` | — | — |
-| **Custom** | Configurable | Configurable | Configurable |
+| Strategy | Starts at | Provisional | Trusted |
+|----------|-----------|-------------|---------|
+| Default | `untrusted` | 10+ runs, 90%+ success | 100+ runs, 95%+ success |
+| Relaxed | `untrusted` | 3+ runs, 80%+ success | 10+ runs, 90%+ success |
+| Always trusted | `trusted` | n/a | n/a |
+| Custom | You choose | You choose | You choose |
 
 ```typescript group=code-mode-with-snippets
 const strategy = createCustomTrustStrategy({
@@ -302,76 +339,19 @@ const strategy = createCustomTrustStrategy({
 })
 ```
 
-## Snippet Lifecycle
+### Custom events
 
-### Registration
-
-When the LLM produces useful code via `execute_typescript`, the system prompt instructs it to call `register_snippet` with:
-
-- `name` — snake_case identifier (becomes the tool name)
-- `description` — what the snippet does
-- `code` — TypeScript source that receives an `input` variable
-- `inputSchema` / `outputSchema` — JSON Schema strings
-- `usageHints` — when to use this snippet
-- `dependsOn` — other snippets this one calls
-
-The snippet is saved to storage and (if a `ToolRegistry` was provided) immediately added as a callable tool in the current session.
-
-### Execution
-
-When a snippet tool is called, the system:
-
-1. Wraps the snippet code with `const input = <serialized input>;`
-2. Strips TypeScript syntax to plain JavaScript
-3. Creates a fresh sandbox context with `external_*` bindings
-4. Executes the code and returns the result
-5. Updates execution stats (success/failure count) asynchronously
-
-### Selection (high-level API only)
-
-On each new request, `selectRelevantSnippets`:
-
-1. Takes the last 5 conversation messages as context
-2. Builds a catalog from the snippet index (name + description + first usage hint)
-3. Asks the adapter to return a JSON array of relevant snippet names (max `maxSnippetsInContext`)
-4. Loads full snippet data for the selected names
-
-If parsing fails or the model returns invalid JSON, it falls back to an empty selection — the request proceeds without pre-loaded snippets, but the LLM can still search and use snippets via the management tools.
-
-## Snippets as Tools vs. Sandbox Bindings
-
-The `snippetsAsTools` option (default: `true`) controls how snippets are exposed:
-
-| Mode | How the LLM calls a snippet | Pros | Cons |
-|------|--------------------------|------|------|
-| **As tools** (`true`) | Direct tool call: `snippet_name({ ... })` | Simpler for the LLM, shows in tool-call UI, proper input validation | One tool per snippet in the tool list |
-| **As bindings** (`false`) | Inside `execute_typescript`: `await snippet_fetch_data({ ... })` | Snippets composable in code, fewer top-level tools | LLM must write code to use them |
-
-When `snippetsAsTools` is enabled, the system prompt documents each snippet with its schema, usage hints, and example calls. When disabled, snippets appear as typed `snippet_*` functions in the sandbox type stubs.
-
-## Custom Events
-
-Snippet execution emits events through the TanStack AI event system:
+Snippets send these events, next to the [Code Mode events](./code-mode#custom-events). [Showing Code Mode in the UI](./client-integration) shows how to catch them.
 
 | Event | When | Payload |
 |-------|------|---------|
-| `code_mode:snippet_call` | Snippet tool invoked | `{ snippet, input, timestamp }` |
-| `code_mode:snippet_result` | Snippet completed successfully | `{ snippet, result, duration, timestamp }` |
-| `code_mode:snippet_error` | Snippet execution failed | `{ snippet, error, duration, timestamp }` |
-| `snippet:registered` | New snippet saved via `register_snippet` | `{ id, name, description, timestamp }` |
+| `code_mode:snippet_call` | A snippet tool starts | `{ snippet, input, timestamp }` |
+| `code_mode:snippet_result` | A snippet tool succeeds | `{ snippet, result, duration, timestamp }` |
+| `code_mode:snippet_error` | A snippet tool fails | `{ snippet, error, duration, timestamp }` |
+| `snippet:registered` | `register_snippet` saves a new snippet | `{ id, name, description, timestamp }` |
 
-To render these events in your React app alongside Code Mode execution events, see [Showing Code Mode in the UI](./client-integration).
+### Tips
 
-## Tips
-
-- **Use a cheap model for selection.** The selection call only needs to match snippet names to conversation context — `gpt-4o-mini` or `claude-haiku-4-5` work well.
-- **Start without snippets.** Get Code Mode working first, then add `@tanstack/ai-code-mode-snippets` once you have tools that produce reusable patterns.
-- **Monitor the snippet count.** As the library grows, consider increasing `maxSnippetsInContext` or switching to the manual API where you control which snippets load.
-- **Newly registered snippets are available on the next message,** not in the current turn's tool list (unless using `ToolRegistry` with the high-level API, which adds them immediately).
-- **Snippets can call other snippets.** Inside the sandbox, both `external_*` and `snippet_*` functions are available. Set `dependsOn` when registering to document these relationships.
-
-## Next Steps
-
-- [Code Mode](./code-mode) — Core Code Mode setup and API reference
-- [Showing Code Mode in the UI](./client-integration) — Display execution progress in your React app
-- [Isolate Drivers](./code-mode-isolates) — Compare sandbox runtimes
+- **Use a cheap model for selection.** It only matches snippet names to the conversation. `gpt-5.4-mini` or `claude-haiku-5-5` are enough.
+- **Start with no snippets.** Get Code Mode working first. When your tools produce patterns that repeat, add snippets.
+- **Watch the snippet count.** When the library grows, increase `maxSnippetsInContext`, or pick the snippets yourself.

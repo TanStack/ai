@@ -2,110 +2,94 @@
 title: Provisioning (Advanced)
 id: provisioning
 order: 5
-description: "Give the in-sandbox agent secrets, skill repos, MCP servers, plugins, and instructions with one portable definition that each harness projects into its own native format."
+description: "Give the in-sandbox agent secrets, skill repos, MCP servers, plugins, and instructions. Declare them once, and each harness writes them in its own native format."
 ---
 
-Provisioning is how you hand the in-sandbox agent everything beyond the working
-tree: typed secrets, skill repos, MCP servers, plugins, and a universal
-instruction file. You declare it all on [`defineWorkspace()`](./workspace), and
-each harness adapter projects it into its own native format at bootstrap, so
-the same definition works whether the agent is Grok Build, Claude Code, Codex, or OpenCode.
+Provisioning writes tokens, skills, MCP servers, and house rules into the files each CLI expects.
+
+Provisioning lets you declare all of it once, on [`defineWorkspace()`](./workspace). At bootstrap, each harness adapter writes it in the format its CLI reads.
+
+## Provision a workspace
+
+1. Wrap your secrets with `createSecrets`. You get opaque refs, not strings.
+2. List your skills, plugins, and instructions on `defineWorkspace`.
+3. Pass the workspace to `defineSandbox`, and use the sandbox as usual.
 
 ```ts
 import {
   bearer,
   createSecrets,
+  defineSandbox,
   defineWorkspace,
   fileSkill,
   gitSkill,
   githubRepo,
   mcpSkill,
 } from '@tanstack/ai-sandbox'
+import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 
 const secrets = createSecrets({
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
   GH: process.env.GH_TOKEN ?? '',
   SENTRY: process.env.SENTRY_TOKEN ?? '',
 })
 
-defineWorkspace({
-  source: githubRepo({ repo: 'owner/repo', ref: 'main' }),
-  secrets,
-  skills: [
-    gitSkill({ repo: 'owner/tanstack-skills' }),
-    gitSkill({ repo: 'owner/private-skills', secret: secrets.GH }),
-    mcpSkill('my-mcp', {
-      url: 'https://mcp.example.com',
-      headers: { Authorization: bearer(secrets.SENTRY) },
-    }),
-    fileSkill({ path: '.agent-hints.md', content: '# Hints\nPrefer pnpm.' }),
-  ],
-  plugins: ['@anthropic/plugin-foo'],
-  instructions: 'Always run `pnpm test` before proposing a change.',
+export const repoSandbox = defineSandbox({
+  id: 'repo-agent',
+  provider: dockerSandbox({ image: 'node:22' }),
+  workspace: defineWorkspace({
+    source: githubRepo({ repo: 'owner/repo', ref: 'main' }),
+    // This example uses Claude Code. Install the CLI for your harness.
+    setup: [
+      'npm install -g @anthropic-ai/claude-code --include=optional && claude --version',
+    ],
+    secrets,
+    skills: [
+      // A public skill repo.
+      gitSkill({ repo: 'owner/tanstack-skills' }),
+      // A private skill repo. The token is used only for the clone.
+      gitSkill({ repo: 'owner/private-skills', secret: secrets.GH }),
+      // A third-party MCP server, with a bearer token header.
+      mcpSkill('sentry', {
+        url: 'https://mcp.example.com',
+        headers: { Authorization: bearer(secrets.SENTRY) },
+      }),
+      // Any file you want in the workspace.
+      fileSkill({ path: '.agent-hints.md', content: '# Hints\nPrefer pnpm.' }),
+    ],
+    plugins: ['@anthropic/plugin-foo'],
+    instructions: 'Always run `pnpm test` before proposing a change.',
+  }),
 })
 ```
 
-## Type-safe secrets
+Start a run with this sandbox and `claudeCodeText`. The agent can use the skills and the MCP server, and it reads your instructions from `AGENTS.md`.
 
-`createSecrets` turns plain environment values into opaque `SecretRef` tokens.
-You pass the refs around your config; the underlying strings stay out of every
-serializable surface.
+## How it works
 
-```ts
-import { createSecrets, defineWorkspace, githubRepo } from '@tanstack/ai-sandbox'
+- **Secrets** stay as refs everywhere in your config. The real values are resolved only into the live sandbox env, at create, resume, and snapshot restore. They are never written to snapshots, the sandbox store, or the event log.
+- **Skills, MCP servers, and plugins** are written by the harness adapter at bootstrap, each in its CLI's native place. See [Per-harness projection](#per-harness-projection).
+- **Instructions** go to `AGENTS.md` at the workspace root. `CLAUDE.md` and `GEMINI.md` point to it.
+- **A CLI that lacks a concept** warns and skips that entry. It does not throw. So one definition works with every harness, and each agent takes the parts it understands.
 
-const secrets = createSecrets({
-  GH: process.env.GH_TOKEN ?? '',
-  SENTRY: process.env.SENTRY_TOKEN ?? '',
-})
+To limit what the agent is **allowed** to do (which commands run, which ask, which are denied), use [Policy](./policy), not instructions.
 
-defineWorkspace({
-  source: githubRepo({ repo: 'owner/repo', ref: 'main' }),
-  secrets,
-})
-```
+## Advanced
 
-`secrets` is [declared on the workspace](./workspace). At create, resume, and
-snapshot restore, the sandbox layer resolves them onto the live handle env.
-Providers never write those values into snapshots, the sandbox store, or the
-event log.
+### Why secret values never leak
 
-### Why the values never leak
+`createSecrets` keeps the real strings in a **non-enumerable, symbol-keyed registry** on the object it returns. Each property you read (`secrets.GH`) is a `SecretRef` token, not the string. So:
 
-The real strings are held in a **non-enumerable, symbol-keyed registry** on the
-object `createSecrets` returns. Each property you access (`secrets.GH`) is a
-`SecretRef` token, not the string. Because the registry is symbol-keyed and
-non-enumerable:
+- `Object.keys(secrets)`, spreads, and `JSON.stringify(secrets)` never show the values.
+- The workspace definition is safe to hash, store, and replay for resume, with no credential in it.
 
-- `Object.keys(secrets)`, spreads, and `JSON.stringify(secrets)` never expose
-  the values.
-- The values are **never written to snapshots, the sandbox store, or the event
-  log**. They are resolved only when the live sandbox env is built.
+`secrets` is [declared on the workspace](./workspace). The harness adapters write secret-bearing MCP config again on every run, with fresh values. So a snapshot never serves a stale or rotated secret.
 
-This is what makes the workspace definition safe to hash, persist, and replay
-for resume bookkeeping without ever persisting a credential.
+### Where a `SecretRef` goes
 
-### Passing a secret where a `SecretRef` is accepted
+Pass a ref straight to any field that takes one. For `gitSkill`, pass `secret`. The token is resolved only when the repo is cloned.
 
-Hand a ref directly to any field that takes one. The clearest example is
-`gitSkill` auth: pass `secret: secrets.GH` and the token is resolved only when
-the repo is cloned:
-
-```ts
-import { createSecrets, defineWorkspace, gitSkill, githubRepo } from '@tanstack/ai-sandbox'
-
-const secrets = createSecrets({ GH: process.env.GH_TOKEN ?? '' })
-
-defineWorkspace({
-  source: githubRepo({ repo: 'owner/repo' }),
-  secrets,
-  skills: [gitSkill({ repo: 'owner/private-skills', secret: secrets.GH })],
-})
-```
-
-### `bearer(ref)` for header values
-
-In MCP header values you can use a ref directly, or wrap it with `bearer(ref)`
-to produce a `Bearer <value>` string at resolution time:
+In MCP headers, use a ref as is, or wrap it with `bearer(ref)` to get `Bearer <value>`:
 
 ```ts
 import { bearer, createSecrets, mcpSkill } from '@tanstack/ai-sandbox'
@@ -115,81 +99,43 @@ const secrets = createSecrets({
   SENTRY: process.env.SENTRY_TOKEN ?? '',
 })
 
-mcpSkill('my-mcp', {
+export const sentry = mcpSkill('sentry', {
   url: 'https://mcp.example.com',
   headers: {
-    Authorization: bearer(secrets.SENTRY), // resolves to "Bearer <value>"
-    'X-Token': secrets.GH, // resolves to the raw token value
+    Authorization: bearer(secrets.SENTRY), // "Bearer <value>"
+    'X-Token': secrets.GH, // the raw token value
   },
 })
 ```
 
-## Skills, plugins, and MCP servers
+### Skill builders
 
-`skills` is an array of skill values that provision capabilities into the
-agent's environment. There are four builders, each describing a different kind
-of capability:
+| Builder | What it provisions |
+| --- | --- |
+| `gitSkill` | A skill repo cloned into the workspace, with optional `secret` and clone path. |
+| `mcpSkill` | A third-party MCP server, with `url` and `headers`. |
+| `fileSkill` | Any file written into the workspace. |
+| `agentSkill` | A public skill by bare name. Every bundled harness warns and skips it, so use `gitSkill` instead. |
 
-| Builder      | What it provisions                                                                 |
-| ------------ | ---------------------------------------------------------------------------------- |
-| `agentSkill` | A named public skill (portable placeholder; Claude Code warns and skips it, so use `gitSkill` instead). |
-| `gitSkill`   | A skill repo cloned into the workspace, with optional auth and clone path.         |
-| `mcpSkill`   | A third-party MCP server, with URL and headers.                                    |
-| `fileSkill`  | An arbitrary file written into the workspace.                                      |
-
-```ts
-import {
-  bearer,
-  createSecrets,
-  defineWorkspace,
-  fileSkill,
-  gitSkill,
-  githubRepo,
-  mcpSkill,
-} from '@tanstack/ai-sandbox'
-
-const secrets = createSecrets({
-  GH: process.env.GH_TOKEN ?? '',
-  SENTRY: process.env.SENTRY_TOKEN ?? '',
-})
-
-defineWorkspace({
-  source: githubRepo({ repo: 'owner/repo' }),
-  secrets,
-  skills: [
-    // Clone a public skill repo (preferred over agentSkill on Claude Code).
-    gitSkill({ repo: 'owner/tanstack-skills' }),
-    // Clone a private skill repo; `secret` is resolved from the secrets registry.
-    gitSkill({ repo: 'owner/private-skills', secret: secrets.GH }),
-    // Wire an MCP server with a resolved bearer token in the Authorization header.
-    mcpSkill('my-mcp', {
-      url: 'https://mcp.example.com',
-      headers: { Authorization: bearer(secrets.SENTRY) },
-    }),
-    // Write an arbitrary file into the workspace.
-    fileSkill({ path: '.agent-hints.md', content: '# Hints\nPrefer pnpm.' }),
-  ],
-  plugins: ['@anthropic/plugin-foo'],
-})
-```
+These MCP servers are third-party services. To give the agent your **own app's** tools (a `chat()` server tool whose `execute()` runs on your host), use [Tools](./tools).
 
 ### `gitSkill` clone path
 
-`gitSkill` takes an optional `into` field, an **absolute path inside the
-sandbox**, controlling where the repo is cloned. It defaults to
-`.tanstack-skills/<repo-basename>`. Bootstrap creates the parent directory
-before the clone.
+`into` sets where the repo is cloned. It is an absolute path inside the sandbox. The default is `.tanstack-skills/<repo-basename>` under the workspace root. Bootstrap creates the parent directory before the clone.
 
-Paths that start with `/workspace` use the portable workspace root. The
-provider maps that root onto its real workdir. Keep `/workspace/...` in
-`into` unless you have a reason to pin a provider-specific path.
+A path that starts with `/workspace` uses the portable workspace root, and the provider maps it to its real workdir. Keep `/workspace/...` unless you must pin a provider-specific path.
 
 ```ts
-import { createSecrets, defineWorkspace, gitSkill, githubRepo } from '@tanstack/ai-sandbox'
+import {
+  createSecrets,
+  defineWorkspace,
+  gitSkill,
+  githubRepo,
+} from '@tanstack/ai-sandbox'
 
 const secrets = createSecrets({ GH: process.env.GH_TOKEN ?? '' })
 
-defineWorkspace({
+export const workspace = defineWorkspace({
   source: githubRepo({ repo: 'owner/repo' }),
   secrets,
   skills: [
@@ -204,50 +150,20 @@ defineWorkspace({
 
 ### Per-harness projection
 
-At bootstrap each harness projector maps these values into its CLI's native
-format:
+| Harness | MCP servers | `gitSkill` repos | `plugins` |
+| --- | --- | --- | --- |
+| Claude Code | `.mcp.json` | `.claude/skills/<name>` | `claude plugin install <name> --scope project` |
+| Codex | `.codex/config.toml` | `.codex/skills/<name>` | Warns and skips. |
+| Grok Build | `.grok/config.toml` | `.grok/skills/<name>` | Warns and skips. |
+| OpenCode | `opencode.json` | Warns and skips (cloned, not linked). | Warns and skips. |
 
-| Harness     | MCP servers projected to |
-| ----------- | ------------------------ |
-| Claude Code | `.mcp.json`              |
-| Codex       | `.codex/config.toml`     |
-| OpenCode    | `opencode.json`          |
+For a linked skill repo, the projector looks for folders that hold a `SKILL.md`:
 
-Each projector walks the cloned repo for folders that contain `SKILL.md`. A
-nested pack (`skills/foo/SKILL.md`) is linked under the skill name `foo`. A
-flat clone with `SKILL.md` at the root uses the clone name. You do not write
-`ln -s` by hand.
+- A nested pack (`skills/foo/SKILL.md`) is linked under the name `foo`.
+- A flat clone with `SKILL.md` at its root uses the clone name.
 
-A concept a given CLI lacks (for example, `plugins` on Codex) **emits a
-warning and is silently skipped** rather than throwing. The same applies to
-`agentSkill` on Claude Code: there is no reliable primitive to install a public
-skill by bare name, so the projector warns and skips it. Prefer `gitSkill` (or a
-`plugins` entry) when you need that skill on Claude Code. That keeps one
-portable definition usable across harnesses: you declare everything once, and
-each agent takes the parts it understands.
+Links are symlinks. If `ln -s` fails, the projector copies the folder. You never write the links yourself.
 
-> These MCP servers are third-party services you point the agent at. Bridging
-> your **own app's host tools** into the agent (a `chat()` server tool whose
-> `execute()` runs back on the host) is a different mechanism, see
-> [Tools](./tools).
+### `AGENTS.md` and its links
 
-## `AGENTS.md` and per-harness symlinks
-
-`instructions` is a string written to `AGENTS.md` at the workspace root during
-bootstrap. Harness-specific counterparts (`CLAUDE.md`, `GEMINI.md`) are
-created as **symlinks** to it; if the sandbox process layer cannot symlink, they
-are written as copies instead. Either way the instruction content is read
-natively by every supported CLI without extra config.
-
-```ts
-import { defineWorkspace, githubRepo } from '@tanstack/ai-sandbox'
-
-defineWorkspace({
-  source: githubRepo({ repo: 'owner/repo' }),
-  instructions: 'Always run `pnpm test` before proposing a change.',
-})
-```
-
-> Use `instructions` for guidance you want the agent to always follow. To
-> constrain what it is *allowed* to do, which commands and capabilities are
-> allowed, asked about, or denied, reach for [Policy](./policy) instead.
+Bootstrap writes `instructions` to `AGENTS.md` at the workspace root. It then creates `CLAUDE.md` and `GEMINI.md` as symlinks to it. If the sandbox cannot make symlinks, they are copies. Either way, every supported CLI reads the instructions with no extra config.

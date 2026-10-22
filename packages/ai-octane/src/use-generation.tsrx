@@ -1,6 +1,6 @@
 import { GenerationClient } from '@tanstack/ai-client'
 import { createGenerationDevtoolsBridge } from '@tanstack/ai-client/devtools'
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'octane'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'octane'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
@@ -25,8 +25,8 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for one-shot generation (no streaming protocol needed) */
   fetcher?: GenerationFetcher<TInput, TResult>
-  /** Unique identifier for this generation instance */
-  id?: string
+  /** Stable scope for this generation. Also the wire and DevTools identity. */
+  threadId: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
@@ -114,8 +114,7 @@ export function useGeneration<
   InferGenerationOutputFromReturn<TResult, TTransformed>
 > {
   type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
-  const hookId = useId()
-  const clientId = options.id || hookId
+  const clientId = options.threadId
 
   const [result, setResult] = useState<TOutput | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -133,7 +132,7 @@ export function useGeneration<
     // wrap optional ones in non-returning bodies so `?.()`'s
     // implicit `undefined` doesn't pollute the function return type.
     const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
-      id: clientId,
+      threadId: clientId,
       body: opts.body,
       devtoolsBridgeFactory: createGenerationDevtoolsBridge,
       devtools: {

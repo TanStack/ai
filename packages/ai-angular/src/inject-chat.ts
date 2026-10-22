@@ -43,12 +43,7 @@ export function injectChat<
     InterruptDefinition<any, any, any, any>
   > = readonly [],
 >(
-  options: InjectChatOptions<
-    TTools,
-    TSchema,
-    TContext,
-    TInterrupts
-  > = {} as InjectChatOptions<TTools, TSchema, TContext, TInterrupts>,
+  options: InjectChatOptions<TTools, TSchema, TContext, TInterrupts>,
 ): InjectChatResult<TTools, TSchema, TInterrupts> {
   assertInInjectionContext(injectChat)
 
@@ -59,8 +54,6 @@ export function injectChat<
   const injector = inject(Injector)
 
   // Reactive option sources. Plain values become constant computeds.
-  const bodySource =
-    options.body !== undefined ? toReactive(options.body) : undefined
   const forwardedPropsSource =
     options.forwardedProps !== undefined
       ? toReactive(options.forwardedProps)
@@ -82,28 +75,18 @@ export function injectChat<
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),
-    ...(typeof options.threadId === 'string' && options.persistence === true
+    threadId: options.threadId,
+    ...(options.persistence === true
       ? {
           persistence: true,
-          threadId: options.threadId,
           ...(options.history !== undefined && {
             history: options.history,
           }),
         }
-      : typeof options.threadId === 'string' && options.persistence
-        ? {
-            persistence: options.persistence,
-            threadId: options.threadId,
-          }
-        : {
-            ...(options.threadId !== undefined && {
-              threadId: options.threadId,
-            }),
-          }),
+      : { persistence: options.persistence }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
     }),
-    ...(bodySource !== undefined && { body: bodySource() }),
     ...(forwardedPropsSource !== undefined && {
       forwardedProps: forwardedPropsSource(),
     }),
@@ -150,15 +133,13 @@ export function injectChat<
   // matching `detach`.
   client.attach()
 
-  // Sync reactive body / forwardedProps / context to the client.
-  if (bodySource || forwardedPropsSource || contextSource) {
+  // Sync reactive forwardedProps / context to the client.
+  if (forwardedPropsSource || contextSource) {
     effect(
       () => {
-        const newBody = bodySource?.()
         const newForwardedProps = forwardedPropsSource?.()
         const newContext = contextSource?.()
         client.updateOptions({
-          ...(newBody !== undefined && { body: newBody }),
           ...(newForwardedProps !== undefined && {
             forwardedProps: newForwardedProps,
           }),
@@ -275,14 +256,7 @@ export function injectChat<
   }) => {
     await client.addToolResult(result)
   }
-  const addToolApprovalResponse = async (response: {
-    id: string
-    approved: boolean
-  }) => {
-    await client.addToolApprovalResponse(response)
-  }
   const interrupts = computed(() => interruptState().interrupts)
-  const pendingInterrupts = computed(() => interruptState().interrupts)
   const interruptErrors = computed(() => interruptState().interruptErrors)
   const resuming = computed(() => interruptState().resuming)
   const resolveInterrupts = (
@@ -326,10 +300,8 @@ export function injectChat<
     setMessages,
     clear,
     addToolResult,
-    addToolApprovalResponse,
     runId: computed(() => snapshot().runId),
     interrupts,
-    pendingInterrupts,
     interruptErrors,
     resuming,
     resolveInterrupts,

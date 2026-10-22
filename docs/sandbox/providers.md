@@ -2,49 +2,80 @@
 title: Providers
 id: providers
 order: 3
-description: "Pick and configure where a TanStack AI sandbox runs (local process, Docker container, Docker Sandboxes microVM, Daytona, Vercel, Upstash Box, Blaxel, E2B, boxd, or Railway) and what each one can do."
+description: "Pick where a TanStack AI sandbox runs (local process, Docker container, Docker Sandboxes microVM, Daytona, Vercel, Sprites, Upstash Box, Blaxel, E2B, boxd, or Railway), install it, and configure it."
 ---
 
-A provider owns the isolation primitive: where the harness actually runs. Every
-provider implements the same `SandboxProvider` / `SandboxHandle` contract, so the
-[workspace](./workspace) you hand the agent and the [policy](./policy) that guards
-it are provider-agnostic. Pick a provider for the isolation, auth, and
-snapshot/resume behaviour you need; the rest of your sandbox definition stays the
-same.
+A provider is where the sandbox runs: a local process for a fast loop, or an isolated VM in production.
 
-Provider-native snapshots and resume keep or recreate provider state. They can
-reduce bootstrap time. [Portable Snapshots](./portable-snapshots) store
-completed workspace data in your application persistence for reconstruction.
+A provider is that place. Every provider has the same contract, so your [workspace](./workspace), [policy](./policy), and harness stay the same when you change the provider.
 
-> The provider is _where_ the agent runs. For _which_ agent runs (Grok Build,
-> Claude Code, Codex, OpenCode, or any ACP agent via `acpCompatible`) see
-> [Harnesses](./harnesses).
+## Set up a provider
 
-## Choosing a provider
+1. Pick a row from the table.
 
-| Provider | Package | Isolation | Notes |
+| Provider | Package | Isolation | Needs |
 | --- | --- | --- | --- |
-| Local process | `@tanstack/ai-sandbox-local-process` | none (host) | The fast, no-Docker dev loop. Trusted/dev use only. |
-| Docker | `@tanstack/ai-sandbox-docker` | container | Real isolation; commit-based snapshots, fork, resume-by-id. |
-| Docker Sandboxes (`sbx`) | `@tanstack/ai-sandbox-docker` | microVM | Native Docker Sandboxes. Same package as `dockerSandbox()`, different export: `sbxSandbox()`. Needs the `sbx` CLI, a login, and a hypervisor. |
-| Daytona | `@tanstack/ai-sandbox-daytona` | cloud sandbox | Managed [Daytona](https://www.daytona.io/) sandboxes; snapshots after setup, port preview links, resume-by-id. Needs `DAYTONA_API_KEY`. |
-| Vercel | `@tanstack/ai-sandbox-vercel` | microVM | Managed [Vercel Sandbox](https://vercel.com/docs/sandbox) microVMs; exposed-port domains, resume-by-id (persistent). Needs `VERCEL_TOKEN` + team/project. |
-| Sprites | `@tanstack/ai-sandbox-sprites` | stateful sandbox | Managed [Sprites](https://sprites.dev) (Fly.io) sandboxes; durable filesystem, in-place checkpoints, single proxied public-URL port, resume-by-id. Needs `SPRITES_API_KEY`. |
-| Upstash Box | `@tanstack/ai-sandbox-upstash-box` | cloud sandbox | Managed [Upstash Box](https://github.com/upstash/box) sandboxes; interactive processes over a WebSocket session (real pid, stdin, signals), native snapshots, preview URLs, resume-by-id. Needs `UPSTASH_BOX_API_KEY`. |
-| Blaxel | `@tanstack/ai-sandbox-blaxel` | cloud sandbox | Managed [Blaxel](https://blaxel.ai) sandboxes; durable filesystem, per-port preview URLs, native file watch, resume-by-id. Snapshot/fork remain disabled while the source-scoped private-preview semantics are unproven. Accepts `BL_API_KEY` + `BL_WORKSPACE` or SDK-resolved CLI or client credentials. |
-| E2B | `@tanstack/ai-sandbox-e2b` | microVM | Managed [E2B](https://e2b.dev) Firecracker sandboxes. Native snapshots and fork, preview URLs, writable stdin, process-group kill, resume-by-id (also wakes a paused sandbox). Needs `E2B_API_KEY`. |
-| boxd | `@tanstack/ai-sandbox-boxd` | microVM | Managed [boxd](https://boxd.sh) KVM microVMs; live fork (memory and processes), snapshots that restore into a new machine, persistent disk, resume-by-id across stop, suspend and hibernate, one public HTTPS URL per machine. Needs `BOXD_API_KEY` + `BOXD_ORG`. |
-| Railway | `@tanstack/ai-sandbox-railway` | microVM | Managed [Railway](https://railway.com) sandboxes. Private networking to your other Railway services, live disk fork, environment-scoped checkpoints that survive deletion of their source, durable exec sessions, create-time HTTP domains, resume-by-id. Needs `RAILWAY_API_TOKEN` or `RAILWAY_TOKEN` + an environment. |
+| Local process | `@tanstack/ai-sandbox-local-process` | None (your host) | Nothing. For trusted dev work only. |
+| Docker | `@tanstack/ai-sandbox-docker` | Container | Docker running. |
+| Docker Sandboxes (`sbx`) | `@tanstack/ai-sandbox-docker` | microVM | The `sbx` CLI, `sbx login`, and a hypervisor. |
+| [Daytona](https://www.daytona.io/) | `@tanstack/ai-sandbox-daytona` | Cloud sandbox | `DAYTONA_API_KEY` |
+| [Vercel](https://vercel.com/docs/sandbox) | `@tanstack/ai-sandbox-vercel` | microVM | `VERCEL_TOKEN`, a team, and a project. |
+| [Sprites](https://sprites.dev) | `@tanstack/ai-sandbox-sprites` | Stateful sandbox | `SPRITES_API_KEY` |
+| [Upstash Box](https://github.com/upstash/box) | `@tanstack/ai-sandbox-upstash-box` | Cloud sandbox | `UPSTASH_BOX_API_KEY` |
+| [Blaxel](https://blaxel.ai) | `@tanstack/ai-sandbox-blaxel` | Cloud sandbox | `BL_API_KEY` and `BL_WORKSPACE`, or a Blaxel CLI login. |
+| [E2B](https://e2b.dev) | `@tanstack/ai-sandbox-e2b` | microVM | `E2B_API_KEY` |
+| [boxd](https://boxd.sh) | `@tanstack/ai-sandbox-boxd` | microVM | `BOXD_API_KEY` and `BOXD_ORG`. |
+| [Railway](https://railway.com) | `@tanstack/ai-sandbox-railway` | microVM | `RAILWAY_API_TOKEN` or `RAILWAY_TOKEN`, and an environment. |
 
-Most providers are their own package. `dockerSandbox()` and `sbxSandbox()` both
-come from `@tanstack/ai-sandbox-docker`. The constructor is the only thing that
-differs between them:
+2. Install its package. This example installs the Docker provider. Use the package from your row.
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-sandbox-docker
+vue: @tanstack/ai-sandbox-docker
+solid: @tanstack/ai-sandbox-docker
+svelte: @tanstack/ai-sandbox-docker
+preact: @tanstack/ai-sandbox-docker
+angular: @tanstack/ai-sandbox-docker
+vanilla: @tanstack/ai-sandbox-docker
+octane: @tanstack/ai-sandbox-docker
+
+<!-- ::end:tabs -->
+
+3. Set the env vars from the "Needs" column.
+
+4. Pass the provider to `defineSandbox`:
+
+```ts
+import {
+  createSecrets,
+  defineSandbox,
+  defineWorkspace,
+  githubRepo,
+} from '@tanstack/ai-sandbox'
+import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+
+export const repoSandbox = defineSandbox({
+  id: 'repo-agent',
+  provider: dockerSandbox({ image: 'node:22' }),
+  workspace: defineWorkspace({
+    source: githubRepo({ repo: 'owner/app' }),
+    setup: ['corepack enable', 'pnpm install'],
+    secrets: createSecrets({
+      XAI_API_KEY: process.env.XAI_API_KEY ?? '',
+    }),
+  }),
+})
+```
+
+To change the provider, change only the `provider` line. Here is the constructor for each one:
 
 ```ts
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import { dockerSandbox, sbxSandbox } from '@tanstack/ai-sandbox-docker'
 import { daytonaSandbox } from '@tanstack/ai-sandbox-daytona'
 import { vercelSandbox } from '@tanstack/ai-sandbox-vercel'
+import { spritesSandbox } from '@tanstack/ai-sandbox-sprites'
 import { upstashBoxSandbox } from '@tanstack/ai-sandbox-upstash-box'
 import { blaxelSandbox } from '@tanstack/ai-sandbox-blaxel'
 import { e2bSandbox } from '@tanstack/ai-sandbox-e2b'
@@ -54,642 +85,83 @@ import { railwaySandbox } from '@tanstack/ai-sandbox-railway'
 const dev = localProcessSandbox() // runs on your host
 const isolated = dockerSandbox({ image: 'node:22' }) // container
 const microvm = sbxSandbox() // Docker Sandboxes microVM
-const daytona = daytonaSandbox({ apiKey: process.env.DAYTONA_API_KEY }) // managed cloud sandbox
-const vercel = vercelSandbox({ runtime: 'node24' }) // managed Vercel microVM
-const box = upstashBoxSandbox({ apiKey: process.env.UPSTASH_BOX_API_KEY }) // managed Upstash Box
-const blaxel = blaxelSandbox() // managed Blaxel sandbox; uses API-key or CLI credentials
-const e2b = e2bSandbox() // managed E2B microVM; reads E2B_API_KEY
-const boxd = boxdSandbox({ org: 'acme' }) // managed boxd microVM; reads BOXD_API_KEY
-const railway = railwaySandbox() // managed Railway sandbox; reads RAILWAY_TOKEN + RAILWAY_ENVIRONMENT_ID
-```
-
-> Cloud providers (including Daytona, Vercel, Sprites, Upstash Box, Blaxel, E2B, boxd, and Railway)
-> run remotely. When you drive them from your laptop, [tools](./tools) bridged
-> from `chat()` can't dial your machine's
-> `localhost`, you need the bridge tunnel. See the [tools guide](./tools) for the
-> ngrok subpath, and the [Cloudflare guide](./cloudflare) for the edge-native
-> co-located model.
-
-## Local process
-
-```ts
-import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
-
-const dev = localProcessSandbox()
-```
-
-- **Isolation:** none. The harness runs directly on your host, inheriting your
-  host environment. Use it for trusted or dev work only. There is no boundary
-  between the agent and your machine.
-- **Auth / env:** inherits the host environment. Set `authMode` on the harness
-  (`'host'` or `'api-key'`). The provider does not pick this. See
-  [Harness Auth](./auth).
-- **Snapshot / resume:** no snapshots and no durable resume-by-id; each run
-  re-creates and re-bootstraps under the same identity. The snapshot step is
-  skipped silently (see [Capabilities](#capabilities)).
-
-### Host login vs API key (`scrubEnv`)
-
-The provider is where the agent runs, not how it signs in. The default
-`authMode` is `'api-key'`. Set `'host'` when the machine already has a CLI
-login. A local-process run can be your laptop or a GitHub runner. See
-[Harness Auth](./auth).
-
-`localProcessSandbox` inherits the host environment, including any API keys
-exported there. If you set `authMode: 'host'`, pass `scrubEnv` so those keys
-do not override the CLI login:
-
-```ts
-import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
-
-const hostLogin = localProcessSandbox({
-  scrubEnv: ['XAI_API_KEY', 'GROK_API_KEY'],
-})
-```
-
-If the same local-process sandbox runs on a CI machine, set
-`authMode: 'api-key'`. Then inject the key as a workspace secret. Isolated and
-cloud providers have no host CLI login. Use `authMode: 'api-key'` and
-workspace secrets there.
-
-### Windows process teardown (`logger`)
-
-Killing a spawned process means killing the whole tree, and on Windows that takes
-more than `taskkill /T`. Commands run through a git-bash `sh`, and MSYS's
-fork emulation runs the final command of a statement list, such as the
-`tail -f` behind a [journal](./journal) follow read, under an intermediate shell
-that immediately exits. Windows never reparents, so the surviving process points
-at a dead parent and `taskkill /T`, which walks only live parent links, cannot
-reach it **while still exiting `0`**. Left alone, every follow read leaks a
-process for the life of the machine.
-
-`localProcessSandbox` therefore consults MSYS's own process table, which does
-keep the logical parentage before killing, then kills any descendant `/T` missed.
-Teardown is total by construction: it never throws, because a throwing kill would
-strand a run mid-flight. That means a kill it genuinely cannot complete (a
-protected process, access denied) is otherwise invisible, so pass a `logger` to
-see it:
-
-```ts
-import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
-
-const dev = localProcessSandbox({
-  logger: {
-    warn: (message, meta) => console.warn(message, meta),
-  },
-})
-```
-
-Any object with a `warn(message, meta?)` method works, so the `InternalLogger`
-your adapter already receives can be handed straight in. A process that had
-already exited on its own is **not** a failure and is never reported.
-
-Nothing here changes on POSIX, where `sh` really is the command's parent and
-signalling the wrapper is enough.
-
-## Docker
-
-```ts
-import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
-
-const isolated = dockerSandbox({ image: 'node:22' })
-```
-
-- **Isolation:** a real container boundary between the agent and your host.
-- **Auth / env:** no host login; provide credentials as workspace secrets, which
-  are injected into the container env at create/resume. The agent reaches host
-  tools over `host.docker.internal` (see [tools](./tools)).
-- **Snapshot / resume:** full commit-based snapshots, `fork`, and resume-by-id.
-  Bootstrap snapshots after `setup` completes, so subsequent runs resume from the
-  snapshot instead of re-running setup.
-
-## Docker Sandboxes (sbx)
-
-```ts
-import { sbxSandbox } from '@tanstack/ai-sandbox-docker'
-import { defineSandbox, defineWorkspace, githubRepo } from '@tanstack/ai-sandbox'
-
-const isolated = sbxSandbox({
-  allowNetwork: ['*.npmjs.org', 'registry.npmjs.org'],
-})
-
-const sandbox = defineSandbox({
-  id: 'repo-agent',
-  provider: isolated,
-  workspace: defineWorkspace({
-    source: githubRepo({ repo: 'owner/repo' }),
-    setup: ['pnpm install'],
-  }),
-})
-```
-
-- **Isolation:** a hypervisor microVM. The sandbox has its own kernel and its own Docker daemon. This is not `dockerSandbox()`, which starts a container.
-- **Needs:** `sbx` on `PATH`, `sbx login` (or a PAT piped to `sbx login --password-stdin` in CI), and a hypervisor (Hyper-V, Virtualization.framework, or KVM). A Docker socket is not enough.
-- **Workspace:** `sbx create --clone` copies a host Git repo into the VM. Pass `workspaceDir` that contains `.git`, or set `workspace.source` to a git URL. If there is no Git repo, create throws. There is no bind-mount fallback.
-- **Auth / env:** inject API keys as workspace secrets. v1 does not call `sbx secret`.
-- **Snapshot / resume:** no snapshots and no fork. Resume reconnects by name (`sbx ls`). A stopped sandbox starts again on the next `sbx exec`.
-- **Network:** this is the first provider with `networkPolicy: true`. See [Policy](./policy).
-
-## Daytona
-
-```ts
-import { daytonaSandbox } from '@tanstack/ai-sandbox-daytona'
-
-const daytona = daytonaSandbox({
-  apiKey: process.env.DAYTONA_API_KEY,
-  snapshot: 'daytona-medium',
-  autoStopInterval: 0,
-})
-```
-
-- **Isolation:** a managed cloud sandbox on a remote VM you do not run yourself.
-- **Auth / env:** needs `DAYTONA_API_KEY`. Put harness credentials in
-  [workspace secrets](./provisioning). At create and snapshot restore,
-  Daytona stores each value as an organization Secret and mounts a
-  placeholder in the sandbox env. The create record, the dashboard env
-  view, and session command strings do not contain the real value. Daytona
-  substitutes the value on outbound HTTPS requests. Per-command `opts.env`
-  uses `executeCommand`'s env argument or a sourced env file. It never
-  writes `export KEY=` prefixes into the command string.
-- **Snapshot / resume:** point-in-time snapshots after setup (default when
-  `lifecycle.snapshot` is `'after-setup'`). Pass `snapshot` on
-  `daytonaSandbox()` to pick the Daytona image (for example
-  `'daytona-medium'`). Resume starts a `stopped` or `archived` sandbox, then
-  returns the handle.
-- **Idle stop:** Daytona stops an idle sandbox after 15 minutes by default.
-  Set `autoStopInterval` in minutes to change that. Pass `0` to turn auto-stop
-  off. Set `ephemeral: true` to delete the sandbox when it stops.
-- **Network:** `policy.capabilities.network: 'deny'` blocks all outbound
-  network on create.
-- **Working directory:** the portable root `/workspace` maps to
-  `/home/daytona/workspace` by default. Override with `workdir` on
-  `daytonaSandbox()` if you need another path.
-- **Stdin:** spawned processes accept host stdin (`writableStdin: true`).
-- **Privileges:** the Daytona user is not root. Package installs in `setup`
-  must use `sudo -n` (for example `sudo -n apt-get install …`). Do not put
-  `sudo *` in a [policy](./policy) deny list for this provider.
-- **Bridge:** the sandbox is remote, so a [bridged tool](./tools) call cannot
-  reach your laptop's `localhost`. In local dev, tunnel the bridge (see
-  [tools](./tools)). A deployed orchestrator is reachable without a tunnel.
-
-Default headless path on Daytona:
-
-```ts
-import { chat } from '@tanstack/ai'
-import { grokBuildText } from '@tanstack/ai-grok-build'
-import {
-  defineSandbox,
-  defineSandboxPolicy,
-  defineWorkspace,
-  gitSkill,
-  githubRepo,
-  withSandbox,
-} from '@tanstack/ai-sandbox'
-import { daytonaSandbox } from '@tanstack/ai-sandbox-daytona'
-
-const sandbox = defineSandbox({
-  id: 'daytona-agent',
-  provider: daytonaSandbox({
-    apiKey: process.env.DAYTONA_API_KEY,
-    snapshot: 'daytona-medium',
-  }),
-  workspace: defineWorkspace({
-    source: githubRepo({ repo: 'owner/app' }),
-    skills: [gitSkill({ repo: 'owner/skills-pack' })],
-  }),
-  policy: defineSandboxPolicy({
-    default: 'allow',
-  }),
-})
-
-const stream = chat({
-  adapter: grokBuildText('grok-build'),
-  messages: [{ role: 'user', content: 'List the project files.' }],
-  middleware: [withSandbox(sandbox)],
-})
-```
-
-Headless Grok Build and Codex stay on auto-approve with `default: 'allow'`.
-Isolation is the Daytona VM. Use Claude Code when you need command-level deny.
-
-## Vercel
-
-```ts
-import { vercelSandbox } from '@tanstack/ai-sandbox-vercel'
-
+const daytona = daytonaSandbox({ apiKey: process.env.DAYTONA_API_KEY })
 const vercel = vercelSandbox({ runtime: 'node24' })
-```
-
-- **Isolation:** a managed microVM (Vercel Sandbox).
-- **Auth / env:** needs `VERCEL_TOKEN` plus a team/project. Harness credentials
-  are injected as workspace secrets.
-- **Snapshot / resume:** persistent resume-by-id with a durable filesystem, plus
-  exposed-port domains for previews.
-- **Bridge:** like Daytona, it is a remote VM, so bridged tools need the tunnel in local
-  dev (see [tools](./tools)).
-
-## Sprites
-
-```ts
-import { spritesSandbox } from '@tanstack/ai-sandbox-sprites'
-
 const sprites = spritesSandbox({ apiKey: process.env.SPRITES_API_KEY })
-```
-
-- **Isolation:** a managed [Sprites](https://sprites.dev) stateful sandbox
-  (Fly.io), a remote VM you do not run yourself.
-- **Auth / env:** needs `SPRITES_API_KEY` (token form
-  `org/projectNumber/tokenId/secret`); override the control-plane URL with
-  `apiUrl` / `SPRITES_API_URL`. Harness credentials are injected as workspace
-  secrets.
-- **Snapshot / resume:** resume-by-id reconnects to the named Sprite (its
-  filesystem is durable across idle suspend/resume). `snapshot()` creates a
-  Sprite **checkpoint** (a save point of the writable overlay); restore is
-  **in-place** on the same Sprite via the handle's `restoreCheckpoint()` /
-  `listCheckpoints()`. A checkpoint does not survive Sprite deletion, so the
-  provider intentionally does **not** implement the reconstruct-after-gone
-  `restoreSnapshot`, when a Sprite is gone the framework degrades to a fresh
-  create instead. Restore restarts the environment and can take minutes;
-  `restoreCheckpoint()` polls the workspace until it is listable again before
-  resolving. Note that immediately after a restore the overlay can be listable
-  while individual file reads briefly return an I/O error as it settles, so retry
-  reads if you act on the filesystem the instant restore returns.
-- **Ports:** a Sprite proxies a single internal HTTP port (default `8080`,
-  configurable via `httpPort`) to its always-on public URL. `ports.connect(8080)`
-  switches the URL to `public` auth and returns it; other ports are not exposed.
-- **Bridge:** like Daytona and Vercel, it is a remote VM, so bridged tools need the tunnel in
-  local dev (see [tools](./tools)).
-
-## Upstash Box
-
-```ts
-import { upstashBoxSandbox } from '@tanstack/ai-sandbox-upstash-box'
-
 const box = upstashBoxSandbox({ apiKey: process.env.UPSTASH_BOX_API_KEY })
+const blaxel = blaxelSandbox() // uses the API key or the CLI login
+const e2b = e2bSandbox() // reads E2B_API_KEY
+const boxd = boxdSandbox({ org: 'acme' }) // reads BOXD_API_KEY
+const railway = railwaySandbox() // reads RAILWAY_TOKEN and RAILWAY_ENVIRONMENT_ID
 ```
 
-- **Isolation:** a managed [Upstash Box](https://github.com/upstash/box) cloud
-  sandbox, a remote container you do not run yourself.
-- **Auth / env:** needs `UPSTASH_BOX_API_KEY` (or `apiKey`); override the API
-  base with `baseUrl` / `UPSTASH_BOX_BASE_URL`. Pick the image and size with
-  `runtime` (default `node`) and `size`.
-- **Paths:** the conventional `/workspace` virtual root maps to the box home,
-  `/workspace/home`, which is the handle's `workspaceRoot`.
-- **Processes:** `spawn()` opens a live `exec.session` over a WebSocket, so a
-  background process has a real in-box pid, a writable stdin, separate stdout and
-  stderr, and server-side signals. A session owns its process: dropping the
-  connection kills the command and sessions cannot be reattached, so `spawn()` is
-  scoped to the lifetime of the handle rather than the box. Blocking `exec()`
-  stays on the HTTP path and is shell-wrapped for `cwd`/env, which the session
-  takes natively.
-- **Snapshot / resume:** `snapshot()` calls `box.snapshot()` and
-  `restoreSnapshot()` reconstructs a new box from it via `Box.fromSnapshot()`, so
-  a snapshot survives deletion of the box that made it. Resume-by-id uses
-  `Box.get` (id or name) and probes `getStatus`, so a deleted record resumes as
-  `null` rather than a tombstone handle.
-- **Ports:** `ports.connect(port)` mints a preview URL via `getPublicURL`. Pass
-  `publicUrlAuth` to gate it, `{ bearerToken: true }` returns a token plus an
-  `Authorization: Bearer` header and `{ basicAuth: true }` returns Basic
-  credentials; without it the preview URL is unauthenticated.
-- **Network:** a `policy.capabilities.network` of `'deny'` maps to Box's
-  `deny-all` egress mode. The contract's gate is coarse, so Box's domain and CIDR
-  allowlists are not reachable through it. This is stricter than providers that
-  model deny as an allowlist: `deny-all` blocks every outbound connection, so an
-  agent that works under an allowlist-style deny will not reach package
-  registries or model provider hosts here. Leave the capability unset if the
-  agent needs either.
-- **Fork:** `fork()` snapshots the box and creates a new one from that snapshot,
-  the same shape as Docker's commit plus create. It costs a full snapshot round
-  trip (about 25 seconds), unlike Docker's local commit.
-- **Bridge:** like Daytona and Vercel, it is a remote VM, so bridged tools need
-  the tunnel in local dev (see [tools](./tools)).
+`dockerSandbox()` and `sbxSandbox()` come from the same package. Every other provider has its own package. For the edge, see [Cloudflare](./cloudflare).
 
-## Blaxel
+## How it works
 
-```ts
-import { blaxelSandbox } from '@tanstack/ai-sandbox-blaxel'
+- The provider decides **where** the agent runs. The [harness](./harnesses) decides **which** agent runs.
+- The provider does not pick how the agent signs in. Set `authMode` on the harness. See [Harness Auth](./auth).
+- Isolated and cloud providers have no host CLI login. Pass API keys as workspace secrets there.
+- Provider-native snapshots and resume keep or recreate the provider state. They make bootstrap faster. [Portable Snapshots](./portable-snapshots) store finished files in your own persistence.
 
-const blaxel = blaxelSandbox({
-  apiKey: process.env.BL_API_KEY,
-  workspace: process.env.BL_WORKSPACE,
-})
-```
-
-- **Isolation:** a managed [Blaxel](https://blaxel.ai) cloud sandbox — a remote VM
-  you don't run yourself. Pick the image with `image` (default
-  `blaxel/base-image:latest`) and the size with `memory` (default 2048 MB). Set
-  `region` (or `BL_REGION`) to choose a region and to silence the SDK's warning
-  that it will become required.
-- **Auth / env:** Pass `apiKey` and `workspace` as constructor options, or set `BL_API_KEY` and `BL_WORKSPACE`. If you omit the API key, the provider uses the SDK CLI login or client credentials. A requested workspace must match those credentials. `@blaxel/core` authentication is process-global. The provider records the resolved workspace at construction and rejects a later provider that asks for a different workspace.
-- **Lifetime:** created sandboxes carry a `1h` TTL by default so an abandoned run
-  cannot strand a paid sandbox. Override with `ttl`, or pass `ttl: null` to manage
-  lifetime yourself.
-- **Resume:** resume-by-id reconnects to the named sandbox, and its filesystem
-  is durable across idle suspend/resume for the sandbox's lifetime. Blaxel's
-  snapshot/fork API is currently a source-scoped private preview, has no
-  entitlement probe, and does not document snapshots surviving source deletion.
-  The framework requires `snapshots` to reconstruct after the source is gone, so
-  this provider conservatively advertises both `snapshots` and `fork` as `false`
-  and does not expose `restoreSnapshot`.
-- **Ports:** `ports.connect(port)` creates a per-port preview URL. Previews are
-  token-gated by default and the returned channel carries both the token and the
-  ready-to-send `X-Blaxel-Preview-Token` header. Set `publicPreviews: true` for
-  unauthenticated URLs.
-- **Files:** `fs.watch()` is native, so file-event and diff hooks work without polling. `fs.lstat()` reports file, directory, and symlink metadata without following links; missing paths return `undefined`, while other errors propagate. Custom images must provide GNU `stat`.
-- **Process output:** stdout and stderr remain live-streamed through bounded
-  remote capture pipelines. Concurrent stdout and stderr use labeled records on
-  one transport stream, including across keepalive boundaries. Each stream has an 8 MiB total limit; exceeding it
-  fails and remotely reaps the process instead of accumulating unbounded logs in
-  the provider host. Cancellation uses the same process-group supervisor because
-  the pinned SDK does not prove named-process kill reaches child processes.
-  Custom images must provide Bash plus `cat`, `mkfifo`, `dd`, `base64`, `tr`,
-  and `wc` (the default Blaxel base image does). The supervisor invokes Bash
-  explicitly so job-control process groups do not depend on the image's
-  `/bin/sh` implementation.
-- **Resume semantics:** a destroyed sandbox does not disappear immediately —
-  Blaxel keeps the record in a teardown state before purging it. `resume()`
-  treats deleting, deactivating, failed, and terminated records as gone, while a
-  `DEACTIVATED` sandbox remains resumable consistently with the pinned SDK.
-- **Bridge:** like Daytona/Vercel, a remote VM — bridged tools need the tunnel in
-  local dev (see [tools](./tools)).
-
-## boxd
-
-```ts
-import { boxdSandbox } from '@tanstack/ai-sandbox-boxd'
-
-const boxd = boxdSandbox({
-  apiKey: process.env.BOXD_API_KEY,
-  org: 'acme',
-  vcpu: 2,
-})
-```
-
-- **Isolation:** a managed [boxd](https://boxd.sh) KVM microVM, a remote VM
-  you do not run yourself. Every machine is created `isolated`: no in-VM
-  `boxd` CLI, no metadata endpoint, no org integrations, and no peers on the
-  org network. The image is Ubuntu 24.04 with Node 24, Python 3, git, Docker,
-  and the Claude Code and Codex CLIs preinstalled.
-- **Auth / env:** needs `BOXD_API_KEY` (or `apiKey`) and the org the key
-  belongs to (`org` or `BOXD_ORG`). Override the endpoint with `baseUrl` /
-  `BOXD_BASE_URL`. Harness credentials are injected as workspace secrets and
-  travel as per-command env. The API key never enters the machine.
-- **Size:** pick `vcpu` (`1`, `2`, or `4`). boxd resolves memory from it:
-  4, 8, or 16 GiB. The default is the org's default size. Every machine has a
-  100 GB disk.
-- **Working directory:** the portable root `/workspace` maps to
-  `/home/boxd/workspace`. Override with `workdir`.
-- **Cancellation:** if you abort create or snapshot restore during startup,
-  the provider tries to delete the new machine after the current SDK call
-  finishes.
-- **Processes:** `spawn()` opens a streaming exec with separate stdout and
-  stderr and a writable stdin. `kill()` signals the process group inside the
-  machine and verifies that it is gone, so `killableProcesses` is measured,
-  not assumed.
-- **Snapshot / resume:** `snapshot()` captures memory and disk into a boxd
-  snapshot named `<machine>-<label>` and waits until it is restorable (about
-  25 s for an 8 GiB machine). `restoreSnapshot()` boots a new machine from it
-  in about 1 s, with the captured processes still running. Resume-by-id
-  reconnects to the same machine across stop (2 to 3 s to start), suspend
-  (about 140 ms) and hibernate.
-- **Fork:** `fork()` is a live boxd fork: disk, memory and running processes,
-  ready in under a second.
-- **Lifetime:** a machine is persistent until `destroy()`. It suspends after
-  `autoSuspendTimeout` idle seconds and hibernates after 4 hours idle by
-  default, at no compute cost, and wakes on the next command. Idle means no
-  inbound connection. Set `autoDestroyTimeout` as a safety net for abandoned
-  sandboxes. `stop` is a power-off: a file written seconds before it can still
-  sit in the page cache and be lost, so run `sync` before you stop a machine
-  yourself. Suspend, hibernate, snapshot and fork keep memory, so they do not
-  lose it.
-- **Ports:** every machine has one public HTTPS URL, `https://<name>.boxd.sh`.
-  `ports.connect(port)` pins that URL to `port` and returns it. The URL is
-  public: anyone who has it can reach the port.
-- **Golden image:** pass `fromSnapshot` to boot every new sandbox from a
-  snapshot you baked after `setup`, instead of the default image. The size is
-  then fixed by the snapshot.
-- **Bridge:** like the other cloud providers, it is a remote VM, so bridged
-  tools need the tunnel in local dev (see [tools](./tools)).
-
-## E2B
-
-```ts
-import { e2bSandbox } from '@tanstack/ai-sandbox-e2b'
-
-const e2b = e2bSandbox({ apiKey: process.env.E2B_API_KEY })
-```
-
-- **Isolation:** a managed [E2B](https://e2b.dev) sandbox, a Firecracker microVM
-  you do not run yourself. Pick the image with `template` (default: the E2B
-  `base` template).
-- **Auth / env:** needs `E2B_API_KEY` (or `apiKey`). Set `domain` (or
-  `E2B_DOMAIN`) for a self-hosted or BYOC deployment. Harness credentials are
-  injected as [workspace secrets](./provisioning). At create and snapshot
-  restore they are sent as sandbox `envs`. Per-command `env` goes through the
-  SDK's native `envs` argument. No value is written into a command string.
-- **Lifetime:** a sandbox lives for `timeoutMs` (default 30 minutes) and is
-  killed when that time elapses, so an abandoned run cannot keep billing.
-  Resume extends the lifetime by the same amount. Set `onTimeout: 'pause'` to
-  keep a timed-out sandbox resumable instead. E2B caps the lifetime at 1 hour
-  on the Hobby plan and 24 hours on Pro.
-- **Snapshot / resume:** `snapshot()` calls `createSnapshot()`. The sandbox is
-  paused briefly, then resumed. `restoreSnapshot()` creates a new sandbox from
-  that snapshot, so a snapshot survives deletion of its source. Resume-by-id
-  uses `Sandbox.connect`, which also wakes a paused sandbox. A killed or
-  expired sandbox resumes as `null`.
-- **Fork:** `fork()` is native. The parent is checkpointed in place and the copy
-  boots from that checkpoint.
-- **Processes:** every command runs as the leader of its own process group
-  (`setsid`), so `kill()` reaches backgrounded children. `kill()` always sends
-  `SIGKILL`. `spawn()` has a real sandbox pid, a writable stdin, and separate
-  stdout and stderr. A custom template must include `setsid` (util-linux); the
-  default template has it.
-- **Ports:** `ports.connect(port)` returns
-  `https://<port>-<sandbox-id>.<domain>`. With `allowPublicTraffic: false` the
-  URL is gated by the `e2b-traffic-access-token` header, and the channel carries
-  that header in `headers`. Browsers cannot send it, so leave public traffic on
-  for preview links a person clicks.
-- **Network:** `policy.capabilities.network: 'deny'` maps to
-  `allowInternetAccess: false`, which blocks all outbound traffic. E2B's
-  per-host allow and deny lists are not reachable through the contract's coarse
-  gate.
-- **Paths:** the portable root `/workspace` maps to `/home/user/workspace` by
-  default. Override with `workdir`. The sandbox user is `user` (not root) with
-  passwordless `sudo`, and `/workspace` itself is not writable.
-- **Bridge:** like Daytona and Vercel, it is a remote VM, so bridged tools need
-  the tunnel in local dev (see [tools](./tools)).
-
-## Railway
-
-```ts
-import { railwaySandbox } from '@tanstack/ai-sandbox-railway'
-
-const railway = railwaySandbox({
-  environmentId: process.env.RAILWAY_ENVIRONMENT_ID,
-  region: 'us-west2',
-  idleTimeoutMinutes: 30,
-  resources: { cpu: 2, memoryGB: 4 },
-  // Optional: publish preview domains. Requires PRIVATE networking.
-  networkIsolation: 'PRIVATE',
-  ports: [3000],
-})
-```
-
-- **Isolation:** a managed [Railway](https://railway.com) sandbox, a VM you do
-  not run yourself, created in a Railway environment. Boot from the base image,
-  a named `checkpoint`, or a `Sandbox.template()` recipe (`template`).
-- **Auth / env:** the SDK reads `RAILWAY_TOKEN` (a project token) or
-  `RAILWAY_API_TOKEN` (an account or workspace token). An explicit `token`
-  defaults to bearer auth; pass `authType: 'project-token'` for a project
-  token. Scope is the environment (`environmentId` or
-  `RAILWAY_ENVIRONMENT_ID`), frozen per provider. Harness credentials are
-  injected as [workspace secrets](./provisioning): at create and restore they
-  are sent as the sandbox's runtime `env`, and per-command `env` travels in the
-  exec init frame. No value is written into a command string.
-- **Private networking:** with `networkIsolation: 'PRIVATE'` the sandbox joins
-  the environment's private network, so the agent can reach your other Railway
-  services (databases, internal APIs) by their private hostnames. The default,
-  `ISOLATED`, has no private-network access.
-- **Lifetime:** Railway destroys a sandbox after `idleTimeoutMinutes` of
-  inactivity (plan default when omitted; `0` disables idle destruction where
-  the plan allows it). There is no stop/start that keeps the disk, so
-  `durableFilesystem` is `false`: use a checkpoint or
-  [Portable Snapshots](./portable-snapshots) to keep work across idle expiry.
-  `SandboxCreateInput` carries no lifecycle hint, so set the timeout here.
-  Resume resets the idle countdown.
-- **Size:** `resources: { cpu, memoryGB }` sets vCPU (fractions allowed) and
-  memory in decimal GB for every create, restore, and fork. Omitted fields use
-  the workspace default; values above its maximum fail at create.
-- **Snapshot / resume:** `snapshot(label)` captures a native Railway checkpoint
-  named `tsai-<sandbox-id>-<uuid>`. The label stays on the returned ref only,
-  because checkpoint names are environment-scoped and a capture replaces an
-  existing name. Checkpoints belong to the environment, not the sandbox, so
-  `restoreSnapshot()` boots a new sandbox from one after its source is
-  destroyed, and reapplies env, network mode, domains, and idle timeout from
-  the provider config. Restores and forks run in the source region, so
-  `region` applies to fresh sandboxes only. Checkpoints count
-  against a per-plan quota and the contract has no delete hook: prune
-  `tsai-*` checkpoints you no longer reference with `Sandbox.checkpoints()`
-  and `Sandbox.deleteCheckpoint()` from the `railway` SDK. Resume-by-id uses
-  `Sandbox.connect`. A missing, `DESTROYED`, `DESTROYING`, or `FAILED` sandbox
-  resumes as `null`, a `CREATING` one is awaited, and auth or transport errors
-  are rethrown.
-- **Fork:** `fork()` is a native live disk fork of the running sandbox into a
-  new one in the same environment and region. Processes are not copied. The
-  fork gets the parent's network mode, domains, idle timeout, and a copy of
-  its env overlay.
-- **Processes:** stdout and stderr stay separate. `spawn()` runs in a durable
-  exec session with a flow-controlled stdin writer, so it keeps running if the
-  host disconnects; this provider does not expose reattach, because TanStack's
-  [run journal](./journal) owns run identity. Blocking `exec` runs without a
-  durable session and is killed if the connection drops. `spawn()` reports
-  `pid: -1` because the exec bridge exposes no remote pid. `kill()` and an
-  aborted `exec` send `TERM` to the process group and escalate to `KILL` after
-  2 s. An aborted `spawn` sends `KILL` at once. All of them settle on the
-  confirmed remote exit. An aborted `exec` resolves with the signalled exit
-  code.
-- **Cancellation:** if create fails or times out after Railway minted the
-  sandbox, or the caller aborts while it boots, the provider tries to destroy
-  it. Both are best effort.
-- **Ports:** Railway publishes HTTP domains at create time only. Declare them
-  with `ports` (at most 10), which requires `networkIsolation: 'PRIVATE'`;
-  `ports.connect(port)` returns `https://<domain>` for a declared port and
-  rejects any other. Without `ports`, the `ports` capability is `false`. The
-  domain is public: it carries no preview token.
-- **Network:** `networkPolicy` is `false`. Both modes keep public internet
-  egress, so `policy.capabilities.network: 'deny'` is rejected at create
-  instead of being dropped.
-- **Paths:** the portable root `/workspace` is a real directory created at
-  boot. Override with `workdir`. `fs.remove` is recursive (`rm -rf`) and
-  `fs.lstat` is a GNU `stat` probe that does not follow symlinks.
-- **Bridge:** like the other cloud providers, it is a remote VM, so bridged
-  tools need the tunnel in local dev (see [tools](./tools)).
+> [!NOTE]
+> Cloud providers (Daytona, Vercel, Sprites, Upstash Box, Blaxel, E2B, boxd, and Railway) run remotely. When you drive them from your laptop, [bridged tools](./tools) cannot reach your `localhost`. Use the ngrok bridge tunnel from the [tools guide](./tools), or see [Cloudflare](./cloudflare) for the edge setup.
 
 ## Capabilities
 
-Providers declare what they support via `capabilities()`. The flags are:
-
-| Capability | Meaning |
-| --- | --- |
-| `fs` | Read/write the sandbox filesystem. |
-| `exec` | Run commands. |
-| `env` | Inject environment variables. |
-| `ports` | Expose/forward ports (preview URLs). |
-| `backgroundProcesses` | Keep long-running processes alive between calls. |
-| `writableStdin` | A spawned process exposes a writable host→process stdin. `true` for local-process, Docker container, Daytona, Upstash Box, E2B, boxd, and Railway. `false` for Docker Sandboxes (`sbx`), Vercel, Sprites, Blaxel, and Cloudflare. When `false`, stdin-fed harnesses write the prompt to a file and redirect it in the shell. |
-| `killableProcesses` | A spawned process can be forcibly stopped via `SpawnHandle.kill()` **and** aborted mid-flight via the `signal` passed to `spawn`. |
-| `snapshots` | Capture and restore point-in-time snapshots. |
-| `networkPolicy` | Enforce network allow/deny rules. |
-| `durableFilesystem` | Disk that survives across resumes. |
-| `fork` | Branch a sandbox from an existing one. |
-
-Code that uses an **optional** capability checks the flag first and degrades
-gracefully. For example, bootstrap only snapshots when `snapshots` is supported,
-so `localProcessSandbox` simply skips the step. Calling an unsupported optional
-method directly (instead of checking the flag) throws an
-`UnsupportedCapabilityError`:
+Each provider reports what it can do with `capabilities()`. Code that needs an optional capability checks the flag first:
 
 ```ts
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 
 const provider = localProcessSandbox()
-const caps = provider.capabilities()
 
-if (caps.snapshots) {
-  // safe to take a snapshot
+if (provider.capabilities().snapshots) {
+  // This provider can take a snapshot.
 } else {
-  // degrade gracefully, local-process has no snapshots
+  // Skip the snapshot. Local process has no snapshots.
 }
 ```
 
-Use the flags to write provider-agnostic code: branch on the capability rather
-than the concrete provider, and your sandbox definition keeps working when you
-swap one provider for another.
+| Capability | Meaning |
+| --- | --- |
+| `fs` | Read and write the sandbox filesystem. |
+| `exec` | Run commands. |
+| `env` | Inject environment variables. |
+| `ports` | Expose ports (preview URLs). |
+| `backgroundProcesses` | Keep long-running processes alive between calls. |
+| `writableStdin` | A spawned process has a writable stdin from the host. |
+| `killableProcesses` | A spawned process can be stopped with `SpawnHandle.kill()` and with the `signal` passed to `spawn`. |
+| `snapshots` | Take and restore point-in-time snapshots. |
+| `networkPolicy` | Enforce network allow and deny rules. |
+| `durableFilesystem` | The disk stays across resumes. |
+| `fork` | Create a new sandbox from an existing one. |
+
+The framework checks these flags for you. For example, bootstrap takes a snapshot only when `snapshots` is `true`, so `localProcessSandbox` skips that step. If you call an unsupported optional method directly, it throws an `UnsupportedCapabilityError`.
+
+Branch on the flag, not on the provider name. Then your code keeps working when you change the provider.
 
 ### `killableProcesses` across the bundled providers
 
-This flag is **measured, not asserted**. A wrong `true` hands the journal reader
-an unstoppable `tail -f` and leaks a process per run, so a provider only declares
-it once killing has been observed to work against a real sandbox. Two of these
-declarations were once `true` on reasoning alone and both turned out to be false
-when probed (Docker's stream destroy left the container-side process in `ps`;
-local-process's `sh -c` did not `exec`, so killing the shell left the command
-alive). Anything that cannot be measured yet stays `false`, because `poll` is
-merely slower while a wrong `follow` is a leak.
+The [run journal](./journal) reads this flag to decide how to read a run's output. It also limits what a cancel can do. On a `false` provider, cancel destroys the sandbox. See [what cancel means on a provider that cannot kill](./takeover#what-cancel-means-on-a-provider-that-cannot-kill).
 
-| Provider | `killableProcesses` | Why |
-| --- | --- | --- |
-| Local process | `true` | **Measured.** Kills the process GROUP, not the wrapper: `detached` spawn plus `process.kill(-pid, signal)` on POSIX (killing only the `sh` left the command running, dash does not reliably `exec`); on Windows `taskkill /T` plus a verified sweep, see [Windows teardown](#windows-process-teardown-logger). |
-| Docker | `true` | **Measured.** Signals the process INSIDE the container by the pid the wrapper recorded for itself, process group first and escalating to `KILL`. Destroying the hijacked exec stream is *not* sufficient: it only detaches the client. |
-| Docker Sandboxes (`sbx`) | `false` | Unmeasured. Live tests named-skip until `sbx login`. The handle records a pid in the VM, but `killableProcesses` stays `false` until that kill is observed. |
-| Daytona | `false` | `kill()` only aborts the client-side poll loop and does not await any termination; the `deleteSession` that might terminate the command runs later from the pump's teardown, is failure-swallowed, and is documented as cleanup for a *completed* session. Unmeasured, needs `DAYTONA_API_KEY`. |
-| Vercel | `false` | The abort signal reaches only the HTTP request that STARTS a detached command, so the old `kill()` was a no-op. It now issues the SDK's server-side `Command.kill`, but whether that reaches a forked child (the follow command is a multi-statement shell, so `tail -f` is always a child) is unmeasured, needs Vercel credentials. |
-| Sprites | `true` (unverified) | Not a client-side detach: `kill()` issues a real server-side `POST /exec/<sessionId>/kill` before closing the socket. What that endpoint signals (process group or pid) is undocumented and unmeasured; needs `SPRITES_API_KEY`. |
-| Upstash Box | `true` | **Measured.** `kill()` sends an allowlisted signal (`TERM`/`KILL`/`INT`/`HUP`) that the box agent delivers to the process TREE server-side, so a forked child is signalled too. Verified against production: a spawned `sleep 5 && touch <marker>` was killed and the marker never appeared. Needs `UPSTASH_BOX_API_KEY`. |
-| Blaxel | `true` | The provider reaps supervisor and child process groups, then waits for the remote reaper to finish. Credential-gated journal conformance verifies that cancellation leaves no active follower process. |
-| E2B | `true` | **Measured.** The SDK's own kill is a SIGKILL to the shell pid, and a backgrounded `( … ) & wait` child survived it. Every command therefore runs as a `setsid` group leader and `kill()` runs `kill -KILL -- -<pid>` inside the sandbox. The shared journal conformance kill case passes against a real sandbox. Needs `E2B_API_KEY`. |
-| Cloudflare | `false` | `kill()` is a no-op, and the caller's `AbortSignal` reaches neither `exec` nor `spawn`, because Workers RPC cannot serialize one. |
-| boxd | `true` | **Measured.** The spawn wrapper runs under `setsid`, so the pid it records leads its own process group. `kill()` runs a shell inside the machine that signals that group, escalates to `KILL`, and checks with `kill -0`. Closing the stream alone is not a kill: the process survived it. Verified against production: a spawned `sleep 5 && touch <marker>` was killed and the marker never appeared. Needs `BOXD_API_KEY`. |
-| Railway | `true` | **Measured.** `kill()` and an aborted `exec` send `TERM` to the command's process group and escalate to `KILL` after 2 s. An aborted `spawn` sends `KILL` at once. Each settles only when the remote exit is confirmed. Verified against production: the shared journal conformance kill case passes, and spawned `sleep 5 && touch <marker>` commands (including a backgrounded child) were killed before the marker appeared, for `kill()`, an aborted `exec`, and an aborted `spawn`. Needs `RAILWAY_API_TOKEN` or `RAILWAY_TOKEN` + `RAILWAY_ENVIRONMENT_ID`. |
+| Provider | `killableProcesses` |
+| --- | --- |
+| Local process | `true` |
+| Docker | `true` |
+| Docker Sandboxes (`sbx`) | `false` |
+| Daytona | `false` |
+| Vercel | `false` |
+| Sprites | `true` (not verified) |
+| Upstash Box | `true` |
+| Blaxel | `true` |
+| E2B | `true` |
+| Cloudflare | `false` |
+| boxd | `true` |
+| Railway | `true` |
 
-Each of the remote providers registers the shared journal conformance suite, so
-the claim is falsifiable rather than asserted: with credentials present the suite
-runs against a real sandbox, and without them it reports a **named skip** carrying
-the reason instead of a silent pass. Cloudflare's gate is the runtime rather than
-credentials, its provider can only create a sandbox through a `Sandbox` Durable
-Object binding, which no Node test process has, so its registration is a named
-skip saying exactly that, until a Workers-runtime harness can measure it.
+A bring-your-own provider must set this flag too. For the reason behind each value, see [Providers (Advanced)](./providers-advanced#killableprocesses-per-provider).
 
-This flag is required on every provider, including a bring-your-own one. A
-provider that omitted it would be treated as killable, which is the dangerous
-default: a follower process started there could never be reclaimed, and it would
-keep running inside the sandbox for as long as the sandbox lives.
+## Advanced
 
-It is the flag the [run journal](./journal) reads to decide how to tail a run's
-output: a killable provider gets a streaming `tail -f`, and a provider like
-Cloudflare gets a loop of bounded reads, each of which terminates on its own.
-
-The flag also bounds what *cancel* can mean. On a `false` provider there is no
-signal path to the agent process, so the only cancel that actually stops the
-agent means destroying the sandbox, which is what the cancel path does. See
-[what cancel means on a provider that cannot kill](./takeover#what-cancel-means-on-a-provider-that-cannot-kill).
+Each provider has its own options and limits: idle timers, ports, network rules, non-root users, and snapshot behavior. Read them in [Providers (Advanced)](./providers-advanced) before you go to production.

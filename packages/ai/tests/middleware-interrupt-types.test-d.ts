@@ -257,6 +257,7 @@ void invalidToolResume
 
 declare const adapter: AnyTextAdapter
 chat({
+  threadId: 'thread-1',
   adapter,
   middleware: interruptFreeBuilt,
 })
@@ -268,10 +269,12 @@ chat({
 // Runtime IDs remain compatible. The runtime validation rejects duplicates
 // only when the values are known at execution time.
 chat({
+  threadId: 'thread-1',
   adapter,
   interrupts: [runtimeIdDefinition, runtimeIdDefinition] as const,
 })
 chat({
+  threadId: 'thread-1',
   adapter,
   interrupts: [standardDefinition, jsonDefinition] as const,
   middleware: [
@@ -291,6 +294,7 @@ chat({
 // Public calls must infer the merged tool and user context without a
 // predeclared ChatMiddleware annotation.
 chat({
+  threadId: 'thread-1',
   adapter,
   interrupts: [standardDefinition, jsonDefinition] as const,
   tools: [contextTool] as const,
@@ -322,6 +326,7 @@ chat({
 })
 
 const publicOptions = createChatOptions({
+  threadId: 'thread-1',
   adapter,
   interrupts: [standardDefinition, jsonDefinition] as const,
   tools: [contextTool] as const,
@@ -349,6 +354,7 @@ const publicOptions = createChatOptions({
 })
 chat({
   ...publicOptions,
+  threadId: 'thread-1',
   context: { tenantId: 'tenant', toolFlag: true },
 })
 publicOptions.middleware?.push({
@@ -380,6 +386,7 @@ const typedMiddleware: ChatMiddleware<{ tenantId: string }> = {
   },
 }
 chat({
+  threadId: 'thread-1',
   adapter,
   interrupts: [] as const,
   tools: [] as const,
@@ -387,6 +394,7 @@ chat({
   middleware: [typedMiddleware],
 })
 chat({
+  threadId: 'thread-1',
   adapter,
   tools: [] as const,
   context: { tenantId: 'tenant' },
@@ -416,6 +424,7 @@ const standaloneRegisteredEmitter = defineChatMiddleware({
   onInterruptBoundary: () => ({ interrupts: [standardRequest] }),
 })
 chat({
+  threadId: 'thread-1',
   adapter,
   interrupts: [standardDefinition] as const,
   middleware: [standaloneRegisteredEmitter],
