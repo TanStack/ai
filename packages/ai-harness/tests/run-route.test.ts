@@ -455,6 +455,14 @@ describe('questions', () => {
       (chunk) => chunk.name === 'harness.question',
     )
     expect(question?.value).toMatchObject({ message: 'What is your name?' })
+    // A reload during the question gets it from the hydration.
+    const hydrated = await (await call('run?threadId=t-1')).json()
+    expect(hydrated.pendingWaits).toEqual([
+      expect.objectContaining({
+        waitId: question?.value.questionId,
+        message: 'What is your name?',
+      }),
+    ])
 
     const receipt = await call('control', {
       threadId: 't-1',

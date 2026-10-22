@@ -77,7 +77,7 @@ The handler answers these paths under your route. For chat and events:
 
 - `GET capabilities`: the AG-UI capabilities, with the agents in `expose.agents`.
 - `POST run`: standard AG-UI. One request runs one prompt and streams it as SSE. The prompt keeps every content part of the last user message, for example an image. `useChat` works with it. See [Use it from useChat](#use-it-from-usechat).
-- `GET run?threadId=`: the saved messages, the running turn, and the waiting approvals, for a `useChat` that loads the thread after a reload.
+- `GET run?threadId=`: the saved messages, the running turn, and the waiting approvals, for a `useChat` that loads the thread after a reload. `pendingWaits` has every wait of the thread, as `GET snapshot` has them, also a `step.ask` question.
 - `GET run?runId=&threadId=`: the turn with that run id as SSE, from its first event. A reloaded `useChat` joins a running turn with it. Another instance finds the turn only with `threadId`. See [Join a turn after a reload](#join-a-turn-after-a-reload).
 - `GET events?threadId=`: every event of the session as SSE. Each event id is a cursor, so a reconnect with `Last-Event-ID` continues where it stopped.
 

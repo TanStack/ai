@@ -1369,8 +1369,10 @@ export function createHarnessHandler<U extends HarnessUser = HarnessUser>(
 /**
  * What a `ChatClient` with `persistence` reads when it loads a thread (a
  * `ChatHydrationResult`): the transcript, the running chat turn (the client
- * joins it with `GET run?runId=`), and the interrupts that the last turn
- * waits for. The log has the turns that other instances run.
+ * joins it with `GET run?runId=`), the interrupts that the last turn
+ * waits for, and every wait of `GET snapshot` as `pendingWaits` (a
+ * `step.ask` question has no interrupt). The log has the turns that other
+ * instances run.
  */
 async function hydration(view: ObservedSession) {
   const { pendingWaits, activeOperations } = await view.snapshot()
@@ -1397,6 +1399,7 @@ async function hydration(view: ObservedSession) {
     messages: modelMessagesToUIMessages(await view.transcript()),
     activeRun: runningId ? { runId: runningId } : null,
     interrupts: runId ? { runId, pending: pendingInterrupts } : null,
+    pendingWaits,
   }
 }
 
