@@ -123,6 +123,8 @@ export async function* translateOpencodeStream(
   const openedToolCalls = new Set<string>()
   /** Tool call ids that already emitted a TOOL_CALL_RESULT. */
   const resolvedToolCalls = new Set<string>()
+  /** Message roles from message.updated events, keyed by message id. */
+  const messageRoles = new Map<string, 'user' | 'assistant'>()
 
   /** Accumulated text per text-part id, for delta derivation. */
   const textAccumulators = new Map<string, string>()
@@ -308,6 +310,8 @@ export async function* translateOpencodeStream(
   function* handleToolPart(
     part: Extract<OpencodePart, { type: 'tool' }>,
   ): Generator<AdapterYieldChunk> {
+    if (part.state.status === 'pending') return
+
     yield* closeText()
     yield* closeReasoning()
     yield* openToolCall(part)
@@ -331,8 +335,12 @@ export async function* translateOpencodeStream(
   }
 
   function* handleEvent(event: OpencodeEvent): Generator<AdapterYieldChunk> {
-    if (event.type === 'message.part.updated') {
+    if (event.type === 'message.updated') {
+      messageRoles.set(event.properties.info.id, event.properties.info.role)
+    } else if (event.type === 'message.part.updated') {
       const { part, delta } = event.properties
+      if (part.messageID && messageRoles.get(part.messageID) === 'user') return
+
       if (isTextPart(part)) {
         yield* handleTextPart(part, delta)
       } else if (isReasoningPart(part)) {

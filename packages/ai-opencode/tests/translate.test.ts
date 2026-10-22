@@ -92,6 +92,73 @@ describe('translateOpencodeStream', () => {
     expect(chunks.at(-1)).toMatchObject({ finishReason: 'stop' })
   })
 
+  it('does not expose user message parts as assistant output', async () => {
+    const chunks = await collect([
+      session,
+      {
+        kind: 'event',
+        event: {
+          type: 'message.updated',
+          properties: {
+            info: { id: 'user-message', sessionID: 'sess-1', role: 'user' },
+          },
+        },
+      },
+      {
+        kind: 'event',
+        event: {
+          type: 'message.part.updated',
+          properties: {
+            part: {
+              id: 'user-part',
+              sessionID: 'sess-1',
+              messageID: 'user-message',
+              type: 'text',
+              text: 'user prompt',
+            },
+            delta: 'user prompt',
+          },
+        },
+      },
+      {
+        kind: 'event',
+        event: {
+          type: 'message.updated',
+          properties: {
+            info: {
+              id: 'assistant-message',
+              sessionID: 'sess-1',
+              role: 'assistant',
+            },
+          },
+        },
+      },
+      {
+        kind: 'event',
+        event: {
+          type: 'message.part.updated',
+          properties: {
+            part: {
+              id: 'assistant-part',
+              sessionID: 'sess-1',
+              messageID: 'assistant-message',
+              type: 'text',
+              text: 'assistant answer',
+            },
+            delta: 'assistant answer',
+          },
+        },
+      },
+      done(),
+    ])
+
+    expect(
+      chunks.filter((chunk) => chunk.type === 'TEXT_MESSAGE_CONTENT'),
+    ).toMatchObject([
+      { delta: 'assistant answer', content: 'assistant answer' },
+    ])
+  })
+
   it('accumulates incremental text deltas', async () => {
     const chunks = await collect([
       session,
@@ -237,6 +304,27 @@ describe('translateOpencodeStream', () => {
     expect(chunks[3]).toMatchObject({ args: JSON.stringify({ command: 'ls' }) })
     expect(chunks[5]).toMatchObject({ content: 'file.txt' })
     expect((chunks[5] as { state?: string }).state).toBeUndefined()
+  })
+
+  it('waits for tool input before opening a pending tool call', async () => {
+    const chunks = await collect([
+      session,
+      toolEvent('call-pending', 'bash', { status: 'pending', input: {} }),
+      toolEvent('call-pending', 'bash', {
+        status: 'running',
+        input: { command: 'ls' },
+      }),
+      toolEvent('call-pending', 'bash', {
+        status: 'completed',
+        input: { command: 'ls' },
+        output: 'file.txt',
+      }),
+      done(),
+    ])
+
+    expect(
+      chunks.filter((chunk) => chunk.type === 'TOOL_CALL_ARGS'),
+    ).toMatchObject([{ args: JSON.stringify({ command: 'ls' }) }])
   })
 
   it('marks tool errors as output-error', async () => {
