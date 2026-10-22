@@ -194,8 +194,6 @@ Two kinds of tools flow through this adapter:
 
 2. **Your TanStack tools** are bridged *into* the harness: the adapter starts a short-lived Streamable-HTTP MCP server on `127.0.0.1` for the duration of the turn and registers it with OpenCode. Define tools as usual with `toolDefinition().server()`; tool-call events come back under the names you registered (OpenCode prefixes MCP tools `tanstack_…` internally, which the adapter strips).
 
-OpenCode can send a tool part in `pending` state before the tool input is ready. The adapter waits for the next update, so a tool call always streams with its arguments.
-
 ```typescript group=tools
 import { z } from "zod";
 import { chat, toolDefinition } from "@tanstack/ai";
@@ -217,6 +215,8 @@ const stream = chat({
 ```
 
 **Client-side and approval-gated tools are not supported.** The harness executes tools inside a live process, which cannot pause across HTTP requests to wait for a browser round-trip or a human approval. Passing a tool without a server `execute()` implementation — or one marked `needsApproval` — fails fast with a descriptive error. Run those tools outside the harness with a regular provider adapter.
+
+OpenCode can send a tool part with `pending` state before it provides tool input. The adapter waits for a non-pending update before it streams the tool call and its arguments.
 
 ## Tool choice
 
