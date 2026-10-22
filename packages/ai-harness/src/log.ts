@@ -313,7 +313,24 @@ export interface JobState {
 export interface LogState {
   /** The position of the last folded record. */
   seq: number
+  /**
+   * The model context: the transcript with the host records of
+   * `addRecordsToModelContext` folded in. Feed the model from it.
+   */
   messages: Array<ModelMessage>
+  /**
+   * What readers see: every saved message, and the messages that a host
+   * record added at the end (a signal). A host record that rewrites the
+   * model context (a compaction) does not change it.
+   */
+  transcript: Array<ModelMessage>
+  /**
+   * The model context and the transcript end with the same messages: from
+   * `modelStart` in `messages`, and the same count at the end of
+   * `transcript`. The messages before it are only in the model context (a
+   * compaction summary).
+   */
+  modelStart: number
   /**
    * The position of the last transcript record. The events after it are not
    * in the transcript.
@@ -411,6 +428,8 @@ export function emptyLogState() {
   const state: LogState = {
     seq: 0,
     messages: [],
+    transcript: [],
+    modelStart: 0,
     transcriptSeq: 0,
     inputs: new Map(),
     toolResults: new Map(),
@@ -434,6 +453,12 @@ const normalize = <T>(value: T) => JSON.parse(JSON.stringify(value)) as T
 
 const sameJson = (left: unknown, right: unknown) =>
   JSON.stringify(left) === JSON.stringify(right)
+
+// The same message object is the same JSON, so it skips the stringify.
+const isSameMessage = (
+  a: ModelMessage | undefined,
+  b: ModelMessage | undefined,
+) => a === b || sameJson(a, b)
 
 /** JSON text with sorted object keys. A store (jsonb) can reorder keys. */
 export const stableJson = (value: unknown) =>
@@ -483,9 +508,7 @@ export function commonPrefix(
 ) {
   const length = Math.min(a.length, b.length)
   let index = 0
-  // The same message object is the same JSON, so it skips the stringify.
-  const isSame = (i: number) => a[i] === b[i] || sameJson(a[i], b[i])
-  while (index < length && isSame(index)) index += 1
+  while (index < length && isSameMessage(a[index], b[index])) index += 1
   return index
 }
 
@@ -500,6 +523,34 @@ function transcriptRecord(
   return [
     { type: 'harness.transcript', keep, add: normalize(next.slice(keep)) },
   ]
+}
+
+/**
+ * The transcript record that turns the transcript of `state` into `list`.
+ * The record counts model context messages. A change before the messages
+ * that both lists share (in what a compaction replaced) rewrites both lists.
+ */
+function transcriptSave(state: LogState, list: ReadonlyArray<ModelMessage>) {
+  const { transcript, messages, modelStart } = state
+  const keep = commonPrefix(transcript, list)
+  if (keep === transcript.length && keep === list.length) return []
+  const tailStart = transcript.length - (messages.length - modelStart)
+  const at = modelStart + keep - tailStart
+  if (keep >= tailStart && (at > 0 || isModelContext(state))) {
+    return [
+      {
+        type: 'harness.transcript',
+        keep: at,
+        add: normalize(list.slice(keep)),
+      },
+    ] satisfies Array<HarnessRecord>
+  }
+  // A change in what a compaction replaced: clear both lists, then write
+  // `list` to both. The compaction no longer applies.
+  return [
+    { type: 'harness.transcript', keep: 0, add: [] },
+    { type: 'harness.transcript', keep: 0, add: normalize([...list]) },
+  ] satisfies Array<HarnessRecord>
 }
 
 /** Drop the stored result, start, and steps of each call that `isDone`. */
@@ -562,6 +613,87 @@ function updateInput(
   if (input) state.inputs.set(inputId, change(input))
 }
 
+/**
+ * Put the model context `next` that a host record made into `state`. When
+ * it only adds messages at the end (a signal), readers see them too. Else
+ * (a compaction) only the model context changes, and the messages at its
+ * end that the transcript has stay shared.
+ */
+function projectInto(state: LogState, next: Array<ModelMessage>) {
+  const current = state.messages
+  if (commonPrefix(current, next) === current.length) {
+    state.transcript = [...state.transcript, ...next.slice(current.length)]
+    state.messages = next
+    return
+  }
+  let shared = 0
+  const tail = current.length - state.modelStart
+  while (
+    shared < tail &&
+    shared < next.length &&
+    isSameMessage(
+      current[current.length - 1 - shared],
+      next[next.length - 1 - shared],
+    )
+  ) {
+    shared += 1
+  }
+  state.messages = next
+  state.modelStart = next.length - shared
+}
+
+/**
+ * Fold a save: the model context keeps its first `keep` messages, then gets
+ * `add`. The transcript changes at the same message, when the save starts in
+ * the messages that both lists end with. A save that starts before them (in
+ * a compaction summary) and still has them, rewrote only the model context:
+ * the transcript gets the messages after them. Else a save that keeps no
+ * message replaces both lists, and another save adds its messages after the
+ * history that the summary stands for.
+ */
+function saveInto(state: LogState, keep: number, add: Array<ModelMessage>) {
+  const { messages, transcript, modelStart } = state
+  const shared = messages.length - modelStart
+  const tailStart = transcript.length - shared
+  const isSame = isModelContext(state)
+  const next = [...messages.slice(0, keep), ...add]
+  state.messages = next
+  if (keep >= modelStart && (keep > 0 || isSame)) {
+    state.transcript = [
+      ...transcript.slice(0, tailStart + keep - modelStart),
+      ...add,
+    ]
+    return
+  }
+  const at = shared > 0 ? indexOfBlock(next, messages.slice(modelStart)) : -1
+  if (at >= 0) {
+    state.transcript = [...transcript, ...next.slice(at + shared)]
+    state.modelStart = at
+  } else if (keep === 0) {
+    state.transcript = add
+    state.modelStart = 0
+  } else {
+    state.transcript = [...transcript.slice(0, tailStart), ...add]
+    state.modelStart = keep
+  }
+}
+
+/** The first index where `list` has all of `block`, in order, or -1. */
+function indexOfBlock(
+  list: ReadonlyArray<ModelMessage>,
+  block: ReadonlyArray<ModelMessage>,
+) {
+  for (let at = 0; at + block.length <= list.length; at += 1) {
+    if (!isSameMessage(list[at], block[0])) continue
+    if (
+      commonPrefix(list.slice(at, at + block.length), block) === block.length
+    ) {
+      return at
+    }
+  }
+  return -1
+}
+
 /** Fold one entry into `state`. A `project` that throws warns to `logger`. */
 export function foldEntry(
   state: LogState,
@@ -582,7 +714,7 @@ export function foldEntry(
           logger,
         )
       : undefined
-    if (next) state.messages = next
+    if (next) projectInto(state, next)
     return
   }
   // A harness record type from a newer version is skipped.
@@ -591,11 +723,15 @@ export function foldEntry(
     case 'harness.event':
     case 'harness.offer.rejected':
       return
-    case 'harness.transcript':
-      state.messages = [
-        ...state.messages.slice(0, record.keep),
-        ...record.add.map(revive),
-      ]
+    case 'harness.transcript': {
+      // A record with no `keep` keeps every message, as `slice` did.
+      saveInto(
+        state,
+        Number.isInteger(record.keep)
+          ? Math.max(0, Math.min(record.keep, state.messages.length))
+          : state.messages.length,
+        record.add.map(revive),
+      )
       state.transcriptSeq = entry.seq
       for (const message of record.add) {
         if (message.id) state.notes.delete(message.id)
@@ -609,6 +745,7 @@ export function foldEntry(
         ),
       )
       return
+    }
     case 'harness.input':
       if (state.inputs.has(record.inputId)) return
       state.inputs.set(record.inputId, {
@@ -624,7 +761,8 @@ export function foldEntry(
       })
       return
     case 'harness.input.applied': {
-      const appliedAt = state.messages.length
+      // A transcript position: a compaction does not move it.
+      const appliedAt = state.transcript.length
       const previous = state.inputs.get(record.inputId)?.operationId
       state.thread = applyRunNode(state.thread, {
         inputId: record.inputId,
@@ -946,7 +1084,13 @@ interface SnapshotVersions {
  * The version of the snapshot state shape. A snapshot of another version is
  * not used: the fold starts at the first record.
  */
-export const SNAPSHOT_VERSION = '5'
+export const SNAPSHOT_VERSION = '6'
+
+/**
+ * Snapshot versions that still load. A version 5 snapshot has no
+ * `transcript`: its transcript is its model context.
+ */
+const LOADED_SNAPSHOT_VERSIONS = new Set([SNAPSHOT_VERSION, '5'])
 
 /** The thread state of a session as JSON: each map as its entries. */
 function serializeThread(thread: ThreadStateFold) {
@@ -1018,6 +1162,11 @@ function parseThread(value: unknown) {
   return thread
 }
 
+/** The transcript of `session` is its model context. */
+const isModelContext = (session: LogState) =>
+  session.modelStart === 0 &&
+  session.transcript.length === session.messages.length
+
 /** The state of a snapshot of `state`. Its position is `state.seq`. */
 function serialize(state: SharedLogState, versions: SnapshotVersions) {
   return {
@@ -1028,6 +1177,11 @@ function serialize(state: SharedLogState, versions: SnapshotVersions) {
       thread,
       {
         messages: session.messages,
+        // Only when it is not the model context, so most snapshots do not
+        // keep the messages twice.
+        ...(isModelContext(session)
+          ? {}
+          : { transcript: session.transcript, modelStart: session.modelStart }),
         transcriptSeq: session.transcriptSeq,
         inputs: [...session.inputs.values()],
         toolResults: [...session.toolResults.entries()],
@@ -1051,8 +1205,15 @@ function parseSession(value: unknown, seq: number) {
   if (!isRecord(value)) return undefined
   const { messages, inputs, toolResults, steps, started, runUsage } = value
   const { jobs, notes, keptRecords, transcriptSeq, usage } = value
+  const { transcript = messages, modelStart = 0 } = value
   const isShaped =
     Array.isArray(messages) &&
+    Array.isArray(transcript) &&
+    typeof modelStart === 'number' &&
+    Number.isInteger(modelStart) &&
+    modelStart >= 0 &&
+    modelStart <= messages.length &&
+    transcript.length >= messages.length - modelStart &&
     Array.isArray(inputs) &&
     Array.isArray(toolResults) &&
     Array.isArray(steps) &&
@@ -1070,6 +1231,8 @@ function parseSession(value: unknown, seq: number) {
   const session: LogState = {
     seq,
     messages: (messages as Array<ModelMessage>).map(revive),
+    transcript: (transcript as Array<ModelMessage>).map(revive),
+    modelStart,
     transcriptSeq,
     inputs: new Map(
       (inputs as Array<InputState>).map((input) => [input.inputId, input]),
@@ -1106,7 +1269,9 @@ function parseSnapshot<TState>(
   snapshot: LogSnapshot | null,
   versions: SnapshotVersions,
 ): SharedLogState<TState> | undefined {
-  if (!snapshot || snapshot.version !== SNAPSHOT_VERSION) return undefined
+  if (!snapshot || !LOADED_SNAPSHOT_VERSIONS.has(snapshot.version)) {
+    return undefined
+  }
   const { seq } = snapshot
   // A copy: the fold changes its state in place (usage totals), and a store
   // can hand back the object it holds.
@@ -1386,12 +1551,14 @@ export interface LogWriter extends EventFeed {
    * One batch: the pending events, the transcript change to `messages` (if
    * any), the staged records of this session, then `records`. With
    * `thread`, the transcript is the one of that child thread of the
-   * session, and its records carry that thread.
+   * session, and its records carry that thread. With `asTranscript`,
+   * `messages` is the transcript that readers see, not the model context.
    */
   commit: (options: {
     messages: ReadonlyArray<ModelMessage>
     records?: ReadonlyArray<LogRecord>
     thread?: string
+    asTranscript?: boolean
   }) => Promise<void>
   /** Append the pending events now. */
   flush: () => Promise<void>
@@ -2046,7 +2213,7 @@ export class SharedLog<TState = unknown> {
   private hasResult(thread: string, toolCallId: string) {
     if (this.resulted.has(`${thread}\u0000${toolCallId}`)) return true
     // ponytail: a scan of the transcript, only when a call stages records.
-    return sessionOf(this.state, thread).messages.some(
+    return sessionOf(this.state, thread).transcript.some(
       (message) => message.role === 'tool' && message.toolCallId === toolCallId,
     )
   }
@@ -2056,6 +2223,7 @@ export class SharedLog<TState = unknown> {
     options: {
       messages: ReadonlyArray<ModelMessage>
       records?: ReadonlyArray<LogRecord>
+      asTranscript?: boolean
     },
   ) {
     const { batch: events, consumes } = this.takePending()
@@ -2067,9 +2235,12 @@ export class SharedLog<TState = unknown> {
       this.write(
         [
           ...events,
-          ...transcriptRecord(
-            sessionOf(this.state, thread).messages,
-            options.messages,
+          ...(options.asTranscript
+            ? transcriptSave(sessionOf(this.state, thread), options.messages)
+            : transcriptRecord(
+                sessionOf(this.state, thread).messages,
+                options.messages,
+              )
           ).map((record) => this.stamp(record, thread)),
           ...staged,
           ...records,
@@ -2849,17 +3020,15 @@ export function logMessageStore(options: {
       ...(project ? { project } : {}),
     })
   const messages: MessageStore = {
+    // What readers see: the transcript, not the model context.
     loadThread: async (threadId: string) =>
-      sessionOf(await load(threadId), threadId).messages,
+      sessionOf(await load(threadId), threadId).transcript,
     saveThread: async (threadId, list) => {
       // ponytail: one retry after a conflict. The loser of a real race
       // reloads, so a second conflict is an error.
       for (let attempt = 1; ; attempt += 1) {
         const state = await load(threadId)
-        const records = transcriptRecord(
-          sessionOf(state, threadId).messages,
-          list,
-        )
+        const records = transcriptSave(sessionOf(state, threadId), list)
         if (records.length === 0) return
         if (state.newerRecord !== undefined) {
           throw new LogVersionError(logOf(threadId), state.newerRecord)

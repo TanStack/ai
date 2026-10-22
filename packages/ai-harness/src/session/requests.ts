@@ -1114,8 +1114,9 @@ export abstract class SessionRequests<
       },
       transcript: () => this.transcript(),
       keptRecords: async (type) => this.keptRecords(type),
+      // `messages` comes from `transcript()`, not from the model context.
       replaceTranscript: (messages) =>
-        this.messages.saveThread(this.threadId, messages),
+        this.writer.commit({ messages, asTranscript: true }),
       indexEntry: () => this.index.get(this.indexKey),
       updateIndexEntry: (update) => {
         // Only these fields: a plugin cannot change the owner, the parent,

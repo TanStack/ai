@@ -1401,8 +1401,9 @@ export abstract class SessionInputs<
       )
       .map((input) => input.appliedAt ?? -1)
       .filter((at) => at > from)
-    const to = Math.min(state.messages.length, ...starts)
-    return lastAssistantText(state.messages.slice(from, to))
+    // `appliedAt` is a transcript position.
+    const to = Math.min(state.transcript.length, ...starts)
+    return lastAssistantText(state.transcript.slice(from, to))
   }
 
   protected publishStarted(

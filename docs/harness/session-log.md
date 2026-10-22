@@ -94,6 +94,7 @@ export const projected = defineHarness({
 
 - `record` must be pure: the same log always folds to the same context, live and after a restart.
 - The model sees the change at its next model call. A message that arrives during a tool call comes after the tool result.
+- Readers see a message that `record` adds at the end of the list, for example the signal above. A change to earlier messages, for example a compaction summary, goes only to the model. `session.transcript()` keeps the full history.
 - Change `version` when you change `record`. A log snapshot with another version is not used, so the host folds the log again from the first record.
 - For compaction, use `projectCompaction` from `@tanstack/ai-compaction`. See [Compact a harness session](./compaction).
 - A chat middleware in a harness turn can append records itself with `getLogRecords(ctx).append([...])` from `@tanstack/ai`. The records land in the log at once. A plugin's middleware reads the writer with `getLogRecords(ctx, { optional: true })`. A plugin cannot list `LogRecordsCapability` in `requires`.
@@ -182,7 +183,7 @@ const handoffs = entries.filter((entry) => entry.record.type === 'harness.handof
 console.log(handoffs.at(-1)?.record.to)
 ```
 
-A reader outside a session that needs a `MessageStore`, for example `reconstructChat`, uses `logMessageStore`. It folds the log with the same `addRecordsToModelContext`. Pass `tenantId` to read the threads of a tenant:
+A reader outside a session that needs a `MessageStore`, for example `reconstructChat`, uses `logMessageStore`. It folds the log with the same `addRecordsToModelContext`, and it reads and writes the transcript that readers see, not the model context. Pass `tenantId` to read the threads of a tenant:
 
 ```ts group=harness-session-log
 import { logMessageStore } from '@tanstack/ai-harness'

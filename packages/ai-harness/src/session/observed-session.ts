@@ -277,7 +277,7 @@ export function observedSession<THarness extends AnyHarness>(
       const session = open()
       if (session) return session.transcript()
       return fromLog(({ state }) =>
-        visibleMessages(state.messages, state.revert),
+        visibleMessages(state.transcript, state.revert),
       )
     },
     async snapshot() {
@@ -314,7 +314,7 @@ export function observedSession<THarness extends AnyHarness>(
         // writes nothing.
         const children: MessageStore = {
           loadThread: (thread) =>
-            Promise.resolve([...reader.stateOf(thread).messages]),
+            Promise.resolve([...reader.stateOf(thread).transcript]),
           saveThread: () =>
             Promise.reject(new Error('host.observe writes nothing.')),
         }

@@ -1190,8 +1190,9 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
       // The first model call of a turn saves its message, under the id of
       // its input. A user message after the turn started is its message too.
       // A host that stopped before that call saved none.
+      // `appliedAt` is a transcript position.
       const start = input.appliedAt ?? 0
-      const isSaved = writer.state.messages.some(
+      const isSaved = writer.state.transcript.some(
         (message, index) =>
           message.id === inputMessageId(input.inputId) ||
           (index >= start && message.role === 'user'),
@@ -1200,7 +1201,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
       // no saved message has no answer: a note it added first is not one.
       const hasAnswer =
         (isSaved || !('message' in sent)) &&
-        hasFinalAnswer(writer.state.messages, start)
+        hasFinalAnswer(writer.state.transcript, start)
       const fallback: RecoverDecision = hasAnswer
         ? { action: 'settle', outcome: 'completed' }
         : input.abortRequested

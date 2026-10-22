@@ -12,6 +12,7 @@ import {
   hideSecret,
   messageTexts,
   mockAdapter,
+  stoppedRun,
   text,
   toolCall,
   wrapLogStore,
@@ -589,6 +590,127 @@ describe('durable session log', () => {
     const view = await host.observe(harness, { threadId: THREAD })
     expect(texts(await view.transcript())).toEqual(full)
     await host.close()
+
+    // A host with no open session reads the log: `GET transcript` and the
+    // chat hydration read this.
+    const reader = createHarnessHost({ persistence })
+    const fromLog = await reader.observe(harness, { threadId: THREAD })
+    expect(texts(await fromLog.transcript())).toEqual(full)
+    await reader.close()
+  })
+
+  it('reverts to a message that a compaction took out of the model context', async () => {
+    const persistence = durablePersistence()
+    const { adapter, calls } = mockAdapter([
+      () => text('a1'),
+      () => text('a2'),
+      () => text('a4'),
+    ])
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/compact-revert',
+        adapter,
+        durability: { addRecordsToModelContext: project },
+      }),
+      { threadId: THREAD },
+    )
+    await session.send('q1')
+    await session.send('q2')
+    await session.appendRecords({
+      records: [{ type: 'app.compact', summary: 'Earlier.', firstKept: 2 }],
+    })
+    const [first] = await session.transcript()
+
+    expect(
+      await session.revert({ messageId: first?.id ?? 'missing' }),
+    ).toMatchObject({ status: 'accepted' })
+    expect(messageTexts({ messages: await session.transcript() })).toEqual([
+      'q1',
+    ])
+
+    // The next turn drops the hidden messages, and the summary of them.
+    await session.send('q4')
+    expect(messageTexts(calls[2])).toEqual(['q1', 'q4'])
+    expect(messageTexts({ messages: await session.transcript() })).toEqual([
+      'q1',
+      'q4',
+      'a4',
+    ])
+    await host.close()
+  })
+
+  it('recovers a turn that a compaction cut, from the transcript positions', async () => {
+    const persistence = durablePersistence()
+    const message = (role: 'user' | 'assistant', content: string) =>
+      ({ id: content, role, content }) satisfies ModelMessage
+    await persistence.stores.log.append({
+      logId: LOG,
+      seq: 1,
+      epoch: NO_OWNER_EPOCH,
+      records: [
+        {
+          type: 'harness.transcript',
+          keep: 0,
+          add: [
+            message('user', 'q1'),
+            message('assistant', 'a1'),
+            message('user', 'q2'),
+            message('assistant', 'a2'),
+          ],
+        },
+        {
+          type: 'harness.input',
+          inputId: 'in-1',
+          input: { op: 'prompt', message: 'q3', busy: 'queue' },
+          at: 1,
+        },
+        {
+          type: 'harness.input.applied',
+          inputId: 'in-1',
+          operationId: 'op-stopped',
+          attempt: 1,
+        },
+        { type: 'harness.transcript', keep: 4, add: [message('user', 'q3')] },
+        // A compaction in the turn keeps only q3: the model context is
+        // shorter than the transcript was when the turn started.
+        { type: 'app.compact', summary: 'Earlier: q1 to a2.', firstKept: 4 },
+        {
+          type: 'harness.transcript',
+          keep: 2,
+          add: [message('assistant', 'a3')],
+        },
+        // The host stopped before it settled the input.
+        stoppedRun('op-stopped', THREAD, {
+          checkpoint: { at: 1, pendingTools: [] },
+        }),
+      ],
+    })
+    const { adapter, calls } = mockAdapter([() => text('never')])
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/compact-recover',
+        adapter,
+        durability: { addRecordsToModelContext: project },
+      }),
+      { threadId: THREAD },
+    )
+
+    // The saved answer counts, so the turn does not run again.
+    expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(calls).toHaveLength(0)
+    expect(messageTexts({ messages: await session.transcript() })).toEqual([
+      'q1',
+      'a1',
+      'q2',
+      'a2',
+      'q3',
+      'a3',
+    ])
+    await host.close()
   })
 
   it('folds what another host wrote before its first write, and stays open', async () => {
@@ -886,8 +1008,10 @@ describe('compaction-style host records from a middleware', () => {
       rootThread: THREAD,
       project,
     })
-    return sessionOf(state, THREAD).messages
+    return sessionOf(state, THREAD)
   }
+  const contents = (messages: ReadonlyArray<ModelMessage>) =>
+    messages.map((message) => message.content)
 
   it('lands a record from onFinish after the saved reply', async () => {
     const persistence = durablePersistence()
@@ -938,14 +1062,12 @@ describe('compaction-style host records from a middleware', () => {
     expect(replyAt).toBeGreaterThanOrEqual(0)
     expect(recordAt).toBeGreaterThan(replyAt)
 
-    // (b) The live context equals a rebuild, and the fold keeps the reply.
+    // (b) The live transcript equals a rebuild, and the fold keeps the
+    // reply. Readers keep q1 and a1, the model context has the summary.
     const rebuilt = await rebuild(persistence)
-    expect(await session.transcript()).toEqual(rebuilt)
-    expect(rebuilt.map((message) => message.content)).toEqual([
-      summary,
-      'q2',
-      'a2',
-    ])
+    expect(await session.transcript()).toEqual(rebuilt.transcript)
+    expect(contents(rebuilt.transcript)).toEqual(['q1', 'a1', 'q2', 'a2'])
+    expect(contents(rebuilt.messages)).toEqual([summary, 'q2', 'a2'])
 
     // (c) The next model call gets the fold.
     await session.send('q3')
@@ -988,8 +1110,16 @@ describe('compaction-style host records from a middleware', () => {
 
     expect(messageTexts(calls[2])).toEqual([summary, 'q2', 'a2', 'q3'])
     const rebuilt = await rebuild(persistence)
-    expect(await session.transcript()).toEqual(rebuilt)
-    expect(rebuilt.map((message) => message.content)).toEqual([
+    expect(await session.transcript()).toEqual(rebuilt.transcript)
+    expect(contents(rebuilt.transcript)).toEqual([
+      'q1',
+      'a1',
+      'q2',
+      'a2',
+      'q3',
+      'a3',
+    ])
+    expect(contents(rebuilt.messages)).toEqual([
       summary,
       'q2',
       'a2',
@@ -1057,10 +1187,18 @@ describe('compaction-style host records from a middleware', () => {
       ['call-2', 'sunny'],
     ]
     expect(results(calls[1].messages)).toEqual(cleared)
+    // Readers see the result as the tool gave it. Only the model context
+    // has it cleared.
     const transcript = await session.transcript()
-    expect(results(transcript)).toEqual(cleared)
+    expect(results(transcript)).toEqual([
+      ['call-1', 'sunny'],
+      ['call-2', 'sunny'],
+    ])
     expect(transcript.at(-1)?.content).toBe('Both are sunny.')
-    expect(await rebuild(persistence)).toEqual(transcript)
+    const rebuilt = await rebuild(persistence)
+    expect(rebuilt.transcript).toEqual(transcript)
+    expect(results(rebuilt.messages)).toEqual(cleared)
+    expect(rebuilt.messages.at(-1)?.content).toBe('Both are sunny.')
     await host.close()
   })
 })

@@ -55,6 +55,7 @@ import type {
   BlobBody,
   BlobRange,
   LogRecord,
+  MessageStore,
   SessionIndexEntry,
 } from '@tanstack/ai-persistence'
 import type { RevertState } from '../log'
@@ -816,10 +817,8 @@ export abstract class SessionState<
    * the messages after its message are hidden.
    */
   async transcript() {
-    return visibleMessages(
-      await this.messages.loadThread(this.threadId),
-      this.reverted,
-    )
+    // The transcript, not the model context: a compaction hides nothing.
+    return visibleMessages(this.writer.state.transcript, this.reverted)
   }
 
   /**
@@ -840,16 +839,23 @@ export abstract class SessionState<
   async agentTranscript(
     run: { subagentRunId: string } | { runId: string },
   ): Promise<Array<ModelMessage>> {
+    // The transcripts of the child threads, not their model context.
+    const children: MessageStore = {
+      loadThread: (thread) =>
+        Promise.resolve([...this.writer.stateOf(thread).transcript]),
+      saveThread: () =>
+        Promise.reject(new Error('agentTranscript writes nothing.')),
+    }
     if ('subagentRunId' in run) {
       const child = await loadChildTranscript(
-        this.engine,
+        children,
         run.subagentRunId,
         this.threadId,
       )
       if (child) return child
     }
     const thread = agentRunThread(this.writer.state.thread, this.threadId, run)
-    return thread === undefined ? [] : this.engine.loadThread(thread)
+    return thread === undefined ? [] : children.loadThread(thread)
   }
 
   /**
@@ -908,7 +914,9 @@ export abstract class SessionState<
       return { inputId, status: 'rejected', reason: 'busy' }
     }
     return this.holding(async () => {
-      const messages = await this.messages.loadThread(this.threadId)
+      // The reader picks a message of the transcript, also one that a
+      // compaction took out of the model context.
+      const messages = [...this.writer.state.transcript]
       const at = messages.findIndex((message) => message.id === messageId)
       if (at < 0)
         return { inputId, status: 'rejected', reason: 'unknown_message' }
@@ -993,10 +1001,13 @@ export abstract class SessionState<
   /** Drop the messages that a standing revert hides, and end the revert. */
   protected async commitRevert() {
     if (!this.reverted) return
-    const messages = await this.messages.loadThread(this.threadId)
+    const messages = this.writer.state.transcript
     const at = this.revertedAt(messages)
     if (at >= 0) {
-      await this.messages.saveThread(this.threadId, messages.slice(0, at + 1))
+      await this.writer.commit({
+        messages: messages.slice(0, at + 1),
+        asTranscript: true,
+      })
     }
     await this.saveRevert(undefined)
   }
