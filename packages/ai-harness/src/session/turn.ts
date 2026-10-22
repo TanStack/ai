@@ -125,18 +125,20 @@ export abstract class SessionTurn<
 
   protected async executeCommand(
     operation: OperationImpl<unknown>,
-    name: string,
-    input: unknown,
+    command: string,
+    sent: unknown,
     user: HarnessUser | undefined,
     inputId: string,
   ): Promise<void> {
     // The log keeps the input for replay, so a command must not take a secret
     // as its input. Ask a `secret` question instead.
-    const admission = await this.accept(
+    const { admission, input: accepted } = await this.accept(
       inputId,
-      { op: 'command', name, input },
+      { op: 'command', name: command, input: sent },
       user,
     )
+    // `acceptInput` can change the input.
+    const { name, input } = accepted
     if (admission === 'offered') {
       await this.followCommand(operation, inputId)
       return

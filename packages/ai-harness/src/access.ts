@@ -1,5 +1,5 @@
 import type { SessionMember } from '@tanstack/ai-persistence'
-import type { HarnessUser } from './types'
+import type { HarnessInput, HarnessUser } from './types'
 import type { WaitKind } from './waits'
 
 /**
@@ -68,6 +68,44 @@ export interface AuthorizeInput<U extends HarnessUser = HarnessUser> {
   run?: AccessRun
   /** The wait that an `answer` or `operator` action answers, when the host knows it. */
   wait?: AccessWait
+}
+
+/**
+ * What `acceptInput` returns: the input to store (the same input, or a
+ * changed one with the same `op`), or `{ refuse: reason }`.
+ */
+export type AcceptedInput = HarnessInput | { refuse: string }
+
+/**
+ * Look at an input before the session stores it, after the access check.
+ * Return the input, a changed input, or `{ refuse: reason }`. See
+ * `acceptInput` in the host options.
+ */
+export type AcceptInput<U extends HarnessUser = HarnessUser> = (
+  input: HarnessInput,
+  info: {
+    /** Who sent the input. `undefined` on a host without `access` and no user. */
+    user: U | undefined
+    threadId: string
+  },
+) => AcceptedInput | Promise<AcceptedInput>
+
+/**
+ * @internal What `acceptInput` returned for `input`: a changed input must
+ * keep its `op`, else it is refused.
+ */
+export function acceptedAs<TInput extends HarnessInput>(
+  input: TInput,
+  accepted: AcceptedInput,
+): TInput | { refuse: string } {
+  if ('refuse' in accepted) return accepted
+  if (accepted.op !== input.op) {
+    return {
+      refuse: `acceptInput changed the op of the input from ${input.op} to ${accepted.op}.`,
+    }
+  }
+  // ponytail: the same `op`, so the same member of `HarnessInput`.
+  return accepted as TInput
 }
 
 /** Decide if a user may do one action. Return `false` to refuse. */

@@ -595,22 +595,23 @@ export abstract class SessionState<
    * is a duplicate.
    */
   protected override async applyConfig({
-    key,
-    value,
     controlId: inputId = createInputId(),
     user,
+    ...sent
   }: {
     key: string
     value: unknown
     user?: HarnessUser
     controlId?: string
   }): Promise<Receipt> {
-    const admission = await this.accept(
+    const { admission, input } = await this.accept(
       inputId,
-      { op: 'config', key, value },
+      { op: 'config', key: sent.key, value: sent.value },
       user,
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+    // `acceptInput` can change the input.
+    const { key, value } = input
     const entry = this.sessionPlugins?.config.get(key)
     if (!entry) return this.reject(inputId, 'unknown_config')
     let checked: unknown
@@ -663,15 +664,16 @@ export abstract class SessionState<
   async updateThreadSettings(
     options: ConfigureOptions & { user?: HarnessUser },
   ): Promise<Receipt> {
-    const { settings } = options
     const inputId = options.inputId ?? createInputId()
     const user = options.user ?? this.user
-    const admission = await this.accept(
+    const { admission, input } = await this.accept(
       inputId,
-      { op: 'configure', settings },
+      { op: 'configure', settings: options.settings },
       user,
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+    // `acceptInput` can change the input.
+    const { settings } = input
     // The store took the input, so this host owns the log, and its fold has
     // the settings that other hosts wrote. The change merges into them.
     const current = this.settingsFromLog()
@@ -1064,8 +1066,8 @@ export abstract class SessionState<
    * `answerOffer`).
    */
   protected override async applyAnswer({
-    questionId,
-    value,
+    questionId: asking,
+    value: sent,
     controlId: inputId = createInputId(),
     user,
     ref,
@@ -1080,22 +1082,31 @@ export abstract class SessionState<
     // not replay an answer, so it never needs it. A host that does not know
     // the wait logs no value either: the wait can ask for a secret. When
     // another host owns the log, `answerOffer` decides what goes to it.
-    const asked = this.questions.get(questionId)
-    const logged = this.loggedWait(questionId)
+    const asked = this.questions.get(asking)
+    const logged = this.loggedWait(asking)
     const isSecret = asked?.secret ?? (!logged || logged.secret === true)
     const isHidden = ref !== undefined || isSecret
-    if (asked?.secret) this.redactor.add(value)
+    if (asked?.secret) this.redactor.add(sent)
     const sender = user ?? this.user
-    let admission
+    let accepted
     try {
-      admission = await this.accept(
+      accepted = await this.accept(
         inputId,
-        { op: 'answer', questionId, value: isHidden ? SECRET_ANSWER : value },
+        {
+          op: 'answer',
+          questionId: asking,
+          value: isHidden ? SECRET_ANSWER : sent,
+        },
         user,
         isHidden && ref === undefined
           ? {
               offer: () =>
-                this.answerOffer({ questionId, value, inputId, sender }),
+                this.answerOffer({
+                  questionId: asking,
+                  value: sent,
+                  inputId,
+                  sender,
+                }),
             }
           : {},
       )
@@ -1103,7 +1114,11 @@ export abstract class SessionState<
       if (!(error instanceof AnswerRefused)) throw error
       return this.reject(inputId, error.reason)
     }
+    const { admission } = accepted
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+    // `acceptInput` can change the input. It never sees a secret value.
+    const { questionId } = accepted.input
+    const value = isHidden ? sent : accepted.input.value
     let answered = value
     if (ref !== undefined) {
       // The value leaves the store first, so a ref works only once.

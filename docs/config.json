@@ -1074,7 +1074,7 @@
           "label": "Host options",
           "to": "harness/host-options",
           "addedAt": "2026-10-20",
-          "updatedAt": "2026-10-21"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Send and show media",
@@ -1098,7 +1098,7 @@
           "label": "Access and tenants",
           "to": "harness/access",
           "addedAt": "2026-10-17",
-          "updatedAt": "2026-10-20"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Run in the terminal",

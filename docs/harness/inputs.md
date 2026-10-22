@@ -346,7 +346,56 @@ On `POST run`, the AG-UI `forwardedProps` of the request are the `context`, for 
 - When `HarnessConfig.context` and the input `context` are both plain objects, tools get them merged, and the harness value wins for a key in both. In all other cases, tools get the harness value. If the harness has no value, tools get the input value.
 - The harness adds the run of the turn to a plain-object context as `run`, and it replaces a `run` key that a client sent. A context that is not a plain object gets no `run`, so tools that read `ctx.context.run` fail. See [Act as the user of a run](./plugins#act-as-the-user-of-a-run).
 - Plugins and the router get it as `turn.context`. See [Pick the model of a turn](./plugins#pick-the-model-of-a-turn).
-- The `context` is client data, so do not trust it. Who sent the input comes from the server: the user of the request, or of the session handle. See [Access and tenants](./access).
+- The `context` is client data, so do not trust it. Who sent the input comes from the server: the user of the request, or of the session handle. See [Access and tenants](./access). To check the `context` or replace it, see [Check an input on the server](#check-an-input-on-the-server).
+
+## Check an input on the server
+
+Give the host `acceptInput`. It gets each input after the access check, and before the log keeps the input. Return the input, a changed input, or `{ refuse: reason }`:
+
+```ts group=harness-inputs
+// Your own data: the plan of each user.
+const plans = new Map([['ada', 'pro']])
+
+const checkedHost = createHarnessHost({
+  persistence: memoryPersistence(),
+  acceptInput: (input, { user }) => {
+    if (input.op !== 'prompt') return input
+    if (typeof input.message === 'string' && input.message.length > 20_000) {
+      return { refuse: 'message_too_long' }
+    }
+    // The server sets the plan. A plan that the client sent is dropped.
+    return { ...input, context: { plan: plans.get(user?.id ?? '') ?? 'free' } }
+  },
+})
+```
+
+What you return decides what happens:
+
+- The same input: the session stores it as it came.
+- A changed input with the same `op`: the log, the turn, and the tools get the changed input. An input with another `op` is refused.
+- `{ refuse: reason }`: nothing is stored. The receipt has `status: 'rejected'` and your `reason`, and `await turn` rejects with `InputRejectedError`.
+
+`acceptInput` also gets `threadId`. It runs for the calls of a session from `host.open`, for `host.submit`, and so for every `POST control` and `POST run` request. Inputs that the harness makes itself, such as a scheduled input when it runs, skip it.
+
+On the client, a refused `control` input answers with the rejected receipt:
+
+```ts group=harness-inputs-client
+const response = await fetch('/api/harness/control', {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({
+    threadId: 'user-1-thread',
+    input: { op: 'prompt', message: 'Summarize the report.' },
+  }),
+})
+const sent = await response.json()
+if (sent.status === 'rejected') console.warn(sent.reason) // 'message_too_long'
+```
+
+A refused `POST run` answers `409` with `{ error: reason }`, so `useChat` gets an error.
+
+- The `inputId` check compares the changed input. Return the same change for the same input: no random values and no times.
+- A retry of a changed prompt on another host, or after a restart, gets `'conflict'`.
 
 ## What you have now
 
@@ -355,3 +404,4 @@ On `POST run`, the AG-UI `forwardedProps` of the request are the `context`, for 
 - Messages that join a running turn in order.
 - Waiting messages that a user can cancel, or move into the running turn, and running jobs that a user can move to the background.
 - Context from the client that tools read, also after a restart.
+- A server check that changes or refuses each input before the log keeps it.

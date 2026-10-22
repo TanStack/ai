@@ -176,21 +176,13 @@ export abstract class SessionRequests<
     input: HarnessInput & { op: 'prompt' | 'steer' | 'followUp' },
     options?: SendForRunOptions & { wake?: boolean },
   ): Operation<ChatTurnResult> {
-    const { message } = input
     const inputId = options?.inputId ?? createInputId()
     const overrides = options?.overrides
     const systemPreamble = options?.systemPreamble
     const ephemeral = options?.ephemeral
     const user = options?.user ?? this.user
-    const context = options?.context
     const wake = options?.wake === true
-    const busy =
-      input.op === 'prompt'
-        ? input.busy
-        : input.op === 'steer'
-          ? 'steer'
-          : 'queue'
-    const stored: HarnessInput =
+    const stored: typeof input =
       input.op === 'followUp' && wake ? { ...input, wake: true } : input
     const known = this.knownTurn(inputId, stored, user)
     if (known) return known
@@ -223,11 +215,19 @@ export abstract class SessionRequests<
           ? { traceparent }
           : {}),
       }).then(
-        async (admission) => {
+        async ({ admission, input: accepted }) => {
           if (admission !== 'new') {
             this.answerDuplicate(operation, inputId, admission)
             return
           }
+          // `acceptInput` can change the input.
+          const { message, context } = accepted
+          const busy =
+            accepted.op === 'prompt'
+              ? accepted.busy
+              : accepted.op === 'steer'
+                ? 'steer'
+                : 'queue'
           // A client run id must be new in the log of this thread.
           if (runId !== undefined && this.isRunTaken(runId)) {
             this.reject(inputId, 'conflict')
@@ -240,7 +240,7 @@ export abstract class SessionRequests<
           }
           const isWaiting =
             this.activeTurn !== undefined || this.queue.length > 0
-          if (input.op === 'prompt' && input.as === 'operator') {
+          if (accepted.op === 'prompt' && accepted.as === 'operator') {
             // An operator reply runs no model. It needs an open handoff to
             // a person.
             if (!this.humanHandoff()) {
@@ -359,14 +359,13 @@ export abstract class SessionRequests<
     inputId?: string
     user?: HarnessUser
   }): Operation<ChatTurnResult> {
-    const { name, args, meta } = options
     const inputId = options.inputId ?? createInputId()
     const user = options.user ?? this.user
-    const input: HarnessInput = {
-      op: 'tool',
-      name,
-      ...(args !== undefined ? { args } : {}),
-      ...(meta ? { meta } : {}),
+    const input = {
+      op: 'tool' as const,
+      name: options.name,
+      ...(options.args !== undefined ? { args: options.args } : {}),
+      ...(options.meta ? { meta: options.meta } : {}),
     }
     const known = this.knownTurn(inputId, input, user)
     if (known) return known
@@ -374,11 +373,13 @@ export abstract class SessionRequests<
     this.bindTurn(inputId, operation)
     void this.admitting(() =>
       this.accept(inputId, input, user).then(
-        (admission) => {
+        ({ admission, input: accepted }) => {
           if (admission !== 'new') {
             this.answerDuplicate(operation, inputId, admission)
             return
           }
+          // `acceptInput` can change the input.
+          const { name, args, meta } = accepted
           // As a prompt: the open interrupts are answered first.
           if (this.waitsForInterrupts()) {
             this.reject(inputId, 'pending_interrupts')
@@ -448,10 +449,10 @@ export abstract class SessionRequests<
   }): Operation<ChatTurnResult> {
     const inputId = options?.inputId ?? createInputId()
     const user = options?.user ?? this.user
-    const context = options?.context
-    const input: HarnessInput = {
-      op: 'continue',
-      ...(context !== undefined ? { context } : {}),
+    const sent = options?.context
+    const input = {
+      op: 'continue' as const,
+      ...(sent !== undefined ? { context: sent } : {}),
     }
     const known = this.knownTurn(inputId, input, user)
     if (known) return known
@@ -463,11 +464,13 @@ export abstract class SessionRequests<
     }
     void this.admitting(() =>
       this.accept(inputId, input, user, { turn }).then(
-        (admission) => {
+        ({ admission, input: accepted }) => {
           if (admission !== 'new') {
             this.answerDuplicate(operation, inputId, admission)
             return
           }
+          // `acceptInput` can change the input.
+          const { context } = accepted
           const isWaiting =
             this.activeTurn !== undefined || this.queue.length > 0
           this.answerTurn(operation, {
@@ -524,13 +527,15 @@ export abstract class SessionRequests<
       const inputId = options?.inputId ?? createInputId()
       const user = options?.user ?? this.user
       // An empty note is no note: the model never gets an empty message.
-      const text = note?.trim() ? note : undefined
-      const admission = await this.accept(
+      const sent = note?.trim() ? note : undefined
+      const { admission, input } = await this.accept(
         inputId,
-        { op: 'reset', ...(text !== undefined ? { note: text } : {}) },
+        { op: 'reset', ...(sent !== undefined ? { note: sent } : {}) },
         user,
       )
       if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+      // `acceptInput` can change the input.
+      const text = input.note?.trim() ? input.note : undefined
       const isRunning = this.activeTurn !== undefined
       if (this.waitsForInterrupts())
         return this.reject(inputId, 'pending_interrupts')
@@ -583,15 +588,16 @@ export abstract class SessionRequests<
   override async resolveForRun(
     options: ResolveForRunOptions,
   ): Promise<Receipt> {
-    const { resume } = options
     // The waits of a `harnessAgent` child: the child takes the answers, and
     // its run goes on, still for the user of the run that started it. The
     // AG-UI run id names a run of this session only.
-    const child = this.childOfWaits(resume.map((item) => item.interruptId))
+    const child = this.childOfWaits(
+      options.resume.map((item) => item.interruptId),
+    )
     if (child) {
       const { inputId } = options
       return child.answer({
-        resume,
+        resume: options.resume,
         ...(inputId !== undefined ? { inputId } : {}),
       })
     }
@@ -599,12 +605,14 @@ export abstract class SessionRequests<
       const inputId = options.inputId ?? createInputId()
       const user = options.user ?? this.user
       const runId = options.runId
-      const admission = await this.accept(
+      const { admission, input } = await this.accept(
         inputId,
-        { op: 'resolve', resume },
+        { op: 'resolve', resume: options.resume },
         user,
         runId !== undefined ? { runId } : {},
       )
+      // `acceptInput` can change the input.
+      const { resume } = input
       if (admission !== 'new') {
         const receipt = this.duplicateReceipt(inputId, admission)
         // The owner runs an offered resume as `runId`.
@@ -751,14 +759,15 @@ export abstract class SessionRequests<
   async cancel(
     options?: CancelOptions & { inputId?: string; user?: HarnessUser },
   ): Promise<Receipt> {
-    const operationId = options?.operationId
     const inputId = options?.inputId ?? createInputId()
-    const admission = await this.accept(
+    const { admission, input } = await this.accept(
       inputId,
-      { op: 'cancel', operationId },
+      { op: 'cancel', operationId: options?.operationId },
       options?.user,
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+    // `acceptInput` can change the input.
+    const { operationId } = input
     const target = operationId
       ? this.operations.get(operationId)
       : this.activeTurn
@@ -891,7 +900,7 @@ export abstract class SessionRequests<
    * is a duplicate.
    */
   protected override async applyCancelInput({
-    inputId: target,
+    inputId: sent,
     user,
     controlId,
   }: {
@@ -900,12 +909,14 @@ export abstract class SessionRequests<
     controlId?: string
   }): Promise<Receipt> {
     const inputId = controlId ?? createInputId()
-    const admission = await this.accept(
+    const { admission, input } = await this.accept(
       inputId,
-      { op: 'cancelInput', inputId: target },
+      { op: 'cancelInput', inputId: sent },
       user,
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+    // `acceptInput` can change the input.
+    const target = input.inputId
     const taken = this.takeWaiting(target) ?? this.takeQueuedContinue(target)
     if (!taken) return this.reject(inputId, 'not_waiting')
     await this.applyControl(inputId, {
@@ -953,10 +964,9 @@ export abstract class SessionRequests<
    * is a duplicate.
    */
   protected override async applySetDelivery({
-    inputId: target,
-    delivery,
     user,
     controlId,
+    ...sent
   }: {
     inputId: string
     delivery: WaitingInput['delivery']
@@ -964,12 +974,14 @@ export abstract class SessionRequests<
     controlId?: string
   }): Promise<Receipt> {
     const inputId = controlId ?? createInputId()
-    const admission = await this.accept(
+    const { admission, input: accepted } = await this.accept(
       inputId,
-      { op: 'setDelivery', inputId: target, delivery },
+      { op: 'setDelivery', inputId: sent.inputId, delivery: sent.delivery },
       user,
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+    // `acceptInput` can change the input.
+    const { inputId: target, delivery } = accepted
     const current = this.waitingInputs().find(
       (input) => input.inputId === target,
     )
@@ -1323,7 +1335,10 @@ export abstract class SessionRequests<
     const stored =
       local ?? (logged ? inputKey(logged.input, logged.user) : undefined)
     if (stored === undefined) return undefined
-    if (stored !== payload) {
+    if (
+      stored !== payload &&
+      this.inputRecords.screened.get(inputId) !== payload
+    ) {
       const refused = this.createTurnOperation()
       this.refuse(refused, { inputId, status: 'rejected', reason: 'conflict' })
       return refused

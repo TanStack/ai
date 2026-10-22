@@ -2,7 +2,7 @@ import { ConsoleLogger, EventType } from '@tanstack/ai'
 import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import type { CredentialStore } from '@tanstack/ai/byok'
-import { AccessDeniedError, ownerOf } from './access'
+import { AccessDeniedError, acceptedAs, ownerOf } from './access'
 import {
   SharedLog,
   loadLogState,
@@ -53,6 +53,7 @@ import type {
   SessionMember,
 } from '@tanstack/ai-persistence'
 import type {
+  AcceptInput,
   AccessAction,
   AccessRun,
   AccessSession,
@@ -145,6 +146,28 @@ export interface HarnessHostOptions<U extends HarnessUser = HarnessUser> {
    * ```
    */
   access?: HarnessAccess<U>
+  /**
+   * Look at each input before the session stores it: after the `access`
+   * check, before the log keeps it. It gets the input, and who sent it to
+   * which thread. Return the input, a changed input with the same `op`, or
+   * `{ refuse: reason }`. A refused input gets a receipt with
+   * `status: 'rejected'` and that reason, and nothing is stored. The log and
+   * the turn get the changed input. It runs for the calls of a session that
+   * `host.open` returns, for `host.submit`, and so for every input that
+   * `createHarnessHandler` takes. Inputs that the harness makes itself (a
+   * wake, a scheduled input when it runs) skip it.
+   *
+   * @example
+   * ```ts
+   * const host = createHarnessHost({
+   *   acceptInput: (input, { user }) =>
+   *     input.op === 'prompt'
+   *       ? { ...input, context: { plan: planOf(user) } }
+   *       : input,
+   * })
+   * ```
+   */
+  acceptInput?: AcceptInput<U>
   /**
    * Where users' API keys and OAuth tokens are saved: a table in your own
    * database, or a secrets manager. Encrypt the secrets at rest. Default: in
@@ -1539,7 +1562,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
   checkDurableStores(persistence)
   checkSessionStore(persistence.stores.sessions)
   checkMetadataStore(persistence.stores.metadata)
-  const { access } = options
+  const { access, acceptInput } = options
   if (access && !persistence.stores.sessions) {
     throw new Error(
       'Host access needs stores.sessions: each session keeps its owner and members there.',
@@ -2463,6 +2486,12 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
       session,
       user,
       ...(access && user ? { guard: guardOf(user, guarded) } : {}),
+      ...(acceptInput
+        ? {
+            acceptInput: async (input: HarnessInput) =>
+              acceptInput(input, { user, threadId }),
+          }
+        : {}),
       lease: {
         current: () => {
           // After `host.close()`, a call refuses at once.
@@ -3189,7 +3218,13 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
         }
         return refused
       }
-      const record = offeredInputRecord({ inputId: id, input, user })
+      const accepted = acceptInput
+        ? acceptedAs(input, await acceptInput(input, { user, threadId }))
+        : input
+      if ('refuse' in accepted) {
+        return { inputId: id, status: 'rejected', reason: accepted.refuse }
+      }
+      const record = offeredInputRecord({ inputId: id, input: accepted, user })
       const offered = await logStore.offerInput({
         logId: logIdOf({ tenantId, logId: threadId }),
         harness: harness.name,

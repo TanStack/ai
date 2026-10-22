@@ -135,6 +135,8 @@ export type {
 } from './host'
 export { AccessDeniedError, membersOnly } from './access'
 export type {
+  AcceptInput,
+  AcceptedInput,
   AccessAction,
   AccessMembers,
   AccessPolicy,

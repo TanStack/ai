@@ -152,6 +152,7 @@ export const team = defineHarness({
 | `records` | Add records of these types to the thread with `client.appendRecords({ records })`. See [Let a client add records](./session-log#let-a-client-add-records). |
 
 - Any other input of these kinds gets `{ status: 'rejected', reason: 'not_exposed' }`.
+- To check what an input says, for example its `context`, use `acceptInput` on the host. See [Check an input on the server](./inputs#check-an-input-on-the-server).
 - `GET describe` and `client.describe()` list only the exposed commands and config keys. A UI built from them shows only what a client can use.
 - Server code that calls the session is not limited. `session.setPluginSetting()` and `session.runCommand()` work for every key and command, and `session.describe()` lists all of them.
 - `defineHarness` checks the names in `agents` and `tools`, and TypeScript suggests them. Plugins add their config keys and commands when a session opens, so it does not check those names.

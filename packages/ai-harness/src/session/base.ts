@@ -146,6 +146,13 @@ export class InputRecords {
    * `recoverPendingWork()` skips these inputs.
    */
   readonly admitted = new Map<string, string>()
+  /**
+   * The input as its caller sent it, as JSON, by input id, when
+   * `acceptInput` changed it. A retry sends that input again.
+   */
+  // ponytail: in memory only. After a restart, a retry of a changed turn
+  // input gets `conflict`.
+  readonly screened = new Map<string, string>()
   /** The inputs that joined each turn or agent run, by operation id. */
   readonly turnJoins = new Map<string, Array<string>>()
   /** The receipt of each chat input this session answered, by input id. */
@@ -237,6 +244,7 @@ export class InputRecords {
 
   private forget(inputId: string) {
     this.admitted.delete(inputId)
+    this.screened.delete(inputId)
     this.receipts.delete(inputId)
     this.settlements.delete(inputId)
     this.ended.delete(inputId)

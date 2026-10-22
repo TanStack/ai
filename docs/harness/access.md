@@ -111,6 +111,7 @@ Each action covers these calls:
 - For `cancelSchedule`, `run` is the schedule: the `runId` is the schedule id, and the `userId` is the user who made it.
 - `host.submit` and `schedule` check an answer or a cancel when you send it, with `run` from the log. A run that the log does not have is refused with `unknown_run`: `submit` returns a `rejected` receipt, and `schedule` throws `InputRejectedError`.
 - A handle checks `read` once, when it opens. Each action that changes the session asks `isAllowed` again. This includes `cancel` and `send` on an operation or an agent run that the handle returns.
+- `isAllowed` does not get the input. To check what an input says, or to replace its `context`, give the host `acceptInput`. It runs after `isAllowed`. See [Check an input on the server](./inputs#check-an-input-on-the-server).
 
 The rules have two more keys. `membersOnly()` sets both. Your own rules can leave them out:
 

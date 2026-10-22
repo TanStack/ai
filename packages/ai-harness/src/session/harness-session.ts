@@ -713,6 +713,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
     // after this host gets the log back must take them again. The duplicate
     // check reads the log for the inputs that it stored.
     this.admitted.clear()
+    this.inputRecords.screened.clear()
     // With no work that still ends, the session is idle now and unfences.
     queueMicrotask(() => this.checkIdle())
   }

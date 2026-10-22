@@ -20,7 +20,8 @@ import {
   dropOldest,
 } from './helpers'
 import { SessionBase } from './base'
-import type { AccessRun, AccessWait } from '../access'
+import { acceptedAs } from '../access'
+import type { AcceptedInput, AccessRun, AccessWait } from '../access'
 import type { OperationImpl } from '../operation'
 import type { LogRecord, OfferedInput } from '@tanstack/ai-persistence'
 import type { HarnessRecord, InputState } from '../log'
@@ -41,7 +42,9 @@ import type { QueuedTurn, WaitingSteer } from './types'
 
 /**
  * How `accept` took an input. `offered`: another host owns the log, and the
- * input waits for that host in the input lane of the log.
+ * input waits for that host in the input lane of the log. `refused`: the
+ * `acceptInput` hook of the host refused it, with this reason. Nothing is
+ * stored.
  */
 export type Admission =
   | 'new'
@@ -50,6 +53,7 @@ export type Admission =
   | 'closed'
   | 'offered'
   | 'deleted'
+  | { refused: string }
 
 /** What `accept` stores with an input besides the input itself. */
 interface AcceptOptions {
@@ -82,13 +86,14 @@ interface ApplyingOffer {
 /**
  * The access check of one input, before `accept` stores it: the input, and
  * the run that an answer or a cancel targets. It throws to refuse the input.
+ * It can return the input to store (see `acceptInput`), or a refusal.
  */
 export type InputCheck = (check: {
   input: HarnessInput
   run: AccessRun | undefined
   /** The wait that an answer answers, when the session knows it. */
   wait?: AccessWait
-}) => Promise<void>
+}) => Promise<AcceptedInput | void>
 
 /**
  * A layer of {@link HarnessSession}: admitting inputs, receipts, and
@@ -299,14 +304,16 @@ export abstract class SessionInputs<
     user?: HarnessUser
   }): Promise<Receipt> {
     checkHostRecords(records)
-    const admission = await this.accept(
+    const { admission, input } = await this.accept(
       inputId,
       { op: 'append', records: [...records] },
       user ?? this.user,
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+    // `acceptInput` can change the records.
+    if (input.records !== records) checkHostRecords(input.records)
     // In the append of the applied record: a crash keeps both or neither.
-    await this.applied(inputId, 'session', records)
+    await this.applied(inputId, 'session', input.records)
     // Kept, so a duplicate gets the same receipt.
     return this.keep({ inputId, status: 'accepted' })
   }
@@ -623,20 +630,54 @@ export abstract class SessionInputs<
    * input lane (`offered`). An input from the lane (see `applyOffer`)
    * consumes its offer in the same append.
    */
-  protected async accept(
+  protected async accept<TInput extends HarnessInput>(
     inputId: string,
-    input: HarnessInput,
+    input: TInput,
     user = this.user,
     options: AcceptOptions = {},
-  ): Promise<Admission> {
-    // Before the first `await`, as the check: only this call takes it.
+  ): Promise<{ admission: Admission; input: TInput }> {
+    // Before the first `await`: only this call takes them.
     const offer = this.applying?.inputId === inputId ? this.applying : undefined
     if (offer) this.applying = undefined
+    const check = this.pendingCheck
+    this.pendingCheck = undefined
     try {
-      return await this.admit({ inputId, input, user, options, offer })
+      const accepted = check ? await this.checkInput(check, input) : input
+      if ('refuse' in accepted) {
+        return { admission: { refused: accepted.refuse }, input }
+      }
+      const admission = await this.admit({
+        inputId,
+        input: accepted,
+        user,
+        options,
+        offer,
+      })
+      // A retry with the input as its caller sent it is the same input.
+      if (admission === 'new' && accepted !== input) {
+        this.inputRecords.screened.set(
+          inputId,
+          inputKey(input, storedUser(user).user),
+        )
+      }
+      return { admission, input: accepted }
     } finally {
       offer?.stored()
     }
+  }
+
+  /** Run the access check and `acceptInput` of `check` on `input`. */
+  private async checkInput<TInput extends HarnessInput>(
+    check: InputCheck,
+    input: TInput,
+  ): Promise<TInput | { refuse: string }> {
+    const wait = this.waitOf(input)
+    const accepted = await check({
+      input,
+      run: this.runOf(input),
+      ...(wait ? { wait } : {}),
+    })
+    return accepted ? acceptedAs(input, accepted) : input
   }
 
   private async admit({
@@ -652,12 +693,6 @@ export abstract class SessionInputs<
     options: AcceptOptions
     offer: ApplyingOffer | undefined
   }): Promise<Admission> {
-    const check = this.pendingCheck
-    this.pendingCheck = undefined
-    if (check) {
-      const wait = this.waitOf(input)
-      await check({ input, run: this.runOf(input), ...(wait ? { wait } : {}) })
-    }
     const sender = storedUser(user)
     const traced =
       options.traceparent === undefined
@@ -1295,6 +1330,9 @@ export abstract class SessionInputs<
     inputId: string,
     admission: Exclude<Admission, 'new'>,
   ): Receipt {
+    if (typeof admission === 'object') {
+      return { inputId, status: 'rejected', reason: admission.refused }
+    }
     if (admission !== 'duplicate' && admission !== 'offered') {
       return { inputId, status: 'rejected', reason: admission }
     }
