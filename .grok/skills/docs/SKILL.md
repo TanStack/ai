@@ -48,7 +48,7 @@ If either file is missing, stop and tell the user. Do not write the pages withou
 
 How they compose:
 
-- This skill owns who the page is for, the page split, problem-then-fix, show-don't-tell, no history leak, forbidden glyphs, and neighbor structure.
+- This skill owns who the page is for, the page split, the call-first opener, show-don't-tell, no history leak, forbidden glyphs, and neighbor structure.
 - `simple-english` owns the sentences. Use pragmatic mode. Run its self-check before you call a page done.
 - `i-have-adhd` owns the shape of the page: next action first, numbered steps, lists capped at 5 (split must vs later, or split the page), no preamble, a visible win at the end.
 
@@ -224,28 +224,29 @@ Legibility is the goal, above everything else.
 - Second person, action first. Start with what the reader has now and what they will have at the end. No "In this guide we will explore..." openings. Just start.
 - Shape the page with `i-have-adhd`: the first line is something the reader can do, multi-step work is numbered, a list longer than 5 is split, the page ends on a visible win.
 
-### Lead with the problem, then solve it
+### Open with the call
 
-Every page opens with the problem the reader came for, in their own words, before any API. Name the situation they are stuck in. Then say in a sentence or two how the feature solves it. Only after that do you go into the technical parts and the code.
-
-A reader who sees the problem first knows in seconds whether they are on the right page. A reader who hits an API signature first has to reverse-engineer what it is even for.
-
-The first line of the how is the next action (from `i-have-adhd`). The problem still comes first so they know they are on the right page.
+The first one or two sentences name the call and what the reader gets from it. A reader who lands from search knows in one line whether this page has their answer.
 
 ```text
 Bad:
-  Call useInterrupts() and pass a resolver. The resolver runs once per
-  pending item inside a transaction...
+  Some tool calls shouldn't run without a human saying yes: moving money,
+  deleting data. An interrupt pauses the run for that decision...
 
 Good:
-  Some tool calls shouldn't run without a human saying yes: moving money,
-  deleting data. An interrupt pauses the run for that decision, then picks up
-  where it left off. Here is how to gate a tool behind an approval:
+  Set `needsApproval: true` on a tool. The run pauses before the tool runs,
+  and continues after a person approves it.
 
-  [code]
+Good:
+  `chat()` returns each token while the model writes the reply. `useChat`
+  renders those tokens. Call `stop()` to cancel the run.
 ```
 
-The order for a guide is problem, one-line fix, then the how (steps, snippets, API). Keep the problem to a couple of sentences, not a background essay. The code shows how it is solved, so do not narrate the solution in prose first.
+The opener is the page's only summary. The next line starts the steps or the code. Each idea in the opener is said once on the page, so the paragraph after it adds something new.
+
+When the reader must know a limit to pick the right page, put it in the opener: "`chat()` with `outputSchema` returns one typed object. It does not stream or run tools."
+
+The order for a guide is the call, then the steps and code. The code shows how it works, so the prose between snippets stays short.
 
 ### Show, do not tell
 
@@ -309,10 +310,9 @@ If a list grows past five items, split it. Put "do now" first. Put the rest on a
 
 ### Page shape for a guide
 
-Problem, fix, steps, done.
+Call, steps, done.
 
-- Open with the problem the reader has, in their words, and what they will have at the end.
-- Say in a sentence how the feature solves it.
+- Open with the call and what the reader gets from it, in one or two sentences.
 - Walk through steps they can follow and test as they go, with the code doing the explaining.
 - End when they reach the goal. Show what now works. Do not close with a vague "next steps" dump.
 
@@ -397,7 +397,8 @@ Then run the `simple-english` self-check on the same added text.
 
 | You catch yourself | Do instead |
 |---|---|
-| Opening with an API signature or config before the problem | Name the problem the reader has first, then the one-line fix, then the code. |
+| Opening with a scene, a background story, or "In this guide" | Open with the call and its result in one or two sentences, then the steps. |
+| A second paragraph that restates the opener | Cut it. The paragraph after the opener starts the steps or adds a new fact. |
 | Writing three paragraphs before any code | Cut to one sentence plus a snippet. Show it. |
 | Writing a sentence that names two or more things and explains each | Make it a bulleted list, one item per bullet. |
 | A paragraph with commas or semicolons separating a set of options/stores/flags | Same fix: that is a list, format it as one. |
