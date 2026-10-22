@@ -370,6 +370,7 @@ await host.sessions.eraseUser({
 
 - Each message of Bob keeps its id and its role, and its content becomes `[removed]`. The turns keep their shape, so the model can go on.
 - The media files that Bob sent in those messages are deleted.
+- A [compaction](./compaction) summary can quote Bob, so the model context drops it and gets the whole transcript again. The next turn compacts again when it needs to.
 - `replies: 'remove'` also erases the answers to each message of Bob, up to the next user message. Default: `'keep'`.
 - The host writes a new [snapshot](./durable-sessions#keep-a-long-log-fast-to-open) without that content. Then the log drops every record before it. A reader whose cursor is before the snapshot gets one `harness.gap` event.
 - On a host with `access`, `eraseUser` needs the `erase` action. With `membersOnly()`, only the owner has it.
