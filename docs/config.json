@@ -1929,6 +1929,12 @@
           "to": "community-adapters/upstash",
           "addedAt": "2026-09-29",
           "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "AI SDK Bridge",
+          "to": "community-adapters/ai-sdk-bridge",
+          "addedAt": "2026-10-23",
+          "updatedAt": "2026-10-23"
         }
       ]
     },
