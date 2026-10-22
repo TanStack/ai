@@ -8,12 +8,12 @@
 
 ## Adapter Factories
 
-| Factory           | Type      | Description                   |
-| ----------------- | --------- | ----------------------------- |
-| `geminiText`      | Text/Chat | Chat completions              |
-| `geminiImage`     | Image     | Image generation (Imagen)     |
-| `geminiSpeech`    | TTS       | Text-to-speech (experimental) |
-| `geminiSummarize` | Summarize | Text summarization            |
+| Factory           | Type      | Description                    |
+| ----------------- | --------- | ------------------------------ |
+| `geminiText`      | Text/Chat | Chat completions               |
+| `geminiImage`     | Image     | Image generation (Nano Banana) |
+| `geminiSpeech`    | TTS       | Text-to-speech (experimental)  |
+| `geminiSummarize` | Summarize | Text summarization             |
 
 ## Import
 

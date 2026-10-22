@@ -65,9 +65,8 @@ export const Route = createFileRoute('/api/gemini-image-ga-models')({
           }),
         )
 
-        // #1640: `gemini-nano-banana-2.1` is a native image model only
-        // because it is in `GEMINI_NATIVE_IMAGE_MODELS`. Otherwise it goes
-        // to the Imagen endpoint, which the mock does not serve.
+        // #1640: `gemini-nano-banana-2.1` goes to the Interactions API with
+        // `aspect_ratio` and `image_size`, like every Gemini image model.
         const nanoBanana21 = await runStage(() =>
           generateImage({
             threadId: 'gemini-image-ga-models',

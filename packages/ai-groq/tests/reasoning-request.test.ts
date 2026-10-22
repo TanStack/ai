@@ -28,10 +28,10 @@ describe('Groq chat({ reasoning }) request shape', () => {
     })
   })
 
-  it('Qwen 3: default to think, none for off', () => {
-    const adapter = new Probe({ apiKey: 'k' }, 'qwen/qwen3-32b')
+  it('Qwen 3.8: effort from the level, none for off', () => {
+    const adapter = new Probe({ apiKey: 'k' }, 'qwen/qwen3.8-27b')
     expect(adapter.request({ level: 'high', summary: true })).toMatchObject({
-      reasoning_effort: 'default',
+      reasoning_effort: 'high',
     })
     expect(adapter.request({ level: 'off', summary: true })).toMatchObject({
       reasoning_effort: 'none',

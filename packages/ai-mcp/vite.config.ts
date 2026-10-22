@@ -33,6 +33,7 @@ export default mergeConfig(
       './src/server/stdio.ts',
       './src/connector.ts',
       './src/harness.ts',
+      './src/events/index.ts',
     ],
     srcDir: './src',
     cjs: false,

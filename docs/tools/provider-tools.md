@@ -84,7 +84,7 @@ Anthropic and OpenAI can also load hosted skills into their code sandbox. See [P
 
 The `supports.tools` array of each model in `model-meta.ts` is the source of truth:
 
-- **Anthropic**: every registered model supports all tools, except `claude-opus-5-fast`, which supports none.
+- **Anthropic**: every registered model supports all tools.
   - For `computerUseTool`, each model takes only some versions. The Claude 5.5 models take only `computer_toolset_20260801`. See the version table in [`computerUseTool`](../adapters/anthropic-advanced.md#computerusetool).
 - **OpenAI**:
   - GPT-6.1 Sol, the GPT-5 family, and the reasoning models (O-series) support all tools.

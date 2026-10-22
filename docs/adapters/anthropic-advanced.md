@@ -132,7 +132,7 @@ const stream = chat({
 });
 ```
 
-- `anthropicVertexText` accepts only the Claude models in the Vertex catalog (`ANTHROPIC_VERTEX_CHAT_MODELS`). It does not accept ids that only Anthropic has, such as `claude-opus-5-fast`.
+- `anthropicVertexText` accepts only the Claude models in the Vertex catalog (`ANTHROPIC_VERTEX_CHAT_MODELS`). It does not accept ids that only Anthropic has, such as `claude-fable-5-1`.
 - `project` and `location` use the same names as `@tanstack/ai-vertex`, so one auth object works for Gemini and Claude.
 - If you omit `project`, Application Default Credentials can still fill it.
 - `location` is required. Pass it on the factory, or set `GOOGLE_CLOUD_LOCATION`, `GOOGLE_VERTEX_LOCATION`, or `CLOUD_ML_REGION`.
@@ -432,7 +432,7 @@ Add an `execute` that runs the action and returns a result:
 
 Claude gives coordinates in the pixels of your screenshots.
 
-A version that your model does not take is a type error. `claude-opus-5-fast` takes no provider tools. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+A version that your model does not take is a type error. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
 ### `bashTool`
 

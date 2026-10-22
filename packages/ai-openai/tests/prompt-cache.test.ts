@@ -123,7 +123,6 @@ describe('clampPromptCacheKey', () => {
 describe('openAIModelUsesExplicitPromptCache', () => {
   it('is true for gpt-5.6 and later, and for gpt-6 and later', () => {
     for (const model of [
-      'gpt-5.6',
       'gpt-5.6-sol',
       'gpt-5.6-luna-pro',
       'gpt-5.10',
@@ -328,7 +327,7 @@ describe('OpenAI Responses adapter: chat({ promptCache })', () => {
 
   it('turns automatic caching off for none on gpt-5.6', async () => {
     expect(
-      await sendResponses('gpt-5.6', { retention: 'none', key: 'k-1' }),
+      await sendResponses('gpt-5.6-sol', { retention: 'none', key: 'k-1' }),
     ).toStrictEqual({ prompt_cache_options: { mode: 'explicit' } })
   })
 
@@ -351,7 +350,7 @@ describe('OpenAI Responses adapter: chat({ promptCache })', () => {
 
     expect(
       await sendResponses(
-        'gpt-5.6',
+        'gpt-5.6-sol',
         { retention: 'long', key: 'k-1' },
         callerOptions,
       ),
@@ -362,7 +361,7 @@ describe('OpenAI Responses adapter: chat({ promptCache })', () => {
   })
 
   it('sends no cache field without the option', async () => {
-    expect(await sendResponses('gpt-5.6', undefined)).toStrictEqual({})
+    expect(await sendResponses('gpt-5.6-sol', undefined)).toStrictEqual({})
   })
 })
 

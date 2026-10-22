@@ -146,6 +146,7 @@ describe('translateOpencodeStream', () => {
   it('accumulates incremental text deltas', async () => {
     const chunks = await collect([
       session,
+      messageUpdated('msg-1', 'assistant'),
       textPart('part-1', 'Hel', 'Hel'),
       textPart('part-1', 'Hello', 'lo'),
       done(),
@@ -164,6 +165,7 @@ describe('translateOpencodeStream', () => {
   it('derives the delta from full-text snapshots when no delta is given', async () => {
     const chunks = await collect([
       session,
+      messageUpdated('msg-1', 'assistant'),
       textPart('part-1', 'Hel'),
       textPart('part-1', 'Hello'),
       done(),
@@ -171,6 +173,23 @@ describe('translateOpencodeStream', () => {
     const contents = chunks.filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
     expect(contents[0]).toMatchObject({ delta: 'Hel' })
     expect(contents[1]).toMatchObject({ delta: 'lo', content: 'Hello' })
+  })
+
+  it('keeps only the latest update of a part while its role is unknown', async () => {
+    const chunks = await collect([
+      session,
+      textPart('part-1', 'The', 'The'),
+      textPart('part-1', 'The answer', ' answer'),
+      textPart('part-1', 'The answer is 42', ' is 42'),
+      done(),
+    ])
+    const contents = chunks.filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
+
+    expect(contents).toHaveLength(1)
+    expect(contents[0]).toMatchObject({
+      delta: 'The answer is 42',
+      content: 'The answer is 42',
+    })
   })
 
   it('reports usage with cache and reasoning details', async () => {

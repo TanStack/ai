@@ -168,23 +168,6 @@ describe('Gemini per-model image size gating', () => {
     })
   })
 
-  describe('Imagen models keep pixel sizes', () => {
-    it('accepts WIDTHxHEIGHT and rejects aspect-ratio sizes', () => {
-      createImageOptions({
-        threadId: 'thread-1',
-        adapter: createGeminiImage('imagen-4.0-generate-001', apiKey),
-        prompt: 'a cat',
-        size: '1024x1024',
-      })
-      createImageOptions({
-        adapter: createGeminiImage('imagen-4.0-generate-001', apiKey),
-        prompt: 'a cat',
-        // @ts-expect-error - Imagen takes pixel sizes, not aspect-ratio sizes
-        size: '16:9_2K',
-      })
-    })
-  })
-
   describe('Model name type safety', () => {
     it('rejects unknown image model names at the factory', () => {
       // @ts-expect-error - 'gemini-9-pro-image' is not a Gemini image model
@@ -247,19 +230,13 @@ describe('Gemini per-model image modelOptions gating', () => {
       })
     })
 
-    it('rejects Imagen-only options', () => {
-      // The probes are plain values that are structurally valid on
-      // GeminiImageProviderOptions (`negativePrompt: string`,
-      // `aspectRatio: GeminiAspectRatio`), so the errors below come from the
-      // native/Imagen split and nothing else — an enum-typed field such as
-      // `personGeneration` would reject a string literal on either shape and
-      // would still "pass" with the split reverted.
+    it('rejects GenerateImagesConfig options', () => {
       createImageOptions({
         threadId: 'thread-1',
         adapter: geminiImage('gemini-3.1-flash-image'),
         prompt: 'a quiet harbour',
         modelOptions: {
-          // @ts-expect-error - negativePrompt is a GenerateImagesConfig (Imagen) field
+          // @ts-expect-error - negativePrompt is a GenerateImagesConfig field
           negativePrompt: 'blurry',
         },
       })
@@ -269,7 +246,7 @@ describe('Gemini per-model image modelOptions gating', () => {
         adapter: geminiImage('gemini-3.1-flash-image'),
         prompt: 'a quiet harbour',
         modelOptions: {
-          // @ts-expect-error - aspectRatio is Imagen-only; native models use size / imageConfig
+          // @ts-expect-error - native models set the ratio with size / imageConfig
           aspectRatio: '16:9',
         },
       })
@@ -283,44 +260,6 @@ describe('Gemini per-model image modelOptions gating', () => {
         modelOptions: {
           // @ts-expect-error - responseModalities is a protected adapter default
           responseModalities: ['TEXT'],
-        },
-      })
-    })
-  })
-
-  describe('imagen-4.0-generate-001 — Imagen (GenerateImagesConfig)', () => {
-    it('accepts the Imagen option set', () => {
-      createImageOptions({
-        threadId: 'thread-1',
-        adapter: geminiImage('imagen-4.0-generate-001'),
-        prompt: 'a quiet harbour',
-        modelOptions: {
-          aspectRatio: '16:9',
-          negativePrompt: 'blurry',
-          addWatermark: true,
-          outputMimeType: 'image/png',
-        },
-      })
-    })
-
-    it('rejects native-only options', () => {
-      createImageOptions({
-        threadId: 'thread-1',
-        adapter: geminiImage('imagen-4.0-generate-001'),
-        prompt: 'a quiet harbour',
-        modelOptions: {
-          // @ts-expect-error - safetySettings is a native Interactions field
-          safetySettings: [],
-        },
-      })
-
-      createImageOptions({
-        threadId: 'thread-1',
-        adapter: geminiImage('imagen-4.0-generate-001'),
-        prompt: 'a quiet harbour',
-        modelOptions: {
-          // @ts-expect-error - previous_interaction_id is native Interactions only
-          previous_interaction_id: 'int_prev',
         },
       })
     })
@@ -352,21 +291,6 @@ describe('Gemini image provider options shape assertions', () => {
     })
     it('has store', () => {
       expectTypeOf<Options>().toHaveProperty('store')
-    })
-  })
-
-  describe('Imagen models keep GenerateImagesConfig fields', () => {
-    type Options =
-      GeminiImageModelProviderOptionsByName['imagen-4.0-generate-001']
-
-    it('has aspectRatio', () => {
-      expectTypeOf<Options>().toHaveProperty('aspectRatio')
-    })
-    it('has personGeneration', () => {
-      expectTypeOf<Options>().toHaveProperty('personGeneration')
-    })
-    it('has negativePrompt', () => {
-      expectTypeOf<Options>().toHaveProperty('negativePrompt')
     })
   })
 

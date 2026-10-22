@@ -58,10 +58,10 @@ export type { ExternalTextProviderOptions as LLMGatewayTextProviderOptions } fro
  * the OpenAI SDK via a `baseURL` override (the same pattern as `ai-grok`
  * and `ai-groq`).
  *
- * Model ids are open-ended: curated ids get per-model type metadata, and
- * any other id from https://llmgateway.io/models works with text-only
- * defaults. A `provider/model` id (e.g. `openai/gpt-5.5`) pins routing to
- * that provider; a bare id lets the gateway pick.
+ * Model ids are open-ended: catalog ids get per-model type metadata, and
+ * any other id works with text-only defaults. A `provider/model` id
+ * (e.g. `openai/gpt-5.5`) pins routing to that provider; a bare id lets
+ * the gateway pick.
  */
 export class LLMGatewayTextAdapter<
   TModel extends LLMGatewayModelId,

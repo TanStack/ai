@@ -30,8 +30,6 @@ The image page uses a streaming route. To call a TanStack Start server function 
 | `gpt-image-2` | `1024x1024`, `1536x1024`, `1024x1536`, `auto` |
 | `gpt-image-1` | `1024x1024`, `1536x1024`, `1024x1536`, `auto` |
 | `gpt-image-1-mini` | `1024x1024`, `1536x1024`, `1024x1536`, `auto` |
-| `dall-e-3` | `1024x1024`, `1792x1024`, `1024x1792` |
-| `dall-e-2` | `256x256`, `512x512`, `1024x1024` |
 
 ### Gemini native models (Nano Banana)
 
@@ -59,32 +57,6 @@ Rules for the size string:
 > [!NOTE]
 > For `gemini-3.1-flash-lite-image`, Google lists the four banner ratios (`1:4`, `4:1`, `1:8`, `8:1`) on the Cloud model page, but not in the Gemini API guide. If the API rejects them, use the 10 standard ratios on this model.
 
-### Gemini Imagen models
-
-Imagen takes `WIDTHxHEIGHT`. The adapter maps it to an aspect ratio:
-
-| Size | Aspect ratio |
-| --- | --- |
-| `1024x1024` | 1:1 |
-| `1920x1080` | 16:9 |
-| `1080x1920` | 9:16 |
-
-You can also set the aspect ratio directly:
-
-```typescript
-import { generateImage } from '@tanstack/ai'
-import { geminiImage } from '@tanstack/ai-gemini'
-
-const result = await generateImage({
-  adapter: geminiImage('imagen-4.0-generate-001'),
-  prompt: 'A landscape photo',
-  threadId: 'thread-1',
-  modelOptions: {
-    aspectRatio: '16:9',
-  },
-})
-```
-
 ## Model options
 
 `modelOptions` is typed for each model.
@@ -109,44 +81,6 @@ const result = await generateImage({
 ```
 
 `gpt-image-2.5-flare` and `gpt-image-2.5-sunburst` also take `quality: 'xhigh'` and `quality: 'max'`.
-
-### OpenAI DALL-E 3
-
-```typescript
-import { generateImage } from '@tanstack/ai'
-import { openaiImage } from '@tanstack/ai-openai'
-
-const result = await generateImage({
-  adapter: openaiImage('dall-e-3'),
-  prompt: 'A futuristic car',
-  threadId: 'thread-1',
-  modelOptions: {
-    quality: 'hd', // 'hd' | 'standard'
-    style: 'vivid', // 'vivid' | 'natural'
-  },
-})
-```
-
-### Gemini Imagen
-
-```typescript ignore
-import { generateImage } from '@tanstack/ai'
-import { geminiImage } from '@tanstack/ai-gemini'
-
-const result = await generateImage({
-  adapter: geminiImage('imagen-4.0-generate-001'),
-  prompt: 'A beautiful garden',
-  threadId: 'thread-1',
-  modelOptions: {
-    aspectRatio: '16:9',
-    // PersonGeneration enum values: 'DONT_ALLOW' | 'ALLOW_ADULT' | 'ALLOW_ALL'
-    personGeneration: 'ALLOW_ADULT',
-    negativePrompt: 'blurry, low quality',
-    addWatermark: true,
-    outputMimeType: 'image/png', // 'image/png' | 'image/jpeg' | 'image/webp'
-  },
-})
-```
 
 ### Gemini native models (Nano Banana)
 
@@ -261,7 +195,7 @@ When the inputs have different jobs (a mask, a reference, a start frame), set `m
 | --- | --- |
 | `'reference'` | fal `reference_image_urls`. Gemini multimodal part. Position when the provider has no reference field. |
 | `'character'` | Same as `'reference'`. Veo `referenceImages` slot (planned, no Veo adapter yet). |
-| `'mask'` | OpenAI `mask` (gpt-image models and dall-e-2). fal `mask_url`. |
+| `'mask'` | OpenAI `mask` (gpt-image models). fal `mask_url`. |
 | `'control'` | fal `control_image_url` (ControlNet, depth, or pose conditioning) |
 | `'start_frame'` | fal `start_image_url`. Veo `image` (planned). Used by `generateVideo`. |
 | `'end_frame'` | fal `end_image_url`. Veo `lastFrame` (planned). Used by `generateVideo`. |
@@ -338,8 +272,8 @@ await generateImage({
 
 | Provider | Behavior |
 | --- | --- |
-| **OpenAI** | gpt-image models use `images.edit()`, with up to 16 source images and an optional mask. `dall-e-2` uses `images.edit()` with 1 source image only. `dall-e-3` throws (no edit support). |
-| **Gemini** | Native models send each prompt part as an Interactions content block, in the same order. Up to 14 input images. The SDK does not enforce that limit. To edit the last image, see [Edit a Gemini native image](./image-generation#edit-a-gemini-native-image). Imagen throws on an image part, and does not chain edits. |
+| **OpenAI** | gpt-image models use `images.edit()`, with up to 16 source images and an optional mask. |
+| **Gemini** | Native models send each prompt part as an Interactions content block, in the same order. Up to 14 input images. The SDK does not enforce that limit. To edit the last image, see [Edit a Gemini native image](./image-generation#edit-a-gemini-native-image). |
 | **fal.ai** | Field names come from a map built from the endpoint types of the fal SDK (for example, nano-banana edit gets `image_urls`, and Fooocus masks get `mask_image_url`). For unknown endpoints: 1 input goes to `image_url`, more go to `image_urls`, `'mask'` goes to `mask_url`, `'control'` goes to `control_image_url`, and `'reference'` or `'character'` go to `reference_image_urls`. Use `modelOptions` for fields that only one endpoint has. |
 | **Grok** | grok-imagine models use the xAI `/v1/images/edits` endpoint, with up to 3 source images in request order. The prompt is sent as written. `'mask'` and `'control'` throw (the Imagine API has no match). |
 | **OpenRouter** | Prompt parts map 1:1 to multimodal `image_url` and `text` parts, in the same order, and go to the image model. `modelOptions.strength` (0.0 to 1.0) sets the image-to-image influence on models that document it (for example Recraft). One image per request: `numberOfImages` more than 1 throws. |
@@ -405,8 +339,6 @@ if (result.usage?.billed) {
 | `gpt-image-2` | 1-10 |
 | `gpt-image-1` | 1-10 |
 | `gpt-image-1-mini` | 1-10 |
-| `dall-e-3` | 1 |
-| `dall-e-2` | 1-10 |
 
 ### Gemini native models (Nano Banana)
 
@@ -416,14 +348,6 @@ if (result.usage?.billed) {
 | `gemini-3.1-flash-image` | Nano Banana 2. Fast native image generation. |
 | `gemini-3.1-flash-lite-image` | Nano Banana 2 Lite. Very low latency and low cost. |
 | `gemini-3-pro-image` | Nano Banana Pro. Higher quality. |
-
-### Gemini Imagen
-
-| Model | Images per request |
-| --- | --- |
-| `imagen-4.0-ultra-generate-001` | 1-4 |
-| `imagen-4.0-generate-001` | 1-4 |
-| `imagen-4.0-fast-generate-001` | 1-4 |
 
 ## Errors
 
@@ -435,16 +359,16 @@ import { openaiImage } from '@tanstack/ai-openai'
 
 try {
   const result = await generateImage({
-    adapter: openaiImage('dall-e-3'),
+    adapter: openaiImage('gpt-image-2.5-flare'),
     prompt: 'A cat',
     threadId: 'thread-1',
-    size: '512x512', // not a dall-e-3 size, throws at runtime
+    size: '512x512', // not a gpt-image-2.5-flare size, throws at runtime
   })
 } catch (error) {
   if (error instanceof Error) {
     console.error(error.message)
-    // "Size "512x512" is not supported by model "dall-e-3".
-    //  Supported sizes: 1024x1024, 1792x1024, 1024x1792"
+    // "Size "512x512" is not supported by model "gpt-image-2.5-flare".
+    //  Supported sizes: 1024x1024, 1536x1024, 1024x1536, auto"
   }
 }
 ```
@@ -454,7 +378,7 @@ try {
 The image adapters read the same environment variables as the text adapters:
 
 - **OpenAI**: `OPENAI_API_KEY`
-- **Gemini** (Nano Banana and Imagen): `GOOGLE_API_KEY` or `GEMINI_API_KEY`
+- **Gemini** (Nano Banana): `GOOGLE_API_KEY` or `GEMINI_API_KEY`
 - **BytePlus** (Seedream): `ARK_API_KEY` or `BYTEPLUS_API_KEY`
 
 To pass a key in code, use the `create*` factory:

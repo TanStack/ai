@@ -60,6 +60,10 @@
     "./harness": {
       "types": "./dist/esm/harness.d.ts",
       "import": "./dist/esm/harness.js"
+    },
+    "./events": {
+      "types": "./dist/esm/events/index.d.ts",
+      "import": "./dist/esm/events/index.js"
     }
   },
   "files": [

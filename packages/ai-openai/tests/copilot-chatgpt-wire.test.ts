@@ -75,7 +75,12 @@ const completionsDone = [
 const responsesDone = [
   {
     type: 'response.completed',
-    response: { id: 'r-1', model: 'gpt-5.6', status: 'completed', output: [] },
+    response: {
+      id: 'r-1',
+      model: 'gpt-5.6-sol',
+      status: 'completed',
+      output: [],
+    },
   },
 ]
 
@@ -86,7 +91,7 @@ describe('GitHub Copilot wire', () => {
       baseURL: 'https://api.githubcopilot.com',
       apiKey: 'copilot-token',
       defaultHeaders: copilotHeaders,
-      models: ['gpt-5.6'],
+      models: ['gpt-5.6-sol'],
       fetch,
       ...(api ? { api } : {}),
     })
@@ -94,10 +99,10 @@ describe('GitHub Copilot wire', () => {
   it('sends Chat Completions to the Copilot URL with fixed and per-request headers', async () => {
     const { sent, fetch } = recorder(completionsDone)
     await drain(
-      copilot(fetch)('gpt-5.6').chatStream({
+      copilot(fetch)('gpt-5.6-sol').chatStream({
         threadId: 'thread-1',
         logger,
-        model: 'gpt-5.6',
+        model: 'gpt-5.6-sol',
         messages: hi,
         wrapFetch: initiator,
       }),
@@ -108,7 +113,7 @@ describe('GitHub Copilot wire', () => {
     expect(sent[0]?.headers.get('openai-intent')).toBe('conversation-edits')
     expect(sent[0]?.headers.get('x-github-api-version')).toBe('2026-08-01')
     expect(sent[0]?.headers.get('x-initiator')).toBe('user')
-    expect(sent[0]?.body.model).toBe('gpt-5.6')
+    expect(sent[0]?.body.model).toBe('gpt-5.6-sol')
     expect(sent[0]?.body.stream).toBe(true)
     expect(sent[0]?.body.messages).toStrictEqual([
       { role: 'user', content: 'Hi' },
@@ -121,10 +126,10 @@ describe('GitHub Copilot wire', () => {
       copilot(
         fetch,
         'responses',
-      )('gpt-5.6').chatStream({
+      )('gpt-5.6-sol').chatStream({
         threadId: 'thread-1',
         logger,
-        model: 'gpt-5.6',
+        model: 'gpt-5.6-sol',
         messages: hi,
         wrapFetch: initiator,
         modelOptions: {
@@ -150,10 +155,10 @@ describe('GitHub Copilot wire', () => {
       ...completionsDone,
     ])
     const chunks = await drain(
-      copilot(fetch)('gpt-5.6').chatStream({
+      copilot(fetch)('gpt-5.6-sol').chatStream({
         threadId: 'thread-1',
         logger,
-        model: 'gpt-5.6',
+        model: 'gpt-5.6-sol',
         messages: hi,
       }),
     )
@@ -168,12 +173,12 @@ describe('ChatGPT plan wire', () => {
   it('sends the sign-in token to the Responses API with store off', async () => {
     const { sent, fetch } = recorder(responsesDone)
     await drain(
-      createOpenaiChat('gpt-5.6', 'chatgpt-access-token', {
+      createOpenaiChat('gpt-5.6-sol', 'chatgpt-access-token', {
         fetch,
       }).chatStream({
         threadId: 'thread-1',
         logger,
-        model: 'gpt-5.6',
+        model: 'gpt-5.6-sol',
         messages: hi,
         modelOptions: { store: false },
       }),

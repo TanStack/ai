@@ -176,10 +176,9 @@ function ImageGenerator() {
 
 ### 1. Image Generation
 
-Supported adapters: `openaiImage` (dall-e-2, dall-e-3, gpt-image-1,
-gpt-image-1-mini, gpt-image-2), `geminiImage` (gemini-3.1-flash-image,
-gemini-3.1-flash-lite-image, gemini-nano-banana-2.1, gemini-3-pro-image,
-imagen-4.0-generate-001, etc.)
+Supported adapters: `openaiImage` (gpt-image-2.5-flare, gpt-image-2.5-sunburst,
+gpt-image-2, gpt-image-1, gpt-image-1-mini), `geminiImage` (gemini-nano-banana-2.1,
+gemini-3.1-flash-image, gemini-3.1-flash-lite-image, gemini-3-pro-image)
 and `byteplusImage` (Seedream — `seedream-4-0-250828`, `seedream-4-5-251128`,
 the 5.0 family).
 
@@ -229,29 +228,21 @@ const edited = await generateImage({
   prompt: 'Make the sky orange',
   modelOptions: { previous_interaction_id: geminiResult.id },
 })
-
-// Gemini Imagen model. Text-to-image only. No interaction id to chain.
-const imagenResult = await generateImage({
-  adapter: geminiImage('imagen-4.0-generate-001'),
-  threadId: 'thread-1',
-  prompt: 'A landscape photo',
-  modelOptions: { aspectRatio: '16:9' },
-})
 ```
 
-Gemini-native image models (`gemini-3.1-flash-image`,
+Gemini image models (`gemini-3.1-flash-image`,
 `gemini-3.1-flash-lite-image`, `gemini-nano-banana-2.1`,
 `gemini-3-pro-image`) use the Interactions API.
 `result.id` is the interaction id. Omit `modelOptions.store` to keep the
 API default (`true`). `store: false` cannot be chained. Gemini keeps a
 stored interaction for 1 day on the free tier and 55 days on a paid tier.
 Set `thinkingConfig.thinkingLevel` to `'minimal'`, `'low'`, `'medium'`, or
-`'high'`. `thinkingConfig.thinkingBudget` throws. Imagen stays on
-`generateImages`.
+`'high'`. `thinkingConfig.thinkingBudget` throws.
 
 Result shape: `ImageGenerationResult` with `images` array where each entry
-has `b64Json?`, `url?`, and `revisedPrompt?`. OpenAI image URLs expire
-after 1 hour -- download or display immediately.
+has `b64Json?`, `url?`, and `revisedPrompt?`. OpenAI gpt-image models
+return `b64Json`. Seedream image URLs expire after 24 hours, so download or
+display them immediately.
 
 #### Image-conditioned generation: multimodal `prompt` parts
 
@@ -272,7 +263,7 @@ compile time via the adapter's input-modality map.
 import { generateImage } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
-// Image-to-image (OpenAI gpt-image-2 / gpt-image-1, dall-e-2)
+// Image-to-image (every OpenAI gpt-image model)
 await generateImage({
   adapter: openaiImage('gpt-image-2'),
   threadId: 'thread-1',
@@ -294,7 +285,7 @@ await generateImage({
   ],
 })
 
-// Inpaint via metadata.role === 'mask' (OpenAI gpt-image models, dall-e-2; fal mask_url)
+// Inpaint via metadata.role === 'mask' (OpenAI gpt-image models; fal mask_url)
 await generateImage({
   adapter: openaiImage('gpt-image-2'),
   threadId: 'thread-1',
@@ -354,21 +345,21 @@ with `allowUrlFetch: true` on the adapter config
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `'reference'`   | fal `reference_image_urls`; OpenRouter video `input_references[]`; Gemini multimodal part; positional otherwise                        |
 | `'character'`   | Same as `'reference'`; Veo `referenceImages`; OpenRouter `input_references[]`                                                          |
-| `'mask'`        | OpenAI `mask` (gpt-image-2, gpt-image-1, dall-e-2); fal `mask_url`                                                                     |
+| `'mask'`        | OpenAI `mask` (gpt-image models); fal `mask_url`                                                                                       |
 | `'control'`     | fal `control_image_url` (ControlNet / depth / pose)                                                                                    |
 | `'start_frame'` | fal `start_image_url` (or the endpoint's field, e.g. `image_url` on Kling i2v); OpenRouter `frame_images[]` `first_frame`; Veo `image` |
 | `'end_frame'`   | fal `end_image_url` (or e.g. `tail_image_url` / `last_frame_url`); OpenRouter `frame_images[]` `last_frame`; Veo `lastFrame`           |
 
 **Provider support matrix:**
 
-| Provider   | `generateImage` image parts                                                                                                                                                                                                          | `generateVideo` image parts                                                                                                                                                                                                                                                                                                                   |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OpenAI     | gpt-image-2 / gpt-image-1 / -mini → `images.edit()` (up to 16). dall-e-2 → edit (1). dall-e-3 throws.                                                                                                                                | Sora-2 / -pro → `input_reference` (single). Throws if >1.                                                                                                                                                                                                                                                                                     |
-| Gemini     | Native image models send prompt parts as Interactions content blocks. Pass the previous `result.id` as `modelOptions.previous_interaction_id` to edit without resending that image. Imagen throws on image parts and does not chain. | Veo → first un-roled / `'start_frame'` image is the input image; `'end_frame'` → `lastFrame`; `'reference'` / `'character'` → `referenceImages`. Omni Flash sends image/video parts as interaction content blocks (no role routing).                                                                                                          |
-| fal        | Per-endpoint field names from a generated map (`pnpm generate:fal-image-fields`). Defaults: 1 input → `image_url`; >1 → `image_urls`; roles → `mask_url` / `control_image_url` / `reference_image_urls`.                             | Per-endpoint map (e.g. Kling i2v start frame → `image_url`). Defaults: 1 input → `image_url`; `start_frame`/`end_frame` → `start_image_url`/`end_image_url`; `reference` → `reference_image_urls`.                                                                                                                                            |
-| Grok       | grok-imagine models → `/v1/images/edits` JSON endpoint (≤3 sources, addressed by xAI in request order; prompt sent verbatim; mask/control throw).                                                                                    | Un-roled / `'start_frame'` image → starting frame; `'reference'` / `'character'` → `reference_images` (1.5). On 1.5 a starting frame can be combined with reference inputs (it pins the first frame). A `video` part + `modelOptions.mode: 'edit' \| 'extend'` routes to `/videos/edits` / `/videos/extensions` on `grok-imagine-video` only. |
-| OpenRouter | Prompt parts map 1:1 onto multimodal `text` / `image_url` content parts, preserving interleaved order.                                                                                                                               | Dedicated async API (`openRouterVideo`): `start_frame`/`end_frame` → `frame_images[]` (`first_frame`/`last_frame`); `reference`/`character` → `input_references[]`; an unroled image defaults to the start frame. Frame roles validated against the model's `supported_frame_images` metadata.                                                |
-| Anthropic  | n/a (no image generation API).                                                                                                                                                                                                       | n/a                                                                                                                                                                                                                                                                                                                                           |
+| Provider   | `generateImage` image parts                                                                                                                                                                              | `generateVideo` image parts                                                                                                                                                                                                                                                                                                                   |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OpenAI     | Every gpt-image model → `images.edit()` (up to 16).                                                                                                                                                      | Sora-2 / -pro → `input_reference` (single). Throws if >1.                                                                                                                                                                                                                                                                                     |
+| Gemini     | Native image models send prompt parts as Interactions content blocks. Pass the previous `result.id` as `modelOptions.previous_interaction_id` to edit without resending that image.                      | Veo → first un-roled / `'start_frame'` image is the input image; `'end_frame'` → `lastFrame`; `'reference'` / `'character'` → `referenceImages`. Omni Flash sends image/video parts as interaction content blocks (no role routing).                                                                                                          |
+| fal        | Per-endpoint field names from a generated map (`pnpm generate:fal-image-fields`). Defaults: 1 input → `image_url`; >1 → `image_urls`; roles → `mask_url` / `control_image_url` / `reference_image_urls`. | Per-endpoint map (e.g. Kling i2v start frame → `image_url`). Defaults: 1 input → `image_url`; `start_frame`/`end_frame` → `start_image_url`/`end_image_url`; `reference` → `reference_image_urls`.                                                                                                                                            |
+| Grok       | grok-imagine models → `/v1/images/edits` JSON endpoint (≤3 sources, addressed by xAI in request order; prompt sent verbatim; mask/control throw).                                                        | Un-roled / `'start_frame'` image → starting frame; `'reference'` / `'character'` → `reference_images` (1.5). On 1.5 a starting frame can be combined with reference inputs (it pins the first frame). A `video` part + `modelOptions.mode: 'edit' \| 'extend'` routes to `/videos/edits` / `/videos/extensions` on `grok-imagine-video` only. |
+| OpenRouter | Prompt parts map 1:1 onto multimodal `text` / `image_url` content parts, preserving interleaved order.                                                                                                   | Dedicated async API (`openRouterVideo`): `start_frame`/`end_frame` → `frame_images[]` (`first_frame`/`last_frame`); `reference`/`character` → `input_references[]`; an unroled image defaults to the start frame. Frame roles validated against the model's `supported_frame_images` metadata.                                                |
+| Anthropic  | n/a (no image generation API).                                                                                                                                                                           | n/a                                                                                                                                                                                                                                                                                                                                           |
 
 Video and audio prompt parts follow the same `metadata.role` convention
 for video-to-video and lipsync flows on fal. Grok accepts one source
@@ -412,7 +403,7 @@ const { generate, result, isLoading } = useGenerateAudio({
 
 ### 3. Text-to-Speech
 
-Adapters include `openaiSpeech` (tts-1, tts-1-hd, gpt-4o-audio-preview),
+Adapters include `openaiSpeech` (tts-1, tts-1-hd, gpt-4o-mini-tts),
 `byteplusSpeech` (`seed-audio-1.0`), and `elevenlabsSpeech` (`eleven_v4`).
 
 `elevenlabsSpeech` accepts `format: 'mp3' | 'pcm' | 'opus' | 'wav'`.
@@ -1165,18 +1156,18 @@ export const generateImageStreamFn = createServerFn({ method: 'POST' })
 
 > Source: maintainer interview.
 
-### c. MEDIUM: Not downloading OpenAI image URLs before they expire
+### c. MEDIUM: Not downloading Seedream image URLs before they expire
 
-OpenAI image URLs expire after 1 hour. If you store the URL and display it
+BytePlus Seedream image URLs expire after 24 hours. If you store the URL and display it
 later, the image will silently break. Always download or display the image
 immediately, or convert to base64 for persistence.
 
 ```typescript
 import { generateImage } from '@tanstack/ai'
-import { openaiImage } from '@tanstack/ai-openai'
+import { byteplusImage } from '@tanstack/ai-byteplus'
 
 const result = await generateImage({
-  adapter: openaiImage('dall-e-3'),
+  adapter: byteplusImage('dola-seedream-5-0-pro-260628'),
   threadId: 'thread-1',
   prompt: 'A mountain landscape',
 })
@@ -1190,8 +1181,8 @@ for (const img of result.images) {
   }
 }
 
-// GOOD: use b64Json when available (no expiration)
-// gpt-image-1 returns b64Json by default
+// GOOD: ask for b64Json (no expiration) with
+// modelOptions: { response_format: 'b64_json' }
 ```
 
 > Source: docs/media/image-generation.md.
@@ -1314,32 +1305,10 @@ generateSpeech({
 ### h. HIGH: Passing image prompt parts to a model that doesn't support image-conditioned generation
 
 Not every model accepts image-conditioned prompts. The `prompt` type is
-narrowed per model, so passing an image part to a text-only model
-(dall-e-3, Imagen) is a **compile-time error**; adapters
-also throw a clear runtime error as a backstop, so users learn at call
-time rather than getting silently wrong output.
-
-```typescript ignore
-// WRONG — dall-e-3 has no edit/inputs API; image parts are a type error
-generateImage({
-  adapter: openaiImage('dall-e-3'),
-  threadId: 'thread-1',
-  prompt: [
-    { type: 'text', content: 'Edit this' },
-    { type: 'image', source: { type: 'url', value: url } }, // ❌ type error
-  ],
-})
-
-// WRONG — Imagen is text-to-image only; same compile-time rejection
-generateImage({
-  adapter: geminiImage('imagen-4.0-generate-001'),
-  threadId: 'thread-1',
-  prompt: [
-    { type: 'text', content: 'Edit this' },
-    { type: 'image', source: { type: 'url', value: url } }, // ❌ type error
-  ],
-})
-```
+narrowed per model, so passing an image part to a model with no image
+input is a **compile-time error**; adapters also throw a clear runtime error
+as a backstop, so users learn at call time rather than getting silently wrong
+output.
 
 ```typescript
 import { generateImage } from '@tanstack/ai'

@@ -220,22 +220,15 @@ const stream = chat({
 });
 ```
 
-It goes out as `reasoning_effort`. The types take the levels of each model, and no `budgetTokens`:
-
-| Model | Levels |
-| --- | --- |
-| `kimi-k3`, `glm-5.2`, `deepseek-v4-pro`, `qwen3.7-max` | `off` to `max` |
-| `gpt-5.6-terra` | `off`, `low` to `max` |
-| `gpt-5.5`, `gpt-5.4-mini` | `off`, `low` to `xhigh` |
-| `claude-opus-5`, `claude-sonnet-5`, `claude-haiku-4-5`, `minimax-m2.5` | `low` to `max` |
-| `gemini-pro-latest`, `grok-4-5` | `low` to `high` |
-| `gemini-3.6-flash` | `minimal` to `high` |
+It goes out as `reasoning_effort`. The types take the levels of that model from the LLM Gateway catalog. No model takes `budgetTokens`.
 
 Reasoning models stream their thinking as `reasoning_content` deltas. The adapter turns them into AG-UI `REASONING_*` events. See [Reasoning](../chat/reasoning).
 
 ### Models
 
-`LLMGATEWAY_CHAT_MODELS` is a curated set of flagship models. These models have type data for their input kinds and provider options, with autocomplete in the editor. Other ids still work. They get text-only input and the generic options.
+`LLMGATEWAY_CHAT_MODELS` is the chat model list from the LLM Gateway catalog. Each model has type data for its input kinds and its reasoning levels. Autocomplete in the editor uses this list.
+
+An id that is not in the list still works. It gets text-only input and the generic options.
 
 `adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 

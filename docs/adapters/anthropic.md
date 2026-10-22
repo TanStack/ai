@@ -237,10 +237,9 @@ The levels of each model:
 | --- | --- | --- |
 | `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-fable-5-1`, `claude-fable-5`, `claude-opus-5`, `claude-opus-4-8`, `claude-opus-4-7` | `low` to `max` | no |
 | `claude-haiku-5-5`, `claude-sonnet-5` | `off`, `low` to `max` | no |
-| `claude-opus-5-fast` | `off`, `low` to `max` | yes |
 | `claude-opus-4-6`, `claude-sonnet-4-6` | `low`, `medium`, `high`, `max` | yes |
 | `claude-opus-4-5` | `low`, `medium`, `high` | yes |
-| `claude-haiku-4-5`, `claude-sonnet-4-5`, `claude-opus-4-1` | `off` to `high` | yes |
+| `claude-haiku-4-5`, `claude-sonnet-4-5` | `off` to `high` | yes |
 
 A budget model with `budgetTokens`:
 
@@ -256,7 +255,7 @@ const stream = chat({
 });
 ```
 
-Structured output forces a tool, and Claude cannot think while a tool is forced. So the structured output call sends no thinking. See [Reasoning](../chat/reasoning) for the levels and the nearest-level rule.
+With an `outputSchema`, every model in `ANTHROPIC_MODELS` uses native structured output, so thinking stays on. A direct `structuredOutput()` call, or a model id that is not in that list, forces a tool. Claude cannot think while a tool is forced, so that call sends no thinking. See [Reasoning](../chat/reasoning) for the levels and the nearest-level rule.
 
 ### Models
 
@@ -265,10 +264,92 @@ Newest first. The package exports the full list as `ANTHROPIC_MODELS`.
 | Family | Models |
 | --- | --- |
 | Claude 5.5 | `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5` |
-| Claude 5 | `claude-fable-5-1`, `claude-fable-5`, `claude-opus-5`, `claude-opus-5-fast`, `claude-sonnet-5` |
-| Claude 4 | `claude-opus-4-8`, `claude-opus-4-7`, `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-opus-4-5`, `claude-sonnet-4-5`, `claude-haiku-4-5`, `claude-opus-4-1` |
+| Claude 5 | `claude-fable-5-1`, `claude-fable-5`, `claude-opus-5`, `claude-sonnet-5` |
+| Claude 4 | `claude-opus-4-8`, `claude-opus-4-7`, `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-opus-4-5`, `claude-sonnet-4-5`, `claude-haiku-4-5` |
 
 `adapter.inputModalities` lists the input kinds of the selected model. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
+
+
+### Refusal fallback
+
+Did Claude return an empty answer to a life-science or security question? A safety classifier on the newer models can decline a request. Set `fallbacks`, and the Claude API sends a declined request to another Claude model in the same call:
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: anthropicText("claude-opus-5-5"),
+    messages,
+    threadId: "thread-1",
+    modelOptions: { fallbacks: "default" },
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+What this does:
+
+- `"default"` uses the model that Anthropic recommends for the refusal category. A list, such as `[{ model: "claude-opus-4-8" }]`, names up to three models to try in order.
+- The adapter adds the `server-side-fallback-2026-07-01` beta header for you.
+- The fallback answer streams like any other answer. When text has already started, events before the `fallback` block name the model that declined. That includes `RUN_STARTED` and that first text segment. Events after the block name `to.model`.
+- When the classifier declines before any output, `message_start` already names the fallback model. `RUN_STARTED` uses that name too.
+- The types accept `fallbacks` on `claude-fable-5`, `claude-fable-5-1`, `claude-opus-5`, `claude-opus-5-5`, and `claude-sonnet-5-5`.
+
+Some refusals still stand. For example, a category can have no recommended model, or the fallback model can be busy. Then the run ends with `finishReason: "content_filter"`, not with an error. The `rawEvent` of that `RUN_FINISHED` holds the Anthropic `stop_details`, with `category` and `explanation`.
+
+Show the reason in the UI with `onChunk`:
+
+```tsx
+import { useState } from "react";
+import { fetchServerSentEvents, useChat } from "@tanstack/ai-react";
+
+export function Chat() {
+  const [refusal, setRefusal] = useState<string | null>(null);
+
+  const { messages, sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
+    onChunk: (chunk) => {
+      if (chunk.type === "RUN_FINISHED" && chunk.finishReason === "content_filter") {
+        const details = chunk.rawEvent;
+        const category =
+          details &&
+          typeof details === "object" &&
+          "category" in details &&
+          typeof details.category === "string"
+            ? details.category
+            : "unknown";
+        setRefusal(`Claude declined this request (category: ${category}).`);
+      }
+    },
+  });
+
+  return (
+    <div>
+      {messages.map((message) => (
+        <p key={message.id}>
+          {message.parts.map((part) => (part.type === "text" ? part.content : null))}
+        </p>
+      ))}
+      {refusal && <p role="alert">{refusal}</p>}
+      <button onClick={() => sendMessage("Describe how CRISPR edits a gene.")}>Send</button>
+    </div>
+  );
+}
+```
+
+Limits:
+
+- Fallback works only on the Claude API. Claude on Vertex does not have it.
+- `claude-haiku-5-5` has no fallback model, so its refusals always stand.
+- The adapter does not send the `fallback` content block back on the next turn. A refusal before any output is not affected.
+
+Now a declined request gets an answer from a fallback model. When no model can answer, your UI tells the user why.
 
 ## Advanced
 

@@ -382,33 +382,6 @@ export const generateImageFn = createServerFn({ method: 'POST' })
           size: '16:9_4K',
         })
       }
-      case 'imagen-4.0-ultra-generate-001': {
-        return generateImage({
-          threadId: 'media-image',
-          adapter: geminiI('imagen-4.0-ultra-generate-001'),
-          prompt: asTextPrompt(data.prompt),
-          numberOfImages: 1,
-          size: '1024x1024',
-        })
-      }
-      case 'imagen-4.0-generate-001': {
-        return generateImage({
-          threadId: 'media-image',
-          adapter: geminiI('imagen-4.0-generate-001'),
-          prompt: asTextPrompt(data.prompt),
-          numberOfImages: 1,
-          size: '1024x1024',
-        })
-      }
-      case 'imagen-4.0-fast-generate-001': {
-        return generateImage({
-          threadId: 'media-image',
-          adapter: geminiI('imagen-4.0-fast-generate-001'),
-          prompt: asTextPrompt(data.prompt),
-          numberOfImages: 1,
-          size: '1024x1024',
-        })
-      }
       case 'dola-seedream-5-0-pro-260628': {
         // BytePlus Seedream via ModelArk (ARK_API_KEY). `size` is either a
         // 1K/2K/4K token or an explicit WIDTHxHEIGHT string — never both.

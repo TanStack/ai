@@ -33,7 +33,7 @@ test.describe('gemini — GA image model ids and per-model sizes (#1104)', () =>
     // Genuine runtime data, not a type check: `GeminiImageModels` is the
     // package's exported `as const` array of supported image model ids.
     // Nothing at runtime gates request routing on this array (the adapter
-    // dispatches on `GEMINI_NATIVE_IMAGE_MODELS` membership), so checking
+    // sends every model to the Interactions API), so checking
     // its contents is the only way to observe the id addition without a
     // TypeScript compile step. Before #1104 the array only carried the
     // shut-down `gemini-3.1-flash-image-preview` alias.

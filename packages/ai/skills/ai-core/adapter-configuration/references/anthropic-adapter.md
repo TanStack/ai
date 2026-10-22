@@ -21,28 +21,26 @@ import { anthropicText } from '@tanstack/ai-anthropic'
 
 ## Key Chat Models
 
-| Model                | Context Window | Max Output | Notes                                       |
-| -------------------- | -------------- | ---------- | ------------------------------------------- |
-| `claude-fable-5-1`   | 1M             | 128K       | Newest; thinking always on (adaptive)       |
-| `claude-fable-5`     | 1M             | 128K       | Most capable; thinking always on (adaptive) |
-| `claude-opus-5`      | 1M             | 128K       | Opus tier; budget thinking + sampling       |
-| `claude-opus-5-fast` | 1M             | 128K       | Fast-mode Opus 5; same options as opus-5    |
-| `claude-sonnet-5-5`  | 1M             | 128K       | Sonnet tier; adaptive-only, no sampling     |
-| `claude-haiku-5-5`   | 1M             | 128K       | Fastest; adaptive thinking, no sampling     |
-| `claude-sonnet-5`    | 1M             | 128K       | Best balance; adaptive thinking by default  |
-| `claude-opus-4-8`    | 1M             | 128K       | Opus tier; adaptive thinking, no sampling   |
-| `claude-opus-4-7`    | 1M             | 128K       | Older Opus; adaptive thinking, no sampling  |
-| `claude-opus-4-6`    | 200K           | 128K       | Older Opus, adaptive + budget thinking      |
-| `claude-sonnet-4-6`  | 1M             | 64K        | Previous gen balanced, adaptive + budget    |
-| `claude-sonnet-4-5`  | 200K           | 64K        | Previous gen balanced                       |
-| `claude-opus-4-5`    | 200K           | 32K        | Previous gen most capable                   |
-| `claude-opus-4-1`    | 200K           | 64K        | Deprecated (retires 2026-08-05)             |
-| `claude-haiku-4-5`   | 200K           | 64K        | Fast and affordable                         |
+| Model               | Context Window | Max Output | Notes                                       |
+| ------------------- | -------------- | ---------- | ------------------------------------------- |
+| `claude-fable-5-1`  | 1M             | 128K       | Newest; thinking always on (adaptive)       |
+| `claude-fable-5`    | 1M             | 128K       | Most capable; thinking always on (adaptive) |
+| `claude-opus-5`     | 1M             | 128K       | Opus tier; budget thinking + sampling       |
+| `claude-sonnet-5-5` | 1M             | 128K       | Sonnet tier; adaptive-only, no sampling     |
+| `claude-haiku-5-5`  | 1M             | 128K       | Fastest; adaptive thinking, no sampling     |
+| `claude-sonnet-5`   | 1M             | 128K       | Best balance; adaptive thinking by default  |
+| `claude-opus-4-8`   | 1M             | 128K       | Opus tier; adaptive thinking, no sampling   |
+| `claude-opus-4-7`   | 1M             | 128K       | Older Opus; adaptive thinking, no sampling  |
+| `claude-opus-4-6`   | 200K           | 128K       | Older Opus, adaptive + budget thinking      |
+| `claude-sonnet-4-6` | 1M             | 64K        | Previous gen balanced, adaptive + budget    |
+| `claude-sonnet-4-5` | 200K           | 64K        | Previous gen balanced                       |
+| `claude-opus-4-5`   | 200K           | 32K        | Previous gen most capable                   |
+| `claude-haiku-4-5`  | 200K           | 64K        | Fast and affordable                         |
 
 Note: Model IDs use the format `claude-sonnet-5`, `claude-opus-4-8`, etc.
-Retired models (Claude 3.x, Sonnet 3.7, Opus 4 / Sonnet 4) were removed —
-every registered id resolves against the first-party Anthropic API.
-`claude-opus-5-fast` is the only `-fast` id that remains.
+Retired models (Claude 3.x, Sonnet 3.7, Opus 4 / Sonnet 4, Opus 4.1) and the
+`-fast` ids were removed. Every registered id resolves against the first-party
+Anthropic API.
 
 Thinking is set with `chat({ reasoning })`, not with `modelOptions`. The
 adapter sends adaptive thinking with `output_config.effort` on Claude 4.6 and

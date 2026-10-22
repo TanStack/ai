@@ -219,14 +219,14 @@ describe('OpenAI per-model chat modelOptions gating', () => {
     })
   })
 
-  describe('chatgpt-4o-latest — base + streaming + metadata only', () => {
+  describe('gpt-audio — base + streaming + metadata only', () => {
     it('rejects tools options', () => {
       chat({
         threadId: 'thread-1',
-        adapter: openaiText('chatgpt-4o-latest'),
+        adapter: openaiText('gpt-audio'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
-          // @ts-expect-error - 'tool_choice' is not available on chatgpt-4o-latest
+          // @ts-expect-error - 'tool_choice' is not available on gpt-audio
           tool_choice: 'auto',
         },
       })
@@ -235,10 +235,10 @@ describe('OpenAI per-model chat modelOptions gating', () => {
     it('rejects reasoning option', () => {
       chat({
         threadId: 'thread-1',
-        adapter: openaiText('chatgpt-4o-latest'),
+        adapter: openaiText('gpt-audio'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
-          // @ts-expect-error - 'reasoning' is not available on chatgpt-4o-latest
+          // @ts-expect-error - 'reasoning' is not available on gpt-audio
           reasoning: { effort: 'low' },
         },
       })
@@ -311,8 +311,8 @@ describe('OpenAI provider options shape assertions', () => {
     })
   })
 
-  describe('chatgpt-4o-latest — base + streaming + metadata only', () => {
-    type Options = OpenAIChatModelProviderOptionsByName['chatgpt-4o-latest']
+  describe('gpt-audio — base + streaming + metadata only', () => {
+    type Options = OpenAIChatModelProviderOptionsByName['gpt-audio']
 
     it('has stream_options', () => {
       expectTypeOf<Options>().toHaveProperty('stream_options')

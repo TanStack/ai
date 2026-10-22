@@ -1,6 +1,7 @@
 import type { AnthropicThinkingFields } from './reasoning'
 import type {
   BetaContextManagementConfig,
+  BetaFallbacksParam,
   BetaMessageParam,
   BetaTool,
   BetaToolChoiceAny,
@@ -74,6 +75,17 @@ export interface AnthropicContextManagementOptions {
 This allows you to control how Claude manages context across multiple requests, such as whether to clear function results or not.
    */
   context_management?: BetaContextManagementConfig | null
+}
+
+export interface AnthropicFallbackOptions {
+  /**
+   * Server-side refusal fallback (beta, Claude API only). When a safety
+   * classifier declines the request, the API retries it on another model in
+   * the same call. `'default'` uses the model Anthropic recommends for the
+   * refusal category. A list names up to three models to try in order.
+   * The adapter adds the `server-side-fallback-2026-07-01` beta header.
+   */
+  fallbacks?: BetaFallbacksParam | null
 }
 
 export interface AnthropicMCPOptions {
@@ -153,6 +165,7 @@ Required range: x >= 0
 export type ExternalTextProviderOptions = AnthropicCacheControlOptions &
   AnthropicContainerOptions &
   AnthropicContextManagementOptions &
+  AnthropicFallbackOptions &
   AnthropicMCPOptions &
   AnthropicServiceTierOptions &
   AnthropicStopSequencesOptions &

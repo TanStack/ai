@@ -69,7 +69,7 @@ const copilotStreams = {
             type: 'response.completed',
             response: {
               id: 'r-1',
-              model: 'gpt-5.6',
+              model: 'gpt-5.6-sol',
               status: 'completed',
               output: [{ ...call, id: 'fc_f' }],
             },
@@ -87,7 +87,7 @@ const copilotStreams = {
             type: 'response.completed',
             response: {
               id: 'r-2',
-              model: 'gpt-5.6',
+              model: 'gpt-5.6-sol',
               status: 'completed',
               output: [],
             },
@@ -118,7 +118,7 @@ const copilotStreams = {
             type: 'response.completed',
             response: {
               id: 'r-1',
-              model: 'gpt-5.6',
+              model: 'gpt-5.6-sol',
               status: 'completed',
               output: [],
             },
@@ -136,7 +136,7 @@ const copilotStreams = {
             type: 'response.completed',
             response: {
               id: 'r-2',
-              model: 'gpt-5.6',
+              model: 'gpt-5.6-sol',
               status: 'completed',
               output: [],
             },
@@ -179,7 +179,7 @@ export const Route = createFileRoute('/api/copilot-wire')({
           let turn = 0
           const stream = chat({
             threadId: 'copilot-wire',
-            adapter: openaiCompatibleText('gpt-5.6', {
+            adapter: openaiCompatibleText('gpt-5.6-sol', {
               name: 'github-copilot',
               baseURL: 'https://api.githubcopilot.com',
               apiKey: 'copilot-token',
@@ -246,7 +246,7 @@ export const Route = createFileRoute('/api/copilot-wire')({
         let sent: unknown
         const { text } = await chat({
           threadId: 'copilot-wire',
-          adapter: openaiCompatibleText('gpt-5.6', {
+          adapter: openaiCompatibleText('gpt-5.6-sol', {
             name: 'github-copilot',
             baseURL: `${LLMOCK_BASE}/v1`,
             apiKey: 'copilot-token',

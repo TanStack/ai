@@ -375,7 +375,13 @@ export async function* translateOpencodeStream(
       const role = messageRoles.get(part.messageID)
       if (role === undefined) {
         const parts = pendingParts.get(part.messageID) ?? []
-        parts.push({ part, delta })
+        // A text or reasoning part carries its full text, so keep only its
+        // latest update. Keeping each update holds every snapshot in memory.
+        const index = isToolPart(part)
+          ? -1
+          : parts.findIndex((pending) => pending.part.id === part.id)
+        if (index === -1) parts.push({ part, delta })
+        else parts[index] = { part }
         pendingParts.set(part.messageID, parts)
       } else if (role === 'assistant') {
         yield* handlePart(part, delta)

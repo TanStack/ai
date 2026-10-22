@@ -181,7 +181,7 @@ describe('Gemini Audio (Lyria) Adapter', () => {
     // include `negativePrompt` — that field only exists on
     // GenerateImagesConfig / GenerateVideosConfig. Until the correct
     // endpoint (likely `ai.live.music.connect` with `musicGenerationConfig`)
-    // is confirmed, the adapter must not leak Imagen/Veo-shaped fields onto
+    // is confirmed, the adapter must not leak Veo-shaped fields onto
     // the GenerateContent call. This test pins the emitted config shape so
     // a future SDK author can catch regressions.
     mockGenerateContent.mockResolvedValueOnce({

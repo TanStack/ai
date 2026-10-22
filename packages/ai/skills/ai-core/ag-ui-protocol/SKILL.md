@@ -29,7 +29,7 @@ import { openaiText } from '@tanstack/ai-openai'
 export async function POST(request: Request) {
   const { messages, threadId } = await request.json()
   const stream = chat({
-    adapter: openaiText('gpt-5.6'),
+    adapter: openaiText('gpt-6.1-sol'),
     messages,
     threadId,
   })
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
   }
 
   const stream = chat({
-    adapter: openaiText('gpt-5.6'),
+    adapter: openaiText('gpt-6.1-sol'),
     messages: params.messages,
     threadId: params.threadId,
     tools: mergeAgentTools(serverTools, params.tools),
@@ -102,7 +102,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 // Option A: Get a ReadableStream (manual Response construction)
 const abortController = new AbortController()
 const stream = chat({
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
   messages,
   threadId: 'thread-1',
   abortController,
@@ -159,7 +159,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 // Option A: Get a ReadableStream
 const abortController = new AbortController()
 const stream = chat({
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
   messages,
   threadId: 'thread-1',
   abortController,
@@ -246,7 +246,7 @@ import { openaiText } from '@tanstack/ai-openai'
 const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 const stream = chat({
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
   messages,
   threadId: 'thread-1',
 })

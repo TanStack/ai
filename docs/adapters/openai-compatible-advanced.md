@@ -63,7 +63,7 @@ Use `createAzureOpenaiText` from `@tanstack/ai-openai`. It sets the `api-key` he
 ```typescript
 import { createAzureOpenaiText } from "@tanstack/ai-openai";
 
-const adapter = createAzureOpenaiText("gpt-5.6", process.env.AZURE_OPENAI_API_KEY!, {
+const adapter = createAzureOpenaiText("gpt-6.1-sol", process.env.AZURE_OPENAI_API_KEY!, {
   resourceName: "my-resource",
   deploymentName: "production-chat",
 });

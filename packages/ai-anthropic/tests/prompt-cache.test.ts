@@ -7,7 +7,7 @@ import type { JSONSchema, ModelMessage, TextOptions, Tool } from '@tanstack/ai'
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/beta/messages'
 import type { AnthropicTextProviderOptions } from '../src/adapters/text'
 
-const MODEL = 'claude-opus-4-1'
+const MODEL = 'claude-sonnet-4-5'
 const logger = resolveDebugOption(false)
 
 const SHORT = { type: 'ephemeral' }

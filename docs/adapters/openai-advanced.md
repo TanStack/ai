@@ -73,7 +73,7 @@ export async function POST(request: Request) {
   const { messages, threadId } = await request.json();
 
   const stream = chat({
-    adapter: createAzureOpenaiText("gpt-5.6", process.env.AZURE_OPENAI_API_KEY!, {
+    adapter: createAzureOpenaiText("gpt-6.1-sol", process.env.AZURE_OPENAI_API_KEY!, {
       resourceName: "my-resource",
       deploymentName: "production-chat",
     }),
@@ -85,9 +85,9 @@ export async function POST(request: Request) {
 }
 ```
 
-- Azure gets `production-chat` as the model. Your code still uses `gpt-5.6`.
+- Azure gets `production-chat` as the model. Your code still uses `gpt-6.1-sol`.
 - The client does not change. It reads this route like any other chat route.
-- `reasoning` takes the levels of the OpenAI model name, here `gpt-5.6`. A model name that is not an OpenAI model, such as a bare deployment name, takes no `reasoning`. See [Reasoning](./openai#reasoning).
+- `reasoning` takes the levels of the OpenAI model name, here `gpt-6.1-sol`. A model name that is not an OpenAI model, such as a bare deployment name, takes no `reasoning`. See [Reasoning](./openai#reasoning).
 - `createAzureOpenaiText` reads nothing from the environment. You pass the key, and you pass the endpoint as `resourceName` or `baseURL`.
 
 To keep all of it in the environment, use `azureOpenaiText`. Like `openaiText`, it reads the key from the environment:
@@ -95,13 +95,13 @@ To keep all of it in the environment, use `azureOpenaiText`. Like `openaiText`, 
 ```sh
 AZURE_OPENAI_API_KEY=your-key
 AZURE_OPENAI_RESOURCE_NAME=my-resource
-AZURE_OPENAI_DEPLOYMENT_NAME_MAP=gpt-5.6=production-chat
+AZURE_OPENAI_DEPLOYMENT_NAME_MAP=gpt-6.1-sol=production-chat
 ```
 
 ```typescript
 import { azureOpenaiText } from "@tanstack/ai-openai";
 
-const adapter = azureOpenaiText("gpt-5.6");
+const adapter = azureOpenaiText("gpt-6.1-sol");
 ```
 
 `azureOpenaiText` always reads the key from `AZURE_OPENAI_API_KEY`. If that variable is not set, it throws. For the other values, the config wins over the environment:
@@ -510,7 +510,7 @@ const stream = chat({
 
 ### `imageGenerationTool`
 
-The model makes images during a conversation with DALL-E or GPT-Image. Set quality, size, and style in the config object.
+The model makes images during a conversation with GPT-Image. Set quality, size, and style in the config object.
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -626,20 +626,7 @@ Add an `execute` that runs the actions and returns a screenshot as an image part
 
 The adapter sends the first image of the result back as the screenshot. When the call does not fail, the adapter also tells OpenAI that the safety checks are accepted. When the call fails, they stay unaccepted.
 
-The `computer-use-preview` model takes the older tool type. Give it the display size and the environment. Each call then has one `action` field in place of `actions`:
-
-```typescript
-import { computerUseTool } from "@tanstack/ai-openai/tools";
-
-const previewTool = computerUseTool({
-  type: "computer_use_preview",
-  display_width: 1024,
-  display_height: 768,
-  environment: "browser",
-});
-```
-
-**Supported models:** `type: "computer"` works with the models that list computer use, for example `gpt-6.1-sol`. `type: "computer_use_preview"` works with `computer-use-preview`. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+**Supported models:** `type: "computer"` works with the models that list computer use, for example `gpt-6.1-sol`. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
 ### `localShellTool`
 
@@ -846,7 +833,7 @@ Each factory pair has the same shape. The short factory (`openaiText`, `openaiIm
 | `openaiChatCompletions(model, config?)` / `createOpenaiChatCompletions(model, apiKey, config?)` | Text adapter on `/v1/chat/completions`. See [Chat Completions API](#chat-completions-api) |
 | `azureOpenaiText(model, config?)` / `createAzureOpenaiText(model, apiKey, config)` | Text adapter on Azure. See [Azure OpenAI](#azure-openai) |
 | `openaiSummarize(model, config?)` / `createOpenaiSummarize(model, apiKey, config?)` | Summarization adapter |
-| `openaiImage(model, config?)` / `createOpenaiImage(model, apiKey, config?)` | Image adapter (DALL-E, gpt-image) |
+| `openaiImage(model, config?)` / `createOpenaiImage(model, apiKey, config?)` | Image adapter (gpt-image) |
 | `openaiSpeech(model, config?)` / `createOpenaiSpeech(model, apiKey, config?)` | Text-to-speech adapter |
 | `openaiTranscription(model, config?)` / `createOpenaiTranscription(model, apiKey, config?)` | Transcription adapter (Whisper, GPT-4o transcription, and GPT-4o diarized transcription) |
 | `openaiEmbedding(model, config?)` / `createOpenaiEmbedding(model, apiKey, config?)` | Embedding adapter |

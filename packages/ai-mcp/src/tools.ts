@@ -1,9 +1,4 @@
 import {
-  DEFAULT_REQUEST_TIMEOUT_MSEC,
-  ProtocolError,
-  ProtocolErrorCode,
-  SdkError,
-  SdkErrorCode,
   isCallToolResult,
   isInputRequiredResult,
 } from '@modelcontextprotocol/client'
@@ -14,7 +9,6 @@ import type {
   TaskStatus,
   Tool as McpToolDef,
   ToolAnnotations,
-  Transport,
 } from '@modelcontextprotocol/client'
 import type {
   AnyServerTool,
@@ -147,6 +141,8 @@ export function mcpContentToTanstack(
  * @param signal - Stops the wait when the caller aborts
  * @param inputResponse - The user's answer from an `mcp_input` interrupt
  * @param requestOptions - The client `requestOptions`, sent with tools/call
+ * @param inputSchema - The listed tool's input schema. On spec 2026 the SDK
+ *   reads its `x-mcp-header` fields to send the `Mcp-Param-*` headers.
  * @param askInput - Asks the user for each elicitation round on spec 2026.
  *   The harness sets it. Without it, a call answers one round.
  */
@@ -158,46 +154,45 @@ export async function callMcpTool(
   signal?: AbortSignal,
   inputResponse?: ToolInputResponse,
   requestOptions?: MCPClientOptions['requestOptions'],
+  inputSchema?: McpToolDef['inputSchema'],
   askInput?: AskInput,
 ) {
   signal?.throwIfAborted()
   const isModern = client.getProtocolEra() === 'modern'
-  if (!taskRequired && !isModern) {
-    const result = await client.callTool(
-      { name: mcpName, arguments: args },
-      {
-        ...sdkRequestOptions(requestOptions, signal),
-        allowInputRequired: true,
-      },
-    )
-    throwIfInputRequired(result)
-    return result
-  }
-
-  const params = { name: mcpName, arguments: args }
-  let raw = isModern
-    ? await rawRequest(client, 'tools/call', params, signal, requestOptions)
-    : await sdkRequest(
-        client,
-        'tools/call',
-        { name: mcpName, arguments: args, task: {} },
-        signal,
-        requestOptions,
-      )
-  // ponytail: the answer is sent on the second call, so the server state never
-  // travels through the browser. The cost is one extra tools/call.
-  if (isModern && inputResponse !== undefined && isInputRequiredResult(raw)) {
-    raw = await rawRequest(
+  if (taskRequired && !isModern) {
+    const raw = await sdkRequest(
       client,
       'tools/call',
-      { ...params, ...retryParams(raw, inputResponse) },
+      { name: mcpName, arguments: args, task: {} },
       signal,
       requestOptions,
+    )
+    return finishToolCall(client, mcpName, raw, signal)
+  }
+
+  const options = {
+    ...sdkRequestOptions(requestOptions, signal),
+    allowInputRequired: true,
+    // Only name and inputSchema. The SDK sends the Mcp-Param-* headers from
+    // the schema. With no outputSchema, it skips its output check, which
+    // would reject an input_required result.
+    ...(isModern && inputSchema !== undefined
+      ? { toolDefinition: { name: mcpName, inputSchema } }
+      : {}),
+  }
+  const params = { name: mcpName, arguments: args }
+  let result = await client.callTool(params, options)
+  // ponytail: the answer is sent on the second call, so the server state never
+  // travels through the browser. The cost is one extra tools/call.
+  if (inputResponse !== undefined && isInputRequiredResult(result)) {
+    result = await client.callTool(
+      { ...params, ...retryParams(result, inputResponse) },
+      options,
     )
     // ponytail: one input round per call. The next resume starts with no
     // requestState, so a second pause would ask round 1 again forever.
     // Carry requestState through the interrupt if servers need more rounds.
-    if (isInputRequiredResult(raw) && askInput === undefined) {
+    if (isInputRequiredResult(result) && askInput === undefined) {
       throw new Error(
         `The MCP tool "${mcpName}" asked for input a second time. ` +
           'This client answers one input request per tool call.',
@@ -207,10 +202,10 @@ export async function callMcpTool(
   // The harness asks the user for each elicitation round, up to a cap.
   for (
     let round = 1;
-    isModern && askInput && isInputRequiredResult(raw);
+    isModern && askInput && isInputRequiredResult(result);
     round++
   ) {
-    const entry = firstInputRequest(raw.inputRequests)
+    const entry = firstInputRequest(result.inputRequests)
     if (entry?.method !== 'elicitation/create') break
     if (round > maxInputRounds) {
       throw new Error(
@@ -219,15 +214,13 @@ export async function callMcpTool(
       )
     }
     const answer = await askInput(isRecord(entry.params) ? entry.params : entry)
-    raw = await rawRequest(
-      client,
-      'tools/call',
-      { ...params, ...retryParams(raw, answer) },
-      signal,
-      requestOptions,
+    result = await client.callTool(
+      { ...params, ...retryParams(result, answer) },
+      options,
     )
   }
-  return finishToolCall(client, mcpName, raw, signal)
+  throwIfInputRequired(result)
+  return result
 }
 
 /** Asks the user for one MCP elicitation request body. */
@@ -300,13 +293,6 @@ type TaskState = {
 }
 
 const defaultPollMs = 1000
-
-let rawRequestId = 0
-
-const transportTaps = new WeakMap<
-  Transport,
-  Set<(message: unknown) => boolean>
->()
 
 async function finishToolCall(
   client: Client,
@@ -450,128 +436,6 @@ async function sdkRequest(
   }
 }
 
-function rawRequest(
-  client: Client,
-  method: string,
-  params: Record<string, unknown>,
-  signal?: AbortSignal,
-  requestOptions?: MCPClientOptions['requestOptions'],
-) {
-  signal?.throwIfAborted()
-  const transport = client.transport
-  if (transport === undefined) {
-    throw new Error('The MCP client is not connected.')
-  }
-  rawRequestId += 1
-  const id = `tanstack-ai-mcp:${rawRequestId}`
-  const listeners = tapTransport(transport)
-  const body = withEnvelope(params, readEnvelope(client))
-  return new Promise<unknown>((resolve, reject) => {
-    let settled = false
-    // The client `timeout`, else the SDK default, so a lost response cannot
-    // hang the call.
-    // ponytail: this request sends no progressToken, so the server sends no
-    // progress and `resetTimeoutOnProgress` cannot apply. Send a token and
-    // match notifications/progress in `accept` if a spec 2026 server needs it.
-    const timeout = requestOptions?.timeout ?? DEFAULT_REQUEST_TIMEOUT_MSEC
-    const timer = setTimeout(() => {
-      finish(
-        new SdkError(
-          SdkErrorCode.RequestTimeout,
-          `The MCP request ${method} timed out after ${timeout} ms.`,
-        ),
-      )
-    }, timeout)
-    const finish = (error: unknown, result?: unknown) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      listeners.delete(accept)
-      if (signal !== undefined) {
-        signal.removeEventListener('abort', onAbort)
-      }
-      if (error !== undefined) {
-        reject(error)
-        return
-      }
-      resolve(result)
-    }
-    const accept = (message: unknown) => {
-      if (!isRecord(message) || message.id !== id) return false
-      if (isRecord(message.error)) {
-        const { code, message: text, data } = message.error
-        finish(
-          new ProtocolError(
-            typeof code === 'number' ? code : ProtocolErrorCode.InternalError,
-            typeof text === 'string' ? text : 'The MCP request failed.',
-            data,
-          ),
-        )
-        return true
-      }
-      finish(undefined, message.result)
-      return true
-    }
-    const activeSignal = signal
-    const onAbort = () => {
-      if (activeSignal === undefined) return
-      finish(abortReason(activeSignal))
-    }
-    listeners.add(accept)
-    if (activeSignal !== undefined) {
-      activeSignal.addEventListener('abort', onAbort, { once: true })
-    }
-    void transport
-      .send({
-        jsonrpc: '2.0',
-        id,
-        method,
-        params: body,
-      })
-      .catch((error: unknown) => {
-        finish(error)
-      })
-  })
-}
-
-function tapTransport(transport: Transport) {
-  const existing = transportTaps.get(transport)
-  if (existing !== undefined) return existing
-  const listeners = new Set<(message: unknown) => boolean>()
-  transportTaps.set(transport, listeners)
-  const previous = transport.onmessage
-  transport.onmessage = (message, extra) => {
-    const pending = [...listeners]
-    for (const listener of pending) {
-      if (listener(message)) return
-    }
-    previous?.(message, extra)
-  }
-  return listeners
-}
-
-function readEnvelope(client: Client) {
-  const value: unknown = client
-  if (!isRecord(value)) return undefined
-  const method = value._outboundMetaEnvelope
-  if (typeof method !== 'function') return undefined
-  const called: unknown = method.call(value)
-  if (!isRecord(called)) return undefined
-  return called
-}
-
-function withEnvelope(
-  params: Record<string, unknown>,
-  envelope: Record<string, unknown> | undefined,
-) {
-  if (envelope === undefined) return params
-  const meta = isRecord(params._meta) ? params._meta : {}
-  return {
-    ...params,
-    _meta: { ...envelope, ...meta },
-  }
-}
-
 function cancelTask(client: Client, taskId: string) {
   return taskRequest(client, 'tasks/cancel', { taskId }).catch(() => undefined)
 }
@@ -705,6 +569,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  *   validation in `executeServerTool` validates MCP's typed payload rather than
  *   a JSON-in-text blob. Otherwise normalize `content[]` → string | ContentPart[].
  * @param requestOptions - The client `requestOptions`, sent with each call
+ * @param inputSchema - The listed tool's input schema, for the Mcp-Param-* headers
  */
 export function makeMcpExecute(
   client: Client,
@@ -712,6 +577,7 @@ export function makeMcpExecute(
   preferStructured: boolean,
   taskRequired = false,
   requestOptions?: MCPClientOptions['requestOptions'],
+  inputSchema?: McpToolDef['inputSchema'],
 ) {
   return async (
     args: unknown,
@@ -729,6 +595,7 @@ export function makeMcpExecute(
       ctx?.abortSignal,
       ctx?.inputResponse,
       requestOptions,
+      inputSchema,
       ctx?.askInput,
     )
     if (result.isError) {
@@ -808,6 +675,7 @@ export function toServerTools(
           Boolean(def.outputSchema),
           requiresTaskExecution(def),
           options.requestOptions,
+          def.inputSchema,
         ),
       }
       if (options.needsApproval?.(def)) {

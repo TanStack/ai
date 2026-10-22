@@ -64,12 +64,7 @@ describe('OpenAI per-model tool gating', () => {
         server_label: 'my-server',
         server_url: 'https://example.com/mcp',
       }),
-      computerUseTool({
-        type: 'computer_use_preview',
-        display_height: 768,
-        display_width: 1024,
-        environment: 'linux',
-      }),
+      computerUseTool({ type: 'computer' }),
       localShellTool(),
       shellTool(),
       applyPatchTool(),
@@ -78,10 +73,6 @@ describe('OpenAI per-model tool gating', () => {
 
   it('gpt-5.2 accepts the full tool superset', () => {
     assertFullToolSuperset(openaiText('gpt-5.2'))
-  })
-
-  it('gpt-5.6 accepts the full tool superset', () => {
-    assertFullToolSuperset(openaiText('gpt-5.6'))
   })
 
   it('gpt-5.6-sol accepts the full tool superset', () => {
@@ -128,12 +119,7 @@ describe('OpenAI per-model tool gating', () => {
         server_label: 'my-server',
         server_url: 'https://example.com/mcp',
       }),
-      computerUseTool({
-        type: 'computer_use_preview',
-        display_height: 768,
-        display_width: 1024,
-        environment: 'linux',
-      }),
+      computerUseTool({ type: 'computer' }),
       shellTool(),
       applyPatchTool(),
       // @ts-expect-error - gpt-6-astra does not list web_search_preview
@@ -158,12 +144,7 @@ describe('OpenAI per-model tool gating', () => {
         server_label: 'my-server',
         server_url: 'https://example.com/mcp',
       }),
-      computerUseTool({
-        type: 'computer_use_preview',
-        display_height: 768,
-        display_width: 1024,
-        environment: 'linux',
-      }),
+      computerUseTool({ type: 'computer' }),
       shellTool(),
       applyPatchTool(),
       // @ts-expect-error - gpt-6-sol does not list web_search_preview
@@ -188,12 +169,7 @@ describe('OpenAI per-model tool gating', () => {
         server_label: 'my-server',
         server_url: 'https://example.com/mcp',
       }),
-      computerUseTool({
-        type: 'computer_use_preview',
-        display_height: 768,
-        display_width: 1024,
-        environment: 'linux',
-      }),
+      computerUseTool({ type: 'computer' }),
       shellTool(),
       applyPatchTool(),
       // @ts-expect-error - gpt-6-luna does not list web_search_preview
@@ -226,12 +202,7 @@ describe('OpenAI per-model tool gating', () => {
         server_url: 'https://example.com/mcp',
       }),
       // @ts-expect-error - gpt-3.5-turbo does not support computer_use
-      computerUseTool({
-        type: 'computer_use_preview',
-        display_height: 768,
-        display_width: 1024,
-        environment: 'linux',
-      }),
+      computerUseTool({ type: 'computer' }),
       // @ts-expect-error - gpt-3.5-turbo does not support local_shell
       localShellTool(),
       // @ts-expect-error - gpt-3.5-turbo does not support shell
@@ -281,12 +252,7 @@ describe('OpenAI per-model tool gating', () => {
       // @ts-expect-error - gpt-4o does not support web_search_preview
       webSearchPreviewTool({ type: 'web_search_preview' }),
       // @ts-expect-error - gpt-4o does not support computer_use
-      computerUseTool({
-        type: 'computer_use_preview',
-        display_height: 768,
-        display_width: 1024,
-        environment: 'linux',
-      }),
+      computerUseTool({ type: 'computer' }),
       // @ts-expect-error - gpt-4o does not support local_shell
       localShellTool(),
       // @ts-expect-error - gpt-4o does not support shell

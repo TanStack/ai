@@ -609,75 +609,6 @@ const GEMINI_2_5_FLASH_LITE = {
     GeminiStructuredOutputOptions
 >
 
-const IMAGEN_4_GENERATE = {
-  name: 'imagen-4.0-generate-001',
-  max_input_tokens: 480,
-  max_output_tokens: 4,
-  supports: {
-    input: ['text'],
-    output: ['image'],
-  },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0.4,
-    },
-  },
-} as const satisfies ModelMeta<
-  GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiCommonConfigOptions &
-    GeminiCachedContentOptions
->
-
-const IMAGEN_4_GENERATE_ULTRA = {
-  name: 'imagen-4.0-ultra-generate-001',
-  max_input_tokens: 480,
-  max_output_tokens: 4,
-  supports: {
-    input: ['text'],
-    output: ['image'],
-  },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0.6,
-    },
-  },
-} as const satisfies ModelMeta<
-  GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiCommonConfigOptions &
-    GeminiCachedContentOptions
->
-
-const IMAGEN_4_GENERATE_FAST = {
-  name: 'imagen-4.0-fast-generate-001',
-  max_input_tokens: 480,
-  max_output_tokens: 4,
-  supports: {
-    input: ['text'],
-    output: ['image'],
-  },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0.2,
-    },
-  },
-} as const satisfies ModelMeta<
-  GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiCommonConfigOptions &
-    GeminiCachedContentOptions
->
-
 /**
  * Veo video generation models. Pricing is per second of generated video
  * (audio+video rate where the model supports audio).
@@ -1046,9 +977,6 @@ export const GEMINI_IMAGE_MODELS = [
   GEMINI_3_1_FLASH_IMAGE.name,
   GEMINI_3_1_FLASH_LITE_IMAGE.name,
   GEMINI_3_PRO_IMAGE.name,
-  IMAGEN_4_GENERATE.name,
-  IMAGEN_4_GENERATE_FAST.name,
-  IMAGEN_4_GENERATE_ULTRA.name,
 ] as const
 
 /**

@@ -25,7 +25,7 @@ vi.mock('@anthropic-ai/sdk', () => {
 type Block = { type: string } & Record<string, unknown>
 
 const adapter = () =>
-  new AnthropicTextAdapter({ apiKey: 'test-key' }, 'claude-opus-4-1')
+  new AnthropicTextAdapter({ apiKey: 'test-key' }, 'claude-sonnet-4-5')
 
 const weather: Tool = {
   name: 'lookup_weather',

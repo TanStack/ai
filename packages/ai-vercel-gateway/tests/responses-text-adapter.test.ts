@@ -119,4 +119,53 @@ describe('Vercel Gateway Responses text adapter', () => {
     })
     expect(body).not.toHaveProperty('gateway')
   })
+
+  it('puts gateway cost on RUN_FINISHED.usage', async () => {
+    setupMockSdkClient([
+      { type: 'response.output_text.delta', delta: 'OK' },
+      {
+        type: 'response.completed',
+        response: {
+          id: 'resp_1',
+          model: 'openai/gpt-5.5',
+          output: [],
+          usage: {
+            input_tokens: 3,
+            output_tokens: 1,
+            total_tokens: 4,
+          },
+          provider_metadata: {
+            gateway: {
+              cost: '0',
+              marketCost: '0.000035',
+              generationId: 'gen_1',
+              routing: { finalProvider: 'anthropic' },
+            },
+          },
+        },
+      },
+    ])
+    const adapter = createVercelGatewayResponsesText('openai/gpt-5.5', 'k')
+    const chunks = []
+    for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
+      model: 'openai/gpt-5.5',
+      messages: [{ role: 'user', content: 'Say OK.' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+    const finished = chunks.find((chunk) => chunk.type === 'RUN_FINISHED')
+    expect(finished?.usage).toMatchObject({
+      promptTokens: 3,
+      completionTokens: 1,
+      totalTokens: 4,
+      cost: 0,
+      costDetails: { upstreamCost: 0.000035 },
+      providerUsageDetails: {
+        generationId: 'gen_1',
+        finalProvider: 'anthropic',
+      },
+    })
+  })
 })

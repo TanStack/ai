@@ -89,7 +89,7 @@ const defaultModels: Record<Provider, string> = {
   'vertex-grok': 'grok-4.3',
   'vertex-mistral': 'mistral-medium-3',
   ollama: 'mistral',
-  groq: 'llama-3.3-70b-versatile',
+  groq: 'openai/gpt-oss-120b',
   grok: 'grok-build-0.1',
   bedrock: 'openai.gpt-oss-120b-1:0',
   'bedrock-responses': 'openai.gpt-oss-120b-1:0',
@@ -237,7 +237,7 @@ export function createTextAdapter(
       }),
     groq: () =>
       createChatOptions({
-        adapter: createGroqText(model as 'llama-3.3-70b-versatile', DUMMY_KEY, {
+        adapter: createGroqText(model as 'openai/gpt-oss-120b', DUMMY_KEY, {
           baseURL: base,
           defaultHeaders: testHeaders,
         }),

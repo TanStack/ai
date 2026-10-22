@@ -330,7 +330,7 @@ Some more rules:
 
 | Provider | Adapter | Input besides text |
 | --- | --- | --- |
-| OpenAI | `openaiText` | Image on `gpt-6.1-sol` and most new models. Image and PDF document on `gpt-5.5`. Audio on `gpt-4o-audio`. |
+| OpenAI | `openaiText` | Image on `gpt-6.1-sol` and most new models. Image and PDF document on `gpt-5.5`. Audio on `gpt-audio`. |
 | Anthropic | `anthropicText` | Image and PDF document on all Claude models, for example `claude-sonnet-5-5`. |
 | Gemini | `geminiText` | Image, audio, video, and document, for example on `gemini-3.8-flash`. |
 | Ollama | `ollamaText` | Image on vision models, such as `llama3.2-vision`. Support changes by model. |

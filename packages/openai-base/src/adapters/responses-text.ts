@@ -76,6 +76,7 @@ import type {
   TanStackMessageMetadata,
   TextCompactOptions,
   TextOptions,
+  TokenUsage,
   AnyTool,
   NormalizedSystemPrompt,
 } from '@tanstack/ai'
@@ -489,6 +490,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   readonly name: string
   protected client: OpenAI
 
+  /**
+   * Token usage for a Responses result. `source` is the response that carried
+   * `usage`, so a subclass can read sibling fields such as provider metadata.
+   */
+  protected responsesTokenUsage(
+    usage: OpenAI.Responses.ResponseUsage | undefined | null,
+    _source?: unknown,
+  ): TokenUsage | undefined {
+    return buildResponsesUsage(usage)
+  }
+
   private sourceMetadata(
     model: string,
     stopReason?: 'error' | 'aborted',
@@ -535,14 +547,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   async *chatStream(
     chatOptions: TextOptions<TProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
-    // A portable computer tool becomes the native computer tool of the model.
+    // A portable computer tool becomes the native computer tool.
     // The request and the stream both read the native tool.
     const options = chatOptions.tools
       ? {
           ...chatOptions,
-          tools: chatOptions.tools.map((tool) =>
-            resolveComputerUseTool(tool, chatOptions.model),
-          ),
+          tools: chatOptions.tools.map((tool) => resolveComputerUseTool(tool)),
         }
       : chatOptions
     // Key streamed state by output item ID because argument deltas reference
@@ -730,7 +740,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
       // Surface usage so non-stream structured paths (and
       // fallbackStructuredOutputStream) can forward tokens to middleware.
-      const usage = buildResponsesUsage(response.usage)
+      const usage = this.responsesTokenUsage(response.usage, response)
       return {
         data: transformed,
         rawText,
@@ -788,6 +798,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     let model: string = chatOptions.model
     let responseId: string | undefined
     let usage: OpenAI.Responses.Response['usage'] | undefined
+    let usageSource: unknown
     let responseCompleted = false
 
     const closeReasoning = function* (this: {
@@ -967,7 +978,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           responseCompleted = true
           const response = chunk.response
           if (response.id) responseId = response.id
-          if (response.usage) usage = response.usage
+          if (response.usage) {
+            usage = response.usage
+            usageSource = response
+          }
           if (response.model) model = response.model
           // Terminal event: do not wait for the HTTP body to close (#1445).
           break
@@ -1087,7 +1101,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         timestamp: Date.now(),
         finishReason: 'stop',
         ...(usage && {
-          usage: buildResponsesUsage(usage),
+          usage: this.responsesTokenUsage(usage, usageSource),
         }),
       }
     } catch (error: unknown) {
@@ -1395,14 +1409,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       hasEmittedRunStarted: boolean
     },
   ): AsyncIterable<AdapterYieldChunk> {
-    // A `computer_call` is a call to the computer tool of this request.
-    const computerTool = options.tools?.some(
-      (tool) =>
-        tool.name === 'computer' &&
-        getOpenAIProviderToolKind(tool) === 'computer_use',
-    )
-      ? 'computer'
-      : 'computer_use_preview'
     const normalizeToolInput = createToolInputNormalizer(
       options.tools,
       (schema, required) =>
@@ -1606,7 +1612,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       outputIndex: number,
       bareShell: boolean,
     ): Array<AdapterYieldChunk> => {
-      const call = readUserExecutedCall(item, { bareShell, computerTool })
+      const call = readUserExecutedCall(item, { bareShell })
       if (!call || toolCallMetadata.get(call.callId)?.ended) return []
       const tracked = toolCallMetadata.get(call.callId) ?? {
         callId: call.callId,
@@ -2502,7 +2508,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             // Omit usage entirely when the provider reported none rather than
             // emitting fabricated zeros (also satisfies exactOptionalPropertyTypes).
             ...(chunk.response.usage && {
-              usage: buildResponsesUsage(chunk.response.usage),
+              usage: this.responsesTokenUsage(
+                chunk.response.usage,
+                chunk.response,
+              ),
             }),
             finishReason,
           }
@@ -3085,11 +3094,14 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           // back right after this message's reasoning.
           if (items) result.splice(firstCall, 0, ...items)
           else if (contentStr)
-            result.push({
-              type: 'message',
-              role: 'assistant',
-              content: contentStr,
-            })
+            // Text must not sit between a call and its output (DeepSeek
+            // rejects that, #1792). With calls, it goes before this message's
+            // reasoning, so the reasoning stays directly before its calls.
+            result.splice(
+              result.length > firstCall ? firstItem : result.length,
+              0,
+              { type: 'message', role: 'assistant', content: contentStr },
+            )
         }
 
         // Another model's answer: plain text and calls in the order the
