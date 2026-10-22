@@ -2852,6 +2852,25 @@ describe('background compaction', () => {
     },
   )
 
+  it('drops a ready summary that another model prepared', async () => {
+    const onCompact = vi.fn()
+    const store = memoryStore()
+    const mw = backgroundCompaction(async () => 'the gist', { onCompact })
+    await runOnConfig(mw, list(4), runContext('r1', { store }).ctx)
+    await vi.waitFor(async () =>
+      expect(await store.get(BACKGROUND, 'thread-1')).not.toBeNull(),
+    )
+
+    // The next run calls another model: the summary is not applied.
+    const { ctx } = runContext('r2', { store })
+    ctx.model = 'other-model'
+    const result = await runOnConfig(mw, list(4), ctx)
+    expect(result?.providerMessages).toBeUndefined()
+    expect(onCompact).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'background', stale: true }),
+    )
+  })
+
   it('reports the usage of a background summary when the next run applies it', async () => {
     const usage = tokenUsage(120, 30)
     const onCompact = vi.fn()

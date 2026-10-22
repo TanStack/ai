@@ -1166,7 +1166,7 @@
           "label": "Compact a long session",
           "to": "harness/compaction",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Fork and reset a thread",

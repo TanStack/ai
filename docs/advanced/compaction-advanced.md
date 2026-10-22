@@ -250,6 +250,7 @@ How the background summary runs:
 Sometimes a summary does not apply:
 
 - A newer compaction cut past the message that the summary keeps. The summary is dropped and reported with `stale: true`.
+- The next run calls another model than the one that started the summary. The summary is dropped and reported with `stale: true`.
 - The summary call failed. Nothing applies, and the failure is reported with `error`. The next model call past `atTokens` starts a new summary.
 
 `onCompact` always gets these reports. A `compaction:ended` event for a failed summary reaches the stream only while the run that started the summary still runs.
