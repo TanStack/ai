@@ -33,21 +33,16 @@
       "groupSlug": "all-minor-patch"
     },
     {
-      "description": "Lint & formatting toolchain",
+      "description": "oxc lint and format. Includes majors so oxlint and oxlint-tsgolint update in one PR.",
+      "matchUpdateTypes": ["major", "minor", "patch", "pin", "digest"],
+      "matchPackageNames": ["oxlint", "oxlint-**", "oxfmt"],
+      "groupName": "oxc lint toolchain",
+      "groupSlug": "oxc-lint"
+    },
+    {
+      "description": "Other lint and repo checks",
       "matchUpdateTypes": ["minor", "patch"],
-      "matchPackageNames": [
-        "eslint",
-        "eslint-**",
-        "@eslint/**",
-        "@eslint-community/**",
-        "@typescript-eslint/**",
-        "@tanstack/eslint-config",
-        "prettier",
-        "prettier-**",
-        "knip",
-        "sherif",
-        "publint"
-      ],
+      "matchPackageNames": ["knip", "sherif", "publint"],
       "groupName": "lint & format",
       "groupSlug": "lint-format"
     },
