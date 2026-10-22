@@ -64,6 +64,7 @@ import { Route as ApiAnthropicRedactedThinkingWireRouteImport } from './routes/a
 import { Route as ApiAnthropicRefusalRouteImport } from './routes/api.anthropic-refusal'
 import { Route as ApiAnthropicSkillsWireRouteImport } from './routes/api.anthropic-skills-wire'
 import { Route as ApiAnthropicSonnet55WireRouteImport } from './routes/api.anthropic-sonnet-5-5-wire'
+import { Route as ApiAnthropicStreamFailureUsageRouteImport } from './routes/api.anthropic-stream-failure-usage'
 import { Route as ApiAnthropicThinkingOrderWireRouteImport } from './routes/api.anthropic-thinking-order-wire'
 import { Route as ApiAnthropicTruncatedToolInputWireRouteImport } from './routes/api.anthropic-truncated-tool-input-wire'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
@@ -78,6 +79,7 @@ import { Route as ApiCallOwnershipWireRouteImport } from './routes/api.call-owne
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiChatCompletionsIncompleteStreamRouteImport } from './routes/api.chat-completions-incomplete-stream'
 import { Route as ApiClientToolResumeStoreRouteImport } from './routes/api.client-tool-resume-store'
+import { Route as ApiCloudflareBindingHeadersWireRouteImport } from './routes/api.cloudflare-binding-headers-wire'
 import { Route as ApiCloudflareBindingWireRouteImport } from './routes/api.cloudflare-binding-wire'
 import { Route as ApiCodingToolsRouteImport } from './routes/api.coding-tools'
 import { Route as ApiCodingWorkspaceRouteImport } from './routes/api.coding-workspace'
@@ -90,6 +92,7 @@ import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-mem
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
 import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
 import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
+import { Route as ApiEvaluateHttpStatusRouteImport } from './routes/api.evaluate-http-status'
 import { Route as ApiEvaluateUsageOnFailureRouteImport } from './routes/api.evaluate-usage-on-failure'
 import { Route as ApiFakeTextRouteImport } from './routes/api.fake-text'
 import { Route as ApiFileSourceWireRouteImport } from './routes/api.file-source-wire'
@@ -491,6 +494,12 @@ const ApiAnthropicSonnet55WireRoute =
     path: '/api/anthropic-sonnet-5-5-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAnthropicStreamFailureUsageRoute =
+  ApiAnthropicStreamFailureUsageRouteImport.update({
+    id: '/api/anthropic-stream-failure-usage',
+    path: '/api/anthropic-stream-failure-usage',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAnthropicThinkingOrderWireRoute =
   ApiAnthropicThinkingOrderWireRouteImport.update({
     id: '/api/anthropic-thinking-order-wire',
@@ -568,6 +577,12 @@ const ApiClientToolResumeStoreRoute =
     path: '/api/client-tool-resume-store',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiCloudflareBindingHeadersWireRoute =
+  ApiCloudflareBindingHeadersWireRouteImport.update({
+    id: '/api/cloudflare-binding-headers-wire',
+    path: '/api/cloudflare-binding-headers-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiCloudflareBindingWireRoute =
   ApiCloudflareBindingWireRouteImport.update({
     id: '/api/cloudflare-binding-wire',
@@ -627,6 +642,11 @@ const ApiDurableTakeoverRoute = ApiDurableTakeoverRouteImport.update({
 const ApiEmbeddingRoute = ApiEmbeddingRouteImport.update({
   id: '/api/embedding',
   path: '/api/embedding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiEvaluateHttpStatusRoute = ApiEvaluateHttpStatusRouteImport.update({
+  id: '/api/evaluate-http-status',
+  path: '/api/evaluate-http-status',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiEvaluateUsageOnFailureRoute =
@@ -1283,6 +1303,7 @@ export interface FileRoutesByFullPath {
   '/api/anthropic-refusal': typeof ApiAnthropicRefusalRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-sonnet-5-5-wire': typeof ApiAnthropicSonnet55WireRoute
+  '/api/anthropic-stream-failure-usage': typeof ApiAnthropicStreamFailureUsageRoute
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
   '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
@@ -1297,6 +1318,7 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
+  '/api/cloudflare-binding-headers-wire': typeof ApiCloudflareBindingHeadersWireRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
   '/api/coding-workspace': typeof ApiCodingWorkspaceRoute
@@ -1309,6 +1331,7 @@ export interface FileRoutesByFullPath {
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
   '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
   '/api/fake-text': typeof ApiFakeTextRoute
   '/api/file-source-wire': typeof ApiFileSourceWireRoute
@@ -1480,6 +1503,7 @@ export interface FileRoutesByTo {
   '/api/anthropic-refusal': typeof ApiAnthropicRefusalRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-sonnet-5-5-wire': typeof ApiAnthropicSonnet55WireRoute
+  '/api/anthropic-stream-failure-usage': typeof ApiAnthropicStreamFailureUsageRoute
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
   '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
@@ -1494,6 +1518,7 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
+  '/api/cloudflare-binding-headers-wire': typeof ApiCloudflareBindingHeadersWireRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
   '/api/coding-workspace': typeof ApiCodingWorkspaceRoute
@@ -1506,6 +1531,7 @@ export interface FileRoutesByTo {
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
   '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
   '/api/fake-text': typeof ApiFakeTextRoute
   '/api/file-source-wire': typeof ApiFileSourceWireRoute
@@ -1678,6 +1704,7 @@ export interface FileRoutesById {
   '/api/anthropic-refusal': typeof ApiAnthropicRefusalRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-sonnet-5-5-wire': typeof ApiAnthropicSonnet55WireRoute
+  '/api/anthropic-stream-failure-usage': typeof ApiAnthropicStreamFailureUsageRoute
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
   '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
@@ -1692,6 +1719,7 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
+  '/api/cloudflare-binding-headers-wire': typeof ApiCloudflareBindingHeadersWireRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
   '/api/coding-workspace': typeof ApiCodingWorkspaceRoute
@@ -1704,6 +1732,7 @@ export interface FileRoutesById {
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
   '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
   '/api/fake-text': typeof ApiFakeTextRoute
   '/api/file-source-wire': typeof ApiFileSourceWireRoute
@@ -1877,6 +1906,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-refusal'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-sonnet-5-5-wire'
+    | '/api/anthropic-stream-failure-usage'
     | '/api/anthropic-thinking-order-wire'
     | '/api/anthropic-truncated-tool-input-wire'
     | '/api/arktype-tool-wire'
@@ -1891,6 +1921,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
     | '/api/client-tool-resume-store'
+    | '/api/cloudflare-binding-headers-wire'
     | '/api/cloudflare-binding-wire'
     | '/api/coding-tools'
     | '/api/coding-workspace'
@@ -1903,6 +1934,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/evaluate-http-status'
     | '/api/evaluate-usage-on-failure'
     | '/api/fake-text'
     | '/api/file-source-wire'
@@ -2074,6 +2106,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-refusal'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-sonnet-5-5-wire'
+    | '/api/anthropic-stream-failure-usage'
     | '/api/anthropic-thinking-order-wire'
     | '/api/anthropic-truncated-tool-input-wire'
     | '/api/arktype-tool-wire'
@@ -2088,6 +2121,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
     | '/api/client-tool-resume-store'
+    | '/api/cloudflare-binding-headers-wire'
     | '/api/cloudflare-binding-wire'
     | '/api/coding-tools'
     | '/api/coding-workspace'
@@ -2100,6 +2134,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/evaluate-http-status'
     | '/api/evaluate-usage-on-failure'
     | '/api/fake-text'
     | '/api/file-source-wire'
@@ -2271,6 +2306,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-refusal'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-sonnet-5-5-wire'
+    | '/api/anthropic-stream-failure-usage'
     | '/api/anthropic-thinking-order-wire'
     | '/api/anthropic-truncated-tool-input-wire'
     | '/api/arktype-tool-wire'
@@ -2285,6 +2321,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
     | '/api/client-tool-resume-store'
+    | '/api/cloudflare-binding-headers-wire'
     | '/api/cloudflare-binding-wire'
     | '/api/coding-tools'
     | '/api/coding-workspace'
@@ -2297,6 +2334,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/evaluate-http-status'
     | '/api/evaluate-usage-on-failure'
     | '/api/fake-text'
     | '/api/file-source-wire'
@@ -2469,6 +2507,7 @@ export interface RootRouteChildren {
   ApiAnthropicRefusalRoute: typeof ApiAnthropicRefusalRoute
   ApiAnthropicSkillsWireRoute: typeof ApiAnthropicSkillsWireRoute
   ApiAnthropicSonnet55WireRoute: typeof ApiAnthropicSonnet55WireRoute
+  ApiAnthropicStreamFailureUsageRoute: typeof ApiAnthropicStreamFailureUsageRoute
   ApiAnthropicThinkingOrderWireRoute: typeof ApiAnthropicThinkingOrderWireRoute
   ApiAnthropicTruncatedToolInputWireRoute: typeof ApiAnthropicTruncatedToolInputWireRoute
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
@@ -2483,6 +2522,7 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   ApiChatCompletionsIncompleteStreamRoute: typeof ApiChatCompletionsIncompleteStreamRoute
   ApiClientToolResumeStoreRoute: typeof ApiClientToolResumeStoreRoute
+  ApiCloudflareBindingHeadersWireRoute: typeof ApiCloudflareBindingHeadersWireRoute
   ApiCloudflareBindingWireRoute: typeof ApiCloudflareBindingWireRoute
   ApiCodingToolsRoute: typeof ApiCodingToolsRoute
   ApiCodingWorkspaceRoute: typeof ApiCodingWorkspaceRoute
@@ -2495,6 +2535,7 @@ export interface RootRouteChildren {
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
   ApiDurableTakeoverRoute: typeof ApiDurableTakeoverRoute
   ApiEmbeddingRoute: typeof ApiEmbeddingRoute
+  ApiEvaluateHttpStatusRoute: typeof ApiEvaluateHttpStatusRoute
   ApiEvaluateUsageOnFailureRoute: typeof ApiEvaluateUsageOnFailureRoute
   ApiFakeTextRoute: typeof ApiFakeTextRoute
   ApiFileSourceWireRoute: typeof ApiFileSourceWireRoute
@@ -2994,6 +3035,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAnthropicSonnet55WireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/anthropic-stream-failure-usage': {
+      id: '/api/anthropic-stream-failure-usage'
+      path: '/api/anthropic-stream-failure-usage'
+      fullPath: '/api/anthropic-stream-failure-usage'
+      preLoaderRoute: typeof ApiAnthropicStreamFailureUsageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/anthropic-thinking-order-wire': {
       id: '/api/anthropic-thinking-order-wire'
       path: '/api/anthropic-thinking-order-wire'
@@ -3092,6 +3140,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiClientToolResumeStoreRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cloudflare-binding-headers-wire': {
+      id: '/api/cloudflare-binding-headers-wire'
+      path: '/api/cloudflare-binding-headers-wire'
+      fullPath: '/api/cloudflare-binding-headers-wire'
+      preLoaderRoute: typeof ApiCloudflareBindingHeadersWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cloudflare-binding-wire': {
       id: '/api/cloudflare-binding-wire'
       path: '/api/cloudflare-binding-wire'
@@ -3174,6 +3229,13 @@ declare module '@tanstack/react-router' {
       path: '/api/embedding'
       fullPath: '/api/embedding'
       preLoaderRoute: typeof ApiEmbeddingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/evaluate-http-status': {
+      id: '/api/evaluate-http-status'
+      path: '/api/evaluate-http-status'
+      fullPath: '/api/evaluate-http-status'
+      preLoaderRoute: typeof ApiEvaluateHttpStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/evaluate-usage-on-failure': {
@@ -4091,6 +4153,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAnthropicRefusalRoute: ApiAnthropicRefusalRoute,
   ApiAnthropicSkillsWireRoute: ApiAnthropicSkillsWireRoute,
   ApiAnthropicSonnet55WireRoute: ApiAnthropicSonnet55WireRoute,
+  ApiAnthropicStreamFailureUsageRoute: ApiAnthropicStreamFailureUsageRoute,
   ApiAnthropicThinkingOrderWireRoute: ApiAnthropicThinkingOrderWireRoute,
   ApiAnthropicTruncatedToolInputWireRoute:
     ApiAnthropicTruncatedToolInputWireRoute,
@@ -4109,6 +4172,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatCompletionsIncompleteStreamRoute:
     ApiChatCompletionsIncompleteStreamRoute,
   ApiClientToolResumeStoreRoute: ApiClientToolResumeStoreRoute,
+  ApiCloudflareBindingHeadersWireRoute: ApiCloudflareBindingHeadersWireRoute,
   ApiCloudflareBindingWireRoute: ApiCloudflareBindingWireRoute,
   ApiCodingToolsRoute: ApiCodingToolsRoute,
   ApiCodingWorkspaceRoute: ApiCodingWorkspaceRoute,
@@ -4121,6 +4185,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
   ApiDurableTakeoverRoute: ApiDurableTakeoverRoute,
   ApiEmbeddingRoute: ApiEmbeddingRoute,
+  ApiEvaluateHttpStatusRoute: ApiEvaluateHttpStatusRoute,
   ApiEvaluateUsageOnFailureRoute: ApiEvaluateUsageOnFailureRoute,
   ApiFakeTextRoute: ApiFakeTextRoute,
   ApiFileSourceWireRoute: ApiFileSourceWireRoute,

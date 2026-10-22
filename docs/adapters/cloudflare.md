@@ -166,6 +166,41 @@ For Vue, Solid, Svelte, Angular, and the other frameworks, see [Quick Start](../
 
 You now have a streaming chat on Workers AI. [Tools](../tools/tools) and [Structured Outputs](../structured-outputs/overview) work the same as with every adapter.
 
+## Reuse the prompt cache
+
+Every chat turn sends the whole conversation again. Workers AI can serve the repeated start of the prompt from its cache, but only when the turns of one conversation reach the same model instance. Send an `x-session-affinity` header with one value per conversation to keep them together. See [Workers AI prompt caching](https://developers.cloudflare.com/workers-ai/features/prompt-caching/).
+
+Set the header with `defaultHeaders`:
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { createCloudflareText } from "@tanstack/ai-cloudflare";
+import type { Ai } from "@cloudflare/workers-types";
+
+interface Env {
+  AI: Ai;
+}
+
+export default {
+  async fetch(request: Request, env: Env) {
+    const { messages, conversationId } = await request.json();
+
+    const stream = chat({
+      adapter: createCloudflareText("@cf/zai-org/glm-5.3-flash", {
+        binding: env.AI,
+        defaultHeaders: { "x-session-affinity": `ses_${conversationId}` },
+      }),
+      messages,
+      threadId: conversationId,
+    });
+
+    return toServerSentEventsResponse(stream);
+  },
+};
+```
+
+The binding sends `defaultHeaders` as the `extraHeaders` run option, next to `gateway`. The REST config takes the same `defaultHeaders` field.
+
 ## Route through AI Gateway
 
 AI Gateway gives you caching, logs, rate limits, and one bill for all providers. To send requests through it, add `gateway` to any config. Use `"default"` for the gateway that Cloudflare makes for your account:

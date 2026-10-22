@@ -61,7 +61,7 @@ function clientOptions(config: CloudflareTextConfig): ClientOptions {
     return {
       // The binding authenticates by itself; the SDK only requires a value.
       apiKey: 'cloudflare-binding',
-      fetch: createBindingFetch(config.binding, config.gateway),
+      fetch: createBindingFetch(config),
     }
   }
   const {

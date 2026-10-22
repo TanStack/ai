@@ -151,6 +151,29 @@ const adapter = ollayaDecider("laya:latest", {
 
 `baseUrl` and `headers` are aliases of `baseURL` and `defaultHeaders`. If you set both forms, `baseURL` and `defaultHeaders` win. A blank `baseURL` keeps the default host.
 
+### Handle a failed request
+
+A wrong `apiKey` needs a fix, not a retry. When the server sends an error response, the thrown error has the HTTP status code in `status`:
+
+```typescript
+import { decide, boolean } from "@tanstack/ai";
+import { ollayaDecider } from "@tanstack/ai-ollaya";
+
+try {
+  await decide({
+    adapter: ollayaDecider("laya:latest"),
+    state: { body: "Please refund the extra payment." },
+    questions: {
+      refund: boolean({ instructions: "Is the customer asking for a refund?" }),
+    },
+  });
+} catch (error) {
+  if (error instanceof Error && "status" in error && error.status === 401) {
+    // The server rejected the apiKey. Check it before you call decide() again.
+  }
+}
+```
+
 ### API reference
 
 The adapter sends `POST /v1/systemone` to the base URL with `fetch`. There is no Ollaya SDK.
