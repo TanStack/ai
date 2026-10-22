@@ -770,6 +770,10 @@ export interface TanStackRunMetadata {
   index?: number
   /** On a `RUN_ERROR`. See `RunErrorEvent.retryAfterMs`. */
   retryAfterMs?: number
+  /** On a `RUN_ERROR`. See `RunErrorEvent.errorType`. */
+  errorType?: string
+  /** On a `RUN_ERROR`. See `RunErrorEvent.requestId`. */
+  requestId?: string
   state?: ToolOutputState
   /** Parsed `TOOL_CALL_END` input. Spec `TOOL_CALL_END` has no top-level `input`. */
   input?: unknown
@@ -1640,6 +1644,18 @@ export interface RunErrorEvent extends Pick<
    * `chat()` moves it to `metadata.tanstack.retryAfterMs`.
    */
   retryAfterMs?: number
+  /**
+   * The provider's error type, for example `overloaded_error` or
+   * `rate_limit_exceeded`. `code` stays the HTTP status. A string of at most
+   * 128 characters. `chat()` moves it to `metadata.tanstack.errorType`.
+   */
+  errorType?: string
+  /**
+   * The provider's request id, from the SDK error or the `request-id` /
+   * `x-request-id` header. Give it to the provider's support.
+   * `chat()` moves it to `metadata.tanstack.requestId`.
+   */
+  requestId?: string
   metadata?: { tanstack?: TanStackRunMetadata } & Record<string, any>
 }
 

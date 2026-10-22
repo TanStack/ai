@@ -340,6 +340,53 @@ Limits:
 
 On a serverless route, a long wait keeps the request open. If your host has a short time limit, keep `maxWaitMs` low. Then retry the longer wait times from the client.
 
+### Read the provider error type and request id
+
+You got a `RUN_ERROR` and want to know why the provider failed, or you want to send the request id to the provider support. Read `metadata.tanstack` on the `RUN_ERROR`:
+
+- `errorType`: the error type from the provider, for example `overloaded_error` or `rate_limit_exceeded`. A string of at most 128 characters.
+- `requestId`: the id of the failed request, from the SDK error or the `request-id` / `x-request-id` header.
+
+`code` stays the HTTP status, for example `"529"`. The Anthropic adapter and the adapters built on `@tanstack/openai-base` set both fields when the provider sends them.
+
+On the server:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+
+const stream = chat({
+  adapter: anthropicText("claude-sonnet-5-5"),
+  messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === "RUN_ERROR") {
+    const tanstack = chunk.metadata?.tanstack;
+    console.log(chunk.code, tanstack?.errorType, tanstack?.requestId);
+    // "529" "overloaded_error" "req_011..."
+  }
+}
+```
+
+On the client:
+
+```typescript
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+const { messages } = useChat({
+  connection: fetchServerSentEvents("/api/chat"),
+  threadId: "support-chat",
+  onChunk: (chunk) => {
+    if (chunk.type === "RUN_ERROR") {
+      const tanstack = chunk.metadata?.tanstack;
+      console.log(tanstack?.errorType, tanstack?.requestId);
+    }
+  },
+});
+```
+
 ### Read the provider response identity
 
 You want to find a reply in the logs of the provider, or see which model really answered. Read `metadata.tanstack` on `RUN_FINISHED`:

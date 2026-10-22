@@ -14,6 +14,7 @@ import {
   splitMidConversationChanges,
   toRunErrorPayload,
   toRetryAfterMs,
+  toRunErrorDetails,
   toRunErrorRawEvent,
   transformMessagesForReplay,
 } from '@tanstack/ai/adapter-internals'
@@ -628,6 +629,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         // toRunErrorRawEvent); omitted otherwise.
         ...(rawEvent !== undefined && { rawEvent }),
         ...(retryAfterMs !== undefined && { retryAfterMs }),
+        ...toRunErrorDetails(error),
         error: {
           message: errorPayload.message,
           code: errorPayload.code,
@@ -2592,6 +2594,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         ...(errorPayload.code !== undefined && { code: errorPayload.code }),
         ...(rawEvent !== undefined && { rawEvent }),
         ...(retryAfterMs !== undefined && { retryAfterMs }),
+        ...toRunErrorDetails(error),
         error: {
           message: errorPayload.message,
           ...(errorPayload.code !== undefined && { code: errorPayload.code }),
