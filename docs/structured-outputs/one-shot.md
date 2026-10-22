@@ -362,4 +362,6 @@ try {
 }
 ```
 
+When the JSON parses but does not match your schema, `chat()` throws an error with `code: 'structured-output-validation-failed'`. That error also has the model text on `error.rawText`.
+
 To keep the answer, parse and validate that text yourself.

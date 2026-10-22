@@ -4989,6 +4989,7 @@ class TextEngine<
           message,
           code: 'structured-output-validation-failed',
           cause: err,
+          rawText: this.structuredOutputResult.rawText,
         }
       }
     }
@@ -5127,6 +5128,7 @@ class TextEngine<
           message,
           code: 'structured-output-validation-failed',
           cause: err,
+          rawText: this.structuredOutputResult.rawText,
         }
       }
     }
@@ -7143,6 +7145,13 @@ async function* fallbackStructuredOutputStream(
   } catch (error) {
     onAdapterError?.(error)
     const message = error instanceof Error ? error.message : String(error)
+    // An answer that is not JSON gets the same code as on the engine's own
+    // parse path. ponytail: only a SyntaxError (or one as `cause`) is known
+    // as a parse failure; an adapter that throws a plain Error keeps no code.
+    const parseFailed =
+      error instanceof SyntaxError ||
+      (error instanceof Error && error.cause instanceof SyntaxError)
+    const code = parseFailed ? 'structured-output-parse-failed' : undefined
     yield {
       type: EventType.RUN_ERROR,
       runId,
@@ -7150,7 +7159,8 @@ async function* fallbackStructuredOutputStream(
       model,
       timestamp: Date.now(),
       message,
-      error: { message },
+      ...(code ? { code } : {}),
+      error: { message, ...(code ? { code } : {}) },
     }
     return
   }
