@@ -3173,6 +3173,41 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       return payload.input as Array<Record<string, unknown>>
     }
 
+    it('never puts assistant text between a function_call and its output (#1792)', async () => {
+      const input = await inputForMessages([
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: 'Let me look that up.',
+          thinking: [{ content: '', signature: reasoningSignature('rs_A') }],
+          toolCalls: [
+            {
+              id: 'call_A',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+              metadata: { itemId: 'fc_A' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_A', content: '{}' },
+      ] as Array<ModelMessage>)
+
+      expect(input.map((item) => item.type)).toEqual([
+        'message',
+        'message',
+        'reasoning',
+        'function_call',
+        'function_call_output',
+      ])
+      expect(input[1]).toEqual({
+        type: 'message',
+        role: 'assistant',
+        content: 'Let me look that up.',
+      })
+      // The reasoning still sits directly before its call, which keeps its id.
+      expect(input[3]).toHaveProperty('id', 'fc_A')
+    })
+
     it('keeps the function_call item id when a single reasoning item pairs with it', async () => {
       const input = await inputForMessages([
         { role: 'user', content: 'hi' },
@@ -3308,17 +3343,18 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       ] as Array<ModelMessage>)
 
       // The ws_/msg_ ids cannot sit next to their reasoning item, so the raw
-      // items are skipped and the text goes out as a plain message with no id.
+      // items are skipped and the text goes out as a plain message with no id,
+      // before the reasoning so it never splits a call from its output.
       expect(input.map((item) => item.type)).toEqual([
+        'message',
         'message',
         'reasoning',
         'reasoning',
         'function_call',
-        'message',
         'function_call_output',
       ])
-      expect(input[3]).not.toHaveProperty('id')
-      expect(input[4]).toEqual({
+      expect(input[4]).not.toHaveProperty('id')
+      expect(input[1]).toEqual({
         type: 'message',
         role: 'assistant',
         content: 'Grounded',

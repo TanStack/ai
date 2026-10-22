@@ -3071,11 +3071,14 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           // back right after this message's reasoning.
           if (items) result.splice(firstCall, 0, ...items)
           else if (contentStr)
-            result.push({
-              type: 'message',
-              role: 'assistant',
-              content: contentStr,
-            })
+            // Text must not sit between a call and its output (DeepSeek
+            // rejects that, #1792). With calls, it goes before this message's
+            // reasoning, so the reasoning stays directly before its calls.
+            result.splice(
+              result.length > firstCall ? firstItem : result.length,
+              0,
+              { type: 'message', role: 'assistant', content: contentStr },
+            )
         }
 
         // Another model's answer: plain text and calls in the order the

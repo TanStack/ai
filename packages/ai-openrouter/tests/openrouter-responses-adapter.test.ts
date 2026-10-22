@@ -234,6 +234,55 @@ describe('OpenRouter responses adapter — request shape', () => {
     expect(fcOutput).not.toHaveProperty('call_id')
   })
 
+  it('never puts assistant text between a function_call and its output (#1792)', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.completed',
+        sequenceNumber: 1,
+        response: {
+          model: 'openai/gpt-4o-mini',
+          output: [],
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        },
+      },
+    ])
+
+    const adapter = createAdapter()
+    for await (const _ of chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [
+        { role: 'user', content: 'weather?' },
+        {
+          role: 'assistant',
+          content: 'Let me check.',
+          toolCalls: [
+            {
+              id: 'call_abc',
+              type: 'function',
+              function: { name: 'lookup_weather', arguments: '{"x":1}' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_abc', content: '{"temp":72}' },
+      ],
+    })) {
+      // consume
+    }
+
+    const params = mockSend.mock.calls[0]![0].responsesRequest
+    expect(params.input.map((i: any) => i.type)).toEqual([
+      'message',
+      'message',
+      'function_call',
+      'function_call_output',
+    ])
+    expect(params.input[1]).toMatchObject({
+      role: 'assistant',
+      content: 'Let me check.',
+    })
+  })
+
   it('applies modelOptions.variant as a `:suffix` to the model id', async () => {
     setupMockSdkClient([
       {
