@@ -323,7 +323,7 @@ Your users can sign in with their own OpenRouter account. Then the requests use 
 
 ### Model options
 
-Provider options go in `modelOptions`. This includes sampling options such as `temperature` and `maxCompletionTokens` (the token limit of the chat adapter). The type only allows the options that the selected model supports. For example, Claude Sonnet 5.5 does not take `topP`, so `topP` is a type error for that model:
+Provider options go in `modelOptions`. This includes sampling options such as `temperature` and `maxCompletionTokens` (the token limit of the chat adapter). The type only allows the options that the selected model supports. For example, Claude Sonnet 5.5 does not take `temperature` or `topP`, so they are type errors for that model:
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -334,8 +334,8 @@ const stream = chat({
   messages: [{ role: "user", content: "Hello!" }],
   threadId: "thread-1",
   modelOptions: {
-    temperature: 0.7,
     maxCompletionTokens: 1024,
+    stop: ["END"],
   },
 });
 ```

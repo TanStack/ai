@@ -61,9 +61,9 @@ export const ELEVENLABS_AUDIO_MODELS = [
   'eleven_text_to_sound_v2',
   // Deprecated by ElevenLabs — use `music_v2_5`.
   'music_v1',
-] as const satisfies ReadonlyArray<
-  ElevenLabs.MusicModelId | ElevenLabs.SfxModelId
->
+  // ponytail: plain strings. The sync adds ids from the ElevenLabs API schema,
+  // and the SDK types can lag behind it (`eleven_text_to_sound_v3`).
+] as const satisfies ReadonlyArray<string>
 
 export type ElevenLabsAudioModel = (typeof ELEVENLABS_AUDIO_MODELS)[number]
 
