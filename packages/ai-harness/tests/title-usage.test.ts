@@ -156,6 +156,51 @@ describe('title()', () => {
     )
     await host.close()
   })
+
+  it('runs the harness middleware on the title call', async () => {
+    const titler = mockAdapter(() => text('Trip to Rome'))
+    const seen: Array<{ model: string; run: unknown }> = []
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/title-middleware',
+        adapter: mockAdapter(() => text('answer')).adapter,
+        middleware: [
+          {
+            name: 'app-observer',
+            onStart: (ctx) => {
+              seen.push({
+                model: ctx.model,
+                run: (ctx.context as { run?: unknown } | undefined)?.run,
+              })
+            },
+          },
+        ],
+        plugins: () => [
+          title({ adapter: { ...titler.adapter, model: 'title-model' } }),
+        ],
+      }),
+      { threadId: 't' },
+    )
+
+    await session.send('Plan a trip to Rome for me')
+    await waitFor(async () =>
+      expect((await host.sessions.get({ threadId: 't' }))?.title).toBe(
+        'Trip to Rome',
+      ),
+    )
+
+    // The title call runs while the turn ends, so the order can change.
+    expect(seen.map((call) => call.model).sort()).toEqual([
+      'test-model',
+      'title-model',
+    ])
+    // The title call gets the run of the turn, as a turn call does.
+    expect(
+      seen.find((call) => call.model === 'title-model')?.run,
+    ).toMatchObject({ threadId: 't' })
+    await host.close()
+  })
 })
 
 describe('usage()', () => {

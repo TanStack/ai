@@ -413,7 +413,7 @@ The options:
 - `label`: a name for the call in its usage record.
 - `timeoutMs`: the time limit of the call. The default is 2 minutes.
 
-The call stops when its run stops, for example on a cancel, and when the time limit ends. Then it rejects. Its usage counts in the session under `plugin:<name>`, here `plugin:acme/recap`. See [Usage of plugins](./usage#usage-of-plugins). The `goal()`, `title()`, and `compact()` plugins call their models this way.
+The call stops when its run stops, for example on a cancel, and when the time limit ends. Then it rejects. Its usage counts in the session under `plugin:<name>`, here `plugin:acme/recap`. See [Usage of plugins](./usage#usage-of-plugins). The call runs the harness `middleware`, as a turn call does, so your cost ledger and traces see it. The middleware gets the run in `ctx.context.run`. The `goal()`, `title()`, and `compact()` plugins call their models this way.
 
 ## Write warnings to the host logger
 
