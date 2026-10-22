@@ -804,6 +804,7 @@ Each hook gets a `ChatMiddlewareContext` as its first argument. The fields you u
 | `phase` | `ChatMiddlewarePhase` | The current lifecycle phase |
 | `iteration` | `number` | The agent-loop iteration (starts at 0) |
 | `chunkIndex` | `number` | How many chunks the run sent so far |
+| `callMetadata` | `Readonly<TanStackMessageMetadata>` | The `metadata.tanstack` of the current model call (`source`, `stopReason`, `responseId`, and more). It changes as chunks arrive. Each assistant message of the call gets a copy. |
 | `messages` | `ReadonlyArray<ModelMessage>` | The current messages (read-only) |
 | `signal` | `AbortSignal \| undefined` | The external abort signal |
 | `abort(reason?)` | `function` | Abort the run from middleware |

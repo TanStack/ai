@@ -49,6 +49,52 @@
     },
     {
       "match": {
+        "userMessage": "[subagent-tool-approval] clean up the old logs",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "cleaner",
+            "arguments": "{}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-tool-approval] clean up the old logs",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "deleteLogs",
+            "arguments": "{\"folder\":\"old\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-tool-approval] clean up the old logs",
+        "sequenceIndex": 2
+      },
+      "response": {
+        "content": "Deleted the old logs."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-tool-approval] clean up the old logs",
+        "sequenceIndex": 3
+      },
+      "response": {
+        "content": "Cleanup is done."
+      }
+    },
+    {
+      "match": {
         "userMessage": "[subagent-tool] research squids",
         "sequenceIndex": 0
       },

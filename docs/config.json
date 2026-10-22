@@ -184,7 +184,8 @@
         {
           "label": "Subagents: Advanced",
           "to": "chat/subagents-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Agentic Cycle",
@@ -398,7 +399,8 @@
         {
           "label": "Middleware: Advanced",
           "to": "advanced/middleware-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Built-in Middleware",
@@ -762,7 +764,8 @@
         {
           "label": "Chat Persistence: Advanced",
           "to": "persistence/chat-persistence-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Client Persistence",

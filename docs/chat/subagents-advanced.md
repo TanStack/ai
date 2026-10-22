@@ -299,6 +299,8 @@ The middleware context of a child has these fields:
 - `subagentName`: the name of the agent, when the child calls `ctx.chat`.
 - `parentSubagentRunId`: for a nested child, the id of the child that started it.
 
+When a resume answers an interrupt from an agent tool call, the middleware context of the parent has `childResumeIds`. These are the interrupt ids in `resume` that the child answers. The parent run does not answer them. When no child resumes, `childResumeIds` is `undefined`.
+
 On a routed turn where a child runs and main does not, the middleware of the parent does not run. Only `withPersistence` records that turn. A turn where main runs, including a handoff, runs the middleware of the parent as usual.
 
 ## Run a child from code

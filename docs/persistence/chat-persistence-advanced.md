@@ -150,6 +150,8 @@ const streamingMiddleware = [
 ]
 ```
 
+A snapshot row keeps the call metadata of a finished message, such as `source` and `responseId`, and no other chunk metadata. If the run fails or aborts after a snapshot, the snapshot stays as its assistant message. Its `metadata.tanstack.stopReason` is `'error'` or `'aborted'`.
+
 ### Structured output in the saved transcript
 
 The chat engine completes the transcript before `onFinish` runs, and `withPersistence` saves that transcript as it is:

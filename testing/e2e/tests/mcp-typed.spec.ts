@@ -224,6 +224,18 @@ test.describe('mcp: createMCPServer with auth, output schema, and a task', () =>
     expect(other.status()).toBe(404)
   })
 
+  test('a client calls an extension method that setup serves', async ({
+    request,
+  }) => {
+    const res = await request.get('/api/mcp-typed-test?extension')
+    const body = await res.text()
+    expect(res.ok(), body).toBe(true)
+    expect(JSON.parse(body)).toEqual({
+      extensions: { 'com.example/notes': {} },
+      counted: { count: 1 },
+    })
+  })
+
   test('a stateless server serves spec 2025 with resource context and tool _meta', async ({
     request,
   }) => {

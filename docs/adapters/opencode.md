@@ -156,6 +156,8 @@ Ask it "Fix the failing test in utils.test.ts". The text streams token by token,
 - The adapter starts `opencode serve` inside the sandbox and connects to it over HTTP with the `@opencode-ai/sdk` client.
 - Each `chat()` call runs one full agent turn. OpenCode runs its own loop and its own tools.
 - Text and reasoning stream token by token. The tools of the agent stream back as `tool-call` parts with the results attached. Your code does not run them.
+- The adapter holds each message part until it knows the role of the message. It streams assistant parts and skips user parts.
+- OpenCode can send a tool part before the tool input is ready. The adapter waits for the next update, so each tool call streams with its arguments.
 - The running todo plan of the agent arrives as an `opencode.todo` custom event.
 
 To learn more about sandboxes, see [Sandboxes](../sandbox/overview).

@@ -1296,10 +1296,14 @@ class TextEngine<
       subagentRunId: this.subagentRunIdOverride,
       subagentName: config.params.subagentName,
       parentSubagentRunId: config.params.parentSubagentRunId,
+      childResumeIds: (
+        config.params as { [CHILD_RESUME_IDS]?: ReadonlySet<string> }
+      )[CHILD_RESUME_IDS],
       threadId: this.threadId,
       phase: 'init',
       iteration: 0,
       chunkIndex: 0,
+      callMetadata: this.currentCallMetadata,
       signal: this.effectiveSignal,
       abort: (reason?: string) => {
         this.abortReason = reason
@@ -1779,6 +1783,7 @@ class TextEngine<
         model: this.params.model,
       },
     }
+    this.middlewareCtx.callMetadata = this.currentCallMetadata
     this.currentMessageId = this.createId('msg')
     this.currentMessageCreatedAt = new Date()
     this.streamIdentityCaptured = false
@@ -2115,6 +2120,7 @@ class TextEngine<
         this.finalStructuredOutput.yieldChunks &&
         this.finalStructuredOutput.nativeCombined !== true
       for (const outputChunk of outputChunks) {
+        this.recordPublicActivity(outputChunk, raw)
         for (const spec of normalizeStreamChunk(
           outputChunk as AdapterYieldChunk,
         )) {
@@ -2250,6 +2256,31 @@ class TextEngine<
   private setActivities(activities: Array<ActivityRecord>): void {
     this.activities = activities
     this.middlewareCtx.activities = this.activities
+  }
+
+  /**
+   * Apply an activity event that middleware put on the public stream.
+   * `applied` is the adapter chunk `handleStreamChunk` already applied; a
+   * pass-through or field-for-field copy of it is skipped so a delta lands
+   * once.
+   */
+  private recordPublicActivity(
+    chunk: StreamChunk,
+    applied?: AdapterYieldChunk,
+  ): void {
+    if (
+      chunk.type !== EventType.ACTIVITY_SNAPSHOT &&
+      chunk.type !== EventType.ACTIVITY_DELTA
+    ) {
+      return
+    }
+    if (
+      applied &&
+      (chunk === applied || JSON.stringify(chunk) === JSON.stringify(applied))
+    ) {
+      return
+    }
+    this.handleStreamChunk(chunk as AdapterYieldChunk)
   }
 
   /**
@@ -4639,6 +4670,7 @@ class TextEngine<
         model: structuredCallOptions.chatOptions.model,
       },
     }
+    this.middlewareCtx.callMetadata = this.structuredCallMetadata
     const providerStream = this.adapter.structuredOutputStream
       ? this.adapter.structuredOutputStream(structuredCallOptions)
       : fallbackStructuredOutputStream(
@@ -5627,12 +5659,14 @@ class TextEngine<
 
   /**
    * Spec-normalize middleware output, then yield to the public iterable.
-   * Engine state and `onChunk` already saw the raw chunk.
+   * Engine state and `onChunk` already saw the raw chunk, except activity
+   * events: no caller applies those first, so they are applied here.
    */
   private *emitPublicChunks(
     outputs: Array<StreamChunk>,
   ): Generator<StreamChunk, void, void> {
     for (const output of outputs) {
+      this.recordPublicActivity(output)
       for (const spec of normalizeStreamChunk(output as AdapterYieldChunk)) {
         restorePublicUsage(spec)
         if (spec.type === EventType.RUN_STARTED) {
