@@ -177,12 +177,6 @@ describe('OpenRouter combined tools + outputSchema', () => {
           'k',
         ).supportsCombinedToolsAndSchema(),
       ).toBe(false)
-      expect(
-        createOpenRouterText(
-          'anthropic/claude-sonnet-4',
-          'k',
-        ).supportsCombinedToolsAndSchema(),
-      ).toBe(false)
       const modelWithoutCombined = OPENROUTER_CHAT_MODELS.find(
         (id) => !OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(id),
       )
@@ -206,7 +200,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       ).toBe(true)
       expect(
         createOpenRouterResponsesText(
-          'anthropic/claude-sonnet-4',
+          'anthropic/claude-opus-4.1',
           'k',
         ).supportsCombinedToolsAndSchema(),
       ).toBe(false)
@@ -222,7 +216,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       ).toBe(true)
       expect(
         adapter.supportsCombinedToolsAndSchema({
-          models: ['anthropic/claude-sonnet-4'],
+          models: ['anthropic/claude-opus-4.1'],
         }),
       ).toBe(false)
     })
@@ -313,14 +307,14 @@ describe('OpenRouter combined tools + outputSchema', () => {
           properties: { answer: { type: 'string' } },
           required: ['answer'],
         },
-        modelOptions: { models: ['anthropic/claude-sonnet-4'] },
+        modelOptions: { models: ['anthropic/claude-opus-4.1'] },
       })) {
         // drain
       }
 
       const params = mockChatSend.mock.calls[0]![0].chatRequest
       expect(params.responseFormat).toBeUndefined()
-      expect(params.models).toEqual(['anthropic/claude-sonnet-4'])
+      expect(params.models).toEqual(['anthropic/claude-opus-4.1'])
       expect(params.tools).toBeDefined()
     })
   })

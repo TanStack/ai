@@ -143,19 +143,28 @@ export class SpritesHandle implements SandboxHandle {
       spawn: (command, opts) => this.spawnProcess(command, opts),
     }
 
+    // The native file calls take no abort signal, so each call checks it first.
     this.fs = {
-      read: async (p) =>
-        new TextDecoder().decode(
+      read: async (p, o) => {
+        o?.signal?.throwIfAborted()
+        return new TextDecoder().decode(
           await this.client.fsRead(this.name, this.abs(p)),
-        ),
-      readBytes: (p) => this.client.fsRead(this.name, this.abs(p)),
-      write: (p, data) =>
-        this.client.fsWrite(
+        )
+      },
+      readBytes: async (p, o) => {
+        o?.signal?.throwIfAborted()
+        return this.client.fsRead(this.name, this.abs(p))
+      },
+      write: async (p, data, o) => {
+        o?.signal?.throwIfAborted()
+        return this.client.fsWrite(
           this.name,
           this.abs(p),
           typeof data === 'string' ? new TextEncoder().encode(data) : data,
-        ),
-      list: async (p) => {
+        )
+      },
+      list: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const entries = await this.client.fsList(this.name, this.abs(p))
         // Native paths are absolute Sprite paths; re-root them under the
         // caller's virtual path so consumers stay provider-agnostic.
@@ -166,20 +175,27 @@ export class SpritesHandle implements SandboxHandle {
           type: entry.type,
         }))
       },
-      lstat: async (p) => this.lstat(this.abs(p)),
-      mkdir: async (p) => {
+      lstat: async (p, o) => {
+        o?.signal?.throwIfAborted()
+        return this.lstat(this.abs(p))
+      },
+      mkdir: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const r = await this.exec(`mkdir -p ${q(this.abs(p))}`)
         if (r.exitCode !== 0) throw new Error(`mkdir failed: ${errText(r)}`)
       },
-      remove: async (p) => {
+      remove: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const r = await this.exec(`rm -rf ${q(this.abs(p))}`)
         if (r.exitCode !== 0) throw new Error(`remove failed: ${errText(r)}`)
       },
-      rename: async (from, to) => {
+      rename: async (from, to, o) => {
+        o?.signal?.throwIfAborted()
         const r = await this.exec(`mv ${q(this.abs(from))} ${q(this.abs(to))}`)
         if (r.exitCode !== 0) throw new Error(`rename failed: ${errText(r)}`)
       },
-      exists: async (p) => {
+      exists: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const r = await this.exec(`test -e ${q(this.abs(p))}`)
         return r.exitCode === 0
       },

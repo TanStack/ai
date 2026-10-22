@@ -18,6 +18,7 @@ import {
   UnsupportedCapabilityError,
   createExecBackedGit,
 } from '@tanstack/ai-sandbox'
+import { commandEnv } from '@tanstack/ai-utils'
 import type { ChildProcess } from 'node:child_process'
 import type { Readable } from 'node:stream'
 import type {
@@ -581,8 +582,10 @@ export interface LocalProcessHandleOptions {
   removeOnDestroy: boolean
   /** Create a fork by copying this sandbox's dir to a new root. */
   forkFactory: (sourceRoot: string) => Promise<SandboxHandle>
-  /** Env vars to delete from the inherited `process.env` before spawning. */
+  /** Env vars to delete from the env of each command (see `commandEnv`). */
   scrubEnv?: Array<string>
+  /** Env vars of this process that each command also gets (see `commandEnv`). */
+  passEnv?: Array<string>
   /**
    * Sink for non-fatal teardown diagnostics — currently a `killTree` that could
    * not confirm the process tree is gone. Teardown never throws, so without a
@@ -617,19 +620,25 @@ export class LocalProcessHandle implements SandboxHandle {
     this.id = options.root
     this.options = options
 
+    // `readFile` and `writeFile` take the signal. The other calls check it
+    // first.
     this.fs = {
-      read: async (p) => fsp.readFile(this.resolve(p), 'utf8'),
-      readBytes: async (p) =>
-        new Uint8Array(await fsp.readFile(this.resolve(p))),
-      write: async (p, data) => {
+      read: async (p, o) =>
+        fsp.readFile(this.resolve(p), { encoding: 'utf8', signal: o?.signal }),
+      readBytes: async (p, o) =>
+        new Uint8Array(await fsp.readFile(this.resolve(p), o)),
+      write: async (p, data, o) => {
+        o?.signal?.throwIfAborted()
         const target = this.resolve(p)
         await fsp.mkdir(path.dirname(target), { recursive: true })
         await fsp.writeFile(
           target,
           typeof data === 'string' ? data : Buffer.from(data),
+          o,
         )
       },
-      list: async (p) => {
+      list: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const entries = await fsp.readdir(this.resolve(p), {
           withFileTypes: true,
         })
@@ -639,7 +648,8 @@ export class LocalProcessHandle implements SandboxHandle {
           type: e.isDirectory() ? ('dir' as const) : ('file' as const),
         }))
       },
-      lstat: async (p) => {
+      lstat: async (p, o) => {
+        o?.signal?.throwIfAborted()
         let stat: Awaited<ReturnType<typeof fsp.lstat>>
         try {
           stat = await fsp.lstat(this.resolve(p))
@@ -664,16 +674,20 @@ export class LocalProcessHandle implements SandboxHandle {
           ? { type, mode: stat.mode, size: stat.size }
           : { type, mode: stat.mode }
       },
-      mkdir: async (p) => {
+      mkdir: async (p, o) => {
+        o?.signal?.throwIfAborted()
         await fsp.mkdir(this.resolve(p), { recursive: true })
       },
-      remove: async (p) => {
+      remove: async (p, o) => {
+        o?.signal?.throwIfAborted()
         await fsp.rm(this.resolve(p), { recursive: true, force: true })
       },
-      rename: async (from, to) => {
+      rename: async (from, to, o) => {
+        o?.signal?.throwIfAborted()
         await fsp.rename(this.resolve(from), this.resolve(to))
       },
-      exists: async (p) => {
+      exists: async (p, o) => {
+        o?.signal?.throwIfAborted()
         try {
           await fsp.access(this.resolve(p))
           return true
@@ -842,7 +856,13 @@ export class LocalProcessHandle implements SandboxHandle {
   }
 
   private mergedEnv(extra?: Record<string, string>): NodeJS.ProcessEnv {
-    const env: NodeJS.ProcessEnv = { ...process.env, ...this.envVars, ...extra }
+    // Only a few variables of the server, plus the env that was given. A
+    // provider key or `DATABASE_URL` of the server does not reach a command.
+    const env: NodeJS.ProcessEnv = commandEnv(
+      { ...this.envVars, ...extra },
+      process.platform,
+      this.options.passEnv,
+    )
     // Drop scrubbed vars so a host CLI falls back to its own stored auth
     // (e.g. remove ANTHROPIC_API_KEY → Claude Code uses the logged-in
     // subscription instead of billing the API). Delete (not blank) so the var

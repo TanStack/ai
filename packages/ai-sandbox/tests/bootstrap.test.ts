@@ -850,6 +850,35 @@ describe('bootstrapWorkspace non-AGENTS fileSkills', () => {
     expect(paths).toContain('/workspace/b.txt')
   })
 
+  it('passes its signal to the fs calls', async () => {
+    const { handle } = makeProvisioningHandle()
+    const signals: Array<AbortSignal | undefined> = []
+    const { exists, write } = handle.fs
+    handle.fs.exists = (path, options) => {
+      signals.push(options?.signal)
+      return exists(path)
+    }
+    handle.fs.write = (path, data, options) => {
+      signals.push(options?.signal)
+      return write(path, data)
+    }
+    const signal = new AbortController().signal
+
+    await bootstrapWorkspace(
+      handle,
+      {
+        source: { type: 'git', url: 'https://github.com/me/app' },
+        instructions: 'Be nice.',
+        skills: [fileSkill({ path: 'a.txt', content: 'aaa' })],
+      },
+      { signal },
+    )
+
+    // .git, AGENTS.md, a.txt and the lockfiles.
+    expect(signals.length).toBeGreaterThan(3)
+    expect(new Set(signals)).toEqual(new Set([signal]))
+  })
+
   it('does not re-write an AGENTS.md fileSkill through the generic path', async () => {
     const { handle, writeCalls } = makeProvisioningHandle()
 

@@ -278,6 +278,11 @@ names what to add. A half-wired adapter cannot report a pass. When the suite is
 green, your adapter works with `withPersistence`. With the generation stores, it
 also works with `withGenerationPersistence`.
 
+The session stores (`log` and `sessions`) are opt-in too. Their cases run only
+when your persistence has the store, so a backend without them needs no `skip`
+entry. See the [session stores](./store-reference#session-stores) for their
+rules.
+
 ### Turn on the opt-in checks
 
 Some checks are off by default, so an adapter that passed before still passes.

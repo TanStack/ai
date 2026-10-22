@@ -1076,6 +1076,76 @@ describe('Anthropic adapter option mapping', () => {
     expect(mocks.messagesCreate).not.toHaveBeenCalled()
   })
 
+  it('moves outputSchema keywords that Anthropic rejects into the description', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      createTextStream(
+        JSON.stringify({ name: 'Ada', age: 36, tags: ['a'], kind: 'x' }),
+      ),
+    )
+    const adapter = new AnthropicTextAdapter(
+      { apiKey: 'test-key' },
+      'claude-sonnet-4-5',
+    )
+
+    await chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'who?' }],
+      outputSchema: z.object({
+        name: z.string().max(10).describe('The name'),
+        age: z.number().min(0).max(150),
+        tags: z.array(z.string()).min(1).max(3),
+        kind: z.enum(['x', 'y']),
+      }),
+    })
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    const { properties } = payload.output_config.format.schema
+    expect(properties.name).toEqual({
+      type: 'string',
+      description: 'The name\n\n{maxLength: 10}',
+    })
+    expect(properties.age).not.toHaveProperty('minimum')
+    expect(properties.age).not.toHaveProperty('maximum')
+    expect(properties.age.description).toContain('maximum: 150')
+    expect(properties.tags).toMatchObject({ type: 'array', minItems: 1 })
+    expect(properties.tags).not.toHaveProperty('maxItems')
+    expect(properties.tags.description).toBe('{maxItems: 3}')
+    expect(properties.kind).toMatchObject({ enum: ['x', 'y'] })
+    expect(properties.kind).not.toHaveProperty('description')
+  })
+
+  it('moves a nested outputSchema `not` into the description', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      createTextStream(JSON.stringify({ item: { name: 'Ada' } })),
+    )
+    const adapter = new AnthropicTextAdapter(
+      { apiKey: 'test-key' },
+      'claude-sonnet-4-5',
+    )
+
+    await chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'who?' }],
+      outputSchema: {
+        type: 'object',
+        properties: {
+          item: {
+            type: 'object',
+            properties: { name: { type: 'string', not: { const: '' } } },
+          },
+        },
+      },
+    })
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    const { schema } = payload.output_config.format
+    const { name } = schema.properties.item.properties
+    expect(name).not.toHaveProperty('not')
+    expect(name.description).toBe('{not: {"const":""}}')
+  })
+
   it('native combined mode (#605): claude-sonnet-5, claude-fable-5, and claude-opus-4-8 use the single-request path', () => {
     const sonnet5 = new AnthropicTextAdapter(
       { apiKey: 'test-key' },

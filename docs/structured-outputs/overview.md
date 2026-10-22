@@ -192,7 +192,7 @@ The OpenRouter and Groq adapters find these models in their catalogs. For these 
 - It sends JSON mode.
 - It adds your schema to the system prompt, because JSON mode does not send the schema.
 
-If your schema is a Standard Schema, such as Zod, `await chat({ outputSchema })` still validates the reply. JSON of the wrong shape throws. TanStack AI does not validate a plain JSON Schema or a streamed reply. Validate those in your own code.
+If your schema is a Standard Schema, such as Zod, `chat({ outputSchema })` still validates the reply. JSON of the wrong shape fails the run. TanStack AI does not validate a plain JSON Schema. Validate that in your own code.
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -239,7 +239,37 @@ Anthropic changes its limits and does not publish all of them. For the current l
 Validation on the server depends on the path:
 
 - `await chat({ outputSchema })`: the engine validates the object with your Standard Schema when the run ends. A failure goes to the `onError` middleware hook, and the promise rejects.
-- `chat({ outputSchema, stream: true })`: the engine does not validate. Read the object from `value.object` on the `structured-output.complete` event, or call `parseWithStandardSchema` on the raw text yourself.
+- `chat({ outputSchema, stream: true })`: the engine validates the full object with your Standard Schema before it sends `structured-output.complete`. It does not validate the partial JSON deltas. If the object fails, the stream ends with a `RUN_ERROR`, and no `structured-output.complete` event comes.
+
+A failed `RUN_ERROR` has a `code` and the text of the model:
+
+- `structured-output-validation-failed`: the JSON parsed, but the object failed your schema.
+- `structured-output-parse-failed`: the text was not valid JSON.
+- `metadata.tanstack.rawText`: the full text of the model, so you can log it or repair it.
+
+```typescript
+import { EventType, chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
+const Person = z.object({ name: z.string(), age: z.number() });
+
+const stream = chat({
+  adapter: openaiText("gpt-6.1-sol"),
+  messages: [{ role: "user", content: "Return Ada Lovelace, age 36." }],
+  threadId: "thread-1",
+  outputSchema: Person,
+  stream: true,
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === EventType.RUN_ERROR) {
+    console.error(chunk.code, chunk.metadata?.tanstack?.rawText);
+  }
+}
+```
+
+The engine does not validate a plain JSON Schema on either path.
 
 On the client, the schema you give `useChat` is for TypeScript types and for the progressive parse of `partial`.
 

@@ -84,6 +84,50 @@ function groupInterruptIds(group: SubagentWireGroup<unknown>): Array<string> {
 }
 
 /**
+ * The subagent cards in `messages`: UI subagent parts, then wire groups.
+ * Nested cards stay inside their parent card.
+ */
+export function subagentCards(messages: ReadonlyArray<AnyMessage>): Array<
+  Omit<SubagentTurnChild, 'resume'> & {
+    /** The interrupt ids of the child and its nested children. */
+    ids: Set<string>
+    plan: unknown
+  }
+> {
+  const parts = messages.flatMap((message) =>
+    'parts' in message
+      ? message.parts.filter((part) => part.type === 'subagent')
+      : [],
+  )
+  return [
+    ...parts.map(({ subagent }) => ({
+      subagentRunId: subagent.id,
+      name: subagent.name,
+      status: subagent.status,
+      ...(subagent.parentToolCallId !== undefined && {
+        parentToolCallId: subagent.parentToolCallId,
+      }),
+      messages: subagent.messages,
+      text: uiText(subagent.messages),
+      ids: new Set(partInterruptIds({ type: 'subagent', subagent })),
+      plan: planOf(subagent.metadata),
+    })),
+    ...splitSubagentWire(messages).groups.map((group) => ({
+      subagentRunId: group.id,
+      name: group.info.name,
+      status: group.info.status,
+      ...(group.info.parentToolCallId !== undefined && {
+        parentToolCallId: group.info.parentToolCallId,
+      }),
+      messages: group.messages,
+      text: subagentWireText(group.messages),
+      ids: new Set(groupInterruptIds(group)),
+      plan: planOf(group.info.metadata),
+    })),
+  ]
+}
+
+/**
  * Find the children of the trailing assistant turn that `resume` answers.
  * Returns undefined when no child owns a resume entry.
  */
@@ -97,46 +141,11 @@ export function readSubagentTurn(
       message.role === 'user' && wireSubagentRunId(message) === undefined,
   )
   const before = messages.slice(0, lastUser + 1)
-  const turn = messages.slice(lastUser + 1)
-
-  const found: Array<Omit<SubagentTurnChild, 'resume'> & { ids: Set<string> }> =
-    []
-  let plan: unknown
-  for (const message of turn) {
-    if (!('parts' in message)) continue
-    for (const part of message.parts) {
-      if (part.type !== 'subagent') continue
-      plan ??= planOf(part.subagent.metadata)
-      found.push({
-        subagentRunId: part.subagent.id,
-        name: part.subagent.name,
-        status: part.subagent.status,
-        ...(part.subagent.parentToolCallId !== undefined && {
-          parentToolCallId: part.subagent.parentToolCallId,
-        }),
-        messages: part.subagent.messages,
-        text: uiText(part.subagent.messages),
-        ids: new Set(partInterruptIds(part)),
-      })
-    }
-  }
-  for (const group of splitSubagentWire(turn).groups) {
-    plan ??= planOf(group.info.metadata)
-    found.push({
-      subagentRunId: group.id,
-      name: group.info.name,
-      status: group.info.status,
-      ...(group.info.parentToolCallId !== undefined && {
-        parentToolCallId: group.info.parentToolCallId,
-      }),
-      messages: group.messages,
-      text: subagentWireText(group.messages),
-      ids: new Set(groupInterruptIds(group)),
-    })
-  }
+  const found = subagentCards(messages.slice(lastUser + 1))
+  const plan = found.find((card) => card.plan !== undefined)?.plan
 
   const owned = new Set<string>()
-  const children = found.map(({ ids, ...child }) => {
+  const children = found.map(({ ids, plan: _plan, ...child }) => {
     const entries = resume.filter((entry) => ids.has(entry.interruptId))
     for (const entry of entries) owned.add(entry.interruptId)
     return { ...child, resume: entries }

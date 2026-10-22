@@ -1,0 +1,704 @@
+import { tmpdir } from 'node:os'
+import { join, relative, resolve, sep } from 'node:path'
+import { describe, expect, it } from 'vitest'
+import { fileVersions } from '../src/first-party/coding/edit'
+import { FileChanged } from '../src/first-party/coding/events'
+import {
+  parsePatch,
+  patchPaths,
+  patchTools,
+} from '../src/first-party/coding/patch'
+import type { AnyTool } from '@tanstack/ai'
+import type {
+  ToolEnv,
+  WorkspaceBackend,
+} from '../src/first-party/coding/backend'
+
+const root = resolve(tmpdir(), 'harness-patch')
+const encoder = new TextEncoder()
+// Keep a byte order mark in the text, so the tests can see it.
+const decoder = new TextDecoder('utf-8', { ignoreBOM: true })
+
+/** A workspace path, with `/` between the parts. */
+const shown = (full: string) => relative(root, full).split(sep).join('/')
+
+/** A patch with `lines` between the begin and end lines. */
+function patch(...lines: Array<string>) {
+  return ['*** Begin Patch', ...lines, '*** End Patch'].join('\n')
+}
+
+/** A unified diff of `rows`, each with a line ending. */
+const diff = (...rows: Array<string>) => rows.map((row) => `${row}\n`).join('')
+
+/**
+ * The patch tool on files in memory that start as `files`. `written` lists
+ * the files that the `afterWrite` hook saw, in order, and `changes` the
+ * `FileChanged` values that the tool sent. With `canRemove: false`, the
+ * backend has no `remove`. `dirs` are folders. The `beforeWrite` hook
+ * refuses the files in `protect`, and `checked` lists the files it saw.
+ */
+function workspace(
+  files: Record<string, string>,
+  {
+    canRemove = true,
+    dirs = [] as Array<string>,
+    protect = [] as Array<string>,
+  } = {},
+) {
+  const store = new Map<string, Uint8Array>()
+  for (const [path, text] of Object.entries(files)) {
+    store.set(join(root, path), encoder.encode(text))
+  }
+  const backend: WorkspaceBackend = {
+    readFile: async (path) => {
+      const data = store.get(path)
+      if (!data) throw new Error(`No file ${path}`)
+      return data
+    },
+    writeFile: async (path, data) => {
+      store.set(path, typeof data === 'string' ? encoder.encode(data) : data)
+    },
+    remove: canRemove
+      ? async (path) => {
+          if (!store.delete(path)) throw new Error(`No file ${path}`)
+        }
+      : undefined,
+    stat: async (path) => {
+      if (dirs.some((dir) => join(root, dir) === path)) {
+        return { type: 'dir', size: 0, mtimeMs: 0 }
+      }
+      const data = store.get(path)
+      return data && { type: 'file', size: data.length, mtimeMs: 0 }
+    },
+    // No links: each path is its own real path.
+    realpath: async (path) => path,
+    readdir: async () => [],
+    exec: async () => ({ exitCode: 0, stdout: '', stderr: '' }),
+  }
+  const written: Array<string> = []
+  const checked: Array<string> = []
+  const changes: Array<unknown> = []
+  const env: ToolEnv = {
+    backend,
+    root,
+    hooks: () => [
+      {
+        beforeWrite: async (path) => {
+          checked.push(shown(path))
+          if (protect.includes(shown(path))) {
+            return { refuse: `${shown(path)} is protected.` }
+          }
+          return undefined
+        },
+        afterWrite: async (path) => {
+          written.push(shown(path))
+        },
+      },
+    ],
+    lock: (_path, fn) => fn(),
+    reach: async (path) => resolve(root, path),
+    shown,
+    emit: (event, value) => {
+      if (event === FileChanged) changes.push(value)
+    },
+  }
+  const tools: Array<AnyTool> = patchTools(env, fileVersions(env))
+  const [tool] = tools
+  return {
+    written,
+    checked,
+    changes,
+    run: async (text: string) => {
+      if (!tool?.execute) throw new Error('No patch tool')
+      const result: string = await tool.execute({ patch: text })
+      return result
+    },
+    /** Every file, by workspace path. */
+    files: () =>
+      Object.fromEntries(
+        [...store].map(
+          ([full, data]) => [shown(full), decoder.decode(data)] as const,
+        ),
+      ),
+  }
+}
+
+/** Apply `text` to a workspace with one file, `a.txt`, and read it back. */
+async function patchFile(content: string, text: string) {
+  const files = workspace({ 'a.txt': content })
+  await files.run(text)
+  return files.files()['a.txt']
+}
+
+describe('parsePatch', () => {
+  it('reads added, deleted, and updated files, and a move', () => {
+    const text = patch(
+      '*** Add File: src/new.ts',
+      '+export const a = 1',
+      '+',
+      '*** Delete File: old.txt',
+      '*** Update File: src/app.ts',
+      '*** Move to: src/main.ts',
+      '@@ function main() {',
+      ' const x = 1',
+      '-const y = 2',
+      '+const y = 3',
+    )
+    expect(parsePatch(text)).toEqual([
+      { type: 'add', path: 'src/new.ts', content: 'export const a = 1\n\n' },
+      { type: 'delete', path: 'old.txt' },
+      {
+        type: 'update',
+        path: 'src/app.ts',
+        movePath: 'src/main.ts',
+        chunks: [
+          {
+            context: 'function main() {',
+            oldLines: ['const x = 1', 'const y = 2'],
+            newLines: ['const x = 1', 'const y = 3'],
+            endOfFile: false,
+          },
+        ],
+      },
+    ])
+  })
+
+  it('reads several chunks, a first chunk without @@, End of File, and CRLF text', () => {
+    const text = patch(
+      '*** Update File: a.txt',
+      '-one',
+      '+1',
+      '@@',
+      ' two',
+      '',
+      '-three',
+      '*** End of File',
+    ).replaceAll('\n', '\r\n')
+    expect(parsePatch(text)).toEqual([
+      {
+        type: 'update',
+        path: 'a.txt',
+        chunks: [
+          {
+            oldLines: ['one'],
+            newLines: ['1'],
+            endOfFile: false,
+          },
+          {
+            oldLines: ['two', '', 'three'],
+            newLines: ['two', ''],
+            endOfFile: true,
+          },
+        ],
+      },
+    ])
+  })
+
+  it.each([
+    {
+      name: 'a missing begin line',
+      text: '\n*** Update File: a.txt\n*** End Patch',
+      error: 'Patch line 2: the patch must start with "*** Begin Patch".',
+    },
+    {
+      name: 'a missing end line',
+      text: '*** Begin Patch\n*** Delete File: a.txt\n',
+      error: 'Patch line 2: the patch must end with "*** End Patch".',
+    },
+    {
+      name: 'an unknown header',
+      text: patch('*** Rename File: a.txt'),
+      error:
+        'Patch line 2: expected "*** Add File:", "*** Delete File:", or "*** Update File:".',
+    },
+    {
+      name: 'an added line without +',
+      text: patch('*** Add File: a.txt', '+one', 'two'),
+      error: 'Patch line 4: each line of an added file must start with "+".',
+    },
+    {
+      name: 'a chunk line without a prefix',
+      text: patch('*** Update File: a.txt', '@@', ' one', 'two'),
+      error: 'Patch line 5: each chunk line must start with " ", "-", or "+".',
+    },
+    {
+      name: 'an update without changes',
+      text: patch('*** Update File: a.txt', '@@', '*** Delete File: b.txt'),
+      error: 'Patch line 2: "*** Update File: a.txt" has no changes.',
+    },
+    {
+      name: 'a header without a path',
+      text: patch('*** Add File: '),
+      error: 'Patch line 2: the path is missing.',
+    },
+  ])('refuses $name', ({ text, error }) => {
+    expect(() => parsePatch(text)).toThrow(error)
+  })
+})
+
+describe('patchPaths', () => {
+  it('lists every path, with the move targets', () => {
+    const text = patch(
+      '*** Add File: new.txt',
+      '+x',
+      '*** Delete File: old.txt',
+      '*** Update File: src/a.ts',
+      '*** Move to: src/b.ts',
+      '-x',
+    )
+    expect(patchPaths(text)).toEqual([
+      'new.txt',
+      'old.txt',
+      'src/a.ts',
+      'src/b.ts',
+    ])
+  })
+
+  it('throws when the patch does not parse', () => {
+    expect(() => patchPaths('*** Delete File: a.txt')).toThrow(
+      'Patch line 1: the patch must start with "*** Begin Patch".',
+    )
+  })
+})
+
+describe('patch tool', () => {
+  it('adds and updates files, and lists them', async () => {
+    const files = workspace({ 'src/a.ts': 'const a = 1\nconst b = 2\n' })
+    const result = await files.run(
+      patch(
+        '*** Add File: src/new.ts',
+        '+hello',
+        '*** Update File: src/a.ts',
+        '@@',
+        '-const b = 2',
+        '+const b = 3',
+      ),
+    )
+    expect(result).toBe(
+      'Applied the patch:\nadded src/new.ts\nupdated src/a.ts',
+    )
+    expect(files.files()).toEqual({
+      'src/a.ts': 'const a = 1\nconst b = 3\n',
+      'src/new.ts': 'hello\n',
+    })
+  })
+
+  it('searches from the @@ line', async () => {
+    const file =
+      'function a() {\n  return 1\n}\nfunction b() {\n  return 1\n}\n'
+    const text = patch(
+      '*** Update File: a.txt',
+      '@@ function b() {',
+      '-  return 1',
+      '+  return 2',
+    )
+    expect(await patchFile(file, text)).toBe(
+      'function a() {\n  return 1\n}\nfunction b() {\n  return 2\n}\n',
+    )
+  })
+
+  it('puts only added lines below the @@ line', async () => {
+    const text = patch('*** Update File: a.txt', '@@ two', '+two and a half')
+    expect(await patchFile('one\ntwo\nthree\n', text)).toBe(
+      'one\ntwo\ntwo and a half\nthree\n',
+    )
+  })
+
+  it('searches each chunk after the chunk before it', async () => {
+    // `x` is in the file twice, but once after the first chunk.
+    const text = patch(
+      '*** Update File: a.txt',
+      '@@',
+      '-a',
+      '+A',
+      '@@',
+      '-x',
+      '+X',
+    )
+    expect(await patchFile('x\na\nx\n', text)).toBe('x\nA\nX\n')
+  })
+
+  it('matches the end of the file after End of File', async () => {
+    const text = patch(
+      '*** Update File: a.txt',
+      '@@',
+      '-end',
+      '+END',
+      '*** End of File',
+    )
+    expect(await patchFile('end\nmiddle\nend\n', text)).toBe(
+      'end\nmiddle\nEND\n',
+    )
+  })
+
+  it('sees the changes of an earlier section on the same file', async () => {
+    const text = patch(
+      '*** Update File: a.txt',
+      '-one',
+      '+1',
+      '*** Update File: a.txt',
+      '-1',
+      '+uno',
+    )
+    expect(await patchFile('one\n', text)).toBe('uno\n')
+  })
+
+  it.each([
+    {
+      name: 'a CRLF file stays CRLF',
+      file: 'one\r\ntwo\r\nthree\r\n',
+      expected: 'one\r\n2\r\nthree\r\n',
+    },
+    {
+      name: 'a byte order mark stays',
+      file: '﻿one\ntwo\nthree\n',
+      expected: '﻿one\n2\nthree\n',
+    },
+    {
+      name: 'a file without a last line ending stays without it',
+      file: 'one\ntwo',
+      expected: 'one\n2',
+    },
+  ])('$name', async ({ file, expected }) => {
+    const text = patch('*** Update File: a.txt', '@@', ' one', '-two', '+2')
+    expect(await patchFile(file, text)).toBe(expected)
+  })
+
+  it('matches lines in another Unicode form', async () => {
+    // The file is in NFD form. The patch is in NFC form.
+    const file = 'café\nnaïve\n'
+    const text = patch('*** Update File: a.txt', '@@', '-café', '+tea')
+    expect(await patchFile(file, text)).toBe('tea\nnaïve\n')
+  })
+
+  it.each([
+    {
+      name: 'old lines that are not in the file',
+      file: 'x\nmid\nx\n',
+      lines: ['@@', '-zzz', '+q'],
+      error: 'Chunk 1 of a.txt: the old lines are not in the file.',
+    },
+    {
+      name: 'old lines that are in the file twice',
+      file: 'x\nmid\nx\n',
+      lines: ['@@', '-x', '+y'],
+      error:
+        'Chunk 1 of a.txt: the old lines appear 2 times. Add context lines.',
+    },
+    {
+      name: 'an @@ line that is not in the file',
+      file: 'x\nmid\nx\n',
+      lines: ['@@ function nope() {', '-x', '+y'],
+      error: 'Chunk 1 of a.txt: "@@ function nope() {" is not in the file.',
+    },
+    {
+      // The file has `x` only at the end of the line `ax`.
+      name: 'old lines that start inside a line',
+      file: 'ax\nb\n',
+      lines: ['@@', '-x', '+y'],
+      error: 'Chunk 1 of a.txt: the old lines are not in the file.',
+    },
+  ])('refuses $name, and changes nothing', async ({ file, lines, error }) => {
+    const files = workspace({ 'a.txt': file })
+    await expect(
+      files.run(patch('*** Update File: a.txt', ...lines)),
+    ).rejects.toThrow(error)
+    expect(files.files()).toEqual({ 'a.txt': file })
+  })
+
+  it('changes no file, and sends no event, when a later file does not fit', async () => {
+    const files = workspace({ 'a.txt': 'a\n', 'b.txt': 'b\n' })
+    const text = patch(
+      '*** Update File: a.txt',
+      '-a',
+      '+A',
+      '*** Add File: c.txt',
+      '+c',
+      '*** Update File: b.txt',
+      '-zzz',
+      '+Z',
+    )
+    await expect(files.run(text)).rejects.toThrow(
+      'Chunk 1 of b.txt: the old lines are not in the file.',
+    )
+    expect(files.files()).toEqual({ 'a.txt': 'a\n', 'b.txt': 'b\n' })
+    expect(files.written).toEqual([])
+    expect(files.changes).toEqual([])
+  })
+
+  it('changes no file when an added file is a folder', async () => {
+    const files = workspace({ 'a.txt': 'a\n' }, { dirs: ['src'] })
+    const text = patch(
+      '*** Update File: a.txt',
+      '-a',
+      '+A',
+      '*** Add File: src',
+      '+c',
+    )
+    await expect(files.run(text)).rejects.toThrow(
+      'Cannot add src: it is a folder.',
+    )
+    expect(files.files()).toEqual({ 'a.txt': 'a\n' })
+  })
+
+  it('checks every file with beforeWrite, and a refusal writes nothing', async () => {
+    const files = workspace(
+      { 'a.txt': 'a\n', 'b.txt': 'b\n', 'c.txt': 'c\n' },
+      { protect: ['c.txt'] },
+    )
+    await expect(
+      files.run(
+        patch(
+          '*** Update File: a.txt',
+          '-a',
+          '+A',
+          '*** Delete File: b.txt',
+          '*** Update File: c.txt',
+          '-c',
+          '+C',
+        ),
+      ),
+    ).rejects.toThrow('c.txt is protected.')
+    expect(files.checked).toEqual(['a.txt', 'b.txt', 'c.txt'])
+    expect(files.written).toEqual([])
+    expect(files.files()).toEqual({
+      'a.txt': 'a\n',
+      'b.txt': 'b\n',
+      'c.txt': 'c\n',
+    })
+  })
+
+  it('runs the afterWrite hook once for each written file', async () => {
+    const files = workspace({ 'a.txt': 'a\n', 'b.txt': 'b\n' })
+    await files.run(
+      patch(
+        '*** Update File: a.txt',
+        '-a',
+        '+A',
+        '*** Update File: b.txt',
+        '-b',
+        '+B',
+        '*** Update File: a.txt',
+        '-A',
+        '+AA',
+      ),
+    )
+    expect(files.written).toEqual(['a.txt', 'b.txt'])
+  })
+
+  it('deletes a file, and runs no hook for it', async () => {
+    const files = workspace({ 'a.txt': 'a\n', 'b.txt': 'b\n' })
+    const result = await files.run(
+      patch('*** Add File: c.txt', '+c', '*** Delete File: a.txt'),
+    )
+    expect(result).toBe('Applied the patch:\nadded c.txt\ndeleted a.txt')
+    expect(files.files()).toEqual({ 'b.txt': 'b\n', 'c.txt': 'c\n' })
+    expect(files.written).toEqual(['c.txt'])
+  })
+
+  it('moves a file, and applies its chunks', async () => {
+    const files = workspace({ 'a.txt': 'one\ntwo\n' })
+    const result = await files.run(
+      patch(
+        '*** Update File: a.txt',
+        '*** Move to: src/b.txt',
+        '@@',
+        ' one',
+        '-two',
+        '+2',
+      ),
+    )
+    expect(result).toBe('Applied the patch:\nmoved a.txt to src/b.txt')
+    expect(files.files()).toEqual({ 'src/b.txt': 'one\n2\n' })
+    expect(files.written).toEqual(['src/b.txt'])
+  })
+
+  it.each([
+    {
+      name: 'a delete of a missing file',
+      lines: ['*** Delete File: missing.txt'],
+      error: 'Cannot delete missing.txt: no such file.',
+    },
+    {
+      name: 'a move onto a file that is there',
+      lines: ['*** Update File: a.txt', '*** Move to: b.txt'],
+      error: 'Cannot move a.txt to b.txt: b.txt already exists.',
+    },
+  ])('refuses $name, and changes nothing', async ({ lines, error }) => {
+    const before = { 'a.txt': 'a\n', 'b.txt': 'b\n', 'd.txt': 'd\n' }
+    const files = workspace(before)
+    await expect(
+      files.run(
+        patch('*** Add File: c.txt', '+c', '*** Delete File: d.txt', ...lines),
+      ),
+    ).rejects.toThrow(error)
+    expect(files.files()).toEqual(before)
+  })
+
+  it.each([
+    {
+      name: 'a delete',
+      lines: ['*** Delete File: a.txt'],
+      error: 'Cannot delete a.txt: the workspace cannot remove files.',
+    },
+    {
+      name: 'a move',
+      lines: ['*** Update File: a.txt', '*** Move to: b.txt'],
+      error: 'Cannot move a.txt: the workspace cannot remove files.',
+    },
+  ])(
+    'refuses $name when the backend cannot remove files, and changes nothing',
+    async ({ lines, error }) => {
+      const files = workspace({ 'a.txt': 'a\n' }, { canRemove: false })
+      await expect(
+        files.run(patch('*** Add File: c.txt', '+c', ...lines)),
+      ).rejects.toThrow(error)
+      expect(files.files()).toEqual({ 'a.txt': 'a\n' })
+    },
+  )
+})
+
+describe('FileChanged of the patch tool', () => {
+  it('sends one event for each added, updated, and deleted file', async () => {
+    const files = workspace({ 'a.txt': 'a\n', 'b.txt': 'b\n' })
+    await files.run(
+      patch(
+        '*** Add File: c.txt',
+        '+c',
+        '*** Update File: a.txt',
+        '-a',
+        '+A',
+        '*** Delete File: b.txt',
+      ),
+    )
+    // No tool call id: a call from code mode sends the events too.
+    expect(files.changes).toEqual([
+      {
+        path: join(root, 'c.txt'),
+        change: 'created',
+        patch: diff(
+          'diff --git a/c.txt b/c.txt',
+          'new file mode 100644',
+          '--- /dev/null',
+          '+++ b/c.txt',
+          '@@ -0,0 +1 @@',
+          '+c',
+        ),
+        additions: 1,
+        deletions: 0,
+      },
+      {
+        path: join(root, 'a.txt'),
+        change: 'updated',
+        patch: diff(
+          'diff --git a/a.txt b/a.txt',
+          '--- a/a.txt',
+          '+++ b/a.txt',
+          '@@ -1 +1 @@',
+          '-a',
+          '+A',
+        ),
+        additions: 1,
+        deletions: 1,
+      },
+      {
+        path: join(root, 'b.txt'),
+        change: 'deleted',
+        patch: diff(
+          'diff --git a/b.txt b/b.txt',
+          'deleted file mode 100644',
+          '--- a/b.txt',
+          '+++ /dev/null',
+          '@@ -1 +0,0 @@',
+          '-b',
+        ),
+        additions: 0,
+        deletions: 1,
+      },
+    ])
+  })
+
+  it('sends one moved event for a move, with the old path', async () => {
+    const files = workspace({ 'a.txt': 'one\ntwo\n' })
+    await files.run(
+      patch(
+        '*** Update File: a.txt',
+        '*** Move to: src/b.txt',
+        '@@',
+        ' one',
+        '-two',
+        '+2',
+      ),
+    )
+    expect(files.changes).toEqual([
+      {
+        path: join(root, 'src', 'b.txt'),
+        change: 'moved',
+        from: join(root, 'a.txt'),
+        patch: diff(
+          'diff --git a/a.txt b/src/b.txt',
+          'rename from a.txt',
+          'rename to src/b.txt',
+          '--- a/a.txt',
+          '+++ b/src/b.txt',
+          '@@ -1,2 +1,2 @@',
+          ' one',
+          '-two',
+          '+2',
+        ),
+        additions: 1,
+        deletions: 1,
+      },
+    ])
+  })
+
+  it.each([
+    {
+      name: 'an add that replaces a file, against the old text',
+      lines: ['*** Add File: a.txt', '+new'],
+    },
+    {
+      name: 'a file that two sections change, against its text before the patch',
+      lines: [
+        '*** Update File: a.txt',
+        '-old',
+        '+between',
+        '*** Update File: a.txt',
+        '-between',
+        '+new',
+      ],
+    },
+  ])('sends updated for $name', async ({ lines }) => {
+    const files = workspace({ 'a.txt': 'old\n' })
+    await files.run(patch(...lines))
+    expect(files.changes).toEqual([
+      {
+        path: join(root, 'a.txt'),
+        change: 'updated',
+        patch: diff(
+          'diff --git a/a.txt b/a.txt',
+          '--- a/a.txt',
+          '+++ b/a.txt',
+          '@@ -1 +1 @@',
+          '-old',
+          '+new',
+        ),
+        additions: 1,
+        deletions: 1,
+      },
+    ])
+  })
+
+  it('sends no patch for a binary file', async () => {
+    const files = workspace({ 'a.bin': 'x\0y' })
+    await files.run(patch('*** Delete File: a.bin'))
+    expect(files.changes).toEqual([
+      {
+        path: join(root, 'a.bin'),
+        change: 'deleted',
+        additions: 0,
+        deletions: 0,
+      },
+    ])
+  })
+})

@@ -80,7 +80,17 @@ const stream = chat({
 })
 ```
 
-`scrubEnv` removes keys that the host process inherited. If the CLI sees `XAI_API_KEY`, it can use that key and not your login.
+`scrubEnv` removes keys from the env of each command, for example a key that a workspace secret sets. If the CLI sees `XAI_API_KEY`, it can use that key and not your login. The keys of the host process do not reach the command.
+
+The command gets only a few variables of the host process. If your login or your network needs more, for example `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `HTTPS_PROXY`, or `SSH_AUTH_SOCK`, name them in `passEnv`:
+
+```ts
+import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
+
+const provider = localProcessSandbox({
+  passEnv: ['CODEX_HOME', 'HTTPS_PROXY'],
+})
+```
 
 ## What each harness reads
 
@@ -91,7 +101,7 @@ const stream = chat({
 | [Codex](../adapters/codex) | `CODEX_API_KEY` | `codex login` |
 | [ACP-Compatible](../adapters/acp-compatible) | Set `authMethodId` (for Grok, `xai.api_key`). | Skips ACP `authenticate`. |
 
-OpenCode reads `OPENAI_API_KEY` from the process env. It has no `authMode` flag.
+OpenCode reads `OPENAI_API_KEY` from its env. It has no `authMode` flag. On local-process, the key of the host process does not reach it: set the key as a workspace secret or with `env.set`.
 
 ## Let the user pick (client and server)
 
@@ -164,4 +174,4 @@ export async function POST(request: Request) {
 
 The server accepts only `'host'` or `'api-key'`. Any other value falls back to `'api-key'`.
 
-To pick the agent, see [Harnesses](./harnesses). For `scrubEnv` and other local-process options, see [Providers (Advanced)](./providers-advanced#local-process).
+To pick the agent, see [Harnesses](./harnesses). For `scrubEnv`, `passEnv`, and other local-process options, see [Providers (Advanced)](./providers-advanced#local-process).

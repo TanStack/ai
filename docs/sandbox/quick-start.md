@@ -169,7 +169,7 @@ for await (const chunk of stream) {
 ```
 
 - `authMode: 'host'` tells the adapter to use your `grok login`.
-- `scrubEnv` removes API keys that the host process inherited. If those keys stay, they override the login.
+- `scrubEnv` removes API keys from the env of each command. If those keys stay, they override the login.
 
 On a CI runner there is no browser login. There, set `authMode: 'api-key'` and pass `XAI_API_KEY` as a workspace secret. See [Harness Auth](./auth).
 

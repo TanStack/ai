@@ -236,25 +236,30 @@ export class SbxHandle implements SandboxHandle {
       spawn: (command, opts) => this.spawnProcess(command, opts),
     }
 
+    // The native file calls take no abort signal, so each call checks it first.
     this.fs = {
-      read: async (p) => {
+      read: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const r = await this.exec(`base64 ${q(this.abs(p))}`)
         if (r.exitCode !== 0) throw new Error(`read failed: ${r.stderr.trim()}`)
         return Buffer.from(r.stdout, 'base64').toString('utf8')
       },
-      readBytes: async (p) => {
+      readBytes: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const r = await this.exec(`base64 ${q(this.abs(p))}`)
         if (r.exitCode !== 0) throw new Error(`read failed: ${r.stderr.trim()}`)
         return new Uint8Array(Buffer.from(r.stdout, 'base64'))
       },
-      write: async (p, data) => {
+      write: async (p, data, o) => {
+        o?.signal?.throwIfAborted()
         for (const command of fsWriteCommands(this.abs(p), data)) {
           const r = await this.exec(command)
           if (r.exitCode !== 0)
             throw new Error(`write failed: ${r.stderr.trim()}`)
         }
       },
-      list: async (p) => {
+      list: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const r = await this.exec(`ls -1Ap ${q(this.abs(p))}`)
         if (r.exitCode !== 0) throw new Error(`list failed: ${r.stderr.trim()}`)
         return r.stdout
@@ -270,22 +275,26 @@ export class SbxHandle implements SandboxHandle {
             }
           })
       },
-      mkdir: async (p) => {
+      mkdir: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const r = await this.exec(`mkdir -p ${q(this.abs(p))}`)
         if (r.exitCode !== 0)
           throw new Error(`mkdir failed: ${r.stderr.trim()}`)
       },
-      remove: async (p) => {
+      remove: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const r = await this.exec(`rm -rf ${q(this.abs(p))}`)
         if (r.exitCode !== 0)
           throw new Error(`remove failed: ${r.stderr.trim()}`)
       },
-      rename: async (from, to) => {
+      rename: async (from, to, o) => {
+        o?.signal?.throwIfAborted()
         const r = await this.exec(`mv ${q(this.abs(from))} ${q(this.abs(to))}`)
         if (r.exitCode !== 0)
           throw new Error(`rename failed: ${r.stderr.trim()}`)
       },
-      exists: async (p) => {
+      exists: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const r = await this.exec(`test -e ${q(this.abs(p))}`)
         // `exec` uses allowNonZero, so login/transport must not look like a miss.
         if (isLoginOrTransportError(r.stderr)) {

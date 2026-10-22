@@ -19,17 +19,17 @@ This page covers the details of compaction that you need only for special cases.
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `maxTokens` | `number` | - | **Required.** Compact when the token count of `messages` passes this. See `countTokens`. |
+| `maxTokens` | `number \| (ctx: { model }) => number` | - | **Required.** Compact when the token count of `messages` passes this. See `countTokens`. A function gives the limit for the model of the call. See [A limit for each model](#a-limit-for-each-model). |
 | `strategy` | `CompactionStrategy` | `evictOldest()` | How to shrink the messages. |
 | `estimateTokens` | `(message: ModelMessage) => number` | characters / 4 | The token estimate for one message. Pass a real tokenizer to get exact counts. |
 | `strategyKey` | `string` | identity of the built-in strategy | A stable identity for checkpoints. Set it for custom strategies, custom estimators, or a custom eviction marker. Change it when your `summarize` function can change. |
 | `onCompact` | `(info: CompactionInfo) => void` | - | Runs after each compaction. See [onCompact](#oncompact). |
 | `countTokens` | `'estimate' \| 'usage'` | `'estimate'` | `'usage'` counts with the usage that the provider reported for the last call. See [Count with real usage](#count-with-real-usage). |
 | `auto` | `boolean` | `true` | `false` turns off compaction at `maxTokens`. `compactNext`, the overflow retry, and the check after a run still compact. |
-| `contextWindow` | `number` | - | The context window of the model. See [Set the limit from the context window](#set-the-limit-from-the-context-window). |
+| `contextWindow` | `number \| (ctx: { model }) => number` | - | The context window of the model. See [Set the limit from the context window](#set-the-limit-from-the-context-window). |
 | `durable` | `boolean` | `false` | On a host with a session log, write the result into the log. See [Keep compaction in a session log](#keep-compaction-in-a-session-log). |
 | `continueOnError` | `boolean` | `false` | When the strategy fails, send the full messages and continue. By default the run fails. |
-| `background` | `{ atTokens: number }` | - | Prepare the summary when the count passes `atTokens`, and apply it at the next run. See [Prepare the summary in the background](#prepare-the-summary-in-the-background). |
+| `background` | `{ atTokens: number \| (ctx: { model }) => number }` | - | Prepare the summary when the count passes `atTokens`, and apply it at the next run. See [Prepare the summary in the background](#prepare-the-summary-in-the-background). |
 | `native` | `{ compact?: (options) => Promise<ModelMessage[]> }` | - | The adapter of the `chat()` call. When it has `compact`, the provider compacts in place of `strategy`. See [Let the provider compact](./compaction#let-the-provider-compact). |
 
 ### Strategy options
@@ -200,6 +200,27 @@ On a host with a [session log](#keep-compaction-in-a-session-log), compaction wi
 - The answer is not sent again. The only extra model calls are the summary calls.
 - Without a session log, there is no check after a run. The next request compacts before its first model call.
 
+### A limit for each model
+
+A thread can change its model. To give each model its own limit, pass a function. It gets the model of the call and gives the limit:
+
+```ts
+import { withCompaction } from '@tanstack/ai-compaction'
+
+const windows: Record<string, number> = { 'gpt-6.1-sol': 1_050_000 }
+const windowOf = ({ model }: { model: string }) => windows[model] ?? 200_000
+
+const perModel = withCompaction({
+  maxTokens: (ctx) => windowOf(ctx) - 20_000,
+  contextWindow: windowOf,
+  background: { atTokens: (ctx) => windowOf(ctx) - 50_000 },
+})
+```
+
+- `maxTokens`, `contextWindow`, and `background.atTokens` each take a number or a function.
+- The function runs once for each model call.
+- The checkpoint key holds the value of `maxTokens` for the call, so each limit keeps its own checkpoint.
+
 ## Prepare the summary in the background
 
 A `summarizeOldest` call takes time. When compaction runs at `maxTokens`, the user waits for that call before the model answers. Set `background` to prepare the summary earlier, while the chat continues:
@@ -241,7 +262,7 @@ export async function POST(request: Request) {
 
 How the background summary runs:
 
-- `atTokens` must be less than `maxTokens`. If it is not, `withCompaction` throws.
+- `atTokens` must be less than `maxTokens`. If both are numbers and it is not, `withCompaction` throws. If a function gives an `atTokens` that is not less, no summary starts at that call.
 - When the count at a model call passes `atTokens`, the summary starts on a copy of the messages. The model call does not wait for it.
 - The ready summary waits in the [`metadata` store](#checkpoints), under the namespace `@tanstack/ai-compaction:background`. Without a store, it waits in memory.
 - The summary applies at the first model call of the next run on the same `threadId`, never in the middle of a run.
@@ -250,6 +271,7 @@ How the background summary runs:
 Sometimes a summary does not apply:
 
 - A newer compaction cut past the message that the summary keeps. The summary is dropped and reported with `stale: true`.
+- The next run calls another model than the one that started the summary. The summary is dropped and reported with `stale: true`.
 - The summary call failed. Nothing applies, and the failure is reported with `error`. The next model call past `atTokens` starts a new summary.
 
 `onCompact` always gets these reports. A `compaction:ended` event for a failed summary reaches the stream only while the run that started the summary still runs.
@@ -308,6 +330,7 @@ const agentCompaction = withCompaction({
 ```
 
 - In the text that goes to the summarizer, each tool result is cut to 2,000 characters. Set `maxToolResultChars` to change this limit.
+- The summary call runs only its own usage count. To let your cost ledger or traces see it, pass them in `middleware`: `conversationSummarizer({ adapter, middleware: [ledger] })`.
 - Your own `summarize` function gets a second argument, `summarize(messages, input)`:
   - `previousSummary` and `previousDetails`: the older summary and its details.
   - `turnPrefix`: `true` when the call summarizes the start of the current turn.

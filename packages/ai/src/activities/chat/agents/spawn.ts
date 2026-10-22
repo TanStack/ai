@@ -12,14 +12,24 @@ import {
 import { mergeStreams } from '../../../utilities/merge-streams'
 import { SUBAGENT_INPUT_KEY } from '../../../utilities/subagent-wire'
 import { INTERRUPT_BINDING_METADATA_KEY } from '../../../interrupt-resume'
-import { EMIT_STREAM_CHUNK, SUBAGENT_TOOL } from '../tools/tool-calls'
+import { INTERRUPT_BINDING_VERSION } from '../../../interrupts'
+import { INTERRUPT_PAYLOAD_METADATA_KEY } from '../../../interrupt-definition'
+import {
+  EMIT_STREAM_CHUNK,
+  SUBAGENT_TOOL,
+  inputRequestReason,
+  isMcpInputRequired,
+} from '../tools/tool-calls'
 import {
   convertSchemaToJsonSchema,
   isStandardSchema,
 } from '../tools/schema-converter'
 import { getLoadChild } from '../middleware/load-child'
 import type { LoadChild } from '../middleware/load-child'
-import type { SubagentToolOutcome } from '../tools/tool-calls'
+import type {
+  McpInputRequiredThrow,
+  SubagentToolOutcome,
+} from '../tools/tool-calls'
 import type { SpecTokenUsage } from '../../../utilities/ag-ui-usage'
 import type {
   StandardJSONSchemaV1,
@@ -34,6 +44,7 @@ import type {
   StreamChunk,
   SubagentErrorEvent,
   SubagentFinishedEvent,
+  SubagentPart,
   SubagentStartedEvent,
   TokenUsage,
   Tool,
@@ -52,6 +63,11 @@ import type {
   SubagentRunInput,
 } from './define-agent'
 import type { ChatMiddleware } from '../middleware/types'
+import { subagentCards } from './turn'
+import {
+  convertMessagesToModelMessages,
+  modelMessagesToUIMessages,
+} from '../messages'
 import type { SubagentTurn } from './turn'
 
 export const SUBAGENT_STARTED = EventType.SUBAGENT_STARTED
@@ -125,6 +141,8 @@ export interface SubagentsBag<
   /**
    * What a host adds to every activity call a child makes through `ctx`
    * (`ctx.chat`, `ctx.generateImage`, and the rest). Apps do not set it.
+   *
+   * @internal For hosts that run agents, such as `@tanstack/ai-harness`.
    */
   binding?: SubagentBinding
   /**
@@ -693,7 +711,8 @@ function* valueResultChunks(
 
 /**
  * Build the context `run` receives: the spawn input plus `forward`, the
- * provider keys, and the bound activity functions.
+ * provider keys, the bound activity functions, and the fields of
+ * `binding.extend`.
  */
 function runContext(
   agentName: string,
@@ -701,7 +720,7 @@ function runContext(
   abortController: AbortController,
   binding?: SubagentBinding,
 ) {
-  return {
+  const ctx = {
     ...input,
     forward: {
       threadId: input.threadId,
@@ -719,6 +738,7 @@ function runContext(
     keys: binding?.keys ?? envProviderKeys,
     ...createBoundActivities(agentName, input, abortController, binding),
   } satisfies SubagentRunContext
+  return binding?.extend ? { ...ctx, ...binding.extend(ctx) } : ctx
 }
 
 /**
@@ -857,6 +877,19 @@ export async function* spawnAgentStream(
       timestamp: Date.now(),
     } satisfies SubagentFinishedEvent
   } catch (error) {
+    // `run` threw the shape of MCPInputRequiredError: the child stops for
+    // outside input, as a tool does. The parent run waits with it.
+    if (isMcpInputRequired(error) && !ctx.abortSignal?.aborted) {
+      const interrupt = inputInterrupt(error, id, agent.name)
+      sink?.interrupts.push(interrupt)
+      yield {
+        type: SUBAGENT_FINISHED,
+        subagentRunId: id,
+        outcome: { type: 'suspended', interruptIds: [interrupt.id] },
+        timestamp: Date.now(),
+      } satisfies SubagentFinishedEvent
+      return
+    }
     yield {
       type: SUBAGENT_ERROR,
       subagentRunId: id,
@@ -874,6 +907,43 @@ export async function* spawnAgentStream(
       // Child stream may already be closed or aborted.
     }
     link.dispose()
+  }
+}
+
+/**
+ * The interrupt of an input request that the `run` of child `subagentRunId`
+ * threw. It has the shape of an `mcp_input` interrupt, with no tool call.
+ * Its id is the request's `interruptId`, so a child that asks more than once
+ * names each question. The message is the error message.
+ */
+function inputInterrupt(
+  error: McpInputRequiredThrow,
+  subagentRunId: string,
+  agentName: string,
+): Interrupt {
+  const own = Reflect.get(error, 'interruptId')
+  const id = typeof own === 'string' ? own : `mcp_input_${subagentRunId}`
+  const message = Reflect.get(error, 'message')
+  const reason = inputRequestReason(error.reason)
+  return {
+    id,
+    reason: reason ?? 'mcp_input',
+    message:
+      typeof message === 'string' && message !== ''
+        ? message
+        : `Input required to run ${agentName}`,
+    subagentRunId,
+    metadata: {
+      [INTERRUPT_BINDING_METADATA_KEY]: {
+        v: INTERRUPT_BINDING_VERSION,
+        kind: 'generic',
+        interruptId: id,
+      },
+      [INTERRUPT_PAYLOAD_METADATA_KEY]: {
+        kind: error.kind,
+        request: error.request,
+      },
+    },
   }
 }
 
@@ -1168,6 +1238,91 @@ function readCall(
   }
 }
 
+function toolCallIds(messages: ReadonlyArray<UIMessage | ModelMessage>) {
+  return new Set(
+    messages.flatMap((message) =>
+      'parts' in message
+        ? message.parts.flatMap((part) =>
+            part.type === 'tool-call' ? [part.id] : [],
+          )
+        : (message.toolCalls ?? []).map((call) => call.id),
+    ),
+  )
+}
+
+/** `messages` as UI messages, each card on the message that holds its tool call. */
+function withCards(
+  messages: Array<UIMessage | ModelMessage>,
+  cards: ReadonlyArray<SubagentPart>,
+): Array<UIMessage> {
+  return modelMessagesToUIMessages(
+    convertMessagesToModelMessages(messages),
+  ).map((message) => {
+    const own = cards.filter((part) =>
+      message.parts.some(
+        (entry) =>
+          entry.type === 'tool-call' &&
+          entry.id === part.subagent.parentToolCallId,
+      ),
+    )
+    return own.length > 0
+      ? { ...message, parts: [...message.parts, ...own] }
+      : message
+  })
+}
+
+/**
+ * The cards of the waiting nested children of a waiting child. The store
+ * keeps a nested child in its own transcript, so the stored `pending` of the
+ * child has no card for it. Each card is rebuilt from the store: the client
+ * `card` gives only the id. A forged card cannot change the nested messages,
+ * and can name only a child that this child started from a tool call in
+ * `pending`.
+ */
+async function storedNestedCards(
+  card: ReadonlyArray<UIMessage | ModelMessage>,
+  pending: ReadonlyArray<UIMessage | ModelMessage>,
+  parentSubagentRunId: string,
+  load: LoadChild,
+): Promise<Array<SubagentPart>> {
+  const waiting = subagentCards(card).filter(
+    (child) => child.status === 'suspended',
+  )
+  if (waiting.length === 0) return []
+  const calls = toolCallIds(pending)
+  return Promise.all(
+    waiting.map(async (child): Promise<SubagentPart> => {
+      const id = child.subagentRunId
+      const stored = await load(id, { parentSubagentRunId })
+      const parentToolCallId = stored?.parentToolCallId
+      if (
+        !stored?.pending ||
+        parentToolCallId === undefined ||
+        !calls.has(parentToolCallId)
+      ) {
+        throw new Error(`Subagent run "${id}" is not waiting in this thread.`)
+      }
+      const nested = await storedNestedCards(
+        child.messages,
+        stored.pending,
+        id,
+        load,
+      )
+      return {
+        type: 'subagent',
+        subagent: {
+          id,
+          name: stored.agent ?? child.name,
+          status: 'suspended',
+          interruptIds: stored.interruptIds ?? [],
+          parentToolCallId,
+          messages: withCards(stored.pending, nested),
+        },
+      }
+    }),
+  )
+}
+
 export function createSyntheticSubagentTools(
   bag: SubagentsBag,
   parent: {
@@ -1214,15 +1369,26 @@ export function createSyntheticSubagentTools(
     // came from the client, which could change a tool call before it answers
     // the interrupt of that call.
     const load = parent.childLoader?.()
-    const pending =
+    const stored =
       suspended && load
         ? (await load(suspended.subagentRunId))?.pending
         : undefined
-    if (suspended && load && !pending) {
+    if (suspended && load && !stored) {
       throw new Error(
         `Subagent run "${suspended.subagentRunId}" is not waiting in this thread.`,
       )
     }
+    const nested =
+      suspended && load && stored
+        ? await storedNestedCards(
+            suspended.messages,
+            stored,
+            suspended.subagentRunId,
+            load,
+          )
+        : []
+    const pending =
+      stored && nested.length > 0 ? withCards(stored, nested) : stored
     const entry: SpawnEntry = {
       ...child,
       ...(suspended && {
