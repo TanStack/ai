@@ -130,11 +130,21 @@ export interface ToolBridgeCore {
   callTool: (name: string, args: unknown) => Promise<ToolCallResult>
 }
 
-/** Build the transport-agnostic bridge core for the given tools. */
+/**
+ * Build the transport-agnostic bridge core for the given tools. Throws if a
+ * tool has `needsApproval`: the bridge runs tools out-of-band and cannot pause
+ * the run for an approval round-trip.
+ */
 export function createToolBridgeCore(
   tools: Array<AnyTool>,
   options: ToolBridgeCoreOptions,
 ): ToolBridgeCore {
+  const gated = tools.find((tool) => tool.needsApproval)
+  if (gated) {
+    throw new Error(
+      `Tool "${gated.name}" has needsApproval, which harness adapters do not support. Remove needsApproval or use an HTTP adapter.`,
+    )
+  }
   const toolsByName = new Map(tools.map((tool) => [tool.name, tool]))
   const permission = options.permission
 

@@ -130,6 +130,20 @@ describe('createToolBridgeCore', () => {
     expect(seen).toMatchObject({ threadId: 'thread-7' })
   })
 
+  it('refuses a tool with needsApproval instead of running it unapproved', () => {
+    let ran = false
+    const gated = {
+      ...tool('deleteUser', () => {
+        ran = true
+      }),
+      needsApproval: true,
+    }
+    expect(() =>
+      createToolBridgeCore([gated], { threadId: 'thread-1' }),
+    ).toThrow(/"deleteUser" has needsApproval/)
+    expect(ran).toBe(false)
+  })
+
   it('throws for an unknown tool', async () => {
     const core = createToolBridgeCore([], { threadId: 'thread-1' })
     await expect(core.callTool('ghost', {})).rejects.toThrow(/Unknown tool/)

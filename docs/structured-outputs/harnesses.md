@@ -250,7 +250,7 @@ OpenCode, Grok Build, and `acpCompatible` parse JSON from the last assistant mes
 Harness adapters run tools inside the sandbox. They do not pause for a round trip to the browser:
 
 - A tool with no server `execute()` is still listed to the agent. When the agent calls it, the bridge returns an `Unknown tool` error to the agent, and the run goes on.
-- A tool with `needsApproval` runs with no approval. The bridge ignores the flag and calls `execute()` directly.
+- A tool with `needsApproval` stops the run before the agent starts. The bridge cannot pause for approval, so it throws an error and does not run the tool.
 
 For approval gates or client tools, use [With Tools](./with-tools) with an HTTP adapter.
 
