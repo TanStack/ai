@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   InMemoryTransport,
+  StreamableHTTPClientTransport,
   SUPPORTED_PROTOCOL_VERSIONS,
 } from '@modelcontextprotocol/client'
 import { Server } from '@modelcontextprotocol/server'
@@ -1072,3 +1073,91 @@ async function makeProgressServer() {
   await server.connect(serverTransport)
   return { server, clientTransport, sawProgressToken: () => sawToken }
 }
+
+describe('spec 2026 Mcp-Param headers', () => {
+  // A strict spec 2026 HTTP server, like GitHub's. It rejects a tools/call
+  // whose Mcp-Param-Region header is missing or differs from the argument.
+  function strictHeaderServer() {
+    const regions: Array<string | null> = []
+    const tool = {
+      name: 'lookup',
+      inputSchema: {
+        type: 'object',
+        properties: { region: { type: 'string', 'x-mcp-header': 'Region' } },
+        required: ['region'],
+      },
+    }
+    const transport = new StreamableHTTPClientTransport(
+      new URL('https://fixture.example/mcp'),
+      {
+        protocolVersion: '2026-07-28',
+        fetch: async (_url, init) => {
+          if (typeof init?.body !== 'string') {
+            return new Response(null, { status: 405 })
+          }
+          const body = JSON.parse(init.body)
+          if (body.id === undefined) return new Response(null, { status: 202 })
+          if (body.method === 'tools/call') {
+            const region = new Headers(init.headers).get('Mcp-Param-Region')
+            regions.push(region)
+            if (region !== body.params.arguments.region) {
+              return Response.json(
+                {
+                  jsonrpc: '2.0',
+                  id: body.id,
+                  error: { code: -32020, message: 'Mcp-Param-Region mismatch' },
+                },
+                { status: 400 },
+              )
+            }
+          }
+          const result =
+            body.method === 'server/discover'
+              ? {
+                  supportedVersions: ['2026-07-28'],
+                  serverInfo: { name: 'fixture', version: '1' },
+                  capabilities: { tools: {} },
+                }
+              : body.method === 'tools/list'
+                ? { tools: [tool] }
+                : { content: [{ type: 'text', text: 'ok' }] }
+          return Response.json({
+            jsonrpc: '2.0',
+            id: body.id,
+            result: {
+              resultType: 'complete',
+              ttlMs: 0,
+              cacheScope: 'private',
+              ...result,
+            },
+          })
+        },
+      },
+    )
+    return { transport, regions }
+  }
+
+  it('sends the x-mcp-header argument as a header from tools()', async () => {
+    const { transport, regions } = strictHeaderServer()
+    const mcp = await createMCPClient({ transport })
+    try {
+      const [tool] = await mcp.tools()
+      await expect(tool!.execute!({ region: 'eu' })).resolves.toBe('ok')
+      expect(regions).toEqual(['eu'])
+    } finally {
+      await mcp.close()
+    }
+  })
+
+  it('sends the x-mcp-header argument as a header from callTool()', async () => {
+    const { transport, regions } = strictHeaderServer()
+    const mcp = await createMCPClient({ transport })
+    try {
+      const result = await mcp.callTool('lookup', { region: 'eu' })
+      expect(result.content).toEqual([{ type: 'text', text: 'ok' }])
+      expect(regions).toEqual(['eu'])
+    } finally {
+      await mcp.close()
+    }
+  })
+})

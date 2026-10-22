@@ -368,8 +368,9 @@ class MCPClientImpl<TServer extends ServerDescriptor> implements Omit<
   // A raw list does not compile `jsonSchemaValidator`. On spec 2025, SDK
   // `callTool` then skips output checks. So `tools()` follows the raw walk
   // with `listTools()` to fill the SDK cache and run the validator.
-  // Spec 2026 calls use a raw tools/call, which never reads that cache,
-  // so the second walk is skipped there.
+  // Spec 2026 calls pass the listed input schema to `callTool` for the
+  // Mcp-Param-* headers, and do not read that cache. So the second walk is
+  // skipped there.
   // `raw: true` is the lazy `callTool` path. It must stay free of that cache.
   async #listTools(options?: { raw?: boolean }) {
     const client = this.#client
@@ -433,6 +434,7 @@ class MCPClientImpl<TServer extends ServerDescriptor> implements Omit<
             Boolean(def.outputSchema),
             requiresTaskExecution(serverTool),
             requestOptions,
+            serverTool.inputSchema,
           ),
         ) as ServerTool
         // A caller-supplied definition may already carry its own `mcp` block,
@@ -558,6 +560,7 @@ class MCPClientImpl<TServer extends ServerDescriptor> implements Omit<
       options?.signal,
       undefined,
       this.#policy.requestOptions,
+      definition?.inputSchema,
     )
     // Trust boundary: the server type says what `structuredContent` holds.
     // The client does not check the wire value against that type.
