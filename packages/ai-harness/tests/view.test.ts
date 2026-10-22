@@ -261,6 +261,48 @@ describe('createSessionView', () => {
     await host.close()
   })
 
+  it('ready settles with an error notice when the session is already closed', async () => {
+    const { host, session } = await open([])
+    await session.close()
+
+    const view = createSessionView(session)
+
+    await expect(view.ready).resolves.toBeUndefined()
+    expect(view.store.get().messages).toContainEqual(
+      expect.objectContaining({ role: 'notice', kind: 'error' }),
+    )
+    view.dispose()
+    await host.close()
+  })
+
+  it('ready settles when the reads of the first load throw at once', async () => {
+    const closed = () => {
+      throw new Error('The session is closed.')
+    }
+    const view = createSessionView({
+      send: closed,
+      resolve: closed,
+      cancel: closed,
+      answer: closed,
+      runCommand: closed,
+      setPluginSetting: closed,
+      events: async function* () {},
+      snapshot: closed,
+      transcript: closed,
+      describe: closed,
+    })
+
+    await expect(view.ready).resolves.toBeUndefined()
+    expect(view.store.get().messages).toContainEqual(
+      expect.objectContaining({
+        role: 'notice',
+        kind: 'error',
+        text: 'The session is closed.',
+      }),
+    )
+    view.dispose()
+  })
+
   it('shows history after a restart, then the notices added before ready', async () => {
     const persistence = memoryPersistence()
     const first = await open([() => text('Saved answer.')], persistence)

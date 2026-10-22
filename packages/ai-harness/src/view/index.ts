@@ -469,6 +469,14 @@ function isOperation(value: unknown): value is Operation<unknown> {
   )
 }
 
+/**
+ * The result of `read` as a promise. A throw becomes a rejection, so its
+ * `.catch` sees it: a closed session throws at once, before any promise.
+ */
+function promiseOf<T>(read: () => T | Promise<T>) {
+  return new Promise<T>((resolve) => resolve(read()))
+}
+
 /** Run `task` now, or once more after the running one ends. */
 function coalesce(task: () => Promise<void>) {
   let running = false
@@ -1165,7 +1173,7 @@ export function createSessionView(source: SessionViewSource) {
   }
 
   const ready = (async () => {
-    const describing = Promise.resolve(source.describe()).catch(
+    const describing = promiseOf(() => source.describe()).catch(
       (error: unknown) => {
         fail(error)
         return undefined
@@ -1173,16 +1181,18 @@ export function createSessionView(source: SessionViewSource) {
     )
     // The snapshot before the transcript: a turn that ends between the two
     // reads is in the transcript, and `replayed` drops its events.
-    const snapshot = await Promise.resolve(source.snapshot()).catch(
+    const snapshot = await promiseOf(() => source.snapshot()).catch(
       (error: unknown) => {
         fail(error)
         return undefined
       },
     )
-    const transcript = await source.transcript().catch((error: unknown) => {
-      fail(error)
-      return []
-    })
+    const transcript = await promiseOf(() => source.transcript()).catch(
+      (error: unknown) => {
+        fail(error)
+        return []
+      },
+    )
     const description = await describing
     if (disposed) return
     // History first, then anything a UI added before ready.
