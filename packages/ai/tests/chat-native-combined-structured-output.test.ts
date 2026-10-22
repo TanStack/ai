@@ -209,7 +209,10 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
       }),
-    ).rejects.toThrow()
+    ).rejects.toMatchObject({
+      code: 'structured-output-validation-failed',
+      rawText: JSON.stringify(invalid),
+    })
   })
 
   // #1426: a final turn cut off at the output cap is a truncation, not a

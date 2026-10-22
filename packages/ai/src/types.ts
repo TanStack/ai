@@ -4,7 +4,10 @@ import type {
 } from '@standard-schema/spec'
 import type { InternalLogger } from './logger/internal-logger'
 import type { SystemPrompt } from './system-prompts'
-import type { CapabilityContext } from './activities/chat/middleware/capabilities'
+import type {
+  Capability,
+  CapabilityContext,
+} from './activities/chat/middleware/capabilities'
 import type { InterruptSubmissionError } from './interrupts'
 import type { ReasoningRequest } from './reasoning'
 // The canonical usage types live in the leaf `@tanstack/ai-event-client`
@@ -713,6 +716,13 @@ export interface TanStackMessageMetadata {
    * message item's `id` and `phase` (`commentary` or `final_answer`).
    */
   responseItems?: Array<{ id: string; phase?: string }>
+  /**
+   * The model call of this assistant message sent a reasoning item. The
+   * OpenAI Responses adapter sets it. A replay that lost that reasoning item
+   * sends the message without its item ids, because the API refuses a
+   * `msg_`/`fc_` item without the reasoning item that made it.
+   */
+  reasoningItem?: boolean
   /** Parent chat run that produced this assistant message. */
   runId?: string
   /**
@@ -760,6 +770,8 @@ export interface TanStackRunMetadata {
   responseId?: string
   /** The answer items of this model call. See `TanStackMessageMetadata.responseItems`. */
   responseItems?: TanStackMessageMetadata['responseItems']
+  /** See `TanStackMessageMetadata.reasoningItem`. */
+  reasoningItem?: boolean
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   /** TokenUsage fields that have no AG-UI `usage[]` equivalent. */
   usage?: TokenUsageLeftover
@@ -770,6 +782,12 @@ export interface TanStackRunMetadata {
   index?: number
   /** On a `RUN_ERROR`. See `RunErrorEvent.retryAfterMs`. */
   retryAfterMs?: number
+  /** On a `RUN_ERROR`. See `RunErrorEvent.rawText`. */
+  rawText?: string
+  /** On a `RUN_ERROR`. See `RunErrorEvent.errorType`. */
+  errorType?: string
+  /** On a `RUN_ERROR`. See `RunErrorEvent.requestId`. */
+  requestId?: string
   state?: ToolOutputState
   /** Parsed `TOOL_CALL_END` input. Spec `TOOL_CALL_END` has no top-level `input`. */
   input?: unknown
@@ -908,6 +926,28 @@ export type ToolExecutionContext<TContext = unknown> =
      * ```
      */
     detach?: (work: Promise<unknown>) => Promise<string>
+    /**
+     * The run of the call, when a host knows it. `chat()` does not set it:
+     * a host such as the harness wraps the tool's `execute` to add it.
+     */
+    runId?: string
+    /**
+     * Read a capability that a middleware of the run provided, by its
+     * handle. It works like `ctx.get` in middleware and throws if the
+     * capability was never provided. `chat()` sets it. It is missing when a
+     * tool runs outside a chat.
+     *
+     * @example
+     * ```ts
+     * const sandbox = context?.get?.(SandboxCapability)
+     * ```
+     */
+    get?: <TValue>(capability: Capability<TValue>) => TValue
+    /**
+     * Read a capability by its handle. Returns `undefined` if no middleware
+     * provided it. It works like `ctx.getOptional` in middleware.
+     */
+    getOptional?: <TValue>(capability: Capability<TValue>) => TValue | undefined
     /**
      * Emit a custom event during tool execution.
      * Events are streamed to the client in real-time as AG-UI CUSTOM events.
@@ -1635,11 +1675,29 @@ export interface RunErrorEvent extends Pick<
   /** Nested payload kept for in-process / durability consumers. */
   error?: { message: string; code?: string }
   /**
+   * The model text of a failed structured output: JSON that did not parse,
+   * or a value that failed the `outputSchema` check. `chat()` moves it to
+   * `metadata.tanstack.rawText`.
+   */
+  rawText?: string
+  /**
    * How long the provider asks you to wait before a retry, in milliseconds.
    * Adapters read it from the `retry-after-ms` or `retry-after` header.
    * `chat()` moves it to `metadata.tanstack.retryAfterMs`.
    */
   retryAfterMs?: number
+  /**
+   * The provider's error type, for example `overloaded_error` or
+   * `rate_limit_exceeded`. `code` stays the HTTP status. A string of at most
+   * 128 characters. `chat()` moves it to `metadata.tanstack.errorType`.
+   */
+  errorType?: string
+  /**
+   * The provider's request id, from the SDK error or the `request-id` /
+   * `x-request-id` header. Give it to the provider's support.
+   * `chat()` moves it to `metadata.tanstack.requestId`.
+   */
+  requestId?: string
   metadata?: { tanstack?: TanStackRunMetadata } & Record<string, any>
 }
 

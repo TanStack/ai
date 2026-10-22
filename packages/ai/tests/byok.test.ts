@@ -11,8 +11,15 @@ import {
   maskKey,
   scrubSecrets,
 } from '../src/byok'
-import { getByokKey, getByokKeys } from '../src/byok/server'
-import type { ByokProviderInit } from '../src/byok'
+import {
+  getByokKey,
+  getByokKeys,
+  memoryCredentialStore,
+  readCredential,
+  readCredentialEntry,
+  storedProviderKeys,
+} from '../src/byok/server'
+import type { ByokProviderInit, CredentialStore } from '../src/byok'
 
 describe('byok slugs', () => {
   it('names the header x-byok-<provider>', () => {
@@ -240,6 +247,20 @@ describe('mask and scrub', () => {
       'failed [redacted] extra',
     )
   })
+
+  it('scrubs the JSON-escaped and URL-encoded forms', () => {
+    const secret = 'sk-"a/b c"'
+    const json = JSON.stringify({ key: secret })
+    expect(scrubSecrets(json, [secret])).toBe('{"key":"[redacted]"}')
+    const url = `https://x.test/?key=${encodeURIComponent(secret)}`
+    expect(scrubSecrets(url, [secret])).toBe('https://x.test/?key=[redacted]')
+  })
+
+  it('keeps a secret shorter than 6 characters', () => {
+    expect(
+      scrubSecrets('pin 12345 and token abcdef', ['12345', 'abcdef']),
+    ).toBe('pin 12345 and token [redacted]')
+  })
 })
 
 describe('ByokMissingError', () => {
@@ -258,5 +279,199 @@ describe('ByokUnresolvedProviderError', () => {
     expect(error).toBeInstanceOf(Error)
     expect(error).toBeInstanceOf(ByokUnresolvedProviderError)
     expect(error.name).toBe('ByokUnresolvedProviderError')
+  })
+})
+
+describe('stored credentials', () => {
+  const user = { tenantId: 'acme', userId: 'ann' }
+  const tenant = { tenantId: 'acme' }
+
+  it('keys by user and tenant, lists without values, and deletes', async () => {
+    const credentials = memoryCredentialStore()
+    await credentials.set({
+      scope: user,
+      id: 'github',
+      credential: {
+        type: 'oauth',
+        accessToken: 'secret-access',
+        refreshToken: 'secret-refresh',
+        expiresAt: 100,
+      },
+    })
+    await credentials.set({
+      scope: tenant,
+      id: 'notion',
+      credential: { type: 'api_key', value: 'secret-key' },
+    })
+
+    expect(await credentials.get({ scope: user, id: 'github' })).toMatchObject({
+      accessToken: 'secret-access',
+    })
+    // A user credential is not visible at tenant scope, and the other way around.
+    expect(await credentials.get({ scope: tenant, id: 'github' })).toBeNull()
+    expect(await credentials.get({ scope: user, id: 'notion' })).toBeNull()
+
+    const listed = await credentials.list(user)
+    expect(listed).toEqual([{ id: 'github', type: 'oauth', expiresAt: 100 }])
+    // `list` never returns secret values.
+    expect(JSON.stringify(listed)).not.toContain('secret')
+
+    await credentials.delete({ scope: user, id: 'github' })
+    expect(await credentials.get({ scope: user, id: 'github' })).toBeNull()
+    expect(await credentials.list(user)).toEqual([])
+  })
+
+  it("reads the user's own credential before the tenant's", async () => {
+    const credentials = memoryCredentialStore()
+    await credentials.set({
+      scope: tenant,
+      id: 'openai',
+      credential: { type: 'api_key', value: 'sk-tenant' },
+    })
+    expect(await readCredential(credentials, user, 'openai')).toEqual({
+      type: 'api_key',
+      value: 'sk-tenant',
+    })
+    await credentials.set({
+      scope: user,
+      id: 'openai',
+      credential: { type: 'api_key', value: 'sk-ann' },
+    })
+    expect(await readCredential(credentials, user, 'openai')).toEqual({
+      type: 'api_key',
+      value: 'sk-ann',
+    })
+  })
+
+  it("does not read another tenant's credential", async () => {
+    const credentials = memoryCredentialStore()
+    await credentials.set({
+      scope: tenant,
+      id: 'openai',
+      credential: { type: 'api_key', value: 'sk-tenant' },
+    })
+    const other = { tenantId: 'other', userId: 'ann' }
+    expect(await readCredential(credentials, other, 'openai')).toBeNull()
+  })
+
+  it('does not give a user without a tenant the shared bucket', async () => {
+    const credentials = memoryCredentialStore()
+    // Saved with neither a user nor a tenant: the bucket everyone shares.
+    await credentials.set({
+      scope: {},
+      id: 'openai',
+      credential: { type: 'api_key', value: 'sk-shared' },
+    })
+    const solo = { userId: 'ann' }
+    expect(await readCredential(credentials, solo, 'openai')).toBeNull()
+  })
+
+  it('writes with setIf only at the current revision', async () => {
+    const credentials = memoryCredentialStore()
+    const key = { scope: user, id: 'github' }
+    const first = await credentials.setIf!({
+      ...key,
+      credential: { type: 'oauth', accessToken: 'gho-1' },
+      expectedRevision: null,
+    })
+    if (!first.ok) throw new Error('expected the first setIf to write')
+    const read = await credentials.getVersioned!(key)
+    expect(read).toEqual({
+      credential: { type: 'oauth', accessToken: 'gho-1' },
+      revision: first.revision,
+    })
+
+    const second = await credentials.setIf!({
+      ...key,
+      credential: { type: 'oauth', accessToken: 'gho-2' },
+      expectedRevision: first.revision,
+    })
+    expect(second.ok).toBe(true)
+    // `first.revision` is now stale, so this write is a conflict.
+    expect(
+      await credentials.setIf!({
+        ...key,
+        credential: { type: 'oauth', accessToken: 'gho-3' },
+        expectedRevision: first.revision,
+      }),
+    ).toEqual({ ok: false, reason: 'conflict' })
+    expect(await credentials.get(key)).toEqual({
+      type: 'oauth',
+      accessToken: 'gho-2',
+    })
+  })
+
+  it('reports the scope and revision from readCredentialEntry', async () => {
+    const credentials = memoryCredentialStore()
+    await credentials.set({
+      scope: tenant,
+      id: 'openai',
+      credential: { type: 'api_key', value: 'sk-tenant' },
+    })
+    const fromTenant = await readCredentialEntry(credentials, user, 'openai')
+    expect(fromTenant).toEqual({
+      credential: { type: 'api_key', value: 'sk-tenant' },
+      scope: tenant,
+      revision: (
+        await credentials.getVersioned!({ scope: tenant, id: 'openai' })
+      )?.revision,
+    })
+    expect(fromTenant?.revision).toEqual(expect.any(String))
+
+    await credentials.set({
+      scope: user,
+      id: 'openai',
+      credential: { type: 'api_key', value: 'sk-ann' },
+    })
+    const fromUser = await readCredentialEntry(credentials, user, 'openai')
+    expect(fromUser).toMatchObject({
+      credential: { type: 'api_key', value: 'sk-ann' },
+      scope: user,
+    })
+    expect(fromUser?.revision).not.toBe(fromTenant?.revision)
+    expect(await readCredentialEntry(credentials, user, 'missing')).toBeNull()
+  })
+
+  it('reads an entry with no revision from a store without the pair', async () => {
+    const memory = memoryCredentialStore()
+    const plain: CredentialStore = {
+      get: memory.get,
+      set: memory.set,
+      delete: memory.delete,
+      list: memory.list,
+    }
+    await plain.set({
+      scope: tenant,
+      id: 'openai',
+      credential: { type: 'api_key', value: 'sk-tenant' },
+    })
+    expect(await readCredentialEntry(plain, user, 'openai')).toEqual({
+      credential: { type: 'api_key', value: 'sk-tenant' },
+      scope: tenant,
+    })
+    expect(await readCredential(plain, user, 'openai')).toEqual({
+      type: 'api_key',
+      value: 'sk-tenant',
+    })
+  })
+
+  it('gives saved api keys to storedProviderKeys, and skips oauth', async () => {
+    const credentials = memoryCredentialStore()
+    await credentials.set({
+      scope: user,
+      id: 'openai',
+      credential: { type: 'api_key', value: 'sk-ann' },
+    })
+    await credentials.set({
+      scope: user,
+      id: 'github',
+      credential: { type: 'oauth', accessToken: 'gho-token' },
+    })
+    const keys = storedProviderKeys(credentials, user)
+    expect(await keys.get('openai')).toBe('sk-ann')
+    expect(await keys.get('github')).toBeNull()
+    await expect(keys.require('github')).rejects.toBeInstanceOf(
+      ByokMissingError,
+    )
   })
 })

@@ -432,6 +432,8 @@ Put `withPersistence` on the parent `chat()` only. The parent stores each child:
 
 A reload then shows every card, and a resume continues a waiting child. See [Subagent cards on reload](../persistence/chat-persistence-advanced#subagent-cards-on-reload).
 
+A resume continues a waiting child from its stored messages, not from the card that the client sends back. This is also true for a nested child, for example a child that an agent tool of another child started. The card gives only the child id. A changed card cannot change a tool call before its approval runs it.
+
 > [!WARNING]
 > Do not add `withPersistence` to a child `chat()` too. The child does not know that it runs as a subagent, so it stores the same child again under its own run and thread ids. Its interrupt records then conflict with the records of the parent, and a reload can lose the pending approval.
 

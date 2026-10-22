@@ -119,6 +119,8 @@ An AG-UI `RUN_ERROR` has `message` and an optional `code` at the top level. Put 
 
 For a rate limit, put the wait time in `metadata.tanstack.retryAfterMs`, in milliseconds. Clients read it from there. See [Rate limits](../chat/stream-events#rate-limits).
 
+Put the provider error type in `metadata.tanstack.errorType` and the request id in `metadata.tanstack.requestId`. See [Read the provider error type and request id](../chat/stream-events#read-the-provider-error-type-and-request-id).
+
 ### Fields for other features
 
 When you use one of these features, add its field:

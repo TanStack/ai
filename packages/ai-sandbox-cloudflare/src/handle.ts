@@ -153,25 +153,30 @@ export class CloudflareHandle implements SandboxHandle {
       spawn: (command, opts) => this.spawnProcess(command, opts),
     }
 
+    // The native file calls take no abort signal, so each call checks it first.
     this.fs = {
-      read: async (p) => {
+      read: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const r = await this.exec(`base64 ${q(this.abs(p))}`)
         if (r.exitCode !== 0) throw new Error(`read failed: ${r.stderr.trim()}`)
         return Buffer.from(r.stdout, 'base64').toString('utf8')
       },
-      readBytes: async (p) => {
+      readBytes: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const r = await this.exec(`base64 ${q(this.abs(p))}`)
         if (r.exitCode !== 0) throw new Error(`read failed: ${r.stderr.trim()}`)
         return new Uint8Array(Buffer.from(r.stdout, 'base64'))
       },
-      write: async (p, data) => {
+      write: async (p, data, o) => {
+        o?.signal?.throwIfAborted()
         for (const command of fsWriteCommands(this.abs(p), data)) {
           const r = await this.exec(command)
           if (r.exitCode !== 0)
             throw new Error(`write failed: ${r.stderr.trim()}`)
         }
       },
-      list: async (p) => {
+      list: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const r = await this.exec(`ls -1Ap ${q(this.abs(p))}`)
         if (r.exitCode !== 0) throw new Error(`list failed: ${r.stderr.trim()}`)
         return r.stdout
@@ -187,17 +192,24 @@ export class CloudflareHandle implements SandboxHandle {
             }
           })
       },
-      lstat: async (p) => this.lstat(this.abs(p)),
-      mkdir: async (p) => {
+      lstat: async (p, o) => {
+        o?.signal?.throwIfAborted()
+        return this.lstat(this.abs(p))
+      },
+      mkdir: async (p, o) => {
+        o?.signal?.throwIfAborted()
         await this.exec(`mkdir -p ${q(this.abs(p))}`)
       },
-      remove: async (p) => {
+      remove: async (p, o) => {
+        o?.signal?.throwIfAborted()
         await this.exec(`rm -rf ${q(this.abs(p))}`)
       },
-      rename: async (from, to) => {
+      rename: async (from, to, o) => {
+        o?.signal?.throwIfAborted()
         await this.exec(`mv ${q(this.abs(from))} ${q(this.abs(to))}`)
       },
-      exists: async (p) => {
+      exists: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const r = await this.exec(`test -e ${q(this.abs(p))}`)
         return r.exitCode === 0
       },

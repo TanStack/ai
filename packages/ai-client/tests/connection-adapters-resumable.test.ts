@@ -558,12 +558,12 @@ describe('resumable SSE connection adapter', () => {
     expect(fetchClient).toHaveBeenCalledOnce()
   })
 
-  it('does not retry HTTP setup failures after earlier progress', async () => {
+  it('does not retry a non-temporary HTTP status after earlier progress', async () => {
     const fetchClient = vi.fn<typeof fetch>(async () => {
       if (fetchClient.mock.calls.length === 1) {
         return sseResponse(contentEvent('run@1', '1'))
       }
-      return new Response(null, { status: 503, statusText: 'Unavailable' })
+      return new Response(null, { status: 401, statusText: 'Unauthorized' })
     })
     const adapter = fetchServerSentEvents('/api/chat', {
       fetchClient,
@@ -579,7 +579,7 @@ describe('resumable SSE connection adapter', () => {
       )) {
         // drain
       }
-    }).rejects.toThrow(/503 Unavailable/)
+    }).rejects.toThrow(/401 Unauthorized/)
     expect(fetchClient).toHaveBeenCalledTimes(2)
   })
 })

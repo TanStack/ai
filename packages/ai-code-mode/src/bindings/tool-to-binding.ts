@@ -4,7 +4,7 @@ import {
   parseWithStandardSchema,
 } from '@tanstack/ai'
 import type { ToolExecutionContext } from '@tanstack/ai'
-import type { CodeModeTool, ToolBinding } from '../types'
+import type { CodeModeCallHook, CodeModeTool, ToolBinding } from '../types'
 
 /**
  * Convert an array of TanStack AI tools to a Record of ToolBindings
@@ -107,11 +107,14 @@ export function toolToBinding(
  * @param bindings - Original tool bindings
  * @param emitCustomEvent - Callback to emit custom events to the stream
  * @param parentContext - Context of the tool that runs the code (e.g. `execute_typescript`)
+ * @param hook - Optional internal hook that runs around each call. The events
+ *   still fire around it.
  */
 export function createEventAwareBindings(
   bindings: Record<string, ToolBinding>,
   emitCustomEvent: ToolExecutionContext['emitCustomEvent'],
   parentContext?: ToolExecutionContext,
+  hook?: CodeModeCallHook,
 ): Record<string, ToolBinding> {
   const toolContext: ToolExecutionContext = {
     context: parentContext?.context,
@@ -123,6 +126,10 @@ export function createEventAwareBindings(
   const wrapped: Record<string, ToolBinding> = {}
 
   for (const [name, binding] of Object.entries(bindings)) {
+    // ponytail: the hook gets the name without the `external_` prefix of
+    // createCodeModeTool. Other names, such as `snippet_*`, stay as they are.
+    // Take the prefix as a parameter when a caller needs another one.
+    const toolName = name.replace(/^external_/, '')
     wrapped[name] = {
       ...binding,
       execute: async (args: unknown) => {
@@ -136,7 +143,10 @@ export function createEventAwareBindings(
         const startTime = Date.now()
         try {
           toolContext.abortSignal?.throwIfAborted()
-          const result = await binding.execute(args, toolContext)
+          const run = () => binding.execute(args, toolContext)
+          const result = await (hook
+            ? hook({ name: toolName, args }, run)
+            : run())
 
           // Emit result event
           emitCustomEvent('code_mode:external_result', {

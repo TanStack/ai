@@ -8,6 +8,10 @@ import {
 } from '@tanstack/ai'
 import { createAnthropicChat } from '@tanstack/ai-anthropic'
 import { createComputerUse } from '@tanstack/ai-computer-use'
+import { computerUse } from '@tanstack/ai-computer-use/harness'
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { permissions } from '@tanstack/ai-harness/plugins'
+import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
   createPlaywrightComputerDriver,
   playwrightComputer,
@@ -522,6 +526,81 @@ test.describe('computer use with a Playwright page', () => {
         }),
       ]),
     })
+  })
+})
+
+test.describe('computer use in a harness', () => {
+  test('the harness asks about an openai safety check, clicks after a yes, and stores the screenshot', async ({
+    page,
+  }) => {
+    const { button } = await openForm(page)
+    const click = { type: 'click', button: 'left', ...button }
+    const model = mockModel([
+      openaiStream('resp_cu_harness_1', [
+        {
+          ...computerCall('harness', click),
+          pending_safety_checks: [SAFETY_CHECK],
+        },
+      ]),
+      openaiStream('resp_cu_harness_2', [OPENAI_ANSWER]),
+    ])
+    const plugin = computerUse({
+      driver: createPlaywrightComputerDriver({ page }),
+      screenshotDelay: 0,
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    try {
+      const session = await host.open(
+        defineHarness({
+          name: 'e2e/computer-use',
+          adapter: openaiAdapter(model),
+          plugins: () => [permissions(), plugin],
+        }),
+        { threadId: 'thread-cu-harness' },
+      )
+
+      // The turn stops at the approval. The click waits.
+      await session.send('Click Go.')
+      await expect.poll(() => session.snapshot().pendingWaits.length).toBe(1)
+      await expect(page.locator('#status')).toHaveText('idle')
+
+      const [wait] = session.snapshot().pendingWaits
+      if (!wait) throw new Error('No approval.')
+      expect(wait.message).toContain('Allow computer')
+      const inputId = `answer:${wait.waitId}`
+      await session.resolve({
+        resume: [
+          {
+            interruptId: wait.waitId,
+            status: 'resolved',
+            payload: { answer: 'once' },
+          },
+        ],
+        inputId,
+      })
+      await session.settled({ inputId })
+
+      await expect(page.locator('#status')).toHaveText('clicked')
+      // The model gets the bytes of the screenshot, and the acknowledged check.
+      expect(model.bodies[1]).toMatchObject({
+        input: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'computer_call_output',
+            call_id: 'call_cu_harness',
+            output: expect.objectContaining({
+              image_url: expect.stringMatching(/^data:image\/png;base64,./),
+            }),
+            acknowledged_safety_checks: [SAFETY_CHECK],
+          }),
+        ]),
+      })
+      // The transcript keeps a small reference to the media store.
+      const transcript = await session.transcript()
+      const result = transcript.find((message) => message.role === 'tool')
+      expect(JSON.stringify(result?.content)).toContain('harness-media:')
+    } finally {
+      await host.close()
+    }
   })
 })
 

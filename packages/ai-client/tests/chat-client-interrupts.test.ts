@@ -428,6 +428,48 @@ describe('InterruptManager hydration', () => {
     warn.mockRestore()
   })
 
+  it('sends a client tool result through the generic fallback when the schemas differ', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { manager, submit } = createManager()
+    manager.hydrate({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      interrupts: [
+        descriptor({
+          v: INTERRUPT_BINDING_VERSION,
+          kind: 'client-tool-execution',
+          interruptId: 'client-1',
+          interruptedRunId: 'run-1',
+          generation: 1,
+          toolName: 'lookup',
+          toolCallId: 'call-1',
+          outputSchemaHash: 'sha256:server-schema',
+          responseSchemaHash: 'sha256:server-schema',
+        }),
+      ],
+    })
+    expect(manager.getInterrupts()[0]).toMatchObject({
+      kind: 'generic',
+      canResolve: true,
+    })
+
+    expect(
+      manager.resolveClientToolOutput('call-1', { accountId: 'acct-1' }),
+    ).toBe(true)
+    await settle()
+
+    expect(submit).toHaveBeenCalledOnce()
+    expect(submit.mock.calls[0]?.[0].resolutions).toMatchObject([
+      {
+        interruptId: 'client-1',
+        status: 'resolved',
+        payload: { accountId: 'acct-1' },
+      },
+    ])
+    warn.mockRestore()
+  })
+
   it('gives the 0.x approval and client-tool reasons no special meaning', () => {
     const { manager } = createManager()
 

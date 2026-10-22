@@ -107,6 +107,18 @@ describe('normalizeSseResponse', () => {
     })
   })
 
+  it('reads `data:` without the space, CR line ends and any media type case', async () => {
+    const body = (await sse(chatStreamEvents).text())
+      .replaceAll('data: ', 'data:')
+      .replaceAll('\n', '\r')
+    const out = normalizeSseResponse(
+      new Response(body, {
+        headers: { 'content-type': 'Text/Event-Stream; charset=utf-8' },
+      }),
+    )
+    expect(await out.text()).toContain('"choices":[]')
+  })
+
   it('leaves non-SSE responses alone', () => {
     const json = new Response('{}', {
       headers: { 'content-type': 'application/json' },
@@ -156,6 +168,57 @@ describe('text adapter (binding)', () => {
     }
     expect(finished.usage).toMatchObject({ promptTokens: 41, totalTokens: 45 })
   })
+
+  const plainSse = sse(chatStreamEvents)
+  it.each([
+    [
+      '`data:` without the space',
+      (s: string) => s.replaceAll('data: ', 'data:'),
+      'text/event-stream',
+    ],
+    [
+      'CR line ends',
+      (s: string) => s.replaceAll('\n', '\r'),
+      'text/event-stream',
+    ],
+    [
+      'CRLF line ends',
+      (s: string) => s.replaceAll('\n', '\r\n'),
+      'text/event-stream',
+    ],
+    [
+      'a mixed-case media type',
+      (s: string) => s,
+      'Text/Event-Stream; charset=utf-8',
+    ],
+    ['a media type that is not SSE', (s: string) => s, 'text/plain'],
+  ])(
+    'finishes with its reply and usage for %s',
+    async (_case, rewrite, contentType) => {
+      const body = rewrite(await plainSse.clone().text())
+      const { binding } = fakeBinding(
+        () => new Response(body, { headers: { 'content-type': contentType } }),
+      )
+      const chunks = await collect(
+        createCloudflareText('@cf/test', { binding }).chatStream({
+          threadId: 'thread-1',
+          model: '@cf/test',
+          messages: [{ role: 'user', content: 'Hi' }],
+          logger,
+        }),
+      )
+      expect(chunks.filter((c) => c.type === 'RUN_ERROR')).toEqual([])
+      const text = chunks
+        .filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
+        .map((c) => (c as { delta: string }).delta)
+        .join('')
+      expect(text).toBe('Hello there')
+      const finished = chunks.find((c) => c.type === 'RUN_FINISHED') as {
+        usage?: { promptTokens: number }
+      }
+      expect(finished.usage).toMatchObject({ promptTokens: 41 })
+    },
+  )
 
   it('surfaces reasoning_content as reasoning events', async () => {
     const { binding } = fakeBinding(() =>

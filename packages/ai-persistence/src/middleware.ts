@@ -73,9 +73,13 @@ import type {
   ChatTranscriptStores,
   InterruptCommitEntry,
   InterruptRecord,
+  InterruptStore,
   MessagePage,
   RunStore,
 } from './types'
+
+/** The durable resume check that chat() runs after its onConfig chain. */
+const DURABLE_RESUME = Symbol.for('tanstack.ai.durableResume')
 
 /**
  * How generated media is turned into durable artifacts: which pieces of a
@@ -707,11 +711,134 @@ function durableGenericFailure(
   ])
 }
 
+const APPROVAL_CONTEXT = 'tanstack:approvalContext'
+
+type ApprovalContext = {
+  v: 1
+  approvalInterruptId: string
+  approvalRunId: string
+  generation: number
+  toolCallId: string
+  toolName: string
+  inputSchemaHash: string
+  approvalSchemaHash: string
+  responseSchemaHash: string
+}
+
+function readApprovalContext(value: unknown): ApprovalContext | undefined {
+  const record = objectValue(value)
+  const fields = [
+    'v',
+    'approvalInterruptId',
+    'approvalRunId',
+    'generation',
+    'toolCallId',
+    'toolName',
+    'inputSchemaHash',
+    'approvalSchemaHash',
+    'responseSchemaHash',
+  ]
+  if (
+    !record ||
+    Array.isArray(value) ||
+    Object.keys(record).length !== fields.length ||
+    fields.some((key) => !Object.hasOwn(record, key))
+  )
+    return undefined
+  const {
+    v,
+    approvalInterruptId,
+    approvalRunId,
+    generation,
+    toolCallId,
+    toolName,
+    inputSchemaHash,
+    approvalSchemaHash,
+    responseSchemaHash,
+  } = record
+  if (
+    v !== 1 ||
+    typeof generation !== 'number' ||
+    !Number.isSafeInteger(generation) ||
+    generation < 0 ||
+    typeof approvalInterruptId !== 'string' ||
+    !approvalInterruptId ||
+    typeof approvalRunId !== 'string' ||
+    !approvalRunId ||
+    typeof toolCallId !== 'string' ||
+    !toolCallId ||
+    typeof toolName !== 'string' ||
+    !toolName ||
+    typeof inputSchemaHash !== 'string' ||
+    !inputSchemaHash ||
+    typeof approvalSchemaHash !== 'string' ||
+    !approvalSchemaHash ||
+    typeof responseSchemaHash !== 'string' ||
+    !responseSchemaHash
+  )
+    return undefined
+  return {
+    v,
+    approvalInterruptId,
+    approvalRunId,
+    generation,
+    toolCallId,
+    toolName,
+    inputSchemaHash,
+    approvalSchemaHash,
+    responseSchemaHash,
+  }
+}
+
+function clientInterruptPayload(
+  interrupt: unknown,
+  state: RunStateEntry | undefined,
+): Record<string, unknown> {
+  const payload = interruptPayload(interrupt)
+  if (!isPersistedInterruptDescriptor(payload)) return payload
+  const client = readInterruptBinding(payload)
+  if (client?.kind !== 'client-tool-execution') return payload
+  const metadata = { ...objectValue(payload.metadata) }
+  delete metadata[APPROVAL_CONTEXT]
+  for (const previous of state?.pendingResumes?.pending ?? []) {
+    if (!isPersistedInterruptDescriptor(previous.payload)) continue
+    const binding = readInterruptBinding(previous.payload)
+    const resume = state?.pendingResumes?.resumeByInterruptId.get(
+      previous.interruptId,
+    )
+    const decision = objectValue(resume?.payload)
+    if (
+      binding?.kind !== 'tool-approval' ||
+      binding.toolCallId !== client.toolCallId ||
+      binding.toolName !== client.toolName ||
+      binding.generation !== client.generation ||
+      resume?.status !== 'resolved' ||
+      (resume.payload !== true && decision?.approved !== true)
+    )
+      continue
+    const context: ApprovalContext = {
+      v: 1,
+      approvalInterruptId: previous.interruptId,
+      approvalRunId: previous.runId,
+      generation: binding.generation,
+      toolCallId: binding.toolCallId,
+      toolName: binding.toolName,
+      inputSchemaHash: binding.inputSchemaHash,
+      approvalSchemaHash: binding.approvalSchemaHash,
+      responseSchemaHash: binding.responseSchemaHash,
+    }
+    metadata[APPROVAL_CONTEXT] = context
+    break
+  }
+  return { ...payload, metadata }
+}
+
 async function durableGenericResumeState(
   ctx: ChatMiddlewareContext,
   pending: Array<InterruptRecord>,
   resume: ReadonlyArray<RunAgentResumeItem>,
   tools: Array<Tool>,
+  interrupts: InterruptStore,
 ): Promise<ChatResumeToolState | undefined> {
   const registry = getGenericInterruptDefinitionRegistry(ctx, {
     optional: true,
@@ -849,6 +976,112 @@ async function durableGenericResumeState(
   if (validated.errors.length > 0 || !validated.resumeToolState) {
     throw new InterruptResumeValidationError(validated.errors)
   }
+  const approvals = new Map(validated.resumeToolState.approvals)
+  for (const record of records) {
+    if (record.binding.kind !== 'client-tool-execution') continue
+    const toolName = record.binding.toolName
+    const tool = tools.find((candidate) => candidate.name === toolName)
+    if (!tool?.needsApproval) continue
+    const metadata = objectValue(objectValue(record.payload)?.metadata)
+    const hasContext = !!metadata && Object.hasOwn(metadata, APPROVAL_CONTEXT)
+    const context = hasContext
+      ? readApprovalContext(metadata?.[APPROVAL_CONTEXT])
+      : undefined
+    const previous = await interrupts.get(
+      context?.approvalInterruptId ?? `approval_${record.binding.toolCallId}`,
+    )
+    const isMatch =
+      !!previous &&
+      previous.status === 'resolved' &&
+      previous.threadId === ctx.threadId &&
+      (hasContext
+        ? !!context && context.approvalRunId === previous.runId
+        : previous.runId === record.binding.interruptedRunId) &&
+      isPersistedInterruptDescriptor(previous.payload)
+    // A record with no approval context (written before this binding, or by
+    // a path that does not add it) resumes as it did before.
+    if (!hasContext && !isMatch) continue
+    if (
+      !previous ||
+      !isMatch ||
+      !isPersistedInterruptDescriptor(previous.payload)
+    ) {
+      const persisted = pending.find(
+        (entry) => entry.interruptId === record.interruptId,
+      )
+      if (!persisted)
+        throw new Error(
+          `Missing persisted client interrupt ${record.interruptId}`,
+        )
+      throw durableGenericFailure(
+        ctx,
+        persisted,
+        `Client tool ${record.binding.toolName} has no matching resolved approval.`,
+      )
+    }
+    const binding = readInterruptBinding(previous.payload)
+    if (
+      !binding ||
+      binding.kind !== 'tool-approval' ||
+      binding.toolCallId !== record.binding.toolCallId ||
+      binding.toolName !== record.binding.toolName ||
+      previous.payload.id !== previous.interruptId ||
+      binding.interruptedRunId !== previous.runId ||
+      binding.generation !== record.binding.generation ||
+      binding.interruptId !== previous.interruptId ||
+      (hasContext &&
+        (!context ||
+          context.approvalInterruptId !== previous.interruptId ||
+          context.toolCallId !== binding.toolCallId ||
+          context.toolName !== binding.toolName ||
+          context.generation !== binding.generation ||
+          context.inputSchemaHash !== binding.inputSchemaHash ||
+          context.approvalSchemaHash !== binding.approvalSchemaHash ||
+          context.responseSchemaHash !== binding.responseSchemaHash))
+    ) {
+      throw durableGenericFailure(
+        ctx,
+        previous,
+        `Client tool ${record.binding.toolName} has a stale resolved approval.`,
+      )
+    }
+    const restored = await validateInterruptResumeBatch({
+      threadId: ctx.threadId,
+      interruptedRunId: binding.interruptedRunId,
+      generation: binding.generation,
+      pending: [
+        {
+          interruptId: previous.interruptId,
+          payload: previous.payload,
+          binding,
+        },
+      ],
+      resume: [
+        {
+          interruptId: previous.interruptId,
+          status: 'resolved',
+          payload: previous.response,
+        },
+      ],
+      tools,
+      ...(previous.resolvedAt !== undefined
+        ? { now: previous.resolvedAt }
+        : {}),
+    })
+    if (restored.errors.length > 0 || !restored.resumeToolState)
+      throw new InterruptResumeValidationError(restored.errors)
+    const decision = restored.resumeToolState.approvals?.get(binding.toolCallId)
+    if (
+      decision !== true &&
+      (typeof decision !== 'object' || !decision.approved)
+    )
+      throw durableGenericFailure(
+        ctx,
+        previous,
+        `Client tool ${record.binding.toolName} was not approved.`,
+      )
+    approvals.set(binding.toolCallId, decision)
+  }
   type GenericRecord = PendingInterruptResumeRecord & {
     binding: Extract<
       PendingInterruptResumeRecord['binding'],
@@ -890,6 +1123,7 @@ async function durableGenericResumeState(
   genericRecords.sort((left, right) => left.batchIndex - right.batchIndex)
   return {
     ...validated.resumeToolState,
+    approvals,
     genericInterruptRequests: new Map(
       genericRecords.flatMap(({ record }) =>
         record.genericRequest
@@ -1670,6 +1904,7 @@ interface PersistencePlan {
   wantsInterrupts: boolean
   wantsArtifactPersistence: boolean
   runs: AIPersistence['stores']['runs']
+  sessions: AIPersistence['stores']['sessions']
 }
 
 function resolvePersistencePlan(persistence: AIPersistence): PersistencePlan {
@@ -1679,6 +1914,7 @@ function resolvePersistencePlan(persistence: AIPersistence): PersistencePlan {
       persistence.stores.artifacts !== undefined &&
       persistence.stores.blobs !== undefined,
     runs: persistence.stores.runs,
+    sessions: persistence.stores.sessions,
   }
 }
 
@@ -1963,6 +2199,12 @@ export interface WithPersistenceOptions {
    * interval for its transcript writes, with or without `snapshotStreaming`.
    */
   snapshotIntervalMs?: number
+  /**
+   * The tenant of the thread, for `stores.sessions`. The middleware reads the
+   * parent entry of a subagent child from this tenant and writes the child
+   * entry in it. Without it, the default tenant.
+   */
+  tenantId?: string
 }
 
 /**
@@ -1997,7 +2239,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
   const snapshotStreaming = options.snapshotStreaming ?? false
   const snapshotIntervalMs = options.snapshotIntervalMs ?? 1000
   const plan = resolvePersistencePlan(persistence)
-  const { wantsInterrupts, runs } = plan
+  const { wantsInterrupts, runs, sessions } = plan
   const messageStore = persistence.stores.messages
   if (!messageStore) {
     // validateChatPersistenceStores already throws; this narrows for TypeScript.
@@ -2036,6 +2278,8 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
     ...(wantsInterrupts && persistence.stores.interrupts
       ? { interrupts: persistence.stores.interrupts }
       : {}),
+    ...(sessions ? { sessions } : {}),
+    ...(options.tenantId !== undefined ? { tenantId: options.tenantId } : {}),
   })
 
   function resetStreaming(state: RunStateEntry) {
@@ -2091,14 +2335,15 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       }
       // The agent tools read stored children through this, to continue
       // one by `sessionId`. Only the children of this chat can load.
-      provideLoadChild(ctx, (subagentRunId) =>
-        subagentRuns.loadChild(subagentRunId, {
+      // With a parent, the caller is that child. `loadChild` then proves
+      // that the nested child belongs to it.
+      provideLoadChild(ctx, (subagentRunId, nested) => {
+        const caller = nested?.parentSubagentRunId ?? ctx.subagentRunId
+        return subagentRuns.loadChild(subagentRunId, {
           threadId: ctx.threadId,
-          ...(ctx.subagentRunId !== undefined && {
-            subagentRunId: ctx.subagentRunId,
-          }),
-        }),
-      )
+          ...(caller !== undefined && { subagentRunId: caller }),
+        })
+      })
 
       let resolveCompletion: () => void = () => undefined
       let rejectCompletion: (error: unknown) => void = () => undefined
@@ -2199,14 +2444,21 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           // A subagent tool call answers its own interrupts against its own
           // tools. They are still committed below with the rest of the batch.
           const runPending = rejectForgedChildSplit(ownedPending, ctx)
-          const resumeToolState = await durableGenericResumeState(
-            ctx,
-            runPending,
-            config.resume,
-            config.tools,
-          )
+          const resume = config.resume
+          const interrupts = persistence.stores.interrupts
           patch.resume = []
-          if (resumeToolState) patch.resumeToolState = resumeToolState
+          // chat() runs this after the whole onConfig chain, so a tool that a
+          // later middleware adds can be resumed too.
+          Object.assign(patch, {
+            [DURABLE_RESUME]: (tools: ChatMiddlewareConfig['tools']) =>
+              durableGenericResumeState(
+                ctx,
+                runPending,
+                resume,
+                tools,
+                interrupts,
+              ),
+          })
         }
         // Defer marking these interrupts resolved/cancelled until the run
         // succeeds (see commitPendingResumes). Committing here would consume the
@@ -2374,14 +2626,20 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       if (wantsInterrupts && persistence.stores.interrupts) {
         // The run reached a new interrupt boundary, so the resumes it consumed
         // are committed before the fresh interrupts are recorded.
+        // Read the approvals of this run before the commit clears them, so
+        // a client-tool phase keeps the approval it came from.
+        const payloads = chunk.outcome.interrupts.map((interrupt) => ({
+          interrupt,
+          payload: clientInterruptPayload(interrupt, state),
+        }))
         await commitPendingResumes(state, persistence.stores.interrupts)
-        for (const interrupt of chunk.outcome.interrupts) {
+        for (const { interrupt, payload } of payloads) {
           await persistence.stores.interrupts.create({
             interruptId: interrupt.id,
             runId: ctx.runId,
             threadId: ctx.threadId,
             requestedAt: Date.now(),
-            payload: interruptPayload(interrupt),
+            payload,
           })
         }
       }
