@@ -137,20 +137,20 @@ Send a message. The reply streams into the page. Other frameworks are in the [Qu
 
 ## How the core APIs map
 
-| TanStack AI | Vercel AI SDK |
+| Vercel AI SDK | TanStack AI |
 | --- | --- |
-| `@tanstack/ai` | `ai` |
-| `@tanstack/ai-openai` and `openaiText('model')` | `@ai-sdk/openai` and `openai('model')` |
-| `chat()` | `streamText()` |
-| `chat({ stream: false })` | `generateText()` |
-| `chat({ outputSchema })` | `generateObject()` / `streamObject()` / `Output.object()` |
-| `systemPrompts: ['...']` | `system: '...'` |
-| `modelOptions: { ... }` (typed per model) | `providerOptions: { openai: { ... } }` |
-| `toolDefinition({ ... }).server(fn)` or `.client(fn)` | `tool({ execute })` |
-| `agentLoopStrategy: maxIterations(n)` | `stopWhen: stepCountIs(n)` |
-| `middleware: [...]` with `onFinish`, `onConfig`, and more | `wrapLanguageModel()`, `onFinish`, `prepareStep` |
-| `toServerSentEventsResponse(stream)` | `result.toUIMessageStreamResponse()` |
-| `useChat` from `@tanstack/ai-react` | `useChat` from `@ai-sdk/react` |
+| `ai` | `@tanstack/ai` |
+| `@ai-sdk/openai` and `openai('model')` | `@tanstack/ai-openai` and `openaiText('model')` |
+| `streamText()` | `chat()` |
+| `generateText()` | `chat({ stream: false })` |
+| `generateObject()` / `streamObject()` / `Output.object()` | `chat({ outputSchema })` |
+| `system: '...'` | `systemPrompts: ['...']` |
+| `providerOptions: { openai: { ... } }` | `modelOptions: { ... }` (typed per model) |
+| `tool({ execute })` | `toolDefinition({ ... }).server(fn)` or `.client(fn)` |
+| `stopWhen: stepCountIs(n)` | `agentLoopStrategy: maxIterations(n)` |
+| `wrapLanguageModel()`, `onFinish`, `prepareStep` | `middleware: [...]` with `onFinish`, `onConfig`, and more |
+| `result.toUIMessageStreamResponse()` | `toServerSentEventsResponse(stream)` |
+| `useChat` from `@ai-sdk/react` | `useChat` from `@tanstack/ai-react` |
 
 Every option, result member, and hook difference is in [Migration from Vercel AI SDK](../migration/migration-from-vercel-ai).
 
