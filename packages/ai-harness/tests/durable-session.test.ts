@@ -553,6 +553,44 @@ describe('durable session log', () => {
     await host.close()
   })
 
+  it('keeps the full transcript for readers after a compaction', async () => {
+    const persistence = durablePersistence()
+    const { adapter, calls } = mockAdapter([
+      () => text('a1'),
+      () => text('a2'),
+      () => text('a3'),
+    ])
+    const harness = defineHarness({
+      name: 'test/compact',
+      adapter,
+      durability: { addRecordsToModelContext: project },
+    })
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(harness, { threadId: THREAD })
+    await session.send('q1')
+    await session.send('q2')
+    await session.appendRecords({
+      records: [
+        { type: 'app.compact', summary: 'Earlier: q1 and a1.', firstKept: 2 },
+      ],
+    })
+    await session.send('q3')
+
+    const full = ['q1', 'a1', 'q2', 'a2', 'q3', 'a3']
+    expect(messageTexts(calls[2])).toEqual([
+      'Earlier: q1 and a1.',
+      'q2',
+      'a2',
+      'q3',
+    ])
+    const texts = (list: Array<ModelMessage>) =>
+      messageTexts({ messages: list })
+    expect(texts(await session.transcript())).toEqual(full)
+    const view = await host.observe(harness, { threadId: THREAD })
+    expect(texts(await view.transcript())).toEqual(full)
+    await host.close()
+  })
+
   it('folds what another host wrote before its first write, and stays open', async () => {
     const inner = memoryLogStore()
     // This host does not see the other writer, like one in another process.
