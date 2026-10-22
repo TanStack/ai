@@ -12,6 +12,7 @@ import {
   resolveReasoning,
   toRunErrorPayload,
   toRetryAfterMs,
+  toRunErrorDetails,
   toRunErrorRawEvent,
   transformMessagesForReplay,
 } from '@tanstack/ai/adapter-internals'
@@ -286,6 +287,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       ...(errorPayload.code !== undefined && { code: errorPayload.code }),
       ...(rawEvent !== undefined && { rawEvent }),
       ...(retryAfterMs !== undefined && { retryAfterMs }),
+      ...toRunErrorDetails(error),
       error: {
         message: errorPayload.message,
         ...(errorPayload.code !== undefined && { code: errorPayload.code }),

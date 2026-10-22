@@ -10,6 +10,7 @@ import {
   orderedAssistantBlocks,
   splitMidConversationChanges,
   toRetryAfterMs,
+  toRunErrorDetails,
   toRunErrorRawEvent,
   transformMessagesForReplay,
 } from '@tanstack/ai/adapter-internals'
@@ -766,6 +767,7 @@ export class AnthropicTextAdapter<
         // `{ type, message }`) when present; never the raw exception object.
         ...(rawEvent !== undefined && { rawEvent }),
         ...(retryAfterMs !== undefined && { retryAfterMs }),
+        ...toRunErrorDetails(error),
         error: {
           message: err.message || 'Unknown error occurred',
           code,
@@ -2356,6 +2358,7 @@ export class AnthropicTextAdapter<
         // Forward the Anthropic SDK error's `.error` response body when present.
         ...(rawEvent !== undefined && { rawEvent }),
         ...(retryAfterMs !== undefined && { retryAfterMs }),
+        ...toRunErrorDetails(error),
         error: {
           message: err.message || 'Unknown error occurred',
           code,
