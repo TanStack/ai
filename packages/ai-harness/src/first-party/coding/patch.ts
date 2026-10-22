@@ -1,5 +1,5 @@
 import { toolDefinition } from '@tanstack/ai'
-import { readText, stringArg } from './backend'
+import { beforeWrite, readText, stringArg } from './backend'
 import { afterWriteSeen, findMatches, toEndingsOf } from './edit'
 import { readForDiff, reportChange } from './file-change'
 import type { ToolEnv } from './backend'
@@ -448,6 +448,8 @@ async function applyAll(
  *   same patch. A file cannot be removed or moved after the patch changed it.
  * - A file that changed since a tool read it fails the patch, before it
  *   writes anything (see `versions`).
+ * - The `beforeWrite` hooks run for each file first. A refusal fails the
+ *   patch, before it writes anything.
  * - After the hooks, each changed file sends `FileChanged` (see
  *   {@link reportChange}), with its text from before the patch. A move
  *   sends one `'moved'` event.
@@ -482,6 +484,8 @@ export function patchTools(env: ToolEnv, versions: FileVersions) {
       const paths = [
         ...new Set(steps.flatMap((step) => [step.full, step.to])),
       ].sort()
+      // Every file that the patch changes, before the first write.
+      await beforeWrite(env, paths)
       // The paths with no file before the locks. A file there under the
       // locks is new, and the patch did not see it.
       const missing = new Set<string>()

@@ -174,7 +174,7 @@ import { summarize } from "@tanstack/ai";
 import { groqSummarize } from "@tanstack/ai-groq";
 
 const result = await summarize({
-  adapter: groqSummarize("llama-3.3-70b-versatile"),
+  adapter: groqSummarize("openai/gpt-oss-120b"),
   text: "Your long text to summarize...",
   threadId: "thread-1",
   maxLength: 100,
@@ -199,7 +199,7 @@ import { chat } from "@tanstack/ai";
 import { groqText } from "@tanstack/ai-groq";
 
 const stream = chat({
-  adapter: groqText("llama-3.3-70b-versatile"),
+  adapter: groqText("openai/gpt-oss-120b"),
   messages: [{ role: "user", content: "Hello!" }],
   threadId: "thread-1",
   modelOptions: {
@@ -231,7 +231,7 @@ const stream = chat({
 It goes out as `reasoning_effort`:
 
 - `openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `openai/gpt-oss-safeguard-20b`: `low`, `medium`, `high`.
-- `qwen/qwen3-32b`: `off` (sent as `none`) and `high` (sent as `default`).
+- `qwen/qwen3.8-27b`: `off` (sent as `none`), `low`, `medium`, `high`.
 
 To pick how the thinking text comes back, set `reasoning_format` in `modelOptions`.
 
@@ -242,9 +242,8 @@ The package exports the full lists as `GROQ_CHAT_MODELS`, `GROQ_TRANSCRIPTION_MO
 | Group | Models |
 | --- | --- |
 | OpenAI gpt-oss | `openai/gpt-oss-120b` (reasoning), `openai/gpt-oss-20b`, `openai/gpt-oss-safeguard-20b` (safety-tuned) |
-| Meta Llama | `meta-llama/llama-4-maverick-17b-128e-instruct` (vision), `meta-llama/llama-4-scout-17b-16e-instruct`, `llama-3.3-70b-versatile` (128K context), `llama-3.1-8b-instant` |
-| Other | `qwen/qwen3-32b` (reasoning), `moonshotai/kimi-k2-instruct-0905` (256K context) |
-| Safety | `meta-llama/llama-guard-4-12b` (content moderation), `meta-llama/llama-prompt-guard-2-86m` and `meta-llama/llama-prompt-guard-2-22m` (prompt injection detection) |
+| Qwen | `qwen/qwen3.8-27b` (reasoning, vision) |
+| Safety | `meta-llama/llama-prompt-guard-2-86m` and `meta-llama/llama-prompt-guard-2-22m` (prompt injection detection) |
 
 `adapter.inputModalities` lists the input kinds of the selected model. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 
@@ -270,7 +269,7 @@ Groq can reject a tool call from the model with `tool_use_failed`. If the error 
 
 ### Structured output
 
-Some Groq models, for example `llama-3.3-70b-versatile`, reject strict JSON schema. For these models, `chat({ outputSchema })` sends `json_object` and adds your schema to the system prompt. Read [When strict JSON schema is rejected](../structured-outputs/overview.md#when-strict-json-schema-is-rejected).
+Some Groq models, for example `meta-llama/llama-prompt-guard-2-86m`, support JSON mode but not strict JSON schema. For these models, `chat({ outputSchema })` sends `json_object` and adds your schema to the system prompt. Read [When strict JSON schema is rejected](../structured-outputs/overview.md#when-strict-json-schema-is-rejected).
 
 ### API reference
 

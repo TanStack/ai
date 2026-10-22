@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 import { chat } from '../src/activities/chat/index'
 import { EventType } from '../src/types'
 import { fakeText } from '../src/testing'
@@ -285,6 +286,32 @@ describe('fakeText', () => {
     })
 
     expect(result.data).toEqual({ city: 'Oslo' })
+  })
+
+  describe('chat({ outputSchema }) failures', () => {
+    const failure = async (text: string) => {
+      const fake = fakeText()
+      fake.setResponses([{ text }])
+      return chat({
+        threadId: 'thread-1',
+        adapter: fake,
+        messages: hi,
+        outputSchema: z.object({ answer: z.string() }),
+      }).catch((error: unknown) => error)
+    }
+
+    it('puts the model text on a schema failure', async () => {
+      expect(await failure('{"answer": 1}')).toMatchObject({
+        code: 'structured-output-validation-failed',
+        rawText: '{"answer": 1}',
+      })
+    })
+
+    it('gives an answer that is not JSON the parse-failed code', async () => {
+      const error = await failure('Sure! {"answer": "yes"}')
+      expect(error).toMatchObject({ code: 'structured-output-parse-failed' })
+      expect((error as Error).cause).toBeInstanceOf(SyntaxError)
+    })
   })
 
   it('stamps parentRunId on RUN_STARTED when the call has one', async () => {

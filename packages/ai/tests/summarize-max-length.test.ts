@@ -81,13 +81,13 @@ describe('ChatStreamSummarizeAdapter — maxLength reaches the wrapped adapter u
     const { textAdapter, lastModelOptions } = createRecordingTextAdapter()
     const adapter = new ChatStreamSummarizeAdapter(
       textAdapter,
-      'llama-3.3-70b-versatile',
+      'openai/gpt-oss-120b',
       'groq',
     )
 
     await adapter.summarize({
       threadId: 'thread-1',
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-120b',
       text: 'hi',
       maxLength: 256,
       logger,

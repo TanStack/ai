@@ -1,6 +1,7 @@
 // Browser-safe: this module has type-only imports from the rest of the
-// package, plus `media-ref` and `utils`, which have no runtime imports
-// themselves. So no server code (adapters, stores, secrets) reaches a client.
+// package, plus `media-ref`, `utils`, and `types`, which have no runtime
+// imports themselves. So no server code (adapters, stores, secrets) reaches a
+// client.
 import { isMediaRecord } from './media-ref'
 import { isRecord } from './utils'
 import type { ModelMessage } from '@tanstack/ai'
@@ -47,6 +48,7 @@ export {
   mediaOfMessage,
   mediaPart,
 } from './media-ref'
+export { HARNESS_EVENTS } from './types'
 export type { ForkPoint, MediaKind, MediaRecord } from './types'
 export type { HarnessErrorCode } from './protocol'
 export type {

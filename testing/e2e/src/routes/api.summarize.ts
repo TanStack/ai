@@ -94,7 +94,7 @@ function createSummarizeAdapter(
       ),
     ollama: () => createOllamaSummarize('mistral', llmockBase(aimockPort)),
     groq: () =>
-      createGroqSummarize('llama-3.3-70b-versatile', DUMMY_KEY, {
+      createGroqSummarize('openai/gpt-oss-120b', DUMMY_KEY, {
         baseURL: `${llmockBase(aimockPort)}/openai/v1`,
         defaultHeaders: headers,
       }),

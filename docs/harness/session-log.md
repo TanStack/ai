@@ -170,7 +170,7 @@ const signals = entries.filter((entry) => entry.record.type === 'app.signal')
 console.log(signals.map((entry) => entry.seq))
 ```
 
-Each `harness.input` record has the `user` of its sender: its `id` and `tenantId`. Every kind of input has it when the sender is known, also a cancel, an answer, a delivery change, and a change of settings.
+Each `harness.input` record has the `user` of its sender: its `id`, `name`, and `tenantId`. Every kind of input has it when the sender is known, also a cancel, an answer, a delivery change, and a change of settings.
 
 Two harness records tell who answers a thread and where a conversation went. See [Hand off a conversation](./handoffs).
 

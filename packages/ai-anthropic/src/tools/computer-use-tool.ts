@@ -85,7 +85,7 @@ export function splitComputerToolsetCall(input: object) {
  *   the other models that support the toolset. No beta header.
  * - `computer_20251124`: the earlier tool of Claude Opus 4.5 to Claude Opus 5,
  *   Sonnet 4.6, and Sonnet 5.
- * - `computer_20250124`: Claude Sonnet 4.5, Haiku 4.5, and Opus 4.1.
+ * - `computer_20250124`: Claude Sonnet 4.5 and Haiku 4.5.
  */
 export function computerUseTool(
   config: ComputerToolsetConfig,

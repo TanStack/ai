@@ -1,7 +1,6 @@
 import { createServer } from 'node:http'
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, createChatOptions } from '@tanstack/ai'
-import { createAnthropicChat } from '@tanstack/ai-anthropic'
 import { createMistralText } from '@tanstack/ai-mistral'
 import { createOllamaChat } from '@tanstack/ai-ollama'
 import { openaiCompatible } from '@tanstack/ai-openai/compatible'
@@ -72,7 +71,7 @@ async function withServer<T>(
  * (`finish_reason: "length"`). For OpenAI-compatible and OpenRouter,
  * `chat()` takes the adapter's streaming structured-output path. A scripted
  * `fetch` returns a truncated JSON document and, for a reasoning model that
- * spent the budget, empty content. Anthropic, Mistral and Ollama have no
+ * spent the budget, empty content. Mistral and Ollama have no
  * streaming structured output, so `chat()` calls their `structuredOutput()`;
  * Mistral and Ollama take no custom `fetch` and get a local server instead.
  * The companion spec checks that each adapter reports the token limit
@@ -118,38 +117,6 @@ export const Route = createFileRoute('/api/structured-output-length-wire')({
             }),
           )
         }
-
-        // A pre-4.5 model takes the forced-tool `structuredOutput()` path
-        // (4.5+ use the native combined path). The forced tool call stopped
-        // at max_tokens, with partial input.
-        const anthropic = createAnthropicChat('claude-opus-4-1', DUMMY_KEY, {
-          fetch: async () =>
-            Response.json({
-              id: 'msg_length',
-              type: 'message',
-              role: 'assistant',
-              model: 'claude-opus-4-1',
-              content: [
-                {
-                  type: 'tool_use',
-                  id: 'toolu_length',
-                  name: 'structured_output',
-                  input: {},
-                },
-              ],
-              stop_reason: 'max_tokens',
-              stop_sequence: null,
-              usage: { input_tokens: 10, output_tokens: 5 },
-            }),
-        })
-        errors['anthropic-truncated'] = await errorOf(() =>
-          chat({
-            threadId: 'structured-output-length-wire',
-            ...createChatOptions({ adapter: anthropic }),
-            messages: [{ role: 'user', content: 'Give me a title' }],
-            outputSchema,
-          }),
-        )
 
         errors['mistral-truncated'] = await withServer(
           {

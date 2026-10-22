@@ -34,6 +34,7 @@ Discover and run MCP server tools, resources, and prompts inside any TanStack AI
 - `@tanstack/ai-mcp/stdio` subpath — Node-only stdio transport, isolated so edge bundles stay clean
 - Bundled `tanstack-ai-mcp generate` CLI — introspects live servers and emits TypeScript types for `createMCPClient<MyServer>()`
 - `[Symbol.asyncDispose]` support — use `await using` for automatic cleanup
+- `@tanstack/ai-mcp/events` subpath — experimental MCP Events (SEP-3415) webhooks: `createMCPEventWebhook`, `inMemoryMCPEventStore`, `createMCPEventSecret`
 
 ## Installation
 

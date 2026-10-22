@@ -8,7 +8,7 @@ export {
 } from '@tanstack/openai-base'
 
 // The brand discriminator (`computer_use`) intentionally differs from the
-// runtime tool name (`computer` or `computer_use_preview`). The brand matches
+// runtime tool name (`computer`). The brand matches
 // the model-meta tool-capability union (`tools: ['computer_use', ...]`) used to
 // gate which models can construct this tool at compile time, while the runtime
 // name matches the tool type in the OpenAI SDK. The base factory records the

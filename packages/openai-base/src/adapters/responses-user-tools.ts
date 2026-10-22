@@ -8,17 +8,14 @@ import type {
 /**
  * OpenAI Responses tools the app must run.
  * A container `shell` runs on the provider. `apply_patch`, `local_shell`,
- * `computer`, `computer_use_preview`, and `shell` with
+ * `computer`, and `shell` with
  * `environment.type: "local"` (or no environment) do not.
  */
 export type OpenAIUserToolName =
   | 'shell'
   | 'apply_patch'
   | 'local_shell'
-  | OpenAIComputerToolName
-
-/** The names of the computer tool: its two tool types. */
-export type OpenAIComputerToolName = 'computer' | 'computer_use_preview'
+  | 'computer'
 
 export interface OpenAIUserExecutedCall {
   name: OpenAIUserToolName
@@ -88,8 +85,7 @@ export function readUserToolName(metadata: unknown): OpenAIUserToolName | null {
     name === 'shell' ||
     name === 'apply_patch' ||
     name === 'local_shell' ||
-    name === 'computer' ||
-    name === 'computer_use_preview'
+    name === 'computer'
   ) {
     return name
   }
@@ -176,12 +172,10 @@ function applyPatchOperation(
  * `bareShell` is true only once the full response is known. A shell call
  * with no environment waits for that pass, so a hosted call that later
  * carries `shell_call_output` is not asked of the app.
- * `computerTool` is the name of the computer tool of the request. A
- * `computer_call` is a call to it.
  */
 export function readUserExecutedCall(
   item: unknown,
-  options: { bareShell: boolean; computerTool?: OpenAIComputerToolName },
+  options: { bareShell: boolean },
 ): OpenAIUserExecutedCall | null {
   if (!isRecord(item) || typeof item.type !== 'string') return null
   const callId = typeof item.call_id === 'string' ? item.call_id : ''
@@ -205,7 +199,7 @@ export function readUserExecutedCall(
     if (!callId || (!hasAction && !hasActions)) return null
     const checks = safetyChecks(item.pending_safety_checks)
     return {
-      name: options.computerTool ?? 'computer_use_preview',
+      name: 'computer',
       callId,
       ...(itemId ? { itemId } : {}),
       input: {
@@ -316,7 +310,7 @@ export function userToolRequestItem(
     }
   }
 
-  if (name === 'computer' || name === 'computer_use_preview') {
+  if (name === 'computer') {
     const { action, actions } = args
     const hasAction = isComputerAction(action)
     const hasActions = isComputerActionList(actions)
@@ -410,7 +404,7 @@ export function userToolResultItem(
   const name = readUserToolName(toolCall.metadata)
   if (!name) return null
 
-  if (name === 'computer' || name === 'computer_use_preview') {
+  if (name === 'computer') {
     const checks = computer.failed
       ? []
       : (safetyChecks(

@@ -189,6 +189,56 @@ describe('a durable host with only a log', () => {
     await next.host.close()
   })
 
+  it('runs the continuation of a resolve whose host stopped in its model call', async () => {
+    const persistence = logOnlyPersistence()
+    const deploy = toolDefinition({
+      name: 'deploy',
+      description: 'Deploy',
+      needsApproval: true,
+      inputSchema: z.object({ env: z.string() }),
+    }).server(async () => ({ ok: true }))
+    const first = await openHost(
+      persistence,
+      [() => toolCall('deploy', { env: 'prod' }), hangs],
+      [deploy],
+      CRASHING_OWNERSHIP,
+    )
+    const paused = await first.session.send('Deploy.', { inputId: 'deploy' })
+    const interrupt = paused.interrupts?.[0]
+    if (!interrupt) throw new Error('The turn did not stop for approval.')
+    void Promise.resolve(
+      first.session.resolve({
+        resume: [
+          { interruptId: interrupt.id, status: 'resolved', payload: true },
+        ],
+        inputId: 'approve',
+      }),
+    ).catch(() => {})
+    // The host stops in the model call of the continuation.
+    await waitFor(() => expect(first.calls).toHaveLength(2))
+
+    await ownershipExpired()
+    const next = await openHost(
+      persistence,
+      [() => text('Deployed.')],
+      [deploy],
+    )
+    expect(await next.session.settled({ inputId: 'approve' })).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(next.calls).toHaveLength(1)
+    // The model gets the approved tool's result once, and no new message.
+    expect(
+      next.calls[0].messages.map((message: { role: string }) => message.role),
+    ).toEqual(['user', 'assistant', 'tool'])
+    expect(roles(await next.session.transcript()).at(-1)).toEqual([
+      'assistant',
+      'Deployed.',
+    ])
+    await first.host.close().catch(() => {})
+    await next.host.close()
+  })
+
   it('fails a background agent whose host stopped, and keeps a finished one', async () => {
     const persistence = logOnlyPersistence()
     const pricer = defineAgent({

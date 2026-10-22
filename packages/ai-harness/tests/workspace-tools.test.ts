@@ -556,6 +556,54 @@ describe('the afterWrite hooks', () => {
   )
 })
 
+describe('the beforeWrite hooks', () => {
+  it.each([
+    ['write_file', { path: 'a.ts', content: 'one' }],
+    ['edit_file', { path: 'a.ts', old: 'zero', new: 'one' }],
+  ])('refuse %s before it writes', async (name, args) => {
+    const { backend, files } = memoryBackend()
+    files.set('/workspace/a.ts', new TextEncoder().encode('zero'))
+    const seen: Array<string> = []
+    const { tools } = createWorkspaceTools(
+      { root: '/workspace', backend },
+      {
+        hooks: () => [
+          {
+            beforeWrite: async (path) => {
+              seen.push(path)
+              return { refuse: 'a.ts is protected.' }
+            },
+            afterWrite: async (path) => {
+              seen.push(`after ${path}`)
+            },
+          },
+        ],
+      },
+    )
+    const set = new Map(
+      tools.map((tool): [string, AnyTool] => [tool.name, tool]),
+    )
+
+    await expect(runIn(set, name, args)).rejects.toThrow('a.ts is protected.')
+    expect(seen).toEqual(['/workspace/a.ts'])
+    expect(new TextDecoder().decode(files.get('/workspace/a.ts'))).toBe('zero')
+  })
+
+  it('lets write_file write when no hook refuses', async () => {
+    const { backend, files } = memoryBackend()
+    const { tools } = createWorkspaceTools(
+      { root: '/workspace', backend },
+      { hooks: () => [{ beforeWrite: async () => undefined }] },
+    )
+    const set = new Map(
+      tools.map((tool): [string, AnyTool] => [tool.name, tool]),
+    )
+
+    await runIn(set, 'write_file', { path: 'a.ts', content: 'one' })
+    expect(new TextDecoder().decode(files.get('/workspace/a.ts'))).toBe('one')
+  })
+})
+
 describe('FileChanged', () => {
   /** A unified diff of `rows`, each with a line ending. */
   const diff = (...rows: Array<string>) =>

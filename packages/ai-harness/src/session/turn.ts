@@ -27,6 +27,7 @@ import { HARNESS_EVENTS, InputRejectedError } from '../types'
 import { isRecord } from '../utils'
 import {
   createInputId,
+  createMessageId,
   inputMessageId,
   customEvent,
   errorText,
@@ -136,7 +137,11 @@ export abstract class SessionTurn<
       { op: 'command', name, input },
       user,
     )
-    // The owner runs it, or it ran before. Its result is in the events.
+    if (admission === 'offered') {
+      await this.followCommand(operation, inputId)
+      return
+    }
+    // It ran before. Its result is in the events.
     if (admission !== 'new') {
       const receipt = this.duplicateReceipt(inputId, admission)
       if (receipt.status === 'rejected') {
@@ -181,6 +186,47 @@ export abstract class SessionTurn<
       user,
       inputId,
     })
+  }
+
+  /**
+   * The owner on another host runs the command. End `operation` as the owner
+   * ends it: with its result from the log, or with its error. A refused
+   * command rejects with `InputRejectedError`.
+   */
+  private async followCommand(
+    operation: OperationImpl<unknown>,
+    inputId: string,
+  ): Promise<void> {
+    // The owner's operation id is known only when the input settles.
+    const results = new Map<string, unknown>()
+    const stop = this.feed.listen(({ operationId, event }) => {
+      if (
+        event.type === EventType.CUSTOM &&
+        event.name === 'harness.command.result' &&
+        isRecord(event.value)
+      ) {
+        results.set(operationId, event.value.result)
+      }
+    })
+    try {
+      const settlement = await this.settled({ inputId })
+      switch (settlement.outcome) {
+        case 'completed':
+        case 'interrupted':
+          operation.finish(
+            'completed',
+            results.get(settlement.operationId ?? ''),
+          )
+          return
+        case 'aborted':
+          operation.fail('cancelled', new Error('Cancelled.'))
+          return
+        case 'failed':
+          operation.fail('failed', new Error(settlement.error.message))
+      }
+    } finally {
+      stop()
+    }
   }
 
   /**
@@ -623,6 +669,11 @@ export abstract class SessionTurn<
     const resultIds = new Set<string>()
     const errorResultIds = new Set<string>()
     let text = ''
+    /** The turn text that the transcript has, before the current call. */
+    let textBefore = ''
+    /** A run and a text message of the stream that did not end yet. */
+    let isRunOpen = false
+    let openMessageId: string | undefined
     let interrupts: Array<Interrupt> | undefined
     let failure: string | undefined
     const captured: Array<MediaRecord> = []
@@ -645,14 +696,19 @@ export abstract class SessionTurn<
         this.activeTurn === operation && !this.declinedSignIns.has(id),
       handoff: (options) => turnHandoff(options),
     })
+    const attempt = turn.inputId
+      ? this.writer.state.inputs.get(turn.inputId)?.attempt
+      : undefined
     const info: TurnInfo = {
       operationId: operation.id,
       ...(turn.inputId ? { inputId: turn.inputId } : {}),
       ...(sentMessage !== undefined ? { message: sentMessage } : {}),
       ...(turn.context !== undefined ? { context: turn.context } : {}),
       ...(sender ? { user: sender } : {}),
+      ...(turn.sender || sender ? { sender: turn.sender ?? sender } : {}),
       ...(turn.overrides ? { overrides: turn.overrides } : {}),
       run,
+      ...(attempt ? { attempt } : {}),
     }
     try {
       await this.flushNotes()
@@ -787,6 +843,7 @@ export abstract class SessionTurn<
           this.harness.adapter)
       if (!model) throw new Error(NO_MODEL)
       const adapter: AnyTextAdapter = await run.keys.adapter(model)
+      info.model = `${adapter.name}/${adapter.model}`
       const resolvePrompt = (prompt: string | ((turn: TurnInfo) => string)) =>
         typeof prompt === 'function' ? prompt(info) : prompt
       const turnTools = overrides?.tools ?? []
@@ -1011,7 +1068,7 @@ export abstract class SessionTurn<
       for (;;) {
         // The main model and the root agents of a routed part run them.
         const turnHooks = this.harness.turn
-        let textBefore = text
+        textBefore = text
         /** Text, reasoning, or a tool call streamed since `textBefore`. */
         let streamed = false
         let runError: ModelErrorContext['error'] | undefined
@@ -1257,6 +1314,19 @@ export abstract class SessionTurn<
             if (!('subagentRunId' in chunk && chunk.subagentRunId)) {
               if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
                 text += chunk.delta
+              }
+              if (chunk.type === EventType.TEXT_MESSAGE_START) {
+                openMessageId = chunk.messageId
+              }
+              if (chunk.type === EventType.TEXT_MESSAGE_END) {
+                openMessageId = undefined
+              }
+              if (chunk.type === EventType.RUN_STARTED) isRunOpen = true
+              if (
+                chunk.type === EventType.RUN_FINISHED ||
+                chunk.type === EventType.RUN_ERROR
+              ) {
+                isRunOpen = false
               }
               if (
                 chunk.type === EventType.TEXT_MESSAGE_CONTENT ||
@@ -1526,6 +1596,58 @@ export abstract class SessionTurn<
       this.giveBack(operation)
       this.requeueWaitingSteers()
       return
+    }
+
+    // A cancel cuts the answer, and withPersistence saves none of it. The
+    // text the model streamed stays as an answer, so the next model call
+    // gets no two user messages in a row. A saved answer is not added twice.
+    const cutText = text.slice(textBefore.length)
+    if (
+      operation.abortController.signal.aborted &&
+      !this.logFailure &&
+      cutText !== ''
+    ) {
+      try {
+        const history = await this.messages.loadThread(this.threadId)
+        if (history.at(-1)?.role !== 'assistant') {
+          await this.messages.saveThread(this.threadId, [
+            ...history,
+            { id: createMessageId(), role: 'assistant', content: cutText },
+          ])
+        }
+      } catch (error) {
+        this.warn(operation, 'harness:transcript', error)
+      }
+    }
+    // A stopped stream ends its text message and its run, as an agent run
+    // does: a cancel finishes it `cancelled`, a time limit fails it.
+    if (operation.abortController.signal.aborted && !this.logFailure) {
+      const timestamp = Date.now()
+      if (openMessageId !== undefined) {
+        operation.publish({
+          type: EventType.TEXT_MESSAGE_END,
+          messageId: openMessageId,
+          timestamp,
+        })
+      }
+      if (isRunOpen) {
+        operation.publish(
+          timedOut
+            ? {
+                type: EventType.RUN_ERROR,
+                message: 'The input passed its time limit.',
+                code: 'timeout',
+                timestamp,
+              }
+            : ({
+                type: EventType.RUN_FINISHED,
+                runId: operation.id,
+                threadId: this.threadId,
+                outcome: { type: 'cancelled' },
+                timestamp,
+              } as StreamChunk),
+        )
+      }
     }
 
     // The stream has ended, so withPersistence has saved the turn. A failed or

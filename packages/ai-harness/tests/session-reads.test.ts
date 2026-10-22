@@ -115,6 +115,32 @@ describe('session reads for UIs', () => {
     })
     await second.host.close()
   })
+
+  it('puts the saved state of a turn plugin in the snapshot of a host that ran no turn', async () => {
+    const persistence = memoryPersistence()
+    const picker = definePlugin({
+      name: 'test/picker',
+      lifetime: 'turn',
+      setup: async (ctx) => {
+        await ctx.state({ pick: 'none' }).update(() => ({ pick: 'fast' }))
+      },
+    })
+    const harness = defineHarness({
+      name: 'test/turn-state',
+      adapter: mockAdapter([() => text('ok')]).adapter,
+      plugins: () => [picker],
+    })
+    const first = createHarnessHost({ persistence })
+    await (await first.open(harness, { threadId: 't' })).send('Go.')
+    await first.close()
+
+    const second = createHarnessHost({ persistence })
+    const session = await second.open(harness, { threadId: 't' })
+    expect(session.snapshot().plugins).toEqual({
+      'test/picker': { pick: 'fast' },
+    })
+    await second.close()
+  })
 })
 
 describe('session.jobs', () => {

@@ -420,6 +420,8 @@ The model gets a `researcher` tool and a `writer` tool. Each tool takes these fi
 - `sessionId`: the `subagentRunId` of an earlier result. The call continues that child. It needs no more setup, because the session stores each child.
 - `background`: `true` gives the model `{ subagentRunId, result: { status: 'started' } }` at once. The child runs as a background agent of the session.
 
+To keep every child inside the turn that calls it, set `subagents: { agents, background: false }`. The tools then have no `background` field.
+
 For the tool input in plain `chat()`, see [The tool input](../chat/subagents#the-tool-input).
 
 When a background child ends, the session starts a new turn. Its message starts with `Background agent researcher finished:` or `Background agent researcher failed:`. While the child runs, it is in `session.agentRuns()`.

@@ -29,6 +29,7 @@ import {
   SHUTDOWN_REASON,
   BUDGET_REASON,
   checkHostRecords,
+  withRun,
 } from './helpers'
 import { SessionRequests } from './requests'
 import type { OperationImpl } from '../operation'
@@ -795,6 +796,8 @@ export abstract class SessionTurnParts<
         // Only the errors of the call, to the host logger. A `debug` in
         // `options` wins.
         debug: errorsOnlyDebug(this.logger),
+        // The harness middleware gets the context of a turn call.
+        context: withRun(this.harness.context, run),
         ...options,
         adapter: await run.keys.adapter(model),
         stream: false,
@@ -820,6 +823,9 @@ export abstract class SessionTurnParts<
               )
             },
           },
+          // Every model call of the thread runs the harness middleware, as
+          // a turn call does: a cost ledger or a trace sees this call too.
+          ...((this.harness.middleware ?? []) as Array<never>),
         ],
       })
       // chat() can end with no error when it is aborted.

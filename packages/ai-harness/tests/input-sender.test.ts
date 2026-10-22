@@ -385,14 +385,21 @@ describe('the sender of each input', () => {
 
     const turn = session.send('Start.')
     await started.opened
-    await session.send('Also this.', { inputId: 'in-alice', mode: 'steer' })
-      .receipt
+    expect(
+      await session.send('Also this.', { inputId: 'in-alice', mode: 'steer' })
+        .receipt,
+    ).toEqual({ inputId: 'in-alice', status: 'accepted', operationId: turn.id })
     const bobs = session.send('Mine.', {
       busy: 'steer',
       inputId: 'in-bob',
       user: bob,
     })
-    await bobs.receipt
+    // Bob's steer can't join alice's turn, so it waits for a turn of its own.
+    expect(await bobs.receipt).toEqual({
+      inputId: 'in-bob',
+      status: 'queued',
+      operationId: bobs.id,
+    })
     release.open()
 
     expect(await turn).toEqual({ text: 'First.Joined.', media: [] })
@@ -400,8 +407,8 @@ describe('the sender of each input', () => {
       operationId: turn.id,
     })
     expect(await bobs).toEqual({ text: 'Bob here.', media: [] })
-    expect((await session.settled({ inputId: 'in-bob' })).operationId).not.toBe(
-      turn.id,
+    expect((await session.settled({ inputId: 'in-bob' })).operationId).toBe(
+      bobs.id,
     )
     expect(seen.map((entry) => entry.user)).toEqual(['bob'])
     await host.close()
@@ -583,6 +590,88 @@ describe('the sender of each input', () => {
   })
 })
 
+describe('the name of a sender', () => {
+  it('keeps the name in the log, so a host that recovers the turn has it', async () => {
+    const log = memoryLogStore()
+    const { adapter } = mockAdapter([() => text('ok')])
+    const host = createHarnessHost({ persistence: { stores: { log } } })
+    const session = await host.open(
+      defineHarness({ name: 'test/sender-name', adapter }),
+      { threadId: THREAD },
+    )
+    const ann = { id: 'ann', name: 'Ann', tenantId: 'org' }
+
+    await session.send('Hi.', { inputId: 'in-1', user: ann })
+
+    const records = (await log.read({ logId: LOG })).map(
+      (entry) => entry.record,
+    )
+    expect(records).toContainEqual(
+      expect.objectContaining({ type: 'harness.input', user: ann }),
+    )
+    await host.close()
+  })
+})
+
+describe('the sender of a resolve', () => {
+  it('runs the turn as the user of the stopped turn, and names who resolved', async () => {
+    const turns: Array<TurnInfo | undefined> = []
+    const deploy = toolDefinition({
+      name: 'deploy',
+      description: 'Deploy. Needs approval.',
+      needsApproval: true,
+      inputSchema: z.object({ env: z.string() }),
+    })
+    const { adapter } = mockAdapter([
+      () => toolCall('deploy', { env: 'prod' }, 'c1'),
+      () => text('Deployed.'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/resolve-sender',
+        adapter,
+        tools: [deploy.server(async () => ({ ok: true }))],
+        plugins: () => [
+          definePlugin({
+            name: 'test/turns',
+            lifetime: 'turn',
+            setup: (ctx) => void turns.push(ctx.turn),
+          }),
+        ],
+      }),
+      { threadId: THREAD },
+    )
+
+    const paused = await session.send('Deploy.', {
+      inputId: 'deploy',
+      user: alice,
+    })
+    await session.resolve({
+      resume: [
+        {
+          interruptId: paused.interrupts?.[0]?.id ?? '',
+          status: 'resolved',
+          payload: { approved: true },
+        },
+      ],
+      inputId: 'approve',
+      user: bob,
+    })
+    expect(await session.settled({ inputId: 'approve' })).toMatchObject({
+      outcome: 'completed',
+    })
+
+    expect(
+      turns.map((turn) => [turn?.inputId, turn?.user?.id, turn?.sender?.id]),
+    ).toEqual([
+      ['deploy', 'alice', 'alice'],
+      ['approve', 'alice', 'bob'],
+    ])
+    await host.close()
+  })
+})
+
 describe('recovery keeps the sender and the context', () => {
   /** A turn plugin that keeps the turn it is set up for, and a tool that reports. */
   function recorder() {
@@ -715,6 +804,9 @@ describe('recovery keeps the sender and the context', () => {
         message: 'go',
         context: { screen: 'x' },
         user: { id: 'bob' },
+        // The second run of the input, on the model it ran with.
+        attempt: 2,
+        model: 'mock/test-model',
       }),
     ])
     expect(seen).toEqual([{ user: 'bob', context: { screen: 'x' } }])
@@ -773,11 +865,15 @@ describe('the turn where the model is picked', () => {
       message: 'Pick for me.',
       context: { plan: 'pro' },
       user: bob,
+      sender: bob,
       run: expect.objectContaining({
         user: { id: 'bob' },
         runId: turn.id,
         threadId: THREAD,
       }),
+      attempt: 1,
+      // Set once the turn picked its adapter.
+      model: 'mock/test-model',
     }
     expect(setups).toEqual([expected])
     expect(picks).toEqual([expected])

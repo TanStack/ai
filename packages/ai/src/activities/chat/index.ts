@@ -273,6 +273,13 @@ const MAX_MODEL_ERROR_RETRIES = 2
 /** Resume entries a subagent tool call owns. The parent run skips them. */
 const CHILD_RESUME_IDS = Symbol('tanstack.ai.childResumeIds')
 
+/**
+ * A durable resume check that `withPersistence` leaves on the init config.
+ * The run calls it after the whole `onConfig` chain, so it checks the resume
+ * against the tools that a later middleware added too.
+ */
+const DURABLE_RESUME = Symbol.for('tanstack.ai.durableResume')
+
 interface StructuralInterruptFailure {
   error: Error
   errors: ReadonlyArray<InterruptSubmissionError>
@@ -1514,6 +1521,16 @@ class TextEngine<
         this.middlewareRunner.runOnConfig(this.middlewareCtx, initialConfig),
       )
       this.applyMiddlewareConfig(transformedConfig)
+      const durableResume = (
+        transformedConfig as {
+          [DURABLE_RESUME]?: (
+            tools: ChatMiddlewareConfig['tools'],
+          ) => Promise<ChatResumeToolState | undefined>
+        }
+      )[DURABLE_RESUME]
+      if (durableResume) {
+        this.applyResumeToolState(await durableResume(this.tools))
+      }
       await this.applyEphemeralInterruptResume(transformedConfig)
       await this.applyDurableGenericInterruptResolution()
 
@@ -4972,6 +4989,7 @@ class TextEngine<
           message,
           code: 'structured-output-validation-failed',
           cause: err,
+          rawText: this.structuredOutputResult.rawText,
         }
       }
     }
@@ -5110,6 +5128,7 @@ class TextEngine<
           message,
           code: 'structured-output-validation-failed',
           cause: err,
+          rawText: this.structuredOutputResult.rawText,
         }
       }
     }
@@ -7126,6 +7145,13 @@ async function* fallbackStructuredOutputStream(
   } catch (error) {
     onAdapterError?.(error)
     const message = error instanceof Error ? error.message : String(error)
+    // An answer that is not JSON gets the same code as on the engine's own
+    // parse path. ponytail: only a SyntaxError (or one as `cause`) is known
+    // as a parse failure; an adapter that throws a plain Error keeps no code.
+    const parseFailed =
+      error instanceof SyntaxError ||
+      (error instanceof Error && error.cause instanceof SyntaxError)
+    const code = parseFailed ? 'structured-output-parse-failed' : undefined
     yield {
       type: EventType.RUN_ERROR,
       runId,
@@ -7133,7 +7159,8 @@ async function* fallbackStructuredOutputStream(
       model,
       timestamp: Date.now(),
       message,
-      error: { message },
+      ...(code ? { code } : {}),
+      error: { message, ...(code ? { code } : {}) },
     }
     return
   }

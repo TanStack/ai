@@ -110,6 +110,20 @@ describe('harness.input.queued', () => {
   })
 })
 
+describe('harness.input.accepted', () => {
+  it("carries the input's user message, so a reader can show it before the reply", async () => {
+    const log = memoryLogStore()
+    const { host, session } = await openOn(log, [() => text('Hi.')])
+
+    await session.send('Hello.', { inputId: 'in-1' })
+
+    expect(await valuesOf(log, THREAD, 'harness.input.accepted')).toEqual([
+      { inputId: 'in-1', op: 'prompt', message: 'Hello.' },
+    ])
+    await host.close()
+  })
+})
+
 describe('harness.ownership.changed', () => {
   it('comes once when the first host acquires the log, not when it acquires it again', async () => {
     const log = memoryLogStore()

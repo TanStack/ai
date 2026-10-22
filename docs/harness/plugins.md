@@ -413,7 +413,7 @@ The options:
 - `label`: a name for the call in its usage record.
 - `timeoutMs`: the time limit of the call. The default is 2 minutes.
 
-The call stops when its run stops, for example on a cancel, and when the time limit ends. Then it rejects. Its usage counts in the session under `plugin:<name>`, here `plugin:acme/recap`. See [Usage of plugins](./usage#usage-of-plugins). The `goal()`, `title()`, and `compact()` plugins call their models this way.
+The call stops when its run stops, for example on a cancel, and when the time limit ends. Then it rejects. Its usage counts in the session under `plugin:<name>`, here `plugin:acme/recap`. See [Usage of plugins](./usage#usage-of-plugins). The call runs the harness `middleware`, as a turn call does, so your cost ledger and traces see it. The middleware gets the run in `ctx.context.run`. The `goal()`, `title()`, and `compact()` plugins call their models this way.
 
 ## Write warnings to the host logger
 
@@ -475,9 +475,12 @@ The `turn` has these fields:
 | `inputId` | The id of the input, when the turn has one. |
 | `message` | The user message of the input. `undefined` for a resolve and a continue. |
 | `context` | The [context of the input](./inputs#send-context-with-a-message). It is client data, so do not trust it. |
-| `user` | Who sent the input. Default: the user that opened the session. See [Share a thread](./shared-threads). |
+| `user` | Who the turn runs as. Its tools get this user's credentials and keys. It is the sender of the input, and for a resolve the sender of the stopped turn. Default: the user that opened the session. See [Share a thread](./shared-threads). |
+| `sender` | Who sent the input. The same as `user`, except on a resolve: there it is the user who resolved. |
 | `overrides` | The [overrides of the prompt](./turn-control#give-one-prompt-its-own-settings), when it has some. |
 | `run` | The run of the turn: its user, and that user's credentials and keys. See [Act as the user of a run](#act-as-the-user-of-a-run). |
+| `model` | The model of the turn, as `provider/model`. The turn sets it when it picks its adapter, so `setup`, `onTurnStart`, and the picker do not see it yet. |
+| `attempt` | How many times the input ran: `1` the first time. A turn that recovery runs again after a host stopped has a larger number. |
 
 The session uses the picks like this:
 

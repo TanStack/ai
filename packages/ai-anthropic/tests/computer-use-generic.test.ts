@@ -215,26 +215,20 @@ describe('anthropic generic computer tool', () => {
     ])
   })
 
-  it.each(['claude-opus-5-fast', 'claude-opus-4-5@20251101'])(
-    'throws for %s, which has no computer version in the model meta',
-    (model) => {
-      expect(() => resolveComputerUseTool(computerTool(), model)).toThrow(
-        `Model "${model}" does not support computer use.`,
-      )
-    },
-  )
+  it('throws for a model with no computer version in the model meta', () => {
+    const model = 'claude-opus-4-5@20251101'
+    expect(() => resolveComputerUseTool(computerTool(), model)).toThrow(
+      `Model "${model}" does not support computer use.`,
+    )
+  })
 
   it('returns a tool with no computer metadata unchanged', () => {
     const tool = { name: 'echo', description: 'Echo the input.' }
 
-    expect(resolveComputerUseTool(tool, 'claude-opus-5-fast')).toBe(tool)
+    expect(resolveComputerUseTool(tool, 'claude-opus-4-5@20251101')).toBe(tool)
   })
 
-  it('types: chat() takes the generic tool only on a model with a computer version', () => {
+  it('types: chat() takes the generic tool on a model with a computer version', () => {
     typedTools(createAnthropicChat('claude-opus-5-5', 'k'), [computerTool()])
-    typedTools(createAnthropicChat('claude-opus-5-fast', 'k'), [
-      // @ts-expect-error - claude-opus-5-fast has no computer version
-      computerTool(),
-    ])
   })
 })

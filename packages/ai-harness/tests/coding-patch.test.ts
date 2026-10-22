@@ -34,11 +34,16 @@ const diff = (...rows: Array<string>) => rows.map((row) => `${row}\n`).join('')
  * The patch tool on files in memory that start as `files`. `written` lists
  * the files that the `afterWrite` hook saw, in order, and `changes` the
  * `FileChanged` values that the tool sent. With `canRemove: false`, the
- * backend has no `remove`. `dirs` are folders.
+ * backend has no `remove`. `dirs` are folders. The `beforeWrite` hook
+ * refuses the files in `protect`, and `checked` lists the files it saw.
  */
 function workspace(
   files: Record<string, string>,
-  { canRemove = true, dirs = [] as Array<string> } = {},
+  {
+    canRemove = true,
+    dirs = [] as Array<string>,
+    protect = [] as Array<string>,
+  } = {},
 ) {
   const store = new Map<string, Uint8Array>()
   for (const [path, text] of Object.entries(files)) {
@@ -71,12 +76,20 @@ function workspace(
     exec: async () => ({ exitCode: 0, stdout: '', stderr: '' }),
   }
   const written: Array<string> = []
+  const checked: Array<string> = []
   const changes: Array<unknown> = []
   const env: ToolEnv = {
     backend,
     root,
     hooks: () => [
       {
+        beforeWrite: async (path) => {
+          checked.push(shown(path))
+          if (protect.includes(shown(path))) {
+            return { refuse: `${shown(path)} is protected.` }
+          }
+          return undefined
+        },
         afterWrite: async (path) => {
           written.push(shown(path))
         },
@@ -93,6 +106,7 @@ function workspace(
   const [tool] = tools
   return {
     written,
+    checked,
     changes,
     run: async (text: string) => {
       if (!tool?.execute) throw new Error('No patch tool')
@@ -425,6 +439,33 @@ describe('patch tool', () => {
       'Cannot add src: it is a folder.',
     )
     expect(files.files()).toEqual({ 'a.txt': 'a\n' })
+  })
+
+  it('checks every file with beforeWrite, and a refusal writes nothing', async () => {
+    const files = workspace(
+      { 'a.txt': 'a\n', 'b.txt': 'b\n', 'c.txt': 'c\n' },
+      { protect: ['c.txt'] },
+    )
+    await expect(
+      files.run(
+        patch(
+          '*** Update File: a.txt',
+          '-a',
+          '+A',
+          '*** Delete File: b.txt',
+          '*** Update File: c.txt',
+          '-c',
+          '+C',
+        ),
+      ),
+    ).rejects.toThrow('c.txt is protected.')
+    expect(files.checked).toEqual(['a.txt', 'b.txt', 'c.txt'])
+    expect(files.written).toEqual([])
+    expect(files.files()).toEqual({
+      'a.txt': 'a\n',
+      'b.txt': 'b\n',
+      'c.txt': 'c\n',
+    })
   })
 
   it('runs the afterWrite hook once for each written file', async () => {

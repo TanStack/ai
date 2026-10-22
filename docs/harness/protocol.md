@@ -410,14 +410,14 @@ To give the host a tracer, see [Trace runs and report operations](./deploy#trace
 
 A harness adds its own events to the stream as AG-UI `CUSTOM` events. `name` is the event name, and `value` has the fields below. Ignore a name that you do not know. A later version can add names.
 
-In TypeScript, `HarnessEventValues` from `@tanstack/ai-harness` maps each name to its value type, and `HARNESS_EVENTS` has the names. `harness.plugin.warning` is the only name that is in neither.
+In TypeScript, `HarnessEventValues` from `@tanstack/ai-harness` maps each name to its value type, and `HARNESS_EVENTS` has the names. A browser client imports `HARNESS_EVENTS` from `@tanstack/ai-harness/client`. `harness.plugin.warning` is the only name that is in neither.
 
 ### Runs
 
 | `name` | `value` |
 | --- | --- |
 | `harness.operation.started` | `{ operationId, kind, agent? }`. `kind` is `chat`, `agent`, `command`, or `compact`. |
-| `harness.operation.finished` | `{ operationId, status }`. `status` is `completed`, `failed`, `cancelled`, or `interrupted`. |
+| `harness.operation.finished` | `{ operationId, status }`. `status` is `completed`, `failed`, `cancelled`, or `interrupted`. Before it, a cancelled turn ends its open text message and sends `RUN_FINISHED` with `outcome: { type: 'cancelled' }`. A turn past its time limit sends `RUN_ERROR` with `code: 'timeout'`. |
 | `harness.operation.resumed` | `{ operationId, resumedFrom? }`. A host continued a run after another host stopped. |
 | `harness.turn.retry` | `{ operationId, retries, error: { message, code?, retryAfterMs? }, continued }`. `continued` is true when the model continues a partial answer. |
 | `harness.handoff` | `{ from, to, note?, runId, by, waitId? }`. `from` and `to` are an agent name, `null` for the main model, or `{ human: true }`. `by` is `tool`, `code`, `router`, or `operator`. A handoff to a person has the `waitId` of its wait. |
@@ -427,7 +427,7 @@ In TypeScript, `HarnessEventValues` from `@tanstack/ai-harness` maps each name t
 
 | `name` | `value` |
 | --- | --- |
-| `harness.input.accepted` | `{ inputId, op }` |
+| `harness.input.accepted` | `{ inputId, op, message? }`. `message` is the user message of a `prompt`, `steer`, or `followUp`, without the secrets of the session. |
 | `harness.input.queued` | `{ inputId, delivery }`. The owner of the log stored the input, and it waits behind the running turn or the turns before it. `delivery` is `steer` or `queue`. |
 | `harness.input.applied` | `{ inputId, operationId }` |
 | `harness.input.rejected` | `{ inputId, reason }` |

@@ -231,6 +231,8 @@ interface BackgroundReady {
   record: CompactionRecord
   /** The hash of the snapshot before `record.from`, for a record with no `firstKeptId`. */
   prefixHash: string
+  /** The model of the call that started the summary. Only its calls apply it. */
+  model: string
 }
 
 function isBackgroundReady(value: unknown): value is BackgroundReady {
@@ -937,6 +939,7 @@ export function withCompaction(
         const ready: BackgroundReady = {
           record,
           prefixHash: await hashMessages(snapshot.slice(0, record.from)),
+          model: ctx.model,
         }
         await store.set(BACKGROUND_NAMESPACE, ctx.threadId, ready)
       } catch (failure) {
@@ -1228,9 +1231,9 @@ export function withCompaction(
 
       /**
        * Apply the ready background summary of the thread, or drop it when it
-       * no longer fits: a newer compaction cut past its kept message, or,
-       * without a kept id, the messages before the cut changed. Returns the
-       * new list, or `undefined`.
+       * no longer fits: another model prepared it, a newer compaction cut
+       * past its kept message, or, without a kept id, the messages before the
+       * cut changed. Returns the new list, or `undefined`.
        */
       const applyReady = async () => {
         const readyStore = backgroundStore(ctx)
@@ -1238,13 +1241,15 @@ export function withCompaction(
         if (!isBackgroundReady(ready)) return undefined
         await readyStore.delete(BACKGROUND_NAMESPACE, ctx.threadId)
         const { record, prefixHash } = ready
-        // Without a kept id, the messages before the cut must be the ones
-        // that the summary read.
+        // A summary fits only the model that it was prepared for. Without a
+        // kept id, the messages before the cut must be the ones that the
+        // summary read.
         const fits =
-          record.firstKeptId !== undefined ||
-          (record.from <= workingMessages.length &&
-            (await hashMessages(workingMessages.slice(0, record.from))) ===
-              prefixHash)
+          ready.model === ctx.model &&
+          (record.firstKeptId !== undefined ||
+            (record.from <= workingMessages.length &&
+              (await hashMessages(workingMessages.slice(0, record.from))) ===
+                prefixHash))
         const next = fits
           ? projectCompaction({ messages: workingMessages, record })
           : undefined

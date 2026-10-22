@@ -955,6 +955,12 @@ export interface ChatHydrationResult {
     pending: Array<ChatPendingInterrupt>
   } | null
   /**
+   * Every wait of the thread, also one with no interrupt, for example a
+   * question that a tool asks. A harness server sends the `pendingWaits` of
+   * its snapshot. Old servers omit it.
+   */
+  pendingWaits?: Array<unknown>
+  /**
    * Whether this window is a slice of a longer thread.
    * `cursor` is set when `truncated` is true and is sent back as `before`.
    */

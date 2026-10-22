@@ -734,7 +734,7 @@ Each provider package exports one adapter function for each activity.
 | --- | --- |
 | `openai('gpt-4o')` in `streamText` | `openaiText('gpt-4o')` in `chat` |
 | `openai.embedding('text-embedding-3-small')` in `embed` | `openaiEmbedding('text-embedding-3-small')` in `embed` |
-| `openai.image('dall-e-3')` in `generateImage` | `openaiImage('dall-e-3')` in `generateImage` |
+| `openai.image('gpt-image-2')` in `generateImage` | `openaiImage('gpt-image-2')` in `generateImage` |
 | `anthropic('<model>')` | `anthropicText('<model>')` |
 | `google('<model>')` | `geminiText('<model>')` |
 

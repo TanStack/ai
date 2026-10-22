@@ -2,19 +2,18 @@
 title: Mistral
 id: mistral-adapter
 order: 7
-description: "Use Mistral models in TanStack AI with @tanstack/ai-mistral: Mistral Large and Medium, Pixtral vision, Magistral reasoning, Codestral, and Mistral embeddings."
+description: "Use Mistral models in TanStack AI with @tanstack/ai-mistral: Mistral Large and Medium with vision, Magistral reasoning, Codestral, and Mistral embeddings."
 keywords:
   - tanstack ai
   - mistral
   - mistral large
-  - pixtral
   - magistral
   - codestral
   - adapter
   - llm
 ---
 
-The Mistral adapter calls Mistral Large, Pixtral, Magistral, and Codestral. It also creates embeddings.
+The Mistral adapter calls Mistral Large, Mistral Medium, Magistral, and Codestral. It also creates embeddings.
 
 ## 1. Install
 
@@ -113,14 +112,14 @@ You now have a streaming Mistral chat. [Tools](../tools/tools) work the same as 
 
 ## Images in a message
 
-Send an image with the text to a vision model: `pixtral-large-latest`, `pixtral-12b-2409`, `mistral-medium-latest`, or `mistral-small-latest`.
+Send an image with the text to a vision model: `mistral-medium-latest` or `mistral-small-latest`.
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { mistralText } from "@tanstack/ai-mistral";
 
 const stream = chat({
-  adapter: mistralText("pixtral-large-latest"),
+  adapter: mistralText("mistral-medium-latest"),
   messages: [
     {
       role: "user",
@@ -149,7 +148,7 @@ import { mistralText } from "@tanstack/ai-mistral";
 const base64String = "..."; // your base64-encoded image bytes
 
 const stream = chat({
-  adapter: mistralText("pixtral-large-latest"),
+  adapter: mistralText("mistral-medium-latest"),
   messages: [
     {
       role: "user",
@@ -293,9 +292,8 @@ The other models take no `reasoning`. The Magistral models stream their thinking
 
 | Group | Models |
 | --- | --- |
-| Chat | `mistral-large-latest` (flagship, 128k context), `mistral-medium-latest` (with vision), `mistral-small-latest` (fast, with vision), `ministral-8b-latest`, `ministral-3b-latest`, `open-mistral-nemo` |
+| Chat | `mistral-large-latest` (flagship, 128k context), `mistral-medium-latest` (with vision), `mistral-small-latest` (fast, with vision), `ministral-8b-latest`, `ministral-3b-latest` |
 | Code | `codestral-latest` (256k context) |
-| Vision | `pixtral-large-latest`, `pixtral-12b-2409` |
 | Reasoning | `magistral-medium-latest`, `magistral-small-latest` |
 | Embeddings | `mistral-embed`, `codestral-embed` |
 | Chat on Vertex | `mistral-medium-3`, `mistral-small-2503`, `codestral-2` |

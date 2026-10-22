@@ -248,20 +248,33 @@ export abstract class SessionState<
   }
 
   snapshot(): SessionSnapshot {
+    // A joined steer ends a tick after its turn. Its turn ended: so did it.
     const active = [...this.operations.values()].filter(
-      (operation) => !operation.isSettled(),
+      (operation) =>
+        !operation.isSettled() && !this.joinedTo.get(operation)?.isSettled(),
     )
     const stopped = this.stoppedTurn()
     const pendingInterrupts =
       this.activeResume && !this.activeTurn?.isSettled()
         ? []
         : (stopped?.interrupts ?? [])
+    // The saved state of a plugin that this host did not set up yet (a turn
+    // plugin before its first turn here) comes from the log.
+    const saved = [...(this.logWriter?.state.thread.plugins ?? [])].filter(
+      ([name]) =>
+        !Object.hasOwn(this.stateDoc, name) &&
+        this.plugins.some((plugin) => plugin.name === name),
+    )
     return snapshotFrom({
       threadId: this.threadId,
       thread: this.logWriter?.state.thread,
       stopped,
       interrupts: pendingInterrupts,
-      plugins: { ...this.stateDoc },
+      // fromEntries defines own keys, so a plugin named `__proto__` stays a key.
+      plugins: {
+        ...structuredClone(Object.fromEntries(saved)),
+        ...this.stateDoc,
+      },
       usage: this.usage(),
       cursor: this.feed.head(),
       // The waits of the children that another host runs.

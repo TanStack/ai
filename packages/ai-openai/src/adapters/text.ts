@@ -214,13 +214,16 @@ export class OpenAITextAdapter<
       ...(tools && tools.length > 0 && { tools }),
     }
 
-    // Reasoning models 400 on `temperature`/`top_p`. Callers (and the summarize
-    // adapter's low-temperature default) can't know a given model rejects them,
-    // so drop the pair here — stripping only ever averts a guaranteed 400, never
-    // changes an otherwise-valid request.
-    if (openAIModelRejectsSamplingParams(options.model)) {
+    // Reasoning models 400 on `temperature`, `top_p` and `top_logprobs` unless
+    // effort is `none`. Callers (and the summarize adapter's low-temperature
+    // default) can't know a given model rejects them, so drop them here.
+    if (
+      openAIModelRejectsSamplingParams(options.model) &&
+      request.reasoning?.effort !== 'none'
+    ) {
       delete request.temperature
       delete request.top_p
+      delete request.top_logprobs
     }
 
     // Reasoning models pair each function_call with a reasoning item. Request

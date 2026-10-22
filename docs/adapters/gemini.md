@@ -2,12 +2,11 @@
 title: Google Gemini
 id: gemini-adapter
 order: 3
-description: "Use Google Gemini in TanStack AI with @tanstack/ai-gemini: multimodal chat with thinking, native and Imagen images, speech, embeddings, video understanding, and Google tools."
+description: "Use Google Gemini in TanStack AI with @tanstack/ai-gemini: multimodal chat with thinking, native image generation, speech, embeddings, video understanding, and Google tools."
 keywords:
   - tanstack ai
   - gemini
   - google gemini
-  - imagen
   - nano banana
   - image generation
   - adapter
@@ -119,10 +118,7 @@ You now have a streaming Gemini chat. [Tools](../tools/tools) and [Structured Ou
 
 ## Images
 
-`geminiImage` takes two model groups:
-
-- **Gemini native image models** (Nano Banana), such as `gemini-nano-banana-2.1`. You set an aspect ratio and a resolution tier in `size`, for example `"16:9_4K"`. You can edit the last image with a short prompt.
-- **Imagen models**, such as `imagen-4.0-generate-001`. You set `size` as WIDTHxHEIGHT.
+`geminiImage` takes the Gemini native image models (Nano Banana), such as `gemini-nano-banana-2.1`. Set an aspect ratio and a resolution tier in `size`, for example `"16:9_4K"`. You can edit the last image with a short prompt.
 
 ```typescript
 import { generateImage } from "@tanstack/ai";
@@ -354,8 +350,7 @@ Newest first. The package exports the full lists, for example `GeminiTextModels`
 | Activity | Factory | Models |
 | --- | --- | --- |
 | Chat | `geminiText` | `gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-3.1-flash-lite`, `gemini-3.1-flash-lite-preview`, `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite` |
-| Images (native) | `geminiImage` | `gemini-nano-banana-2.1`, `gemini-3.1-flash-image`, `gemini-3.1-flash-lite-image`, `gemini-3-pro-image` |
-| Images (Imagen) | `geminiImage` | `imagen-4.0-ultra-generate-001`, `imagen-4.0-generate-001`, `imagen-4.0-fast-generate-001` |
+| Images | `geminiImage` | `gemini-nano-banana-2.1`, `gemini-3.1-flash-image`, `gemini-3.1-flash-lite-image`, `gemini-3-pro-image` |
 | Speech | `geminiSpeech` | `gemini-3.1-flash-tts-preview`, `gemini-2.5-flash-preview-tts`, `gemini-2.5-pro-preview-tts` |
 | Music | `geminiAudio` | `lyria-3-pro-preview`, `lyria-3-clip-preview` |
 | Video | `geminiVideo` | `veo-3.1-generate-preview`, `veo-3.1-fast-generate-preview`, `veo-3.1-lite-generate-preview`, `gemini-omni-1.1-flash` |

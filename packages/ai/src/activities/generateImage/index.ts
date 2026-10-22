@@ -209,39 +209,39 @@ function createId(prefix: string): string {
  * import { openaiImage } from '@tanstack/ai-openai'
  *
  * const result = await generateImage({
- *   adapter: openaiImage('dall-e-3'),
+ *   adapter: openaiImage('gpt-image-2.5-flare'),
  *   prompt: 'A serene mountain landscape at sunset',
  *   threadId,
  * })
  *
- * console.log(result.images[0].url)
+ * console.log(result.images[0].b64Json)
  * ```
  *
  * @example Generate multiple images
  * ```ts
  * const result = await generateImage({
- *   adapter: openaiImage('dall-e-2'),
+ *   adapter: openaiImage('gpt-image-1-mini'),
  *   prompt: 'A cute robot mascot',
  *   threadId,
  *   numberOfImages: 4,
- *   size: '512x512'
+ *   size: '1024x1024'
  * })
  *
  * result.images.forEach((image, i) => {
- *   console.log(`Image ${i + 1}: ${image.url}`)
+ *   console.log(`Image ${i + 1}: ${image.b64Json}`)
  * })
  * ```
  *
  * @example With provider-specific options
  * ```ts
  * const result = await generateImage({
- *   adapter: openaiImage('dall-e-3'),
+ *   adapter: openaiImage('gpt-image-2.5-flare'),
  *   prompt: 'A professional headshot photo',
  *   threadId,
  *   size: '1024x1024',
  *   modelOptions: {
- *     quality: 'hd',
- *     style: 'natural'
+ *     quality: 'high',
+ *     background: 'transparent'
  *   }
  * })
  * ```

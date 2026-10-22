@@ -164,7 +164,7 @@ export class AzureOpenAITextAdapter<
  *
  * @example
  * ```typescript
- * const adapter = createAzureOpenaiText('gpt-5.6', 'your-azure-key', {
+ * const adapter = createAzureOpenaiText('gpt-6.1-sol', 'your-azure-key', {
  *   resourceName: 'my-resource',
  *   deploymentName: 'prod-chat',
  * });
@@ -194,7 +194,7 @@ export function createAzureOpenaiText<TModel extends string>(
  * @example
  * ```typescript
  * // Automatically uses AZURE_OPENAI_API_KEY and AZURE_OPENAI_RESOURCE_NAME
- * const adapter = azureOpenaiText('gpt-5.6');
+ * const adapter = azureOpenaiText('gpt-6.1-sol');
  * ```
  */
 export function azureOpenaiText<TModel extends string>(

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import * as root from '../src/index'
+import * as client from '../src/client'
 import * as plugins from '../src/first-party/index'
 import * as pluginsNode from '../src/first-party/node'
 import * as media from '../src/media-entry'
@@ -72,6 +73,18 @@ describe('subpath entry points', () => {
     expect(exportedFrom(root, ['createHarnessWorker'])).toEqual([
       'createHarnessWorker',
     ])
+  })
+
+  it('the root has the abort reasons, so middleware can tell a shutdown from a cancel', () => {
+    expect([
+      root.SHUTDOWN_REASON,
+      root.RUN_CANCEL_REASON,
+      root.BUDGET_REASON,
+    ]).toEqual(['harness:shutdown', expect.any(String), 'harness:budget'])
+  })
+
+  it('./client has HARNESS_EVENTS, the same object as the root', () => {
+    expect(client.HARNESS_EVENTS).toBe(root.HARNESS_EVENTS)
   })
 
   it('./plugins does not export the Node plugins', () => {

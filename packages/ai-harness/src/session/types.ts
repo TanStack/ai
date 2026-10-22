@@ -304,8 +304,10 @@ export interface JobInfo {
 export interface SessionSnapshot {
   threadId: string
   /**
-   * `running`: a chat turn runs. `requires_action`: the last turn stopped for
-   * outside input. `idle`: ready for a prompt (agents may still run).
+   * `running`: a chat turn runs on this host. `requires_action`: the last
+   * turn stopped for outside input. `idle`: no chat turn runs on this host
+   * (agents may still run). Only the host that owns the log runs turns, so
+   * on another host `idle` does not mean that the thread is free.
    */
   status: 'idle' | 'running' | 'requires_action'
   activeOperations: Array<{
@@ -507,6 +509,11 @@ export interface QueuedTurn {
   ephemeral?: ReadonlyArray<ModelMessage>
   /** Who sent the input. Its credentials and keys run the turn. */
   user?: HarnessUser
+  /**
+   * A resolve: who sent it. The turn runs as `user`, the sender of the
+   * stopped turn.
+   */
+  sender?: HarnessUser
   /** The `context` of the input. */
   context?: unknown
   /** A wake input of the harness: its user message gets `metadata.harness.wake`. */
@@ -568,7 +575,7 @@ export interface InterruptedTurn {
    * Who sent the input of the stopped turn. Only this user's saved
    * credential answers its sign-ins.
    */
-  user?: { id: string; tenantId?: string }
+  user?: { id: string; name?: string; tenantId?: string }
   /** The `context` of the stopped turn's input, so the resume sees it too. */
   context?: unknown
 }

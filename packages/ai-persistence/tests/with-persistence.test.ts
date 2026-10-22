@@ -1755,6 +1755,60 @@ describe('withPersistence (state-only)', () => {
     })
   })
 
+  // #1804: a stopped or failed run must keep its activity rows too.
+  it.each(['stop', 'error'] as const)(
+    'saves activity when the run ends with %s',
+    async (end) => {
+      const persistence = memoryPersistence()
+      const controller = new AbortController()
+      const adapter = {
+        kind: 'text',
+        name: 'mock',
+        model: 'test-model',
+        '~types': {},
+        async *chatStream() {
+          yield ev.runStarted()
+          yield {
+            type: EventType.ACTIVITY_SNAPSHOT,
+            messageId: 'act-1',
+            activityType: 'SEARCH',
+            content: { status: 'running' },
+            timestamp: 1,
+          }
+          if (end === 'stop') controller.abort()
+          else throw new Error('provider failed')
+          yield ev.runFinished()
+        },
+      } as unknown as AnyTextAdapter
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      try {
+        await collect(
+          chat({
+            adapter,
+            messages: [{ role: 'user', content: 'hi' }],
+            runId: 'r1',
+            threadId: 't1',
+            abortController: controller,
+            middleware: [withPersistence(persistence)],
+          }) as AsyncIterable<StreamChunk>,
+        ).catch(() => undefined)
+      } finally {
+        error.mockRestore()
+      }
+
+      expect((await persistence.stores.runs.get('r1'))?.status).toBe(
+        end === 'stop' ? 'aborted' : 'failed',
+      )
+      expect(await persistence.stores.activities.loadActivities('t1')).toEqual([
+        expect.objectContaining({
+          id: 'act-1',
+          content: { status: 'running' },
+        }),
+      ])
+    },
+  )
+
   describe('when the activity store fails', () => {
     function failingActivityPersistence() {
       const memory = memoryPersistence()

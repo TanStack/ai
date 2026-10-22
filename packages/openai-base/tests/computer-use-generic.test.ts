@@ -99,38 +99,7 @@ async function runLoop(model: string, call: Record<string, unknown>) {
 }
 
 describe('portable computer tool on the Responses API', () => {
-  it('sends computer_use_preview to computer-use-preview and runs the single action', async () => {
-    const action = { type: 'click', button: 'left', x: 10, y: 20 }
-    const { first, second, execute } = await runLoop('computer-use-preview', {
-      type: 'computer_call',
-      id: 'cu_1',
-      call_id: 'call_cu',
-      status: 'completed',
-      action,
-      pending_safety_checks: [safetyCheck],
-    })
-
-    expect(first.tools).toEqual([
-      {
-        type: 'computer_use_preview',
-        display_width: 1280,
-        display_height: 800,
-        environment: 'linux',
-      },
-    ])
-    expect(execute.mock.calls[0]?.[0]).toEqual({
-      action,
-      pending_safety_checks: [safetyCheck],
-    })
-    expect(second.input).toContainEqual({
-      type: 'computer_call_output',
-      call_id: 'call_cu',
-      output: screenshotOutput,
-      acknowledged_safety_checks: [safetyCheck],
-    })
-  })
-
-  it('sends the computer tool to other models and runs the batch', async () => {
+  it('sends the computer tool and runs the batch', async () => {
     const actions = [
       { type: 'click', button: 'left', x: 10, y: 20 },
       { type: 'type', text: 'hello' },

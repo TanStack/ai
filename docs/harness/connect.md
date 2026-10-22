@@ -69,6 +69,7 @@ export const rotatingHandler = createHarnessHandler({
 
 - Each key must be at least 32 bytes. A shorter key throws at the start.
 - To change the key, put the new key first in `keys` and keep the old key after it. A URL that the old key signed works until it expires (1 hour). Then remove the old key.
+- A signed URL works for 1 hour. To change that, set `media.urlTtlMs`, for example `{ secret, urlTtlMs: 5 * 60_000 }` for 5 minutes on private files.
 - A signed URL works only for this harness, in the tenant of the user who got it. Each request still needs a user from `getUser` that can read the thread, so send the login with it. For a request with no login, see [Serve media to a request with no login](./access#serve-media-to-a-request-with-no-login). When the thread is deleted, its URLs answer `404`.
 
 A request body over `media.maxBodyBytes` (default 32 MiB) answers `413`. See [Files inside a client message](./media#files-inside-a-client-message).
@@ -77,7 +78,7 @@ The handler answers these paths under your route. For chat and events:
 
 - `GET capabilities`: the AG-UI capabilities, with the agents in `expose.agents`.
 - `POST run`: standard AG-UI. One request runs one prompt and streams it as SSE. The prompt keeps every content part of the last user message, for example an image. `useChat` works with it. See [Use it from useChat](#use-it-from-usechat).
-- `GET run?threadId=`: the saved messages, the running turn, and the waiting approvals, for a `useChat` that loads the thread after a reload.
+- `GET run?threadId=`: the saved messages, the running turn, and the waiting approvals, for a `useChat` that loads the thread after a reload. `pendingWaits` has every wait of the thread, as `GET snapshot` has them, also a `step.ask` question.
 - `GET run?runId=&threadId=`: the turn with that run id as SSE, from its first event. A reloaded `useChat` joins a running turn with it. Another instance finds the turn only with `threadId`. See [Join a turn after a reload](#join-a-turn-after-a-reload).
 - `GET events?threadId=`: every event of the session as SSE. Each event id is a cursor, so a reconnect with `Last-Event-ID` continues where it stopped.
 
@@ -87,7 +88,7 @@ For one session:
 - `GET snapshot?threadId=`: the status, running operations, and waiting approvals.
 - `GET transcript?threadId=` and `GET describe?threadId=`: the saved messages, and the commands and settings that a client can use.
 - `GET agent-transcript?threadId=&subagentRunId=`: the saved messages of one child agent of the thread. See [Show what a child wrote after a reload](./subagents#show-what-a-child-wrote-after-a-reload).
-- `POST media`, `GET media-url`, and `GET media`: upload a file, get a signed URL, and read the bytes. A signed URL works for 1 hour, and only for a user who can read the thread. See [Send and show media](./media).
+- `POST media`, `GET media-url`, and `GET media`: upload a file, get a signed URL, and read the bytes. A signed URL works for 1 hour (`media.urlTtlMs`), and only for a user who can read the thread. See [Send and show media](./media).
 
 For a list of sessions:
 

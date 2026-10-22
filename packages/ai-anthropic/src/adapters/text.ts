@@ -220,6 +220,89 @@ function toAnthropicToolChoice(
   return { type: 'tool' as const, name: choice.name }
 }
 
+/** Models already warned that `chat({ reasoning })` does nothing for them. */
+const modelsWarnedWithoutReasoning = new Set<string>()
+
+/** JSON Schema keywords that Anthropic structured outputs reject. */
+const UNSUPPORTED_SCHEMA_KEYWORDS = new Set([
+  'minimum',
+  'maximum',
+  'exclusiveMinimum',
+  'exclusiveMaximum',
+  'multipleOf',
+  'minLength',
+  'maxLength',
+  'maxItems',
+  'uniqueItems',
+  'minProperties',
+  'maxProperties',
+  'not',
+])
+const SUPPORTED_STRING_FORMATS = new Set([
+  'date-time',
+  'time',
+  'date',
+  'duration',
+  'email',
+  'hostname',
+  'uri',
+  'ipv4',
+  'ipv6',
+  'uuid',
+])
+const SCHEMA_MAP_KEYWORDS = new Set(['properties', '$defs', 'definitions'])
+const SUBSCHEMA_KEYWORDS = new Set([
+  'items',
+  'prefixItems',
+  'anyOf',
+  'allOf',
+  'oneOf',
+  'additionalProperties',
+])
+
+/**
+ * Moves the JSON Schema keywords that Anthropic rejects into `description`,
+ * like the SDK's `transformJSONSchema`. The SDK helper is not used because it
+ * also moves `enum`, `const` and `default`, which Anthropic supports. The
+ * response is still validated against the original schema.
+ */
+function toAnthropicOutputSchema(schema: unknown): unknown {
+  if (Array.isArray(schema)) return schema.map(toAnthropicOutputSchema)
+  if (!schema || typeof schema !== 'object') return schema
+  const result: Record<string, unknown> = {}
+  const moved: Array<string> = []
+  for (const [key, value] of Object.entries(schema)) {
+    if (
+      UNSUPPORTED_SCHEMA_KEYWORDS.has(key) ||
+      (key === 'minItems' && typeof value === 'number' && value > 1) ||
+      (key === 'format' && !SUPPORTED_STRING_FORMATS.has(String(value)))
+    ) {
+      moved.push(`${key}: ${JSON.stringify(value)}`)
+    } else if (
+      SCHEMA_MAP_KEYWORDS.has(key) &&
+      value &&
+      typeof value === 'object'
+    ) {
+      result[key] = Object.fromEntries(
+        Object.entries(value).map(([name, sub]) => [
+          name,
+          toAnthropicOutputSchema(sub),
+        ]),
+      )
+    } else {
+      result[key] = SUBSCHEMA_KEYWORDS.has(key)
+        ? toAnthropicOutputSchema(value)
+        : value
+    }
+  }
+  if (moved.length > 0) {
+    const description =
+      typeof result.description === 'string' ? `${result.description}\n\n` : ''
+    result.description = `${description}{${moved.join(', ')}}`
+  }
+  return result
+}
+
 /** The beta header of each single `computer` tool version. */
 const COMPUTER_USE_BETAS = {
   computer_20241022: 'computer-use-2024-10-22',
@@ -236,7 +319,8 @@ const COMPUTER_USE_BETAS = {
  *   computer toolset needs none),
  * - `context-management-2025-06-27` when `context_management` is set,
  * - `files-api-2025-04-14` when a message references an uploaded file handle,
- * - `mid-conversation-tool-changes-2026-07-01` in mid-conversation tool mode.
+ * - `mid-conversation-tool-changes-2026-07-01` in mid-conversation tool mode,
+ * - `server-side-fallback-2026-07-01` when `modelOptions.fallbacks` is set.
  * Returns `undefined` when none apply (so the call site omits `betas`).
  */
 export function computeAnthropicBetas(
@@ -248,6 +332,7 @@ export function computeAnthropicBetas(
           budget_tokens?: number
         }
         context_management?: unknown | null
+        fallbacks?: unknown
         mcp_servers?: ReadonlyArray<unknown>
       }
     | undefined,
@@ -271,6 +356,11 @@ export function computeAnthropicBetas(
   // enough (issue #1074). `null` is a typed "unset" — do not enable the beta.
   if (modelOptions?.context_management != null) {
     betas.add('context-management-2025-06-27')
+  }
+
+  // Server-side refusal fallback: the API rejects `fallbacks` without it.
+  if (modelOptions?.fallbacks != null) {
+    betas.add('server-side-fallback-2026-07-01')
   }
 
   // The MCP connector needs its beta header as well (same shape as #1074);
@@ -850,6 +940,7 @@ export class AnthropicTextAdapter<
         'cache_control',
         'container',
         'context_management',
+        'fallbacks',
         'mcp_servers',
         'service_tier',
         'stop_sequences',
@@ -899,6 +990,17 @@ export class AnthropicTextAdapter<
     }
 
     // `chat({ reasoning })`, as this model's thinking fields.
+    if (
+      options.reasoning !== undefined &&
+      !(this.model in ANTHROPIC_MODEL_REASONING) &&
+      !modelsWarnedWithoutReasoning.has(this.model)
+    ) {
+      modelsWarnedWithoutReasoning.add(this.model)
+      console.warn(
+        `[ai-anthropic] chat({ reasoning }) is ignored for model "${this.model}": ` +
+          'the model is not in the reasoning table, so no thinking fields are sent.',
+      )
+    }
     const { output_config: reasoningOutputConfig, ...thinkingFields } =
       anthropicThinking(
         this.model,
@@ -976,7 +1078,10 @@ export class AnthropicTextAdapter<
                 ? {
                     format: {
                       type: 'json_schema' as const,
-                      schema: combinedSchema,
+                      schema: toAnthropicOutputSchema(combinedSchema) as Record<
+                        string,
+                        unknown
+                      >,
                     },
                   }
                 : {}),
@@ -1117,9 +1222,10 @@ export class AnthropicTextAdapter<
 
   /**
    * Anthropic supports `output_config.format` + `tools` in a single streaming
-   * Messages request only for Claude 4.5+ (GA 2026-01-29). For 4.4 and
-   * earlier we keep the forced-tool-use workaround in
-   * {@link structuredOutput} via the engine's finalization path.
+   * Messages request only for Claude 4.5+ (GA 2026-01-29). Every registered
+   * model is 4.5+; an id outside the set (e.g. an untyped one) keeps the
+   * forced-tool-use workaround in {@link structuredOutput} via the engine's
+   * finalization path.
    */
   supportsCombinedToolsAndSchema(): boolean {
     return ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(this.model)
@@ -1641,7 +1747,25 @@ export class AnthropicTextAdapter<
           messageStartUsage = event.message.usage
         } else if (event.type === 'content_block_start') {
           currentBlockType = event.content_block.type
-          if (event.content_block.type === 'tool_use') {
+          if (currentBlockType === 'fallback') {
+            // Server-side fallback handoff. The rest of the stream comes from
+            // `to.model`. message_start names the declining model only after
+            // output has started. Before any output, message_start already
+            // names the fallback model.
+            const block: unknown = event.content_block
+            const to =
+              block && typeof block === 'object' && 'to' in block
+                ? block.to
+                : undefined
+            if (
+              to &&
+              typeof to === 'object' &&
+              'model' in to &&
+              typeof to.model === 'string'
+            ) {
+              model = to.model
+            }
+          } else if (event.content_block.type === 'tool_use') {
             currentToolIndex++
             // A computer toolset call names its action. It runs as one
             // `computer` call with the action in `input.action`.
@@ -2033,6 +2157,10 @@ export class AnthropicTextAdapter<
           ) {
             // The model already consumed the result; error variants were
             // already surfaced at content_block_start.
+          } else if (currentBlockType === 'fallback') {
+            // Server-side fallback handoff: the declining model's text block
+            // already closed. The fallback model's text starts a fresh segment.
+            hasEmittedTextMessageStart = false
           } else {
             // Emit TEXT_MESSAGE_END only for text blocks (not tool_use blocks)
             if (hasEmittedTextMessageStart && accumulatedContent) {
@@ -2165,10 +2293,28 @@ export class AnthropicTextAdapter<
                 }
                 break
               }
+              case 'refusal': {
+                // A safety classifier declined and no server-side fallback
+                // served the request. Not an error: the run ends like a
+                // filtered completion, and `rawEvent` says why.
+                yield {
+                  type: EventType.RUN_FINISHED,
+                  ...(responseId !== undefined && { responseId }),
+                  runId,
+                  threadId,
+                  model,
+                  timestamp: Date.now(),
+                  finishReason: 'content_filter',
+                  ...(event.delta.stop_details && {
+                    rawEvent: event.delta.stop_details,
+                  }),
+                  usage,
+                }
+                break
+              }
               case 'stop_sequence':
               case 'end_turn':
               case 'pause_turn':
-              case 'refusal':
               case 'compaction':
               default: {
                 // All remaining Anthropic stop_reason variants map to the

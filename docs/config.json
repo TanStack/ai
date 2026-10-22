@@ -99,6 +99,11 @@
           "to": "tutorials/computer-use",
           "addedAt": "2026-10-21",
           "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Subscribe to MCP Events",
+          "to": "tutorials/mcp-events",
+          "addedAt": "2026-10-17"
         }
       ]
     },
@@ -145,6 +150,11 @@
           "label": "Computer Use",
           "to": "framework/react/examples/computer-use",
           "addedAt": "2026-10-21"
+        },
+        {
+          "label": "MCP Events",
+          "to": "framework/react/examples/mcp-events",
+          "addedAt": "2026-10-17"
         }
       ]
     },
@@ -429,7 +439,8 @@
         {
           "label": "Compaction: Advanced",
           "to": "advanced/compaction-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-10-22"
         }
       ],
       "tab": "guides"
@@ -633,6 +644,11 @@
           "label": "MCP Server Tools: Advanced",
           "to": "tools/mcp-advanced",
           "addedAt": "2026-10-21"
+        },
+        {
+          "label": "MCP Events",
+          "to": "tools/mcp-events",
+          "addedAt": "2026-10-17"
         },
         {
           "label": "MCP Apps",
@@ -1070,13 +1086,13 @@
           "label": "Connect clients",
           "to": "harness/connect",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-20"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Write a client in any language",
           "to": "harness/protocol",
           "addedAt": "2026-10-17",
-          "updatedAt": "2026-10-19"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Access and tenants",
@@ -1100,7 +1116,7 @@
           "label": "Send inputs safely",
           "to": "harness/inputs",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-20"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Run a tool without a model",
@@ -1111,7 +1127,7 @@
           "label": "Durable sessions",
           "to": "harness/durable-sessions",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-20"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Run background work on workers",
@@ -1129,7 +1145,7 @@
           "label": "Lifecycle and retention",
           "to": "harness/lifecycle",
           "addedAt": "2026-10-17",
-          "updatedAt": "2026-10-20"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Run side effects once",
@@ -1147,7 +1163,7 @@
           "label": "Build on the session log",
           "to": "harness/session-log",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-19"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Control how a turn ends",
@@ -1165,7 +1181,7 @@
           "label": "Compact a long session",
           "to": "harness/compaction",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Fork and reset a thread",
@@ -1183,7 +1199,7 @@
           "label": "Write a plugin",
           "to": "harness/plugins",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-21"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Track usage and cost",
@@ -1207,7 +1223,7 @@
           "label": "Sandbox and extend the coding tools",
           "to": "harness/coding-tools-backends",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-21"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Run the coding tools for many threads",
@@ -1279,7 +1295,7 @@
           "label": "Run agents from a harness",
           "to": "harness/subagents",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-20"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Hand off a conversation",

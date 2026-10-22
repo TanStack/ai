@@ -376,6 +376,7 @@ describe('E2BHandle', () => {
     expect(sandbox.files.write).toHaveBeenCalledWith(
       `${WORKDIR}/a.txt`,
       'hello',
+      undefined,
     )
     await handle.fs.write('/workspace/b.bin', new Uint8Array([0, 1, 250]))
     const [path, blob] = (sandbox.files.write as ReturnType<typeof vi.fn>).mock
@@ -421,16 +422,59 @@ describe('E2BHandle', () => {
   it('mkdir/remove/rename/exists go through the native file API', async () => {
     const { handle, sandbox } = createHandle()
     await handle.fs.mkdir('/workspace/d')
-    expect(sandbox.files.makeDir).toHaveBeenCalledWith(`${WORKDIR}/d`)
+    expect(sandbox.files.makeDir).toHaveBeenCalledWith(
+      `${WORKDIR}/d`,
+      undefined,
+    )
     await handle.fs.remove('/workspace/d')
-    expect(sandbox.files.remove).toHaveBeenCalledWith(`${WORKDIR}/d`)
+    expect(sandbox.files.remove).toHaveBeenCalledWith(`${WORKDIR}/d`, undefined)
     await handle.fs.rename('/workspace/a', '/workspace/b')
     expect(sandbox.files.rename).toHaveBeenCalledWith(
       `${WORKDIR}/a`,
       `${WORKDIR}/b`,
+      undefined,
     )
     expect(await handle.fs.exists('/workspace/a')).toBe(true)
-    expect(sandbox.files.exists).toHaveBeenCalledWith(`${WORKDIR}/a`)
+    expect(sandbox.files.exists).toHaveBeenCalledWith(`${WORKDIR}/a`, undefined)
+  })
+
+  it('passes the abort signal of each fs call to the native file API', async () => {
+    const { handle, sandbox } = createHandle()
+    const signal = new AbortController().signal
+    await handle.fs.read('/workspace/a', { signal })
+    expect(sandbox.files.read).toHaveBeenLastCalledWith(`${WORKDIR}/a`, {
+      format: 'text',
+      signal,
+    })
+    await handle.fs.readBytes('/workspace/a', { signal })
+    expect(sandbox.files.read).toHaveBeenLastCalledWith(`${WORKDIR}/a`, {
+      format: 'bytes',
+      signal,
+    })
+    await handle.fs.write('/workspace/a', 'x', { signal })
+    expect(sandbox.files.write).toHaveBeenLastCalledWith(`${WORKDIR}/a`, 'x', {
+      signal,
+    })
+    await handle.fs.list('/workspace', { signal }).catch(() => undefined)
+    expect(sandbox.files.list).toHaveBeenLastCalledWith(WORKDIR, { signal })
+    await handle.fs.mkdir('/workspace/d', { signal })
+    expect(sandbox.files.makeDir).toHaveBeenLastCalledWith(`${WORKDIR}/d`, {
+      signal,
+    })
+    await handle.fs.remove('/workspace/d', { signal })
+    expect(sandbox.files.remove).toHaveBeenLastCalledWith(`${WORKDIR}/d`, {
+      signal,
+    })
+    await handle.fs.rename('/workspace/a', '/workspace/b', { signal })
+    expect(sandbox.files.rename).toHaveBeenLastCalledWith(
+      `${WORKDIR}/a`,
+      `${WORKDIR}/b`,
+      { signal },
+    )
+    await handle.fs.exists('/workspace/a', { signal })
+    expect(sandbox.files.exists).toHaveBeenLastCalledWith(`${WORKDIR}/a`, {
+      signal,
+    })
   })
 
   it('leaves paths outside /workspace untouched', async () => {

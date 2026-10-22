@@ -659,12 +659,21 @@ export class InterruptManager<
       | { state: 'output-available'; output: unknown }
       | { state: 'output-error'; errorText: string },
   ): boolean {
-    const item = this.items.find(
-      (candidate) =>
-        candidate.kind === 'client-tool-execution' &&
-        candidate.binding?.kind === 'client-tool-execution' &&
-        candidate.binding.toolCallId === toolCallId,
-    )
+    const item =
+      this.items.find(
+        (candidate) =>
+          candidate.kind === 'client-tool-execution' &&
+          candidate.binding?.kind === 'client-tool-execution' &&
+          candidate.binding.toolCallId === toolCallId,
+      ) ??
+      // The tool's schemas differ from the server's, so its interrupt fell
+      // back to generic. Resolve that one, or the answer is never sent.
+      this.items.find(
+        (candidate) =>
+          candidate.kind === 'generic' &&
+          candidate.canResolve &&
+          candidate.descriptor.toolCallId === toolCallId,
+      )
     if (!item) return false
     if (result.state === 'output-available') {
       this.resolveItem(item.descriptor.id, result.output)

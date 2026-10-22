@@ -176,6 +176,8 @@ export {
   DurableStreamIncompleteError,
   StreamReconnectLimitError,
   type ConnectConnectionAdapter,
+  type ChatHydrateOptions,
+  type ChatHydrationResult,
   type ConnectionAdapter,
   type GenerationHydrationResult,
   type FetchConnectionOptions,

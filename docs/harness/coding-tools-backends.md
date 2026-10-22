@@ -189,6 +189,33 @@ export const generatedFiles = definePlugin({
 
 Add the plugin next to the tools: `plugins: () => [workspaceTools({ root }), generatedFiles]`.
 
+## Refuse a write
+
+Add a `beforeWrite` hook to stop a write before it changes a file. Return `{ refuse }`, and the tool call fails with that text:
+
+```ts group=harness-coding-tools-refuse-write
+import { definePlugin } from '@tanstack/ai-harness'
+import { WorkspaceHooks } from '@tanstack/ai-harness/plugins/coding'
+
+export const protectGenerated = definePlugin({
+  name: 'acme/protect-generated',
+  setup: () => ({
+    contribute: [
+      WorkspaceHooks.item({
+        beforeWrite: async (path) =>
+          path.endsWith('.gen.ts')
+            ? { refuse: `${path} is generated. Change its source.` }
+            : undefined,
+      }),
+    ],
+  }),
+})
+```
+
+- `beforeWrite` gets the absolute path. It runs before `write_file`, `edit_file`, and `patch` change the file.
+- A `patch` asks for each file that it changes before its first write. One refusal fails the whole patch, and no file changes.
+- The hook runs before the tool takes the lock on the path.
+
 ## Format each file after a write
 
 The model writes code that your formatter changes later, and the diff gets noisy. `formatter()` formats each file that the tools write:

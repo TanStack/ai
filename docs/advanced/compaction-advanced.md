@@ -250,6 +250,7 @@ How the background summary runs:
 Sometimes a summary does not apply:
 
 - A newer compaction cut past the message that the summary keeps. The summary is dropped and reported with `stale: true`.
+- The next run calls another model than the one that started the summary. The summary is dropped and reported with `stale: true`.
 - The summary call failed. Nothing applies, and the failure is reported with `error`. The next model call past `atTokens` starts a new summary.
 
 `onCompact` always gets these reports. A `compaction:ended` event for a failed summary reaches the stream only while the run that started the summary still runs.
@@ -308,6 +309,7 @@ const agentCompaction = withCompaction({
 ```
 
 - In the text that goes to the summarizer, each tool result is cut to 2,000 characters. Set `maxToolResultChars` to change this limit.
+- The summary call runs only its own usage count. To let your cost ledger or traces see it, pass them in `middleware`: `conversationSummarizer({ adapter, middleware: [ledger] })`.
 - Your own `summarize` function gets a second argument, `summarize(messages, input)`:
   - `previousSummary` and `previousDetails`: the older summary and its details.
   - `turnPrefix`: `true` when the call summarizes the start of the current turn.

@@ -558,7 +558,7 @@ export interface RunContext {
    */
   tenantId?: string
   /** The user who started this run. `undefined` in a session with no user. */
-  user: { id: string; tenantId?: string } | undefined
+  user: { id: string; name?: string; tenantId?: string } | undefined
   /**
    * The id of the log of the session in the `LogStore`: the tenant and the
    * root thread of the session tree, from `logIdOf`.
@@ -633,12 +633,32 @@ export interface TurnInfo {
   message?: UserInput
   /** The `context` of the input. Client data: do not trust it. */
   context?: unknown
-  /** Who sent the input. Default: the user that opened the session. */
+  /**
+   * Who the turn runs as: its tools get this user's credentials and keys.
+   * The sender of the input, and for a resolve the sender of the stopped
+   * turn. Default: the user that opened the session.
+   */
   user?: HarnessUser
+  /**
+   * Who sent the input that started the turn. The same as `user`, except on
+   * a resolve: there it is the user who resolved.
+   */
+  sender?: HarnessUser
   /** The settings of this turn only. Not kept after a restart. */
   overrides?: TurnOverrides
   /** The run of this turn: its user, and that user's credentials and keys. */
   run: RunContext
+  /**
+   * The model of the turn, `provider/model`, as `harness.usage` names it.
+   * The turn sets it when it picks its adapter, so plugin setup,
+   * `onTurnStart`, and the `adapter()` picks do not see it yet.
+   */
+  model?: string
+  /**
+   * How many times the input of the turn ran: 1 the first time. A turn that
+   * recovery runs again after a host stopped has a larger number.
+   */
+  attempt?: number
 }
 
 /** What a chat turn operation resolves to. */
@@ -754,7 +774,7 @@ export interface RunNode {
   /** The agent name, for `kind: 'agent'`. */
   agent?: string
   /** Who the run runs for. */
-  user?: { id: string; tenantId?: string }
+  user?: { id: string; name?: string; tenantId?: string }
   /** The durable name of the run in its parent (`AgentStartOptions.key`). */
   key?: string
   /** The limits of the run (`AgentStartOptions.limits`). */
@@ -967,7 +987,12 @@ export interface HarnessEventValues {
   'harness.question.answered': { questionId: string }
   'harness.plugin.event': { plugin: string; name: string; value: unknown }
   'harness.auth_required': AuthRequest
-  'harness.input.accepted': { inputId: string; op: HarnessInput['op'] }
+  /** `message`: the user message of a `prompt`, `steer`, or `followUp`. */
+  'harness.input.accepted': {
+    inputId: string
+    op: HarnessInput['op']
+    message?: UserInput
+  }
   'harness.input.applied': { inputId: string; operationId: string }
   /**
    * `offered` is true when the owner refused an offer from another host, and

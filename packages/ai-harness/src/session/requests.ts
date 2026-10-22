@@ -10,6 +10,7 @@ import {
   customEvent,
   errorText,
   inputKey,
+  isSameSender,
   SHUTDOWN_REASON,
 } from './helpers'
 import { SessionState } from './state'
@@ -282,10 +283,16 @@ export abstract class SessionRequests<
             })
             return
           }
+          // Without canJoin, a steer of another sender never joins (see
+          // claimJoins): it waits, and runs as its own operation.
+          const joins =
+            running &&
+            (this.harness.turn?.canJoin !== undefined ||
+              isSameSender(user, this.sender()))
           this.answerTurn(operation, {
             inputId,
-            status: isWaiting && !running ? 'queued' : 'accepted',
-            operationId: running?.id ?? operation.id,
+            status: isWaiting && !joins ? 'queued' : 'accepted',
+            operationId: joins ? running.id : operation.id,
           })
           const sent = { user, context, ...(wake ? { wake } : {}) }
           if (running) {
@@ -717,6 +724,7 @@ export abstract class SessionRequests<
         inputId,
         answers,
         user: answers.user ?? user,
+        ...(user ? { sender: user } : {}),
         context: answers.context,
       }
       if (isEnding) this.queue.unshift(turn)

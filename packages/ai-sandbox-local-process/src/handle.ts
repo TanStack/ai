@@ -620,19 +620,25 @@ export class LocalProcessHandle implements SandboxHandle {
     this.id = options.root
     this.options = options
 
+    // `readFile` and `writeFile` take the signal. The other calls check it
+    // first.
     this.fs = {
-      read: async (p) => fsp.readFile(this.resolve(p), 'utf8'),
-      readBytes: async (p) =>
-        new Uint8Array(await fsp.readFile(this.resolve(p))),
-      write: async (p, data) => {
+      read: async (p, o) =>
+        fsp.readFile(this.resolve(p), { encoding: 'utf8', signal: o?.signal }),
+      readBytes: async (p, o) =>
+        new Uint8Array(await fsp.readFile(this.resolve(p), o)),
+      write: async (p, data, o) => {
+        o?.signal?.throwIfAborted()
         const target = this.resolve(p)
         await fsp.mkdir(path.dirname(target), { recursive: true })
         await fsp.writeFile(
           target,
           typeof data === 'string' ? data : Buffer.from(data),
+          o,
         )
       },
-      list: async (p) => {
+      list: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const entries = await fsp.readdir(this.resolve(p), {
           withFileTypes: true,
         })
@@ -642,7 +648,8 @@ export class LocalProcessHandle implements SandboxHandle {
           type: e.isDirectory() ? ('dir' as const) : ('file' as const),
         }))
       },
-      lstat: async (p) => {
+      lstat: async (p, o) => {
+        o?.signal?.throwIfAborted()
         let stat: Awaited<ReturnType<typeof fsp.lstat>>
         try {
           stat = await fsp.lstat(this.resolve(p))
@@ -667,16 +674,20 @@ export class LocalProcessHandle implements SandboxHandle {
           ? { type, mode: stat.mode, size: stat.size }
           : { type, mode: stat.mode }
       },
-      mkdir: async (p) => {
+      mkdir: async (p, o) => {
+        o?.signal?.throwIfAborted()
         await fsp.mkdir(this.resolve(p), { recursive: true })
       },
-      remove: async (p) => {
+      remove: async (p, o) => {
+        o?.signal?.throwIfAborted()
         await fsp.rm(this.resolve(p), { recursive: true, force: true })
       },
-      rename: async (from, to) => {
+      rename: async (from, to, o) => {
+        o?.signal?.throwIfAborted()
         await fsp.rename(this.resolve(from), this.resolve(to))
       },
-      exists: async (p) => {
+      exists: async (p, o) => {
+        o?.signal?.throwIfAborted()
         try {
           await fsp.access(this.resolve(p))
           return true

@@ -2396,6 +2396,22 @@ describe('conversationSummarizer', () => {
     expect(requests[0]?.threadId).toBe('thread-1:compaction')
   })
 
+  it('runs the middleware option after its own usage count', async () => {
+    const { fake } = fakeSummaryModel()
+    const onUsage = vi.fn()
+    const result = await conversationSummarizer({
+      adapter: fake,
+      middleware: [{ name: 'app-ledger', onUsage }],
+    })([text('user', 'fix the bug')], { threadId: 'thread-1' })
+
+    expect(onUsage).toHaveBeenCalledTimes(1)
+    expect(onUsage.mock.calls[0]?.[0]).toMatchObject({
+      threadId: 'thread-1:compaction',
+    })
+    // The summarizer still reports the usage of its call.
+    expect(result).toMatchObject({ usage: { completionTokens: 3 } })
+  })
+
   it('writes text parts and a tag for each other part', async () => {
     const { fake, requests } = fakeSummaryModel()
     await conversationSummarizer({ adapter: fake })(
@@ -2835,6 +2851,25 @@ describe('background compaction', () => {
       ])
     },
   )
+
+  it('drops a ready summary that another model prepared', async () => {
+    const onCompact = vi.fn()
+    const store = memoryStore()
+    const mw = backgroundCompaction(async () => 'the gist', { onCompact })
+    await runOnConfig(mw, list(4), runContext('r1', { store }).ctx)
+    await vi.waitFor(async () =>
+      expect(await store.get(BACKGROUND, 'thread-1')).not.toBeNull(),
+    )
+
+    // The next run calls another model: the summary is not applied.
+    const { ctx } = runContext('r2', { store })
+    ctx.model = 'other-model'
+    const result = await runOnConfig(mw, list(4), ctx)
+    expect(result?.providerMessages).toBeUndefined()
+    expect(onCompact).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'background', stale: true }),
+    )
+  })
 
   it('reports the usage of a background summary when the next run applies it', async () => {
     const usage = tokenUsage(120, 30)

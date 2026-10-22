@@ -1,6 +1,6 @@
 import { toolDefinition } from '@tanstack/ai'
 import { isRecord } from '../../utils'
-import { afterWrite, readText, stringArg } from './backend'
+import { afterWrite, beforeWrite, readText, stringArg } from './backend'
 import { readForDiff, reportChange } from './file-change'
 import type { ToolEnv } from './backend'
 
@@ -220,7 +220,8 @@ export async function afterWriteSeen(
 }
 
 /**
- * `write_file` and `edit_file`. Each write first checks with `versions` that
+ * `write_file` and `edit_file`. The `beforeWrite` hooks can refuse the call
+ * first. Each write checks with `versions` that
  * the file did not change since a tool read it. After each write, the
  * `afterWrite` hooks run for the file, and then the tool sends `FileChanged`
  * (see {@link reportChange}). `edit_file` finds the old text with
@@ -244,6 +245,7 @@ export function editTools(env: ToolEnv, versions: FileVersions) {
         'file',
       )
       const content = stringArg(args, 'content')
+      await beforeWrite(env, [full])
       const missing = !(await versions.exists(full))
       const before = await env.lock(full, async () => {
         await versions.check(full, { missing })
@@ -280,6 +282,7 @@ export function editTools(env: ToolEnv, versions: FileVersions) {
       const oldText = stringArg(args, 'old')
       const newText = stringArg(args, 'new')
       const replaceAll = isRecord(args) && args.replaceAll === true
+      await beforeWrite(env, [full])
       const edited = await env.lock(full, async () => {
         // The edit reads the file itself, so a file that no tool read can
         // change. One that a tool read must be as that read saw it.

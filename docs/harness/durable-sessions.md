@@ -102,7 +102,7 @@ process.on('SIGTERM', async () => {
 - Running turns and background agents stop. The host writes no end for them.
 - The host gives each busy thread back with a wake. A [worker](./workers) takes it at once, so it does not wait for the ownership to expire.
 - A tool that the stop cut gets the same result as after a crash. See [Mark tools that are safe to run again](#mark-tools-that-are-safe-to-run-again).
-- A turn that a user cancelled still ends `aborted`.
+- A turn that a user cancelled still ends `aborted`. Middleware gets the stop in `onAbort` with `info.reason` set to `SHUTDOWN_REASON`, and a user cancel with `RUN_CANCEL_REASON`. Import both from `@tanstack/ai-harness`. Skip your "turn ended" work on a shutdown: the next host runs the turn again.
 - `session.close()` releases only your handle. It does not stop the work of the session. See [Lifecycle and retention](./lifecycle#open-and-release-a-session).
 
 During a rolling deploy, old and new hosts run at the same time. A host that reads a log record type from a newer version does not write to that log. Its session stops with `LogVersionError`, and the new hosts continue the thread.
@@ -279,6 +279,7 @@ On a serverless platform, two requests for one thread often reach two instances.
 - The first write of a host takes the log. From then on, this host owns the thread.
 - One timer renews every thread that the host owns. The host gives a thread back when it has no work.
 - An input that reaches another instance waits in the log for the owner. The receipt is `queued`, and the owner runs it within a second. If the owner refuses it, `session.settled({ inputId })` on that instance rejects with `InputRejectedError`. See [Send inputs safely](./inputs).
+- `session.runCommand(...)` on another instance ends as the command ends on the owner. It resolves with the result of the command. It rejects when the command throws, or with `InputRejectedError` when the owner refuses it.
 - Every instance reads the thread, also while the owner runs a background job. A client gets the events from the log, on any instance. A `POST run` on the second instance streams the turn that the owner runs.
 - The thread settings, the config values, and the state of an interrupted turn follow the changes that other hosts write.
 

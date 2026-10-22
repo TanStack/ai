@@ -190,6 +190,12 @@ export { isTransientModelError, retryTransientErrors } from './turn'
 export type { HarnessErrorCode } from './protocol'
 
 export { HARNESS_EVENTS, InputRejectedError } from './types'
+/**
+ * The `reason` of an abort (`onAbort`'s `info.reason`): a recoverable close
+ * (the next host runs the turn again), a user cancel, and a used-up budget.
+ */
+export { BUDGET_REASON, SHUTDOWN_REASON } from './session/helpers'
+export { RUN_CANCEL_REASON } from '@tanstack/ai'
 export type {
   AgentRun,
   AgentSendOptions,

@@ -7,8 +7,6 @@ keywords:
   - tanstack ai
   - image generation
   - generateImage
-  - dall-e
-  - imagen
   - nano banana
   - flux
   - fal.ai
@@ -154,29 +152,20 @@ Anthropic has no image generation API.
 
 ### Gemini
 
-Gemini has two groups of image models:
-
-- **Native models (Nano Banana)**, such as `gemini-nano-banana-2.1`. They use the Interactions API. `size` is `"<aspectRatio>_<resolution>"`.
-- **Imagen models**, such as `imagen-4.0-generate-001`. They use the `generateImages` API. `size` is `WIDTHxHEIGHT`.
+Gemini image models (Nano Banana), such as `gemini-nano-banana-2.1`, use the Interactions API. `size` is `"<aspectRatio>_<resolution>"`.
 
 ```typescript
 import { generateImage } from '@tanstack/ai'
 import { geminiImage } from '@tanstack/ai-gemini'
 
-const native = await generateImage({
+const result = await generateImage({
   adapter: geminiImage('gemini-nano-banana-2.1'),
   prompt: 'A futuristic cityscape at night',
   threadId: 'thread-1',
   size: '16:9_4K',
 })
 
-const imagen = await generateImage({
-  adapter: geminiImage('imagen-4.0-generate-001'),
-  prompt: 'A futuristic cityscape at night',
-  threadId: 'thread-1',
-})
-
-console.log(native.images[0]?.b64Json)
+console.log(result.images[0]?.b64Json)
 ```
 
 ### BytePlus
@@ -241,7 +230,6 @@ Rules for the edit:
 - Leave `store` unset. The API default is `true`. If you set `store` to `false`, a later call cannot use that id.
 - A free tier keeps a stored interaction for 1 day. A paid tier keeps it for 55 days.
 - If the edit needs a new reference image, add that image part on this call. Do not send the image from `first` again.
-- If the model is Imagen, do not pass `previous_interaction_id`. The call throws.
 
 The Interactions API is in Beta.
 
@@ -269,7 +257,7 @@ await generateImage({
 What to know:
 
 - **Part order matters.** Gemini native models and OpenRouter get the parts in the same order, so text can refer to the image next to it. OpenAI, fal, and xAI take the image parts out and join the text parts into one prompt.
-- **Types check the model.** An image part on a text-only model (for example `dall-e-3` or Imagen) is a type error.
+- **Types check the model.** An image part on a model with no image input is a type error.
 - **Unsupported adapters throw.** An adapter that cannot take image inputs throws a runtime error. It does not drop the images.
 
 Masks, roles, URL rules, and per-provider limits are in [Image Generation: Advanced](./image-generation-advanced#role-hints-with-metadatarole).

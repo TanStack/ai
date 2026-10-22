@@ -6,6 +6,13 @@ import { createExtensionPoint } from '../extensions'
  */
 export interface WorkspaceHooks {
   /**
+   * Runs before `write_file`, `edit_file`, or `patch` changes the file at
+   * `path`, an absolute path, and before the tool takes the lock. Return
+   * `{ refuse }` to stop the call: the tool changes no file, and `refuse`
+   * is its error. A `patch` asks for each file before its first write.
+   */
+  beforeWrite?: (path: string) => Promise<void | { refuse: string }>
+  /**
    * Runs after a tool wrote the file at `path`, an absolute path. Return
    * text to add to the result, or nothing to add nothing.
    */

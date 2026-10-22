@@ -7,6 +7,7 @@ import {
   readInterruptBinding,
   wrapGenericInterruptContinuation,
 } from '@tanstack/ai'
+import { stableJson } from '../log'
 import { isRecord, jsonCopy } from '../utils'
 import { interruptExpiry, signInOf, snapshotWaits } from '../waits'
 import type {
@@ -258,7 +259,7 @@ export interface OfferedInputRecord extends LogRecord {
   type: 'harness.input'
   inputId: string
   input: OfferedHarnessInput
-  user?: { id: string; tenantId?: string }
+  user?: { id: string; name?: string; tenantId?: string }
   /**
    * The id that the owner runs the input with: the AG-UI run id of a turn,
    * or the operation id of an agent run. The host that offered it follows
@@ -536,6 +537,7 @@ export const storedUser = (user: HarnessUser | undefined) =>
     ? {
         user: {
           id: user.id,
+          ...(user.name ? { name: user.name } : {}),
           ...(user.tenantId ? { tenantId: user.tenantId } : {}),
         },
       }
@@ -554,7 +556,7 @@ export const isSameSender = (
 export const inputKey = (
   input: unknown,
   user: Pick<HarnessUser, 'id' | 'tenantId'> | undefined,
-) => JSON.stringify([input, user?.id ?? null, user?.tenantId ?? null])
+) => stableJson([input, user?.id ?? null, user?.tenantId ?? null])
 
 export const isPlainObject = (
   value: unknown,

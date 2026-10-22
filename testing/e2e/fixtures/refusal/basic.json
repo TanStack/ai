@@ -1,0 +1,14 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[anthropic-refusal] describe a dangerous lab method"
+      },
+      "response": {
+        "content": "",
+        "finishReason": "refusal",
+        "usage": { "input_tokens": 297, "output_tokens": 0 }
+      }
+    }
+  ]
+}

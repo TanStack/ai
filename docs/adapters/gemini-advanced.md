@@ -8,7 +8,6 @@ keywords:
   - gemini
   - interactions api
   - nano banana
-  - imagen
   - provider tools
   - adapter
 ---
@@ -288,12 +287,7 @@ Tools and output:
 
 ## Images
 
-`geminiImage` picks the API from the model:
-
-- A model in `GEMINI_NATIVE_IMAGE_MODELS` uses the Interactions API. `result.id` is the interaction id.
-- An Imagen model, or an unknown id, uses `generateImages`.
-
-Import the list or `isGeminiNativeImageModel` from `@tanstack/ai-gemini`.
+`geminiImage` uses the Interactions API. `result.id` is the interaction id.
 
 ### Edit a Gemini native image
 
@@ -331,33 +325,14 @@ Keep the interaction, so that the next edit can run:
 
 Also:
 
-- If the model is Imagen, do not pass `previous_interaction_id`. The call throws.
 - If this edit needs a new reference image, add that image part on this call. Do not send the image from `first`.
 - The Interactions API is in Beta.
 
 The same steps are in [Image Generation](../media/image-generation#edit-a-gemini-native-image).
 
-### Imagen
-
-```typescript
-import { generateImage } from "@tanstack/ai";
-import { geminiImage } from "@tanstack/ai-gemini";
-
-const result = await generateImage({
-  adapter: geminiImage("imagen-4.0-generate-001"),
-  prompt: "A futuristic cityscape at sunset",
-  threadId: "thread-1",
-  numberOfImages: 1,
-});
-
-console.log(result.images);
-```
-
 ### Image sizes
 
-#### Gemini native models (Nano Banana)
-
-The size of a native model joins an aspect ratio and a resolution tier:
+The size of a Gemini image model joins an aspect ratio and a resolution tier:
 
 ```typescript ignore
 // Format: "aspectRatio_resolution"
@@ -382,57 +357,9 @@ Each model has its own set. TypeScript narrows `size` to the set of the model:
 > [!NOTE]
 > For `gemini-3.1-flash-lite-image`, the four banner ratios (`1:4`, `4:1`, `1:8`, `8:1`) are partly inferred. The Gemini API guide has no ratio table for this model. The set of 14 comes from the Cloud model page and from the statement in the guide of "a discrete set of 14 aspect ratios". If the API rejects those four, use the 10 standard ratios on this model.
 
-#### Imagen models
-
-Imagen models take WIDTHxHEIGHT. The adapter maps the size to an aspect ratio:
-
-| Size | Aspect ratio |
-|------|-------------|
-| `1024x1024` | 1:1 |
-| `1920x1080` | 16:9 |
-| `1080x1920` | 9:16 |
-
-You can also set the aspect ratio in `modelOptions`:
-
-```typescript
-import { generateImage } from "@tanstack/ai";
-import { geminiImage } from "@tanstack/ai-gemini";
-
-const result = await generateImage({
-  adapter: geminiImage("imagen-4.0-generate-001"),
-  prompt: "A landscape photo",
-  threadId: "thread-1",
-  modelOptions: {
-    aspectRatio: "16:9",
-  },
-});
-```
-
 ### Image model options
 
-The two model groups call different APIs, so `modelOptions` has a different type for each.
-
-Imagen models (`generateImages`) take `GenerateImagesConfig` fields:
-
-```typescript ignore
-import { generateImage } from "@tanstack/ai";
-import { geminiImage } from "@tanstack/ai-gemini";
-
-const result = await generateImage({
-  adapter: geminiImage("imagen-4.0-generate-001"),
-  prompt: "...",
-  threadId: "thread-1",
-  modelOptions: {
-    aspectRatio: "16:9", // "1:1" | "3:4" | "4:3" | "9:16" | "16:9"
-    personGeneration: "DONT_ALLOW", // Control person generation
-    safetyFilterLevel: "BLOCK_SOME", // Safety filtering
-  },
-});
-```
-
-#### Gemini native models
-
-Set native image options on `modelOptions`:
+Set image options on `modelOptions`:
 
 ```typescript
 import { generateImage } from "@tanstack/ai";

@@ -72,6 +72,56 @@ function backgroundLead(woke: { open: () => void }) {
 
 const WAKE = 'Background agent writer finished: [writer finished] Found it'
 
+describe('subagents.background', () => {
+  /** The JSON Schema of the `writer` tool in model call `call`. */
+  const writerSchema = (call: { tools?: Array<any> }) =>
+    JSON.stringify(
+      call.tools?.find((tool) => tool.name === 'writer')?.inputSchema,
+    )
+
+  it('offers the background field by default', async () => {
+    const lead = mockAdapter([() => text('Hi.')])
+    const { host, session } = await openLead(
+      lead.adapter,
+      mockAdapter([]).adapter,
+    )
+
+    await session.send('Hello.')
+
+    expect(writerSchema(lead.calls[0])).toContain('"background"')
+    await host.close()
+  })
+
+  it('with false, offers no background field, and the child ends inside the turn', async () => {
+    const writer = defineAgent({
+      name: 'writer',
+      description: 'Writes notes',
+      run: (ctx) =>
+        ctx.chat({ adapter: mockAdapter(() => text('Notes.')).adapter }),
+    })
+    const lead = mockAdapter([
+      () => callWriter({ prompt: 'Look around' }, 'call-1'),
+      () => text('The notes are in.'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/no-background',
+        adapter: lead.adapter,
+        subagents: { agents: [writer], background: false },
+      }),
+      { threadId: 't' },
+    )
+
+    const turn = await session.send('Write notes.')
+
+    expect(writerSchema(lead.calls[0])).toContain('"prompt"')
+    expect(writerSchema(lead.calls[0])).not.toContain('"background"')
+    expect(turn.text).toBe('The notes are in.')
+    await host.close()
+  })
+})
+
 describe('subagent children of a harness session', () => {
   it('indexes a child the model starts under the session thread', async () => {
     const lead = mockAdapter([

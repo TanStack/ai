@@ -8,8 +8,16 @@ import type { ModelMessage, UIMessage } from '../../../types'
  * child by `sessionId`. When `agent` is set, only that agent can continue
  * the child. A middleware that provides it must list `LoadChildCapability`
  * in `provides`. Only then do the agent tools take `sessionId`.
+ *
+ * With `parentSubagentRunId`, it loads a nested child: a child that the child
+ * `parentSubagentRunId` started. It returns `undefined` when that child did
+ * not start it. A loader that ignores the option fails closed for nested
+ * children.
  */
-export type LoadChild = (subagentRunId: string) => Promise<
+export type LoadChild = (
+  subagentRunId: string,
+  options?: { parentSubagentRunId?: string },
+) => Promise<
   | {
       messages: Array<ModelMessage | UIMessage>
       /** The name of the agent the child ran under. */
@@ -21,6 +29,10 @@ export type LoadChild = (subagentRunId: string) => Promise<
        * tool does not resume the child.
        */
       pending?: Array<ModelMessage | UIMessage>
+      /** While the child waits: the ids of the interrupts it waits on. */
+      interruptIds?: Array<string>
+      /** The tool call of the parent that started the child, if any. */
+      parentToolCallId?: string
     }
   | undefined
 >
