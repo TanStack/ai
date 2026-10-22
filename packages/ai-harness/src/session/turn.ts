@@ -671,6 +671,9 @@ export abstract class SessionTurn<
     let text = ''
     /** The turn text that the transcript has, before the current call. */
     let textBefore = ''
+    /** A run and a text message of the stream that did not end yet. */
+    let isRunOpen = false
+    let openMessageId: string | undefined
     let interrupts: Array<Interrupt> | undefined
     let failure: string | undefined
     const captured: Array<MediaRecord> = []
@@ -1306,6 +1309,19 @@ export abstract class SessionTurn<
               if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
                 text += chunk.delta
               }
+              if (chunk.type === EventType.TEXT_MESSAGE_START) {
+                openMessageId = chunk.messageId
+              }
+              if (chunk.type === EventType.TEXT_MESSAGE_END) {
+                openMessageId = undefined
+              }
+              if (chunk.type === EventType.RUN_STARTED) isRunOpen = true
+              if (
+                chunk.type === EventType.RUN_FINISHED ||
+                chunk.type === EventType.RUN_ERROR
+              ) {
+                isRunOpen = false
+              }
               if (
                 chunk.type === EventType.TEXT_MESSAGE_CONTENT ||
                 chunk.type === EventType.REASONING_MESSAGE_CONTENT ||
@@ -1595,6 +1611,36 @@ export abstract class SessionTurn<
         }
       } catch (error) {
         this.warn(operation, 'harness:transcript', error)
+      }
+    }
+    // A stopped stream ends its text message and its run, as an agent run
+    // does: a cancel finishes it `cancelled`, a time limit fails it.
+    if (operation.abortController.signal.aborted && !this.logFailure) {
+      const timestamp = Date.now()
+      if (openMessageId !== undefined) {
+        operation.publish({
+          type: EventType.TEXT_MESSAGE_END,
+          messageId: openMessageId,
+          timestamp,
+        })
+      }
+      if (isRunOpen) {
+        operation.publish(
+          timedOut
+            ? {
+                type: EventType.RUN_ERROR,
+                message: 'The input passed its time limit.',
+                code: 'timeout',
+                timestamp,
+              }
+            : ({
+                type: EventType.RUN_FINISHED,
+                runId: operation.id,
+                threadId: this.threadId,
+                outcome: { type: 'cancelled' },
+                timestamp,
+              } as StreamChunk),
+        )
       }
     }
 

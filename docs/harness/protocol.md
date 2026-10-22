@@ -417,7 +417,7 @@ In TypeScript, `HarnessEventValues` from `@tanstack/ai-harness` maps each name t
 | `name` | `value` |
 | --- | --- |
 | `harness.operation.started` | `{ operationId, kind, agent? }`. `kind` is `chat`, `agent`, `command`, or `compact`. |
-| `harness.operation.finished` | `{ operationId, status }`. `status` is `completed`, `failed`, `cancelled`, or `interrupted`. |
+| `harness.operation.finished` | `{ operationId, status }`. `status` is `completed`, `failed`, `cancelled`, or `interrupted`. Before it, a cancelled turn ends its open text message and sends `RUN_FINISHED` with `outcome: { type: 'cancelled' }`. A turn past its time limit sends `RUN_ERROR` with `code: 'timeout'`. |
 | `harness.operation.resumed` | `{ operationId, resumedFrom? }`. A host continued a run after another host stopped. |
 | `harness.turn.retry` | `{ operationId, retries, error: { message, code?, retryAfterMs? }, continued }`. `continued` is true when the model continues a partial answer. |
 | `harness.handoff` | `{ from, to, note?, runId, by, waitId? }`. `from` and `to` are an agent name, `null` for the main model, or `{ human: true }`. `by` is `tool`, `code`, `router`, or `operator`. A handoff to a person has the `waitId` of its wait. |

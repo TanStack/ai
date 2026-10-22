@@ -275,6 +275,52 @@ describe('chat turns', () => {
     await host.close()
   })
 
+  it('ends a cancelled turn with its text message and its run', async () => {
+    const { host } = setup()
+    const streamed = gate()
+    const { adapter } = mockAdapter([
+      (options: any) =>
+        (async function* (): AsyncGenerator<StreamChunk> {
+          // RUN_STARTED, TEXT_MESSAGE_START, TEXT_MESSAGE_CONTENT.
+          yield* text('Here').slice(0, 3)
+          streamed.open()
+          const signal: AbortSignal = options.abortController.signal
+          await new Promise((resolve) =>
+            signal.addEventListener('abort', resolve, { once: true }),
+          )
+        })(),
+    ])
+    const session = await host.open(
+      defineHarness({ name: 'test/cancel', adapter }),
+      { threadId: 't1' },
+    )
+
+    const turn = session.send('first')
+    await streamed.opened
+    await turn.cancel()
+    await expect(turn).rejects.toThrow('Cancelled')
+
+    const events = (await collect(turn.events({ from: '0' }))).map(
+      ({ event }) => event,
+    )
+    const types = events.map((event) =>
+      event.type === EventType.CUSTOM ? event.name : event.type,
+    )
+    expect(types.slice(-5)).toEqual([
+      EventType.TEXT_MESSAGE_CONTENT,
+      EventType.TEXT_MESSAGE_END,
+      EventType.RUN_FINISHED,
+      HARNESS_EVENTS.inputSettled,
+      HARNESS_EVENTS.operationFinished,
+    ])
+    expect(events.at(-3)).toMatchObject({
+      type: EventType.RUN_FINISHED,
+      runId: turn.id,
+      outcome: { type: 'cancelled' },
+    })
+    await host.close()
+  })
+
   it('stops for an approval and continues after resolve', async () => {
     const { host } = setup()
     const execute = vi.fn(async () => ({ ok: true }))
