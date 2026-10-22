@@ -6,6 +6,11 @@ import { fileURLToPath } from 'url'
 import { EventStreamCodec } from '@smithy/eventstream-codec'
 import type { Mountable } from '@copilotkit/aimock'
 
+declare global {
+  // Read back by global-teardown.ts, which Playwright runs in the same process.
+  var __aimock: LLMock | undefined
+}
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
@@ -206,7 +211,7 @@ export default async function globalSetup() {
 
   await mock.start()
   console.log(`[aimock] started on port 4010`)
-  ;(globalThis as any).__aimock = mock
+  globalThis.__aimock = mock
 }
 
 function registerMediaFixtures(mock: LLMock) {
@@ -228,7 +233,6 @@ function registerMediaFixtures(mock: LLMock) {
   mock.onVideo('a guitar being played in a store', {
     video: {
       url: 'https://example.com/guitar-store.mp4',
-      duration: 10,
       id: 'video-job-e2e',
       status: 'completed',
     },
@@ -241,7 +245,6 @@ function registerMediaFixtures(mock: LLMock) {
   mock.onVideo('animate this product photo', {
     video: {
       url: 'https://example.com/product-animated.mp4',
-      duration: 5,
       id: 'video-job-i2v-e2e',
       status: 'completed',
     },

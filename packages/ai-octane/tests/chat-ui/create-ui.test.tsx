@@ -19,6 +19,12 @@ import {
   unknownToolMessage,
 } from '../../../ai-client/tests/ui-fixtures'
 import type { ToolCallState } from '@tanstack/ai-client'
+import type {
+  ChatUIInterrupt,
+  ChatUIMessages,
+  ChatUISelectedPart,
+} from '@tanstack/ai-client/ui'
+import type { ComponentBody } from 'octane'
 
 function renderToStaticMarkup(ui: Parameters<typeof render>[0]) {
   const { container } = render(ui)
@@ -61,6 +67,11 @@ const baseConfig: ChatUIFactoryConfig<typeof chatOptions> = {
 }
 
 type Config = ChatUIFactoryConfig<typeof chatOptions>
+type InterruptsConfig = NonNullable<Config['interruptsComponents']>
+type Messages = ChatUIMessages<typeof chatOptions>
+// The zero-prop widgets the factory mixes onto a part or interrupt
+// (`PartMixins` / `InterruptMixins` in create-ui.tsrx, not exported).
+type BoundWidget = ComponentBody<Record<string, never>>
 
 // The helper keeps `layout` / `message` / `input` flat for brevity and
 // assembles them into `components`; the shape under test is what reaches
@@ -74,8 +85,8 @@ function makeUI(patch?: {
   partsComponents?: Config['partsComponents']
   toolsComponents?: Config['toolsComponents']
   interruptsComponents?: {
-    tools?: Config['interruptsComponents']['tools']
-    generic?: Partial<Config['interruptsComponents']['generic']>
+    tools?: InterruptsConfig['tools']
+    generic?: Partial<InterruptsConfig['generic']>
   }
 }) {
   return createChatUI(chatOptions, {
@@ -97,11 +108,11 @@ function makeUI(patch?: {
     },
     interruptsComponents: {
       tools: {
-        ...baseConfig.interruptsComponents.tools,
+        ...baseConfig.interruptsComponents?.tools,
         ...patch?.interruptsComponents?.tools,
       },
       generic: {
-        ...baseConfig.interruptsComponents.generic,
+        ...baseConfig.interruptsComponents?.generic,
         ...patch?.interruptsComponents?.generic,
       },
     },
@@ -142,7 +153,7 @@ describe('createChatUI', () => {
     const manual = renderToStaticMarkup(
       <UI.Provider chat={chat}>
         <UI.Messages>
-          {(messages) => <span>{messages.length}</span>}
+          {(messages: Messages) => <span>{messages.length}</span>}
         </UI.Messages>
       </UI.Provider>,
     )
@@ -325,13 +336,16 @@ describe('createChatUI', () => {
     const markup = renderToStaticMarkup(
       <UI.Provider chat={chat}>
         <UI.Messages>
-          {(messages) =>
+          {(messages: Messages) =>
             messages.map((message) => (
               <UI.Message key={message.id} message={message}>
-                {(parts) =>
+                {(parts: Array<ChatUISelectedPart>) =>
                   parts.map((part, index) => (
                     <UI.Part key={index} part={part}>
-                      {(p) =>
+                      {(
+                        p: ChatUISelectedPart &
+                          Record<'getWeather' | 'Render', BoundWidget>,
+                      ) =>
                         part.key === 'toolCall' ? (
                           <p.getWeather />
                         ) : (
@@ -367,10 +381,12 @@ describe('createChatUI', () => {
         })}
       >
         <UI.Interrupts>
-          {(interrupts) =>
+          {(interrupts: ReadonlyArray<ChatUIInterrupt>) =>
             interrupts.map((interrupt) => (
               <UI.Interrupt key={interrupt.id} interrupt={interrupt}>
-                {(item) => {
+                {(
+                  item: ChatUIInterrupt & Record<'choosePlan', BoundWidget>,
+                ) => {
                   const ChoosePlan = item.choosePlan
                   return <ChoosePlan />
                 }}
