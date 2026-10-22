@@ -359,6 +359,41 @@ describe('media upload and signed URLs', () => {
     await host.close()
   })
 
+  it('signs for media.urlTtlMs, and refuses a lifetime that is not above 0 at the start', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: NOW })
+    const { host, harness, upload } = setup()
+    const record = await upload('user-1-a')
+    const MINUTES_5 = 5 * 60 * 1000
+    const handler = createHarnessHandler({
+      host,
+      harness,
+      media: { secret: SHARED, urlTtlMs: MINUTES_5 },
+    })
+    const get = (path: string) =>
+      handler(
+        new Request(`${BASE}/${path}`, {
+          headers: { authorization: 'Bearer good' },
+        }),
+      )
+
+    const signed: { path: string; expiresAt: number } = await (
+      await get(`media-url?threadId=user-1-a&id=${record.id}`)
+    ).json()
+
+    expect(signed.expiresAt).toBe(NOW + MINUTES_5)
+    expect((await get(signed.path)).status).toBe(200)
+    vi.setSystemTime(NOW + MINUTES_5 + 1)
+    expect((await get(signed.path)).status).toBe(403)
+    expect(() =>
+      createHarnessHandler({
+        host,
+        harness,
+        media: { secret: SHARED, urlTtlMs: 0 },
+      }),
+    ).toThrow(/urlTtlMs/)
+    await host.close()
+  })
+
   it('refuses a URL signed by a handler with another random key (403)', async () => {
     const { host, query, fetchSigned, handlerWith } = await signedFile()
 

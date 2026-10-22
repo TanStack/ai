@@ -97,8 +97,10 @@ export interface HarnessHandlerOptions<U extends HarnessUser = HarnessUser> {
    *
    * Each key must be at least 32 bytes (UTF-8). A shorter key throws at the
    * start.
+   *
+   * `urlTtlMs` is how long a signed URL works. Default: 1 hour.
    */
-  media?: MediaSignerOptions
+  media?: MediaSignerOptions & { urlTtlMs?: number }
   /**
    * Set `true` when the app also serves `handleHarnessSocket`, so the
    * capabilities say that clients can use a WebSocket. Default `false`.
@@ -112,7 +114,7 @@ export interface HarnessHandlerOptions<U extends HarnessUser = HarnessUser> {
   stream?: HarnessStreamOptions
 }
 
-/** How long a signed media URL works. */
+/** How long a signed media URL works, without `media.urlTtlMs`. */
 const SIGNED_URL_TTL_MS = 60 * 60 * 1000
 
 /** The most bytes one answer to an open-ended `Range` (`bytes=N-`) sends. */
@@ -594,8 +596,8 @@ let warnedMediaKey = false
  *
  * Throws at the start for a host without `access` and without
  * `openAccess`, for a host with both, for a `stream` value that is not a
- * finite number above 0, and without `media` on a host with `ownership`
- * options.
+ * finite number above 0, for a `media.urlTtlMs` that is not one, and without
+ * `media` on a host with `ownership` options.
  *
  * @example
  * ```ts
@@ -613,6 +615,12 @@ export function createHarnessHandler<U extends HarnessUser = HarnessUser>(
   ).of
   const { hasAccess } = host
   const stream = streamValues('createHarnessHandler', options.stream)
+  const urlTtlMs = media?.urlTtlMs ?? SIGNED_URL_TTL_MS
+  if (!Number.isFinite(urlTtlMs) || urlTtlMs <= 0) {
+    throw new Error(
+      'createHarnessHandler needs a media.urlTtlMs that is a finite number above 0.',
+    )
+  }
   if (media === undefined && isSharedHost(host)) {
     throw new Error(
       'createHarnessHandler needs media ({ secret } or { keys }) on a host with ownership options: another instance must verify the media URLs that this one signs. Set the same keys on every instance.',
@@ -1322,7 +1330,7 @@ export function createHarnessHandler<U extends HarnessUser = HarnessUser>(
       if (!(await view.getMedia({ id }))) {
         return json({ error: 'not found' }, 404)
       }
-      const expiresAt = Date.now() + SIGNED_URL_TTL_MS
+      const expiresAt = Date.now() + urlTtlMs
       const payload: SignedMedia = {
         tenantId: user?.tenantId ?? '',
         threadId,
