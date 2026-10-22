@@ -246,6 +246,7 @@ You want to know what a run cost. `RUN_FINISHED.usage.promptTokens` is the full 
 
 - `cachedTokens`: tokens read from the cache.
 - `cacheWriteTokens`: tokens written to the cache.
+- `cacheWrite1hTokens`: the part of `cacheWriteTokens` that is kept for 1 hour. Claude reports this field. A 1-hour write costs more than a 5-minute write.
 
 To get the uncached part, subtract both:
 
