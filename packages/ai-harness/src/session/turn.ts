@@ -136,7 +136,11 @@ export abstract class SessionTurn<
       { op: 'command', name, input },
       user,
     )
-    // The owner runs it, or it ran before. Its result is in the events.
+    if (admission === 'offered') {
+      await this.followCommand(operation, inputId)
+      return
+    }
+    // It ran before. Its result is in the events.
     if (admission !== 'new') {
       const receipt = this.duplicateReceipt(inputId, admission)
       if (receipt.status === 'rejected') {
@@ -181,6 +185,47 @@ export abstract class SessionTurn<
       user,
       inputId,
     })
+  }
+
+  /**
+   * The owner on another host runs the command. End `operation` as the owner
+   * ends it: with its result from the log, or with its error. A refused
+   * command rejects with `InputRejectedError`.
+   */
+  private async followCommand(
+    operation: OperationImpl<unknown>,
+    inputId: string,
+  ): Promise<void> {
+    // The owner's operation id is known only when the input settles.
+    const results = new Map<string, unknown>()
+    const stop = this.feed.listen(({ operationId, event }) => {
+      if (
+        event.type === EventType.CUSTOM &&
+        event.name === 'harness.command.result' &&
+        isRecord(event.value)
+      ) {
+        results.set(operationId, event.value.result)
+      }
+    })
+    try {
+      const settlement = await this.settled({ inputId })
+      switch (settlement.outcome) {
+        case 'completed':
+        case 'interrupted':
+          operation.finish(
+            'completed',
+            results.get(settlement.operationId ?? ''),
+          )
+          return
+        case 'aborted':
+          operation.fail('cancelled', new Error('Cancelled.'))
+          return
+        case 'failed':
+          operation.fail('failed', new Error(settlement.error.message))
+      }
+    } finally {
+      stop()
+    }
   }
 
   /**
