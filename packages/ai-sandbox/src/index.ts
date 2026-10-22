@@ -157,6 +157,7 @@ export type {
   SandboxHandle,
   SandboxCapabilities,
   SandboxFs,
+  SandboxFsOptions,
   SandboxFsStat,
   SandboxGit,
   SandboxProcess,

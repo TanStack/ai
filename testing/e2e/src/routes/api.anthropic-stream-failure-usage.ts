@@ -23,6 +23,7 @@ export const Route = createFileRoute('/api/anthropic-stream-failure-usage')({
         try {
           for await (const chunk of chat({
             adapter,
+            threadId: 'stream-failure-usage',
             messages: [
               {
                 role: 'user',

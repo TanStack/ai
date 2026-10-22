@@ -231,6 +231,8 @@ interface BackgroundReady {
   record: CompactionRecord
   /** The hash of the snapshot before `record.from`, for a record with no `firstKeptId`. */
   prefixHash: string
+  /** The model of the call that started the summary. Only its calls apply it. */
+  model: string
 }
 
 function isBackgroundReady(value: unknown): value is BackgroundReady {
@@ -394,9 +396,22 @@ export interface CompactionInfo {
   stale?: boolean
 }
 
+/**
+ * A token limit of {@link CompactionOptions}: a number, or a function that
+ * gives the limit for the model of the call. It runs once for each model call.
+ */
+export type CompactionLimit = number | ((ctx: { model: string }) => number)
+
+/** The value of `limit` for `model`. */
+const limitOf = (limit: CompactionLimit, model: string) =>
+  typeof limit === 'number' ? limit : limit({ model })
+
 export interface CompactionOptions {
-  /** Compact when the token count of `messages` passes this (see `countTokens` and `auto`). */
-  maxTokens: number
+  /**
+   * Compact when the token count of `messages` passes this (see `countTokens`
+   * and `auto`). A function gives the limit for the model of the call.
+   */
+  maxTokens: CompactionLimit
   /** How to shrink the messages. Default: {@link evictOldest}. */
   strategy?: CompactionStrategy
   /** Per-message token estimator. Default: {@link estimateMessageTokens}. */
@@ -437,9 +452,10 @@ export interface CompactionOptions {
    * `durable: true` on a host with a log, the check after the last model call
    * of a run compacts when the usage is over it, even with `auto: false`. A
    * failed after-turn compaction never fails the run: `onCompact` gets
-   * `error`. Only a failed log append fails it.
+   * `error`. Only a failed log append fails it. A function gives the window
+   * of the model of the call.
    */
-  contextWindow?: number
+  contextWindow?: CompactionLimit
   /**
    * Write each compaction as a log record when the host provides
    * `LogRecordsCapability` (a host with a durable session log). The host
@@ -463,9 +479,11 @@ export interface CompactionOptions {
    * result applies at the first model call of the next run. A call over
    * `maxTokens` while it runs waits for it. A ready result waits in the
    * metadata store, or in memory without one. `atTokens` must be below
-   * `maxTokens`. Default: off.
+   * `maxTokens`. A function gives the value for the model of the call. When
+   * a function gives an `atTokens` that is not below `maxTokens`, no
+   * background summary starts. Default: off.
    */
-  background?: { atTokens: number }
+  background?: { atTokens: CompactionLimit }
 }
 
 /** What {@link withCompaction} returns: a chat middleware with `compactNext`. */
@@ -777,7 +795,12 @@ export function withCompaction(
   options: CompactionOptions,
 ): CompactionMiddleware {
   const background = options.background
-  if (background && background.atTokens >= options.maxTokens) {
+  // Only plain numbers can be checked now. A function is known at a call.
+  if (
+    typeof background?.atTokens === 'number' &&
+    typeof options.maxTokens === 'number' &&
+    background.atTokens >= options.maxTokens
+  ) {
     throw new Error(
       'withCompaction: background.atTokens must be below maxTokens.',
     )
@@ -833,9 +856,9 @@ export function withCompaction(
         : strategyKeys.get(configured))
   // A native checkpoint holds an item that only its model reads, so the
   // model is part of its key, also with a custom `strategyKey`.
-  const checkpointKeyOf = (model: string) =>
+  const checkpointKeyOf = (model: string, maxTokens: number) =>
     strategyKey
-      ? `${strategyKey}${nativeCompact ? `:${model}` : ''}:maxTokens=${options.maxTokens}`
+      ? `${strategyKey}${nativeCompact ? `:${model}` : ''}:maxTokens=${maxTokens}`
       : undefined
   const countUsage = options.countTokens === 'usage'
   const auto = options.auto !== false
@@ -846,7 +869,7 @@ export function withCompaction(
   // usage fits that list.
   const storeOf = (ctx: ChatMiddlewareContext) => {
     const shared = getMetadata(ctx, { optional: true })
-    if (shared && checkpointKeyOf(ctx.model)) return shared
+    if (shared && strategyKey) return shared
     return countUsage ? memory : undefined
   }
   // True when the last model call of a run got a compacted view. The usage of
@@ -876,10 +899,11 @@ export function withCompaction(
     snapshot: Array<ModelMessage>,
     before: number,
     reusedCheckpoint: boolean,
+    maxTokens: number,
   ) {
     const startedAt = Date.now()
     const store = backgroundStore(ctx)
-    const checkpointStrategyKey = checkpointKeyOf(ctx.model)
+    const checkpointStrategyKey = checkpointKeyOf(ctx.model, maxTokens)
     const strategyField = checkpointStrategyKey
       ? { strategyKey: checkpointStrategyKey }
       : {}
@@ -887,7 +911,7 @@ export function withCompaction(
       before,
       messagesBefore: snapshot.length,
       reusedCheckpoint,
-      maxTokens: options.maxTokens,
+      maxTokens,
       ...strategyField,
       reason: 'background',
     })
@@ -899,7 +923,7 @@ export function withCompaction(
         after: before,
         messagesAfter: snapshot.length,
         reusedCheckpoint,
-        maxTokens: options.maxTokens,
+        maxTokens,
         durationMs: Date.now() - startedAt,
         ...strategyField,
         reason: 'background',
@@ -915,7 +939,7 @@ export function withCompaction(
           spent,
           config,
         )(snapshot, {
-          maxTokens: options.maxTokens,
+          maxTokens,
           estimate,
           threadId: ctx.threadId,
           addUsage: (usage) => {
@@ -937,6 +961,7 @@ export function withCompaction(
         const ready: BackgroundReady = {
           record,
           prefixHash: await hashMessages(snapshot.slice(0, record.from)),
+          model: ctx.model,
         }
         await store.set(BACKGROUND_NAMESPACE, ctx.threadId, ready)
       } catch (failure) {
@@ -1016,11 +1041,13 @@ export function withCompaction(
       )
       if (counted === undefined) return
       tokens = counted
+      const maxTokens = limitOf(options.maxTokens, ctx.model)
       const isOverflow =
-        options.contextWindow !== undefined && tokens > options.contextWindow
-      if (!isOverflow && !(auto && tokens > options.maxTokens)) return
+        options.contextWindow !== undefined &&
+        tokens > limitOf(options.contextWindow, ctx.model)
+      if (!isOverflow && !(auto && tokens > maxTokens)) return
       next = await strategyOf(ctx, spent)(messages, {
-        maxTokens: options.maxTokens,
+        maxTokens,
         estimate,
         signal: ctx.signal,
         threadId: ctx.threadId,
@@ -1085,8 +1112,13 @@ export function withCompaction(
       if (ctx.phase === 'init') return
       const force = forced.delete(ctx.threadId)
       const reason: CompactionReason = force ? 'forced' : 'threshold'
+      // The limits of this call, for its model.
+      const maxTokens = limitOf(options.maxTokens, ctx.model)
+      const atTokens = background
+        ? limitOf(background.atTokens, ctx.model)
+        : undefined
 
-      const checkpointStrategyKey = checkpointKeyOf(ctx.model)
+      const checkpointStrategyKey = checkpointKeyOf(ctx.model, maxTokens)
       const startedAt = Date.now()
       const { messages } = config
       const inputMessages = config.providerMessages ?? messages
@@ -1201,7 +1233,7 @@ export function withCompaction(
             messagesBefore: info.messagesBefore,
             messagesAfter: info.messagesAfter,
             reusedCheckpoint,
-            maxTokens: options.maxTokens,
+            maxTokens,
             strategyKey: checkpointStrategyKey,
             beforeMessages: from,
             afterMessages: next,
@@ -1212,7 +1244,7 @@ export function withCompaction(
           after: info.after,
           messagesAfter: info.messagesAfter,
           reusedCheckpoint,
-          maxTokens: options.maxTokens,
+          maxTokens,
           durationMs: Date.now() - startedAt,
           ...(checkpointStrategyKey
             ? { strategyKey: checkpointStrategyKey }
@@ -1228,9 +1260,9 @@ export function withCompaction(
 
       /**
        * Apply the ready background summary of the thread, or drop it when it
-       * no longer fits: a newer compaction cut past its kept message, or,
-       * without a kept id, the messages before the cut changed. Returns the
-       * new list, or `undefined`.
+       * no longer fits: another model prepared it, a newer compaction cut
+       * past its kept message, or, without a kept id, the messages before the
+       * cut changed. Returns the new list, or `undefined`.
        */
       const applyReady = async () => {
         const readyStore = backgroundStore(ctx)
@@ -1238,13 +1270,15 @@ export function withCompaction(
         if (!isBackgroundReady(ready)) return undefined
         await readyStore.delete(BACKGROUND_NAMESPACE, ctx.threadId)
         const { record, prefixHash } = ready
-        // Without a kept id, the messages before the cut must be the ones
-        // that the summary read.
+        // A summary fits only the model that it was prepared for. Without a
+        // kept id, the messages before the cut must be the ones that the
+        // summary read.
         const fits =
-          record.firstKeptId !== undefined ||
-          (record.from <= workingMessages.length &&
-            (await hashMessages(workingMessages.slice(0, record.from))) ===
-              prefixHash)
+          ready.model === ctx.model &&
+          (record.firstKeptId !== undefined ||
+            (record.from <= workingMessages.length &&
+              (await hashMessages(workingMessages.slice(0, record.from))) ===
+                prefixHash))
         const next = fits
           ? projectCompaction({ messages: workingMessages, record })
           : undefined
@@ -1272,7 +1306,7 @@ export function withCompaction(
           after: before,
           messagesAfter: workingMessages.length,
           reusedCheckpoint,
-          maxTokens: options.maxTokens,
+          maxTokens,
           durationMs: Date.now() - startedAt,
           ...(checkpointStrategyKey
             ? { strategyKey: checkpointStrategyKey }
@@ -1286,7 +1320,7 @@ export function withCompaction(
 
       // Set when a background summary was applied at this call.
       let applied = false
-      if (background) {
+      if (atTokens !== undefined) {
         // ponytail: the run of the last call of each thread, in the memory
         // store (its newest 1000 threads). A forgotten thread counts as a
         // first call.
@@ -1296,7 +1330,7 @@ export function withCompaction(
         // Over maxTokens while a summary runs: wait for it and apply it, so
         // the summary runs once, not twice. The run's signal stops the wait.
         const running =
-          !force && auto && before > options.maxTokens
+          !force && auto && before > maxTokens
             ? jobs.get(ctx.threadId)
             : undefined
         if (running) await abortable(running, ctx.signal)
@@ -1314,8 +1348,8 @@ export function withCompaction(
         if (
           !force &&
           auto &&
-          before > background.atTokens &&
-          before <= options.maxTokens &&
+          before > atTokens &&
+          before <= maxTokens &&
           !jobs.has(ctx.threadId) &&
           // A checked call took the ready summary already.
           (checked ||
@@ -1333,6 +1367,7 @@ export function withCompaction(
             [...workingMessages],
             before,
             reusedCheckpoint,
+            maxTokens,
           )
         }
       }
@@ -1340,14 +1375,14 @@ export function withCompaction(
         before,
         messagesBefore: workingMessages.length,
         reusedCheckpoint,
-        maxTokens: options.maxTokens,
+        maxTokens,
         ...(checkpointStrategyKey
           ? { strategyKey: checkpointStrategyKey }
           : {}),
         reason,
       }
 
-      if (!force && (!auto || before <= options.maxTokens)) {
+      if (!force && (!auto || before <= maxTokens)) {
         // A background summary was applied above, and its events went out.
         if (applied) return { providerMessages: workingMessages }
         if (reusedCheckpoint) {
@@ -1358,7 +1393,7 @@ export function withCompaction(
             messagesBefore: workingMessages.length,
             messagesAfter: workingMessages.length,
             reusedCheckpoint: true,
-            maxTokens: options.maxTokens,
+            maxTokens,
             strategyKey: checkpointStrategyKey,
             afterMessages: workingMessages,
             estimate,
@@ -1368,7 +1403,7 @@ export function withCompaction(
             after: before,
             messagesAfter: workingMessages.length,
             reusedCheckpoint: true,
-            maxTokens: options.maxTokens,
+            maxTokens,
             durationMs: Date.now() - startedAt,
             ...(checkpointStrategyKey
               ? { strategyKey: checkpointStrategyKey }
@@ -1390,7 +1425,7 @@ export function withCompaction(
           spent,
           config,
         )(workingMessages, {
-          maxTokens: options.maxTokens,
+          maxTokens,
           estimate,
           signal: ctx.signal,
           threadId: ctx.threadId,
@@ -1403,7 +1438,7 @@ export function withCompaction(
           after: before,
           messagesAfter: workingMessages.length,
           reusedCheckpoint,
-          maxTokens: options.maxTokens,
+          maxTokens,
           durationMs: Date.now() - startedAt,
           ...(checkpointStrategyKey
             ? { strategyKey: checkpointStrategyKey }
@@ -1426,7 +1461,7 @@ export function withCompaction(
           after: before,
           messagesAfter: workingMessages.length,
           reusedCheckpoint,
-          maxTokens: options.maxTokens,
+          maxTokens,
           durationMs: Date.now() - startedAt,
           ...(checkpointStrategyKey
             ? { strategyKey: checkpointStrategyKey }

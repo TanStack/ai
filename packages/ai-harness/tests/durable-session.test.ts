@@ -1,0 +1,1204 @@
+import { describe, expect, it, vi } from 'vitest'
+import { EventType, getLogRecords, toolDefinition } from '@tanstack/ai'
+import {
+  NO_OWNER_EPOCH,
+  memoryLogStore,
+  memoryPersistence,
+} from '@tanstack/ai-persistence'
+import { createHarnessHost, defineHarness, definePlugin, logIdOf } from '../src'
+import { loadLogState, sessionOf } from '../src/log'
+import {
+  gate,
+  hideSecret,
+  messageTexts,
+  mockAdapter,
+  stoppedRun,
+  text,
+  toolCall,
+  wrapLogStore,
+} from './helpers'
+import type { ChatMiddleware, ModelMessage, StreamChunk } from '@tanstack/ai'
+import type { LogStore } from '@tanstack/ai-persistence'
+import type { HarnessSession, ProjectOptions, SessionEvent } from '../src'
+import type { Reply } from './helpers'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
+const THREAD = 't1'
+/** The id of the log of `THREAD` in the store. */
+const LOG = logIdOf({ logId: THREAD })
+
+/** The stores of a durable host: a log and metadata. */
+function durablePersistence(log: LogStore = memoryLogStore()) {
+  const { metadata } = memoryPersistence().stores
+  return { stores: { log, metadata } }
+}
+
+/** Signals become user messages. A compaction keeps a summary and a tail. */
+const project: ProjectOptions = {
+  version: 'v1',
+  record: ({ messages, record }) => {
+    if (record.type === 'app.signal' && typeof record.text === 'string') {
+      return [...messages, { role: 'user', content: record.text }]
+    }
+    if (
+      record.type === 'app.compact' &&
+      typeof record.summary === 'string' &&
+      typeof record.firstKept === 'number'
+    ) {
+      return [
+        { role: 'assistant', content: record.summary },
+        ...messages.slice(record.firstKept),
+      ]
+    }
+    // Like a durable compaction: `head` replaces the messages before `from`.
+    // A fold that does not have `from` messages yet skips it.
+    if (
+      record.type === 'app.compact-head' &&
+      Array.isArray(record.head) &&
+      typeof record.from === 'number' &&
+      record.from <= messages.length
+    ) {
+      return [...record.head, ...messages.slice(record.from)]
+    }
+    return undefined
+  },
+}
+
+/** A model call that streams `deltas` of message `messageId`, then waits. */
+function streamsThenWaits(
+  messageId: string,
+  deltas: Array<string>,
+  until: Promise<void>,
+): Reply {
+  return () =>
+    (async function* (): AsyncGenerator<StreamChunk> {
+      yield {
+        type: EventType.RUN_STARTED,
+        runId: 'r',
+        threadId: 't',
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId,
+        role: 'assistant',
+        timestamp: Date.now(),
+      }
+      for (const delta of deltas) {
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId,
+          delta,
+          timestamp: Date.now(),
+        }
+      }
+      await until
+    })()
+}
+
+/** The events of a session from the start, once `isDone` holds for them. */
+async function eventsUntil(
+  session: HarnessSession,
+  isDone: (seen: Array<SessionEvent>) => boolean,
+) {
+  const controller = new AbortController()
+  const seen: Array<SessionEvent> = []
+  const reading = (async () => {
+    for await (const entry of session.events({
+      from: '0',
+      signal: controller.signal,
+    })) {
+      seen.push(entry)
+      if (isDone(seen)) controller.abort()
+    }
+  })()
+  await reading
+  return seen
+}
+
+const deltasOf = (seen: Array<SessionEvent>, messageId: string) =>
+  seen
+    .map((entry) => entry.event)
+    .filter(
+      (event) =>
+        event.type === EventType.TEXT_MESSAGE_CONTENT &&
+        event.messageId === messageId,
+    )
+    .map((event) => ('delta' in event ? event.delta : ''))
+    .join('')
+
+/** One model call: signed thinking, a tool call, signed thinking, a tool call. */
+function thinkCallThinkCall(): Array<StreamChunk> {
+  const thinking = (
+    id: string,
+    content: string,
+    signature: string,
+  ): Array<StreamChunk> => [
+    { type: EventType.STEP_STARTED, stepName: id, timestamp: Date.now() },
+    { type: EventType.REASONING_START, messageId: id, timestamp: Date.now() },
+    {
+      type: EventType.REASONING_MESSAGE_START,
+      messageId: id,
+      role: 'reasoning',
+      timestamp: Date.now(),
+    },
+    {
+      type: EventType.REASONING_MESSAGE_CONTENT,
+      messageId: id,
+      delta: content,
+      timestamp: Date.now(),
+    },
+    {
+      type: EventType.REASONING_ENCRYPTED_VALUE,
+      subtype: 'message',
+      entityId: id,
+      encryptedValue: signature,
+      timestamp: Date.now(),
+    },
+    {
+      type: EventType.REASONING_MESSAGE_END,
+      messageId: id,
+      timestamp: Date.now(),
+    },
+    { type: EventType.REASONING_END, messageId: id, timestamp: Date.now() },
+  ]
+  const call = (id: string, city: string): Array<StreamChunk> => [
+    {
+      type: EventType.TOOL_CALL_START,
+      toolCallId: id,
+      toolCallName: 'lookup',
+      timestamp: Date.now(),
+    },
+    {
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: id,
+      delta: JSON.stringify({ city }),
+      timestamp: Date.now(),
+    },
+    { type: EventType.TOOL_CALL_END, toolCallId: id, timestamp: Date.now() },
+  ]
+  return [
+    {
+      type: EventType.RUN_STARTED,
+      runId: 'r',
+      threadId: 't',
+      timestamp: Date.now(),
+    },
+    ...thinking('think-1', 'Check Berlin.', 'sig-1'),
+    ...call('call-1', 'Berlin'),
+    ...thinking('think-2', 'Now Paris.', 'sig-2'),
+    ...call('call-2', 'Paris'),
+    {
+      type: EventType.RUN_FINISHED,
+      runId: 'r',
+      threadId: 't',
+      timestamp: Date.now(),
+      metadata: { tanstack: { finishReason: 'tool_calls' } },
+    },
+  ]
+}
+
+// The types refuse these store sets. The runtime check is for JavaScript
+// callers and dynamic store bags, so these tests pass them with `as never`.
+describe('durable host stores', () => {
+  it('runs a session with only a log store', async () => {
+    const { adapter } = mockAdapter([() => text('from the log only')])
+    const host = createHarnessHost({
+      persistence: { stores: { log: memoryLogStore() } },
+    })
+    const session = await host.open(
+      defineHarness({ name: 'test/log-only', adapter }),
+      { threadId: THREAD },
+    )
+
+    expect((await session.send('hi')).text).toBe('from the log only')
+    await host.close()
+  })
+
+  it('needs a log store, and names the memory default', () => {
+    const { messages, runs } = memoryPersistence().stores
+    expect(() =>
+      createHarnessHost({
+        persistence: { stores: { messages, runs } } as never,
+      }),
+    ).toThrow(
+      'The harness needs stores.log: each session keeps its events, transcript, and inputs there. In development, use memoryPersistence() from @tanstack/ai-persistence.',
+    )
+  })
+
+  it('refuses harness record types', async () => {
+    const { adapter } = mockAdapter([])
+    const harness = defineHarness({ name: 'test/append', adapter })
+    const durable = await createHarnessHost({
+      persistence: durablePersistence(),
+    }).open(harness, { threadId: THREAD })
+    await expect(
+      durable.appendRecords({ records: [{ type: 'harness.event' }] }),
+    ).rejects.toThrow('reserved for the harness')
+  })
+})
+
+describe('durable session log', () => {
+  it('opens the thread again after a session fails to open', async () => {
+    let fail = true
+    const { adapter } = mockAdapter([])
+    const harness = defineHarness({
+      name: 'test/flaky-open',
+      adapter,
+      plugins: () => [
+        definePlugin({
+          name: 'test/flaky',
+          setup: () => {
+            if (fail) throw new Error('setup failed')
+          },
+        }),
+      ],
+    })
+    const host = createHarnessHost({ persistence: durablePersistence() })
+
+    await expect(host.open(harness, { threadId: THREAD })).rejects.toThrow(
+      'setup failed',
+    )
+    fail = false
+    await expect(host.open(harness, { threadId: THREAD })).resolves.toBeTruthy()
+    await host.close()
+  })
+
+  it('keeps a streamed text block when the host stops in the middle', async () => {
+    const persistence = durablePersistence()
+    const release = gate()
+    const { adapter } = mockAdapter([
+      streamsThenWaits('m-live', ['Hello, ', 'wor'], release.opened),
+    ])
+    const harness = defineHarness({ name: 'test/crash-mid-text', adapter })
+    const first = createHarnessHost({
+      persistence,
+      log: { bufferStreamWriteMs: 5 },
+    })
+    const session = await first.open(harness, { threadId: THREAD })
+    const turn = session.send('say hello')
+
+    // The deltas reach the log after the coalescing window.
+    await waitFor(async () => {
+      const entries = await persistence.stores.log.read({ logId: LOG })
+      const events = entries.map((entry) => entry.record.event)
+      expect(JSON.stringify(events)).toContain('wor')
+    })
+
+    // The first host never closes, like a process that stopped.
+    const next = createHarnessHost({ persistence })
+    const reopened = await next.open(harness, { threadId: THREAD })
+    const seen = await eventsUntil(
+      reopened,
+      (events) => deltasOf(events, 'm-live') === 'Hello, wor',
+    )
+
+    expect(seen.map((entry) => entry.event)).toContainEqual(
+      expect.objectContaining({
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: 'm-live',
+      }),
+    )
+    expect(deltasOf(seen, 'm-live')).toBe('Hello, wor')
+
+    release.open()
+    await Promise.resolve(turn).catch(() => {})
+    await first.close()
+    await next.close()
+  })
+
+  it('logs an append with no inputId as an input, with the id of its receipt', async () => {
+    const persistence = durablePersistence()
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/append',
+        adapter: mockAdapter(() => text('ok')).adapter,
+      }),
+      { threadId: THREAD },
+    )
+
+    const { inputId } = await session.appendRecords({
+      records: [{ type: 'app.note' }],
+    })
+
+    const state = await loadLogState({
+      store: persistence.stores.log,
+      logId: LOG,
+      rootThread: THREAD,
+    })
+    expect(sessionOf(state, THREAD).inputs.get(inputId)?.input.op).toBe(
+      'append',
+    )
+    await host.close()
+  })
+
+  it('writes host records after the waiting events, in order', async () => {
+    const inner = memoryLogStore()
+    const batches: Array<Array<unknown>> = []
+    const log = wrapLogStore(inner, {
+      append: async (batch) => {
+        await inner.append(batch)
+        batches.push(
+          batch.records.map((record) =>
+            record.type === 'harness.event' ? record.event : record,
+          ),
+        )
+      },
+    })
+    const release = gate()
+    const { adapter } = mockAdapter([
+      streamsThenWaits('m1', ['partial'], release.opened),
+    ])
+    const host = createHarnessHost({
+      persistence: durablePersistence(log),
+      log: { bufferStreamWriteMs: 60_000 },
+    })
+    const session = await host.open(
+      defineHarness({ name: 'test/batch', adapter }),
+      {
+        threadId: THREAD,
+      },
+    )
+    const turn = session.send('go')
+    await waitFor(() =>
+      expect(JSON.stringify(batches)).toContain('TEXT_MESSAGE_START'),
+    )
+
+    await session.appendRecords({ records: [{ type: 'app.note', n: 1 }] })
+
+    // The input record of the append takes the waiting events with it, and
+    // the records come after them.
+    expect(batches).toContainEqual([
+      expect.objectContaining({
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        delta: 'partial',
+      }),
+      expect.objectContaining({ type: 'harness.input' }),
+    ])
+    expect(batches.at(-2)).toEqual([
+      { type: 'app.note', n: 1 },
+      expect.objectContaining({ type: 'harness.input.applied' }),
+    ])
+    release.open()
+    await Promise.resolve(turn).catch(() => {})
+    await host.close()
+  })
+
+  it('keeps the model context that an earlier middleware set, with a steer and a signal', async () => {
+    const persistence = durablePersistence()
+    let session: HarnessSession | undefined
+    const check = toolDefinition({
+      name: 'check',
+      description: 'Check the build',
+    }).server(async () => {
+      await session?.appendRecords({
+        records: [{ type: 'app.signal', text: '[signal] tests failed' }],
+      })
+      await session?.send('more', { busy: 'steer' }).receipt
+      return 'checked'
+    })
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('check', {}),
+      () => text('done'),
+    ])
+    const host = createHarnessHost({ persistence })
+    session = await host.open(
+      defineHarness({
+        name: 'test/project',
+        adapter,
+        tools: [check],
+        middleware: [hideSecret],
+        durability: { addRecordsToModelContext: project },
+      }),
+      {
+        threadId: THREAD,
+      },
+    )
+
+    await session.send('secret')
+
+    // The tool-call message has no text: its content is null.
+    expect(messageTexts(calls[1])).toEqual([
+      '[hidden]',
+      'null',
+      'checked',
+      'more',
+      '[signal] tests failed',
+    ])
+    await host.close()
+  })
+
+  it('gives the model the same context that a rebuild of the log gives', async () => {
+    const persistence = durablePersistence()
+    let session: HarnessSession | undefined
+    const check = toolDefinition({
+      name: 'check',
+      description: 'Check the build',
+    }).server(async () => {
+      await session?.appendRecords({
+        records: [{ type: 'app.signal', text: '[signal] tests failed' }],
+      })
+      return 'checked'
+    })
+    const { adapter, calls } = mockAdapter([
+      () => text('first answer'),
+      () => toolCall('check', {}),
+      () => text('second answer'),
+    ])
+    const host = createHarnessHost({ persistence })
+    session = await host.open(
+      defineHarness({
+        name: 'test/project',
+        adapter,
+        tools: [check],
+        durability: { addRecordsToModelContext: project },
+      }),
+      {
+        threadId: THREAD,
+      },
+    )
+
+    await session.send('one')
+    // Between turns: the next turn starts with it.
+    await session.appendRecords({
+      records: [{ type: 'app.signal', text: '[signal] build failed' }],
+    })
+    await session.send('two')
+
+    expect(messageTexts(calls[1])).toEqual([
+      'one',
+      'first answer',
+      '[signal] build failed',
+      'two',
+    ])
+    // During a tool call: the next model call of the same turn has it, after
+    // the tool result.
+    // The tool-call message has no text: its content is null.
+    expect(messageTexts(calls[2]).slice(-3)).toEqual([
+      'null',
+      'checked',
+      '[signal] tests failed',
+    ])
+    const rebuilt = sessionOf(
+      await loadLogState({
+        store: persistence.stores.log,
+        logId: LOG,
+        rootThread: THREAD,
+        project,
+      }),
+      THREAD,
+    )
+    expect(await session.transcript()).toEqual(rebuilt.messages)
+    expect(rebuilt.messages.map((message) => message.content).at(-1)).toBe(
+      'second answer',
+    )
+    await host.close()
+  })
+
+  it('hides the older span after a compaction record', async () => {
+    const persistence = durablePersistence()
+    const { adapter, calls } = mockAdapter([
+      () => text('a1'),
+      () => text('a2'),
+      () => text('a3'),
+    ])
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/compact',
+        adapter,
+        durability: { addRecordsToModelContext: project },
+      }),
+      {
+        threadId: THREAD,
+      },
+    )
+    await session.send('q1')
+    await session.send('q2')
+
+    await session.appendRecords({
+      records: [
+        { type: 'app.compact', summary: 'Earlier: q1 and a1.', firstKept: 2 },
+      ],
+    })
+    await session.send('q3')
+
+    expect(messageTexts(calls[2])).toEqual([
+      'Earlier: q1 and a1.',
+      'q2',
+      'a2',
+      'q3',
+    ])
+    const rebuilt = sessionOf(
+      await loadLogState({
+        store: persistence.stores.log,
+        logId: LOG,
+        rootThread: THREAD,
+        project,
+      }),
+      THREAD,
+    )
+    expect(rebuilt.messages.map((message) => message.content)).toEqual([
+      'Earlier: q1 and a1.',
+      'q2',
+      'a2',
+      'q3',
+      'a3',
+    ])
+    await host.close()
+  })
+
+  it('keeps the full transcript for readers after a compaction', async () => {
+    const persistence = durablePersistence()
+    const { adapter, calls } = mockAdapter([
+      () => text('a1'),
+      () => text('a2'),
+      () => text('a3'),
+    ])
+    const harness = defineHarness({
+      name: 'test/compact',
+      adapter,
+      durability: { addRecordsToModelContext: project },
+    })
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(harness, { threadId: THREAD })
+    await session.send('q1')
+    await session.send('q2')
+    await session.appendRecords({
+      records: [
+        { type: 'app.compact', summary: 'Earlier: q1 and a1.', firstKept: 2 },
+      ],
+    })
+    await session.send('q3')
+
+    const full = ['q1', 'a1', 'q2', 'a2', 'q3', 'a3']
+    expect(messageTexts(calls[2])).toEqual([
+      'Earlier: q1 and a1.',
+      'q2',
+      'a2',
+      'q3',
+    ])
+    const texts = (list: Array<ModelMessage>) =>
+      messageTexts({ messages: list })
+    expect(texts(await session.transcript())).toEqual(full)
+    const view = await host.observe(harness, { threadId: THREAD })
+    expect(texts(await view.transcript())).toEqual(full)
+    await host.close()
+
+    // A host with no open session reads the log: `GET transcript` and the
+    // chat hydration read this.
+    const reader = createHarnessHost({ persistence })
+    const fromLog = await reader.observe(harness, { threadId: THREAD })
+    expect(texts(await fromLog.transcript())).toEqual(full)
+    await reader.close()
+  })
+
+  it('reverts to a message that a compaction took out of the model context', async () => {
+    const persistence = durablePersistence()
+    const { adapter, calls } = mockAdapter([
+      () => text('a1'),
+      () => text('a2'),
+      () => text('a4'),
+    ])
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/compact-revert',
+        adapter,
+        durability: { addRecordsToModelContext: project },
+      }),
+      { threadId: THREAD },
+    )
+    await session.send('q1')
+    await session.send('q2')
+    await session.appendRecords({
+      records: [{ type: 'app.compact', summary: 'Earlier.', firstKept: 2 }],
+    })
+    const [first] = await session.transcript()
+
+    expect(
+      await session.revert({ messageId: first?.id ?? 'missing' }),
+    ).toMatchObject({ status: 'accepted' })
+    expect(messageTexts({ messages: await session.transcript() })).toEqual([
+      'q1',
+    ])
+
+    // The next turn drops the hidden messages, and the summary of them.
+    await session.send('q4')
+    expect(messageTexts(calls[2])).toEqual(['q1', 'q4'])
+    expect(messageTexts({ messages: await session.transcript() })).toEqual([
+      'q1',
+      'q4',
+      'a4',
+    ])
+    await host.close()
+  })
+
+  it('recovers a turn that a compaction cut, from the transcript positions', async () => {
+    const persistence = durablePersistence()
+    const message = (role: 'user' | 'assistant', content: string) =>
+      ({ id: content, role, content }) satisfies ModelMessage
+    await persistence.stores.log.append({
+      logId: LOG,
+      seq: 1,
+      epoch: NO_OWNER_EPOCH,
+      records: [
+        {
+          type: 'harness.transcript',
+          keep: 0,
+          add: [
+            message('user', 'q1'),
+            message('assistant', 'a1'),
+            message('user', 'q2'),
+            message('assistant', 'a2'),
+          ],
+        },
+        {
+          type: 'harness.input',
+          inputId: 'in-1',
+          input: { op: 'prompt', message: 'q3', busy: 'queue' },
+          at: 1,
+        },
+        {
+          type: 'harness.input.applied',
+          inputId: 'in-1',
+          operationId: 'op-stopped',
+          attempt: 1,
+        },
+        { type: 'harness.transcript', keep: 4, add: [message('user', 'q3')] },
+        // A compaction in the turn keeps only q3: the model context is
+        // shorter than the transcript was when the turn started.
+        { type: 'app.compact', summary: 'Earlier: q1 to a2.', firstKept: 4 },
+        {
+          type: 'harness.transcript',
+          keep: 2,
+          add: [message('assistant', 'a3')],
+        },
+        // The host stopped before it settled the input.
+        stoppedRun('op-stopped', THREAD, {
+          checkpoint: { at: 1, pendingTools: [] },
+        }),
+      ],
+    })
+    const { adapter, calls } = mockAdapter([() => text('never')])
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/compact-recover',
+        adapter,
+        durability: { addRecordsToModelContext: project },
+      }),
+      { threadId: THREAD },
+    )
+
+    // The saved answer counts, so the turn does not run again.
+    expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(calls).toHaveLength(0)
+    expect(messageTexts({ messages: await session.transcript() })).toEqual([
+      'q1',
+      'a1',
+      'q2',
+      'a2',
+      'q3',
+      'a3',
+    ])
+    await host.close()
+  })
+
+  it('folds what another host wrote before its first write, and stays open', async () => {
+    const inner = memoryLogStore()
+    // This host does not see the other writer, like one in another process.
+    const log = wrapLogStore(inner, { subscribe: () => () => {} })
+    const { adapter } = mockAdapter([() => text('saved after the other host')])
+    const host = createHarnessHost({ persistence: durablePersistence(log) })
+    const harness = defineHarness({ name: 'test/conflict', adapter })
+    const session = await host.open(harness, { threadId: THREAD })
+    await inner.append({
+      logId: LOG,
+      seq: 1,
+      epoch: NO_OWNER_EPOCH,
+      records: [{ type: 'app.from-another-host' }],
+    })
+
+    const result = await session.send('hi')
+
+    expect(result.text).toBe('saved after the other host')
+    expect(host.isOpen(harness, { threadId: THREAD })).toBe(true)
+    const entries = await inner.read({ logId: LOG })
+    expect(entries[0]?.record.type).toBe('app.from-another-host')
+    expect(entries.length).toBeGreaterThan(1)
+    await host.close()
+  })
+
+  it('lets a second host read live events without fencing the first', async () => {
+    const persistence = durablePersistence()
+    const { adapter } = mockAdapter([() => text('streamed answer')])
+    const harness = defineHarness({ name: 'test/reader', adapter })
+    const writer = createHarnessHost({ persistence })
+    const reader = createHarnessHost({ persistence })
+    const live = await writer.open(harness, { threadId: THREAD })
+    const watching = await reader.open(harness, { threadId: THREAD })
+
+    const seen = eventsUntil(watching, (events) =>
+      events.some((entry) => entry.event.type === EventType.TEXT_MESSAGE_END),
+    )
+    const result = await live.send('hi')
+
+    expect(result.text).toBe('streamed answer')
+    expect((await seen).map((entry) => entry.event.type)).toContain(
+      EventType.TEXT_MESSAGE_CONTENT,
+    )
+    await writer.close()
+    await reader.close()
+  })
+
+  it('keeps the block order of an answer in the log and after a rebuild', async () => {
+    const persistence = durablePersistence()
+    const lookup = toolDefinition({
+      name: 'lookup',
+      description: 'Look up the weather',
+    }).server(async () => 'sunny')
+    const { adapter, calls } = mockAdapter([
+      () => thinkCallThinkCall(),
+      () => text('Both are sunny.'),
+    ])
+    const harness = defineHarness({
+      name: 'test/block-order',
+      adapter,
+      tools: [lookup],
+    })
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(harness, { threadId: THREAD })
+
+    await session.send('Weather in Berlin and Paris?')
+
+    const order = [
+      { type: 'thinking', index: 0 },
+      { type: 'tool-call', id: 'call-1' },
+      { type: 'thinking', index: 1 },
+      { type: 'tool-call', id: 'call-2' },
+    ]
+    const answer = (messages: Array<ModelMessage>) =>
+      messages.find((message) => message.toolCalls?.length)
+    // The next model call of the turn gets the map.
+    expect(answer(calls[1].messages)?.blockOrder).toEqual(order)
+    const transcript = await session.transcript()
+    expect(answer(transcript)).toMatchObject({
+      thinking: [
+        { content: 'Check Berlin.', signature: 'sig-1' },
+        { content: 'Now Paris.', signature: 'sig-2' },
+      ],
+      blockOrder: order,
+    })
+
+    // A fold of the log gives the same messages.
+    const rebuilt = sessionOf(
+      await loadLogState({
+        store: persistence.stores.log,
+        logId: LOG,
+        rootThread: THREAD,
+      }),
+      THREAD,
+    )
+    expect(rebuilt.messages).toEqual(transcript)
+
+    // The first host never closes, like a process that stopped. A second
+    // host that opens the thread gets the same messages.
+    const next = createHarnessHost({ persistence })
+    const reopened = await next.open(harness, { threadId: THREAD })
+    expect(await reopened.transcript()).toEqual(transcript)
+    await host.close().catch(() => {})
+    await next.close()
+  })
+})
+
+describe('LogRecordsCapability', () => {
+  it('lets a middleware append host records that fold into the next model call', async () => {
+    const persistence = durablePersistence()
+    const { adapter, calls } = mockAdapter([() => text('a1'), () => text('a2')])
+    const signal: ChatMiddleware = {
+      name: 'test:signal',
+      onFinish: async (ctx) => {
+        await getLogRecords(ctx, { optional: true })?.append([
+          { type: 'app.signal', text: '[signal] saved' },
+        ])
+      },
+    }
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/log-records',
+        adapter,
+        middleware: [signal],
+        durability: { addRecordsToModelContext: project },
+      }),
+      {
+        threadId: THREAD,
+      },
+    )
+
+    await session.send('q1')
+    await session.send('q2')
+
+    expect(messageTexts(calls[1])).toEqual(['q1', 'a1', '[signal] saved', 'q2'])
+    const rebuilt = sessionOf(
+      await loadLogState({
+        store: persistence.stores.log,
+        logId: LOG,
+        rootThread: THREAD,
+        project,
+      }),
+      THREAD,
+    )
+    expect(await session.transcript()).toEqual(rebuilt.messages)
+    await host.close()
+  })
+
+  it('keeps a record from the last model call of a turn with a tool phase', async () => {
+    const persistence = durablePersistence()
+    const lookup = toolDefinition({
+      name: 'lookup',
+      description: 'Look up the weather',
+    }).server(async () => 'sunny')
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('lookup', { city: 'Berlin' }, 'call-1'),
+      () => text('It is sunny.'),
+      () => text('a2'),
+    ])
+    let sent = false
+    // Like a state write of the app while the last model call streams.
+    const signal: ChatMiddleware = {
+      name: 'test:signal-in-last-call',
+      onChunk: async (ctx, chunk) => {
+        if (sent || chunk.type !== EventType.TEXT_MESSAGE_CONTENT) return
+        sent = true
+        await getLogRecords(ctx).append([
+          { type: 'app.signal', text: '[signal] saved' },
+        ])
+      },
+    }
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/log-records-tool-phase',
+        adapter,
+        tools: [lookup],
+        middleware: [signal],
+        durability: { addRecordsToModelContext: project },
+      }),
+      {
+        threadId: THREAD,
+      },
+    )
+
+    await session.send('Weather in Berlin?')
+
+    // The end of the turn tags the run on older messages. The signal must
+    // stay in the fold, and a rebuild must give the same messages.
+    const transcript = await session.transcript()
+    expect(transcript.map((message) => message.content)).toContain(
+      '[signal] saved',
+    )
+    const entries = await persistence.stores.log.read({
+      logId: LOG,
+      after: 0,
+    })
+    expect(entries.some((entry) => entry.record.type === 'app.signal')).toBe(
+      true,
+    )
+    const rebuilt = sessionOf(
+      await loadLogState({
+        store: persistence.stores.log,
+        logId: LOG,
+        rootThread: THREAD,
+        project,
+      }),
+      THREAD,
+    )
+    expect(rebuilt.messages).toEqual(transcript)
+
+    // The next turn's model call gets it too.
+    await session.send('q2')
+    expect(messageTexts(calls[2])).toContain('[signal] saved')
+    await host.close()
+  })
+
+  it('keeps the saved reply when a record lands from onFinish', async () => {
+    const persistence = durablePersistence()
+    const { adapter } = mockAdapter([() => text('a1')])
+    const note: ChatMiddleware = {
+      name: 'test:note',
+      onFinish: async (ctx) => {
+        await getLogRecords(ctx).append([{ type: 'app.note' }])
+      },
+    }
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/log-records-note',
+        adapter,
+        middleware: [note],
+        durability: { addRecordsToModelContext: project },
+      }),
+      {
+        threadId: THREAD,
+      },
+    )
+
+    await session.send('q1')
+
+    // The saved reply has its run id. The engine's copy has none, and it
+    // must not replace the saved one.
+    expect((await session.transcript()).at(-1)?.metadata).toMatchObject({
+      tanstack: { run: { id: expect.any(String) } },
+    })
+    await host.close()
+  })
+
+  it('refuses a record type that the harness owns', async () => {
+    let failure: unknown
+    const bad: ChatMiddleware = {
+      name: 'test:bad',
+      onFinish: async (ctx) => {
+        try {
+          await getLogRecords(ctx).append([{ type: 'harness.event' }])
+        } catch (error) {
+          failure = error
+        }
+      },
+    }
+    const { adapter } = mockAdapter([() => text('a1')])
+    const host = createHarnessHost({ persistence: durablePersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/log-records-bad',
+        adapter,
+        middleware: [bad],
+      }),
+      {
+        threadId: THREAD,
+      },
+    )
+
+    await session.send('q1')
+
+    expect(failure).toBeInstanceOf(Error)
+    expect(String(failure)).toContain('reserved for the harness')
+    await host.close()
+  })
+})
+
+describe('compaction-style host records from a middleware', () => {
+  const summary = 'Earlier: q1 and a1.'
+  // The same record a durable compaction writes, in this file's own shape.
+  const compactRecord = { type: 'app.compact', summary, firstKept: 2 }
+
+  async function rebuild(persistence: ReturnType<typeof durablePersistence>) {
+    const state = await loadLogState({
+      store: persistence.stores.log,
+      logId: LOG,
+      rootThread: THREAD,
+      project,
+    })
+    return sessionOf(state, THREAD)
+  }
+  const contents = (messages: ReadonlyArray<ModelMessage>) =>
+    messages.map((message) => message.content)
+
+  it('lands a record from onFinish after the saved reply', async () => {
+    const persistence = durablePersistence()
+    const { adapter, calls } = mockAdapter([
+      () => text('a1'),
+      () => text('a2'),
+      () => text('a3'),
+    ])
+    let runs = 0
+    // Like an after-turn compaction: at the end of turn 2, replace q1 and a1.
+    const afterTurn: ChatMiddleware = {
+      name: 'test:after-turn',
+      onFinish: async (ctx) => {
+        runs += 1
+        if (runs !== 2) return
+        await getLogRecords(ctx).append([compactRecord])
+      },
+    }
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/after-turn-record',
+        adapter,
+        middleware: [afterTurn],
+        durability: { addRecordsToModelContext: project },
+      }),
+      {
+        threadId: THREAD,
+      },
+    )
+
+    await session.send('q1')
+    await session.send('q2')
+
+    // (a) The record comes after the transcript record that saved the reply.
+    const entries = await persistence.stores.log.read({
+      logId: LOG,
+      after: 0,
+    })
+    const replyAt = entries.findIndex(
+      (entry) =>
+        entry.record.type === 'harness.transcript' &&
+        JSON.stringify(entry.record).includes('"a2"'),
+    )
+    const recordAt = entries.findIndex(
+      (entry) => entry.record.type === 'app.compact',
+    )
+    expect(replyAt).toBeGreaterThanOrEqual(0)
+    expect(recordAt).toBeGreaterThan(replyAt)
+
+    // (b) The live transcript equals a rebuild, and the fold keeps the
+    // reply. Readers keep q1 and a1, the model context has the summary.
+    const rebuilt = await rebuild(persistence)
+    expect(await session.transcript()).toEqual(rebuilt.transcript)
+    expect(contents(rebuilt.transcript)).toEqual(['q1', 'a1', 'q2', 'a2'])
+    expect(contents(rebuilt.messages)).toEqual([summary, 'q2', 'a2'])
+
+    // (c) The next model call gets the fold.
+    await session.send('q3')
+    expect(messageTexts(calls[2])).toEqual([summary, 'q2', 'a2', 'q3'])
+    await host.close()
+  })
+
+  it('gives the model the fold after a record from onConfig, the same as a rebuild', async () => {
+    const persistence = durablePersistence()
+    const { adapter, calls } = mockAdapter([
+      () => text('a1'),
+      () => text('a2'),
+      () => text('a3'),
+    ])
+    // Like a durable compaction before the model call of turn 3. It returns
+    // nothing: the harness gives the model the fold.
+    const beforeCall: ChatMiddleware = {
+      name: 'test:before-call',
+      onConfig: async (ctx, config) => {
+        if (ctx.phase !== 'beforeModel' || config.messages.length !== 5) return
+        await getLogRecords(ctx).append([compactRecord])
+      },
+    }
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/before-call-record',
+        adapter,
+        middleware: [beforeCall],
+        durability: { addRecordsToModelContext: project },
+      }),
+      {
+        threadId: THREAD,
+      },
+    )
+
+    await session.send('q1')
+    await session.send('q2')
+    await session.send('q3')
+
+    expect(messageTexts(calls[2])).toEqual([summary, 'q2', 'a2', 'q3'])
+    const rebuilt = await rebuild(persistence)
+    expect(await session.transcript()).toEqual(rebuilt.transcript)
+    expect(contents(rebuilt.transcript)).toEqual([
+      'q1',
+      'a1',
+      'q2',
+      'a2',
+      'q3',
+      'a3',
+    ])
+    expect(contents(rebuilt.messages)).toEqual([
+      summary,
+      'q2',
+      'a2',
+      'q3',
+      'a3',
+    ])
+    await host.close()
+  })
+
+  it('lands a record from onConfig after a tool phase on its tool results', async () => {
+    const persistence = durablePersistence()
+    const lookup = toolDefinition({
+      name: 'lookup',
+      description: 'Look up the weather',
+    }).server(async () => 'sunny')
+    // Two tool calls in one model call, so they run in one tool phase.
+    const bothCalls = () => [
+      ...toolCall('lookup', { city: 'Berlin' }, 'call-1').slice(0, -1),
+      ...toolCall('lookup', { city: 'Paris' }, 'call-2').slice(1),
+    ]
+    const { adapter, calls } = mockAdapter([
+      () => bothCalls(),
+      () => text('Both are sunny.'),
+    ])
+    // Like a durable compaction before the call after the tool phase: it
+    // clears the first result. The record counts the engine's messages, with
+    // tool results that the log does not have yet.
+    const clearFirst: ChatMiddleware = {
+      name: 'test:clear-first',
+      onConfig: async (ctx, config) => {
+        const [question, answer, first] = config.messages
+        if (ctx.phase !== 'beforeModel' || first?.role !== 'tool') return
+        await getLogRecords(ctx).append([
+          {
+            type: 'app.compact-head',
+            head: [question, answer, { ...first, content: '[cleared]' }],
+            from: 3,
+          },
+        ])
+      },
+    }
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/tool-phase-record',
+        adapter,
+        tools: [lookup],
+        middleware: [clearFirst],
+        durability: { addRecordsToModelContext: project },
+      }),
+      {
+        threadId: THREAD,
+      },
+    )
+
+    await session.send('Weather in Berlin and Paris?')
+
+    // Each result once, and the first one cleared.
+    const results = (messages: ReadonlyArray<ModelMessage>) =>
+      messages
+        .filter((message) => message.role === 'tool')
+        .map((message) => [message.toolCallId, message.content])
+    const cleared = [
+      ['call-1', '[cleared]'],
+      ['call-2', 'sunny'],
+    ]
+    expect(results(calls[1].messages)).toEqual(cleared)
+    // Readers see the result as the tool gave it. Only the model context
+    // has it cleared.
+    const transcript = await session.transcript()
+    expect(results(transcript)).toEqual([
+      ['call-1', 'sunny'],
+      ['call-2', 'sunny'],
+    ])
+    expect(transcript.at(-1)?.content).toBe('Both are sunny.')
+    const rebuilt = await rebuild(persistence)
+    expect(rebuilt.transcript).toEqual(transcript)
+    expect(results(rebuilt.messages)).toEqual(cleared)
+    expect(rebuilt.messages.at(-1)?.content).toBe('Both are sunny.')
+    await host.close()
+  })
+})

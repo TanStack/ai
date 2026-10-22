@@ -174,7 +174,7 @@ What you get from the hook:
 
 - `final`: `T | null`. The full object, set when the run completes.
 - `partial`: `DeepPartial<T>`. The same object as it fills in. You can ignore it for a one-shot UI. [Streaming UIs](./streaming) shows how to use it.
-- The schema on `useChat` gives the client its types and parses `partial`. The server does not validate on the streaming path. See [Where validation runs](./overview#where-validation-runs).
+- The schema on `useChat` gives the client its types and parses `partial`. The server validates the full object with the schema of `chat({ outputSchema })`. See [Where validation runs](./overview#where-validation-runs).
 
 Anthropic and Ollama send the object as one event. `partial` stays `{}`, and `final` arrives in one step. Your client code does not change.
 
@@ -361,5 +361,7 @@ try {
   }
 }
 ```
+
+When the JSON parses but does not match your schema, `chat()` throws an error with `code: 'structured-output-validation-failed'`. That error also has the model text on `error.rawText`.
 
 To keep the answer, parse and validate that text yourself.

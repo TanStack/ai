@@ -110,7 +110,8 @@ export function toRunErrorPayload(
  *
  * Security boundary: only known provider-response-body fields are forwarded —
  * never the raw SDK exception object, which can carry request metadata such as
- * auth headers or request ids. The recognized sources, in priority order:
+ * auth headers. (A request id is not a secret: `toRunErrorDetails` puts it on
+ * the event as `requestId`.) The recognized sources, in priority order:
  *
  *  - `error.rawEvent` — a provider body an adapter attached explicitly (e.g. the
  *    OpenRouter mid-stream `chunk.error`).
@@ -146,6 +147,66 @@ export function toRunErrorRawEvent(error: unknown): unknown {
   return undefined
 }
 
+/** Read one response header from the `headers` that an SDK error carries. */
+function responseHeader(error: object, name: string): string | undefined {
+  const headers: unknown = Reflect.get(error, 'headers')
+  if (headers instanceof Headers) return headers.get(name) ?? undefined
+  if (headers && typeof headers === 'object' && name in headers) {
+    const value: unknown = Reflect.get(headers, name)
+    return typeof value === 'string' ? value : undefined
+  }
+  return undefined
+}
+
+/** A non-empty string of at most 128 characters, else `undefined`. */
+function shortString(value: unknown): string | undefined {
+  return typeof value === 'string' && value !== '' && value.length <= 128
+    ? value
+    : undefined
+}
+
+function field(value: unknown, key: string): unknown {
+  return value && typeof value === 'object'
+    ? Reflect.get(value, key)
+    : undefined
+}
+
+/**
+ * Read the provider's error type and request id from a thrown value, to put
+ * on a `RUN_ERROR` as `errorType` and `requestId`. Only keys that are present
+ * are set, so you can spread the result into the event:
+ *
+ *   yield { type: EventType.RUN_ERROR, ..., ...toRunErrorDetails(error) }
+ *
+ * - `errorType` is the SDK error's `type` (OpenAI and Anthropic set it from
+ *   the body), else the body's `error.type` (an Anthropic stream error event),
+ *   else the body's `type`. For example `overloaded_error`.
+ * - `requestId` is the SDK error's `requestID` or `request_id`, else the
+ *   `request-id` or `x-request-id` response header.
+ *
+ * Each value must be a string of at most 128 characters.
+ */
+export function toRunErrorDetails(error: unknown): {
+  errorType?: string
+  requestId?: string
+} {
+  if (!error || typeof error !== 'object') return {}
+  const body = field(error, 'error')
+  const errorType =
+    shortString(field(error, 'type')) ??
+    shortString(field(field(body, 'error'), 'type')) ??
+    shortString(field(body, 'type'))
+  const requestId =
+    shortString(field(error, 'requestID')) ??
+    shortString(field(error, 'request_id')) ??
+    shortString(responseHeader(error, 'request-id')) ??
+    shortString(responseHeader(error, 'x-request-id'))
+  return {
+    ...(errorType !== undefined && { errorType }),
+    ...(requestId !== undefined && { requestId }),
+  }
+}
+
 /**
  * Read how long a provider asks you to wait before a retry, from the response
  * headers that an SDK error carries. It reads `retry-after-ms` first, then
@@ -159,15 +220,7 @@ export function toRetryAfterMs(error: unknown): number | undefined {
   if (!error || typeof error !== 'object' || !('headers' in error)) {
     return undefined
   }
-  const { headers } = error
-  const get = (name: string): string | null | undefined => {
-    if (headers instanceof Headers) return headers.get(name)
-    if (headers && typeof headers === 'object' && name in headers) {
-      const value: unknown = Reflect.get(headers, name)
-      return typeof value === 'string' ? value : undefined
-    }
-    return undefined
-  }
+  const get = (name: string) => responseHeader(error, name)
   const ms = Number(get('retry-after-ms') || NaN)
   if (Number.isFinite(ms) && ms >= 0) return ms
   const value = get('retry-after')

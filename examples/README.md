@@ -12,6 +12,7 @@ Choose an example based on your use case:
 - **Want typed ticket routing?** → [Evaluate](#evaluate)
 - **Want a blog desk with three agents?** → [Subagents](#subagents)
 - **Want your own MCP server?** → [MCP server](#mcp-server)
+- **Want an agent in the terminal?** → [Harness CLI](#harness-cli)
 - **Want a signed MCP webhook?** → [MCP Events](#mcp-events)
 - **Want the model to use a web page?** → [Computer Use](#computer-use)
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
@@ -145,6 +146,24 @@ pnpm --filter mcp-server dev
 Open http://localhost:3100. Click Call the server.
 
 📖 [Full Documentation](react/mcp-server/README.md)
+
+---
+
+### Harness CLI
+
+A notes assistant in the terminal. A harness with two tools, run by `runCli`, with a small Ink screen on the session view.
+
+**Path:** `examples/harness-cli`
+
+**Getting Started:**
+
+```bash
+OPENAI_API_KEY=sk-... pnpm --filter harness-cli-example start
+```
+
+Ask it to save a note. Press `y` to approve the write.
+
+📖 [Full Documentation](harness-cli/README.md)
 
 ---
 

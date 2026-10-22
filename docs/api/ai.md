@@ -585,7 +585,10 @@ maskKey("sk-abcdefghij"); // "ghij"
 
 ### `scrubSecrets`
 
-`scrubSecrets(input, secrets)` replaces each secret in `input` with `[redacted]`. Use it before you log an error string.
+`scrubSecrets(text, secrets)` replaces each secret in `text` with `[redacted]`. Use it before you log an error string.
+
+- It also replaces the JSON-escaped and the URL-encoded form of each secret.
+- It skips a secret shorter than 6 characters, so a short value does not remove common words.
 
 ```typescript
 import { scrubSecrets } from "@tanstack/ai/byok";

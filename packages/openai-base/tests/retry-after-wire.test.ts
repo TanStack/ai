@@ -57,4 +57,12 @@ describe.each(apis)('$api adapter on a 429', ({ adapter }) => {
       await runError({ 'retry-after-ms': '1500', 'retry-after': '7' }),
     ).toMatchObject({ retryAfterMs: 1500 })
   })
+
+  it('puts the error type and x-request-id on the RUN_ERROR', async () => {
+    expect(await runError({ 'x-request-id': 'req_abc' })).toMatchObject({
+      code: '429',
+      errorType: 'rate_limit',
+      requestId: 'req_abc',
+    })
+  })
 })

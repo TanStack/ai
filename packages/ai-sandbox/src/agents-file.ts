@@ -119,21 +119,23 @@ function sqEscape(value: string): string {
  * @param handle - The sandbox handle providing `fs` and `process`.
  * @param root   - Absolute path inside the sandbox under which to write.
  * @param content - Markdown content for the instruction file.
+ * @param options - `signal` stops the writes.
  */
 export async function writeAgentsFile(
   handle: SandboxHandle,
   root: string,
   content: string,
+  options: { signal?: AbortSignal } = {},
 ): Promise<void> {
   const agentsPath = `${root}/AGENTS.md`
-  await handle.fs.write(agentsPath, content)
+  await handle.fs.write(agentsPath, content, options)
 
   for (const name of SYMLINK_NAMES) {
     const lnCmd = `ln -s '${sqEscape('AGENTS.md')}' '${sqEscape(name)}'`
     const result = await handle.process.exec(lnCmd, { cwd: root })
     if (result.exitCode !== 0) {
       // Symlinks are not supported on this platform — fall back to a copy.
-      await handle.fs.write(`${root}/${name}`, content)
+      await handle.fs.write(`${root}/${name}`, content, options)
     }
   }
 }

@@ -186,6 +186,11 @@ export function conversationSummarizer(options: {
     messages: Array<ModelMessage>
     previousDetails?: string
   }) => string | undefined
+  /**
+   * Middleware for the summary model call, for example a cost ledger or a
+   * trace. It runs after the summarizer's own usage count.
+   */
+  middleware?: ReadonlyArray<ChatMiddleware>
 }): Summarizer {
   const maxChars = options.maxToolResultChars ?? 2000
   return async (messages, input) => {
@@ -234,7 +239,7 @@ export function conversationSummarizer(options: {
         ],
         systemPrompts: [prompt],
         modelOptions: options.modelOptions,
-        middleware: [countUsage],
+        middleware: [countUsage, ...(options.middleware ?? [])],
         abortController: controller,
         // A thread of its own: the summary call is not a turn of the conversation.
         threadId: `${input.threadId}:compaction`,

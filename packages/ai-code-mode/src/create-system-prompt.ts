@@ -102,7 +102,7 @@ return { warmestCity: warmest.location, temperature: warmest.temperature };
 ### Important Notes
 
 - All \`external_*\` calls are async - always use \`await\`
-- Return a value to pass results back to you
+- Return a value to pass results back to you. The tool returns \`{ success, result, logs, error }\`, where \`result\` is the value your code returned
 - Use \`console.log()\` for debugging (logs are captured)
 - The sandbox is isolated - no network access or file system
 - Each execution is independent (no shared state between calls)

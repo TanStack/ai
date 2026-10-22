@@ -235,8 +235,15 @@ Without an `approvalSchema`, `resolveInterrupt(true)` and
 
 - Only approval accepts `editedArgs`. Reject does not.
 - `editedArgs` is a full replacement of the arguments, not a merge.
-- The tool `inputSchema` validates `editedArgs`.
-- The server validates the full decision again before it runs the tool.
+- The tool `inputSchema` checks `editedArgs` after middleware, just before the
+  tool runs, the same as the model's arguments.
+- On the server, edited arguments that do not fit do not fail the resume. The
+  approval is used, the tool does not run, and the model gets the input error
+  as the result of that call. See [Server Tools](../tools/server-tools).
+- The browser client also checks `editedArgs` against the tool `inputSchema`
+  when it has the schema. It refuses an edit that does not fit before it sends
+  the decision.
+- The server checks the full decision again when it resumes.
 
 ### Where `editedArgs` and `payload` go on the server
 

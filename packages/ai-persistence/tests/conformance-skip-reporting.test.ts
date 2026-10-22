@@ -1,5 +1,11 @@
 import { afterAll, describe, expect } from 'vitest'
-import { composePersistence, memoryPersistence } from '../src'
+import {
+  composePersistence,
+  defineAIPersistence,
+  memoryLogState,
+  memoryLogStore,
+  memoryPersistence,
+} from '../src'
 import { runPersistenceConformance } from '../src/testkit/conformance'
 import type { RunnerTask, RunnerTestCase } from 'vitest'
 
@@ -14,6 +20,8 @@ function collectCases(task: RunnerTask): Array<RunnerTestCase> {
 }
 
 describe('conformance reporting for omitted stores', () => {
+  // One log state, so the twin's log store sees the same log.
+  const state = memoryLogState()
   runPersistenceConformance(
     'chat-only',
     () =>
@@ -23,9 +31,16 @@ describe('conformance reporting for omitted stores', () => {
           generationRuns: false,
           artifacts: false,
           blobs: false,
+          log: memoryLogStore({ state }),
         },
       }),
-    { skip: ['activities', 'generationRuns', 'artifacts', 'blobs'] },
+    {
+      skip: ['activities', 'generationRuns', 'artifacts', 'blobs'],
+      twin: (persistence) =>
+        defineAIPersistence({
+          stores: { ...persistence.stores, log: memoryLogStore({ state }) },
+        }),
+    },
   )
 
   // vitest requires a destructuring pattern as the first hook argument.

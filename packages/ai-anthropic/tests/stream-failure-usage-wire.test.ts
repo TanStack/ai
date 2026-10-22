@@ -54,6 +54,7 @@ describe('Anthropic adapter on a stream that fails mid-way', () => {
     for await (const chunk of adapter.chatStream({
       logger: resolveDebugOption(false),
       model,
+      threadId: 'thread-1',
       messages: [{ role: 'user', content: 'Count to thirty' }],
     })) {
       chunks.push(chunk)

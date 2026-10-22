@@ -4,7 +4,10 @@ import { chat } from '../src/activities/chat/index'
 import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
 import { defineInterrupt } from '../src/interrupt-definition'
 import { executeToolCalls } from '../src/activities/chat/tools/tool-calls'
-import { validateToolInput } from '../src/activities/chat/tools/input-validation'
+import {
+  validateJsonSchema,
+  validateToolInput,
+} from '../src/activities/chat/tools/input-validation'
 import { otelMiddleware } from '../src/middlewares/otel'
 import { EventType } from '../src/types'
 import { collectChunks, createMockAdapter, ev } from './test-utils'
@@ -1535,5 +1538,73 @@ describe('repairToolInput', () => {
         error: 'cannot repair\nReceived arguments: {"count":"many"}',
       }),
     ])
+  })
+})
+
+describe('an approved edit in the transcript', () => {
+  const run = async (
+    editedArgs: unknown,
+    middleware: Array<ChatMiddleware> = [],
+  ) => {
+    const { adapter, calls } = createMockAdapter({
+      iterations: [[ev.runStarted(), ev.runFinished()]],
+    })
+    const execute = vi.fn(async (_input: unknown) => 'ok')
+    await collectChunks(
+      chat({
+        adapter,
+        threadId: 'thread-1',
+        parentRunId: 'old',
+        messages: history({ count: 1 }),
+        tools: [
+          { ...clientCheck(z.object({ count: z.number() }), true), execute },
+        ],
+        resume: [
+          {
+            interruptId: 'approval_call',
+            status: 'resolved',
+            payload: { approved: true, editedArgs },
+          },
+        ],
+        middleware,
+      }),
+    )
+    const sent = calls[0]?.messages.flatMap((message) =>
+      message.role === 'assistant' ? (message.toolCalls ?? []) : [],
+    )
+    return { execute, args: sent?.[0]?.function.arguments }
+  }
+
+  it('keeps an edit that the tool ran with', async () => {
+    const { execute, args } = await run({ count: 2 })
+    expect(execute.mock.calls[0]?.[0]).toEqual({ count: 2 })
+    expect(args).toBe('{"count":2}')
+  })
+
+  it('keeps the model input for a null edit, which the tool ignores', async () => {
+    const { execute, args } = await run(null)
+    expect(execute.mock.calls[0]?.[0]).toEqual({ count: 1 })
+    expect(args).toBe('{"count":1}')
+  })
+
+  it('keeps the model input when middleware skips the call', async () => {
+    const { execute, args } = await run({ count: 2 }, [
+      { onBeforeToolCall: () => ({ type: 'skip', result: 'skipped' }) },
+    ])
+    expect(execute).not.toHaveBeenCalled()
+    expect(args).toBe('{"count":1}')
+  })
+})
+
+describe('validateJsonSchema', () => {
+  it('checks every keyword of the schema, and never repairs the value', () => {
+    const schema = { type: 'string', pattern: '^key-' }
+    expect(validateJsonSchema(schema, 'key-1')).toEqual({ value: 'key-1' })
+    const refused = validateJsonSchema(schema, 'secret')
+    expect(refused.issues?.length).toBeGreaterThan(0)
+    // A tool input would be repaired to `5`. This check does not repair.
+    expect(
+      validateJsonSchema({ type: 'number' }, '5').issues?.length,
+    ).toBeGreaterThan(0)
   })
 })

@@ -309,13 +309,23 @@ export class RailwayHandle implements SandboxHandle {
       spawn: (command, opts) => this.spawnProcess(command, opts),
     }
 
+    // The native file calls take no abort signal, so each call checks it first.
     this.fs = {
-      read: (p) => this.sandbox.files.read(this.abs(p), { format: 'text' }),
-      readBytes: (p) =>
-        this.sandbox.files.read(this.abs(p), { format: 'bytes' }),
+      read: async (p, o) => {
+        o?.signal?.throwIfAborted()
+        return this.sandbox.files.read(this.abs(p), { format: 'text' })
+      },
+      readBytes: async (p, o) => {
+        o?.signal?.throwIfAborted()
+        return this.sandbox.files.read(this.abs(p), { format: 'bytes' })
+      },
       // The SDK creates missing parents and carries bytes verbatim.
-      write: (p, data) => this.sandbox.files.write(this.abs(p), data),
-      list: async (p) => {
+      write: async (p, data, o) => {
+        o?.signal?.throwIfAborted()
+        return this.sandbox.files.write(this.abs(p), data)
+      },
+      list: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const entries = await this.sandbox.files.list(this.abs(p))
         const base = p.replace(/\/$/, '')
         return entries.map((entry) => ({
@@ -324,12 +334,26 @@ export class RailwayHandle implements SandboxHandle {
           type: entry.isDir ? ('dir' as const) : ('file' as const),
         }))
       },
-      lstat: (p) => this.lstat(this.abs(p)),
-      mkdir: (p) => this.sandbox.files.mkdir(this.abs(p)),
-      remove: (p) => this.remove(this.abs(p)),
-      rename: (from, to) =>
-        this.sandbox.files.rename(this.abs(from), this.abs(to)),
-      exists: (p) => this.sandbox.files.exists(this.abs(p)),
+      lstat: async (p, o) => {
+        o?.signal?.throwIfAborted()
+        return this.lstat(this.abs(p))
+      },
+      mkdir: async (p, o) => {
+        o?.signal?.throwIfAborted()
+        return this.sandbox.files.mkdir(this.abs(p))
+      },
+      remove: async (p, o) => {
+        o?.signal?.throwIfAborted()
+        return this.remove(this.abs(p))
+      },
+      rename: async (from, to, o) => {
+        o?.signal?.throwIfAborted()
+        return this.sandbox.files.rename(this.abs(from), this.abs(to))
+      },
+      exists: async (p, o) => {
+        o?.signal?.throwIfAborted()
+        return this.sandbox.files.exists(this.abs(p))
+      },
     }
 
     this.git = createExecBackedGit(this.process, this.workspaceRoot)
