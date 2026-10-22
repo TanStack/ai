@@ -147,6 +147,36 @@ const stream = chat({
 
 `order` and `only` take catalog provider ids, such as `"anthropic"`. `models` takes catalog chat model ids. See [How routing goes out](#how-routing-goes-out).
 
+## Cost of a request
+
+Read `usage.cost` on the last `RUN_FINISHED` event. The gateway reports this cost. TanStack AI does not calculate it from token counts.
+
+- `usage.cost`: the amount debited from your AI Gateway credits.
+- `usage.costDetails.upstreamCost`: the list price (`marketCost`).
+- `usage.providerUsageDetails.generationId`: the id for the generation lookup API.
+- `usage.providerUsageDetails.finalProvider`: the provider that served the request.
+
+`onFinish` in middleware gets the same `usage`. A cost of `0` is present. If the gateway sends no cost, `usage.cost` is absent.
+
+```typescript ignore
+import { chat, type RunFinishedEvent, type StreamChunk } from "@tanstack/ai";
+import { vercelGatewayText } from "@tanstack/ai-vercel-gateway";
+
+function isRunFinished(chunk: StreamChunk): chunk is RunFinishedEvent {
+  return "finishReason" in chunk;
+}
+
+for await (const chunk of chat({
+  adapter: vercelGatewayText("anthropic/claude-sonnet-5.5"),
+  messages: [{ role: "user", content: "Say OK." }],
+  threadId: "thread-1",
+})) {
+  if (isRunFinished(chunk)) {
+    console.log(chunk.usage?.cost);
+  }
+}
+```
+
 ## Embeddings
 
 ```typescript

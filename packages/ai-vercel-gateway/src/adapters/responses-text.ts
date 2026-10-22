@@ -1,10 +1,12 @@
-import OpenAI from 'openai'
 import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
 import {
   getVercelGatewayApiKeyFromEnv,
   withVercelGatewayDefaults,
 } from '../utils/client'
+import { withGatewayCost } from '../utils/gateway-cost'
 import { mapGatewayModelOptions } from '../utils/map-gateway-options'
+import OpenAI from 'openai'
+import type { TokenUsage } from '@tanstack/ai'
 import { VERCEL_GATEWAY_MODEL_REASONING } from '../model-meta'
 import type { Modality, TextOptions } from '@tanstack/ai'
 import type { ResponseCreateParams } from 'openai/resources/responses/responses'
@@ -75,6 +77,13 @@ export class VercelGatewayResponsesTextAdapter<
       new OpenAI(withVercelGatewayDefaults(config)),
       config,
     )
+  }
+
+  protected override responsesTokenUsage(
+    usage: OpenAI.Responses.ResponseUsage | undefined | null,
+    source?: unknown,
+  ): TokenUsage | undefined {
+    return withGatewayCost(super.responsesTokenUsage(usage, source), source)
   }
 
   protected override modelReasoning(model: string) {

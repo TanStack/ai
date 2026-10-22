@@ -5,6 +5,7 @@ import {
   normalizeSystemPrompts,
   unsupportedFileSourceError,
 } from '@tanstack/ai'
+import type { TokenUsage } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   getComputerUseToolMetadata,
@@ -102,6 +103,21 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         ...(stopReason ? { stopReason } : {}),
       },
     }
+  }
+
+  /**
+   * Token usage for a Chat Completions response. `source` is the response or
+   * chunk that carried `usage`, so a subclass can read sibling fields.
+   */
+  protected chatCompletionsTokenUsage(
+    usage:
+      | OpenAI.Chat.Completions.ChatCompletion['usage']
+      | OpenAI.Chat.Completions.ChatCompletionChunk['usage']
+      | undefined
+      | null,
+    _source?: unknown,
+  ): TokenUsage | undefined {
+    return buildChatCompletionsUsage(usage)
   }
 
   /** See {@link OpenAIBaseTextAdapterOptions.strictFallbackWarning}. */
@@ -383,7 +399,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
       // Surface usage so non-stream structured paths (and
       // fallbackStructuredOutputStream) can forward tokens to middleware.
-      const usage = buildChatCompletionsUsage(response.usage)
+      const usage = this.chatCompletionsTokenUsage(response.usage, response)
       return {
         data: transformed,
         rawText,
@@ -442,6 +458,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     let lastUsage:
       | OpenAI.Chat.Completions.ChatCompletionChunk['usage']
       | undefined
+    let lastUsageSource: unknown
 
     const closeReasoningLifecycle = function* (this: {
       name: string
@@ -512,7 +529,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         const usage =
           chunk.usage ??
           (chunk as { x_groq?: { usage?: typeof chunk.usage } }).x_groq?.usage
-        if (usage) lastUsage = usage
+        if (usage) {
+          lastUsage = usage
+          lastUsageSource = chunk
+        }
 
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
@@ -679,7 +699,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         timestamp: Date.now(),
         finishReason: 'stop',
         ...(lastUsage && {
-          usage: buildChatCompletionsUsage(lastUsage),
+          usage: this.chatCompletionsTokenUsage(lastUsage, lastUsageSource),
         }),
       }
     } catch (error: unknown) {
@@ -900,6 +920,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     // therefore defer RUN_FINISHED until the iterator is exhausted so we can
     // pick up usage from the trailing chunk regardless of arrival order.
     let lastUsage: ChatCompletionChunk['usage'] | undefined
+    let lastUsageSource: unknown
     let endsWithUsageOnlyChunk = false
     let pendingFinishReason:
       | ChatCompletionChunk['choices'][number]['finish_reason']
@@ -944,6 +965,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         // chunk emitted when `stream_options.include_usage` is on).
         if (chunk.usage) {
           lastUsage = chunk.usage
+          lastUsageSource = chunk
         }
         if (chunk.id) lastResponseId = chunk.id
         if (chunk.model) {
@@ -1384,7 +1406,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           model: lastModel || options.model,
           timestamp: Date.now(),
           ...(lastUsage && {
-            usage: buildChatCompletionsUsage(lastUsage),
+            usage: this.chatCompletionsTokenUsage(lastUsage, lastUsageSource),
           }),
           finishReason,
         }

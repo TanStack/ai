@@ -1,5 +1,7 @@
 import OpenAI from 'openai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
+import { withGatewayCost } from '../utils/gateway-cost'
+import type { TokenUsage } from '@tanstack/ai'
 import { withVercelGatewayDefaults } from '../utils/client'
 import { mapGatewayModelOptions } from '../utils/map-gateway-options'
 import { VERCEL_GATEWAY_MODEL_REASONING } from '../model-meta'
@@ -77,6 +79,20 @@ export class VercelGatewayTextAdapter<
       'vercel-gateway',
       new OpenAI(withVercelGatewayDefaults(config)),
       config,
+    )
+  }
+
+  protected override chatCompletionsTokenUsage(
+    usage:
+      | OpenAI.Chat.Completions.ChatCompletion['usage']
+      | OpenAI.Chat.Completions.ChatCompletionChunk['usage']
+      | undefined
+      | null,
+    source?: unknown,
+  ): TokenUsage | undefined {
+    return withGatewayCost(
+      super.chatCompletionsTokenUsage(usage, source),
+      source,
     )
   }
 

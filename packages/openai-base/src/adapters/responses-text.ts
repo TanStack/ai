@@ -6,6 +6,7 @@ import {
   normalizeSystemPrompts,
   unsupportedFileSourceError,
 } from '@tanstack/ai'
+import type { TokenUsage } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   hashToolCallId,
@@ -475,6 +476,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   readonly name: string
   protected client: OpenAI
 
+  /**
+   * Token usage for a Responses result. `source` is the response that carried
+   * `usage`, so a subclass can read sibling fields such as provider metadata.
+   */
+  protected responsesTokenUsage(
+    usage: OpenAI.Responses.ResponseUsage | undefined | null,
+    _source?: unknown,
+  ): TokenUsage | undefined {
+    return buildResponsesUsage(usage)
+  }
+
   private sourceMetadata(
     model: string,
     stopReason?: 'error' | 'aborted',
@@ -716,7 +728,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
       // Surface usage so non-stream structured paths (and
       // fallbackStructuredOutputStream) can forward tokens to middleware.
-      const usage = buildResponsesUsage(response.usage)
+      const usage = this.responsesTokenUsage(response.usage, response)
       return {
         data: transformed,
         rawText,
@@ -774,6 +786,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     let model: string = chatOptions.model
     let responseId: string | undefined
     let usage: OpenAI.Responses.Response['usage'] | undefined
+    let usageSource: unknown
     let responseCompleted = false
 
     const closeReasoning = function* (this: {
@@ -953,7 +966,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           responseCompleted = true
           const response = chunk.response
           if (response.id) responseId = response.id
-          if (response.usage) usage = response.usage
+          if (response.usage) {
+            usage = response.usage
+            usageSource = response
+          }
           if (response.model) model = response.model
           // Terminal event: do not wait for the HTTP body to close (#1445).
           break
@@ -1073,7 +1089,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         timestamp: Date.now(),
         finishReason: 'stop',
         ...(usage && {
-          usage: buildResponsesUsage(usage),
+          usage: this.responsesTokenUsage(usage, usageSource),
         }),
       }
     } catch (error: unknown) {
@@ -2488,7 +2504,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             // Omit usage entirely when the provider reported none rather than
             // emitting fabricated zeros (also satisfies exactOptionalPropertyTypes).
             ...(chunk.response.usage && {
-              usage: buildResponsesUsage(chunk.response.usage),
+              usage: this.responsesTokenUsage(
+                chunk.response.usage,
+                chunk.response,
+              ),
             }),
             finishReason,
           }
