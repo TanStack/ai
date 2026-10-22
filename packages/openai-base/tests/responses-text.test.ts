@@ -3045,13 +3045,13 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       // Should have function_call, message, and function_call_output
       expect(payload.input).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({
+          // No reasoning item pairs with the call, so its fc_ id is left out.
+          {
             type: 'function_call',
-            id: 'fc_123',
             call_id: 'call_123',
             name: 'lookup_weather',
             arguments: '{"location":"Berlin"}',
-          }),
+          },
           expect.objectContaining({
             type: 'message',
             role: 'assistant',
@@ -3093,34 +3093,49 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         ],
       }
 
-      const input = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      ).convertInput([
-        {
-          role: 'assistant',
-          content: 'Grounded',
-          toolCalls: [
-            {
-              id: 'ws_roundtrip',
-              type: 'function',
-              function: { name: 'web_search', arguments: '{}' },
-              metadata: {
-                itemId: 'ws_roundtrip',
-                providerExecuted: true,
-                sources: [{ url: 'https://example.com/release' }],
-                openai: {
-                  webSearchCall,
-                  urlCitations: [],
-                  assistantMessage,
+      const replay = (thinking?: ModelMessage['thinking']) =>
+        new TestResponsesAdapter(testConfig, 'test-model').convertInput([
+          {
+            role: 'assistant',
+            content: 'Grounded',
+            ...(thinking ? { thinking } : {}),
+            toolCalls: [
+              {
+                id: 'ws_roundtrip',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{}' },
+                metadata: {
+                  itemId: 'ws_roundtrip',
+                  providerExecuted: true,
+                  sources: [{ url: 'https://example.com/release' }],
+                  openai: {
+                    webSearchCall,
+                    urlCitations: [],
+                    assistantMessage,
+                  },
                 },
               },
-            },
-          ],
-        },
-      ])
+            ],
+          },
+        ])
 
-      expect(input).toEqual([webSearchCall, assistantMessage])
+      // Next to its reasoning item, the raw ws_/msg_ items go back.
+      expect(
+        replay([
+          {
+            content: '',
+            signature: JSON.stringify({ id: 'rs_ws', encrypted_content: 'e' }),
+          },
+        ]),
+      ).toEqual([
+        { type: 'reasoning', id: 'rs_ws', encrypted_content: 'e', summary: [] },
+        webSearchCall,
+        assistantMessage,
+      ])
+      // Without one, a reasoning model refuses those ids: plain text only.
+      expect(replay()).toEqual([
+        { type: 'message', role: 'assistant', content: 'Grounded' },
+      ])
     })
 
     /**
@@ -3172,6 +3187,46 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const [payload] = mockResponsesCreate.mock.calls[0]!
       return payload.input as Array<Record<string, unknown>>
     }
+
+    it('drops the msg_ and fc_ ids of a message that has no reasoning item', async () => {
+      const input = await inputForMessages([
+        { role: 'user', content: 'Create a change request.' },
+        {
+          role: 'assistant',
+          content: 'Opening it.',
+          metadata: {
+            tanstack: { responseItems: [{ id: 'msg_1', phase: 'commentary' }] },
+          },
+          toolCalls: [
+            {
+              id: 'call_1',
+              type: 'function',
+              function: { name: 'navigate', arguments: '{"to":"/new"}' },
+              metadata: { itemId: 'fc_1' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_1', content: '{"navigated":true}' },
+      ] as Array<ModelMessage>)
+
+      // A reasoning model refuses a msg_/fc_ item without the reasoning item
+      // that produced it, so both go out as fresh items. call_id stays, so
+      // the tool result still finds its call.
+      expect(input.map((item) => item.type)).toEqual([
+        'message',
+        'message',
+        'function_call',
+        'function_call_output',
+      ])
+      expect(input.some((item) => 'id' in item)).toBe(false)
+      expect(input[1]).toEqual({
+        type: 'message',
+        role: 'assistant',
+        content: 'Opening it.',
+        phase: 'commentary',
+      })
+      expect(input[2]).toMatchObject({ call_id: 'call_1' })
+    })
 
     it('keeps the function_call item id when a single reasoning item pairs with it', async () => {
       const input = await inputForMessages([
@@ -3518,13 +3573,16 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       expect(mockResponsesCreate).toHaveBeenCalledTimes(2)
 
       const secondRequest = mockResponsesCreate.mock.calls[1]![0]
+      // No reasoning item pairs with the call, so the fc_ item id is left
+      // out and the call_id carries the identity.
       expect(secondRequest.input).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({
+          {
             type: 'function_call',
-            id: 'fc_item_1',
             call_id: 'call_abc',
-          }),
+            name: 'lookup_weather',
+            arguments: '{"location":"Berlin"}',
+          },
           expect.objectContaining({
             type: 'function_call_output',
             call_id: 'call_abc',

@@ -372,7 +372,7 @@ See [Let the provider compact](../advanced/compaction#let-the-provider-compact).
 
 OpenAI gives each answer item an `id` and a `phase`: `commentary` for text before a tool call, and `final_answer` for the answer. The Responses adapters (`openaiText` and `createOpenaiChat`) keep both in the assistant message, in `metadata.tanstack.responseItems`.
 
-When the same model gets that message again, for example on the next turn, the adapter sends each item back with its `id` and `phase`. Another model gets the plain text.
+When the same model gets that message again, for example on the next turn, the adapter sends each item back with its `phase`. It also sends the `id` when the message kept its reasoning item. Without that reasoning item, a reasoning model refuses the `id`, so the adapter leaves it out. The tool calls of that message also go without their item ids. Another model gets the plain text.
 
 ## Transcription options
 

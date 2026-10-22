@@ -15,6 +15,8 @@ import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
 
 const logger = resolveDebugOption(false)
 const model = 'gpt-5.5'
+/** A stored Responses reasoning item, as a thinking signature. */
+const pairedReasoning = JSON.stringify({ id: 'rs_1', encrypted_content: 'enc' })
 
 class Completions extends OpenAIBaseChatCompletionsTextAdapter<string> {
   constructor(client: OpenAI, images = true) {
@@ -650,17 +652,12 @@ describe('OpenAI replay parity', () => {
       const body = mock.bodies[0]
       expect(body).toMatchObject({
         input: [
-          {
-            type: 'function_call',
-            call_id: 'call_bad',
-            id:
-              provider === 'openai'
-                ? 'fc_item'
-                : expect.stringMatching(/^fc_[a-z0-9]+$/),
-          },
+          { type: 'function_call', call_id: 'call_bad' },
           { type: 'function_call_output', call_id: 'call_bad', output: 'ok' },
         ],
       })
+      // No reasoning item pairs with the call, so it goes without an item id.
+      expect(body).not.toHaveProperty(['input', 0, 'id'])
     },
   )
 
@@ -738,12 +735,8 @@ describe('OpenAI replay parity', () => {
       expect(
         callIds.every((id) => id.length <= (api === 'completions' ? 40 : 64)),
       ).toBe(true)
-      if (api === 'responses') {
-        expect(new Set(itemIds).size).toBe(2)
-        expect(
-          itemIds.every((id) => id.length <= 64 && id.startsWith('fc_')),
-        ).toBe(true)
-      }
+      // No reasoning item pairs with the calls, so they go without item ids.
+      expect(itemIds).toEqual([])
     },
   )
 
@@ -1182,12 +1175,29 @@ describe('Responses answer items on replay', () => {
     return body.input.filter((item) => item.role === 'assistant')
   }
 
-  it('sends the id and phase of the first answer on a same-model request', async () => {
+  it('sends the phase of the first answer on a same-model request, and its id only next to its reasoning', async () => {
     const saved = await firstTurn()
     expect(saved.at(-1)?.metadata?.tanstack?.responseItems).toEqual([
       { id: 'msg_answer', phase: 'final_answer' },
     ])
+    // No reasoning item: a reasoning model refuses the msg_ id without one.
     expect(await secondTurnInput(saved)).toEqual([
+      {
+        type: 'message',
+        role: 'assistant',
+        phase: 'final_answer',
+        content: 'Hi there',
+      },
+    ])
+    const withReasoning = saved.map((message) =>
+      message.role === 'assistant'
+        ? {
+            ...message,
+            thinking: [{ content: '', signature: pairedReasoning }],
+          }
+        : message,
+    )
+    expect(await secondTurnInput(withReasoning)).toEqual([
       {
         type: 'message',
         role: 'assistant',
