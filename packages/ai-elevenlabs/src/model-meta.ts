@@ -55,6 +55,7 @@ export type ElevenLabsTTSModel = (typeof ELEVENLABS_TTS_MODELS)[number]
  * @see https://elevenlabs.io/docs/overview/capabilities/sound-effects
  */
 export const ELEVENLABS_AUDIO_MODELS = [
+  'eleven_text_to_sound_v3',
   'music_v2_5',
   'music_v2',
   'eleven_text_to_sound_v2',
