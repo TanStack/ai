@@ -22,7 +22,7 @@ const researcher = defineAgent({
       ctx.messages.length,
     )
     return chat({
-      adapter: openaiText('gpt-5.6'),
+      adapter: openaiText('gpt-6.1-sol'),
       messages: [{ role: 'user', content: ctx.input.task }],
       threadId: ctx.threadId,
       runId: ctx.runId,
@@ -40,7 +40,7 @@ export const Route = createFileRoute('/api/subagent-brief')({
         const abortController = new AbortController()
         const params = await chatParamsFromRequestBody(await request.json())
         const stream = chat({
-          adapter: openaiText('gpt-5.6'),
+          adapter: openaiText('gpt-6.1-sol'),
           messages: params.messages,
           threadId: params.threadId,
           runId: params.runId,

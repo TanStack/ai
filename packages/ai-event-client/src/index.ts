@@ -284,19 +284,6 @@ export interface TokenUsage<TProviderDetails = ProviderUsageDetails> {
    * unit. A quantity, distinct from the monetary `cost` / `costDetails`.
    */
   billed?: BilledUsage
-  /**
-   * @deprecated Read {@link TokenUsage.billed} instead, which pairs the same
-   * duration with an explicit `unit: 'seconds'`. Still populated alongside
-   * `billed` for backward compatibility; will be removed in a future release.
-   */
-  durationSeconds?: number
-  /**
-   * @deprecated Read {@link TokenUsage.billed} instead, which pairs the same
-   * count with the unit it is denominated in (`seconds`, `units`, …) — this
-   * bare count is ambiguous across providers. Still populated alongside
-   * `billed` for backward compatibility; will be removed in a future release.
-   */
-  unitsBilled?: number
   /** Provider-specific usage details not covered by standard fields */
   providerUsageDetails?: TProviderDetails
   /** Provider-reported cost for the request, when available. */
@@ -326,13 +313,6 @@ export type ToolResultState =
   | 'streaming' // Placeholder for future streamed output
   | 'complete' // Result is complete
   | 'error' // Error occurred
-
-/**
- * @deprecated Image and audio usage now use the canonical {@link TokenUsage}
- * shape. Kept as an alias for backward compatibility; will be removed in a
- * future release.
- */
-export type ImageUsage = TokenUsage
 
 // All optional fields explicitly allow `| undefined` so that callers
 // can spread shared-context builders (which set every field to a
@@ -592,13 +572,6 @@ export interface ToolsApprovalRequestedEvent extends BaseEventContext {
   toolName: string
   input: unknown
   approvalId: string
-}
-
-/** Emitted when user responds to an approval request. */
-export interface ToolsApprovalRespondedEvent extends BaseEventContext {
-  toolCallId: string
-  approvalId: string
-  approved: boolean
 }
 
 /** Emitted when tool input is available for client execution. */
@@ -1235,9 +1208,6 @@ export interface CompactionEndedEvent extends BaseEventContext {
   durationMs?: number
 }
 
-/** @deprecated Use {@link CompactionStateEvent}. */
-export type CompactionAppliedEvent = CompactionStateEvent
-
 // ---------------------------------------------------------------------------
 // Memory events
 // ---------------------------------------------------------------------------
@@ -1526,7 +1496,6 @@ export interface AIDevtoolsEventMap {
 
   // Tool events
   'tools:approval:requested': ToolsApprovalRequestedEvent
-  'tools:approval:responded': ToolsApprovalRespondedEvent
   'tools:input:available': ToolsInputAvailableEvent
   'tools:call:completed': ToolsCallCompletedEvent
   'tools:result:added': ToolsResultAddedEvent
@@ -1612,7 +1581,6 @@ export interface AIDevtoolsEventMap {
   'compaction:started': CompactionStartedEvent
   'compaction:state': CompactionStateEvent
   'compaction:ended': CompactionEndedEvent
-  'compaction:applied': CompactionAppliedEvent
 
   // Memory events
   'memory:retrieve:started': MemoryRetrieveStartedEvent

@@ -120,16 +120,6 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toExtend<BaseOptions>()
     })
 
-    it('gpt-5.6 should support all features', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-5.6']
-
-      expectTypeOf<Options>().not.toHaveProperty('reasoning')
-      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
     it('gpt-5.6-sol should support all features', () => {
       type Options = OpenAIChatModelProviderOptionsByName['gpt-5.6-sol']
 
@@ -379,16 +369,6 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
   })
 
   describe('Models WITH minimal features (Basic Models)', () => {
-    it('chatgpt-4o-latest should only have streaming and base options', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['chatgpt-4o-latest']
-
-      expectTypeOf<Options>().not.toHaveProperty('reasoning')
-      expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
     it('gpt-audio should only have streaming and base options', () => {
       type Options = OpenAIChatModelProviderOptionsByName['gpt-audio']
 
@@ -401,26 +381,6 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
 
     it('gpt-audio-mini should only have streaming and base options', () => {
       type Options = OpenAIChatModelProviderOptionsByName['gpt-audio-mini']
-
-      expectTypeOf<Options>().not.toHaveProperty('reasoning')
-      expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('gpt-4o-audio should only have streaming and base options', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-4o-audio']
-
-      expectTypeOf<Options>().not.toHaveProperty('reasoning')
-      expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('gpt-4o-mini-audio should only have streaming and base options', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-4o-mini-audio']
 
       expectTypeOf<Options>().not.toHaveProperty('reasoning')
       expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
@@ -462,15 +422,6 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toExtend<BaseOptions>()
     })
 
-    it('codex-mini-latest should have structured output and tools', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['codex-mini-latest']
-
-      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
     it('gpt-4o-search-preview should have structured output and tools', () => {
       type Options =
         OpenAIChatModelProviderOptionsByName['gpt-4o-search-preview']
@@ -490,18 +441,6 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
       expectTypeOf<Options>().toExtend<BaseOptions>()
     })
-
-    it('computer-use-preview should have tools and reasoning with concise but NOT structured output', () => {
-      type Options =
-        OpenAIChatModelProviderOptionsByName['computer-use-preview']
-
-      // Should have reasoning options with 'concise' summary support
-      expectTypeOf<Options>().not.toHaveProperty('reasoning')
-      expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
   })
 
   describe('Provider options type completeness', () => {
@@ -513,7 +452,6 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
       expectTypeOf<'gpt-5.1-codex'>().toExtend<Keys>()
       expectTypeOf<'gpt-5'>().toExtend<Keys>()
       expectTypeOf<'gpt-5-pro'>().toExtend<Keys>()
-      expectTypeOf<'gpt-5.6'>().toExtend<Keys>()
       expectTypeOf<'gpt-5.6-sol'>().toExtend<Keys>()
       expectTypeOf<'gpt-5.6-terra'>().toExtend<Keys>()
       expectTypeOf<'gpt-5.6-luna'>().toExtend<Keys>()
@@ -544,11 +482,8 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
       expectTypeOf<'gpt-3.5-turbo'>().toExtend<Keys>()
 
       // Basic models
-      expectTypeOf<'chatgpt-4o-latest'>().toExtend<Keys>()
       expectTypeOf<'gpt-audio'>().toExtend<Keys>()
       expectTypeOf<'gpt-audio-mini'>().toExtend<Keys>()
-      expectTypeOf<'gpt-4o-audio'>().toExtend<Keys>()
-      expectTypeOf<'gpt-4o-mini-audio'>().toExtend<Keys>()
 
       // Chat-only models
       expectTypeOf<'gpt-5.1-chat-latest'>().toExtend<Keys>()
@@ -556,10 +491,8 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
 
       // Codex/Preview models
       expectTypeOf<'gpt-5.1-codex-mini'>().toExtend<Keys>()
-      expectTypeOf<'codex-mini-latest'>().toExtend<Keys>()
       expectTypeOf<'gpt-4o-search-preview'>().toExtend<Keys>()
       expectTypeOf<'gpt-4o-mini-search-preview'>().toExtend<Keys>()
-      expectTypeOf<'computer-use-preview'>().toExtend<Keys>()
     })
   })
 
@@ -592,9 +525,6 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
       expectTypeOf<
         OpenAIChatModelProviderOptionsByName['gpt-3.5-turbo']
       >().toHaveProperty('metadata')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['chatgpt-4o-latest']
-      >().toHaveProperty('metadata')
     })
 
     it('all models should have store option', () => {
@@ -625,9 +555,6 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
       expectTypeOf<
         OpenAIChatModelProviderOptionsByName['gpt-3.5-turbo']
       >().toHaveProperty('store')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['chatgpt-4o-latest']
-      >().toHaveProperty('store')
     })
 
     it('all models should have service_tier option', () => {
@@ -657,9 +584,6 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
       >().toHaveProperty('service_tier')
       expectTypeOf<
         OpenAIChatModelProviderOptionsByName['gpt-3.5-turbo']
-      >().toHaveProperty('service_tier')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['chatgpt-4o-latest']
       >().toHaveProperty('service_tier')
     })
 
@@ -732,9 +656,6 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
       >().toHaveProperty('stream_options')
       expectTypeOf<
         OpenAIChatModelProviderOptionsByName['gpt-4']
-      >().toHaveProperty('stream_options')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['chatgpt-4o-latest']
       >().toHaveProperty('stream_options')
     })
   })
@@ -848,16 +769,10 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
         OpenAIChatModelProviderOptionsByName['gpt-3.5-turbo']
       >().toExtend<BaseOptions>()
       expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['chatgpt-4o-latest']
-      >().toExtend<BaseOptions>()
-      expectTypeOf<
         OpenAIChatModelProviderOptionsByName['gpt-5.1-chat-latest']
       >().toExtend<BaseOptions>()
       expectTypeOf<
         OpenAIChatModelProviderOptionsByName['gpt-5-chat-latest']
-      >().toExtend<BaseOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['computer-use-preview']
       >().toExtend<BaseOptions>()
     })
   })
@@ -1078,50 +993,6 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
       >().not.toExtend<Message>()
       expectTypeOf<
         MessageWithContent<OpenAIVideoPart>
-      >().not.toExtend<Message>()
-    })
-  })
-
-  describe('codex-mini-latest (text + image)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['codex-mini-latest']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
-
-    it('should allow TextPart and ImagePart', () => {
-      expectTypeOf<MessageWithContent<OpenAITextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIImagePart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<
-        MessageWithContent<OpenAIAudioPart>
-      >().not.toExtend<Message>()
-      expectTypeOf<
-        MessageWithContent<OpenAIVideoPart>
-      >().not.toExtend<Message>()
-      expectTypeOf<
-        MessageWithContent<OpenAIDocumentPart>
-      >().not.toExtend<Message>()
-    })
-  })
-
-  describe('computer-use-preview (text + image)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['computer-use-preview']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
-
-    it('should allow TextPart and ImagePart', () => {
-      expectTypeOf<MessageWithContent<OpenAITextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIImagePart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<
-        MessageWithContent<OpenAIAudioPart>
-      >().not.toExtend<Message>()
-      expectTypeOf<
-        MessageWithContent<OpenAIVideoPart>
-      >().not.toExtend<Message>()
-      expectTypeOf<
-        MessageWithContent<OpenAIDocumentPart>
       >().not.toExtend<Message>()
     })
   })

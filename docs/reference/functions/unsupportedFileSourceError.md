@@ -7,7 +7,7 @@ title: unsupportedFileSourceError
 function unsupportedFileSourceError(providerName, detail?): Error;
 ```
 
-Defined in: [packages/ai/src/utilities/content-source.ts:53](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/content-source.ts#L53)
+Defined in: packages/ai/src/utilities/content-source.ts:53
 
 Build the standard error a non-issuer adapter throws when it encounters a
 `{ type: 'file' }` source it can't consume — either because the provider has

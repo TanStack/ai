@@ -36,7 +36,13 @@ const adapters = [
       new VercelGatewayTextAdapter<typeof model, WithToolChoice>(
         { apiKey: 'test-key', fetch },
         model,
-      ).chatStream({ logger, model, messages, ...request }),
+      ).chatStream({
+        threadId: 'thread-1',
+        logger,
+        model,
+        messages,
+        ...request,
+      }),
   },
   {
     adapter: 'Responses',
@@ -45,7 +51,13 @@ const adapters = [
       new VercelGatewayResponsesTextAdapter<typeof model, WithToolChoice>(
         { apiKey: 'test-key', fetch },
         model,
-      ).chatStream({ logger, model, messages, ...request }),
+      ).chatStream({
+        threadId: 'thread-1',
+        logger,
+        model,
+        messages,
+        ...request,
+      }),
   },
 ] satisfies Array<{ adapter: string; namedChoice: object; send: Send }>
 

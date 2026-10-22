@@ -5,6 +5,7 @@ import { createGenerateVideo } from '../src/create-generate-video.svelte'
 describe('Svelte generate() after dispose() rebinds the snapshot', () => {
   it('createGeneration updates result after dispose then generate', async () => {
     const gen = createGeneration<{ prompt: string }, { id: string }>({
+      threadId: 'thread-1',
       fetcher: async (input) => ({ id: input.prompt }),
     })
 
@@ -18,6 +19,7 @@ describe('Svelte generate() after dispose() rebinds the snapshot', () => {
 
   it('createGenerateVideo updates result after dispose then generate', async () => {
     const video = createGenerateVideo({
+      threadId: 'thread-1',
       fetcher: async (input) => {
         if (typeof input.prompt !== 'string') {
           throw new Error('Expected a text prompt')

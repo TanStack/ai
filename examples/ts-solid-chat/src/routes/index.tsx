@@ -6,7 +6,11 @@ import { createChatClientOptions } from '@tanstack/ai-client'
 import { TextPart, ThinkingPart } from '@tanstack/ai-solid/ui'
 import { For, createSignal } from 'solid-js'
 
-import type { InferChatMessages, UIMessage } from '@tanstack/ai-client'
+import type {
+  BoundInterrupts,
+  InferChatMessages,
+  UIMessage,
+} from '@tanstack/ai-client'
 
 import type { JSXElement } from 'solid-js'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
@@ -15,6 +19,7 @@ import { clientTools } from '@/lib/guitar-tools'
 // Create typed chat options for type inference
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'guitar-chat',
   tools: clientTools,
 })
 
@@ -31,10 +36,7 @@ function ChatInputArea(props: { children: JSXElement }) {
 
 function Messages(props: {
   messages: Readonly<ChatMessages>
-  addToolApprovalResponse: (response: {
-    id: string
-    approved: boolean
-  }) => Promise<void>
+  interrupts: BoundInterrupts<typeof clientTools>
 }) {
   return (
     <div class="flex-1 overflow-y-auto px-4 py-4">
@@ -93,57 +95,6 @@ function Messages(props: {
                         )
                       }
 
-                      // Approval UI. `'approval' in part` narrows the typed
-                      // tool-call union to the tools declared `needsApproval: true`,
-                      // which is where the `approval` field exists.
-                      if (
-                        part.type === 'tool-call' &&
-                        part.state === 'approval-requested' &&
-                        'approval' in part &&
-                        part.approval
-                      ) {
-                        return (
-                          <div class="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg mt-2">
-                            <p class="text-white font-medium mb-2">
-                              🔒 Approval Required: {part.name}
-                            </p>
-                            <div class="text-gray-300 text-sm mb-3">
-                              <pre class="bg-gray-800 p-2 rounded text-xs overflow-x-auto">
-                                {JSON.stringify(
-                                  JSON.parse(part.arguments),
-                                  null,
-                                  2,
-                                )}
-                              </pre>
-                            </div>
-                            <div class="flex gap-2">
-                              <button
-                                onClick={() =>
-                                  props.addToolApprovalResponse({
-                                    id: part.approval!.id,
-                                    approved: true,
-                                  })
-                                }
-                                class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
-                              >
-                                ✓ Approve
-                              </button>
-                              <button
-                                onClick={() =>
-                                  props.addToolApprovalResponse({
-                                    id: part.approval!.id,
-                                    approved: false,
-                                  })
-                                }
-                                class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
-                              >
-                                ✗ Deny
-                              </button>
-                            </div>
-                          </div>
-                        )
-                      }
-
                       // Guitar recommendation card
                       if (
                         part.type === 'tool-call' &&
@@ -168,6 +119,37 @@ function Messages(props: {
               </div>
             </div>
           )
+        }
+      </For>
+      {/* Tool approvals render from the bound `interrupts` list. */}
+      <For each={props.interrupts}>
+        {(interrupt) =>
+          interrupt.kind === 'tool-approval' ? (
+            <div class="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg mt-2">
+              <p class="text-white font-medium mb-2">
+                🔒 Approval Required: {interrupt.toolName}
+              </p>
+              <div class="text-gray-300 text-sm mb-3">
+                <pre class="bg-gray-800 p-2 rounded text-xs overflow-x-auto">
+                  {JSON.stringify(interrupt.originalArgs, null, 2)}
+                </pre>
+              </div>
+              <div class="flex gap-2">
+                <button
+                  onClick={() => interrupt.resolveInterrupt(true)}
+                  class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  ✓ Approve
+                </button>
+                <button
+                  onClick={() => interrupt.resolveInterrupt(false)}
+                  class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  ✗ Deny
+                </button>
+              </div>
+            </div>
+          ) : null
         }
       </For>
     </div>
@@ -317,13 +299,12 @@ function DebugPanel(props: {
 function ChatPage() {
   const [chunks, setChunks] = createSignal<Array<any>>([])
 
-  const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
-    useChat({
-      ...chatOptions,
-      onChunk: (chunk: any) => {
-        setChunks((prev) => [...prev, chunk])
-      },
-    })
+  const { messages, sendMessage, isLoading, interrupts, stop } = useChat({
+    ...chatOptions,
+    onChunk: (chunk: any) => {
+      setChunks((prev) => [...prev, chunk])
+    },
+  })
   const [input, setInput] = createSignal('')
 
   const clearChunks = () => setChunks([])
@@ -338,10 +319,7 @@ function ChatPage() {
           </h1>
         </div>
 
-        <Messages
-          messages={messages()}
-          addToolApprovalResponse={addToolApprovalResponse}
-        />
+        <Messages messages={messages()} interrupts={interrupts()} />
 
         <ChatInputArea>
           <div class="space-y-3">

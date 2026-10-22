@@ -44,6 +44,7 @@ describe('selectRelevantSnippets', () => {
   it('returns empty array when the snippet index is empty', async () => {
     const storage = createMemorySnippetStorage([])
     const result = await selectRelevantSnippets({
+      threadId: 'thread-1',
       adapter: dummyAdapter,
       messages: [userMessage],
       snippetIndex: [],
@@ -57,6 +58,7 @@ describe('selectRelevantSnippets', () => {
   it('returns empty array when there are no messages', async () => {
     const storage = createMemorySnippetStorage([makeSnippet({ name: 'x' })])
     const result = await selectRelevantSnippets({
+      threadId: 'thread-1',
       adapter: dummyAdapter,
       messages: [],
       snippetIndex: await storage.loadIndex(),
@@ -73,6 +75,7 @@ describe('selectRelevantSnippets', () => {
     chatMock.mockReturnValueOnce(streamChunks('["github_stats"]'))
 
     const result = await selectRelevantSnippets({
+      threadId: 'thread-1',
       adapter: dummyAdapter,
       messages: [userMessage],
       snippetIndex: await storage.loadIndex(),
@@ -81,6 +84,9 @@ describe('selectRelevantSnippets', () => {
     })
     expect(result).toHaveLength(1)
     expect(result[0]!.name).toBe('github_stats')
+    expect(chatMock).toHaveBeenCalledWith(
+      expect.objectContaining({ threadId: 'thread-1:snippets' }),
+    )
   })
 
   it('strips markdown code fences around the JSON response', async () => {
@@ -89,6 +95,7 @@ describe('selectRelevantSnippets', () => {
     chatMock.mockReturnValueOnce(streamChunks('```json\n["github_stats"]\n```'))
 
     const result = await selectRelevantSnippets({
+      threadId: 'thread-1',
       adapter: dummyAdapter,
       messages: [userMessage],
       snippetIndex: await storage.loadIndex(),
@@ -104,6 +111,7 @@ describe('selectRelevantSnippets', () => {
     chatMock.mockReturnValueOnce(streamChunks('{"not": "an array"}'))
 
     const result = await selectRelevantSnippets({
+      threadId: 'thread-1',
       adapter: dummyAdapter,
       messages: [userMessage],
       snippetIndex: await storage.loadIndex(),
@@ -119,6 +127,7 @@ describe('selectRelevantSnippets', () => {
     chatMock.mockReturnValueOnce(streamChunks('not json at all'))
 
     const result = await selectRelevantSnippets({
+      threadId: 'thread-1',
       adapter: dummyAdapter,
       messages: [userMessage],
       snippetIndex: await storage.loadIndex(),
@@ -137,6 +146,7 @@ describe('selectRelevantSnippets', () => {
     chatMock.mockReturnValueOnce(streamChunks('["a","b","c"]'))
 
     const result = await selectRelevantSnippets({
+      threadId: 'thread-1',
       adapter: dummyAdapter,
       messages: [userMessage],
       snippetIndex: await storage.loadIndex(),
@@ -154,6 +164,7 @@ describe('selectRelevantSnippets', () => {
     )
 
     const result = await selectRelevantSnippets({
+      threadId: 'thread-1',
       adapter: dummyAdapter,
       messages: [userMessage],
       snippetIndex: await storage.loadIndex(),
@@ -170,6 +181,7 @@ describe('selectRelevantSnippets', () => {
       throw new Error('network down')
     })
     const result = await selectRelevantSnippets({
+      threadId: 'thread-1',
       adapter: dummyAdapter,
       messages: [userMessage],
       snippetIndex: await storage.loadIndex(),

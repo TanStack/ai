@@ -2,7 +2,7 @@
 title: Decart
 id: decart-adapter
 order: 2
-description: "Generate images and videos with Decart's AI models in TanStack AI via the Decart community adapter."
+description: "Generate images and videos with Decart's Lucy models in TanStack AI through the Decart community adapter."
 keywords:
   - tanstack ai
   - decart
@@ -11,9 +11,9 @@ keywords:
   - community adapter
 ---
 
-The Decart adapter provides access to Decart's image and video generation models.
+The Decart community adapter calls Decart image and video models from `generateImage()` and `generateVideo()`. Decart maintains it.
 
-## Installation
+## 1. Install
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
@@ -28,19 +28,17 @@ octane: @decartai/tanstack-ai-adapter
 
 <!-- ::end:tabs -->
 
-## Basic Usage
+## 2. Set the API key
 
-```typescript
-import { generateImage } from "@tanstack/ai";
-import { decartImage } from "@decartai/tanstack-ai-adapter";
+1. Go to the [Decart Platform](https://platform.decart.ai).
+2. Create an account and make an API key.
+3. Put the key in the environment of your server:
 
-const result = await generateImage({
-  adapter: decartImage("lucy-pro-t2i"),
-  prompt: "A serene mountain landscape at sunset",
-});
+```bash
+DECART_API_KEY=your-api-key-here
 ```
 
-## Basic Usage - Custom API Key
+`decartImage` and `decartVideo` read `DECART_API_KEY`. To pass the key in code, use `createDecartImage` or `createDecartVideo`:
 
 ```typescript
 import { generateImage } from "@tanstack/ai";
@@ -51,24 +49,11 @@ const adapter = createDecartImage("lucy-pro-t2i", process.env.DECART_API_KEY!);
 const result = await generateImage({
   adapter,
   prompt: "A serene mountain landscape at sunset",
+  threadId: "thread-1",
 });
 ```
 
-## Configuration
-
-```typescript
-import { createDecartImage, type DecartImageConfig } from "@decartai/tanstack-ai-adapter";
-
-const config: Omit<DecartImageConfig, "apiKey"> = {
-  baseUrl: "https://api.decart.ai", // Optional, for custom endpoints
-};
-
-const adapter = createDecartImage("lucy-pro-t2i", process.env.DECART_API_KEY!, config);
-```
-
-## Image Generation
-
-Generate images with `lucy-pro-t2i`:
+## 3. Generate an image
 
 ```typescript
 import { generateImage } from "@tanstack/ai";
@@ -77,39 +62,19 @@ import { decartImage } from "@decartai/tanstack-ai-adapter";
 const result = await generateImage({
   adapter: decartImage("lucy-pro-t2i"),
   prompt: "A futuristic cityscape at night",
+  threadId: "thread-1",
 });
 
 console.log(result.images[0]?.b64Json);
 ```
 
-### Image Model Options
+You get the image as base64 data in `result.images[0]?.b64Json`. See [Image Generation](../media/image-generation).
 
-```typescript
-import { generateImage } from "@tanstack/ai";
-import { decartImage } from "@decartai/tanstack-ai-adapter";
+## Video
 
-const result = await generateImage({
-  adapter: decartImage("lucy-pro-t2i"),
-  prompt: "A portrait of a robot artist",
-  modelOptions: {
-    resolution: "720p",
-    orientation: "portrait",
-    seed: 42,
-  },
-});
-```
+Video generation runs as a job. You start the job, then you ask for its status until it is done.
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `resolution` | `"720p"` | `"720p"` | Output resolution |
-| `orientation` | `"portrait" \| "landscape"` | `"landscape"` | Image orientation |
-| `seed` | `number` | - | Seed for reproducible generation |
-
-## Video Generation
-
-Video generation uses an async job/polling architecture.
-
-### Creating a Video Job
+1. Start the job:
 
 ```typescript
 import { generateVideo } from "@tanstack/ai";
@@ -118,12 +83,13 @@ import { decartVideo } from "@decartai/tanstack-ai-adapter";
 const { jobId } = await generateVideo({
   adapter: decartVideo("lucy-pro-t2v"),
   prompt: "A cat playing with a ball of yarn",
+  threadId: "thread-1",
 });
 
 console.log("Job started:", jobId);
 ```
 
-### Polling for Status
+2. Ask for the status:
 
 ```typescript
 import { getVideoJobStatus } from "@tanstack/ai";
@@ -142,7 +108,7 @@ if (status.status === "completed" && status.url) {
 }
 ```
 
-### Complete Example with Polling
+The two steps together, with a status check every 5 seconds:
 
 ```typescript
 import { generateVideo, getVideoJobStatus } from "@tanstack/ai";
@@ -152,7 +118,7 @@ async function createVideo(prompt: string) {
   const adapter = decartVideo("lucy-pro-t2v");
 
   // Create the job
-  const { jobId } = await generateVideo({ adapter, prompt });
+  const { jobId } = await generateVideo({ adapter, prompt, threadId: "thread-1" });
   console.log("Job created:", jobId);
 
   // Poll for completion
@@ -177,7 +143,44 @@ async function createVideo(prompt: string) {
 const videoUrl = await createVideo("A drone shot over a tropical beach");
 ```
 
-### Video Model Options
+See [Video Generation](../media/video-generation).
+
+## Models and options
+
+### Models
+
+| Model | Kind | Factory |
+| --- | --- | --- |
+| `lucy-pro-t2i` | Image | `decartImage`, `createDecartImage` |
+| `lucy-pro-t2v` | Video | `decartVideo`, `createDecartVideo` |
+
+### Image options
+
+Pass these in `modelOptions`:
+
+```typescript
+import { generateImage } from "@tanstack/ai";
+import { decartImage } from "@decartai/tanstack-ai-adapter";
+
+const result = await generateImage({
+  adapter: decartImage("lucy-pro-t2i"),
+  prompt: "A portrait of a robot artist",
+  threadId: "thread-1",
+  modelOptions: {
+    resolution: "720p",
+    orientation: "portrait",
+    seed: 42,
+  },
+});
+```
+
+| Option | Type | Default | What it does |
+|--------|------|---------|-------------|
+| `resolution` | `"720p"` | `"720p"` | The output resolution. |
+| `orientation` | `"portrait" \| "landscape"` | `"landscape"` | The image orientation. |
+| `seed` | `number` | none | A seed, to get the same image again. |
+
+### Video options
 
 ```typescript
 import { generateVideo } from "@tanstack/ai";
@@ -186,6 +189,7 @@ import { decartVideo } from "@decartai/tanstack-ai-adapter";
 const { jobId } = await generateVideo({
   adapter: decartVideo("lucy-pro-t2v"),
   prompt: "A timelapse of a blooming flower",
+  threadId: "thread-1",
   modelOptions: {
     resolution: "720p",
     orientation: "landscape",
@@ -194,78 +198,31 @@ const { jobId } = await generateVideo({
 });
 ```
 
-| Option | Type | Default | Description |
+| Option | Type | Default | What it does |
 |--------|------|---------|-------------|
-| `resolution` | `"720p" \| "480p"` | `"720p"` | Output resolution |
-| `orientation` | `"portrait" \| "landscape"` | `"landscape"` | Video orientation |
-| `seed` | `number` | - | Seed for reproducible generation |
+| `resolution` | `"720p" \| "480p"` | `"720p"` | The output resolution. |
+| `orientation` | `"portrait" \| "landscape"` | `"landscape"` | The video orientation. |
+| `seed` | `number` | none | A seed, to get the same video again. |
 
-## Environment Variables
+### Factories
 
-Set your API key in environment variables:
+| Factory | What it does |
+| --- | --- |
+| `decartImage(model, config?)` | An image adapter that reads `DECART_API_KEY`. |
+| `createDecartImage(model, apiKey, config?)` | An image adapter with an explicit API key. |
+| `decartVideo(model, config?)` | A video adapter that reads `DECART_API_KEY`. |
+| `createDecartVideo(model, apiKey, config?)` | A video adapter with an explicit API key. |
 
-```bash
-DECART_API_KEY=your-api-key-here
+Each factory takes an optional `config.baseUrl`, for a custom endpoint:
+
+```typescript
+import { createDecartImage, type DecartImageConfig } from "@decartai/tanstack-ai-adapter";
+
+const config: Omit<DecartImageConfig, "apiKey"> = {
+  baseUrl: "https://api.decart.ai", // Optional, for custom endpoints
+};
+
+const adapter = createDecartImage("lucy-pro-t2i", process.env.DECART_API_KEY!, config);
 ```
 
-## Getting an API Key
-
-1. Go to [Decart Platform](https://platform.decart.ai)
-2. Create an account and generate an API key
-3. Add it to your environment variables
-
-## API Reference
-
-### `decartImage(model, config?)`
-
-Creates a Decart image adapter using environment variables.
-
-**Parameters:**
-
-- `model` - Model name (`"lucy-pro-t2i"`)
-- `config.baseUrl?` - Custom base URL (optional)
-
-**Returns:** A Decart image adapter instance.
-
-### `createDecartImage(model, apiKey, config?)`
-
-Creates a Decart image adapter with an explicit API key.
-
-**Parameters:**
-
-- `model` - Model name (`"lucy-pro-t2i"`)
-- `apiKey` - Your Decart API key
-- `config.baseUrl?` - Custom base URL (optional)
-
-**Returns:** A Decart image adapter instance.
-
-### `decartVideo(model, config?)`
-
-Creates a Decart video adapter using environment variables.
-
-**Parameters:**
-
-- `model` - Model name (`"lucy-pro-t2v"`)
-- `config.baseUrl?` - Custom base URL (optional)
-
-**Returns:** A Decart video adapter instance.
-
-### `createDecartVideo(model, apiKey, config?)`
-
-Creates a Decart video adapter with an explicit API key.
-
-**Parameters:**
-
-- `model` - Model name (`"lucy-pro-t2v"`)
-- `apiKey` - Your Decart API key
-- `config.baseUrl?` - Custom base URL (optional)
-
-**Returns:** A Decart video adapter instance.
-
-## Next Steps
-
-- [Decart Platform](https://platform.decart.ai) - Visit Decart's platform to generate API keys
-- [API Documentation](https://docs.platform.decart.ai) - View complete API reference
-- [GitHub Repository](https://github.com/decartai/tanstack-ai) - Explore the adapter source code
-- [Image Generation Guide](../media/image-generation) - Learn about image generation
-- [Video Generation Guide](../media/video-generation) - Learn about video generation
+For the full API, see the [Decart API docs](https://docs.platform.decart.ai). The adapter source is on [GitHub](https://github.com/decartai/tanstack-ai).

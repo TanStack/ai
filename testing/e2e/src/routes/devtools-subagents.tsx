@@ -14,7 +14,7 @@ function DevtoolsSubagentsRoute() {
   const chat = useChat({
     threadId: `devtools-subagents-${testId ?? 'manual'}`,
     connection: fetchServerSentEvents('/api/subagents-test'),
-    body: { scenario: 'route', testId, aimockPort },
+    forwardedProps: { scenario: 'route', testId, aimockPort },
     devtools: { name: 'Blog Desk' },
   })
   const cards = chat.messages.flatMap((message) =>

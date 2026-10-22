@@ -8,14 +8,13 @@ import type {
   GenerationClientOptions,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   GenerationRestoredResult,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 import type { ByokClient } from '@tanstack/ai-client/byok'
 import type { ProviderId } from '@tanstack/ai/byok'
 
-type RemixHandle = Pick<Handle, 'id' | 'update' | 'signal'>
+type RemixHandle = Pick<Handle, 'update' | 'signal'>
 
 /**
  * Options for the createGeneration helper.
@@ -58,11 +57,10 @@ export interface CreateGenerationOptions<TInput, TResult, TOutput = TResult> {
    * `` `video-${videoId}-start-frame` ``). It is also sent as the AG-UI thread
    * id on the wire, which the protocol requires.
    *
-   * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations. If
-   * omitted, the helper uses `handle.id`.
+   * Required. A generated id would change on every reload, so persistence
+   * would restore nothing.
    */
-  threadId?: string
+  threadId: string
   /**
    * Server-driven hydration handler for `persistence: true` when the
    * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
@@ -153,6 +151,7 @@ export interface CreateGenerationReturn<
  *
  * function CustomGenerator(handle: Handle) {
  *   const gen = createGeneration(handle, {
+ *     threadId: 'custom-gen',
  *     connection: fetchServerSentEvents('/api/generate/custom'),
  *   })
  *
@@ -179,12 +178,9 @@ export function createGeneration<
   TTransformed = void,
 >(
   handle: RemixHandle,
-  options: Omit<
-    CreateGenerationOptions<TInput, TResult>,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<CreateGenerationOptions<TInput, TResult>, 'onResult'> & {
     onResult?: (result: TResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ) {
   type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
 
@@ -200,16 +196,13 @@ export function createGeneration<
     void handle.update()
   }
 
-  const threadId = options.threadId ?? handle.id
-
   // Conditional spread for `body` (strict-optional in target;
   // local source is `Record<string, any> | undefined`). Callbacks
   // wrap optional ones in non-returning bodies so `?.()`'s
   // implicit `undefined` doesn't pollute the function return type.
-  const clientOptions: Omit<
-    GenerationClientOptions<TInput, TResult, TOutput>,
-    'persistence' | 'threadId'
-  > = {
+  const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
+    persistence: options.persistence,
+    threadId: options.threadId,
     ...(options.body !== undefined && { body: options.body }),
     ...(options.hydrateGeneration !== undefined && {
       hydrateGeneration: options.hydrateGeneration,
@@ -268,27 +261,15 @@ export function createGeneration<
     },
   }
 
-  const persistenceProps =
-    typeof options.threadId === 'string' && options.persistence
-      ? {
-          persistence: options.persistence,
-          threadId: options.threadId,
-        }
-      : {
-          threadId,
-        }
-
   let client: GenerationClient<TInput, TResult, TOutput>
   if (options.connection) {
     client = new GenerationClient<TInput, TResult, TOutput>({
       ...clientOptions,
-      ...persistenceProps,
       connection: options.connection,
     })
   } else if (options.fetcher) {
     client = new GenerationClient<TInput, TResult, TOutput>({
       ...clientOptions,
-      ...persistenceProps,
       fetcher: options.fetcher,
     })
   } else {

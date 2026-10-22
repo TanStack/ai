@@ -9,6 +9,7 @@ import type {
   ChatStream,
   RunFinishedEvent,
   ToolCallEndEvent,
+  ToolCallStartEvent,
 } from '../src/types'
 
 type HasKey<T, K extends string> = K extends keyof T ? true : false
@@ -25,6 +26,12 @@ describe('public StreamChunk extras', () => {
     expectTypeOf<HasKey<ToolCallEndEvent, 'output'>>().toEqualTypeOf<false>()
     expectTypeOf<HasKey<ToolCallEndEvent, 'result'>>().toEqualTypeOf<false>()
     expectTypeOf<HasKey<ToolCallEndEvent, 'toolName'>>().toEqualTypeOf<false>()
+  })
+
+  it('ToolCallStartEvent has no toolName', () => {
+    expectTypeOf<
+      HasKey<ToolCallStartEvent, 'toolName'>
+    >().toEqualTypeOf<false>()
   })
 
   it('TextActivityResult<undefined, true> equals ChatStream', () => {

@@ -3,7 +3,7 @@ id: StreamDurability
 title: StreamDurability
 ---
 
-Defined in: [packages/ai/src/stream-durability.ts:10](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-durability.ts#L10)
+Defined in: packages/ai/src/stream-durability.ts:10
 
 A pluggable delivery-durability backend.
 
@@ -29,7 +29,7 @@ and resume without requiring core to understand its cursor format.
 append: (chunks) => Promise<TOffset[]>;
 ```
 
-Defined in: [packages/ai/src/stream-durability.ts:17](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-durability.ts#L17)
+Defined in: packages/ai/src/stream-durability.ts:17
 
 Persist a batch before it is delivered and return exactly one resumable
 offset for each chunk, in the same order.
@@ -52,7 +52,7 @@ offset for each chunk, in the same order.
 close: () => Promise<void>;
 ```
 
-Defined in: [packages/ai/src/stream-durability.ts:27](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-durability.ts#L27)
+Defined in: packages/ai/src/stream-durability.ts:27
 
 Terminalize the producer log and unblock live readers. Core awaits this
 for every producer exit, including completion, cancellation, and failure.
@@ -72,7 +72,7 @@ read: (offset, signal?) => AsyncIterable<{
 }>;
 ```
 
-Defined in: [packages/ai/src/stream-durability.ts:19](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-durability.ts#L19)
+Defined in: packages/ai/src/stream-durability.ts:19
 
 Replay chunks strictly after the supplied adapter-owned offset.
 
@@ -101,7 +101,7 @@ Replay chunks strictly after the supplied adapter-owned offset.
 resumeFrom: () => TOffset | null;
 ```
 
-Defined in: [packages/ai/src/stream-durability.ts:12](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-durability.ts#L12)
+Defined in: packages/ai/src/stream-durability.ts:12
 
 Return the adapter offset captured from the request, or null for a producer.
 
@@ -117,7 +117,7 @@ Return the adapter offset captured from the request, or null for a producer.
 snapshot: () => Promise<object[]>;
 ```
 
-Defined in: [packages/ai/src/stream-durability.ts:57](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-durability.ts#L57)
+Defined in: packages/ai/src/stream-durability.ts:57
 
 Everything stored for this run **at the moment of the call**, in append
 order, then resolve.

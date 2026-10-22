@@ -5,6 +5,7 @@ const messages = [{ role: 'user' as const, content: 'hi' }]
 
 // Chat Completions takes a token budget on a budget model.
 chat({
+  threadId: 'thread-1',
   adapter: createVercelGatewayText('google/gemini-2.5-pro', 'k', {
     api: 'chat',
   }),

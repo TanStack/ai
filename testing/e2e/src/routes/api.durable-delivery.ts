@@ -96,7 +96,6 @@ function agentLoopRun(
       type: 'TOOL_CALL_START',
       toolCallId: 'call-1',
       toolCallName: 'rollDice',
-      toolName: 'rollDice',
       timestamp: now(),
     } as StreamChunk
     yield {

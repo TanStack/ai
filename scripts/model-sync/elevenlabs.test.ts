@@ -20,36 +20,36 @@ describe('ttsModelIdsFromCatalog', () => {
       rawId: 'eleven_v3',
       firstSeenAt: 10,
       deprecatedAt: null,
-      capabilities: { canDoTextToSpeech: true },
+      providerMetadata: { canDoTextToSpeech: true },
     },
     {
       rawId: 'eleven_v4_turbo',
       firstSeenAt: 30,
       deprecatedAt: null,
-      capabilities: { canDoTextToSpeech: true },
+      providerMetadata: { canDoTextToSpeech: true },
     },
     {
       rawId: 'eleven_v4',
       firstSeenAt: 30,
       deprecatedAt: null,
-      capabilities: { canDoTextToSpeech: true },
+      providerMetadata: { canDoTextToSpeech: true },
     },
     {
       rawId: 'eleven_english_sts_v2',
       firstSeenAt: 40,
       deprecatedAt: null,
-      capabilities: { canDoTextToSpeech: false },
+      providerMetadata: { canDoTextToSpeech: false },
     },
     {
       rawId: 'eleven_old',
       firstSeenAt: 50,
       deprecatedAt: 60,
-      capabilities: { canDoTextToSpeech: true },
+      providerMetadata: { canDoTextToSpeech: true },
     },
     {
       rawId: "eleven_v4'; alert(1)",
       firstSeenAt: 90,
-      capabilities: { canDoTextToSpeech: true },
+      providerMetadata: { canDoTextToSpeech: true },
     },
   ]
 

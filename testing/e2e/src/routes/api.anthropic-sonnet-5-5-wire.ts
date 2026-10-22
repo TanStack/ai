@@ -91,6 +91,7 @@ export const Route = createFileRoute('/api/anthropic-sonnet-5-5-wire')({
 
         try {
           for await (const _ of chat({
+            threadId: 'anthropic-sonnet-5-5-wire',
             adapter: createAnthropicChat('claude-sonnet-5-5', DUMMY_KEY, {
               fetch: capturingFetch,
             }),

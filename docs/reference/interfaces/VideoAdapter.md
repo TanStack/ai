@@ -3,7 +3,7 @@ id: VideoAdapter
 title: VideoAdapter
 ---
 
-Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:69](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L69)
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:69
 
 **`Experimental`**
 
@@ -59,7 +59,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:99](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L99)
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:99
 
 **`Internal`**
 
@@ -103,7 +103,7 @@ providerOptions: TProviderOptions;
 availableDurations: () => DurationOptions<TModelDurationByName[TModel]>;
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:145](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L145)
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:136
 
 **`Experimental`**
 
@@ -123,7 +123,7 @@ knowledge.
 createVideoJob: (options) => Promise<VideoJobResult>;
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:111](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L111)
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:111
 
 **`Experimental`**
 
@@ -142,24 +142,21 @@ Returns a job ID that can be used to poll for status and retrieve the video.
 
 ***
 
-### getVideo?
+### getVideo
 
 ```ts
-optional getVideo?: (jobId) => Promise<
+getVideo: (jobId) => Promise<
   | VideoUrlResult
 | VideoStreamResult>;
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:132](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L132)
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:129
 
 **`Experimental`**
 
 Get the finished video: a public URL when the provider has one, or the
 download stream for generation middleware to host. Call only after
 status is 'completed'.
-
-Optional only so adapters written against `getVideoUrl` keep working.
-New adapters implement this.
 
 #### Parameters
 
@@ -181,7 +178,7 @@ New adapters implement this.
 getVideoStatus: (jobId) => Promise<VideoStatusResult>;
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:122](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L122)
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:122
 
 **`Experimental`**
 
@@ -199,40 +196,13 @@ Get the current status of a video generation job.
 
 ***
 
-### ~~getVideoUrl~~
-
-```ts
-getVideoUrl: (jobId) => Promise<VideoUrlResult>;
-```
-
-Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:138](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L138)
-
-**`Experimental`**
-
-#### Parameters
-
-##### jobId
-
-`string`
-
-#### Returns
-
-`Promise`\<[`VideoUrlResult`](VideoUrlResult.md)\>
-
-#### Deprecated
-
-Use `getVideo`. This is `getVideo` with a provider stream
-buffered into a base64 `data:` URL, which holds the whole video in memory.
-
-***
-
 ### kind
 
 ```ts
 readonly kind: "video";
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:83](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L83)
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:83
 
 **`Experimental`**
 
@@ -246,7 +216,7 @@ Discriminator for adapter kind - used to determine API shape
 readonly model: TModel;
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:94](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L94)
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:94
 
 **`Experimental`**
 
@@ -260,7 +230,7 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:85](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L85)
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:85
 
 **`Experimental`**
 
@@ -274,7 +244,7 @@ Adapter name identifier
 snapDuration: (input) => TModelDurationByName[TModel] | undefined;
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:154](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L154)
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:145
 
 **`Experimental`**
 
@@ -302,7 +272,7 @@ Returns `undefined` when the model has no duration field, or when
 readonly optional supportsFileSources?: boolean;
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:92](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L92)
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:92
 
 **`Experimental`**
 

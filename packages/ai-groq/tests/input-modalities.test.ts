@@ -3,8 +3,8 @@ import { createGroqText } from '../src/adapters/text'
 
 describe('GroqTextAdapter inputModalities', () => {
   it.each([
-    ['meta-llama/llama-4-scout-17b-16e-instruct', ['text', 'image']],
-    ['llama-3.3-70b-versatile', ['text']],
+    ['qwen/qwen3.8-27b', ['text', 'image']],
+    ['openai/gpt-oss-120b', ['text']],
   ] as const)('reads the list of %s from model-meta', (model, expected) => {
     expect(createGroqText(model, 'test-key').inputModalities).toEqual(expected)
   })

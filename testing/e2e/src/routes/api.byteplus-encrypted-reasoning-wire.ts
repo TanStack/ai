@@ -51,6 +51,7 @@ export const Route = createFileRoute('/api/byteplus-encrypted-reasoning-wire')({
         const reasoningIds: Array<string> = []
         const entityIds: Array<string> = []
         for await (const chunk of chat({
+          threadId: 'byteplus-encrypted-reasoning-wire',
           adapter: createBytePlusText(MODEL, DUMMY_KEY, { fetch: arkStream }),
           messages: [{ role: 'user', content: 'Say hi' }],
         })) {

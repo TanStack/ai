@@ -2,7 +2,7 @@
 title: Harness Structured Output
 id: structured-outputs-harnesses
 order: 6
-description: "Ask a coding agent in a sandbox to inspect a repo, then read a typed object from chat({ outputSchema }). Works with Claude Code, Codex, OpenCode, Grok Build, and acpCompatible."
+description: "Let a coding agent inspect a repo in a sandbox, then read a typed object from chat({ outputSchema }). Works with Claude Code, Codex, OpenCode, Grok Build, and acpCompatible."
 keywords:
   - tanstack ai
   - structured outputs
@@ -15,11 +15,11 @@ keywords:
   - sandbox
 ---
 
-You asked a coding agent to inspect a repository. The agent streams tool calls and prose. You need a typed object you can store or render, not a wall of text to parse.
+Pass `outputSchema` to a coding-agent `chat()` call. The agent still streams tool calls, and the run ends with a typed object.
 
-Pass `outputSchema` on the same `chat()` call. The harness runs its native tools. Then you get a validated object from `await chat()` or from `useChat().final`.
+The agent runs its native tools in the sandbox. Read the validated object from `await chat()` or from `useChat().final`.
 
-This page is for sandbox harness adapters:
+This page is for the sandbox harness adapters:
 
 - [Claude Code](../adapters/claude-code)
 - [Codex](../adapters/codex)
@@ -27,35 +27,38 @@ This page is for sandbox harness adapters:
 - [Grok Build](../adapters/grok-build)
 - [ACP-Compatible](../adapters/acp-compatible) (`acpCompatible`)
 
-If you only extract JSON from a prompt and you do not need a sandbox, use [One-Shot Extraction](./one-shot) with an HTTP adapter.
+To extract JSON from a prompt with no sandbox, use [One-Shot Extraction](./one-shot) with an HTTP adapter.
 
-## Define the schema
+## Quick setup
 
-```typescript group=harness-output
+This setup assumes you have a sandbox provider ready. See [Sandbox Quick Start](../sandbox/quick-start).
+
+### 1. Define the schema
+
+```typescript
+// schemas/report.ts
 import { z } from "zod";
 
 export const ReportSchema = z.object({
   name: z.string(),
   oneLiner: z.string(),
   audience: z.string(),
-  mainPackages: z.array(
-    z.object({
-      name: z.string(),
-      role: z.string(),
-    }),
-  ),
+  mainPackages: z.array(z.object({ name: z.string(), role: z.string() })),
   howToRun: z.string(),
 });
 ```
 
-The return type follows from the schema. You do not need a cast.
+### 2. Add the server endpoint
 
-## Server: sandbox plus outputSchema
+Add `withSandbox(...)` to the middleware. Pass `stream: true` so the client gets a stream:
 
-The harness needs a sandbox. Pass `withSandbox(...)`. If the client reads the stream, pass `stream: true`. Without `stream: true`, `chat()` returns a `Promise`, not SSE.
-
-```typescript group=harness-output
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+```typescript
+// api/repo-report.ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
 import { claudeCodeText } from "@tanstack/ai-claude-code";
 import {
   defineSandbox,
@@ -64,6 +67,7 @@ import {
   withSandbox,
 } from "@tanstack/ai-sandbox";
 import { dockerSandbox } from "@tanstack/ai-sandbox-docker";
+import { ReportSchema } from "../schemas/report";
 
 const sandbox = defineSandbox({
   id: "repo-report",
@@ -74,18 +78,13 @@ const sandbox = defineSandbox({
 });
 
 export async function POST(request: Request) {
-  const body: unknown = await request.json();
-  const messages =
-    typeof body === "object" &&
-    body !== null &&
-    "messages" in body &&
-    Array.isArray(body.messages)
-      ? body.messages
-      : [];
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
 
   const stream = chat({
     adapter: claudeCodeText("claude-opus-4-8"),
     messages,
+    threadId,
+    runId,
     outputSchema: ReportSchema,
     stream: true,
     middleware: [withSandbox(sandbox)],
@@ -95,25 +94,25 @@ export async function POST(request: Request) {
 }
 ```
 
-Swap the adapter to change the agent:
+### 3. Read the report on the client
 
-- `codexText("gpt-5.3-codex")`
-- `opencodeText("anthropic/claude-opus-4-5")`
-- `grokBuildText("composer-2.5")`
-- `acpCompatibleText(...)` for any ACP CLI. See [ACP-Compatible](../adapters/acp-compatible).
-
-The typed object arrives as a `structured-output.complete` event. Tool activity streams first.
-
-## Client: read `parts` and `final`
-
-The assistant message holds the live run. Walk `messages[].parts` for tool calls, reasoning, and the typed object. `useChat().final` is a shortcut for the latest `structured-output` part.
-
-```tsx group=harness-output
+```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { z } from "zod";
 
-function RepoReport() {
+// The same schema as schemas/report.ts. In your app, import it from that file.
+const ReportSchema = z.object({
+  name: z.string(),
+  oneLiner: z.string(),
+  audience: z.string(),
+  mainPackages: z.array(z.object({ name: z.string(), role: z.string() })),
+  howToRun: z.string(),
+});
+
+export function RepoReport() {
   const { messages, sendMessage, isLoading, final } = useChat({
     connection: fetchServerSentEvents("/api/repo-report"),
+    threadId: "support-chat",
     outputSchema: ReportSchema,
   });
 
@@ -121,7 +120,7 @@ function RepoReport() {
     <>
       <button
         disabled={isLoading}
-        onClick={() => sendMessage("What is this repository about?")}
+        onClick={() => void sendMessage("What is this repository about?")}
       >
         Run report
       </button>
@@ -141,41 +140,136 @@ function RepoReport() {
             if (part.type === "text") {
               return <p key={index}>{part.content}</p>;
             }
-            if (part.type === "structured-output") {
-              const report = part.data ?? part.partial;
-              return report?.name ? <h2 key={index}>{report.name}</h2> : null;
-            }
             return null;
           })}
         </div>
       ))}
-      {final ? <p>{final.oneLiner}</p> : null}
+      {final && (
+        <section>
+          <h2>{final.name}</h2>
+          <p>{final.oneLiner}</p>
+        </section>
+      )}
     </>
   );
 }
 ```
 
-Each part type:
+Click Run report. Tool calls such as `Read` and `Bash` appear first. When the agent finishes, the report shows the name and the one-line summary of the repo.
 
-- `thinking`: harness reasoning, when the agent emits it
-- `tool-call`: native harness tools such as `Read` or `Bash`
-- `text`: prose the agent writes before the JSON
-- `structured-output`: the schema object. `part.data` is the validated value. `part.partial` is a progressive parse when the adapter streams JSON text. `part.raw` is the source string.
+## How it works
 
-`final` is typed as the schema. It stays `null` until `structured-output.complete` arrives. It always matches the latest assistant turn. Older turns stay on their own `structured-output` parts.
+1. `withSandbox` starts the sandbox and clones the repo.
+2. The agent runs its native tools inside the sandbox. Each call streams to the client as a `tool-call` part.
+3. The adapter applies your schema on the same turn. See [How each harness applies the schema](#how-each-harness-applies-the-schema).
+4. The object arrives as a `structured-output.complete` event. `useChat` sets `final`.
 
-`partial` stays empty on harness adapters. The object is not streamed field by field. Render tool calls from `messages` while you wait. See [Streaming UIs](./streaming) for the `partial` / `final` shape.
+`partial` stays empty on harness adapters, because the object does not stream field by field. Show the tool calls while you wait.
 
-## Persist the typed object
+To change the agent, swap the adapter:
 
-Add `withPersistence` next to `withSandbox`. The engine stores the completed
-structured-output part on the transcript. A new message id keeps harness prose
-and the structured object as two assistant messages. The last text message id
-keeps both on one message. A reload hydrates that transcript through
-`reconstructChat`. See [Chat Persistence](../persistence/chat-persistence).
+- `codexText("gpt-5.3-codex")`
+- `opencodeText("anthropic/claude-opus-4-5")`
+- `grokBuildText("composer-2.5")`
+- `acpCompatibleText(...)` for any ACP CLI. See [ACP-Compatible](../adapters/acp-compatible).
 
-```typescript group=harness-persist
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+## Script without a UI
+
+If you do not stream to a browser, leave out `stream: true`. Then the promise resolves with the typed object:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { claudeCodeText } from "@tanstack/ai-claude-code";
+import {
+  defineSandbox,
+  defineWorkspace,
+  githubRepo,
+  withSandbox,
+} from "@tanstack/ai-sandbox";
+import { dockerSandbox } from "@tanstack/ai-sandbox-docker";
+import { ReportSchema } from "./schemas/report";
+
+const sandbox = defineSandbox({
+  id: "repo-report",
+  provider: dockerSandbox({ image: "node:22" }),
+  workspace: defineWorkspace({
+    source: githubRepo({ repo: "TanStack/ai" }),
+  }),
+});
+
+const report = await chat({
+  adapter: claudeCodeText("claude-opus-4-8"),
+  messages: [{ role: "user", content: "What is this repository about?" }],
+  threadId: "thread-1",
+  outputSchema: ReportSchema,
+  middleware: [withSandbox(sandbox)],
+});
+
+console.log(report.name, report.oneLiner);
+```
+
+## Try it in the example app
+
+The React chat example has a repo-report page.
+
+1. Open [`examples/ts-react-chat`](https://github.com/TanStack/ai/tree/main/examples/ts-react-chat).
+2. Open `/repo-report`.
+3. Pick Claude Code, Grok Build, ACP compatible, or Codex.
+4. Pick Auth. The default is **API key**. If the machine already ran `claude login`, `grok login`, or `codex login`, use **Host login**.
+5. Run the report.
+
+The page clones `TanStack/ai` into a sandbox, asks the agent to inspect it, and shows the validated report. It renders tool calls and reasoning from `messages[].parts`, and reads the object from the `structured-output` part and from `final`.
+
+## Advanced
+
+### Parts on the message
+
+The assistant message holds the live run:
+
+- `thinking`: reasoning from the harness, when the agent emits it.
+- `tool-call`: native harness tools, such as `Read` or `Bash`.
+- `text`: prose that the agent writes before the JSON.
+- `structured-output`: the schema object. `part.data` is the validated value, and `part.raw` is the source string. `part.partial` is a progressive parse, when the adapter streams JSON text.
+
+`final` has the type of your schema. It stays `null` until `structured-output.complete` arrives, and it always matches the latest assistant turn. Older turns keep their own `structured-output` parts. For the `partial` and `final` shape, see [Streaming UIs](./streaming).
+
+### How each harness applies the schema
+
+| Adapter | How the schema is applied |
+| --- | --- |
+| Claude Code | Native `--json-schema` flag on the same turn. The value is inline JSON, not a file path. |
+| Codex | Native `--output-schema` flag on the same turn. Assistant text streams while Codex writes it. The last message is also the schema object. |
+| OpenCode | The schema goes into the prompt. The adapter parses the last assistant text. |
+| Grok Build | The schema goes into the prompt. The adapter parses the last assistant text. |
+| ACP compatible | The schema goes into the prompt. The adapter parses the last assistant text. |
+
+OpenCode, Grok Build, and `acpCompatible` parse JSON from the last assistant message. If that message is not JSON, the parse fails. If the job is only extraction and you do not need a sandbox, use `@tanstack/ai-openai` or `@tanstack/ai-grok`.
+
+### Approval gates and client tools
+
+Harness adapters run tools inside the sandbox. They do not pause for a round trip to the browser:
+
+- A tool with no server `execute()` is still listed to the agent. When the agent calls it, the bridge returns an `Unknown tool` error to the agent, and the run goes on.
+- A tool with `needsApproval` stops the run before the agent starts. The bridge cannot pause for approval, so it throws an error and does not run the tool.
+
+For approval gates or client tools, use [With Tools](./with-tools) with an HTTP adapter.
+
+### Persist the typed object
+
+Add `withPersistence` next to `withSandbox`. The engine stores the complete structured-output part on the transcript. A reload rebuilds that transcript through `reconstructChat`. See [Chat Persistence](../persistence/chat-persistence).
+
+The message id decides how the parts are stored:
+
+- A new message id keeps the harness prose and the structured object as two assistant messages.
+- The id of the last text message keeps both on one message.
+
+```typescript
+// api/repo-report.ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
 import { claudeCodeText } from "@tanstack/ai-claude-code";
 import { withPersistence } from "@tanstack/ai-persistence";
 import {
@@ -185,13 +279,8 @@ import {
   withSandbox,
 } from "@tanstack/ai-sandbox";
 import { dockerSandbox } from "@tanstack/ai-sandbox-docker";
-import { persistence } from "./persistence";
-import { z } from "zod";
-
-const ReportSchema = z.object({
-  name: z.string(),
-  oneLiner: z.string(),
-});
+import { persistence } from "../persistence";
+import { ReportSchema } from "../schemas/report";
 
 const sandbox = defineSandbox({
   id: "repo-report",
@@ -202,36 +291,15 @@ const sandbox = defineSandbox({
 });
 
 export async function POST(request: Request) {
-  const body: unknown = await request.json();
-  const messages =
-    typeof body === "object" &&
-    body !== null &&
-    "messages" in body &&
-    Array.isArray(body.messages)
-      ? body.messages
-      : [];
-  const threadId =
-    typeof body === "object" &&
-    body !== null &&
-    "threadId" in body &&
-    typeof body.threadId === "string"
-      ? body.threadId
-      : undefined;
-  const runId =
-    typeof body === "object" &&
-    body !== null &&
-    "runId" in body &&
-    typeof body.runId === "string"
-      ? body.runId
-      : undefined;
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
 
   const stream = chat({
     adapter: claudeCodeText("claude-opus-4-8"),
     messages,
-    outputSchema: ReportSchema,
-    stream: true,
     threadId,
     runId,
+    outputSchema: ReportSchema,
+    stream: true,
     middleware: [withSandbox(sandbox), withPersistence(persistence)],
   });
 
@@ -239,53 +307,6 @@ export async function POST(request: Request) {
 }
 ```
 
-## How each harness applies the schema
+### Claude Code and the trust dialog
 
-| Adapter | How the schema is applied |
-|---|---|
-| Claude Code | Native `--json-schema` flag on the same turn. The value is inline JSON, not a file path. |
-| Codex | Native `--output-schema` flag on the same turn. Assistant text streams as Codex writes it. The last message is also the schema object. |
-| OpenCode | Schema is added to the prompt. The adapter parses the last assistant text. |
-| Grok Build | Schema is added to the prompt. The adapter parses the last assistant text. |
-| ACP compatible | Schema is added to the prompt. The adapter parses the last assistant text. |
-
-OpenCode, Grok Build, and `acpCompatible` parse JSON from the last assistant message. That parse fails if the message is not JSON. If the job is extract-only and you do not need a sandbox, use `@tanstack/ai-openai` or `@tanstack/ai-grok`.
-
-## Approval gates and client tools
-
-Harness adapters run tools inside the sandbox. They do not pause for a browser round-trip.
-
-- A tool without a server `execute()` fails fast.
-- A tool with `needsApproval` fails fast.
-
-If you need approval gates or client tools, use [With Tools](./with-tools) with an HTTP adapter.
-
-## Script without a UI
-
-If you do not stream to a browser, omit `stream: true`. The promise resolves with the typed object.
-
-```typescript group=harness-output
-const report = await chat({
-  adapter: claudeCodeText("claude-opus-4-8"),
-  messages: [{ role: "user", content: "What is this repository about?" }],
-  outputSchema: ReportSchema,
-  middleware: [withSandbox(sandbox)],
-});
-
-report.name;
-report.oneLiner;
-```
-
-## Try it
-
-The React chat example includes a repo-report page.
-
-1. Open [`examples/ts-react-chat`](https://github.com/TanStack/ai/tree/main/examples/ts-react-chat).
-2. Open `/repo-report`.
-3. Pick Claude Code, Grok Build, ACP compatible, or Codex.
-4. Pick Auth. The default is **API key**. Use **Host login** if the machine already ran `claude login`, `grok login`, or `codex login`.
-5. Run the report. The page renders tool calls and reasoning from `messages[].parts`. It reads the typed object from the `structured-output` part and from `useChat().final`.
-
-The page clones `TanStack/ai` into a sandbox, asks the agent to inspect it, and shows the validated report.
-
-Claude Code does not need you to accept a trust dialog for that clone. The adapter loads only user settings, so the clone's `.claude/settings.json` does not block headless `-p`. Host login uses your host `claude login`. The sandbox type does not pick this. See [Harness Auth](../sandbox/auth).
+Claude Code does not ask you to accept a trust dialog for the cloned repo. The adapter loads only user settings, so the `.claude/settings.json` of the clone does not block headless `-p`. Host login uses your host `claude login`. The sandbox type does not decide this. See [Harness Auth](../sandbox/auth).

@@ -74,18 +74,14 @@ export function errorTypeName(err: unknown): string {
 
 /**
  * Convert an AG-UI RUN_ERROR event to the Error shape exposed to consumers.
- * Preserves the provider code and sanitized raw event when available, while
- * accepting the deprecated nested error payload for backward compatibility.
+ * Preserves the provider code and sanitized raw event when available.
  */
 export function runErrorEventToError(
   chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
 ): Error {
-  const error = new Error(
-    chunk.message || chunk.error?.message || 'An error occurred',
-  )
-  const code = chunk.code ?? chunk.error?.code
-  if (code !== undefined) {
-    Object.assign(error, { code })
+  const error = new Error(chunk.message || 'An error occurred')
+  if (chunk.code !== undefined) {
+    Object.assign(error, { code: chunk.code })
   }
   if (chunk.rawEvent !== undefined) {
     Object.assign(error, { rawEvent: chunk.rawEvent })

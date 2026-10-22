@@ -7,7 +7,7 @@ title: GenericInterruptRequest
 type GenericInterruptRequest<TDefinition> = [TDefinition] extends [never] ? never : TDefinition extends InterruptDefinition<any, infer TPayloadSchema, any, infer TPayload> ? GenericInterruptRequestFor<TDefinition, TPayloadSchema, TPayload> : GenericInterruptRequestBase<TDefinition>;
 ```
 
-Defined in: [packages/ai/src/interrupt-definition.ts:103](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L103)
+Defined in: packages/ai/src/interrupt-definition.ts:103
 
 ## Type Parameters
 

@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActivityTestRouteImport } from './routes/activity-test'
 import { Route as ByokRouteImport } from './routes/byok'
+import { Route as CallOwnershipRouteImport } from './routes/call-ownership'
 import { Route as ChatClientDefaultBridgeRouteImport } from './routes/chat-client-default-bridge'
 import { Route as ChatClientStreamProcessingRouteImport } from './routes/chat-client-stream-processing'
 import { Route as ChatClientWatcherStatusRouteImport } from './routes/chat-client-watcher-status'
@@ -53,14 +54,16 @@ import { Route as ApiActivityTestRouteImport } from './routes/api.activity-test'
 import { Route as ApiAdapterInputModalitiesRouteImport } from './routes/api.adapter-input-modalities'
 import { Route as ApiAnthropicAuthWireRouteImport } from './routes/api.anthropic-auth-wire'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
+import { Route as ApiAnthropicComputerToolsetWireRouteImport } from './routes/api.anthropic-computer-toolset-wire'
+import { Route as ApiAnthropicComputerUseWireRouteImport } from './routes/api.anthropic-computer-use-wire'
 import { Route as ApiAnthropicHaiku55WireRouteImport } from './routes/api.anthropic-haiku-5-5-wire'
 import { Route as ApiAnthropicMaxTokensUsageRouteImport } from './routes/api.anthropic-max-tokens-usage'
 import { Route as ApiAnthropicMultiTurnStructuredWireRouteImport } from './routes/api.anthropic-multi-turn-structured-wire'
 import { Route as ApiAnthropicOpus5CombinedWireRouteImport } from './routes/api.anthropic-opus-5-combined-wire'
 import { Route as ApiAnthropicRedactedThinkingWireRouteImport } from './routes/api.anthropic-redacted-thinking-wire'
+import { Route as ApiAnthropicRefusalRouteImport } from './routes/api.anthropic-refusal'
 import { Route as ApiAnthropicSkillsWireRouteImport } from './routes/api.anthropic-skills-wire'
 import { Route as ApiAnthropicSonnet55WireRouteImport } from './routes/api.anthropic-sonnet-5-5-wire'
-import { Route as ApiAnthropicStructuredUsageRouteImport } from './routes/api.anthropic-structured-usage'
 import { Route as ApiAnthropicThinkingOrderWireRouteImport } from './routes/api.anthropic-thinking-order-wire'
 import { Route as ApiAnthropicTruncatedToolInputWireRouteImport } from './routes/api.anthropic-truncated-tool-input-wire'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
@@ -71,6 +74,7 @@ import { Route as ApiBedrockConverseTruncatedToolCallRouteImport } from './route
 import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
 import { Route as ApiByteplusEncryptedReasoningWireRouteImport } from './routes/api.byteplus-encrypted-reasoning-wire'
 import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
+import { Route as ApiCallOwnershipWireRouteImport } from './routes/api.call-ownership-wire'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiChatCompletionsIncompleteStreamRouteImport } from './routes/api.chat-completions-incomplete-stream'
 import { Route as ApiClientToolResumeStoreRouteImport } from './routes/api.client-tool-resume-store'
@@ -107,6 +111,9 @@ import { Route as ApiMaxToolCallsWireRouteImport } from './routes/api.max-tool-c
 import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
 import { Route as ApiMcpAppsChatRouteImport } from './routes/api.mcp-apps-chat'
 import { Route as ApiMcpAppsServerRouteImport } from './routes/api.mcp-apps-server'
+import { Route as ApiMcpEventsControlRouteImport } from './routes/api.mcp-events-control'
+import { Route as ApiMcpEventsServerRouteImport } from './routes/api.mcp-events-server'
+import { Route as ApiMcpEventsWebhookRouteImport } from './routes/api.mcp-events-webhook'
 import { Route as ApiMcpInputServerRouteImport } from './routes/api.mcp-input-server'
 import { Route as ApiMcpInputTestRouteImport } from './routes/api.mcp-input-test'
 import { Route as ApiMcpLifecycleTestRouteImport } from './routes/api.mcp-lifecycle-test'
@@ -129,6 +136,7 @@ import { Route as ApiMoonshotUsageDetailsRouteImport } from './routes/api.moonsh
 import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.multimodal-tool-result-wire'
 import { Route as ApiNonStreamingRunErrorRouteImport } from './routes/api.non-streaming-run-error'
 import { Route as ApiOpenaiCompletedResponseTextRouteImport } from './routes/api.openai-completed-response-text'
+import { Route as ApiOpenaiComputerUseWireRouteImport } from './routes/api.openai-computer-use-wire'
 import { Route as ApiOpenaiImage25ModelsRouteImport } from './routes/api.openai-image-2-5-models'
 import { Route as ApiOpenaiMalformedToolArgumentsRouteImport } from './routes/api.openai-malformed-tool-arguments'
 import { Route as ApiOpenaiResponsesUsageRouteImport } from './routes/api.openai-responses-usage'
@@ -196,6 +204,11 @@ const ActivityTestRoute = ActivityTestRouteImport.update({
 const ByokRoute = ByokRouteImport.update({
   id: '/byok',
   path: '/byok',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CallOwnershipRoute = CallOwnershipRouteImport.update({
+  id: '/call-ownership',
+  path: '/call-ownership',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChatClientDefaultBridgeRoute = ChatClientDefaultBridgeRouteImport.update({
@@ -407,6 +420,18 @@ const ApiAnthropicBugTestRoute = ApiAnthropicBugTestRouteImport.update({
   path: '/api/anthropic-bug-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAnthropicComputerToolsetWireRoute =
+  ApiAnthropicComputerToolsetWireRouteImport.update({
+    id: '/api/anthropic-computer-toolset-wire',
+    path: '/api/anthropic-computer-toolset-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAnthropicComputerUseWireRoute =
+  ApiAnthropicComputerUseWireRouteImport.update({
+    id: '/api/anthropic-computer-use-wire',
+    path: '/api/anthropic-computer-use-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAnthropicHaiku55WireRoute = ApiAnthropicHaiku55WireRouteImport.update({
   id: '/api/anthropic-haiku-5-5-wire',
   path: '/api/anthropic-haiku-5-5-wire',
@@ -436,6 +461,11 @@ const ApiAnthropicRedactedThinkingWireRoute =
     path: '/api/anthropic-redacted-thinking-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAnthropicRefusalRoute = ApiAnthropicRefusalRouteImport.update({
+  id: '/api/anthropic-refusal',
+  path: '/api/anthropic-refusal',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAnthropicSkillsWireRoute = ApiAnthropicSkillsWireRouteImport.update({
   id: '/api/anthropic-skills-wire',
   path: '/api/anthropic-skills-wire',
@@ -445,12 +475,6 @@ const ApiAnthropicSonnet55WireRoute =
   ApiAnthropicSonnet55WireRouteImport.update({
     id: '/api/anthropic-sonnet-5-5-wire',
     path: '/api/anthropic-sonnet-5-5-wire',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiAnthropicStructuredUsageRoute =
-  ApiAnthropicStructuredUsageRouteImport.update({
-    id: '/api/anthropic-structured-usage',
-    path: '/api/anthropic-structured-usage',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiAnthropicThinkingOrderWireRoute =
@@ -508,6 +532,11 @@ const ApiByteplusSeedance1080pWireRoute =
     path: '/api/byteplus-seedance-1080p-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiCallOwnershipWireRoute = ApiCallOwnershipWireRouteImport.update({
+  id: '/api/call-ownership-wire',
+  path: '/api/call-ownership-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
@@ -695,6 +724,21 @@ const ApiMcpAppsServerRoute = ApiMcpAppsServerRouteImport.update({
   path: '/api/mcp-apps-server',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpEventsControlRoute = ApiMcpEventsControlRouteImport.update({
+  id: '/api/mcp-events-control',
+  path: '/api/mcp-events-control',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpEventsServerRoute = ApiMcpEventsServerRouteImport.update({
+  id: '/api/mcp-events-server',
+  path: '/api/mcp-events-server',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpEventsWebhookRoute = ApiMcpEventsWebhookRouteImport.update({
+  id: '/api/mcp-events-webhook',
+  path: '/api/mcp-events-webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpInputServerRoute = ApiMcpInputServerRouteImport.update({
   id: '/api/mcp-input-server',
   path: '/api/mcp-input-server',
@@ -807,6 +851,12 @@ const ApiOpenaiCompletedResponseTextRoute =
   ApiOpenaiCompletedResponseTextRouteImport.update({
     id: '/api/openai-completed-response-text',
     path: '/api/openai-completed-response-text',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiOpenaiComputerUseWireRoute =
+  ApiOpenaiComputerUseWireRouteImport.update({
+    id: '/api/openai-computer-use-wire',
+    path: '/api/openai-computer-use-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiOpenaiImage25ModelsRoute = ApiOpenaiImage25ModelsRouteImport.update({
@@ -1096,6 +1146,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
   '/byok': typeof ByokRoute
+  '/call-ownership': typeof CallOwnershipRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
   '/chat-client-watcher-status': typeof ChatClientWatcherStatusRoute
@@ -1136,14 +1187,16 @@ export interface FileRoutesByFullPath {
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
   '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-computer-toolset-wire': typeof ApiAnthropicComputerToolsetWireRoute
+  '/api/anthropic-computer-use-wire': typeof ApiAnthropicComputerUseWireRoute
   '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
+  '/api/anthropic-refusal': typeof ApiAnthropicRefusalRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-sonnet-5-5-wire': typeof ApiAnthropicSonnet55WireRoute
-  '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
   '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
@@ -1154,6 +1207,7 @@ export interface FileRoutesByFullPath {
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-encrypted-reasoning-wire': typeof ApiByteplusEncryptedReasoningWireRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
+  '/api/call-ownership-wire': typeof ApiCallOwnershipWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
@@ -1190,6 +1244,9 @@ export interface FileRoutesByFullPath {
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
+  '/api/mcp-events-control': typeof ApiMcpEventsControlRoute
+  '/api/mcp-events-server': typeof ApiMcpEventsServerRoute
+  '/api/mcp-events-webhook': typeof ApiMcpEventsWebhookRoute
   '/api/mcp-input-server': typeof ApiMcpInputServerRoute
   '/api/mcp-input-test': typeof ApiMcpInputTestRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
@@ -1212,6 +1269,7 @@ export interface FileRoutesByFullPath {
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
+  '/api/openai-computer-use-wire': typeof ApiOpenaiComputerUseWireRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
   '/api/openai-malformed-tool-arguments': typeof ApiOpenaiMalformedToolArgumentsRoute
   '/api/openai-responses-usage': typeof ApiOpenaiResponsesUsageRoute
@@ -1271,6 +1329,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
   '/byok': typeof ByokRoute
+  '/call-ownership': typeof CallOwnershipRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
   '/chat-client-watcher-status': typeof ChatClientWatcherStatusRoute
@@ -1311,14 +1370,16 @@ export interface FileRoutesByTo {
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
   '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-computer-toolset-wire': typeof ApiAnthropicComputerToolsetWireRoute
+  '/api/anthropic-computer-use-wire': typeof ApiAnthropicComputerUseWireRoute
   '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
+  '/api/anthropic-refusal': typeof ApiAnthropicRefusalRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-sonnet-5-5-wire': typeof ApiAnthropicSonnet55WireRoute
-  '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
   '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
@@ -1329,6 +1390,7 @@ export interface FileRoutesByTo {
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-encrypted-reasoning-wire': typeof ApiByteplusEncryptedReasoningWireRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
+  '/api/call-ownership-wire': typeof ApiCallOwnershipWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
@@ -1365,6 +1427,9 @@ export interface FileRoutesByTo {
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
+  '/api/mcp-events-control': typeof ApiMcpEventsControlRoute
+  '/api/mcp-events-server': typeof ApiMcpEventsServerRoute
+  '/api/mcp-events-webhook': typeof ApiMcpEventsWebhookRoute
   '/api/mcp-input-server': typeof ApiMcpInputServerRoute
   '/api/mcp-input-test': typeof ApiMcpInputTestRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
@@ -1387,6 +1452,7 @@ export interface FileRoutesByTo {
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
+  '/api/openai-computer-use-wire': typeof ApiOpenaiComputerUseWireRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
   '/api/openai-malformed-tool-arguments': typeof ApiOpenaiMalformedToolArgumentsRoute
   '/api/openai-responses-usage': typeof ApiOpenaiResponsesUsageRoute
@@ -1447,6 +1513,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
   '/byok': typeof ByokRoute
+  '/call-ownership': typeof CallOwnershipRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
   '/chat-client-watcher-status': typeof ChatClientWatcherStatusRoute
@@ -1487,14 +1554,16 @@ export interface FileRoutesById {
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
   '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-computer-toolset-wire': typeof ApiAnthropicComputerToolsetWireRoute
+  '/api/anthropic-computer-use-wire': typeof ApiAnthropicComputerUseWireRoute
   '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
+  '/api/anthropic-refusal': typeof ApiAnthropicRefusalRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-sonnet-5-5-wire': typeof ApiAnthropicSonnet55WireRoute
-  '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
   '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
@@ -1505,6 +1574,7 @@ export interface FileRoutesById {
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-encrypted-reasoning-wire': typeof ApiByteplusEncryptedReasoningWireRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
+  '/api/call-ownership-wire': typeof ApiCallOwnershipWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
@@ -1541,6 +1611,9 @@ export interface FileRoutesById {
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
+  '/api/mcp-events-control': typeof ApiMcpEventsControlRoute
+  '/api/mcp-events-server': typeof ApiMcpEventsServerRoute
+  '/api/mcp-events-webhook': typeof ApiMcpEventsWebhookRoute
   '/api/mcp-input-server': typeof ApiMcpInputServerRoute
   '/api/mcp-input-test': typeof ApiMcpInputTestRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
@@ -1563,6 +1636,7 @@ export interface FileRoutesById {
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
+  '/api/openai-computer-use-wire': typeof ApiOpenaiComputerUseWireRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
   '/api/openai-malformed-tool-arguments': typeof ApiOpenaiMalformedToolArgumentsRoute
   '/api/openai-responses-usage': typeof ApiOpenaiResponsesUsageRoute
@@ -1624,6 +1698,7 @@ export interface FileRouteTypes {
     | '/'
     | '/activity-test'
     | '/byok'
+    | '/call-ownership'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
     | '/chat-client-watcher-status'
@@ -1664,14 +1739,16 @@ export interface FileRouteTypes {
     | '/api/adapter-input-modalities'
     | '/api/anthropic-auth-wire'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-computer-toolset-wire'
+    | '/api/anthropic-computer-use-wire'
     | '/api/anthropic-haiku-5-5-wire'
     | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-redacted-thinking-wire'
+    | '/api/anthropic-refusal'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-sonnet-5-5-wire'
-    | '/api/anthropic-structured-usage'
     | '/api/anthropic-thinking-order-wire'
     | '/api/anthropic-truncated-tool-input-wire'
     | '/api/arktype-tool-wire'
@@ -1682,6 +1759,7 @@ export interface FileRouteTypes {
     | '/api/byok-chat'
     | '/api/byteplus-encrypted-reasoning-wire'
     | '/api/byteplus-seedance-1080p-wire'
+    | '/api/call-ownership-wire'
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
     | '/api/client-tool-resume-store'
@@ -1718,6 +1796,9 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
+    | '/api/mcp-events-control'
+    | '/api/mcp-events-server'
+    | '/api/mcp-events-webhook'
     | '/api/mcp-input-server'
     | '/api/mcp-input-test'
     | '/api/mcp-lifecycle-test'
@@ -1740,6 +1821,7 @@ export interface FileRouteTypes {
     | '/api/multimodal-tool-result-wire'
     | '/api/non-streaming-run-error'
     | '/api/openai-completed-response-text'
+    | '/api/openai-computer-use-wire'
     | '/api/openai-image-2-5-models'
     | '/api/openai-malformed-tool-arguments'
     | '/api/openai-responses-usage'
@@ -1799,6 +1881,7 @@ export interface FileRouteTypes {
     | '/'
     | '/activity-test'
     | '/byok'
+    | '/call-ownership'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
     | '/chat-client-watcher-status'
@@ -1839,14 +1922,16 @@ export interface FileRouteTypes {
     | '/api/adapter-input-modalities'
     | '/api/anthropic-auth-wire'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-computer-toolset-wire'
+    | '/api/anthropic-computer-use-wire'
     | '/api/anthropic-haiku-5-5-wire'
     | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-redacted-thinking-wire'
+    | '/api/anthropic-refusal'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-sonnet-5-5-wire'
-    | '/api/anthropic-structured-usage'
     | '/api/anthropic-thinking-order-wire'
     | '/api/anthropic-truncated-tool-input-wire'
     | '/api/arktype-tool-wire'
@@ -1857,6 +1942,7 @@ export interface FileRouteTypes {
     | '/api/byok-chat'
     | '/api/byteplus-encrypted-reasoning-wire'
     | '/api/byteplus-seedance-1080p-wire'
+    | '/api/call-ownership-wire'
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
     | '/api/client-tool-resume-store'
@@ -1893,6 +1979,9 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
+    | '/api/mcp-events-control'
+    | '/api/mcp-events-server'
+    | '/api/mcp-events-webhook'
     | '/api/mcp-input-server'
     | '/api/mcp-input-test'
     | '/api/mcp-lifecycle-test'
@@ -1915,6 +2004,7 @@ export interface FileRouteTypes {
     | '/api/multimodal-tool-result-wire'
     | '/api/non-streaming-run-error'
     | '/api/openai-completed-response-text'
+    | '/api/openai-computer-use-wire'
     | '/api/openai-image-2-5-models'
     | '/api/openai-malformed-tool-arguments'
     | '/api/openai-responses-usage'
@@ -1974,6 +2064,7 @@ export interface FileRouteTypes {
     | '/'
     | '/activity-test'
     | '/byok'
+    | '/call-ownership'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
     | '/chat-client-watcher-status'
@@ -2014,14 +2105,16 @@ export interface FileRouteTypes {
     | '/api/adapter-input-modalities'
     | '/api/anthropic-auth-wire'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-computer-toolset-wire'
+    | '/api/anthropic-computer-use-wire'
     | '/api/anthropic-haiku-5-5-wire'
     | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-redacted-thinking-wire'
+    | '/api/anthropic-refusal'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-sonnet-5-5-wire'
-    | '/api/anthropic-structured-usage'
     | '/api/anthropic-thinking-order-wire'
     | '/api/anthropic-truncated-tool-input-wire'
     | '/api/arktype-tool-wire'
@@ -2032,6 +2125,7 @@ export interface FileRouteTypes {
     | '/api/byok-chat'
     | '/api/byteplus-encrypted-reasoning-wire'
     | '/api/byteplus-seedance-1080p-wire'
+    | '/api/call-ownership-wire'
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
     | '/api/client-tool-resume-store'
@@ -2068,6 +2162,9 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
+    | '/api/mcp-events-control'
+    | '/api/mcp-events-server'
+    | '/api/mcp-events-webhook'
     | '/api/mcp-input-server'
     | '/api/mcp-input-test'
     | '/api/mcp-lifecycle-test'
@@ -2090,6 +2187,7 @@ export interface FileRouteTypes {
     | '/api/multimodal-tool-result-wire'
     | '/api/non-streaming-run-error'
     | '/api/openai-completed-response-text'
+    | '/api/openai-computer-use-wire'
     | '/api/openai-image-2-5-models'
     | '/api/openai-malformed-tool-arguments'
     | '/api/openai-responses-usage'
@@ -2150,6 +2248,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActivityTestRoute: typeof ActivityTestRoute
   ByokRoute: typeof ByokRoute
+  CallOwnershipRoute: typeof CallOwnershipRoute
   ChatClientDefaultBridgeRoute: typeof ChatClientDefaultBridgeRoute
   ChatClientStreamProcessingRoute: typeof ChatClientStreamProcessingRoute
   ChatClientWatcherStatusRoute: typeof ChatClientWatcherStatusRoute
@@ -2190,14 +2289,16 @@ export interface RootRouteChildren {
   ApiAdapterInputModalitiesRoute: typeof ApiAdapterInputModalitiesRoute
   ApiAnthropicAuthWireRoute: typeof ApiAnthropicAuthWireRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
+  ApiAnthropicComputerToolsetWireRoute: typeof ApiAnthropicComputerToolsetWireRoute
+  ApiAnthropicComputerUseWireRoute: typeof ApiAnthropicComputerUseWireRoute
   ApiAnthropicHaiku55WireRoute: typeof ApiAnthropicHaiku55WireRoute
   ApiAnthropicMaxTokensUsageRoute: typeof ApiAnthropicMaxTokensUsageRoute
   ApiAnthropicMultiTurnStructuredWireRoute: typeof ApiAnthropicMultiTurnStructuredWireRoute
   ApiAnthropicOpus5CombinedWireRoute: typeof ApiAnthropicOpus5CombinedWireRoute
   ApiAnthropicRedactedThinkingWireRoute: typeof ApiAnthropicRedactedThinkingWireRoute
+  ApiAnthropicRefusalRoute: typeof ApiAnthropicRefusalRoute
   ApiAnthropicSkillsWireRoute: typeof ApiAnthropicSkillsWireRoute
   ApiAnthropicSonnet55WireRoute: typeof ApiAnthropicSonnet55WireRoute
-  ApiAnthropicStructuredUsageRoute: typeof ApiAnthropicStructuredUsageRoute
   ApiAnthropicThinkingOrderWireRoute: typeof ApiAnthropicThinkingOrderWireRoute
   ApiAnthropicTruncatedToolInputWireRoute: typeof ApiAnthropicTruncatedToolInputWireRoute
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
@@ -2208,6 +2309,7 @@ export interface RootRouteChildren {
   ApiByokChatRoute: typeof ApiByokChatRoute
   ApiByteplusEncryptedReasoningWireRoute: typeof ApiByteplusEncryptedReasoningWireRoute
   ApiByteplusSeedance1080pWireRoute: typeof ApiByteplusSeedance1080pWireRoute
+  ApiCallOwnershipWireRoute: typeof ApiCallOwnershipWireRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiChatCompletionsIncompleteStreamRoute: typeof ApiChatCompletionsIncompleteStreamRoute
   ApiClientToolResumeStoreRoute: typeof ApiClientToolResumeStoreRoute
@@ -2244,6 +2346,9 @@ export interface RootRouteChildren {
   ApiMcpAppsCallRoute: typeof ApiMcpAppsCallRoute
   ApiMcpAppsChatRoute: typeof ApiMcpAppsChatRoute
   ApiMcpAppsServerRoute: typeof ApiMcpAppsServerRoute
+  ApiMcpEventsControlRoute: typeof ApiMcpEventsControlRoute
+  ApiMcpEventsServerRoute: typeof ApiMcpEventsServerRoute
+  ApiMcpEventsWebhookRoute: typeof ApiMcpEventsWebhookRoute
   ApiMcpInputServerRoute: typeof ApiMcpInputServerRoute
   ApiMcpInputTestRoute: typeof ApiMcpInputTestRoute
   ApiMcpLifecycleTestRoute: typeof ApiMcpLifecycleTestRoute
@@ -2266,6 +2371,7 @@ export interface RootRouteChildren {
   ApiMultimodalToolResultWireRoute: typeof ApiMultimodalToolResultWireRoute
   ApiNonStreamingRunErrorRoute: typeof ApiNonStreamingRunErrorRoute
   ApiOpenaiCompletedResponseTextRoute: typeof ApiOpenaiCompletedResponseTextRoute
+  ApiOpenaiComputerUseWireRoute: typeof ApiOpenaiComputerUseWireRoute
   ApiOpenaiImage25ModelsRoute: typeof ApiOpenaiImage25ModelsRoute
   ApiOpenaiMalformedToolArgumentsRoute: typeof ApiOpenaiMalformedToolArgumentsRoute
   ApiOpenaiResponsesUsageRoute: typeof ApiOpenaiResponsesUsageRoute
@@ -2338,6 +2444,13 @@ declare module '@tanstack/react-router' {
       path: '/byok'
       fullPath: '/byok'
       preLoaderRoute: typeof ByokRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/call-ownership': {
+      id: '/call-ownership'
+      path: '/call-ownership'
+      fullPath: '/call-ownership'
+      preLoaderRoute: typeof CallOwnershipRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/chat-client-default-bridge': {
@@ -2627,6 +2740,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAnthropicBugTestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/anthropic-computer-toolset-wire': {
+      id: '/api/anthropic-computer-toolset-wire'
+      path: '/api/anthropic-computer-toolset-wire'
+      fullPath: '/api/anthropic-computer-toolset-wire'
+      preLoaderRoute: typeof ApiAnthropicComputerToolsetWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-computer-use-wire': {
+      id: '/api/anthropic-computer-use-wire'
+      path: '/api/anthropic-computer-use-wire'
+      fullPath: '/api/anthropic-computer-use-wire'
+      preLoaderRoute: typeof ApiAnthropicComputerUseWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/anthropic-haiku-5-5-wire': {
       id: '/api/anthropic-haiku-5-5-wire'
       path: '/api/anthropic-haiku-5-5-wire'
@@ -2662,6 +2789,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAnthropicRedactedThinkingWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/anthropic-refusal': {
+      id: '/api/anthropic-refusal'
+      path: '/api/anthropic-refusal'
+      fullPath: '/api/anthropic-refusal'
+      preLoaderRoute: typeof ApiAnthropicRefusalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/anthropic-skills-wire': {
       id: '/api/anthropic-skills-wire'
       path: '/api/anthropic-skills-wire'
@@ -2674,13 +2808,6 @@ declare module '@tanstack/react-router' {
       path: '/api/anthropic-sonnet-5-5-wire'
       fullPath: '/api/anthropic-sonnet-5-5-wire'
       preLoaderRoute: typeof ApiAnthropicSonnet55WireRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/anthropic-structured-usage': {
-      id: '/api/anthropic-structured-usage'
-      path: '/api/anthropic-structured-usage'
-      fullPath: '/api/anthropic-structured-usage'
-      preLoaderRoute: typeof ApiAnthropicStructuredUsageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/anthropic-thinking-order-wire': {
@@ -2751,6 +2878,13 @@ declare module '@tanstack/react-router' {
       path: '/api/byteplus-seedance-1080p-wire'
       fullPath: '/api/byteplus-seedance-1080p-wire'
       preLoaderRoute: typeof ApiByteplusSeedance1080pWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/call-ownership-wire': {
+      id: '/api/call-ownership-wire'
+      path: '/api/call-ownership-wire'
+      fullPath: '/api/call-ownership-wire'
+      preLoaderRoute: typeof ApiCallOwnershipWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/chat': {
@@ -3005,6 +3139,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMcpAppsServerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp-events-control': {
+      id: '/api/mcp-events-control'
+      path: '/api/mcp-events-control'
+      fullPath: '/api/mcp-events-control'
+      preLoaderRoute: typeof ApiMcpEventsControlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-events-server': {
+      id: '/api/mcp-events-server'
+      path: '/api/mcp-events-server'
+      fullPath: '/api/mcp-events-server'
+      preLoaderRoute: typeof ApiMcpEventsServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-events-webhook': {
+      id: '/api/mcp-events-webhook'
+      path: '/api/mcp-events-webhook'
+      fullPath: '/api/mcp-events-webhook'
+      preLoaderRoute: typeof ApiMcpEventsWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp-input-server': {
       id: '/api/mcp-input-server'
       path: '/api/mcp-input-server'
@@ -3157,6 +3312,13 @@ declare module '@tanstack/react-router' {
       path: '/api/openai-completed-response-text'
       fullPath: '/api/openai-completed-response-text'
       preLoaderRoute: typeof ApiOpenaiCompletedResponseTextRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openai-computer-use-wire': {
+      id: '/api/openai-computer-use-wire'
+      path: '/api/openai-computer-use-wire'
+      fullPath: '/api/openai-computer-use-wire'
+      preLoaderRoute: typeof ApiOpenaiComputerUseWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/openai-image-2-5-models': {
@@ -3595,6 +3757,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActivityTestRoute: ActivityTestRoute,
   ByokRoute: ByokRoute,
+  CallOwnershipRoute: CallOwnershipRoute,
   ChatClientDefaultBridgeRoute: ChatClientDefaultBridgeRoute,
   ChatClientStreamProcessingRoute: ChatClientStreamProcessingRoute,
   ChatClientWatcherStatusRoute: ChatClientWatcherStatusRoute,
@@ -3635,15 +3798,17 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdapterInputModalitiesRoute: ApiAdapterInputModalitiesRoute,
   ApiAnthropicAuthWireRoute: ApiAnthropicAuthWireRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
+  ApiAnthropicComputerToolsetWireRoute: ApiAnthropicComputerToolsetWireRoute,
+  ApiAnthropicComputerUseWireRoute: ApiAnthropicComputerUseWireRoute,
   ApiAnthropicHaiku55WireRoute: ApiAnthropicHaiku55WireRoute,
   ApiAnthropicMaxTokensUsageRoute: ApiAnthropicMaxTokensUsageRoute,
   ApiAnthropicMultiTurnStructuredWireRoute:
     ApiAnthropicMultiTurnStructuredWireRoute,
   ApiAnthropicOpus5CombinedWireRoute: ApiAnthropicOpus5CombinedWireRoute,
   ApiAnthropicRedactedThinkingWireRoute: ApiAnthropicRedactedThinkingWireRoute,
+  ApiAnthropicRefusalRoute: ApiAnthropicRefusalRoute,
   ApiAnthropicSkillsWireRoute: ApiAnthropicSkillsWireRoute,
   ApiAnthropicSonnet55WireRoute: ApiAnthropicSonnet55WireRoute,
-  ApiAnthropicStructuredUsageRoute: ApiAnthropicStructuredUsageRoute,
   ApiAnthropicThinkingOrderWireRoute: ApiAnthropicThinkingOrderWireRoute,
   ApiAnthropicTruncatedToolInputWireRoute:
     ApiAnthropicTruncatedToolInputWireRoute,
@@ -3657,6 +3822,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiByteplusEncryptedReasoningWireRoute:
     ApiByteplusEncryptedReasoningWireRoute,
   ApiByteplusSeedance1080pWireRoute: ApiByteplusSeedance1080pWireRoute,
+  ApiCallOwnershipWireRoute: ApiCallOwnershipWireRoute,
   ApiChatRoute: ApiChatRoute,
   ApiChatCompletionsIncompleteStreamRoute:
     ApiChatCompletionsIncompleteStreamRoute,
@@ -3694,6 +3860,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpAppsCallRoute: ApiMcpAppsCallRoute,
   ApiMcpAppsChatRoute: ApiMcpAppsChatRoute,
   ApiMcpAppsServerRoute: ApiMcpAppsServerRoute,
+  ApiMcpEventsControlRoute: ApiMcpEventsControlRoute,
+  ApiMcpEventsServerRoute: ApiMcpEventsServerRoute,
+  ApiMcpEventsWebhookRoute: ApiMcpEventsWebhookRoute,
   ApiMcpInputServerRoute: ApiMcpInputServerRoute,
   ApiMcpInputTestRoute: ApiMcpInputTestRoute,
   ApiMcpLifecycleTestRoute: ApiMcpLifecycleTestRoute,
@@ -3716,6 +3885,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMultimodalToolResultWireRoute: ApiMultimodalToolResultWireRoute,
   ApiNonStreamingRunErrorRoute: ApiNonStreamingRunErrorRoute,
   ApiOpenaiCompletedResponseTextRoute: ApiOpenaiCompletedResponseTextRoute,
+  ApiOpenaiComputerUseWireRoute: ApiOpenaiComputerUseWireRoute,
   ApiOpenaiImage25ModelsRoute: ApiOpenaiImage25ModelsRoute,
   ApiOpenaiMalformedToolArgumentsRoute: ApiOpenaiMalformedToolArgumentsRoute,
   ApiOpenaiResponsesUsageRoute: ApiOpenaiResponsesUsageRoute,

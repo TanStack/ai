@@ -9,7 +9,7 @@ function genericInterruptContinuationFromDescriptor(interrupt):
   | undefined;
 ```
 
-Defined in: [packages/ai/src/generic-interrupt-continuation.ts:123](https://github.com/TanStack/ai/blob/main/packages/ai/src/generic-interrupt-continuation.ts#L123)
+Defined in: packages/ai/src/generic-interrupt-continuation.ts:123
 
 Build the resume-metadata continuation from an outbound AG-UI interrupt.
 

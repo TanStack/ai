@@ -27,8 +27,7 @@ import { EventType, isTerminalRunStatus } from '@tanstack/ai'
 // `RunController`, not a driver of its own. The DO run log backs both of the
 // driver's seams through the adapters in './durability' — `runLogStore` for
 // the lifecycle record, `runLogStream` for the per-run event log — and the
-// vocabulary is core's throughout (historical `done`/`error` records are
-// migrated on read; see './run-log').
+// vocabulary is core's throughout.
 import { RunController } from '@tanstack/ai-sandbox'
 import { runLogStore, runLogStream } from './durability'
 import { hasInFlightCallback } from './coordinator-callbacks'
@@ -345,8 +344,8 @@ export abstract class SandboxCoordinator<
     if (this.stallTimeoutMs === false) return
 
     try {
-      // Through the log (not a raw `rec:` list) so legacy records are migrated
-      // on the way out — the storage layout is the log's private concern.
+      // Through the log (not a raw `rec:` list) — the storage layout is the
+      // log's private concern.
       const runs = await this.log.list()
       const cutoff = Date.now() - this.stallTimeoutMs
       let active = false

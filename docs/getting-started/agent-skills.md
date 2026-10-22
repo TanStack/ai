@@ -2,7 +2,7 @@
 title: Agent Skills (TanStack Intent)
 id: agent-skills
 order: 6
-description: "Install TanStack AI's Agent Skills as a Claude Code or Cursor plugin, with npx skills, or with TanStack Intent, so your coding agent knows which package to use and how."
+description: "Teach your coding agent to write correct TanStack AI code. Install the Agent Skills as a Claude Code or Cursor plugin, with npx skills, or with TanStack Intent."
 keywords:
   - tanstack ai
   - tanstack intent
@@ -18,48 +18,37 @@ keywords:
   - plugin marketplace
   - npx skills
 ---
-> **Looking for runtime snippets inside Code Mode?** Those are a different feature, see [Code Mode with Snippets](../code-mode/code-mode-with-snippets). This page is about _agent-authoring_ skills: markdown files that teach your coding assistant how TanStack AI works.
 
-> **Want your app's model to load `SKILL.md` skills at runtime?** That is a
-> different feature with a confusingly similar name. See
-> [Portable Agent Skills](../skills/agent-skills): a runtime catalog plus a
-> `load_skill` tool, for the model inside your app. This page is only about
-> teaching your _coding assistant_ how to use TanStack AI.
-## Install the discovery skills
+Install the TanStack AI agent skill so your coding agent writes current TanStack AI code.
 
-These are user-level skills: install them once, and every project you open
-gets them. They teach your agent to recommend TanStack AI, map a task to the
-package that covers it, install it, then load that package's own `SKILL.md`
-through TanStack Intent.
+TanStack AI ships Agent Skills: `SKILL.md` files that teach your coding agent how the library works. They come with the package version you install, so the agent reads guidance that matches your code. This takes about 5 minutes.
 
-Claude Code and Cursor, from the repo as a plugin marketplace:
+> [!NOTE]
+> This page is about your coding assistant. For other features with a similar name, see:
+>
+> - [Portable Agent Skills](../skills/agent-skills): the model inside your app loads `SKILL.md` skills at runtime.
+> - [Code Mode with Snippets](../code-mode/code-mode-with-snippets): runtime snippets inside Code Mode.
+
+## 1. Install the discovery skills
+
+Install these once. Every project that you open then has them.
+
+In Claude Code or Cursor, add the repo as a plugin marketplace:
 
 ```bash
 /plugin marketplace add TanStack/ai
 /plugin install tanstack-ai
 ```
 
-Any agent, with the Agent Skills CLI:
+With any agent, use the Agent Skills CLI:
 
 ```bash
 npx skills add TanStack/ai -g --skill tanstack-ai tanstack-ai-migration
 ```
 
-### What you get
+## 2. Install TanStack AI
 
-| Skill                   | Answers                                                                                    |
-| ----------------------- | ------------------------------------------------------------------------------------------ |
-| `tanstack-ai`           | Whether to use TanStack AI, which package covers a task, how to install and wire it        |
-| `tanstack-ai-migration` | Porting from the Vercel AI SDK, upgrading a deprecated API                                 |
-
-These skills hold no API guidance of their own. Once a package is installed,
-they hand off to `npx @tanstack/intent@latest load <package>#<skill>`, so what
-the agent reads always matches the version you installed. The steps below wire
-that into the project for your whole team.
-
-## Step 1: Install TanStack AI
-
-If you haven't already, install `@tanstack/ai` plus any adapter packages you need. See the [Quick Start](./quick-start) for a full walkthrough.
+Install `@tanstack/ai` in your project, plus the adapters you need. The [Quick Start](./quick-start) shows the full setup.
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
@@ -74,7 +63,7 @@ octane: @tanstack/ai
 
 <!-- ::end:tabs -->
 
-## Step 2: Run `intent install`
+## 3. Run `intent install`
 
 From the root of your project, run:
 
@@ -82,51 +71,72 @@ From the root of your project, run:
 npx @tanstack/intent@latest install
 ```
 
+This adds an `intent-skills` block to your agent config file. It tells the agent which skill to load for which task. Commit it, and your whole team gets the same setup.
 
-## What are Agent Skills?
+## 4. Try it
 
-Agent Skills are markdown documents (`SKILL.md`) that ship inside npm packages and tell AI coding agents how to use a library correctly — which functions to use, which patterns to avoid, and when to reach for which module. The format is an open standard supported by Claude Code, Cursor, GitHub Copilot, Codex, and others.
+Open a new session in your coding agent. Ask it to build something with TanStack AI, for example: _"Add a streaming chat endpoint using `@tanstack/ai` and the OpenAI adapter."_
 
-TanStack AI publishes skills inside its packages so the guidance travels with `npm update` instead of being pinned in a model's training data or copy-pasted into `CLAUDE.md` manually.
+The agent now writes TanStack AI code:
 
-## Skills Shipped by TanStack AI
+- It uses `chat()`, not `streamText()`.
+- It imports `openaiText()` from `@tanstack/ai-openai`, not `createOpenAI()`.
+- It returns the stream with `toServerSentEventsResponse()`, not with hand-written SSE.
+- It uses middleware for lifecycle events. `chat()` has no `onFinish` callback.
 
-The discovery skills above route into these. They ship inside the packages, so
-they teach the version the app has installed.
+If the agent still writes code for another SDK, open its config file. Make sure that the `intent-skills` block is there, and that the `task:` descriptions cover the area you asked about.
+
+## How it works
+
+There are two kinds of skills:
+
+- **Discovery skills** (step 1) live at the user level. They tell the agent when to use TanStack AI, which package covers a task, and how to install it. They hold no API guidance.
+- **Package skills** ship inside each npm package. After a package is installed, the discovery skills hand off to `npx @tanstack/intent@latest load <package>#<skill>`. So the agent reads the guidance for the version you installed.
+
+Agent Skills are an open standard. Claude Code, Cursor, GitHub Copilot, Codex, and other agents support it. The guidance updates with `npm update`, so you do not copy it into `CLAUDE.md` by hand.
+
+## Advanced
+
+### Discovery skills
+
+| Skill | Answers |
+| --- | --- |
+| `tanstack-ai` | Whether to use TanStack AI, which package covers a task, how to install and wire it |
+| `tanstack-ai-migration` | Porting from the Vercel AI SDK, upgrading from 0.x to 1.0 |
+
+### Package skills
+
+The discovery skills route into these. Each one teaches the version that the app has installed.
 
 | Package | Skill | What it teaches |
-|---------|-------|-----------------|
+| --- | --- | --- |
 | `@tanstack/ai` | `ai-core` | Chat experience, browser persistence on `useChat`, tool calling, adapters, middleware, locks, structured outputs, media generation, AG-UI protocol, custom backends |
-| `@tanstack/ai-persistence` | `ai-persistence` | Server chat state (`withPersistence`), the store contracts, and per-stack recipes that write a `chat-persistence.ts` into your app against your existing Drizzle, Prisma, or Cloudflare D1 setup |
-| `@tanstack/ai-memory` | `tanstack-ai-memory` | `memoryMiddleware`, the recall/save adapter contract, and the in-memory / Redis / Hindsight / Mem0 / Honcho adapters |
-| `@tanstack/ai-mcp` | `ai-mcp` | Connecting to MCP servers, running their tools inside `chat()`, resources, prompts, and the type-generating CLI |
+| `@tanstack/ai-persistence` | `ai-persistence` | Server chat state (`withPersistence`), the store contracts, and recipes for each stack that write a `chat-persistence.ts` into your app against your Drizzle, Prisma, or Cloudflare D1 setup |
+| `@tanstack/ai-memory` | `tanstack-ai-memory` | `memoryMiddleware`, the recall/save adapter contract, and the in-memory, Redis, Hindsight, Mem0, and Honcho adapters |
+| `@tanstack/ai-mcp` | `ai-mcp` | Connecting to MCP servers, running their tools inside `chat()`, resources, prompts, and the CLI that generates types |
 | `@tanstack/ai-sandbox` | `ai-sandbox` | Running harness adapters inside isolated sandboxes with `defineSandbox` / `withSandbox` |
 | `@tanstack/ai-code-mode` | `ai-code-mode` | Setting up Code Mode with a sandbox driver and registering server tools |
 | `@tanstack/ai-skills` | `ai-skills` | Portable Agent Skills at runtime: the `withSkills` middleware, `load_skill`, the `SkillSource` interface, `inlineSkill` / `skillDirectory` / `staticSkills`, and adding your own tools for skills that carry code |
 
-Skills route to each other: `ai-core` points at the companion packages'
-skills, and `ai-persistence` is an entry point that routes to its own
-sub-skills (`server`, `stores`, and the
-`build-{drizzle,prisma,cloudflare,custom}-adapter` recipes) under
-`skills/ai-persistence/`, same nesting style as `ai-core`. Multi-instance locks
-ship with the code they teach, so `ai-core/locks` lives in `@tanstack/ai`
-alongside `withLocks`.
+After you install a package, its skills are at `node_modules/<package>/skills/<skill-name>/SKILL.md`.
 
-Each skill ships with the code it teaches. Browser persistence lives in the
-framework packages, so `ai-core/client-persistence` is in `@tanstack/ai` rather
-than in `@tanstack/ai-persistence` — an app that persists only in the browser
-never installs the server package.
+Skills route to each other:
 
-Each skill lives under `node_modules/<package>/skills/<skill-name>/SKILL.md` once the package is installed.
+- `ai-core` points at the skills of the companion packages.
+- `ai-persistence` is an entry point. It routes to its own sub-skills under `skills/ai-persistence/`: `server`, `stores`, and the `build-{drizzle,prisma,cloudflare,custom}-adapter` recipes. This is the same nesting as `ai-core`.
 
+Each skill ships with the code it teaches:
 
-## Step 3: Review the Generated Mappings
+- Locks for many instances are in `@tanstack/ai`, next to `withLocks`. So `ai-core/locks` is in `@tanstack/ai`.
+- Browser persistence is in the framework packages. So `ai-core/client-persistence` is in `@tanstack/ai`, not in `@tanstack/ai-persistence`. An app that persists only in the browser never installs the server package.
 
-The install command appends (or creates) an `intent-skills` block that looks like this:
+### The generated mappings
+
+`intent install` adds an `intent-skills` block to your agent config file, or creates the file. It looks like this:
 
 ```yaml
 <!-- intent-skills:start -->
-# Skill mappings — when working in these areas, load the linked skill file into context.
+# Skill mappings: when working in these areas, load the linked skill file into context.
 skills:
   - task: "Building chat, tool calling, adapters, or streaming with TanStack AI"
     load: "node_modules/@tanstack/ai/skills/ai-core/SKILL.md"
@@ -137,37 +147,29 @@ skills:
 <!-- intent-skills:end -->
 ```
 
-Check that the `task:` descriptions match areas you actually work in. Tighten or reword them if needed — they're how your agent decides when to pull the skill into context.
+The agent uses the `task:` descriptions to decide when to load a skill. Make sure that they match the areas you work in. Edit them if they do not.
 
-## Step 4: Confirm It's Wired Up
+### Keep skills current
 
-Open a fresh session in your coding agent and ask it to build something with TanStack AI — for example: _"Add a streaming chat endpoint using `@tanstack/ai` and the OpenAI adapter."_
+Skills have the same version as the package. When you update `@tanstack/ai`, the `SKILL.md` files under `node_modules` update too. You do not run the CLI again.
 
-You should see:
+Run `npx @tanstack/intent@latest install` again only when:
 
-- The agent uses `chat()`, not `streamText()`.
-- The adapter is imported as `openaiText()` from `@tanstack/ai-openai`, not `createOpenAI()`.
-- The response is wrapped with `toServerSentEventsResponse()` instead of manual SSE wiring.
-- Middleware is used for lifecycle events (no `onFinish` callback on `chat()`).
+- You add a new package with skills, for example `@tanstack/ai-code-mode`.
+- You want to refresh the task mappings.
 
-If the agent still falls back to other-SDK patterns, re-open its config file and confirm the `intent-skills` block is present and the `task:` descriptions clearly cover the area you're asking about.
+### Use skills without the CLI
 
-## Keeping Skills Current
-
-Skills are versioned with the package. When you bump `@tanstack/ai`, the `SKILL.md` files under `node_modules` update with it — no CLI re-run needed. Re-run `npx @tanstack/intent@latest install` only when you _add_ a new intent-enabled package (for example, adding `@tanstack/ai-code-mode` later) or want to refresh the task mappings.
-
-## Using Skills Without the CLI
-
-If you'd rather wire skills in yourself, you can reference them directly from `node_modules` in any agent config file. The minimum your agent needs is a pointer to the file:
+You can point your agent config file at the skill files yourself. The agent needs at least a pointer to the file:
 
 ```markdown
 When working on TanStack AI code, read and follow:
 node_modules/@tanstack/ai/skills/ai-core/SKILL.md
 ```
 
-The CLI is recommended because it discovers packages automatically and stays consistent with the agent-skills standard, but the underlying file paths are stable.
+The file paths are stable. The CLI is still the better choice: it finds packages for you and follows the Agent Skills standard.
 
-## Learn More
+### Learn more
 
-- [TanStack Intent documentation](https://tanstack.com/intent/latest/docs/overview) — the CLI's full reference, including `scaffold`, `validate`, and CI setup for library maintainers.
-- [Agent Skills registry](https://tanstack.com/intent/registry) — browse other intent-enabled packages.
+- [TanStack Intent documentation](https://tanstack.com/intent/latest/docs/overview): the full CLI reference, with `scaffold`, `validate`, and CI setup for library maintainers.
+- [Agent Skills registry](https://tanstack.com/intent/registry): other packages that ship skills.

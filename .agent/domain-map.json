@@ -1,0 +1,161 @@
+{
+  "version": 1,
+  "domains": [
+    {
+      "id": "core",
+      "owns": ["packages/ai", "packages/ai-utils", "packages/ai-event-client"],
+      "talksTo": []
+    },
+    {
+      "id": "provider-adapters",
+      "owns": [
+        "packages/openai-base",
+        "packages/ai-openai",
+        "packages/ai-anthropic",
+        "packages/ai-gemini",
+        "packages/ai-ollama",
+        "packages/ai-bedrock",
+        "packages/ai-byteplus",
+        "packages/ai-cloudflare",
+        "packages/ai-cohere",
+        "packages/ai-elevenlabs",
+        "packages/ai-fal",
+        "packages/ai-grok",
+        "packages/ai-groq",
+        "packages/ai-llmgateway",
+        "packages/ai-lovable",
+        "packages/ai-mistral",
+        "packages/ai-ollaya",
+        "packages/ai-openrouter",
+        "packages/ai-perplexity",
+        "packages/ai-reactor",
+        "packages/ai-typesafe",
+        "packages/ai-vercel-gateway",
+        "packages/ai-vertex",
+        "packages/ai-worldlabs"
+      ],
+      "talksTo": ["core"]
+    },
+    {
+      "id": "harness",
+      "owns": [
+        "packages/ai-acp",
+        "packages/ai-claude-code",
+        "packages/ai-codex",
+        "packages/ai-opencode",
+        "packages/ai-grok-build"
+      ],
+      "talksTo": ["core", "sandbox"]
+    },
+    {
+      "id": "client",
+      "owns": [
+        "packages/ai-client",
+        "packages/ai-react",
+        "packages/ai-solid",
+        "packages/ai-vue",
+        "packages/ai-svelte",
+        "packages/ai-angular",
+        "packages/ai-preact",
+        "packages/ai-remix",
+        "packages/ai-octane",
+        "packages/ai-react-ui",
+        "packages/ai-solid-ui",
+        "packages/ai-vue-ui"
+      ],
+      "talksTo": ["core"]
+    },
+    {
+      "id": "code-mode",
+      "owns": [
+        "packages/ai-code-mode",
+        "packages/ai-code-mode-snippets",
+        "packages/ai-isolate-cloudflare",
+        "packages/ai-isolate-daytona",
+        "packages/ai-isolate-e2b",
+        "packages/ai-isolate-node",
+        "packages/ai-isolate-quickjs",
+        "packages/ai-isolate-quickjs-bun"
+      ],
+      "talksTo": ["core"]
+    },
+    {
+      "id": "sandbox",
+      "owns": [
+        "packages/ai-sandbox",
+        "packages/ai-sandbox-blaxel",
+        "packages/ai-sandbox-boxd",
+        "packages/ai-sandbox-cloudflare",
+        "packages/ai-sandbox-daytona",
+        "packages/ai-sandbox-docker",
+        "packages/ai-sandbox-e2b",
+        "packages/ai-sandbox-local-process",
+        "packages/ai-sandbox-railway",
+        "packages/ai-sandbox-sprites",
+        "packages/ai-sandbox-upstash-box",
+        "packages/ai-sandbox-vercel"
+      ],
+      "talksTo": ["core", "middleware", "persistence"]
+    },
+    {
+      "id": "middleware",
+      "owns": [
+        "packages/ai-compaction",
+        "packages/ai-memory",
+        "packages/ai-skills",
+        "packages/ai-mcp"
+      ],
+      "talksTo": ["core"]
+    },
+    {
+      "id": "persistence",
+      "owns": ["packages/ai-persistence", "packages/ai-durable-stream"],
+      "talksTo": ["core"]
+    },
+    {
+      "id": "devtools",
+      "owns": [
+        "packages/ai-devtools",
+        "packages/react-ai-devtools",
+        "packages/solid-ai-devtools",
+        "packages/svelte-ai-devtools",
+        "packages/preact-ai-devtools"
+      ],
+      "talksTo": ["core"]
+    },
+    {
+      "id": "computer-use",
+      "owns": [
+        "packages/ai-computer-use",
+        "packages/ai-computer-playwright",
+        "packages/ai-computer-sandbox"
+      ],
+      "talksTo": ["core"]
+    },
+    {
+      "id": "e2e",
+      "owns": ["testing/e2e"],
+      "talksTo": [
+        "client",
+        "code-mode",
+        "computer-use",
+        "core",
+        "harness",
+        "middleware",
+        "persistence",
+        "provider-adapters",
+        "sandbox"
+      ]
+    },
+    {
+      "id": "docs",
+      "owns": ["docs"],
+      "talksTo": []
+    },
+    {
+      "id": "model-sync",
+      "owns": ["scripts/model-sync"],
+      "talksTo": ["provider-adapters"]
+    }
+  ]
+}

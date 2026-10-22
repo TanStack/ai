@@ -304,9 +304,10 @@ export interface CodeModeToolResult {
 }
 
 /**
- * Return shape of `createCodeMode`. `tool` (execute_typescript) and
- * `systemPrompt` are preserved for backward compatibility; `discoveryTool` and
- * `tools` are additive. Spread `tools` into `chat({ tools })`.
+ * Return shape of `createCodeMode`. `tool` is the execute_typescript tool and
+ * `systemPrompt` tells the model how to use it. `discoveryTool` is set when
+ * there are lazy tools. `tools` holds `tool`, plus `discoveryTool` when it is
+ * set. Spread `tools` into `chat({ tools })`.
  */
 export interface CreateCodeModeResult {
   /** The execute_typescript tool. */

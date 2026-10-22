@@ -21,6 +21,7 @@ export async function POST({ request }: { request: Request }) {
       status: 400,
     })
   }
+  // The hook always sends its threadId. A bare body has none.
 
   // Call OpenRouter. stream: true so the hook can listen on SSE.
   // The hook stores the finished picture on result.images.

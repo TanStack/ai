@@ -19,7 +19,7 @@ type MessagePart<TData> =
   | SubagentPart;
 ```
 
-Defined in: [packages/ai/src/types.ts:674](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L674)
+Defined in: packages/ai/src/types.ts:674
 
 ## Type Parameters
 

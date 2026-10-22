@@ -3,7 +3,7 @@ id: TextAdapter
 title: TextAdapter
 ---
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:75](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L75)
+Defined in: packages/ai/src/activities/chat/adapter.ts:75
 
 Text adapter interface with pre-resolved generics.
 
@@ -64,7 +64,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:133](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L133)
+Defined in: packages/ai/src/activities/chat/adapter.ts:133
 
 **`Internal`**
 
@@ -125,7 +125,7 @@ toolCapabilities: TToolCapabilities;
 readonly optional api?: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:90](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L90)
+Defined in: packages/ai/src/activities/chat/adapter.ts:90
 
 Wire API identity. Defaults to the adapter kind when omitted.
 
@@ -137,7 +137,7 @@ Wire API identity. Defaults to the adapter kind when omitted.
 chatStream: (options) => AsyncIterable<AdapterYieldChunk>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:152](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L152)
+Defined in: packages/ai/src/activities/chat/adapter.ts:152
 
 Stream text completions from the model
 
@@ -159,7 +159,7 @@ Stream text completions from the model
 optional combinedStructuredOutputSource?: (modelOptions?) => "text" | "event";
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:227](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L227)
+Defined in: packages/ai/src/activities/chat/adapter.ts:227
 
 Where native-combined structured output is taken from.
 
@@ -191,7 +191,7 @@ optional compact?: (options) => Promise<ModelMessage<
 | null>[]>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:192](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L192)
+Defined in: packages/ai/src/activities/chat/adapter.ts:192
 
 Compact the history with the provider's own compaction endpoint.
 Resolves to the history to send from the next call on. It can hold
@@ -219,7 +219,7 @@ without native compaction omit it.
 readonly optional inputModalities?: readonly ("text" | "image" | "audio" | "video" | "document")[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:120](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L120)
+Defined in: packages/ai/src/activities/chat/adapter.ts:120
 
 The input kinds the model reads, at runtime, from the provider's model
 metadata. `undefined` means not known. This mirrors the type-level
@@ -234,7 +234,7 @@ keeps model lookups assignable under `exactOptionalPropertyTypes`.
 readonly kind: "text";
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:86](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L86)
+Defined in: packages/ai/src/activities/chat/adapter.ts:86
 
 Discriminator for adapter kind
 
@@ -246,7 +246,7 @@ Discriminator for adapter kind
 readonly optional midConversationChannels?: MidConversationChannels;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:128](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L128)
+Defined in: packages/ai/src/activities/chat/adapter.ts:128
 
 The mid-conversation channels of the model: tools and system prompts
 added between model calls can go out with no change to the cached prompt
@@ -261,7 +261,7 @@ channel is on. `undefined` means no channels.
 readonly model: TModel;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:94](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L94)
+Defined in: packages/ai/src/activities/chat/adapter.ts:94
 
 The model this adapter is configured for
 
@@ -273,7 +273,7 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:88](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L88)
+Defined in: packages/ai/src/activities/chat/adapter.ts:88
 
 Provider name identifier (e.g., 'openai', 'anthropic')
 
@@ -285,7 +285,7 @@ Provider name identifier (e.g., 'openai', 'anthropic')
 readonly optional provider?: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:92](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L92)
+Defined in: packages/ai/src/activities/chat/adapter.ts:92
 
 Provider identity. Defaults to `name` when omitted.
 
@@ -297,7 +297,7 @@ Provider identity. Defaults to `name` when omitted.
 readonly optional requires?: readonly CapabilityHandle[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:103](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L103)
+Defined in: packages/ai/src/activities/chat/adapter.ts:103
 
 Capabilities this adapter requires at runtime. `chat()` validates that the
 configured middleware provides each one. Model adapters omit this; harness
@@ -313,7 +313,7 @@ this is the declaration/validation surface only.
 structuredOutput: (options) => Promise<StructuredOutputResult<unknown>>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:164](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L164)
+Defined in: packages/ai/src/activities/chat/adapter.ts:164
 
 Generate structured output using the provider's native structured output API.
 This method uses stream: false and sends the JSON schema to the provider
@@ -341,7 +341,7 @@ Promise with the raw data (validation is done in the chat function)
 optional structuredOutputStream?: (options) => AsyncIterable<AdapterYieldChunk>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:182](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L182)
+Defined in: packages/ai/src/activities/chat/adapter.ts:182
 
 Stream structured output using the provider's native streaming structured
 output API (stream + response_format json_schema in a single request).
@@ -374,7 +374,7 @@ their timestamps follow stream order.
 optional supportsCombinedToolsAndSchema?: (modelOptions?) => boolean;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:213](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L213)
+Defined in: packages/ai/src/activities/chat/adapter.ts:213
 
 Declares whether the adapter supports combining `tools` and a
 schema-constrained final answer in a single streaming request.
@@ -412,7 +412,7 @@ answer per-request. Most adapters can return a constant.
 readonly optional supportsFileSources?: boolean;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:112](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L112)
+Defined in: packages/ai/src/activities/chat/adapter.ts:112
 
 Declares that this adapter can consume `{ type: 'file' }` content sources
 (provider Files API references). `chat()` rejects file sources in preflight

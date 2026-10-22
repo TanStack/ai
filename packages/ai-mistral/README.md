@@ -82,11 +82,8 @@ const adapter = createMistralText(
 - `ministral-8b-latest` - 8B edge model
 - `ministral-3b-latest` - 3B edge model
 - `codestral-latest` - Code-specialized model (256k context)
-- `pixtral-large-latest` - Large vision model
-- `pixtral-12b-2409` - 12B vision model
 - `magistral-medium-latest` - Reasoning model
 - `magistral-small-latest` - Small reasoning model
-- `open-mistral-nemo` - Open 12B model
 
 See [Mistral model comparison](https://docs.mistral.ai/getting-started/models/compare) for full details.
 
@@ -96,7 +93,7 @@ See [Mistral model comparison](https://docs.mistral.ai/getting-started/models/co
 - ✅ Structured output (JSON Schema)
 - ✅ Function/tool calling
 - ✅ Reasoning (magistral-\_ models — streamed as `REASONING\__` events)
-- ✅ Multimodal input (text + images) — requires a vision-capable model (`pixtral-large-latest`, `pixtral-12b-2409`, `mistral-medium-latest`, or `mistral-small-latest`)
+- ✅ Multimodal input (text + images) — requires a vision-capable model (`mistral-medium-latest` or `mistral-small-latest`)
 - ❌ Embeddings (use [@mistralai/mistralai](https://github.com/mistralai/client-ts) directly)
 - ❌ Image generation
 

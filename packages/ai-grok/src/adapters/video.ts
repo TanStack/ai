@@ -94,7 +94,6 @@ function buildGrokVideoUsage(
     totalTokens: 0,
     ...(seconds !== undefined && {
       billed: { quantity: seconds, unit: 'seconds' },
-      unitsBilled: seconds,
     }),
     ...(ticks !== undefined && { cost: ticks / USD_TICKS_PER_DOLLAR }),
   }

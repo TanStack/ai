@@ -90,6 +90,7 @@ describe('Groq TTS adapter', () => {
       )
 
       const result = await generateSpeech({
+        threadId: 'thread-1',
         adapter,
         text: 'Hello, world!',
         voice: 'autumn',
@@ -113,6 +114,7 @@ describe('Groq TTS adapter', () => {
       )
 
       await generateSpeech({
+        threadId: 'thread-1',
         adapter,
         text: 'Test speech',
         voice: 'daniel',
@@ -144,7 +146,11 @@ describe('Groq TTS adapter', () => {
         'test-api-key',
       )
 
-      const result = await generateSpeech({ adapter, text: 'Hello!' })
+      const result = await generateSpeech({
+        threadId: 'thread-1',
+        adapter,
+        text: 'Hello!',
+      })
 
       expect(result.format).toBe('wav')
       expect(result.contentType).toBe('audio/wav')
@@ -158,7 +164,7 @@ describe('Groq TTS adapter', () => {
         'test-api-key',
       )
 
-      await generateSpeech({ adapter, text: 'Hello!' })
+      await generateSpeech({ threadId: 'thread-1', adapter, text: 'Hello!' })
 
       const [params] = mockSpeechCreate.mock.calls[0] as [
         Record<string, unknown>,
@@ -173,7 +179,11 @@ describe('Groq TTS adapter', () => {
       )
 
       await expect(
-        generateSpeech({ adapter, text: 'a'.repeat(201) }),
+        generateSpeech({
+          threadId: 'thread-1',
+          adapter,
+          text: 'a'.repeat(201),
+        }),
       ).rejects.toThrow('Input text exceeds maximum length of 200 characters.')
     })
 
@@ -192,7 +202,12 @@ describe('Groq TTS adapter', () => {
           'test-api-key',
         )
 
-        const result = await generateSpeech({ adapter, text: 'Test', format })
+        const result = await generateSpeech({
+          threadId: 'thread-1',
+          adapter,
+          text: 'Test',
+          format,
+        })
 
         expect(result.contentType).toBe(expectedContentType)
       }
@@ -207,6 +222,7 @@ describe('Groq TTS adapter', () => {
       )
 
       const result = await generateSpeech({
+        threadId: 'thread-1',
         adapter,
         text: 'مرحبا',
         voice: 'fahad',

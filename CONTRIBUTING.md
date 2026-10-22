@@ -133,7 +133,7 @@ Add tests covering the code you changed, so each metric is back at 60% or more. 
 Two known limitations:
 
 - Uncovered `.tsx` files can't be remapped by the coverage provider and are dropped from the report with a `Failed to parse ... Excluding it from coverage` warning. `.tsx` files that tests _do_ load are measured normally, so the UI packages read higher than their real coverage.
-- `ai-react-ui`, `ai-solid-ui`, `ai-vue-ui`, `preact-ai-devtools`, `react-ai-devtools`, `solid-ai-devtools`, and `svelte-ai-devtools` have no tests, so they have no `test:coverage` script. The collect step fails when a measured package reports 0 statements. Add the script back when the package gets tests.
+- `preact-ai-devtools`, `react-ai-devtools`, `solid-ai-devtools`, and `svelte-ai-devtools` have no tests, so they have no `test:coverage` script. The collect step fails when a measured package reports 0 statements. Add the script back when the package gets tests.
 
 A **new package that defines `test:coverage`** shows as `new` and cannot fail the comparison. Packages without that script are not measured.
 

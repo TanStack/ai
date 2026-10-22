@@ -176,6 +176,7 @@ describe('native OpenRouter replay parity', () => {
       const original = JSON.stringify(messages)
       await collect(
         mock.adapter.chatStream({
+          threadId: 'thread-1',
           logger,
           model,
           messages,
@@ -258,6 +259,7 @@ describe('native OpenRouter replay parity', () => {
       const mock = sdk(api)
       const chunks = await collect(
         mock.adapter.chatStream({
+          threadId: 'thread-1',
           logger,
           model,
           messages: [{ role: 'user', content: 'Hello' }],
@@ -279,6 +281,7 @@ describe('native OpenRouter replay parity', () => {
       ).toBe('generation-real')
       const result = await mock.adapter.structuredOutput({
         chatOptions: {
+          threadId: 'thread-1',
           logger,
           model,
           messages: [{ role: 'user', content: 'Hello' }],
@@ -344,6 +347,7 @@ describe('native OpenRouter replay parity', () => {
               }
         await collect(
           mock.adapter.chatStream({
+            threadId: 'thread-1',
             logger,
             model,
             messages,
@@ -427,6 +431,7 @@ describe('native OpenRouter replay parity', () => {
       const mock = sdk(api)
       await collect(
         mock.adapter.chatStream({
+          threadId: 'thread-1',
           logger,
           model,
           messages: [
@@ -545,6 +550,7 @@ describe('native OpenRouter replay parity', () => {
     const mock = sdk('chat')
     await collect(
       mock.adapter.chatStream({
+        threadId: 'thread-1',
         logger,
         model,
         messages: [
@@ -583,6 +589,7 @@ describe('native OpenRouter replay parity', () => {
       const mock = sdk(api, undefined, textOnly)
       await collect(
         mock.adapter.chatStream({
+          threadId: 'thread-1',
           logger,
           model: textOnly,
           messages: imageTurn('a'),

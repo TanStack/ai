@@ -58,7 +58,12 @@ const answer = () =>
 const options = (
   messages: Array<ModelMessage>,
   model = 'gemini-3.7-flash',
-): TextOptions => ({ model, messages, logger: resolveDebugOption(false) })
+): TextOptions => ({
+  threadId: 'thread-1',
+  model,
+  messages,
+  logger: resolveDebugOption(false),
+})
 const signed = (origin?: MessageSource): ModelMessage => ({
   role: 'assistant',
   content: 'Answer',
@@ -333,6 +338,7 @@ describe('Gemini replay parity', () => {
       try {
         const chunks = await collect(
           chat({
+            threadId: 'thread-1',
             adapter: new GeminiTextAdapter(
               { apiKey: 'key' },
               'gemini-3.7-flash',
@@ -687,6 +693,7 @@ describe('Gemini replay parity', () => {
     ]
     const chunks = await collect(
       chat({
+        threadId: 'thread-1',
         adapter: new GeminiTextAdapter({ apiKey: 'key' }, 'gemini-3.7-flash'),
         messages,
       }),
@@ -727,6 +734,7 @@ describe('Gemini replay parity', () => {
     mocks.interactions.mockResolvedValue({ id: 'i', output_text: 'ok' })
     await collect(
       chat({
+        threadId: 'thread-1',
         adapter: new GeminiTextAdapter({ apiKey: 'key' }, 'gemini-3.7-flash'),
         messages: [
           {

@@ -21,6 +21,7 @@ describe('createChatDevtoolsBridge by NODE_ENV', () => {
   async function streamWithRealFactory() {
     const emit = vi.spyOn(aiEventClient, 'emit')
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: createMockConnectionAdapter({
         chunks: createTextChunks('Hi there'),
       }),
@@ -46,6 +47,7 @@ describe('createChatDevtoolsBridge by NODE_ENV', () => {
       expect(
         () =>
           new ChatClient({
+            threadId: 'thread-1',
             connection: createMockConnectionAdapter(),
             devtoolsBridgeFactory: createChatDevtoolsBridge,
           }),
@@ -61,7 +63,7 @@ describe('ChatClient with default no-op devtools bridge', () => {
     const adapter = createMockConnectionAdapter({
       chunks: createTextChunks('Hi there'),
     })
-    const client = new ChatClient({ connection: adapter })
+    const client = new ChatClient({ threadId: 'thread-1', connection: adapter })
 
     await client.sendMessage('hello')
 
@@ -73,7 +75,7 @@ describe('ChatClient with default no-op devtools bridge', () => {
 
   it('updates tools without throwing', () => {
     const adapter = createMockConnectionAdapter()
-    const client = new ChatClient({ connection: adapter })
+    const client = new ChatClient({ threadId: 'thread-1', connection: adapter })
 
     expect(() => client.updateOptions({ tools: [] })).not.toThrow()
   })

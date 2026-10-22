@@ -332,8 +332,9 @@ function BankingDemoPage() {
   }, [])
 
   const { messages, sendMessage, isLoading } = useChat({
+    threadId: 'banking-demo',
     connection: fetchServerSentEvents('/api/banking-demo'),
-    body,
+    forwardedProps: body,
     onCustomEvent: handleCustomEvent,
   })
 

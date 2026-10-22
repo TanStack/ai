@@ -9,7 +9,7 @@ function splitMidConversationChanges<TTool, TPrompt>(input):
   | undefined;
 ```
 
-Defined in: [packages/ai/src/utilities/mid-conversation.ts:129](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/mid-conversation.ts#L129)
+Defined in: packages/ai/src/utilities/mid-conversation.ts:129
 
 For adapters: resolve the names and counts of `changes` against the current
 `tools` and `systemPrompts`. Returns `undefined` when a name is missing, a

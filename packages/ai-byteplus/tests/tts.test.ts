@@ -77,6 +77,7 @@ describe('BytePlusTTSAdapter', () => {
   it('posts to /api/v3/tts/create with the Seed Speech key and default speaker', async () => {
     const fetchMock = ttsFetch()
     const result: BytePlusTTSResult = await generateSpeech({
+      threadId: 'thread-1',
       adapter: adapterWith(fetchMock),
       text: 'welcome to the guitar store',
     })
@@ -110,11 +111,19 @@ describe('BytePlusTTSAdapter', () => {
 
   it('sends a per-request X-Api-Request-Id', async () => {
     const fetchMock = ttsFetch()
-    await generateSpeech({ adapter: adapterWith(fetchMock), text: 'hi' })
+    await generateSpeech({
+      threadId: 'thread-1',
+      adapter: adapterWith(fetchMock),
+      text: 'hi',
+    })
     const first = lastRequest(fetchMock).headers.get('x-api-request-id')
     expect(first).toBeTruthy()
 
-    await generateSpeech({ adapter: adapterWith(fetchMock), text: 'hi' })
+    await generateSpeech({
+      threadId: 'thread-1',
+      adapter: adapterWith(fetchMock),
+      text: 'hi',
+    })
     expect(lastRequest(fetchMock).headers.get('x-api-request-id')).not.toBe(
       first,
     )
@@ -126,6 +135,7 @@ describe('BytePlusTTSAdapter', () => {
     // is how they end up copied into docs as if they were real.
     const fetchMock = ttsFetch()
     await generateSpeech({
+      threadId: 'thread-1',
       adapter: adapterWith(fetchMock),
       text: 'hi',
       voice: 'test-voice-from-options',
@@ -135,6 +145,7 @@ describe('BytePlusTTSAdapter', () => {
     ])
 
     await generateSpeech({
+      threadId: 'thread-1',
       adapter: adapterWith(fetchMock),
       text: 'hi',
       voice: 'test-voice-from-options',
@@ -148,6 +159,7 @@ describe('BytePlusTTSAdapter', () => {
   it('lets an explicit references array replace the speaker entry', async () => {
     const fetchMock = ttsFetch()
     await generateSpeech({
+      threadId: 'thread-1',
       adapter: adapterWith(fetchMock),
       text: 'say it like @Audio1',
       voice: 'test-voice-from-options',
@@ -165,6 +177,7 @@ describe('BytePlusTTSAdapter', () => {
     it('normalizes `true` to the audible marker', async () => {
       const fetchMock = ttsFetch()
       await generateSpeech({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock),
         text: 'hi',
         modelOptions: { watermark: true },
@@ -177,6 +190,7 @@ describe('BytePlusTTSAdapter', () => {
     it('normalizes `false` to the audible marker off', async () => {
       const fetchMock = ttsFetch()
       await generateSpeech({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock),
         text: 'hi',
         modelOptions: { watermark: false },
@@ -189,6 +203,7 @@ describe('BytePlusTTSAdapter', () => {
     it('forwards an explicit config unchanged', async () => {
       const fetchMock = ttsFetch()
       await generateSpeech({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock),
         text: 'hi',
         modelOptions: {
@@ -204,7 +219,11 @@ describe('BytePlusTTSAdapter', () => {
 
     it('omits watermark when unset', async () => {
       const fetchMock = ttsFetch()
-      await generateSpeech({ adapter: adapterWith(fetchMock), text: 'hi' })
+      await generateSpeech({
+        threadId: 'thread-1',
+        adapter: adapterWith(fetchMock),
+        text: 'hi',
+      })
       expect(lastRequest(fetchMock).body).not.toHaveProperty('watermark')
     })
   })
@@ -218,6 +237,7 @@ describe('BytePlusTTSAdapter', () => {
     ] as const)('maps %s to %s', async (requested, wireFormat, contentType) => {
       const fetchMock = ttsFetch()
       const result = await generateSpeech({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock),
         text: 'hi',
         format: requested,
@@ -233,6 +253,7 @@ describe('BytePlusTTSAdapter', () => {
         const fetchMock = ttsFetch()
         const logger = captureLogger()
         const result = await generateSpeech({
+          threadId: 'thread-1',
           adapter: adapterWith(fetchMock),
           text: 'hi',
           format: requested,
@@ -251,6 +272,7 @@ describe('BytePlusTTSAdapter', () => {
     it('lets modelOptions.format override the generic format', async () => {
       const fetchMock = ttsFetch()
       await generateSpeech({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock),
         text: 'hi',
         format: 'mp3',
@@ -262,6 +284,7 @@ describe('BytePlusTTSAdapter', () => {
     it('reports the caller sample rate in the pcm content type', async () => {
       const fetchMock = ttsFetch()
       const result = await generateSpeech({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock),
         text: 'hi',
         format: 'pcm',
@@ -275,7 +298,11 @@ describe('BytePlusTTSAdapter', () => {
       // The documented default (40000) is not a value the endpoint accepts,
       // so omitting the field is never safe.
       const fetchMock = ttsFetch()
-      await generateSpeech({ adapter: adapterWith(fetchMock), text: 'hi' })
+      await generateSpeech({
+        threadId: 'thread-1',
+        adapter: adapterWith(fetchMock),
+        text: 'hi',
+      })
       expect(lastRequest(fetchMock).body.audio_config.sample_rate).toBe(24000)
     })
   })
@@ -296,6 +323,7 @@ describe('BytePlusTTSAdapter', () => {
     it('forwards the derived speech_rate on the request', async () => {
       const fetchMock = ttsFetch()
       await generateSpeech({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock),
         text: 'hi',
         speed: 1.25,
@@ -305,7 +333,11 @@ describe('BytePlusTTSAdapter', () => {
 
     it('omits speech_rate when no speed is given', async () => {
       const fetchMock = ttsFetch()
-      await generateSpeech({ adapter: adapterWith(fetchMock), text: 'hi' })
+      await generateSpeech({
+        threadId: 'thread-1',
+        adapter: adapterWith(fetchMock),
+        text: 'hi',
+      })
       expect(
         lastRequest(fetchMock).body.audio_config.speech_rate,
       ).toBeUndefined()
@@ -314,6 +346,7 @@ describe('BytePlusTTSAdapter', () => {
     it('warns when the speed clamps outside the documented 0.5×–2× range', async () => {
       const logger = captureLogger()
       await generateSpeech({
+        threadId: 'thread-1',
         adapter: adapterWith(ttsFetch()),
         text: 'hi',
         speed: 4,
@@ -329,6 +362,7 @@ describe('BytePlusTTSAdapter', () => {
     it('does not warn for a speed inside the documented range', async () => {
       const logger = captureLogger()
       await generateSpeech({
+        threadId: 'thread-1',
         adapter: adapterWith(ttsFetch()),
         text: 'hi',
         speed: 1.5,
@@ -340,6 +374,7 @@ describe('BytePlusTTSAdapter', () => {
     it('lets an explicit modelOptions.speech_rate win over speed', async () => {
       const fetchMock = ttsFetch()
       await generateSpeech({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock),
         text: 'hi',
         speed: 2,
@@ -362,6 +397,7 @@ describe('BytePlusTTSAdapter', () => {
       subtitle,
     })
     const result: BytePlusTTSResult = await generateSpeech({
+      threadId: 'thread-1',
       adapter: adapterWith(fetchMock),
       text: 'hi',
       modelOptions: {
@@ -392,6 +428,7 @@ describe('BytePlusTTSAdapter', () => {
         original_duration: 10,
       })
       const result: BytePlusTTSResult = await generateSpeech({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock),
         text: 'hi',
       })
@@ -409,6 +446,7 @@ describe('BytePlusTTSAdapter', () => {
         original_duration: BYTEPLUS_TTS_MAX_OUTPUT_SECONDS,
       })
       const result: BytePlusTTSResult = await generateSpeech({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock),
         text: 'hi',
         speed: 0.5,
@@ -433,6 +471,7 @@ describe('BytePlusTTSAdapter', () => {
       expect(
         (
           await generateSpeech({
+            threadId: 'thread-1',
             adapter: adapterWith(stringDuration),
             text: 'hi',
           })
@@ -441,8 +480,13 @@ describe('BytePlusTTSAdapter', () => {
 
       const missing = ttsFetch({ audio: 'QUJD' })
       expect(
-        (await generateSpeech({ adapter: adapterWith(missing), text: 'hi' }))
-          .duration,
+        (
+          await generateSpeech({
+            threadId: 'thread-1',
+            adapter: adapterWith(missing),
+            text: 'hi',
+          })
+        ).duration,
       ).toBeUndefined()
     })
   })
@@ -451,6 +495,7 @@ describe('BytePlusTTSAdapter', () => {
     it('maps turns to references and a role-structured text_prompt', async () => {
       const fetchMock = ttsFetch()
       await generateSpeech({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock),
         turns: [
           { text: 'Knock knock.', voice: 'test-voice-a' },
@@ -475,6 +520,7 @@ describe('BytePlusTTSAdapter', () => {
       const fetchMock = ttsFetch()
       await expect(
         generateSpeech({
+          threadId: 'thread-1',
           adapter: adapterWith(fetchMock),
           turns: [
             { text: 'a', voice: 'v1' },
@@ -492,6 +538,7 @@ describe('BytePlusTTSAdapter', () => {
     it('lets modelOptions.references override the turn-derived ones', async () => {
       const fetchMock = ttsFetch()
       await generateSpeech({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock),
         turns: [{ text: 'hi', voice: 'test-voice-a' }],
         modelOptions: { references: [{ audio_url: 'https://example.test/a' }] },
@@ -518,6 +565,7 @@ describe('BytePlusTTSAdapter', () => {
     it('sets audio_config.enable_subtitle', async () => {
       const fetchMock = ttsFetch()
       await generateSpeech({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock),
         text: 'hi there',
         timestamps: true,
@@ -529,7 +577,11 @@ describe('BytePlusTTSAdapter', () => {
 
     it('is off unless asked for', async () => {
       const fetchMock = ttsFetch()
-      await generateSpeech({ adapter: adapterWith(fetchMock), text: 'hi' })
+      await generateSpeech({
+        threadId: 'thread-1',
+        adapter: adapterWith(fetchMock),
+        text: 'hi',
+      })
       expect(
         lastRequest(fetchMock).body.audio_config.enable_subtitle,
       ).toBeUndefined()
@@ -538,6 +590,7 @@ describe('BytePlusTTSAdapter', () => {
     it('lets an explicit modelOptions.enable_subtitle:false win', async () => {
       const fetchMock = ttsFetch()
       await generateSpeech({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock),
         text: 'hi',
         timestamps: true,
@@ -555,6 +608,7 @@ describe('BytePlusTTSAdapter', () => {
         subtitle: SUBTITLE,
       })
       const result: BytePlusTTSResult = await generateSpeech({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock),
         text: 'hi there',
         timestamps: true,
@@ -581,6 +635,7 @@ describe('BytePlusTTSAdapter', () => {
         subtitle: { words: [{ text: 'hi' }], sentences: [] },
       })
       const result: BytePlusTTSResult = await generateSpeech({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock),
         text: 'hi',
         timestamps: true,
@@ -592,6 +647,7 @@ describe('BytePlusTTSAdapter', () => {
     it('returns no alignment when the response has no subtitle', async () => {
       const fetchMock = ttsFetch()
       const result: BytePlusTTSResult = await generateSpeech({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock),
         text: 'hi',
         timestamps: true,
@@ -609,6 +665,7 @@ describe('BytePlusTTSAdapter', () => {
       )
       await expect(
         generateSpeech({
+          threadId: 'thread-1',
           adapter: adapterWith(fetchMock),
           text: 'hi',
           debug: false,
@@ -627,6 +684,7 @@ describe('BytePlusTTSAdapter', () => {
       })
       await expect(
         generateSpeech({
+          threadId: 'thread-1',
           adapter: adapterWith(fetchMock),
           text: 'hi',
           debug: false,
@@ -639,6 +697,7 @@ describe('BytePlusTTSAdapter', () => {
     it('accepts a 200 that reports code 0', async () => {
       const fetchMock = ttsFetch({ code: 0, audio: 'QUJD', duration: 1.5 })
       const result = await generateSpeech({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock),
         text: 'hi',
       })
@@ -658,6 +717,7 @@ describe('BytePlusTTSAdapter', () => {
       })
       await expect(
         generateSpeech({
+          threadId: 'thread-1',
           adapter: adapterWith(fetchMock),
           text: 'hi',
           debug: false,
@@ -668,6 +728,7 @@ describe('BytePlusTTSAdapter', () => {
     it('accepts a 200 whose success code arrives as the string "0"', async () => {
       const fetchMock = ttsFetch({ code: '0', audio: 'QUJD', duration: 1.5 })
       const result = await generateSpeech({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock),
         text: 'hi',
       })
@@ -677,6 +738,7 @@ describe('BytePlusTTSAdapter', () => {
     it('accepts a 200 that omits code entirely', async () => {
       const fetchMock = ttsFetch({ audio: 'QUJD', duration: 1.5 })
       const result = await generateSpeech({
+        threadId: 'thread-1',
         adapter: adapterWith(fetchMock),
         text: 'hi',
       })
@@ -690,6 +752,7 @@ describe('BytePlusTTSAdapter', () => {
       const fetchMock = ttsFetch({ code: 0, audio: '', duration: 1.5 })
       await expect(
         generateSpeech({
+          threadId: 'thread-1',
           adapter: adapterWith(fetchMock),
           text: 'hi',
           debug: false,
@@ -701,6 +764,7 @@ describe('BytePlusTTSAdapter', () => {
       const fetchMock = ttsFetch({ code: 45000151, message: 'Quota exceeded' })
       await expect(
         generateSpeech({
+          threadId: 'thread-1',
           adapter: adapterWith(fetchMock),
           text: 'hi',
           debug: false,
@@ -716,6 +780,7 @@ describe('BytePlusTTSAdapter', () => {
         .mockResolvedValue(new Response('<html>502</html>', { status: 502 }))
       await expect(
         generateSpeech({
+          threadId: 'thread-1',
           adapter: adapterWith(fetchMock),
           text: 'hi',
           debug: false,
@@ -727,6 +792,7 @@ describe('BytePlusTTSAdapter', () => {
   it('merges configured default headers into the request', async () => {
     const fetchMock = ttsFetch()
     await generateSpeech({
+      threadId: 'thread-1',
       adapter: adapterWith(fetchMock, { 'X-Test-Id': 'abc' }),
       text: 'hi',
     })
@@ -739,7 +805,7 @@ describe('BytePlusTTSAdapter', () => {
       baseURL: BASE_URL,
       fetch: fetchMock,
     })
-    await generateSpeech({ adapter, text: 'hi' })
+    await generateSpeech({ threadId: 'thread-1', adapter, text: 'hi' })
     expect(lastRequest(fetchMock).headers.get('x-api-key')).toBe('explicit-key')
   })
 })

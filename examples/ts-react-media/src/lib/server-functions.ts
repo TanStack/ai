@@ -274,6 +274,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
     switch (data.model) {
       case 'fal-ai/nano-banana-pro': {
         return generateImage({
+          threadId: 'media-image',
           adapter: falI('fal-ai/nano-banana-pro'),
           prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
@@ -291,6 +292,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
         // Pass aspect_ratio via modelOptions and let the endpoint pick its
         // default resolution, which both type-checks and works at runtime.
         return generateImage({
+          threadId: 'media-image',
           adapter: falI('xai/grok-imagine-image'),
           prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
@@ -303,6 +305,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
         // prompt parts for image-conditioned generation, so we narrow with
         // asImagePrompt. Sizing uses the aspect-ratio template.
         return generateImage({
+          threadId: 'media-image',
           adapter: grokI('grok-imagine-image'),
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
@@ -313,6 +316,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
         // xAI's recommended Imagine model; `quality` is a 2.0-only option
         // ('low' | 'medium', default 'medium').
         return generateImage({
+          threadId: 'media-image',
           adapter: grokI('grok-imagine-image-2.0'),
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
@@ -322,6 +326,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       }
       case 'grok-imagine-image-quality': {
         return generateImage({
+          threadId: 'media-image',
           adapter: grokI('grok-imagine-image-quality'),
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
@@ -331,6 +336,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       case 'fal-ai/flux-2/klein/9b': {
         // NOTE: Newer models are untyped (at the moment)
         return generateImage({
+          threadId: 'media-image',
           adapter: falI('fal-ai/flux-2/klein/9b'),
           prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
@@ -339,6 +345,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       }
       case 'fal-ai/z-image/turbo': {
         return generateImage({
+          threadId: 'media-image',
           adapter: falI('fal-ai/z-image/turbo'),
           prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
@@ -353,6 +360,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
         // Reference images are uploaded once via the Gemini Files API and
         // referenced by handle (fileData.fileUri) rather than inlined as base64.
         return generateImage({
+          threadId: 'media-image',
           adapter: geminiI('gemini-nano-banana-2.1'),
           prompt: await uploadInlineImageInputs(
             asImagePrompt(data.prompt),
@@ -364,6 +372,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       }
       case 'gemini-3-pro-image': {
         return generateImage({
+          threadId: 'media-image',
           adapter: geminiI('gemini-3-pro-image'),
           prompt: await uploadInlineImageInputs(
             asImagePrompt(data.prompt),
@@ -373,36 +382,13 @@ export const generateImageFn = createServerFn({ method: 'POST' })
           size: '16:9_4K',
         })
       }
-      case 'imagen-4.0-ultra-generate-001': {
-        return generateImage({
-          adapter: geminiI('imagen-4.0-ultra-generate-001'),
-          prompt: asTextPrompt(data.prompt),
-          numberOfImages: 1,
-          size: '1024x1024',
-        })
-      }
-      case 'imagen-4.0-generate-001': {
-        return generateImage({
-          adapter: geminiI('imagen-4.0-generate-001'),
-          prompt: asTextPrompt(data.prompt),
-          numberOfImages: 1,
-          size: '1024x1024',
-        })
-      }
-      case 'imagen-4.0-fast-generate-001': {
-        return generateImage({
-          adapter: geminiI('imagen-4.0-fast-generate-001'),
-          prompt: asTextPrompt(data.prompt),
-          numberOfImages: 1,
-          size: '1024x1024',
-        })
-      }
       case 'dola-seedream-5-0-pro-260628': {
         // BytePlus Seedream via ModelArk (ARK_API_KEY). `size` is either a
         // 1K/2K/4K token or an explicit WIDTHxHEIGHT string — never both.
         // Seedream models accept reference images, so image prompt parts are
         // passed straight through.
         return generateImage({
+          threadId: 'media-image',
           adapter: byteplusI('dola-seedream-5-0-pro-260628'),
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
@@ -456,6 +442,7 @@ async function videoStreamForModel(
     case 'fal-ai/kling-video/v3/pro/text-to-video': {
       const adapter = falV('fal-ai/kling-video/v3/pro/text-to-video')
       return generateVideo({
+        threadId: 'media-video',
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter,
@@ -467,6 +454,7 @@ async function videoStreamForModel(
     case 'fal-ai/veo3.1': {
       const adapter = falV('fal-ai/veo3.1')
       return generateVideo({
+        threadId: 'media-video',
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter,
@@ -477,6 +465,7 @@ async function videoStreamForModel(
     }
     case 'xai/grok-imagine-video/text-to-video': {
       return generateVideo({
+        threadId: 'media-video',
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter: falV('xai/grok-imagine-video/text-to-video'),
@@ -491,6 +480,7 @@ async function videoStreamForModel(
       // 1-15 integer seconds. Completed jobs report usage.billed
       // ({ quantity, unit: 'seconds' }) and usage.cost (exact USD).
       return generateVideo({
+        threadId: 'media-video',
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter: grokV('grok-imagine-video'),
@@ -503,6 +493,7 @@ async function videoStreamForModel(
       // Direct xAI Imagine API — grok-imagine-video-1.5 is xAI's recommended
       // default and supports text-to-video with native 1080p.
       return generateVideo({
+        threadId: 'media-video',
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter: grokV('grok-imagine-video-1.5'),
@@ -518,6 +509,7 @@ async function videoStreamForModel(
       // inapplicable field, so no service_tier/frames/camera_fixed here —
       // the 2.0 family rejects all three.
       return generateVideo({
+        threadId: 'media-video',
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter: byteplusV('dreamina-seedance-2-0-260128'),
@@ -529,6 +521,7 @@ async function videoStreamForModel(
     case 'fal-ai/ltx-2.3/text-to-video/fast': {
       const adapter = falV('fal-ai/ltx-2.3/text-to-video/fast')
       return generateVideo({
+        threadId: 'media-video',
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter,
@@ -543,6 +536,7 @@ async function videoStreamForModel(
     case 'fal-ai/kling-video/v3/pro/image-to-video': {
       const adapter = falV('fal-ai/kling-video/v3/pro/image-to-video')
       return generateVideo({
+        threadId: 'media-video',
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter,
@@ -559,6 +553,7 @@ async function videoStreamForModel(
     case 'fal-ai/veo3.1/image-to-video': {
       const adapter = falV('fal-ai/veo3.1/image-to-video')
       return generateVideo({
+        threadId: 'media-video',
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter,
@@ -572,6 +567,7 @@ async function videoStreamForModel(
     }
     case 'xai/grok-imagine-video/image-to-video': {
       return generateVideo({
+        threadId: 'media-video',
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter: falV('xai/grok-imagine-video/image-to-video'),
@@ -588,6 +584,7 @@ async function videoStreamForModel(
       // prompt part (asImageToVideoPrompt requires one); the grokVideo
       // adapter forwards it to the Imagine endpoint as the start frame.
       return generateVideo({
+        threadId: 'media-video',
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter: grokV('grok-imagine-video-1.5'),
@@ -599,6 +596,7 @@ async function videoStreamForModel(
     case 'fal-ai/ltx-2.3/image-to-video/fast': {
       const adapter = falV('fal-ai/ltx-2.3/image-to-video/fast')
       return generateVideo({
+        threadId: 'media-video',
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter,
@@ -630,6 +628,7 @@ async function videoStreamForModel(
       }
       const { duration, aspectRatio, task } = data.omniOptions ?? {}
       return generateVideo({
+        threadId: 'media-video',
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter: geminiV('gemini-omni-1.1-flash'),
@@ -657,6 +656,7 @@ async function videoStreamForModel(
     case 'bytedance/seedance-2.0': {
       const adapter = openRouterV('bytedance/seedance-2.0')
       return generateVideo({
+        threadId: 'media-video',
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter,
@@ -669,6 +669,7 @@ async function videoStreamForModel(
     case 'google/veo-3.1': {
       const adapter = openRouterV('google/veo-3.1')
       return generateVideo({
+        threadId: 'media-video',
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter,
@@ -838,6 +839,7 @@ function seedanceStream(data: SeedanceRequest): AsyncIterable<StreamChunk> {
       : undefined
 
   return generateVideo({
+    threadId: 'media-seedance',
     // For a model this package knows, the adapter snaps `duration` into its
     // range and validates the resolution tier, prompt roles and
     // frame/reference exclusivity before anything reaches Ark. For a custom
@@ -896,11 +898,13 @@ export const generateLiveVideoFn = createServerFn({ method: 'POST' })
     const provider = liveVideoProvider(data.model)
     const live = isFalLiveVideoModel(data.model)
       ? await generateLiveVideo({
+          threadId: 'media-live-video',
           adapter: falL(data.model),
           prompt,
           debug: false,
         })
       : await generateLiveVideo({
+          threadId: 'media-live-video',
           adapter: reactorV(data.model),
           prompt,
           ...(data.resolution === '1080p' ||
@@ -987,6 +991,7 @@ export const generateWorldFn = createServerFn({ method: 'POST' })
       const seedImages = data.seedImages ?? []
       const [firstSeed, ...restSeeds] = seedImages
       const world = await generateWorld({
+        threadId: 'media-world',
         adapter: worldlabsW(data.model),
         prompt: data.prompt.trim(),
         timeout: WORLDLABS_TIMEOUT_MS,
@@ -1023,6 +1028,7 @@ export const generateWorldFn = createServerFn({ method: 'POST' })
     }
 
     const world = await generateWorld({
+      threadId: 'media-world',
       adapter: reactorW(data.model),
       prompt: data.prompt.trim(),
       modelOptions: { resolution: data.resolution },

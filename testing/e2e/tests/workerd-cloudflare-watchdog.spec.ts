@@ -92,6 +92,25 @@ async function buildWorkerModules() {
   ]
 }
 
+/** Narrows the harness `state` route body: `{ record, events }`. */
+function readState(body: unknown) {
+  if (
+    typeof body !== 'object' ||
+    body === null ||
+    !('record' in body) ||
+    !('events' in body)
+  ) {
+    throw new Error(`unexpected state body: ${JSON.stringify(body)}`)
+  }
+  const { record, events } = body
+  const hasRecord = typeof record === 'object' && record !== null
+  return {
+    status: hasRecord && 'status' in record ? record.status : undefined,
+    error: hasRecord && 'error' in record ? record.error : undefined,
+    events,
+  }
+}
+
 test('a real alarm fails a stalled Cloudflare coordinator run', async () => {
   test.setTimeout(60_000)
   const mf = new Miniflare({
@@ -103,18 +122,18 @@ test('a real alarm fails a stalled Cloudflare coordinator run', async () => {
   })
   const dispatch = (route: string) =>
     mf.dispatchFetch(`http://localhost/${route}`)
-  const state = async () => (await dispatch('state')).json()
+  const state = async () => readState(await (await dispatch('state')).json())
 
   try {
     expect(await (await dispatch('start')).json()).toEqual({ runId: RUN_ID })
     await expect
-      .poll(async () => (await state()).record?.status, {
+      .poll(async () => (await state()).status, {
         timeout: POLL_TIMEOUT_MS,
       })
       .toBe('failed')
 
     const final = await state()
-    expect(final.record.error).toEqual({ message: WATCHDOG_ERROR })
+    expect(final.error).toEqual({ message: WATCHDOG_ERROR })
     expect(final.events).toEqual([
       { type: 'RUN_ERROR', message: WATCHDOG_ERROR },
     ])

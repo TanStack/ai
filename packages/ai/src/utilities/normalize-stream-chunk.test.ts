@@ -246,7 +246,6 @@ describe('normalizeStreamChunk', () => {
       type: EventType.TOOL_CALL_START,
       toolCallId: 'tc1',
       toolCallName: 'get_weather',
-      toolName: 'get_weather',
       index: 0,
       parentMessageId: 'm1',
       metadata: { thoughtSignature: 'sig-1' },
@@ -263,7 +262,6 @@ describe('normalizeStreamChunk', () => {
         tanstack: { index: 0 },
       },
     })
-    expect(out[0]).not.toHaveProperty('toolName')
     expect(out[0]).not.toHaveProperty('index')
     expect(out[1]).toEqual({
       type: EventType.REASONING_ENCRYPTED_VALUE,
@@ -297,7 +295,6 @@ describe('normalizeStreamChunk', () => {
       type: EventType.TOOL_CALL_END,
       toolCallId: 'tc1',
       toolCallName: 'get_weather',
-      toolName: 'get_weather',
       parentMessageId: 'm1',
       result: '{"temp":72}',
       input: { q: 'sf' },
@@ -311,7 +308,6 @@ describe('normalizeStreamChunk', () => {
       metadata: {
         tanstack: {
           toolCallName: 'get_weather',
-          toolName: 'get_weather',
           parentMessageId: 'm1',
           output: { temp: 72 },
           input: { q: 'sf' },
@@ -414,41 +410,6 @@ describe('normalizeStreamChunk', () => {
     })
     expect(tanstackMetadata(chunkAt(out, 1))).toEqual({
       state: 'output-error',
-    })
-  })
-
-  it('strips STEP_FINISHED thinking extras and emits REASONING_ENCRYPTED_VALUE for the signature', () => {
-    const out = normalizeAll({
-      type: EventType.STEP_FINISHED,
-      stepName: 'thinking',
-      stepId: 's1',
-      delta: 'hmm',
-      content: 'hmm full',
-      signature: 'sig',
-    } as AdapterYieldChunk)
-
-    expect(out).toHaveLength(2)
-    expect(out[0]).toEqual({
-      type: EventType.STEP_FINISHED,
-      stepName: 'thinking',
-      metadata: {
-        tanstack: {
-          content: 'hmm full',
-          delta: 'hmm',
-          signature: 'sig',
-          stepId: 's1',
-        },
-      },
-    })
-    expect(out[0]).not.toHaveProperty('delta')
-    expect(out[0]).not.toHaveProperty('content')
-    expect(out[0]).not.toHaveProperty('signature')
-    expect(out[0]).not.toHaveProperty('stepId')
-    expect(out[1]).toEqual({
-      type: EventType.REASONING_ENCRYPTED_VALUE,
-      subtype: 'message',
-      entityId: 's1',
-      encryptedValue: 'sig',
     })
   })
 })

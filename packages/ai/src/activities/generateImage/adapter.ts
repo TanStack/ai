@@ -29,7 +29,7 @@ export interface ImageAdapterConfig {
  * All type resolution happens at the provider call site, not in this interface.
  *
  * Generic parameters:
- * - TModel: The specific model name (e.g., 'dall-e-3')
+ * - TModel: The specific model name (e.g., 'gpt-image-2.5-flare')
  * - TProviderOptions: Base provider-specific options (already resolved)
  * - TModelProviderOptionsByName: Map from model name to its specific provider options
  * - TModelSizeByName: Map from model name to its supported sizes

@@ -3,7 +3,7 @@ id: RunDriverOptions
 title: RunDriverOptions
 ---
 
-Defined in: [packages/ai/src/stream-to-response.ts:1166](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1166)
+Defined in: packages/ai/src/stream-to-response.ts:1166
 
 Everything the resume helpers need to take a run over as a side effect of
 serving its log.
@@ -26,7 +26,7 @@ background-worker-driven run supply its own pair.
 claim: <T>(input, fn) => Promise<T>;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:1178](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1178)
+Defined in: packages/ai/src/stream-to-response.ts:1178
 
 Run `fn` under exclusive ownership of the run, or reject if refused.
 
@@ -68,7 +68,7 @@ Run `fn` under exclusive ownership of the run, or reject if refused.
 drive: (input) => AsyncIterable<AGUIEvent>;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:1172](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1172)
+Defined in: packages/ai/src/stream-to-response.ts:1172
 
 Produce the run's remaining events. Called only once the claim is held.
 
@@ -100,7 +100,7 @@ Produce the run's remaining events. Called only once the claim is held.
 locks: LockStore;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:1170](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1170)
+Defined in: packages/ai/src/stream-to-response.ts:1170
 
 ***
 
@@ -110,7 +110,7 @@ Defined in: [packages/ai/src/stream-to-response.ts:1170](https://github.com/TanS
 optional logger?: InternalLogger;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:1193](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1193)
+Defined in: packages/ai/src/stream-to-response.ts:1193
 
 ***
 
@@ -120,7 +120,7 @@ Defined in: [packages/ai/src/stream-to-response.ts:1193](https://github.com/TanS
 pipe: (stream, input) => Promise<unknown>;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:1187](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1187)
+Defined in: packages/ai/src/stream-to-response.ts:1187
 
 Persist the driven stream to the run's producer-side durability log.
 
@@ -156,7 +156,7 @@ Persist the driven stream to the run's producer-side durability log.
 request: Request;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:1168](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1168)
+Defined in: packages/ai/src/stream-to-response.ts:1168
 
 The attach request; its run id is read with [resolveResumeRunId](../functions/resolveResumeRunId.md).
 
@@ -168,7 +168,7 @@ The attach request; its run id is read with [resolveResumeRunId](../functions/re
 runs: RunStore;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:1169](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1169)
+Defined in: packages/ai/src/stream-to-response.ts:1169
 
 ***
 
@@ -178,7 +178,7 @@ Defined in: [packages/ai/src/stream-to-response.ts:1169](https://github.com/TanS
 optional waitUntil?: (promise) => void;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:1192](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1192)
+Defined in: packages/ai/src/stream-to-response.ts:1192
 
 Platform keep-alive (e.g. `ctx.waitUntil`) for the background drive.
 

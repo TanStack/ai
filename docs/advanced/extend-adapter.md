@@ -2,7 +2,7 @@
 title: Extend Adapter
 id: extend-adapter
 order: 8
-description: "Extend TanStack AI adapter factories with custom model IDs and fine-tuned models while keeping full type safety for input modalities and provider options."
+description: "Add your own model names, such as fine-tuned models or proxy models, to an adapter factory. You keep type checks for input types and provider options."
 keywords:
   - tanstack ai
   - extendAdapter
@@ -13,155 +13,119 @@ keywords:
   - adapter factory
 ---
 
-The `extendAdapter` utility allows you to extend existing adapter factories (like `openaiText`, `anthropicText`) with custom model names while maintaining full type safety for input modalities and provider options.
+`extendAdapter` adds your model ids to an existing text adapter. `openaiText('my-fine-tuned-model')` type-checks after you register that id.
 
-## Basic Usage
+The built-in models keep their types, and your models get the types that you declare.
+
+## Quick setup
+
+### 1. Declare your models
+
+Wrap the factory with `extendAdapter`. Describe each model with `createModel`: the name, then the input types it can read.
 
 ```typescript
+// lib/ai/my-openai.ts
 import { createModel, extendAdapter } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
-// Define your custom models using createModel helper
-const myOpenaiModel = createModel('my-fine-tuned-gpt4',['text', 'image']);
-const myOpenaiModelButCooler = createModel('my-fine-tuned-gpt5',['text', 'image']);
- 
-
-// Create an extended adapter factory - simple API, no type parameters needed
-const myOpenai = extendAdapter(openaiText, [
-  myOpenaiModel,
-  myOpenaiModelButCooler 
+export const myOpenai = extendAdapter(openaiText, [
+  createModel('my-fine-tuned-model', ['text', 'image']),
+  createModel('my-other-model', ['text']),
 ])
+```
 
-// Use with original models - full type inference preserved
-const gpt5Adapter = myOpenai('gpt-5.5')
+### 2. Use the new factory
 
-// Use with custom models - your custom types are applied
-const customAdapter = myOpenai('my-fine-tuned-gpt4')
+Use `myOpenai` where you used `openaiText`:
 
-// Works seamlessly with chat()
+```typescript
 import { chat } from '@tanstack/ai'
+import { myOpenai } from './lib/ai/my-openai'
 
 const stream = chat({
-  adapter: myOpenai('my-fine-tuned-gpt4'),
-  messages: [{ role: 'user', content: 'Hello!' }]
+  adapter: myOpenai('my-fine-tuned-model'),
+  messages: [{ role: 'user', content: 'Hello!' }],
+  threadId: 'thread-1',
 })
+
+for await (const chunk of stream) {
+  console.log(chunk)
+}
 ```
 
-## The `createModel` Helper
+Your model name now autocompletes, and the request goes to the provider with that name.
 
-The `createModel` function provides a clean way to define custom models with full type inference:
+## Use the built-in models and the factory config
 
-```typescript
-import { createModel } from '@tanstack/ai'
-
-// Arguments define name and input modalities
-const model = createModel(
-  'my-model',      // model name (literal type inferred)
-  ['text', 'image'] // input modalities (tuple type inferred)
-)
-```
- 
- 
-## Model Definition Structure
-
-A custom model definition (`ExtendedModelDef`) has the required properties `name`, `input`, and `modelOptions`, plus optional `features` and `tools`. The two `createModel` overloads let you fill these in two ways.
-
-### Defining Input Modalities
-
-The positional form takes a model name and an `input` array specifying which content types your model supports:
-
-```typescript
-import { createModel } from '@tanstack/ai'
-
-const models = [
-  createModel('text-only-model', ['text']),
-  createModel('multimodal-model', ['text', 'image', 'audio']),
-] as const
-```
-
-Available modalities: `'text'`, `'image'`, `'audio'`, `'video'`, `'document'`
-
-### Capabilities-object form
-
-To attach typed `modelOptions`, declared `features`, or provider `tools` to a custom model, use the second `createModel` overload, which takes a capabilities object as its second argument:
-
-```typescript
-import { createModel } from '@tanstack/ai'
-import type { OpenAITextProviderOptions } from '@tanstack/ai-openai'
-
-// Type brand for provider options — the value is unused at runtime.
-const modelOptions: OpenAITextProviderOptions = {}
-
-const reasoner = createModel('my-reasoner', {
-  input: ['text'],
-  features: ['reasoning', 'structured_outputs'],
-  tools: ['web_search'],
-  modelOptions,
-})
-```
-
-- `input` — supported input modalities (same as the positional form).
-- `features` — declared feature flags (e.g. `'reasoning'`, `'structured_outputs'`).
-- `tools` — declared provider tools (e.g. `'web_search'`).
-- `modelOptions` — a type brand for the provider options accepted by this model; the value is unused at runtime, so declare an empty object typed as the provider options (e.g. `const modelOptions: OpenAITextProviderOptions = {}`).
- 
-## Preserving Original Factory Behavior
-
-`extendAdapter` fully preserves the original factory's signature, including any configuration parameters:
+The new factory still takes every model of the original factory. It also takes the same config argument:
 
 ```typescript
 import { createModel, extendAdapter } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
-const customModels = [createModel('my-fine-tuned-gpt4', ['text', 'image'])] as const
+const myOpenai = extendAdapter(openaiText, [
+  createModel('my-fine-tuned-model', ['text', 'image']),
+])
 
-const myOpenai = extendAdapter(openaiText, customModels)
+// A built-in model, with its normal types
+const builtIn = myOpenai('gpt-6.1-sol')
 
-// Config parameter is preserved
-const adapter = myOpenai('my-fine-tuned-gpt4', {
+// Your model, with a config for the client
+const custom = myOpenai('my-fine-tuned-model', {
   baseURL: 'https://my-proxy.com/v1',
-  timeout: 30000
+  timeout: 30000,
 })
 ```
 
-## Type Safety
+## Example: an OpenAI-compatible proxy
 
-The extended adapter provides full type safety:
+Give types to the models that your proxy serves:
 
-```typescript ignore
-import { extendAdapter, createModel } from '@tanstack/ai'
+```typescript
+import { createModel, extendAdapter } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
-const myOpenai = extendAdapter(openaiText, [createModel('custom-model', ['text'])])
+const proxyAdapter = extendAdapter(openaiText, [
+  createModel('llama-3.1-70b', ['text']),
+  createModel('mixtral-8x7b', ['text']),
+])
 
-// ✅ Original models work with their original types
-const a1 = myOpenai('gpt-5.5')
-
-// ✅ Custom models work with your defined types
-const a2 = myOpenai('custom-model')
-
-// ❌ Type error: invalid model name
-// Note: Type checking works when you assign the result to a variable
-const invalid = myOpenai('nonexistent-model') // TypeScript error!
+const adapter = proxyAdapter('llama-3.1-70b', {
+  baseURL: 'https://my-llm-proxy.com/v1',
+})
 ```
- 
 
-## Runtime Behavior
+## Example: a fine-tuned model on Anthropic
 
-At runtime, `extendAdapter` simply passes through to the original factory:
+`extendAdapter` works with every adapter factory, for example `anthropicText`:
 
-- No validation is performed on custom model names
-- The original factory receives exactly what you pass
-- This allows the original provider's API to handle the model name
+```typescript
+import { chat, createModel, extendAdapter } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
 
-This design is intentional - it allows you to:
-- Use fine-tuned model names that the provider accepts but TypeScript doesn't know about
-- Proxy requests to different backends that accept custom model identifiers
-- Add type safety without runtime overhead
+const myAnthropic = extendAdapter(anthropicText, [
+  createModel('ft:claude-3-opus:my-org:custom-task:abc123', ['text', 'image']),
+])
+
+const stream = chat({
+  adapter: myAnthropic('ft:claude-3-opus:my-org:custom-task:abc123'),
+  messages: [{ role: 'user', content: 'Analyze this text.' }],
+  threadId: 'thread-1',
+})
+```
+
+## How it works
+
+`extendAdapter` changes only the types. At runtime, it returns the original factory.
+
+- The library does not check your model names. The factory gets exactly what you pass.
+- The API of the provider decides if the model name is valid.
+- There is no runtime cost.
+- A custom model has no reasoning data, so `chat()` does not take a `reasoning` option for it.
 
 ## Check what a model accepts
 
-A user attaches an image, but the selected model only reads text. You want to know that before you send the request. Read `inputModalities` on the text adapter:
+A user attaches an image, but the selected model reads only text. You want to know that before you send the request. Read `inputModalities` on the text adapter:
 
 ```typescript
 import { openaiText } from '@tanstack/ai-openai'
@@ -178,285 +142,78 @@ if (!adapter.inputModalities?.includes('image')) {
 - The list comes from the model metadata of the provider package.
 - It is `undefined` when the package does not know the model, for example a custom model from `extendAdapter`. Treat `undefined` as "not known", not as "text only".
 
-If you write your own adapter, set `inputModalities` from your model list:
+Do you write your own adapter? See [Set inputModalities in your own adapter](./extend-adapter-advanced#set-inputmodalities-in-your-own-adapter).
+
+## Advanced
+
+### Input types
+
+The second argument of the positional form lists the input types of the model:
 
 ```typescript
-import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import type { DefaultMessageMetadataByModality, Modality } from '@tanstack/ai'
+import { createModel } from '@tanstack/ai'
 
-const INPUT_BY_MODEL: Record<string, ReadonlyArray<Modality>> = {
-  'my-vision-model': ['text', 'image'],
-  'my-text-model': ['text'],
-}
-
-class MyTextAdapter extends BaseTextAdapter<
-  string,
-  Record<string, never>,
-  ReadonlyArray<Modality>,
-  DefaultMessageMetadataByModality
-> {
-  readonly name = 'my-provider'
-  override readonly inputModalities = INPUT_BY_MODEL[this.model]
-
-  constructor(model: string) {
-    super({}, model)
-  }
-
-  async *chatStream() {
-    // Call your provider and yield its chunks here.
-  }
-
-  structuredOutput() {
-    return Promise.resolve({ data: {}, rawText: '{}' })
-  }
-}
-
-console.log(new MyTextAdapter('my-vision-model').inputModalities) // ['text', 'image']
+const models = [
+  createModel('text-only-model', ['text']),
+  createModel('multimodal-model', ['text', 'image', 'audio']),
+] as const
 ```
 
-## Add reasoning to your adapter
+The input types are `'text'`, `'image'`, `'audio'`, `'video'`, and `'document'`.
 
-Your adapter talks to a thinking model, and you want `chat({ reasoning: 'high' })` to work, with a type error for a level the model does not have. Three steps:
+### Capabilities-object form
 
-1. Put a `reasoning` field on each model's metadata.
-2. Build a type map of the levels with `ModelReasoningCapability`, and a runtime map with the same keys.
-3. Pass the levels to the adapter type, and return the runtime data from the `modelReasoning` hook.
+A model definition (`ExtendedModelDef`) has three required fields: `name`, `input`, and `modelOptions`. It also has two optional fields: `features` and `tools`.
 
-On an adapter built on `@tanstack/openai-base`, that is all. The base sends `reasoning_effort` on Chat Completions, or `reasoning: { effort, summary }` on Responses:
+To set the typed `modelOptions`, the `features`, or the provider `tools`, give `createModel` a capabilities object as the second argument:
 
 ```typescript
-import OpenAI from 'openai'
-import { chat } from '@tanstack/ai'
-import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
-import type {
-  DefaultMessageMetadataByModality,
-  Modality,
-  ModelReasoning,
-} from '@tanstack/ai'
-import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
+import { createModel } from '@tanstack/ai'
+import type { OpenAITextProviderOptions } from '@tanstack/ai-openai'
 
-// 1. The model's data: only the levels it has, with the value for each.
-const MY_MODEL = {
-  name: 'my-model',
-  reasoning: {
-    levels: { off: 'none', low: 'low', medium: 'medium', high: 'high' },
-    budget: false,
-  },
-} as const
+// Type brand for the provider options. The value is not used at runtime.
+const modelOptions: OpenAITextProviderOptions = {}
 
-// 2. The levels for the types, and the same data at run time.
-const MY_REASONING = {
-  [MY_MODEL.name]: MY_MODEL.reasoning,
-}
-
-type MyModelReasoningByName = {
-  [K in keyof typeof MY_REASONING]: ModelReasoningCapability<
-    (typeof MY_REASONING)[K]
-  >
-}
-
-const MY_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> =
-  MY_REASONING
-
-type MyModel = keyof MyModelReasoningByName
-
-// 3. The levels go in the last type parameter. The hook gives the data.
-class MyTextAdapter<TModel extends MyModel> extends OpenAIBaseChatCompletionsTextAdapter<
-  TModel,
-  Record<string, unknown>,
-  ReadonlyArray<Modality>,
-  DefaultMessageMetadataByModality,
-  ReadonlyArray<string>,
-  MyModelReasoningByName[TModel]
-> {
-  protected override modelReasoning(model: string) {
-    return MY_MODEL_REASONING[model]
-  }
-}
-
-const adapter = new MyTextAdapter(
-  'my-model',
-  'my-provider',
-  new OpenAI({ apiKey: 'my-key', baseURL: 'https://api.example.com/v1' }),
-)
-
-chat({ adapter, messages: [{ role: 'user', content: 'Hi' }], reasoning: 'high' })
-
-chat({
-  adapter,
-  messages: [{ role: 'user', content: 'Hi' }],
-  // @ts-expect-error my-model has no max level
-  reasoning: 'max',
+const reasoner = createModel('my-reasoner', {
+  input: ['text'],
+  features: ['reasoning', 'structured_outputs'],
+  tools: ['web_search'],
+  modelOptions,
 })
 ```
 
-A model with `budget: true` also takes `budgetTokens`.
+- `input`: the input types, the same as in the positional form. If you do not set it, the value is `['text']`.
+- `features`: the feature flags of the model, for example `'reasoning'` or `'structured_outputs'`.
+- `tools`: the provider tools of the model, for example `'web_search'`.
+- `modelOptions`: a type brand for the provider options of the model. The value is not used at runtime. Declare an empty object with the type of the provider options.
 
-Another wire format? Extend `BaseTextAdapter`, pass the levels as its last type parameter, and read `options.reasoning` in your request code. `resolveReasoning` from `@tanstack/ai/adapter-internals` moves the level to the nearest one the model has and gives its value. `reasoningBudget` gives the token budget for a level.
+### Type errors for unknown names
 
-A model added with `extendAdapter` has no reasoning data, so it takes no `reasoning`.
+The new factory rejects a name that is not in either list:
 
-## Send the prompt cache
-
-`chat()` asks every adapter for [prompt caching](./prompt-caching) by default. It passes the setting as `options.promptCache`: a `retention` (`'none'`, `'short'`, or `'long'`) and an optional `key`. Map it to your provider's cache fields when you build the request:
-
-```typescript
-import type { TextOptions } from '@tanstack/ai'
-
-export function cacheFields(options: TextOptions) {
-  const cache = options.promptCache
-  if (!cache || cache.retention === 'none') return {}
-  return {
-    ...(cache.key ? { cache_key: cache.key } : {}),
-    ...(cache.retention === 'long' ? { cache_ttl: '1h' } : {}),
-  }
-}
-```
-
-- If `promptCache` is `undefined` (a call outside `chat()`), send no cache fields.
-- Put the cache fields first and the user's `modelOptions` after them, so a value the user sets wins.
-
-## Send mid-conversation changes
-
-Tools or system prompts can grow between model calls. If your provider takes them inside the conversation, the cached start of the request can stay the same. To support it:
-
-1. Set `midConversationChannels` on the adapter: `{ tools, systemPrompts }`. Then `chat()` passes the changes as `options.midConversationChanges`.
-2. Read them with `splitMidConversationChanges`. You get the start lists and the changes by message index. You get `undefined` when the names or counts do not match the current lists.
-3. Send the start lists at the top of the request. Send each change right before the message at its index. A change at `options.messages.length` goes at the end.
-
-Extending the Responses adapter of `@tanstack/openai-base`? Set the field and you are done. The base sends `additional_tools` and `developer` messages:
-
-```typescript
-import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
-
-export class MyResponsesAdapter extends OpenAIBaseResponsesTextAdapter<'my-model'> {
-  override readonly midConversationChannels = { tools: true, systemPrompts: true }
-}
-```
-
-With another wire format, do the steps yourself:
-
-```typescript
-import { splitMidConversationChanges } from '@tanstack/ai'
-import type { ModelMessage, TextOptions } from '@tanstack/ai'
-
-type WireTool = { name: string; description: string }
-type WireItem =
-  | { kind: 'message'; message: ModelMessage }
-  | { kind: 'change'; tools: Array<WireTool>; prompts: Array<string> }
-
-export function buildRequest(
-  options: TextOptions,
-  tools: Array<WireTool>,
-  prompts: Array<string>,
-) {
-  const changes = options.midConversationChanges
-  const split = changes
-    ? splitMidConversationChanges({ changes, tools, systemPrompts: prompts })
-    : undefined
-  if (!split) {
-    // No changes, or names that do not match: send the full lists.
-    const items = options.messages.map((message): WireItem => ({ kind: 'message', message }))
-    return { tools, system: prompts, items }
-  }
-  const items: Array<WireItem> = []
-  const pushChange = (index: number) => {
-    const change = split.at.get(index)
-    if (change) items.push({ kind: 'change', tools: change.tools, prompts: change.systemPrompts })
-  }
-  options.messages.forEach((message, index) => {
-    pushChange(index)
-    items.push({ kind: 'message', message })
-  })
-  pushChange(options.messages.length)
-  return { tools: split.startTools, system: split.startSystemPrompts, items }
-}
-```
-
-- `split.addedTools` lists every added tool, in order. Use it if your provider also wants them in its tool list.
-- If your provider cannot add a kind of tool later (a hosted search tool, for example), send the full tool list for that request. Keep the prompt changes in the conversation.
-
-## Send assistant blocks in order
-
-Your provider wants thinking, text, and tool calls in the order the model sent them. A `ModelMessage` keeps them in three separate fields: `thinking`, `content`, and `toolCalls`. Use `orderedAssistantBlocks` to get them back in order:
-
-```typescript
-import { orderedAssistantBlocks } from '@tanstack/ai'
-import type { ModelMessage } from '@tanstack/ai'
-
-type WireBlock =
-  | { type: 'reasoning'; text: string; signature?: string }
-  | { type: 'text'; text: string }
-  | { type: 'call'; id: string; name: string; args: string }
-
-export function orderedWireBlocks(message: ModelMessage): Array<WireBlock> | undefined {
-  const blocks = orderedAssistantBlocks(message)
-  if (!blocks) return undefined
-  return blocks.map((block): WireBlock => {
-    if (block.type === 'thinking') {
-      return { type: 'reasoning', text: block.thinking.content, signature: block.thinking.signature }
-    }
-    if (block.type === 'text') return { type: 'text', text: block.text }
-    return {
-      type: 'call',
-      id: block.toolCall.id,
-      name: block.toolCall.function.name,
-      args: block.toolCall.function.arguments,
-    }
-  })
-}
-```
-
-- The order comes from `message.blockOrder`. The library writes it only when the order is not the default: all thinking, then the text, then the tool calls.
-- `orderedAssistantBlocks` returns `undefined` when the message has no map, or when the map does not match the message. Then send your default order.
-
-## Example: OpenAI-Compatible Proxy
-
-A common use case is typing models for an OpenAI-compatible proxy:
-
-```typescript
-import { extendAdapter, createModel } from '@tanstack/ai'
+```typescript ignore
+import { createModel, extendAdapter } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
-// Models available through your proxy
-const proxyModels = [
-  createModel(
-    'llama-3.1-70b',
-    ['text']
-  ),
-  createModel(
-    'mixtral-8x7b',
-    ['text']
-  ),
-] as const
+const myOpenai = extendAdapter(openaiText, [createModel('custom-model', ['text'])])
 
-const proxyAdapter = extendAdapter(openaiText, proxyModels)
+// OK: a built-in model, with its built-in types
+const a1 = myOpenai('gpt-6.1-sol')
 
-// Use with your proxy's base URL
-const adapter = proxyAdapter('llama-3.1-70b', {
-  baseURL: 'https://my-llm-proxy.com/v1'
-})
+// OK: your model, with the types that you declared
+const a2 = myOpenai('custom-model')
+
+// Type error: the name is not known.
+// The check works when you assign the result to a variable.
+const invalid = myOpenai('nonexistent-model')
 ```
 
-## Example: Fine-tuned Models
+### Write your own adapter
 
-Adding type safety for your fine-tuned models:
+Do you build a full adapter for a new provider? [Extend Adapter: Advanced](./extend-adapter-advanced) shows how to:
 
-```typescript
-import { chat, createModel, extendAdapter } from '@tanstack/ai'
-import { anthropicText } from '@tanstack/ai-anthropic'
-
-const fineTunedModels = [
-  createModel(
-    'ft:claude-3-opus:my-org:custom-task:abc123',
-    ['text', 'image']
-  ),
-] as const
-
-const myAnthropic = extendAdapter(anthropicText, fineTunedModels)
-
-chat({
-  adapter: myAnthropic('ft:claude-3-opus:my-org:custom-task:abc123'),
-  messages: [{ role: 'user', content: 'Analyze this...' }]
-})
-```
+- Set `inputModalities`.
+- Add reasoning levels.
+- Send the prompt cache.
+- Send mid-conversation changes.
+- Send assistant blocks in order.

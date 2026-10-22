@@ -3,15 +3,13 @@ title: Persistence Migrations
 id: migrations
 ---
 
-Your adapter owns its schema. TanStack AI never inspects your tables, so you
-decide the table layout and how schema changes are applied. Apply those changes
-before deploying code that reads or writes the corresponding stores.
+Run persistence schema changes as migrations. A change on the first production request can fail under load or race across instances.
 
-## Create tables on open, for local development
+Your adapter owns its schema. TanStack AI never reads your tables, so you choose the table layout and how changes are applied. Apply each change before you deploy the code that uses it.
 
-A hand-rolled adapter can create its tables the first time it opens the database.
-The SQLite example in [Build your own adapter](./build-your-own-adapter) does this
-behind a `migrate` flag with `CREATE TABLE IF NOT EXISTS`, so it is idempotent:
+## Local development: create tables on open
+
+A hand-written adapter can create its tables the first time it opens the database. The SQLite example in [Build your own adapter](./build-your-own-adapter) does this behind a `migrate` flag with `CREATE TABLE IF NOT EXISTS`, so you can run it many times:
 
 ```ts ignore
 import { sqlitePersistence } from './sqlite-persistence'
@@ -22,35 +20,29 @@ const persistence = sqlitePersistence({
 })
 ```
 
-This is convenient for local development and tests. Avoid request-time migrations
-in production.
+This is good for local development and tests. Do not run migrations at request time in production.
 
-## Apply migrations in production
+## Production: apply migrations when you deploy
 
-In production, run schema changes through your normal deployment workflow, not on
-first request. Keep the DDL for the four tables (`messages`, `runs`,
-`interrupts`, `metadata`) in a versioned migration and apply it with the same
-tool you use for the rest of your database, before the new code ships.
+1. Keep the DDL for the store tables (`messages`, `runs`, `interrupts`, `metadata`) in a versioned migration that you can review.
+2. Back up the production state, if your policy requires it.
+3. Apply the migration with the tool that you use for the rest of your database.
+4. Deploy the code that depends on the new schema.
+5. Make the rollback and partial-deploy behavior explicit.
 
-If you build the adapter with an ORM or query builder, let that tool own the
-migration journal. A Drizzle schema drives `drizzle-kit`; a Prisma models
-fragment drives `prisma migrate`; a raw SQL adapter checks in plain `.sql` files.
-The adapter-building skills in `@tanstack/ai-persistence` cover each of these
-workflows.
+If you build the adapter with an ORM or a query builder, let that tool own the migration history:
+
+- A Drizzle schema uses `drizzle-kit`.
+- A Prisma models fragment uses `prisma migrate`.
+- A raw SQL adapter keeps plain `.sql` files in the repo.
+
+The adapter skills in `@tanstack/ai-persistence` cover each of these workflows.
 
 ## An existing schema owns its own migrations
 
-If you map the store contracts onto tables you already have (see
-[Build your own adapter](./build-your-own-adapter#existing-database-map-the-contracts-onto-your-schema)),
-those tables are part of your application schema, and your existing migration tool
-already owns them. Add the columns the stores need in a normal migration. Keep any
-extra app-owned columns nullable or defaulted so the stores' inserts still
-succeed.
+You can map the store contracts onto tables you already have. See [Build your own adapter](./build-your-own-adapter#existing-database-map-the-contracts-onto-your-schema).
 
-## Upgrade discipline
+Then those tables are part of your app schema, and your current migration tool owns them:
 
-1. Keep the DDL for the store tables in a reviewable migration, not inline in
-   request handlers.
-2. Back up production state where required.
-3. Apply migrations before deploying code that depends on them.
-4. Keep rollback and partial-deployment behavior explicit.
+- Add the columns that the stores need in a normal migration.
+- Keep any extra columns of your own nullable or with a default, so the inserts of the stores still work.

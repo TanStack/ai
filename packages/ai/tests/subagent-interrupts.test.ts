@@ -424,6 +424,16 @@ describe('subagent interrupts', () => {
     const { agent, execute, contexts } = cleanerAgent()
     const parent = toolParent('{}')
     const subagents = { agents: [agent] }
+    // The parent middleware sees which resume entries the child answers.
+    const childResumeIds: Array<ReadonlySet<string> | undefined> = []
+    const middleware = [
+      defineChatMiddleware({
+        name: 'note',
+        onStart: (ctx) => {
+          childResumeIds.push(ctx.childResumeIds)
+        },
+      }),
+    ]
 
     const first = await collectChunks(
       chat({
@@ -431,6 +441,7 @@ describe('subagent interrupts', () => {
         threadId: 't',
         runId: 'run-1',
         messages: [user],
+        middleware,
         subagents,
       }) as AsyncIterable<StreamChunk>,
     )
@@ -476,6 +487,7 @@ describe('subagent interrupts', () => {
         resume: [
           { interruptId: 'approval_call_c', status: 'resolved', payload: true },
         ],
+        middleware,
         subagents,
       }) as AsyncIterable<StreamChunk>,
     )
@@ -483,6 +495,7 @@ describe('subagent interrupts', () => {
     expect(second.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
       false,
     )
+    expect(childResumeIds).toEqual([undefined, new Set(['approval_call_c'])])
     expect(contexts[1]).toMatchObject({ parentRunId: 'run-1' })
     expect(execute).toHaveBeenCalledTimes(1)
     const toolResult = second.find(
@@ -730,7 +743,6 @@ describe('subagent cards', () => {
         type: EventType.TOOL_CALL_START,
         toolCallId: 'tc',
         toolCallName: 'search',
-        toolName: 'search',
         subagentRunId: 's1',
         timestamp: t,
       },

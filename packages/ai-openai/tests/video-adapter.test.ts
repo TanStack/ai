@@ -217,9 +217,24 @@ describe('OpenAI Video Adapter', () => {
     it('accepts 8, "8", and "8s" and rejects 6, "6s", and "auto"', () => {
       const typeOnly = () => {
         const adapter = createOpenaiVideo('sora-2', 'test-api-key')
-        void generateVideo({ adapter, prompt: 'x', duration: 8 })
-        void generateVideo({ adapter, prompt: 'x', duration: '8' })
-        void generateVideo({ adapter, prompt: 'x', duration: '8s' })
+        void generateVideo({
+          threadId: 'thread-1',
+          adapter,
+          prompt: 'x',
+          duration: 8,
+        })
+        void generateVideo({
+          threadId: 'thread-1',
+          adapter,
+          prompt: 'x',
+          duration: '8',
+        })
+        void generateVideo({
+          threadId: 'thread-1',
+          adapter,
+          prompt: 'x',
+          duration: '8s',
+        })
         // @ts-expect-error 6 is not a Sora duration
         void generateVideo({ adapter, prompt: 'x', duration: 6 })
         // @ts-expect-error "6s" is not a Sora duration
@@ -251,26 +266,5 @@ describe('OpenAI Video Adapter', () => {
     expect(download.bodyUsed).toBe(false)
     expect(result.contentType).toBe('video/mp4')
     await expect(new Response(result.body).text()).resolves.toBe('mp4-bytes')
-  })
-
-  it('getVideoUrl buffers the download into a data URL when the job has no url', async () => {
-    const adapter = createOpenaiVideo('sora-2', 'test-api-key')
-    ;(adapter as unknown as { client: { videos: unknown } }).client = {
-      videos: {
-        retrieve: vi
-          .fn()
-          .mockResolvedValue({ id: 'job-1', status: 'completed' }),
-        downloadContent: vi.fn().mockResolvedValue(
-          new Response('mp4-bytes', {
-            headers: { 'content-type': 'video/mp4' },
-          }),
-        ),
-      },
-    }
-
-    await expect(adapter.getVideoUrl('job-1')).resolves.toEqual({
-      jobId: 'job-1',
-      url: `data:video/mp4;base64,${btoa('mp4-bytes')}`,
-    })
   })
 })

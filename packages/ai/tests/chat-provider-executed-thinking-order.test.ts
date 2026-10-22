@@ -61,13 +61,15 @@ function providerToolStart(toolCallId: string, query: string) {
 }
 
 function reasoning(stepName: string, content: string, signature: string) {
+  const messageId = `${stepName}-reasoning`
   return [
-    ev.stepStarted(stepName),
-    chunk(EventType.REASONING_MESSAGE_CONTENT, {
-      messageId: `${stepName}-reasoning`,
-      delta: content,
+    chunk(EventType.REASONING_MESSAGE_START, { messageId, role: 'reasoning' }),
+    chunk(EventType.REASONING_MESSAGE_CONTENT, { messageId, delta: content }),
+    chunk(EventType.REASONING_ENCRYPTED_VALUE, {
+      subtype: 'message',
+      entityId: messageId,
+      encryptedValue: signature,
     }),
-    { ...ev.stepFinished('', stepName), signature },
   ]
 }
 
@@ -304,6 +306,7 @@ describe('provider-executed tools interleaved with signed thinking', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Research and save' }],
           tools: [clientTool('saveDraft')],
@@ -342,6 +345,7 @@ describe('provider-executed tools interleaved with signed thinking', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Research and save' }],
           tools: [clientTool('saveDraft')],
@@ -403,6 +407,7 @@ describe('provider-executed tools interleaved with signed thinking', () => {
 
       await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Research' }],
           tools: [serverTool('lookup', () => ({ found: true }))],
@@ -478,6 +483,7 @@ describe('provider-executed tools interleaved with signed thinking', () => {
 
       await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Research' }],
           tools,
@@ -493,6 +499,7 @@ describe('provider-executed tools interleaved with signed thinking', () => {
       // The next run from this transcript.
       await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: transcript,
           tools,
@@ -528,6 +535,7 @@ describe('provider-executed tools interleaved with signed thinking', () => {
 
       await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Research' }],
           tools: [serverTool('lookup', lookup)],

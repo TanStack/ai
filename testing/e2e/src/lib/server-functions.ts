@@ -47,6 +47,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       data.testId,
     )
     return generateImage({
+      threadId: 'server-fn-image',
       adapter,
       prompt: data.prompt,
       numberOfImages: data.numberOfImages ?? 1,
@@ -82,11 +83,13 @@ export const generateSpeechFn = createServerFn({ method: 'POST' })
     // the branch is what makes the call type-check rather than cosmetic.
     return data.turns
       ? generateSpeech({
+          threadId: 'server-fn-speech',
           adapter,
           turns: data.turns,
           timestamps: data.timestamps,
         })
       : generateSpeech({
+          threadId: 'server-fn-speech',
           adapter,
           text: data.text ?? '',
           voice: data.voice,
@@ -123,6 +126,7 @@ export const generateTranscriptionFn = createServerFn({ method: 'POST' })
       },
     )
     return generateTranscription({
+      threadId: 'server-fn-transcription',
       adapter,
       audio: data.audio,
       language: data.language,
@@ -155,6 +159,7 @@ export const generateAudioFn = createServerFn({ method: 'POST' })
       data.feature,
     )
     return generateAudio({
+      threadId: 'server-fn-audio',
       adapter,
       prompt: data.prompt,
       ...(data.duration != null ? { duration: data.duration } : {}),
@@ -189,6 +194,7 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
     )
     // Non-streaming: create job, poll until complete, return result with URL
     const { jobId } = await generateVideo({
+      threadId: 'server-fn-video',
       adapter,
       prompt: data.prompt,
     })

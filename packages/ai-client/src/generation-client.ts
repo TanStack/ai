@@ -93,12 +93,14 @@ interface GenerationCallbacks<TResult, TOutput> {
  * // With streaming connection adapter
  * const client = new GenerationClient<ImageGenerateInput, ImageGenerationResult>({
  *   connection: fetchServerSentEvents('/api/generate/image'),
+ *   threadId,
  *   onResultChange: setResult,
  *   onLoadingChange: setIsLoading,
  * })
  *
  * // With fetcher (direct)
  * const client = new GenerationClient<ImageGenerateInput, ImageGenerationResult>({
+ *   threadId,
  *   fetcher: async (input) => {
  *     const res = await fetch('/api/generate/image', {
  *       method: 'POST',
@@ -127,11 +129,9 @@ export class GenerationClient<
   private readonly joinRunHandler:
     | ConnectConnectionAdapter['joinRun']
     | undefined
-  private uniqueId: string
   private readonly devtoolsMetadata: AIDevtoolsClientMetadata
   private readonly devtoolsBridge: GenerationDevtoolsBridge<TOutput>
-  private threadId: string
-  private readonly persistenceScope: string | undefined
+  private readonly threadId: string
   // Server-driven mode (`persistence: true`): no local snapshot store; on mount
   // the client hydrates the last generation for `threadId` from the server.
   private readonly serverDriven: boolean = false
@@ -171,14 +171,14 @@ export class GenerationClient<
       GenerationPersistenceOptions &
       GenerationTransport<TInput, TResult>,
   ) {
-    // `threadId` is the only identity. Do not mint a random id during
-    // construct: hooks build this client during render.
-    this.threadId = options.threadId ?? ''
-    this.uniqueId = this.threadId
-    // The persistence scope is the explicit `threadId` and nothing else.
-    // The types require it whenever `persistence` is set. This field keeps a
-    // generated wire id from becoming a storage key for JS callers.
-    this.persistenceScope = options.threadId
+    // `threadId` is the only identity. Checked at runtime too, because JS
+    // callers are not held to the type.
+    if (typeof options.threadId !== 'string' || options.threadId === '') {
+      throw new Error(
+        'GenerationClient: threadId is required (a non-empty string).',
+      )
+    }
+    this.threadId = options.threadId
     this.connection = options.connection
     this.fetcher = options.fetcher
     this.hydrateGenerationHandler = options.hydrateGeneration
@@ -189,15 +189,6 @@ export class GenerationClient<
     // `persistence` is `false`/omitted (ephemeral) or `true` (server-driven:
     // hydrate the last generation for `threadId` from the server on mount).
     this.serverDriven = options.persistence === true
-    // The types require `threadId` alongside `persistence`, so this only fires
-    // for JS callers. Warn rather than fall back silently: keying on the
-    // generated wire id would write a different slot every reload, restoring
-    // nothing while accumulating orphaned records.
-    if (options.persistence && !this.persistenceScope) {
-      console.warn(
-        '[TanStack AI] `persistence` needs a stable `threadId` to key on. Without one nothing will be restored after a reload. Pass a `threadId` derived from your own domain (e.g. `product-123-hero`).',
-      )
-    }
     this.callbacksRef = {
       onResult: options.onResult,
       onError: options.onError,
@@ -226,17 +217,10 @@ export class GenerationClient<
   }
 
   private buildDevtoolsBridgeOptions(): GenerationDevtoolsBridgeOptions<TOutput> {
-    const client = this
     return {
-      get hookId() {
-        return client.uniqueId
-      },
-      get clientId() {
-        return client.uniqueId
-      },
-      get threadId() {
-        return client.threadId
-      },
+      hookId: this.threadId,
+      clientId: this.threadId,
+      threadId: this.threadId,
       metadata: this.devtoolsMetadata,
       getCoreState: () => ({
         input: this.input,
@@ -250,7 +234,6 @@ export class GenerationClient<
   }
 
   mountDevtools(): void {
-    this.ensureThreadId()
     // Mounting revives a disposed client. Framework hooks call this from
     // their mount effect, so a dispose → remount cycle (e.g. React
     // StrictMode's mount → cleanup → mount replay against the same memoized
@@ -315,10 +298,10 @@ export class GenerationClient<
 
       if (this.fetcher) {
         // Direct fetch path
-        const result = await this.fetcher(
-          input,
-          headers === undefined ? { signal } : { signal, headers },
-        )
+        const result = await this.fetcher(input, {
+          ...this.createRunContext(runId, headers),
+          signal,
+        })
         if (!ownsRun(this.abortController, abortController)) return
         if (result instanceof Response) {
           // Server function returned SSE Response — parse stream
@@ -798,18 +781,6 @@ export class GenerationClient<
       ...(metadata?.outputKind ? { outputKind: metadata.outputKind } : {}),
       ...(metadata?.name ? { name: metadata.name } : {}),
     }
-  }
-
-  private ensureThreadId(): string {
-    if (!this.threadId) {
-      this.threadId = this.generateUniqueId('generation')
-    }
-    this.uniqueId = this.threadId
-    return this.threadId
-  }
-
-  private generateUniqueId(prefix: string): string {
-    return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
   }
 
   private createRunContext(

@@ -12,7 +12,7 @@
     "test:types": "tsc --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.97.1",
+    "@anthropic-ai/sdk": "^0.135.0",
     "@elevenlabs/elevenlabs-js": "^2.68.0",
     "@mcp-ui/client": "^7.1.1",
     "@modelcontextprotocol/sdk": "^1.29.0",

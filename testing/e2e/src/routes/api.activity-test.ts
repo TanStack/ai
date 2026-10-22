@@ -13,6 +13,7 @@ import {
 import type {
   AnyTextAdapter,
   AdapterYieldChunk,
+  ChatMiddleware,
   StreamChunk,
 } from '@tanstack/ai'
 
@@ -29,11 +30,14 @@ import type {
  *
  * Persist mode (`?mode=persist`) drains `chat()` through `withPersistence`
  * and GET `/api/activity-test?threadId=` returns `reconstructChat`.
+ * `?mode=persist-middleware` also adds an activity from middleware `onChunk`.
+ * `?mode=persist-error` fails the run after the activity (issue #1804).
  *
  * Exempt from the aimock policy: a fixed AG-UI sequence, never an LLM provider.
  */
 
 const ACTIVITY_ID = 'act-e2e-1'
+const MIDDLEWARE_ACTIVITY_ID = 'act-e2e-middleware'
 const ACTIVITY_NEEDLE = 'e2e-activity-needle'
 const ACTIVITY_FOUND = 'ACTIVITY_FOUND cats'
 const ACTIVITY_CLEAN = 'ACTIVITY_CLEAN'
@@ -187,16 +191,58 @@ function stringField(body: unknown, key: string): string | undefined {
   return typeof value === 'string' ? value : undefined
 }
 
-async function persistActivity(threadId: string, runId: string) {
+/** Adds its own activity card before the assistant text (issue #1803). */
+const middlewareActivity: ChatMiddleware = {
+  name: 'middleware-activity',
+  onChunk(_ctx, chunk) {
+    if (chunk.type !== EventType.TEXT_MESSAGE_START) return [chunk]
+    return [
+      {
+        type: EventType.ACTIVITY_SNAPSHOT,
+        messageId: MIDDLEWARE_ACTIVITY_ID,
+        activityType: 'NOTICE',
+        content: { text: 'from middleware' },
+        timestamp: Date.now(),
+      },
+      chunk,
+    ]
+  },
+}
+
+/** Fails the run after the activity, before the assistant text (issue #1804). */
+const failAfterActivity: ChatMiddleware = {
+  name: 'fail-after-activity',
+  onChunk(_ctx, chunk) {
+    if (chunk.type === EventType.TEXT_MESSAGE_START) {
+      throw new Error('provider failed')
+    }
+  },
+}
+
+const persistMiddleware: Record<string, Array<ChatMiddleware> | undefined> = {
+  persist: [],
+  'persist-middleware': [middlewareActivity],
+  'persist-error': [failAfterActivity],
+}
+
+async function persistActivity(
+  threadId: string,
+  runId: string,
+  extra: Array<ChatMiddleware>,
+) {
   const stream = chat({
     adapter,
     messages: [{ role: 'user', content: 'search' }],
     stream: true,
     threadId,
     runId,
-    middleware: [withPersistence(activityPersistence)],
+    middleware: [withPersistence(activityPersistence), ...extra],
   })
-  for await (const _ of stream) void _
+  try {
+    for await (const _ of stream) void _
+  } catch {
+    // persist-error fails the run on purpose.
+  }
   return { threadId, runId }
 }
 
@@ -205,11 +251,12 @@ export const Route = createFileRoute('/api/activity-test')({
     handlers: {
       POST: async ({ request }) => {
         const mode = new URL(request.url).searchParams.get('mode')
-        if (mode === 'persist') {
+        const extra = mode ? persistMiddleware[mode] : undefined
+        if (extra) {
           const body: unknown = await request.json()
           const threadId = stringField(body, 'threadId') ?? crypto.randomUUID()
           const runId = stringField(body, 'runId') ?? crypto.randomUUID()
-          return Response.json(await persistActivity(threadId, runId))
+          return Response.json(await persistActivity(threadId, runId, extra))
         }
 
         let params

@@ -7,9 +7,6 @@ import type { Tool } from '@tanstack/ai'
 
 export type { CustomToolConfig }
 
-/** @deprecated Renamed to `CustomToolConfig`. Will be removed in a future release. */
-export type CustomTool = CustomToolConfig
-
 /**
  * Converts a standard Tool to OpenAI CustomTool format
  */

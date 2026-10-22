@@ -14,6 +14,7 @@ import type {
   RunAgentResumeItem,
   RunErrorEvent,
   StreamChunk,
+  TanStackMessageMetadata,
   TokenUsage,
   Tool,
   ToolCall,
@@ -209,24 +210,30 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   /** The subagentRunId of the child that started this one, for a nested child. */
   parentSubagentRunId?: string
   /**
+   * Interrupt ids in `resume` that a subagent tool call of this run answers.
+   * This run does not answer them itself. They come from the subagent cards in
+   * the messages the client sent. `undefined` when no child is resumed, and
+   * for a router turn.
+   */
+  childResumeIds?: ReadonlySet<string>
+  /**
    * AG-UI thread identifier — a stable per-conversation ID used to
-   * correlate client and server devtools events. Resolves to the
-   * caller-provided `threadId` (or legacy `conversationId`), or an
-   * auto-generated value when neither is supplied.
+   * correlate client and server devtools events. It is the caller's
+   * `threadId`.
    */
   threadId: string
-  /**
-   * @deprecated Use `threadId` instead. Retained as an alias of
-   * `threadId` so middleware written before the AG-UI rename keeps
-   * working unchanged. Will be removed in a future major release.
-   */
-  conversationId?: string
   /** Current lifecycle phase */
   phase: ChatMiddlewarePhase
   /** Current agent loop iteration (0-indexed) */
   iteration: number
   /** Running count of chunks yielded so far */
   chunkIndex: number
+  /**
+   * The `metadata.tanstack` of the current model call: source, stop reason,
+   * response id, and so on. It changes as chunks arrive. Each assistant
+   * message of the call gets a copy of it.
+   */
+  callMetadata: Readonly<TanStackMessageMetadata>
   /** Abort signal from the chat request */
   signal?: AbortSignal
   /** Abort the chat run with a reason */

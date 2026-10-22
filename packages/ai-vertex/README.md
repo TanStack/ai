@@ -46,6 +46,7 @@ const stream = chat({
     location: 'europe-west1',
   }),
   messages: [{ role: 'user', content: 'Hello' }],
+  threadId: 'thread-1',
 })
 ```
 

@@ -3,7 +3,7 @@ id: StateSnapshotEvent
 title: StateSnapshotEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1731](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1731)
+Defined in: packages/ai/src/types.ts:1740
 
 Emitted to provide a full state snapshot.
 

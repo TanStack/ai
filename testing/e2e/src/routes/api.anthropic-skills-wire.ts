@@ -129,6 +129,7 @@ export const Route = createFileRoute('/api/anthropic-skills-wire')({
 
         try {
           for await (const _ of chat({
+            threadId: 'anthropic-skills-wire',
             ...createChatOptions({ adapter }),
             messages: [
               {

@@ -13,4 +13,4 @@ type WireMessage =
   | WireActivityMessage;
 ```
 
-Defined in: [packages/ai/src/utilities/ag-ui-wire.ts:79](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/ag-ui-wire.ts#L79)
+Defined in: packages/ai/src/utilities/ag-ui-wire.ts:79

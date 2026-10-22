@@ -197,6 +197,7 @@ export class AppComponent {
 
   chat = injectChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'angular-chat',
     tools: clientTools(...chatTools),
   })
 

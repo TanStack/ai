@@ -135,11 +135,6 @@ export function addTokenUsage(
   )
   const costDetails = sumNumbers(current.costDetails, next.costDetails)
   const cost = sumOptional(current.cost, next.cost)
-  const durationSeconds = sumOptional(
-    current.durationSeconds,
-    next.durationSeconds,
-  )
-  const unitsBilled = sumOptional(current.unitsBilled, next.unitsBilled)
   const billed =
     current.billed && next.billed && current.billed.unit === next.billed.unit
       ? {
@@ -159,8 +154,6 @@ export function addTokenUsage(
     ...(completionTokensDetails && { completionTokensDetails }),
     ...(cost !== undefined && { cost }),
     ...(costDetails && { costDetails }),
-    ...(durationSeconds !== undefined && { durationSeconds }),
-    ...(unitsBilled !== undefined && { unitsBilled }),
     ...(billed && { billed }),
     ...(providerUsageDetails && { providerUsageDetails }),
   }

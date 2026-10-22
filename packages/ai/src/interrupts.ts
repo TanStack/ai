@@ -22,7 +22,6 @@ export type ItemInterruptErrorCode =
   | 'expired'
   | 'stale'
   | 'conflict'
-  | 'legacy-unsupported'
 
 export type BatchInterruptErrorCode =
   | 'incomplete-batch'
@@ -38,7 +37,6 @@ export type BatchInterruptErrorCode =
   | 'expired'
   | 'stale'
   | 'conflict'
-  | 'legacy-submit-failed'
 
 export interface ItemInterruptError extends InterruptCorrelation {
   scope: 'item'

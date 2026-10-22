@@ -84,7 +84,7 @@ it('types tool and interrupt component props from chatOptions', () => {
   expectTypeOf(useChatContext).toBeFunction()
 
   const checkBoundHook = () => {
-    const chat = useAppChat()
+    const chat = useAppChat({ threadId: 'thread-1' })
     expectTypeOf(chat).toMatchTypeOf<ChatUIHost<typeof chatOptions>>()
     expectTypeOf(chat.sendMessage).toBeFunction()
     expectTypeOf(chat.AppChat).not.toBeAny()

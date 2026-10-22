@@ -59,7 +59,7 @@ export type {
 export { convertToolsToProviderFormat } from './tools/tool-converter'
 
 // Export tool types
-export type { AnthropicTool, CustomTool } from './tools/index'
+export type { AnthropicTool, CustomToolConfig } from './tools/index'
 
 // Export provider usage types
 export type { AnthropicProviderUsageDetails } from './usage'

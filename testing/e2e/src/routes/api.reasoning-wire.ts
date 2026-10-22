@@ -86,6 +86,7 @@ export const Route = createFileRoute('/api/reasoning-wire')({
         let text = ''
         try {
           for await (const chunk of chat({
+            threadId: 'reasoning-wire',
             adapter,
             messages,
             reasoning:

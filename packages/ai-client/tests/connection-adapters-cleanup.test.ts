@@ -4,6 +4,8 @@ import {
   fetchServerSentEvents,
 } from '../src/connection-adapters'
 
+const RUN_CONTEXT = { threadId: 'thread-1', runId: 'run-1' }
+
 const chunk = { type: 'RUN_STARTED', threadId: 'thread', runId: 'run' }
 
 describe.each([
@@ -26,7 +28,11 @@ describe.each([
     const adapter = createAdapter('/chat', {
       fetchClient: async () => new Response(body),
     })
-    return { body, cancel, stream: adapter.connect([]) }
+    return {
+      body,
+      cancel,
+      stream: adapter.connect([], undefined, undefined, RUN_CONTEXT),
+    }
   }
 
   it('cancels the response when JSON parsing fails', async () => {
@@ -84,22 +90,4 @@ describe.each([
     expect(cancel).not.toHaveBeenCalled()
     expect(body.locked).toBe(false)
   })
-})
-
-it('cancels an SSE response after the DONE sentinel', async () => {
-  const cancel = vi.fn()
-  const body = new ReadableStream<Uint8Array>({
-    start(controller) {
-      controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
-    },
-    cancel,
-  })
-  const adapter = fetchServerSentEvents('/chat', {
-    fetchClient: async () => new Response(body),
-  })
-  const chunks = []
-  for await (const received of adapter.connect([])) chunks.push(received)
-  expect(chunks).toEqual([expect.objectContaining({ type: 'RUN_FINISHED' })])
-  expect(cancel).toHaveBeenCalledOnce()
-  expect(body.locked).toBe(false)
 })

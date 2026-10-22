@@ -24,6 +24,7 @@ const adapters = [
     adapter: 'Responses',
     send: (fetch, wrapFetch) =>
       createGrokText(model, 'test-key', { fetch }).chatStream({
+        threadId: 'thread-1',
         logger,
         model,
         messages,

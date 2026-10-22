@@ -12,6 +12,6 @@ type RealtimeMessagePart =
   | RealtimeImagePart;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:152](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L152)
+Defined in: packages/ai/src/realtime/types.ts:152
 
 Union of all realtime message parts

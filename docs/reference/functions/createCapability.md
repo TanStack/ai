@@ -7,7 +7,7 @@ title: createCapability
 function createCapability<TValue>(): <TName>(name) => Capability<TValue, TName>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/capabilities.ts:114](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/capabilities.ts#L114)
+Defined in: packages/ai/src/activities/chat/middleware/capabilities.ts:114
 
 Create a capability. Returns a hybrid handle that destructures to
 `[get, provide]` and is itself the identity for `requires`/`provides`.

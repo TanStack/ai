@@ -7,9 +7,6 @@ import type { ProviderTool, Tool } from '@tanstack/ai'
 
 export type GoogleSearchToolConfig = GoogleSearch
 
-/** @deprecated Renamed to `GoogleSearchToolConfig`. Will be removed in a future release. */
-export type GoogleSearchTool = GoogleSearchToolConfig
-
 export type GeminiGoogleSearchTool = ProviderTool<'gemini', 'google_search'>
 
 export function convertGoogleSearchToolToAdapterFormat(tool: Tool) {

@@ -67,6 +67,7 @@ async function observe(
   const controller = new AbortController()
   const events: Array<StreamChunk> = []
   for await (const event of chat({
+    threadId: 'thread-1',
     adapter: new SSEAdapter(chunks, done),
     messages: [{ role: 'user', content: 'Reply' }],
     tools: [{ name: 'lookup', description: 'Look up an item', execute }],
@@ -180,8 +181,6 @@ describe('Chat Completions completion policy with the real SDK', () => {
       'REASONING_END',
       'REASONING_MESSAGE_START',
       'REASONING_MESSAGE_END',
-      'STEP_STARTED',
-      'STEP_FINISHED',
     ]) {
       expect(types.filter((value) => value === type)).toHaveLength(1)
     }

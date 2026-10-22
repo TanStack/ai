@@ -7,7 +7,7 @@ title: ToolExecutionContext
 type ToolExecutionContext<TContext> = RuntimeContextField<TContext> & object;
 ```
 
-Defined in: [packages/ai/src/types.ts:870](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L870)
+Defined in: packages/ai/src/types.ts:872
 
 Context passed to tool execute functions, providing capabilities like
 emitting custom events during execution.
@@ -110,6 +110,17 @@ optional inputResponse?: ToolInputResponse;
 The answer to the input request that this tool call raised in the
 previous run. It is set only when the run resumes an `mcp_input`
 interrupt for this tool call.
+
+### threadId?
+
+```ts
+optional threadId?: string;
+```
+
+The thread id of the chat run. `chat()` sets it to the same value as
+`ctx.threadId` in middleware. A tool can use it to keep its own state
+for each conversation. It is missing when a tool runs outside a chat,
+for example from an MCP server, WebMCP, or a direct `execute()` call.
 
 ### toolCallId?
 

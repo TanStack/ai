@@ -159,6 +159,12 @@ export const clientToolDefinitions = {
       message: z.string(),
       type: z.enum(['info', 'warning', 'error']),
     }),
+    // Must match the browser tool's outputSchema. A different schema makes
+    // the client treat the pause as a generic interrupt, not a client tool.
+    outputSchema: z.object({
+      displayed: z.boolean(),
+      timestamp: z.number(),
+    }),
   }).client(),
 
   display_chart: toolDefinition({
@@ -167,6 +173,10 @@ export const clientToolDefinitions = {
     inputSchema: z.object({
       type: z.enum(['bar', 'line', 'pie']),
       data: z.array(z.number()),
+    }),
+    outputSchema: z.object({
+      rendered: z.boolean(),
+      chartId: z.string(),
     }),
   }).client(),
 

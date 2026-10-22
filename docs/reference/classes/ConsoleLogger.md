@@ -3,7 +3,7 @@ id: ConsoleLogger
 title: ConsoleLogger
 ---
 
-Defined in: [packages/ai/src/logger/console-logger.ts:101](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/console-logger.ts#L101)
+Defined in: packages/ai/src/logger/console-logger.ts:101
 
 Default `Logger` implementation that routes each level to the matching
 `console` method:
@@ -45,7 +45,7 @@ new ConsoleLogger(): ConsoleLogger;
 debug(message, meta?): void;
 ```
 
-Defined in: [packages/ai/src/logger/console-logger.ts:103](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/console-logger.ts#L103)
+Defined in: packages/ai/src/logger/console-logger.ts:103
 
 Log a debug-level message; forwards to `console.debug`.
 
@@ -75,7 +75,7 @@ Log a debug-level message; forwards to `console.debug`.
 error(message, meta?): void;
 ```
 
-Defined in: [packages/ai/src/logger/console-logger.ts:118](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/console-logger.ts#L118)
+Defined in: packages/ai/src/logger/console-logger.ts:118
 
 Log an error-level message; forwards to `console.error`.
 
@@ -105,7 +105,7 @@ Log an error-level message; forwards to `console.error`.
 info(message, meta?): void;
 ```
 
-Defined in: [packages/ai/src/logger/console-logger.ts:108](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/console-logger.ts#L108)
+Defined in: packages/ai/src/logger/console-logger.ts:108
 
 Log an info-level message; forwards to `console.info`.
 
@@ -135,7 +135,7 @@ Log an info-level message; forwards to `console.info`.
 warn(message, meta?): void;
 ```
 
-Defined in: [packages/ai/src/logger/console-logger.ts:113](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/console-logger.ts#L113)
+Defined in: packages/ai/src/logger/console-logger.ts:113
 
 Log a warning-level message; forwards to `console.warn`.
 

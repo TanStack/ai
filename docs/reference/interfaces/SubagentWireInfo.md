@@ -3,7 +3,7 @@ id: SubagentWireInfo
 title: SubagentWireInfo
 ---
 
-Defined in: [packages/ai/src/utilities/subagent-wire.ts:8](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/subagent-wire.ts#L8)
+Defined in: packages/ai/src/utilities/subagent-wire.ts:8
 
 Card data that travels on each child wire message, in
 `metadata.tanstack.subagent`. The messages carry the AG-UI `subagentRunId`.
@@ -26,7 +26,7 @@ Card data that travels on each child wire message, in
 optional error?: Pick<SubagentErrorEvent, "message" | "code">;
 ```
 
-Defined in: [packages/ai/src/types.ts:649](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L649)
+Defined in: packages/ai/src/types.ts:649
 
 #### Inherited from
 
@@ -42,7 +42,7 @@ Pick.error
 optional interruptIds?: string[];
 ```
 
-Defined in: [packages/ai/src/types.ts:647](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L647)
+Defined in: packages/ai/src/types.ts:647
 
 Interrupts this child raised, while `status` is `'suspended'`.
 
@@ -60,7 +60,7 @@ Pick.interruptIds
 optional placeholder?: true;
 ```
 
-Defined in: [packages/ai/src/utilities/subagent-wire.ts:21](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/subagent-wire.ts#L21)
+Defined in: packages/ai/src/utilities/subagent-wire.ts:21
 
 The child has no messages yet. This wire message only holds the card.
 
@@ -72,7 +72,7 @@ The child has no messages yet. This wire message only holds the card.
 status: SubagentStatus;
 ```
 
-Defined in: [packages/ai/src/types.ts:643](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L643)
+Defined in: packages/ai/src/types.ts:643
 
 #### Inherited from
 

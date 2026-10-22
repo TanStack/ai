@@ -62,6 +62,7 @@ describe('ChatClient interrupt error correlation', () => {
     const { connection, contexts, publish } = createNativeQueue()
     const onChunk = vi.fn()
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection,
       onChunk,
       initialResumeSnapshot: {

@@ -104,6 +104,7 @@ describe('opencode adapter', () => {
     const adapter = opencodeText('anthropic/claude-sonnet-4-5')
     const result = await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: 'anthropic/claude-sonnet-4-5',
         messages: [{ role: 'user', content: 'hi' }],
         logger: noopLogger,

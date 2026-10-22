@@ -207,7 +207,7 @@ describe('useGeneration', () => {
     it('should initialize with default state', () => {
       const adapter = createMockConnectionAdapter()
       const { result } = renderHook(() =>
-        useGeneration({ connection: adapter }),
+        useGeneration({ threadId: 'thread-1', connection: adapter }),
       )
 
       expect(result.result()).toBeNull()
@@ -224,6 +224,7 @@ describe('useGeneration', () => {
 
       const { result } = renderHook(() =>
         useGeneration({
+          threadId: 'thread-1',
           fetcher: async () => mockResult,
           onResult,
         }),
@@ -242,6 +243,7 @@ describe('useGeneration', () => {
 
       const { result } = renderHook(() =>
         useGeneration({
+          threadId: 'thread-1',
           fetcher: async () => {
             throw new Error('fetch failed')
           },
@@ -261,6 +263,7 @@ describe('useGeneration', () => {
 
       const { result } = renderHook(() =>
         useGeneration({
+          threadId: 'thread-1',
           fetcher: async () => {
             return new Promise((resolve) => {
               resolvePromise = resolve
@@ -314,6 +317,7 @@ describe('useGeneration', () => {
 
       const { result } = renderHook(() =>
         useGeneration({
+          threadId: 'thread-1',
           connection: adapter,
           onProgress,
         }),
@@ -331,6 +335,7 @@ describe('useGeneration', () => {
 
       const { result } = renderHook(() =>
         useGeneration({
+          threadId: 'thread-1',
           connection: adapter,
           onChunk,
         }),
@@ -352,7 +357,7 @@ describe('useGeneration', () => {
       const adapter = createMockConnectionAdapter({ chunks })
 
       const { result } = renderHook(() =>
-        useGeneration({ connection: adapter }),
+        useGeneration({ threadId: 'thread-1', connection: adapter }),
       )
 
       await result.generate({ prompt: 'test' })
@@ -366,7 +371,7 @@ describe('useGeneration', () => {
       const adapter = createMockConnectionAdapter({ chunks })
 
       const { result } = renderHook(() =>
-        useGeneration({ connection: adapter }),
+        useGeneration({ threadId: 'thread-1', connection: adapter }),
       )
 
       await result.generate({ prompt: 'test' })
@@ -384,6 +389,7 @@ describe('useGeneration', () => {
 
       const { result } = renderHook(() =>
         useGeneration({
+          threadId: 'thread-1',
           connection: adapter,
           onError,
         }),
@@ -403,6 +409,7 @@ describe('useGeneration', () => {
 
       const { result } = renderHook(() =>
         useGeneration({
+          threadId: 'thread-1',
           fetcher: async () =>
             new Promise((resolve) => {
               resolvePromise = resolve
@@ -426,6 +433,7 @@ describe('useGeneration', () => {
     it('should reset all state', async () => {
       const { result } = renderHook(() =>
         useGeneration({
+          threadId: 'thread-1',
           fetcher: async () => ({ id: '1' }),
         }),
       )
@@ -445,7 +453,7 @@ describe('useGeneration', () => {
     it('should be safe to call stop multiple times', () => {
       const adapter = createMockConnectionAdapter()
       const { result } = renderHook(() =>
-        useGeneration({ connection: adapter }),
+        useGeneration({ threadId: 'thread-1', connection: adapter }),
       )
 
       // Should not throw
@@ -560,7 +568,7 @@ describe('useGeneration', () => {
       })
 
       const { result } = renderHook(() =>
-        useGeneration({ connection: adapter }),
+        useGeneration({ threadId: 'thread-1', connection: adapter }),
       )
 
       await result.generate({ prompt: 'replay' })
@@ -579,7 +587,11 @@ describe('useGeneration', () => {
       // generics explicitly avoids leaving the constraints to default to
       // `unknown`, which trips inference on the empty literal.
       expect(() => {
-        renderHook(() => useGeneration<Record<string, unknown>, unknown>({}))
+        renderHook(() =>
+          useGeneration<Record<string, unknown>, unknown>({
+            threadId: 'thread-1',
+          }),
+        )
       }).toThrow('useGeneration requires either a connection or fetcher option')
     })
   })
@@ -590,7 +602,7 @@ describe('useGenerateImage', () => {
     it('should initialize with default state', () => {
       const adapter = createMockConnectionAdapter()
       const { result } = renderHook(() =>
-        useGenerateImage({ connection: adapter }),
+        useGenerateImage({ threadId: 'thread-1', connection: adapter }),
       )
 
       expect(result.result()).toBeNull()
@@ -611,6 +623,7 @@ describe('useGenerateImage', () => {
 
       const { result } = renderHook(() =>
         useGenerateImage({
+          threadId: 'thread-1',
           fetcher: async () => mockResult,
           onResult,
         }),
@@ -629,6 +642,7 @@ describe('useGenerateImage', () => {
 
       const { result } = renderHook(() =>
         useGenerateImage({
+          threadId: 'thread-1',
           fetcher: async () => {
             throw new Error('Image generation failed')
           },
@@ -655,7 +669,7 @@ describe('useGenerateImage', () => {
       const adapter = createMockConnectionAdapter({ chunks })
 
       const { result } = renderHook(() =>
-        useGenerateImage({ connection: adapter }),
+        useGenerateImage({ threadId: 'thread-1', connection: adapter }),
       )
 
       await result.generate({ prompt: 'A sunset' })
@@ -669,7 +683,7 @@ describe('useGenerateImage', () => {
     it('should expose stop and reset functions', () => {
       const adapter = createMockConnectionAdapter()
       const { result } = renderHook(() =>
-        useGenerateImage({ connection: adapter }),
+        useGenerateImage({ threadId: 'thread-1', connection: adapter }),
       )
 
       expect(typeof result.stop).toBe('function')
@@ -685,6 +699,7 @@ describe('useGenerateImage', () => {
 
       const { result } = renderHook(() =>
         useGenerateImage({
+          threadId: 'thread-1',
           fetcher: async () => mockResult,
         }),
       )
@@ -749,7 +764,7 @@ describe('useGenerateSpeech', () => {
     it('should initialize with default state', () => {
       const adapter = createMockConnectionAdapter()
       const { result } = renderHook(() =>
-        useGenerateSpeech({ connection: adapter }),
+        useGenerateSpeech({ threadId: 'thread-1', connection: adapter }),
       )
 
       expect(result.result()).toBeNull()
@@ -771,6 +786,7 @@ describe('useGenerateSpeech', () => {
 
       const { result } = renderHook(() =>
         useGenerateSpeech({
+          threadId: 'thread-1',
           fetcher: async () => mockResult,
           onResult,
         }),
@@ -789,6 +805,7 @@ describe('useGenerateSpeech', () => {
 
       const { result } = renderHook(() =>
         useGenerateSpeech({
+          threadId: 'thread-1',
           fetcher: async () => {
             throw new Error('Speech generation failed')
           },
@@ -815,7 +832,7 @@ describe('useGenerateSpeech', () => {
       const adapter = createMockConnectionAdapter({ chunks })
 
       const { result } = renderHook(() =>
-        useGenerateSpeech({ connection: adapter }),
+        useGenerateSpeech({ threadId: 'thread-1', connection: adapter }),
       )
 
       await result.generate({ text: 'Hello world' })
@@ -836,6 +853,7 @@ describe('useGenerateSpeech', () => {
 
       const { result } = renderHook(() =>
         useGenerateSpeech({
+          threadId: 'thread-1',
           fetcher: async () => mockResult,
         }),
       )
@@ -912,7 +930,7 @@ describe('useGenerateAudio', () => {
     it('should initialize with default state', () => {
       const adapter = createMockConnectionAdapter()
       const { result } = renderHook(() =>
-        useGenerateAudio({ connection: adapter }),
+        useGenerateAudio({ threadId: 'thread-1', connection: adapter }),
       )
 
       expect(result.result()).toBeNull()
@@ -928,6 +946,7 @@ describe('useGenerateAudio', () => {
 
       const { result } = renderHook(() =>
         useGenerateAudio({
+          threadId: 'thread-1',
           fetcher: async () => mockResult,
           onResult,
         }),
@@ -946,6 +965,7 @@ describe('useGenerateAudio', () => {
 
       const { result } = renderHook(() =>
         useGenerateAudio({
+          threadId: 'thread-1',
           fetcher: async () => {
             throw new Error('Audio generation failed')
           },
@@ -967,7 +987,7 @@ describe('useGenerateAudio', () => {
       const adapter = createMockConnectionAdapter({ chunks })
 
       const { result } = renderHook(() =>
-        useGenerateAudio({ connection: adapter }),
+        useGenerateAudio({ threadId: 'thread-1', connection: adapter }),
       )
 
       await result.generate({ prompt: 'Upbeat synths', duration: 10 })
@@ -981,6 +1001,7 @@ describe('useGenerateAudio', () => {
     it('should reset state after generation', async () => {
       const { result } = renderHook(() =>
         useGenerateAudio({
+          threadId: 'thread-1',
           fetcher: async () => mockResult,
         }),
       )
@@ -1002,7 +1023,7 @@ describe('useTranscription', () => {
     it('should initialize with default state', () => {
       const adapter = createMockConnectionAdapter()
       const { result } = renderHook(() =>
-        useTranscription({ connection: adapter }),
+        useTranscription({ threadId: 'thread-1', connection: adapter }),
       )
 
       expect(result.result()).toBeNull()
@@ -1023,6 +1044,7 @@ describe('useTranscription', () => {
 
       const { result } = renderHook(() =>
         useTranscription({
+          threadId: 'thread-1',
           fetcher: async () => mockResult,
           onResult,
         }),
@@ -1041,6 +1063,7 @@ describe('useTranscription', () => {
 
       const { result } = renderHook(() =>
         useTranscription({
+          threadId: 'thread-1',
           fetcher: async () => {
             throw new Error('Transcription failed')
           },
@@ -1063,7 +1086,7 @@ describe('useTranscription', () => {
       const adapter = createMockConnectionAdapter({ chunks })
 
       const { result } = renderHook(() =>
-        useTranscription({ connection: adapter }),
+        useTranscription({ threadId: 'thread-1', connection: adapter }),
       )
 
       await result.generate({ audio: 'base64audio' })
@@ -1083,6 +1106,7 @@ describe('useTranscription', () => {
 
       const { result } = renderHook(() =>
         useTranscription({
+          threadId: 'thread-1',
           fetcher: async () => mockResult,
         }),
       )
@@ -1103,7 +1127,9 @@ describe('useSummarize', () => {
   describe('initialization', () => {
     it('should initialize with default state', () => {
       const adapter = createMockConnectionAdapter()
-      const { result } = renderHook(() => useSummarize({ connection: adapter }))
+      const { result } = renderHook(() =>
+        useSummarize({ threadId: 'thread-1', connection: adapter }),
+      )
 
       expect(result.result()).toBeNull()
       expect(result.isLoading()).toBe(false)
@@ -1124,6 +1150,7 @@ describe('useSummarize', () => {
 
       const { result } = renderHook(() =>
         useSummarize({
+          threadId: 'thread-1',
           fetcher: async () => mockResult,
           onResult,
         }),
@@ -1142,6 +1169,7 @@ describe('useSummarize', () => {
 
       const { result } = renderHook(() =>
         useSummarize({
+          threadId: 'thread-1',
           fetcher: async () => {
             throw new Error('Summarization failed')
           },
@@ -1163,7 +1191,9 @@ describe('useSummarize', () => {
       const chunks = createGenerationChunks(mockResult)
       const adapter = createMockConnectionAdapter({ chunks })
 
-      const { result } = renderHook(() => useSummarize({ connection: adapter }))
+      const { result } = renderHook(() =>
+        useSummarize({ threadId: 'thread-1', connection: adapter }),
+      )
 
       await result.generate({ text: 'Long text to summarize...' })
 
@@ -1183,6 +1213,7 @@ describe('useSummarize', () => {
 
       const { result } = renderHook(() =>
         useSummarize({
+          threadId: 'thread-1',
           fetcher: async () => mockResult,
         }),
       )
@@ -1204,7 +1235,7 @@ describe('useGenerateVideo', () => {
     it('should initialize with default state', () => {
       const adapter = createMockConnectionAdapter()
       const { result } = renderHook(() =>
-        useGenerateVideo({ connection: adapter }),
+        useGenerateVideo({ threadId: 'thread-1', connection: adapter }),
       )
 
       expect(result.result()).toBeNull()
@@ -1227,6 +1258,7 @@ describe('useGenerateVideo', () => {
 
       const { result } = renderHook(() =>
         useGenerateVideo({
+          threadId: 'thread-1',
           fetcher: async () => mockResult,
           onResult,
         }),
@@ -1245,6 +1277,7 @@ describe('useGenerateVideo', () => {
 
       const { result } = renderHook(() =>
         useGenerateVideo({
+          threadId: 'thread-1',
           fetcher: async () => {
             throw new Error('Video generation failed')
           },
@@ -1272,6 +1305,7 @@ describe('useGenerateVideo', () => {
 
       const { result } = renderHook(() =>
         useGenerateVideo({
+          threadId: 'thread-1',
           connection: adapter,
           onJobCreated,
           onStatusUpdate,
@@ -1299,6 +1333,7 @@ describe('useGenerateVideo', () => {
 
       const { result } = renderHook(() =>
         useGenerateVideo({
+          threadId: 'thread-1',
           connection: adapter,
           onError,
         }),
@@ -1322,6 +1357,7 @@ describe('useGenerateVideo', () => {
 
       const { result } = renderHook(() =>
         useGenerateVideo({
+          threadId: 'thread-1',
           fetcher: async () => mockResult,
         }),
       )
@@ -1344,6 +1380,7 @@ describe('useGenerateVideo', () => {
 
       const { result } = renderHook(() =>
         useGenerateVideo({
+          threadId: 'thread-1',
           fetcher: async () =>
             new Promise((resolve) => {
               resolvePromise = resolve
@@ -1371,7 +1408,7 @@ describe('useGenerateVideo', () => {
     it('should be safe to call stop multiple times', () => {
       const adapter = createMockConnectionAdapter()
       const { result } = renderHook(() =>
-        useGenerateVideo({ connection: adapter }),
+        useGenerateVideo({ threadId: 'thread-1', connection: adapter }),
       )
 
       // Should not throw
@@ -1417,7 +1454,7 @@ describe('useGenerateVideo', () => {
       // optional on UseGenerateVideoOptions) but a runtime guard inside
       // useGenerateVideo throws.
       expect(() => {
-        renderHook(() => useGenerateVideo({}))
+        renderHook(() => useGenerateVideo({ threadId: 'thread-1' }))
       }).toThrow(
         'useGenerateVideo requires either a connection or fetcher option',
       )
@@ -1432,6 +1469,7 @@ describe('onResult transform', () => {
     // no explicit type arguments needed.
     const { result } = renderHook(() =>
       useGeneration({
+        threadId: 'thread-1',
         fetcher: async () => ({ id: '1', audio: 'base64data' }),
         onResult: (raw) => ({ playable: raw.audio.length > 0 }),
       }),
@@ -1451,6 +1489,7 @@ describe('onResult transform', () => {
 
     const { result } = renderHook(() =>
       useGeneration({
+        threadId: 'thread-1',
         fetcher: async () => ({ id: '1', data: 'test' }),
         onResult,
       }),
@@ -1465,6 +1504,7 @@ describe('onResult transform', () => {
   it('should keep previous result when onResult returns null', async () => {
     const { result } = renderHook(() =>
       useGeneration({
+        threadId: 'thread-1',
         fetcher: async () => ({ id: '1' }),
         onResult: () => null,
       }),
@@ -1488,6 +1528,7 @@ describe('onResult transform', () => {
     // callback parameter position) — no explicit type arguments needed.
     const { result } = renderHook(() =>
       useGeneration({
+        threadId: 'thread-1',
         connection: adapter,
         onResult: (raw: StreamResult) => ({ count: raw.images.length }),
       }),
@@ -1515,6 +1556,7 @@ describe('onResult transform', () => {
     // as `TTSResult`.
     const { result } = renderHook(() =>
       useGenerateSpeech({
+        threadId: 'thread-1',
         fetcher: async () => mockTTSResult,
         onResult: (raw) => ({
           audioUrl: `data:${raw.contentType};base64,${raw.audio}`,
@@ -1535,6 +1577,7 @@ describe('onResult transform', () => {
   it('infers the raw result type when no onResult is provided', () => {
     const { result } = renderHook(() =>
       useTranscription({
+        threadId: 'thread-1',
         fetcher: async () => ({ id: '1', text: 'hi', model: 'whisper-1' }),
       }),
     )
@@ -1545,6 +1588,7 @@ describe('onResult transform', () => {
   it('narrows the wrapper result type to the transform return', () => {
     const { result } = renderHook(() =>
       useTranscription({
+        threadId: 'thread-1',
         fetcher: async () => ({ id: '1', text: 'hi', model: 'whisper-1' }),
         onResult: (res) => res.text,
       }),

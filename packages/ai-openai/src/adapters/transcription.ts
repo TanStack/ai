@@ -54,9 +54,7 @@ function mapDiarizedSegmentId(id: string, index: number): number {
  */
 /**
  * Duration-billed usage: zeroed token fields with the billed seconds carried
- * on `billed` and, for backward compatibility, the deprecated
- * `durationSeconds`. Shared by the gpt-4o duration branch and the whisper-1
- * path so the two fields can't drift apart.
+ * on `billed`. Shared by the gpt-4o duration branch and the whisper-1 path.
  */
 function durationUsage(seconds: number): TokenUsage {
   return {
@@ -64,7 +62,6 @@ function durationUsage(seconds: number): TokenUsage {
     completionTokens: 0,
     totalTokens: 0,
     billed: { quantity: seconds, unit: 'seconds' },
-    durationSeconds: seconds,
   }
 }
 

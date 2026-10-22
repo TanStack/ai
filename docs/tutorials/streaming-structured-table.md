@@ -2,7 +2,7 @@
 title: Streaming Structured Table
 id: streaming-structured-table
 order: 2
-description: "Stream a typed table from chat({ outputSchema, stream: true }). useChat exposes partial.rows. The UI fills as JSON arrives."
+description: "Stream a typed table from chat({ outputSchema, stream: true }). useChat gives you partial.rows, so the table fills while the JSON arrives."
 keywords:
   - tanstack ai
   - tutorial
@@ -15,15 +15,13 @@ keywords:
   - tanstack start
 ---
 
-You want a table that fills while the model writes JSON. If you wait for the full object, the UI stays empty.
+This tutorial streams typed table rows. `partial.rows` updates while the model writes the JSON.
 
-Pass `outputSchema` and `stream: true` to `chat()`. Pass the same schema to `useChat`. Show `partial.rows` as table rows.
+Pass one schema to `chat()` on the server and to `useChat` on the client. The hook gives you `partial.rows` while the JSON streams, so rows show up as the model writes them. It takes about 10 minutes.
 
-This tutorial is React + Start. For other frameworks, open [Quick Start](../getting-started/quick-start).
+This tutorial uses React and TanStack Start. For other frameworks, open [Quick Start](../getting-started/quick-start). To skip the setup, paste a key in the sandbox in step 5.
 
-You can skip the scaffold and paste a key in the sandbox at the end of this page.
-
-If you already built [Basic Chat](./basic-chat), keep the key form. Then skip to the schema.
+If you already built [Basic Chat](./basic-chat), keep the app and the key form. Install `zod`, then go to step 2.
 
 ## 1. Create a Start app
 
@@ -33,7 +31,7 @@ npx @tanstack/cli@latest create
 
 Pick React. For more options, see [Start getting started](https://tanstack.com/start/latest/docs/framework/react/quick-start).
 
-Then install the TanStack AI packages and Zod:
+Install the TanStack AI packages and Zod:
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
@@ -43,19 +41,9 @@ react: @tanstack/ai @tanstack/ai-react @tanstack/ai-openrouter zod
 
 Get an OpenRouter key from [openrouter.ai](https://openrouter.ai).
 
-## Client and server
+## 2. Share one schema
 
-A structured table has two sides.
-
-The **client** holds the key, sends the prompt, and shows rows from `partial`.
-
-The **server** route reads that key, calls OpenRouter with the schema, and streams JSON back.
-
-The next steps share one schema. Then they save the key. Then they show the table. Then they add the route.
-
-## 2. Share a schema
-
-Create `src/lib/table-schema.ts`. The client and the server import this file. Field descriptions tell the model what to put in each column.
+Create `src/lib/table-schema.ts`. The client and the server both import this file. The field descriptions tell the model what to put in each column.
 
 ```typescript
 import { z } from 'zod'
@@ -73,9 +61,9 @@ export const tableSchema = z.object({
 })
 ```
 
-## 3. Set up BYOK on the client
+## 3. Keep the key in the tab
 
-Create `src/lib/byok.ts`. `memoryStorage()` keeps the key in this tab.
+Create `src/lib/byok.ts`. `memoryStorage()` keeps the key in this tab only.
 
 ```typescript
 import { defineByok, memoryStorage } from '@tanstack/ai-react/byok'
@@ -87,7 +75,7 @@ export const byok = defineByok({
 })
 ```
 
-Create `src/components/open-router-key-form.tsx`. Export `OpenRouterKeyForm` from that file. If you already have this form from Basic Chat, reuse it.
+Create `src/components/open-router-key-form.tsx`. If you have this form from Basic Chat, use it again.
 
 ```tsx ignore
 import { useState } from 'react'
@@ -139,19 +127,11 @@ export function OpenRouterKeyForm() {
 }
 ```
 
-If you want passkeys, open [Bring Your Own Key](../advanced/byok).
+For passkeys or other storage, open [Bring Your Own Key](../advanced/byok).
 
 ## 4. Show the table from `partial`
 
-Open `src/routes/index.tsx`. Import `OpenRouterKeyForm` from `@/components/open-router-key-form`. Pass `byok` and `outputSchema: tableSchema` to `useChat`.
-
-The server streams JSON text in chunks. The hook parses that incomplete JSON into `partial`. Fields show up as soon as they parse. A new row can have empty cells until more text arrives.
-
-`final` is the completed object. It stays `null` until the stream ends. If you only read `final`, the table stays empty until the run is done.
-
-Show `partial.rows` while the model writes. Use `final` when you need the complete object, for example to save it.
-
-Missing cells show `…` until that field arrives.
+Replace `src/routes/index.tsx` with this file. Pass `byok` and `outputSchema: tableSchema` to `useChat`. Then show `partial.rows` as table rows.
 
 ```tsx ignore
 import { useState } from 'react'
@@ -165,6 +145,7 @@ function TablePage() {
   const [input, setInput] = useState('')
   const { sendMessage, isLoading, error, stop, partial, final } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
     byok,
     outputSchema: tableSchema,
   })
@@ -240,15 +221,11 @@ export const Route = createFileRoute('/')({
 })
 ```
 
-A send with no key does not POST. The form shows "Paste an OpenRouter key, then send again."
+A cell shows `…` until its field arrives.
 
 ## 5. Add the server route
 
-Create `src/routes/api.chat.ts` in the `src/routes` folder, next to `index.tsx`. Start maps that file name to the `/api/chat` path.
-
-`getByokKey` reads the `x-byok-openrouter` header, then `OPENROUTER_API_KEY` in the environment. If both are empty, `byokMissing` returns HTTP 401.
-
-Pass `outputSchema: tableSchema` and `stream: true`. Wrap `chat()` with `toServerSentEventsResponse`.
+Create `src/routes/api.chat.ts`, next to `index.tsx`. Start maps this file name to the `/api/chat` path. Pass `outputSchema: tableSchema` and `stream: true` to `chat()`.
 
 ```typescript ignore
 import { createFileRoute } from '@tanstack/react-router'
@@ -287,15 +264,33 @@ export const Route = createFileRoute('/api/chat')({
 })
 ```
 
-Import `openrouterByok` from `@tanstack/ai-openrouter/byok`, not from the adapter main entry.
+Import `openrouterByok` from `@tanstack/ai-openrouter/byok`, not from the main entry of the adapter.
 
-Run the app. Paste an OpenRouter key. Send `Compare 6 JavaScript frameworks`. Rows appear as the JSON streams.
+Then try it:
+
+1. Run the app.
+2. Paste an OpenRouter key.
+3. Send `Compare 6 JavaScript frameworks`.
+
+Rows show up while the JSON streams.
 
 The same app is on the Examples tab at `/ai/latest/docs/framework/react/examples/streaming-structured-table`.
 
 <!-- ::client-example library=ai framework=react slug=streaming-structured-table -->
 
-You have a table that fills from streamed structured output. The OpenRouter key never sits in a server env file.
+You have a table that fills from streamed structured output, and the OpenRouter key never sits in a server env file.
+
+## How it works
+
+The server streams the JSON text in chunks. The hook parses that incomplete JSON into `partial`:
+
+- A field shows up in `partial` as soon as it parses.
+- A new row can have empty cells until more text arrives.
+- `final` is the complete object. It stays `null` until the stream ends.
+
+Show `partial.rows` while the model writes. Use `final` when you need the complete object, for example to save it. If you read only `final`, the table stays empty until the run is done.
+
+On the server, `getByokKey` reads the `x-byok-openrouter` header first. If the header is empty, it reads `OPENROUTER_API_KEY` from the environment. If both are empty, `byokMissing` returns HTTP 401. If no key is saved in the tab, the hook does not send the POST, and the form shows "Paste an OpenRouter key, then send again."
 
 The full example is on GitHub: [TanStack/ai `examples/react/streaming-structured-table`](https://github.com/TanStack/ai/tree/main/examples/react/streaming-structured-table).
 

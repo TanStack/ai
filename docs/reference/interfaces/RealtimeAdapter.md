@@ -3,7 +3,7 @@ id: RealtimeAdapter
 title: RealtimeAdapter
 ---
 
-Defined in: [packages/ai/src/realtime/types.ts:319](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L319)
+Defined in: packages/ai/src/realtime/types.ts:319
 
 Adapter interface for connecting to realtime providers.
 Each provider (OpenAI, ElevenLabs, etc.) implements this interface.
@@ -22,7 +22,7 @@ re-exports this type for backwards compatibility.
 connect: (token, clientTools?) => Promise<RealtimeConnection>;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:329](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L329)
+Defined in: packages/ai/src/realtime/types.ts:329
 
 Create a connection using the provided token
 
@@ -54,6 +54,6 @@ A connection instance
 provider: string;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:321](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L321)
+Defined in: packages/ai/src/realtime/types.ts:321
 
 Provider identifier

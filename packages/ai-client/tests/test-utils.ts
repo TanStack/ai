@@ -43,7 +43,7 @@ export function createMockPersistence(
   initial?: Array<UIMessage> | null,
 ): ChatClientPersistence {
   return {
-    getItem: vi.fn(() => initial),
+    getItem: vi.fn(() => (initial ? { messages: initial } : initial)),
     setItem: vi.fn(),
     removeItem: vi.fn(),
   }
@@ -280,14 +280,13 @@ export function createCustomEventChunks(
 }
 
 /**
- * Helper to create tool call chunks (AG-UI format)
- * Optionally includes tool-input-available chunks to trigger onToolCall
+ * Helper to create tool call chunks (AG-UI format). The RUN_FINISHED leaves
+ * the calls unanswered, so the client runs them (onToolCall).
  */
 export function createToolCallChunks(
   toolCalls: Array<{ id: string; name: string; arguments: string }>,
   messageId: string = 'msg-1',
   model: string = 'test',
-  includeToolInputAvailable: boolean = true,
 ): Array<StreamChunk> {
   const chunks: Array<StreamChunk> = []
   const runId = `run-${messageId}`
@@ -308,99 +307,13 @@ export function createToolCallChunks(
       timestamp: Date.now(),
       delta: toolCall.arguments,
     } as StreamChunk)
-
-    // Add tool-input-available CUSTOM chunk if requested
-    if (includeToolInputAvailable) {
-      let parsedInput: any
-      try {
-        parsedInput = JSON.parse(toolCall.arguments)
-      } catch {
-        parsedInput = toolCall.arguments
-      }
-
-      chunks.push({
-        type: 'CUSTOM',
-        timestamp: Date.now(),
-        name: 'tool-input-available',
-        value: {
-          toolCallId: toolCall.id,
-          toolName: toolCall.name,
-          input: parsedInput,
-        },
-      } as StreamChunk)
-    }
   }
 
   chunks.push(
     runFinishedChunk({
       runId,
       threadId: `thread-${messageId}`,
-      finishReason: 'tool_calls',
-      model,
-    }),
-  )
-
-  return chunks
-}
-
-/**
- * Helper to create tool call chunks with approval requests (AG-UI format)
- * Tools will be in 'input-complete' state with pending approval
- */
-export function createApprovalToolCallChunks(
-  toolCalls: Array<{
-    id: string
-    name: string
-    arguments: string
-    approvalId: string
-  }>,
-  messageId: string = 'msg-1',
-  model: string = 'test',
-): Array<StreamChunk> {
-  const chunks: Array<StreamChunk> = []
-  const runId = `run-${messageId}`
-
-  for (let i = 0; i < toolCalls.length; i++) {
-    const toolCall = toolCalls[i]!
-
-    chunks.push({
-      type: 'TOOL_CALL_START',
-      toolCallId: toolCall.id,
-      toolCallName: toolCall.name,
-      timestamp: Date.now(),
-    } as StreamChunk)
-
-    chunks.push({
-      type: 'TOOL_CALL_ARGS',
-      toolCallId: toolCall.id,
-      timestamp: Date.now(),
-      delta: toolCall.arguments,
-    } as StreamChunk)
-
-    chunks.push({
-      type: 'TOOL_CALL_END',
-      toolCallId: toolCall.id,
-      timestamp: Date.now(),
-    } as StreamChunk)
-
-    chunks.push({
-      type: 'CUSTOM',
-      timestamp: Date.now(),
-      name: 'approval-requested',
-      value: {
-        toolCallId: toolCall.id,
-        toolName: toolCall.name,
-        input: JSON.parse(toolCall.arguments),
-        approval: { id: toolCall.approvalId, needsApproval: true },
-      },
-    } as StreamChunk)
-  }
-
-  chunks.push(
-    runFinishedChunk({
-      runId,
-      threadId: `thread-${messageId}`,
-      finishReason: 'tool_calls',
+      finishReason: 'stop',
       model,
     }),
   )

@@ -7,7 +7,7 @@ title: buildBaseUsage
 function buildBaseUsage<TProviderDetails>(input): TokenUsage<TProviderDetails>;
 ```
 
-Defined in: [packages/ai/src/utilities/usage.ts:33](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/usage.ts#L33)
+Defined in: packages/ai/src/utilities/usage.ts:33
 
 Builds the base TokenUsage object with core fields.
 Provider-specific functions should use this and then add their own details.

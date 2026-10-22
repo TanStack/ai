@@ -19,8 +19,8 @@ export interface UseGenerateAudioOptions<TOutput = AudioGenerationResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for audio generation */
   fetcher?: GenerationFetcher<AudioGenerateInput, AudioGenerationResult>
-  /** Unique identifier for this generation instance */
-  id?: string
+  /** Stable scope for this generation. Also the wire and DevTools identity. */
+  threadId: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
@@ -77,6 +77,7 @@ export interface UseGenerateAudioReturn<TOutput = AudioGenerationResult> {
  *
  * function AudioGenerator() {
  *   const { generate, result, isLoading, error, reset } = useGenerateAudio({
+ *     threadId: 'theme-audio',
  *     connection: fetchServerSentEvents('/api/generate/audio'),
  *   })
  *

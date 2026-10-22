@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-mistral",
-  "version": "0.7.0",
+  "version": "0.7.2",
   "type": "module",
   "description": "Mistral adapter for TanStack AI",
   "author": "",
@@ -72,6 +72,6 @@
   },
   "dependencies": {
     "@mistralai/mistralai": "2.2.0",
-    "@tanstack/ai-utils": "workspace:*"
+    "@tanstack/ai-utils": "workspace:^"
   }
 }

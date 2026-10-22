@@ -709,8 +709,6 @@ test.describe('Middleware Lifecycle', () => {
       'gen_ai.request.model': 'whisper-1',
       'tanstack.ai.usage.billed_quantity': 2.4,
       'tanstack.ai.usage.billed_unit': 'seconds',
-      // Deprecated bare count still emitted for backward compatibility.
-      'tanstack.ai.usage.duration_seconds': 2.4,
     })
     // captureContent (#1526): inline source audio is a placeholder; the
     // transcript is the output.

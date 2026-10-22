@@ -3,7 +3,7 @@ id: ChoiceAnswer
 title: ChoiceAnswer
 ---
 
-Defined in: [packages/ai/src/activities/evaluate/index.ts:64](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L64)
+Defined in: packages/ai/src/activities/evaluate/index.ts:64
 
 Public choice answer. `.value` is the selected option key.
 
@@ -21,7 +21,7 @@ Public choice answer. `.value` is the selected option key.
 confidence: number;
 ```
 
-Defined in: [packages/ai/src/activities/evaluate/index.ts:69](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L69)
+Defined in: packages/ai/src/activities/evaluate/index.ts:69
 
 ***
 
@@ -31,7 +31,7 @@ Defined in: [packages/ai/src/activities/evaluate/index.ts:69](https://github.com
 probabilities: Record<TValue, number>;
 ```
 
-Defined in: [packages/ai/src/activities/evaluate/index.ts:70](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L70)
+Defined in: packages/ai/src/activities/evaluate/index.ts:70
 
 ***
 
@@ -41,7 +41,7 @@ Defined in: [packages/ai/src/activities/evaluate/index.ts:70](https://github.com
 probability: number;
 ```
 
-Defined in: [packages/ai/src/activities/evaluate/index.ts:68](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L68)
+Defined in: packages/ai/src/activities/evaluate/index.ts:68
 
 P(selected option).
 
@@ -53,7 +53,7 @@ P(selected option).
 type: "choice";
 ```
 
-Defined in: [packages/ai/src/activities/evaluate/index.ts:65](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L65)
+Defined in: packages/ai/src/activities/evaluate/index.ts:65
 
 ***
 
@@ -63,4 +63,4 @@ Defined in: [packages/ai/src/activities/evaluate/index.ts:65](https://github.com
 value: TValue;
 ```
 
-Defined in: [packages/ai/src/activities/evaluate/index.ts:66](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L66)
+Defined in: packages/ai/src/activities/evaluate/index.ts:66

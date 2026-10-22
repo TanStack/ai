@@ -20,6 +20,7 @@ function childText(messages: ReadonlyArray<UIMessage>) {
 
 function SubagentBriefPage() {
   const { messages, sendMessage, isLoading } = useChat({
+    threadId: 'subagent-brief',
     connection: fetchServerSentEvents('/api/subagent-brief'),
     // Types `part.subagent.input` from the researcher's inputSchema.
     subagents: [researcher],

@@ -11,7 +11,7 @@ type EmbeddingInputItem =
   | EmbeddingContentParts;
 ```
 
-Defined in: [packages/ai/src/types.ts:3304](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3304)
+Defined in: packages/ai/src/types.ts:3263
 
 One embeddable item, producing exactly one vector. A bare string is
 shorthand for a text part; a nested [EmbeddingContentParts](EmbeddingContentParts.md) array

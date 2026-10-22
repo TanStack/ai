@@ -45,7 +45,7 @@ export default createController(routes.chat, {
 
       try {
         const stream = chat({
-          adapter: openaiText('gpt-5.6'),
+          adapter: openaiText('gpt-6.1-sol'),
           tools: mergedTools,
           systemPrompts: [SYSTEM_PROMPT],
           agentLoopStrategy: maxIterations(20),

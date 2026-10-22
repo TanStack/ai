@@ -58,7 +58,7 @@ export function createInterruptResumeSnapshot() {
  * await result.current.sendMessage("Hello");
  * ```
  */
-export function renderUseChat(options?: UseChatOptions) {
+export function renderUseChat(options: UseChatOptions) {
   const TestComponent = defineComponent({
     setup() {
       return {
@@ -88,9 +88,7 @@ export function renderUseChat(options?: UseChatOptions) {
       clear: hook.clear,
       setMessages: hook.setMessages,
       addToolResult: hook.addToolResult,
-      addToolApprovalResponse: hook.addToolApprovalResponse,
       interrupts: hook.interrupts,
-      pendingInterrupts: hook.pendingInterrupts,
       interruptErrors: hook.interruptErrors,
       resuming: hook.resuming,
       resolveInterrupts: hook.resolveInterrupts,

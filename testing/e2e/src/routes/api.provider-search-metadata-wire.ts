@@ -42,6 +42,7 @@ function openAISearchStream(model: string | null) {
   switch (model) {
     case 'gpt-6-astra':
       return chat({
+        threadId: 'provider-search-metadata-wire',
         adapter: createOpenaiChat('gpt-6-astra', DUMMY_KEY, {
           baseURL: OPENAI_SEARCH_BASE_URL,
         }),
@@ -50,6 +51,7 @@ function openAISearchStream(model: string | null) {
       })
     case 'gpt-6-sol':
       return chat({
+        threadId: 'provider-search-metadata-wire',
         adapter: createOpenaiChat('gpt-6-sol', DUMMY_KEY, {
           baseURL: OPENAI_SEARCH_BASE_URL,
         }),
@@ -58,6 +60,7 @@ function openAISearchStream(model: string | null) {
       })
     case 'gpt-6-luna':
       return chat({
+        threadId: 'provider-search-metadata-wire',
         adapter: createOpenaiChat('gpt-6-luna', DUMMY_KEY, {
           baseURL: OPENAI_SEARCH_BASE_URL,
         }),
@@ -66,6 +69,7 @@ function openAISearchStream(model: string | null) {
       })
     default:
       return chat({
+        threadId: 'provider-search-metadata-wire',
         adapter: createOpenaiChat('gpt-4o', DUMMY_KEY, {
           baseURL: OPENAI_SEARCH_BASE_URL,
         }),
@@ -102,6 +106,7 @@ async function runGeminiSearch() {
 
   try {
     for await (const chunk of chat({
+      threadId: 'provider-search-metadata-wire',
       adapter,
       messages: [{ role: 'user', content: 'Find the latest release.' }],
       tools: [googleSearchTool()],

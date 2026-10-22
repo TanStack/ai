@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { EventType, withTanstackMetadata } from '@tanstack/ai/client'
 import { ChatClient } from '../src/chat-client'
 import {
-  createApprovalToolCallChunks,
   createCustomEventChunks,
   createMockConnectionAdapter,
   createPushableSubscribeConnection,
@@ -40,7 +39,9 @@ describe('ChatClient', () => {
     storedMessages?: Array<UIMessage> | null,
   ): ChatClientPersistence {
     return {
-      getItem: vi.fn(() => storedMessages),
+      getItem: vi.fn(() =>
+        storedMessages ? { messages: storedMessages } : storedMessages,
+      ),
       setItem: vi.fn(),
       removeItem: vi.fn(),
     }
@@ -59,7 +60,10 @@ describe('ChatClient', () => {
   describe('constructor', () => {
     it('should create a client with default options', () => {
       const adapter = createMockConnectionAdapter()
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       expect(client.getMessages()).toEqual([])
       expect(client.getIsLoading()).toBe(false)
@@ -79,6 +83,7 @@ describe('ChatClient', () => {
         },
       ]
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
         initialMessages,
       })
@@ -113,6 +118,7 @@ describe('ChatClient', () => {
         value: 'https://example.com/a.png',
       }
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
         initialMessages: [
           {
@@ -147,6 +153,7 @@ describe('ChatClient', () => {
         parts: [{ type: 'text' as const, content: 'from child' }],
       }
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: createMockConnectionAdapter(),
         initialMessages: [
           {
@@ -220,6 +227,7 @@ describe('ChatClient', () => {
 
     it('isolates messages published by normal updates', () => {
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: createMockConnectionAdapter(),
       })
       const oldSnapshot = client.getSnapshot()
@@ -258,6 +266,7 @@ describe('ChatClient', () => {
 
     it('keeps the identity of unchanged messages across snapshots', async () => {
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: createMockConnectionAdapter({
           chunks: createTextChunks('Hi there'),
         }),
@@ -300,6 +309,7 @@ describe('ChatClient', () => {
       ]
 
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
         initialMessages,
       })
@@ -395,7 +405,7 @@ describe('ChatClient', () => {
       const adapter = createMockConnectionAdapter()
       const onMessagesChange = vi.fn()
       const persistence = {
-        getItem: vi.fn(() => Promise.resolve([persistedMessage])),
+        getItem: vi.fn(() => Promise.resolve({ messages: [persistedMessage] })),
         setItem: vi.fn(),
         removeItem: vi.fn(),
       }
@@ -419,7 +429,7 @@ describe('ChatClient', () => {
 
     it('should ignore async persistence hydration after local message changes', async () => {
       const adapter = createMockConnectionAdapter()
-      const deferred = createDeferred<Array<UIMessage>>()
+      const deferred = createDeferred<ChatPersistedState>()
       const persistence = {
         getItem: vi.fn(() => deferred.promise),
         setItem: vi.fn(),
@@ -442,7 +452,7 @@ describe('ChatClient', () => {
         },
       ])
 
-      deferred.resolve([persistedMessage])
+      deferred.resolve({ messages: [persistedMessage] })
       await new Promise((resolve) => setTimeout(resolve, 0))
 
       expect(client.getMessages()).toEqual([
@@ -459,6 +469,7 @@ describe('ChatClient', () => {
       const adapter = createMockConnectionAdapter()
 
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
         initialMessages: [initialMessage],
       })
@@ -472,10 +483,12 @@ describe('ChatClient', () => {
       })
 
       const client1 = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
       })
 
       const client2 = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
       })
 
@@ -503,7 +516,7 @@ describe('ChatClient', () => {
     })
 
     it('should throw if neither connection nor fetcher is provided', () => {
-      expect(() => new ChatClient({} as any)).toThrow(
+      expect(() => new ChatClient({ threadId: 'thread-1' } as any)).toThrow(
         'either `connection` or `fetcher` is required',
       )
     })
@@ -557,7 +570,10 @@ describe('ChatClient', () => {
       const adapter = createSubscribeAdapter(
         createTextChunks('From subscribe/send mode'),
       )
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.sendMessage('Hello')
 
@@ -1370,7 +1386,6 @@ describe('ChatClient', () => {
             type: 'TOOL_CALL_START',
             toolCallId: 'stale-tool',
             toolCallName: 'staleTool',
-            toolName: 'staleTool',
             parentMessageId: 'assistant-a',
             timestamp: Date.now(),
             index: 0,
@@ -1436,7 +1451,6 @@ describe('ChatClient', () => {
             type: 'TOOL_CALL_START',
             toolCallId: 'stale-child-tool',
             toolCallName: 'staleTool',
-            toolName: 'staleTool',
             parentMessageId: 'stale-runless-message',
             timestamp: Date.now(),
             index: 0,
@@ -1491,7 +1505,6 @@ describe('ChatClient', () => {
             type: 'TOOL_CALL_START',
             toolCallId: 'stale-parentless-tool',
             toolCallName: 'staleTool',
-            toolName: 'staleTool',
             timestamp: Date.now(),
             index: 0,
           } as StreamChunk
@@ -1667,6 +1680,7 @@ describe('ChatClient', () => {
       const onChunk = vi.fn()
       const runContextSpy = vi.fn()
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: {
           async *connect(_messages, _data, _abortSignal, runContext) {
             runContextSpy(runContext)
@@ -1692,6 +1706,7 @@ describe('ChatClient', () => {
     it('should not add internal threadId or runId to public connect chunks', async () => {
       const onChunk = vi.fn()
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: {
           async *connect() {
             yield {
@@ -1732,7 +1747,10 @@ describe('ChatClient', () => {
           metadata: { tanstack: { finishReason: 'stop' } },
         },
       ])
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       client.subscribe()
       expect(client.getIsSubscribed()).toBe(true)
@@ -1751,7 +1769,10 @@ describe('ChatClient', () => {
     it('should re-subscribe on connection update when previously subscribed', () => {
       const adapter1 = createSubscribeAdapter([])
       const adapter2 = createSubscribeAdapter([])
-      const client = new ChatClient({ connection: adapter1 })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter1,
+      })
 
       client.subscribe()
       expect(client.getIsSubscribed()).toBe(true)
@@ -1768,6 +1789,7 @@ describe('ChatClient', () => {
       const subscriptionChanges: Array<boolean> = []
       const connectionStatuses: Array<string> = []
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
         onSubscriptionChange: (isSubscribed) => {
           subscriptionChanges.push(isSubscribed)
@@ -1791,7 +1813,10 @@ describe('ChatClient', () => {
 
     it('subscribe should be idempotent without restart', () => {
       const adapter = createSubscribeAdapter([])
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       client.subscribe()
       client.subscribe()
@@ -1804,7 +1829,10 @@ describe('ChatClient', () => {
 
     it('subscribe with restart should start a new subscription loop', () => {
       const adapter = createSubscribeAdapter([])
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       client.subscribe()
       client.subscribe({ restart: true })
@@ -1818,7 +1846,10 @@ describe('ChatClient', () => {
 
     it('unsubscribe should be idempotent', () => {
       const adapter = createSubscribeAdapter([])
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       client.unsubscribe()
       client.unsubscribe()
@@ -1836,7 +1867,10 @@ describe('ChatClient', () => {
           delta: 'H',
         },
       ])
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       client.subscribe()
       const sendPromise = client.sendMessage('Hello')
@@ -1859,7 +1893,10 @@ describe('ChatClient', () => {
     it('should not re-subscribe on connection update when not subscribed', () => {
       const adapter1 = createSubscribeAdapter([])
       const adapter2 = createSubscribeAdapter([])
-      const client = new ChatClient({ connection: adapter1 })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter1,
+      })
 
       client.updateOptions({ connection: adapter2 })
 
@@ -1876,7 +1913,7 @@ describe('ChatClient', () => {
         },
         send: async () => {},
       }
-      const client = new ChatClient({ connection })
+      const client = new ChatClient({ threadId: 'thread-1', connection })
 
       client.subscribe()
       await new Promise((resolve) => setTimeout(resolve, 0))
@@ -1892,7 +1929,7 @@ describe('ChatClient', () => {
         },
         send: async () => {},
       }
-      const client = new ChatClient({ connection })
+      const client = new ChatClient({ threadId: 'thread-1', connection })
 
       expect(() => client.subscribe()).not.toThrow()
       await vi.waitFor(() => {
@@ -1910,7 +1947,10 @@ describe('ChatClient', () => {
           delta: 'H',
         },
       ])
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       const sendPromise = client.sendMessage('Hello')
       const completed = await Promise.race([
@@ -1930,7 +1970,10 @@ describe('ChatClient', () => {
     describe('sessionGenerating', () => {
       it('should be false initially', () => {
         const adapter = createSubscribeAdapter([])
-        const client = new ChatClient({ connection: adapter })
+        const client = new ChatClient({
+          threadId: 'thread-1',
+          connection: adapter,
+        })
 
         expect(client.getSessionGenerating()).toBe(false)
       })
@@ -1961,6 +2004,7 @@ describe('ChatClient', () => {
         const adapter = createSubscribeAdapter(chunks)
         const generatingChanges: Array<boolean> = []
         const client = new ChatClient({
+          threadId: 'thread-1',
           connection: adapter,
           onSessionGeneratingChange: (isGenerating) => {
             generatingChanges.push(isGenerating)
@@ -1993,6 +2037,7 @@ describe('ChatClient', () => {
         const adapter = createSubscribeAdapter(chunks)
         const generatingChanges: Array<boolean> = []
         const client = new ChatClient({
+          threadId: 'thread-1',
           connection: adapter,
           onSessionGeneratingChange: (isGenerating) => {
             generatingChanges.push(isGenerating)
@@ -2029,7 +2074,10 @@ describe('ChatClient', () => {
           },
         ]
         const adapter = createSubscribeAdapter(chunks)
-        const client = new ChatClient({ connection: adapter })
+        const client = new ChatClient({
+          threadId: 'thread-1',
+          connection: adapter,
+        })
 
         // First cycle
         await client.sendMessage('Hello')
@@ -2066,6 +2114,7 @@ describe('ChatClient', () => {
         }
         const generatingChanges: Array<boolean> = []
         const client = new ChatClient({
+          threadId: 'thread-1',
           connection,
           onSessionGeneratingChange: (isGenerating) => {
             generatingChanges.push(isGenerating)
@@ -2108,6 +2157,7 @@ describe('ChatClient', () => {
         const connection2 = createSubscribeAdapter([])
         const generatingChanges: Array<boolean> = []
         const client = new ChatClient({
+          threadId: 'thread-1',
           connection: connection1,
           onSessionGeneratingChange: (isGenerating) => {
             generatingChanges.push(isGenerating)
@@ -2166,6 +2216,7 @@ describe('ChatClient', () => {
         const adapter = createSubscribeAdapter(chunks)
         const generatingChanges: Array<boolean> = []
         const client = new ChatClient({
+          threadId: 'thread-1',
           connection: adapter,
           onSessionGeneratingChange: (isGenerating) => {
             generatingChanges.push(isGenerating)
@@ -2203,6 +2254,7 @@ describe('ChatClient', () => {
         const adapter = createSubscribeAdapter(chunks)
         const generatingChanges: Array<boolean> = []
         const client = new ChatClient({
+          threadId: 'thread-1',
           connection: adapter,
           onSessionGeneratingChange: (isGenerating) => {
             generatingChanges.push(isGenerating)
@@ -2221,6 +2273,7 @@ describe('ChatClient', () => {
         const generatingChanges: Array<boolean> = []
         const finishedRunIds: Array<string> = []
         const client = new ChatClient({
+          threadId: 'thread-1',
           connection,
           onChunk: (chunk) => {
             if (
@@ -2327,6 +2380,7 @@ describe('ChatClient', () => {
         const { connection, push } = createPushableSubscribeConnection()
         const generatingChanges: Array<boolean> = []
         const client = new ChatClient({
+          threadId: 'thread-1',
           connection,
           onSessionGeneratingChange: (isGenerating) => {
             generatingChanges.push(isGenerating)
@@ -2393,6 +2447,7 @@ describe('ChatClient', () => {
         }
         const generatingChanges: Array<boolean> = []
         const client = new ChatClient({
+          threadId: 'thread-1',
           connection,
           onSessionGeneratingChange: (isGenerating) => {
             generatingChanges.push(isGenerating)
@@ -2414,7 +2469,10 @@ describe('ChatClient', () => {
       const chunks = createTextChunks('Hello, world!')
       const adapter = createMockConnectionAdapter({ chunks })
 
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.sendMessage('Hello')
 
@@ -2431,7 +2489,10 @@ describe('ChatClient', () => {
       const chunks = createTextChunks('Hello, world!')
       const adapter = createMockConnectionAdapter({ chunks })
 
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.sendMessage('Hello')
 
@@ -2461,7 +2522,10 @@ describe('ChatClient', () => {
 
     it('should not send empty messages', async () => {
       const adapter = createMockConnectionAdapter()
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.sendMessage('')
       await client.sendMessage('   ')
@@ -2474,7 +2538,10 @@ describe('ChatClient', () => {
         chunks: createTextChunks('Response'),
         chunkDelay: 100,
       })
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       const promise1 = client.sendMessage('First')
       const promise2 = client.sendMessage('Second')
@@ -2493,6 +2560,7 @@ describe('ChatClient', () => {
 
     it('isolates queue entries published by normal updates', async () => {
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: createMockConnectionAdapter({
           chunks: createTextChunks('Response'),
           chunkDelay: 100,
@@ -2551,7 +2619,10 @@ describe('ChatClient', () => {
     it('should append a UIMessage', async () => {
       const chunks = createTextChunks('Response')
       const adapter = createMockConnectionAdapter({ chunks })
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       const message: UIMessage = {
         id: 'user-1',
@@ -2570,7 +2641,10 @@ describe('ChatClient', () => {
     it('should convert and append a ModelMessage', async () => {
       const chunks = createTextChunks('Response')
       const adapter = createMockConnectionAdapter({ chunks })
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.append({
         role: 'user',
@@ -2589,7 +2663,10 @@ describe('ChatClient', () => {
     it('should generate id and createdAt if missing', async () => {
       const chunks = createTextChunks('Response')
       const adapter = createMockConnectionAdapter({ chunks })
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       const message: UIMessage = {
         id: '',
@@ -2650,7 +2727,7 @@ describe('ChatClient', () => {
         content: 'Notify me',
       })
 
-      expect(client.getPendingInterrupts()).toEqual([
+      expect(client.getInterrupts()).toEqual([
         expect.objectContaining({ id: 'interrupt-1' }),
       ])
       expect(client.getResumeState()?.runId).toBeTruthy()
@@ -2705,7 +2782,7 @@ describe('ChatClient', () => {
         content: 'Notify me',
       })
 
-      expect(client.getPendingInterrupts()).toEqual([
+      expect(client.getInterrupts()).toEqual([
         expect.objectContaining({ id: 'interrupt-direct' }),
       ])
       expect(client.getResumeState()?.runId).toBeTruthy()
@@ -2716,7 +2793,10 @@ describe('ChatClient', () => {
     it('should reload from last user message', async () => {
       const chunks = createTextChunks('Response')
       const adapter = createMockConnectionAdapter({ chunks })
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.sendMessage('First')
       await client.sendMessage('Second')
@@ -2742,7 +2822,10 @@ describe('ChatClient', () => {
 
     it('should do nothing if no user messages', async () => {
       const adapter = createMockConnectionAdapter()
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.reload()
 
@@ -2751,7 +2834,10 @@ describe('ChatClient', () => {
 
     it('should do nothing if messages array is empty', async () => {
       const adapter = createMockConnectionAdapter()
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.reload()
 
@@ -2766,7 +2852,10 @@ describe('ChatClient', () => {
         chunks,
         chunkDelay: 50,
       })
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       const appendPromise = client.append({
         role: 'user',
@@ -2788,7 +2877,10 @@ describe('ChatClient', () => {
     it('should clear all messages', async () => {
       const chunks = createTextChunks('Response')
       const adapter = createMockConnectionAdapter({ chunks })
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.sendMessage('Hello')
 
@@ -2833,7 +2925,10 @@ describe('ChatClient', () => {
           yield* createTextChunks('Delayed')
         },
       }
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       const sendPromise = client.sendMessage('Hello')
       await vi.waitFor(() => {
@@ -3077,6 +3172,7 @@ describe('ChatClient', () => {
       const onMessagesChange = vi.fn()
 
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
         onMessagesChange,
       })
@@ -3127,6 +3223,7 @@ describe('ChatClient', () => {
       const onLoadingChange = vi.fn()
 
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
         onLoadingChange,
       })
@@ -3148,6 +3245,7 @@ describe('ChatClient', () => {
       const onChunk = vi.fn()
 
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
         onChunk,
       })
@@ -3164,6 +3262,7 @@ describe('ChatClient', () => {
       const onChunk = vi.fn()
 
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
         onChunk,
       })
@@ -3183,6 +3282,7 @@ describe('ChatClient', () => {
       const onFinish = vi.fn()
 
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
         onFinish,
       })
@@ -3203,6 +3303,7 @@ describe('ChatClient', () => {
       const onError = vi.fn()
 
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
         onError,
       })
@@ -3227,6 +3328,7 @@ describe('ChatClient', () => {
       })
       const statuses: Array<string> = []
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
         onStatusChange: (s) => statuses.push(s),
       })
@@ -3253,7 +3355,10 @@ describe('ChatClient', () => {
         { id: 'tool-1', name: 'get_weather', arguments: '{"city": "NYC"}' },
       ])
       const adapter = createMockConnectionAdapter({ chunks })
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.sendMessage("What's the weather?")
 
@@ -3282,7 +3387,6 @@ describe('ChatClient', () => {
           type: EventType.TOOL_CALL_START,
           toolCallId: 'tool-1',
           toolCallName: 'show_notification',
-          toolName: 'show_notification',
           timestamp: Date.now(),
         },
         {
@@ -3333,6 +3437,7 @@ describe('ChatClient', () => {
         },
       }
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
         tools: [
           {
@@ -3365,7 +3470,10 @@ describe('ChatClient', () => {
         { id: 'tool-1', name: 'test_tool', arguments: '{}' },
       ])
       const adapter = createMockConnectionAdapter({ chunks })
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.sendMessage('Test')
 
@@ -3423,6 +3531,7 @@ describe('ChatClient', () => {
 
       // Both tools execute immediately (synchronously resolve)
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
         tools: [
           {
@@ -3470,7 +3579,10 @@ describe('ChatClient', () => {
         shouldError: true,
         error,
       })
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.sendMessage('Hello')
 
@@ -3488,7 +3600,10 @@ describe('ChatClient', () => {
         chunks: createTextChunks('Success'),
       })
 
-      const client = new ChatClient({ connection: errorAdapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: errorAdapter,
+      })
 
       await client.sendMessage('Fail')
       expect(client.getError()).toBeDefined()
@@ -3517,7 +3632,10 @@ describe('ChatClient', () => {
       const replacementAdapter = createMockConnectionAdapter({
         chunks: createTextChunks('replacement'),
       })
-      const client = new ChatClient({ connection: noTerminalAdapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: noTerminalAdapter,
+      })
 
       const sendPromise = client.sendMessage('Hello')
       await new Promise((resolve) => setTimeout(resolve, 10))
@@ -3543,7 +3661,11 @@ describe('ChatClient', () => {
         send: async () => {},
       }
       const onError = vi.fn()
-      const client = new ChatClient({ connection, onError })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection,
+        onError,
+      })
 
       await client.sendMessage('Hello')
 
@@ -3562,7 +3684,10 @@ describe('ChatClient', () => {
       const { aiEventClient } = await import('@tanstack/ai-event-client')
       const emitSpy = vi.spyOn(aiEventClient, 'emit')
 
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.sendMessage('Hello')
 
@@ -3586,7 +3711,10 @@ describe('ChatClient', () => {
       const { aiEventClient } = await import('@tanstack/ai-event-client')
       const emitSpy = vi.spyOn(aiEventClient, 'emit')
 
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.sendMessage('Hello')
 
@@ -3608,7 +3736,10 @@ describe('ChatClient', () => {
       const { aiEventClient } = await import('@tanstack/ai-event-client')
       const emitSpy = vi.spyOn(aiEventClient, 'emit')
 
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.sendMessage('What is the weather?')
 
@@ -3631,7 +3762,10 @@ describe('ChatClient', () => {
       const { aiEventClient } = await import('@tanstack/ai-event-client')
       const emitSpy = vi.spyOn(aiEventClient, 'emit')
 
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.sendMessage('Hello')
 
@@ -3650,7 +3784,10 @@ describe('ChatClient', () => {
       const chunks = createTextChunks('I see a cat in the image')
       const adapter = createMockConnectionAdapter({ chunks })
 
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.sendMessage({
         content: [
@@ -3680,7 +3817,10 @@ describe('ChatClient', () => {
       const chunks = createTextChunks('The audio says hello')
       const adapter = createMockConnectionAdapter({ chunks })
 
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.sendMessage({
         content: [
@@ -3711,7 +3851,10 @@ describe('ChatClient', () => {
       const chunks = createTextChunks('The video shows a sunset')
       const adapter = createMockConnectionAdapter({ chunks })
 
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.sendMessage({
         content: [
@@ -3734,7 +3877,10 @@ describe('ChatClient', () => {
       const chunks = createTextChunks('The document discusses AI')
       const adapter = createMockConnectionAdapter({ chunks })
 
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.sendMessage({
         content: [
@@ -3765,7 +3911,10 @@ describe('ChatClient', () => {
       const chunks = createTextChunks('Response')
       const adapter = createMockConnectionAdapter({ chunks })
 
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.sendMessage({
         content: 'Hello',
@@ -3780,7 +3929,10 @@ describe('ChatClient', () => {
       const chunks = createTextChunks('Response')
       const adapter = createMockConnectionAdapter({ chunks })
 
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.sendMessage({
         content: 'Hello',
@@ -3794,7 +3946,10 @@ describe('ChatClient', () => {
       const chunks = createTextChunks('Response')
       const adapter = createMockConnectionAdapter({ chunks })
 
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.sendMessage({
         content: [],
@@ -3809,7 +3964,10 @@ describe('ChatClient', () => {
       const chunks = createTextChunks('Response')
       const adapter = createMockConnectionAdapter({ chunks })
 
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.sendMessage({
         content: 'Hello world',
@@ -3821,7 +3979,7 @@ describe('ChatClient', () => {
       ])
     })
 
-    it('should merge per-message body with base body', async () => {
+    it('should merge per-message body with forwardedProps', async () => {
       const chunks = createTextChunks('Response')
       let capturedData: Record<string, any> | undefined
       const adapter = createMockConnectionAdapter({
@@ -3832,8 +3990,9 @@ describe('ChatClient', () => {
       })
 
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
-        body: { model: 'gpt-5.5', temperature: 0.7 },
+        forwardedProps: { model: 'gpt-5.5', temperature: 0.7 },
       })
 
       await client.sendMessage('Hello', {
@@ -3858,8 +4017,9 @@ describe('ChatClient', () => {
       })
 
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
-        body: { model: 'gpt-5.5', temperature: 0.7 },
+        forwardedProps: { model: 'gpt-5.5', temperature: 0.7 },
       })
 
       // Framework hooks call sendMessage(content, undefined, sendOptions),
@@ -3873,7 +4033,7 @@ describe('ChatClient', () => {
       expect(capturedData?.['maxTokens']).toBe(100)
     })
 
-    it('merges chat body, positional body, and sendOptions.body with sendOptions.body winning conflicts', async () => {
+    it('merges forwardedProps, positional body, and sendOptions.body with sendOptions.body winning conflicts', async () => {
       const chunks = createTextChunks('Response')
       let capturedData: Record<string, unknown> | undefined
       const adapter = createMockConnectionAdapter({
@@ -3884,8 +4044,9 @@ describe('ChatClient', () => {
       })
 
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
-        body: { a: 1, b: 1, c: 1 },
+        forwardedProps: { a: 1, b: 1, c: 1 },
       })
 
       await client.sendMessage(
@@ -3911,7 +4072,10 @@ describe('ChatClient', () => {
         },
       })
 
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.sendMessage('Hello', undefined, {
         whenBusy: 'queue',
@@ -3932,8 +4096,9 @@ describe('ChatClient', () => {
       })
 
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
-        body: { provider: 'openai' },
+        forwardedProps: { provider: 'openai' },
       })
 
       await client.sendMessage('Hello', undefined, {
@@ -3959,6 +4124,7 @@ describe('ChatClient', () => {
       })
 
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
         forwardedProps: { provider: 'openai', model: 'gpt-5.5' },
       })
@@ -3967,79 +4133,6 @@ describe('ChatClient', () => {
 
       expect(capturedData?.['provider']).toBe('openai')
       expect(capturedData?.['model']).toBe('gpt-5.5')
-    })
-
-    it('updateOptions({ forwardedProps }) leaves a previously-set body intact', async () => {
-      const chunks = createTextChunks('Response')
-      const captures: Array<Record<string, any> | undefined> = []
-      const adapter = createMockConnectionAdapter({
-        chunks,
-        onConnect: (_messages, data) => {
-          captures.push(data)
-        },
-      })
-
-      const client = new ChatClient({
-        connection: adapter,
-        body: { provider: 'openai' },
-        forwardedProps: { model: 'gpt-5.5' },
-      })
-
-      // Replace only `forwardedProps` — `body` must survive.
-      client.updateOptions({ forwardedProps: { model: 'gpt-5.5' } })
-
-      await client.sendMessage('Hi')
-      expect(captures[0]?.['provider']).toBe('openai')
-      expect(captures[0]?.['model']).toBe('gpt-5.5')
-    })
-
-    it('updateOptions({ body }) leaves a previously-set forwardedProps intact', async () => {
-      const chunks = createTextChunks('Response')
-      const captures: Array<Record<string, any> | undefined> = []
-      const adapter = createMockConnectionAdapter({
-        chunks,
-        onConnect: (_messages, data) => {
-          captures.push(data)
-        },
-      })
-
-      const client = new ChatClient({
-        connection: adapter,
-        body: { provider: 'openai' },
-        forwardedProps: { model: 'gpt-5.5' },
-      })
-
-      client.updateOptions({ body: { provider: 'anthropic' } })
-
-      await client.sendMessage('Hi')
-      expect(captures[0]?.['provider']).toBe('anthropic')
-      expect(captures[0]?.['model']).toBe('gpt-5.5')
-    })
-
-    it('should merge body and forwardedProps with forwardedProps winning', async () => {
-      const chunks = createTextChunks('Response')
-      let capturedData: Record<string, any> | undefined
-      const adapter = createMockConnectionAdapter({
-        chunks,
-        onConnect: (_messages, data) => {
-          capturedData = data
-        },
-      })
-
-      const client = new ChatClient({
-        connection: adapter,
-        // Legacy `body` and new `forwardedProps` declared together —
-        // simulates a mid-migration codebase.
-        body: { model: 'gpt-5.5', temperature: 0.7 },
-        forwardedProps: { model: 'gpt-5.5' },
-      })
-
-      await client.sendMessage('Hello')
-
-      // forwardedProps wins on key collision so partial migrations are sane.
-      expect(capturedData?.['model']).toBe('gpt-5.5')
-      // Non-conflicting keys from `body` are still forwarded.
-      expect(capturedData?.['temperature']).toBe(0.7)
     })
 
     it('should not auto-emit `conversationId` in merged body (replaced by AG-UI threadId)', async () => {
@@ -4053,6 +4146,7 @@ describe('ChatClient', () => {
       })
 
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
       })
 
@@ -4076,6 +4170,7 @@ describe('ChatClient', () => {
       })
 
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
         forwardedProps: { conversationId: 'user-supplied' },
       })
@@ -4098,8 +4193,9 @@ describe('ChatClient', () => {
       })
 
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
-        body: { model: 'gpt-5.5' },
+        forwardedProps: { model: 'gpt-5.5' },
       })
 
       // First message with per-message body
@@ -4120,7 +4216,10 @@ describe('ChatClient', () => {
       const emitSpy = vi.spyOn(aiEventClient, 'emit')
       emitSpy.mockClear() // Clear any previous calls
 
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await client.sendMessage({
         content: [
@@ -4163,7 +4262,11 @@ describe('ChatClient', () => {
       const adapter = createMockConnectionAdapter({ chunks })
 
       const onCustomEvent = vi.fn()
-      const client = new ChatClient({ connection: adapter, onCustomEvent })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        onCustomEvent,
+      })
 
       await client.sendMessage('Hello')
 
@@ -4196,7 +4299,11 @@ describe('ChatClient', () => {
       const adapter = createMockConnectionAdapter({ chunks })
 
       const onCustomEvent = vi.fn()
-      const client = new ChatClient({ connection: adapter, onCustomEvent })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        onCustomEvent,
+      })
 
       await client.sendMessage('Test')
 
@@ -4216,7 +4323,11 @@ describe('ChatClient', () => {
       const adapter = createMockConnectionAdapter({ chunks })
 
       const onCustomEvent = vi.fn()
-      const client = new ChatClient({ connection: adapter, onCustomEvent })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        onCustomEvent,
+      })
 
       await client.sendMessage('Test')
 
@@ -4227,28 +4338,16 @@ describe('ChatClient', () => {
       )
     })
 
-    it('should NOT call onCustomEvent for system events like tool-input-available', async () => {
-      const chunks = createToolCallChunks([
-        { id: 'tc-1', name: 'testTool', arguments: '{}' },
-      ])
-      const adapter = createMockConnectionAdapter({ chunks })
-
-      const onCustomEvent = vi.fn()
-      const client = new ChatClient({ connection: adapter, onCustomEvent })
-
-      await client.sendMessage('Test tool call')
-
-      // Should not have been called for tool-input-available system event
-      expect(onCustomEvent).not.toHaveBeenCalled()
-    })
-
     it('should work when onCustomEvent is not provided', async () => {
       const chunks = createCustomEventChunks([
         { name: 'some-event', value: { info: 'test' } },
       ])
       const adapter = createMockConnectionAdapter({ chunks })
 
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       // Should not throw error when onCustomEvent is undefined
       await expect(client.sendMessage('Test')).resolves.not.toThrow()
@@ -4260,7 +4359,10 @@ describe('ChatClient', () => {
       ])
       const adapter = createMockConnectionAdapter({ chunks })
 
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       const onCustomEvent = vi.fn()
       client.updateOptions({ onCustomEvent })
@@ -4283,7 +4385,11 @@ describe('ChatClient', () => {
       const adapter = createMockConnectionAdapter({ chunks })
 
       const onCustomEvent = vi.fn()
-      const client = new ChatClient({ connection: adapter, onCustomEvent })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        onCustomEvent,
+      })
 
       await client.sendMessage('Multi-step process')
 
@@ -4323,7 +4429,11 @@ describe('ChatClient', () => {
       const adapter = createMockConnectionAdapter({ chunks })
 
       const onCustomEvent = vi.fn()
-      const client = new ChatClient({ connection: adapter, onCustomEvent })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        onCustomEvent,
+      })
 
       await client.sendMessage('Complex data test')
 
@@ -4342,131 +4452,12 @@ describe('ChatClient', () => {
     })
   })
 
-  describe('chained tool approvals', () => {
-    it('should continue after second approval arrives during active continuation stream', async () => {
-      let streamCount = 0
-      let resolveStreamPause: (() => void) | null = null
-
-      const adapter: ConnectionAdapter = {
-        async *connect() {
-          streamCount++
-
-          if (streamCount === 1) {
-            // First stream: tool call A needing approval
-            const chunks = createApprovalToolCallChunks([
-              {
-                id: 'tc-1',
-                name: 'dangerous_tool_1',
-                arguments: '{}',
-                approvalId: 'approval-1',
-              },
-            ])
-            for (const chunk of chunks) yield chunk
-          } else if (streamCount === 2) {
-            // Second stream (after first approval): tool call B needing approval
-            // Yield the tool call and approval request
-            const preChunks: Array<StreamChunk> = [
-              {
-                type: EventType.TOOL_CALL_START,
-                toolCallId: 'tc-2',
-                timestamp: Date.now(),
-                toolCallName: 'dangerous_tool_call_2',
-              },
-              {
-                type: EventType.TOOL_CALL_ARGS,
-                toolCallId: 'tc-2',
-                timestamp: Date.now(),
-                delta: '{}',
-              },
-              {
-                type: EventType.TOOL_CALL_END,
-                toolCallId: 'tc-2',
-                timestamp: Date.now(),
-              },
-              {
-                type: EventType.CUSTOM,
-                timestamp: Date.now(),
-                name: 'approval-requested',
-                value: {
-                  toolCallId: 'tc-2',
-                  toolName: 'dangerous_tool_2',
-                  input: {},
-                  approval: { id: 'approval-2', needsApproval: true },
-                },
-              },
-            ]
-            for (const chunk of preChunks) yield chunk
-
-            // Pause stream so the test can approve tool B while stream is active
-            await new Promise<void>((resolve) => {
-              resolveStreamPause = resolve
-            })
-
-            yield {
-              type: EventType.RUN_FINISHED as const,
-              runId: 'run-2',
-              threadId: 'thread-1',
-              model: 'test',
-              timestamp: Date.now(),
-              metadata: { tanstack: { finishReason: 'tool_calls' } },
-            }
-          } else if (streamCount === 3) {
-            // Third stream (after second approval): final text response
-            const chunks = createTextChunks('All done!')
-            for (const chunk of chunks) yield chunk
-          }
-        },
-      }
-
-      const client = new ChatClient({ connection: adapter })
-
-      // Step 1: Send message. First stream produces tool A with approval.
-      await client.sendMessage('Do something dangerous')
-      expect(streamCount).toBe(1)
-
-      // Step 2: Approve tool A. This triggers checkForContinuation → streamResponse (stream 2).
-      // Don't await - we need to interact during the stream.
-      const approvalPromise = client.addToolApprovalResponse({
-        id: 'approval-1',
-        approved: true,
-      })
-
-      // Wait for second stream to pause (approval-requested chunk already processed)
-      await vi.waitFor(() => {
-        expect(resolveStreamPause).not.toBeNull()
-      })
-
-      // Step 3: Approve tool B while second stream is still active (isLoading=true)
-      expect(client.getIsLoading()).toBe(true)
-      await client.addToolApprovalResponse({
-        id: 'approval-2',
-        approved: true,
-      })
-
-      // Resume the second stream
-      resolveStreamPause!()
-
-      // Wait for the full chain to complete
-      await approvalPromise
-
-      // Step 4: Verify all 3 streams fired (the second approval triggered stream 3)
-      expect(streamCount).toBe(3)
-
-      // Verify final text response is present
-      const messages = client.getMessages()
-      const lastAssistant = [...messages]
-        .reverse()
-        .find((m) => m.role === 'assistant')
-      const textPart = lastAssistant?.parts.find((p) => p.type === 'text')
-      expect(textPart?.content).toBe('All done!')
-    })
-  })
-
   describe('concurrent runs and reconnect correctness', () => {
     it('concurrent runs should not produce duplicate messages or corrupt content', async () => {
       const { connection, push } = createPushableSubscribeConnection()
       const finishedRunIds: Array<string> = []
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection,
         onChunk: (chunk) => {
           if (
@@ -4612,6 +4603,7 @@ describe('ChatClient', () => {
       ]
 
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection,
         initialMessages,
       })
@@ -4683,6 +4675,7 @@ describe('ChatClient', () => {
       })
       const onMessagesChange = vi.fn()
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
         onMessagesChange,
       })
@@ -4722,7 +4715,10 @@ describe('ChatClient', () => {
           sent.push(messages)
         },
       })
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
       await client.sendMessage('one')
       await client.sendMessage('two')
 
@@ -4737,7 +4733,10 @@ describe('ChatClient', () => {
     it('keeps an appended activity message without starting a run', async () => {
       const onConnect = vi.fn()
       const adapter = createMockConnectionAdapter({ onConnect })
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
       await client.append({
         id: 'act-1',
         role: 'activity',
@@ -4758,6 +4757,7 @@ describe('ChatClient', () => {
     it('exposes initial activity messages', () => {
       const adapter = createMockConnectionAdapter()
       const client = new ChatClient({
+        threadId: 'thread-1',
         connection: adapter,
         initialMessages: [
           {
@@ -4897,7 +4897,10 @@ describe('ChatClient', () => {
           ...createTextChunks('done', 'asst-1'),
         ],
       })
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
       await client.sendMessage('hi')
 
       const activity = client.getMessages().find((m) => m.role === 'activity')

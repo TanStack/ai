@@ -180,6 +180,7 @@ export const Route = createFileRoute('/api/openai-shell-skills-wire')({
 
         try {
           for await (const _ of chat({
+            threadId: 'openai-shell-skills-wire',
             ...createChatOptions({ adapter }),
             messages: [
               {

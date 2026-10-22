@@ -106,6 +106,7 @@ describe('Lovable Responses text adapter', () => {
     const chunks: Array<StreamChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-5.5',
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
