@@ -61,7 +61,13 @@ function textPart(
     event: {
       type: 'message.part.updated',
       properties: {
-        part: { id, sessionID: 'sess-1', type: 'text', text },
+        part: {
+          id,
+          sessionID: 'sess-1',
+          messageID: 'msg-1',
+          type: 'text',
+          text,
+        },
         ...(delta !== undefined && { delta }),
       },
     },
@@ -98,15 +104,6 @@ describe('translateOpencodeStream', () => {
       {
         kind: 'event',
         event: {
-          type: 'message.updated',
-          properties: {
-            info: { id: 'user-message', sessionID: 'sess-1', role: 'user' },
-          },
-        },
-      },
-      {
-        kind: 'event',
-        event: {
           type: 'message.part.updated',
           properties: {
             part: {
@@ -125,11 +122,7 @@ describe('translateOpencodeStream', () => {
         event: {
           type: 'message.updated',
           properties: {
-            info: {
-              id: 'assistant-message',
-              sessionID: 'sess-1',
-              role: 'assistant',
-            },
+            info: { id: 'user-message', sessionID: 'sess-1', role: 'user' },
           },
         },
       },
@@ -149,6 +142,19 @@ describe('translateOpencodeStream', () => {
           },
         },
       },
+      {
+        kind: 'event',
+        event: {
+          type: 'message.updated',
+          properties: {
+            info: {
+              id: 'assistant-message',
+              sessionID: 'sess-1',
+              role: 'assistant',
+            },
+          },
+        },
+      },
       done(),
     ])
 
@@ -157,6 +163,28 @@ describe('translateOpencodeStream', () => {
     ).toMatchObject([
       { delta: 'assistant answer', content: 'assistant answer' },
     ])
+  })
+
+  it('rejects a message part without a message id', async () => {
+    const missingMessageId = {
+      kind: 'event',
+      event: {
+        type: 'message.part.updated',
+        properties: {
+          part: {
+            id: 'orphan-part',
+            sessionID: 'sess-1',
+            type: 'text',
+            text: 'orphan',
+          },
+          delta: 'orphan',
+        },
+      },
+    } as unknown as OpencodeStreamEvent
+
+    await expect(collect([session, missingMessageId])).rejects.toThrow(
+      'OpenCode message part "orphan-part" is missing its messageID.',
+    )
   })
 
   it('accumulates incremental text deltas', async () => {
@@ -229,6 +257,7 @@ describe('translateOpencodeStream', () => {
             part: {
               id: 'r-1',
               sessionID: 'sess-1',
+              messageID: 'msg-1',
               type: 'reasoning',
               text: 'thinking',
             },
@@ -263,6 +292,7 @@ describe('translateOpencodeStream', () => {
           part: {
             id: `part-${callID}`,
             sessionID: 'sess-1',
+            messageID: 'msg-1',
             type: 'tool',
             callID,
             tool,
@@ -448,11 +478,25 @@ describe('translateOpencodeStream', () => {
       yield {
         kind: 'event',
         event: {
+          type: 'message.updated',
+          properties: {
+            info: {
+              id: 'msg-1',
+              sessionID: 'sess-1',
+              role: 'assistant',
+            },
+          },
+        },
+      }
+      yield {
+        kind: 'event',
+        event: {
           type: 'message.part.updated',
           properties: {
             part: {
               id: 'p-c',
               sessionID: 'sess-1',
+              messageID: 'msg-1',
               type: 'tool',
               callID: 'call-7',
               tool: 'bash',

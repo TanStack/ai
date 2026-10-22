@@ -59,27 +59,27 @@ export type OpencodePart =
   | {
       id: string
       sessionID?: string
-      messageID?: string
+      messageID: string
       type: 'text'
       text: string
     }
   | {
       id: string
       sessionID?: string
-      messageID?: string
+      messageID: string
       type: 'reasoning'
       text: string
     }
   | {
       id: string
       sessionID?: string
-      messageID?: string
+      messageID: string
       type: 'tool'
       callID: string
       tool: string
       state: OpencodeToolState
     }
-  | { id: string; sessionID?: string; messageID?: string; type: string }
+  | { id: string; sessionID?: string; messageID: string; type: string }
 
 /**
  * The OpenCode events the translator understands. This is a closed

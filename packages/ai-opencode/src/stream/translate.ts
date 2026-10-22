@@ -125,6 +125,11 @@ export async function* translateOpencodeStream(
   const resolvedToolCalls = new Set<string>()
   /** Message roles from message.updated events, keyed by message id. */
   const messageRoles = new Map<string, 'user' | 'assistant'>()
+  /** Parts held until their parent message role arrives. */
+  const pendingParts = new Map<
+    string,
+    Array<{ part: OpencodePart; delta?: string }>
+  >()
 
   /** Accumulated text per text-part id, for delta derivation. */
   const textAccumulators = new Map<string, string>()
@@ -334,22 +339,54 @@ export async function* translateOpencodeStream(
     }
   }
 
+  function* handlePart(
+    part: OpencodePart,
+    delta: string | undefined,
+  ): Generator<AdapterYieldChunk> {
+    if (isTextPart(part)) {
+      yield* handleTextPart(part, delta)
+    } else if (isReasoningPart(part)) {
+      yield* handleReasoningPart(part, delta)
+    } else if (isToolPart(part)) {
+      yield* handleToolPart(part)
+    }
+    // Other part kinds (file, step-start/finish, snapshot, ...) carry no
+    // state the chunk stream needs.
+  }
+
+  function* setMessageRole(
+    messageId: string,
+    role: 'user' | 'assistant',
+  ): Generator<AdapterYieldChunk> {
+    messageRoles.set(messageId, role)
+    const parts = pendingParts.get(messageId)
+    if (parts === undefined) return
+    pendingParts.delete(messageId)
+    if (role === 'user') return
+    for (const { part, delta } of parts) yield* handlePart(part, delta)
+  }
+
   function* handleEvent(event: OpencodeEvent): Generator<AdapterYieldChunk> {
     if (event.type === 'message.updated') {
-      messageRoles.set(event.properties.info.id, event.properties.info.role)
+      yield* setMessageRole(
+        event.properties.info.id,
+        event.properties.info.role,
+      )
     } else if (event.type === 'message.part.updated') {
       const { part, delta } = event.properties
-      if (part.messageID && messageRoles.get(part.messageID) === 'user') return
-
-      if (isTextPart(part)) {
-        yield* handleTextPart(part, delta)
-      } else if (isReasoningPart(part)) {
-        yield* handleReasoningPart(part, delta)
-      } else if (isToolPart(part)) {
-        yield* handleToolPart(part)
+      if (!part.messageID) {
+        throw new Error(
+          `OpenCode message part "${part.id}" is missing its messageID.`,
+        )
       }
-      // Other part kinds (file, step-start/finish, snapshot, ...) carry no
-      // state the chunk stream needs.
+      const role = messageRoles.get(part.messageID)
+      if (role === undefined) {
+        const parts = pendingParts.get(part.messageID) ?? []
+        parts.push({ part, delta })
+        pendingParts.set(part.messageID, parts)
+      } else if (role === 'assistant') {
+        yield* handlePart(part, delta)
+      }
     } else if (event.type === 'todo.updated') {
       yield {
         type: EventType.CUSTOM,
@@ -367,6 +404,10 @@ export async function* translateOpencodeStream(
     message: OpencodeAssistantMessage,
   ): Generator<AdapterYieldChunk> {
     yield* startRun()
+    if (!messageRoles.has(message.id)) {
+      yield* setMessageRole(message.id, 'assistant')
+    }
+    pendingParts.clear()
     yield* closeText()
     yield* closeReasoning()
     yield* synthesizeUnresolvedResults()
