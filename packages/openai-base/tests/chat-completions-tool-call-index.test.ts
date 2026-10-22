@@ -71,46 +71,32 @@ const weatherTool: Tool = {
   description: 'Return the forecast for a location',
 }
 
-/**
- * Some OpenAI-compatible providers (Gemini's compatibility endpoint, for
- * example) leave `tool_calls[].index` out. A delta without an index starts the
- * next call when it brings a new id, or a name without an id once the latest
- * call has a name, and continues the latest call otherwise;
- * treating a missing index as one shared slot merged parallel calls into one.
- */
 describe('OpenAIBaseChatCompletionsTextAdapter — tool call deltas without an index', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('keeps parallel tool calls apart when the provider omits the index', async () => {
-    const toolCallChunk = (toolCall: Record<string, unknown>) => ({
-      id: 'chatcmpl-no-index',
-      model: 'test-model',
-      choices: [{ delta: { tool_calls: [toolCall] }, finish_reason: null }],
-    })
+  async function endedToolCalls(
+    streamId: string,
+    calls: Array<Record<string, unknown>>,
+  ) {
     setupMockSdkClient([
-      toolCallChunk({
-        id: 'call_a',
-        type: 'function',
-        function: { name: 'get_weather', arguments: '{"location":' },
-      }),
-      toolCallChunk({ function: { arguments: '"Berlin"}' } }),
-      toolCallChunk({
-        id: 'call_b',
-        type: 'function',
-        function: { name: 'get_time', arguments: '{"tz":"CET"}' },
-      }),
+      ...calls.map((toolCall) => ({
+        id: streamId,
+        model: 'test-model',
+        choices: [{ delta: { tool_calls: [toolCall] }, finish_reason: null }],
+      })),
       {
-        id: 'chatcmpl-no-index',
+        id: streamId,
         model: 'test-model',
         choices: [{ delta: {}, finish_reason: 'tool_calls' }],
       },
     ])
-    const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
     const chunks: Array<AdapterYieldChunk> = []
-
-    for await (const chunk of adapter.chatStream({
+    for await (const chunk of new TestChatCompletionsAdapter(
+      testConfig,
+      'test-model',
+    ).chatStream({
       logger: testLogger,
       model: 'test-model',
       messages: [{ role: 'user', content: 'Weather and time in Berlin?' }],
@@ -118,58 +104,98 @@ describe('OpenAIBaseChatCompletionsTextAdapter — tool call deltas without an i
     })) {
       chunks.push(chunk)
     }
-
-    const toolEnds = chunks.flatMap((c) =>
+    return chunks.flatMap((c) =>
       c.type === EventType.TOOL_CALL_END
         ? [[c.toolCallId, c.toolName, c.args]]
         : [],
     )
-    expect(toolEnds).toEqual([
+  }
+
+  it('keeps parallel tool calls apart when the provider omits the index', async () => {
+    await expect(
+      endedToolCalls('chatcmpl-no-index', [
+        {
+          id: 'call_a',
+          type: 'function',
+          function: { name: 'get_weather', arguments: '{"location":' },
+        },
+        { function: { arguments: '"Berlin"}' } },
+        {
+          id: 'call_b',
+          type: 'function',
+          function: { name: 'get_time', arguments: '{"tz":"CET"}' },
+        },
+      ]),
+    ).resolves.toEqual([
       ['call_a', 'get_weather', '{"location":"Berlin"}'],
       ['call_b', 'get_time', '{"tz":"CET"}'],
     ])
   })
 
-  it('starts a new call for a name without an id after a named call (id arrives later)', async () => {
-    const toolCallChunk = (toolCall: Record<string, unknown>) => ({
-      id: 'chatcmpl-no-index-no-id',
-      model: 'test-model',
-      choices: [{ delta: { tool_calls: [toolCall] }, finish_reason: null }],
-    })
-    setupMockSdkClient([
-      toolCallChunk({ function: { name: 'get_weather' } }),
-      toolCallChunk({
-        id: 'call_a',
-        function: { arguments: '{"location":"Berlin"}' },
-      }),
-      toolCallChunk({ function: { name: 'get_time' } }),
-      toolCallChunk({ id: 'call_b', function: { arguments: '{"tz":"CET"}' } }),
-      {
-        id: 'chatcmpl-no-index-no-id',
-        model: 'test-model',
-        choices: [{ delta: {}, finish_reason: 'tool_calls' }],
-      },
-    ])
-    const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
-    const chunks: Array<AdapterYieldChunk> = []
-
-    for await (const chunk of adapter.chatStream({
-      logger: testLogger,
-      model: 'test-model',
-      messages: [{ role: 'user', content: 'Weather and time in Berlin?' }],
-      tools: [weatherTool],
-    })) {
-      chunks.push(chunk)
-    }
-
-    const toolEnds = chunks.flatMap((c) =>
-      c.type === EventType.TOOL_CALL_END
-        ? [[c.toolCallId, c.toolName, c.args]]
-        : [],
-    )
-    expect(toolEnds).toEqual([
+  it('starts a new call for a different name without an id (id arrives later)', async () => {
+    await expect(
+      endedToolCalls('chatcmpl-no-index-no-id', [
+        { function: { name: 'get_weather' } },
+        { id: 'call_a', function: { arguments: '{"location":"Berlin"}' } },
+        { function: { name: 'get_time' } },
+        { id: 'call_b', function: { arguments: '{"tz":"CET"}' } },
+      ]),
+    ).resolves.toEqual([
       ['call_a', 'get_weather', '{"location":"Berlin"}'],
       ['call_b', 'get_time', '{"tz":"CET"}'],
+    ])
+  })
+
+  it('keeps a repeated name on the same call', async () => {
+    await expect(
+      endedToolCalls('chatcmpl-repeat-name', [
+        { id: 'call_a', type: 'function', function: { name: 'get_weather' } },
+        {
+          function: { name: 'get_weather', arguments: '{"location":"Berlin"}' },
+        },
+      ]),
+    ).resolves.toEqual([
+      ['call_a', 'get_weather', '{"location":"Berlin"}'],
+    ])
+  })
+
+  it('starts a new call when a different name arrives with an id before the previous id', async () => {
+    await expect(
+      endedToolCalls('chatcmpl-id-while-empty', [
+        { function: { name: 'get_weather' } },
+        {
+          id: 'call_b',
+          function: { name: 'get_time', arguments: '{"tz":"CET"}' },
+        },
+      ]),
+    ).resolves.toEqual([
+      ['call_b', 'get_time', '{"tz":"CET"}'],
+    ])
+  })
+
+  it('does not reuse an index that is still in progress', async () => {
+    await expect(
+      endedToolCalls('chatcmpl-live-index', [
+        {
+          index: 0,
+          id: 'call_a',
+          function: { name: 'get_weather', arguments: '{"location":"Berlin"}' },
+        },
+        {
+          index: 1,
+          id: 'call_b',
+          function: { name: 'get_time', arguments: '{"tz":"CET"}' },
+        },
+        { index: 0, function: { arguments: '' } },
+        {
+          id: 'call_c',
+          function: { name: 'get_place', arguments: '{"q":"x"}' },
+        },
+      ]),
+    ).resolves.toEqual([
+      ['call_a', 'get_weather', '{"location":"Berlin"}'],
+      ['call_b', 'get_time', '{"tz":"CET"}'],
+      ['call_c', 'get_place', '{"q":"x"}'],
     ])
   })
 })

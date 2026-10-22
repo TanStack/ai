@@ -938,7 +938,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         started: boolean // Track if TOOL_CALL_START has been emitted
       }
     >()
-    // Index, id and name of the latest tool call delta, to place deltas without an index
+    // Resolved index plus accumulated id and name. Used when a later delta omits index.
     let latestToolCall: { index: number; id: string; name: string } | undefined
 
     // Reasoning lifecycle (driven by extractReasoning() hook — see method
@@ -1114,23 +1114,37 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         // Handle tool calls - they come in as deltas
         if (deltaToolCalls) {
           for (const toolCallDelta of deltaToolCalls) {
-            // Some providers (Gemini's compatibility endpoint, for example)
-            // omit `index`. Then a delta starts the next call when it brings a
-            // new id, or a name without an id once the latest call has a name;
-            // anything else continues the latest call.
-            const index =
+            // Some providers omit `index`. A missing index starts the next call
+            // when the id differs and the latest call already has an id, when
+            // an id arrives with a different name while the latest id is still
+            // empty, or when a name with no id differs from the latest name.
+            // ponytail: two calls of the same tool, both name-first and with no
+            // id, still share a slot. An index or an id is required to split them.
+            const deltaName = toolCallDelta.function?.name
+            const startsNext =
+              latestToolCall !== undefined &&
+              ((!!toolCallDelta.id &&
+                !!latestToolCall.id &&
+                toolCallDelta.id !== latestToolCall.id) ||
+                (!!toolCallDelta.id &&
+                  !latestToolCall.id &&
+                  !!deltaName &&
+                  deltaName !== latestToolCall.name) ||
+                (!toolCallDelta.id &&
+                  !!deltaName &&
+                  !!latestToolCall.name &&
+                  deltaName !== latestToolCall.name))
+            let index =
               typeof toolCallDelta.index === 'number'
                 ? toolCallDelta.index
                 : latestToolCall === undefined
                   ? 0
-                  : (toolCallDelta.id &&
-                        latestToolCall.id &&
-                        toolCallDelta.id !== latestToolCall.id) ||
-                      (!toolCallDelta.id &&
-                        toolCallDelta.function?.name &&
-                        latestToolCall.name)
+                  : startsNext
                     ? latestToolCall.index + 1
                     : latestToolCall.index
+            if (typeof toolCallDelta.index !== 'number' && startsNext) {
+              while (toolCallsInProgress.has(index)) index += 1
+            }
 
             // Initialize or update the tool call in progress
             let toolCall = toolCallsInProgress.get(index)
