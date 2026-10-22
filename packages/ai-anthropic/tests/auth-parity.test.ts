@@ -473,7 +473,7 @@ describe('files factories', () => {
       authorization: null,
       xApiKey: 'files-key',
       xApp: null,
-      anthropicBeta: 'files-api-2025-04-14,files-api-2025-04-14',
+      anthropicBeta: 'files-api-2025-04-14',
     })
     expect(file).toEqual(FILE)
   })

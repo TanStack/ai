@@ -3,7 +3,7 @@ id: SubagentSink
 title: SubagentSink
 ---
 
-Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:104](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L104)
+Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:205](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L205)
 
 What the children of one parent run left behind for the parent terminal.
 
@@ -15,7 +15,7 @@ What the children of one parent run left behind for the parent terminal.
 interrupts: Interrupt[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:105](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L105)
+Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:206](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L206)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:105](https://github
 optional total?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:109](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L109)
+Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:210](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L210)
 
 Summed full usage of the children, including cost.
 
@@ -37,6 +37,6 @@ Summed full usage of the children, including cost.
 usage: TokenUsage[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:107](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L107)
+Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:208](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L208)
 
 One AG-UI entry per child model call.

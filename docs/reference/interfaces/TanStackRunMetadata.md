@@ -9,6 +9,18 @@ Shape of `metadata.tanstack` on run events.
 
 ## Properties
 
+### args?
+
+```ts
+optional args?: string;
+```
+
+Defined in: [packages/ai/src/types.ts:777](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L777)
+
+The raw tool argument string on `TOOL_CALL_END`, as the provider sent it.
+
+***
+
 ### finishReason?
 
 ```ts

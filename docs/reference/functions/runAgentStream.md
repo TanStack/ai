@@ -6,12 +6,13 @@ title: runAgentStream
 ```ts
 function runAgentStream(
    agent, 
-   ctx, 
+   input, 
    sink?, 
-parentToolCallId?): AsyncIterable<AGUIEvent>;
+   parentToolCallId?, 
+binding?): AsyncIterable<AGUIEvent>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:471](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L471)
+Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:732](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L732)
 
 Run one agent and stream its chunks, from `SUBAGENT_STARTED` to
 `SUBAGENT_FINISHED` or `SUBAGENT_ERROR`. The package root exports this
@@ -26,9 +27,9 @@ child's interrupt objects and token usage. The finished event carries
 
 [`DefinedAgent`](../interfaces/DefinedAgent.md)
 
-### ctx
+### input
 
-[`SubagentRunContext`](../interfaces/SubagentRunContext.md)
+[`SubagentRunInput`](../interfaces/SubagentRunInput.md)
 
 ### sink?
 
@@ -37,6 +38,10 @@ child's interrupt objects and token usage. The finished event carries
 ### parentToolCallId?
 
 `string`
+
+### binding?
+
+[`SubagentBinding`](../interfaces/SubagentBinding.md)
 
 ## Returns
 

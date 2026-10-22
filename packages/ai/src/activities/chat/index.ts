@@ -2636,6 +2636,7 @@ class TextEngine<
       this.toolResumeState(),
       this.params.toolExecution,
       this.params.repairToolInput,
+      this.threadId,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -2870,6 +2871,7 @@ class TextEngine<
       this.toolResumeState(),
       this.params.toolExecution,
       this.params.repairToolInput,
+      this.threadId,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -3961,6 +3963,7 @@ class TextEngine<
       this.toolResumeState(),
       undefined,
       this.params.repairToolInput,
+      this.threadId,
     )
   }
 

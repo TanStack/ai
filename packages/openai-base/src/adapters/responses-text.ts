@@ -36,6 +36,7 @@ import {
 } from '../utils/json-object-mode'
 import { toResponsesToolChoice } from '../tools/tool-choice'
 import { getOpenAIProviderToolKind } from '../tools/openai-provider-tool'
+import { resolveComputerUseTool } from '../tools/computer-use-tool'
 import { convertToolsToResponsesFormat } from './responses-tool-converter'
 import {
   hostedShellCallIds,
@@ -51,6 +52,7 @@ import type {
 } from '@tanstack/ai/adapters'
 import type {
   Response,
+  ResponseComputerToolCallOutputScreenshot,
   ResponseCreateParams,
   ResponseFunctionCallOutputItem,
   ResponseFunctionWebSearch,
@@ -400,7 +402,10 @@ export interface OpenAIResponsesToolCallMetadata extends ProviderExecutedToolMet
    * `additional_tools` has one, and the API needs it on the replayed call.
    */
   namespace?: string
-  /** Set for shell, local_shell, and apply_patch calls the app must run. */
+  /**
+   * Set for shell, local_shell, apply_patch, and computer calls the app must
+   * run.
+   */
   openaiUserTool?: OpenAIUserToolName
   /** Shell `action.max_output_length`, echoed on `shell_call_output`. */
   maxOutputLength?: number | null
@@ -514,8 +519,18 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   }
 
   async *chatStream(
-    options: TextOptions<TProviderOptions>,
+    chatOptions: TextOptions<TProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
+    // A portable computer tool becomes the native computer tool of the model.
+    // The request and the stream both read the native tool.
+    const options = chatOptions.tools
+      ? {
+          ...chatOptions,
+          tools: chatOptions.tools.map((tool) =>
+            resolveComputerUseTool(tool, chatOptions.model),
+          ),
+        }
+      : chatOptions
     // Key streamed state by output item ID because argument deltas reference
     // `item_id`. The state separately retains `call_id`, which is the public
     // tool-call ID and the correlation key for function_call_output.
@@ -1387,6 +1402,14 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       hasEmittedRunStarted: boolean
     },
   ): AsyncIterable<AdapterYieldChunk> {
+    // A `computer_call` is a call to the computer tool of this request.
+    const computerTool = options.tools?.some(
+      (tool) =>
+        tool.name === 'computer' &&
+        getOpenAIProviderToolKind(tool) === 'computer_use',
+    )
+      ? 'computer'
+      : 'computer_use_preview'
     const normalizeToolInput = createToolInputNormalizer(
       options.tools,
       (schema, required) =>
@@ -1615,7 +1638,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       outputIndex: number,
       bareShell: boolean,
     ): Array<AdapterYieldChunk> => {
-      const call = readUserExecutedCall(item, { bareShell })
+      const call = readUserExecutedCall(item, { bareShell, computerTool })
       if (!call || toolCallMetadata.get(call.callId)?.ended) return []
       const tracked = toolCallMetadata.get(call.callId) ?? {
         callId: call.callId,
@@ -2904,16 +2927,41 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         metadata?: unknown
       }
     >()
+    // A failed computer call has no screenshot of its own, so it sends the
+    // newest one. A computer call output has no text, so the failure reasons
+    // go in one user message after the call outputs.
+    let lastScreenshot: ResponseComputerToolCallOutputScreenshot | undefined
+    const failures: Array<string> = []
+    const pushFailures = () => {
+      if (failures.length === 0) return
+      result.push({
+        type: 'message',
+        role: 'user',
+        content: [{ type: 'input_text', text: failures.splice(0).join('\n') }],
+      })
+    }
 
     for (const [index, message] of messages.entries()) {
+      if (message.role !== 'tool') pushFailures()
       result.push(...(insertBefore?.get(index) ?? []))
       // Handle tool messages - convert to FunctionToolCallOutput
       if (message.role === 'tool') {
         const owner = message.toolCallId
           ? userToolCalls.get(message.toolCallId)
           : undefined
+        const error = message.error
         const userOutput = owner
-          ? userToolResultItem(owner, message.content)
+          ? userToolResultItem(owner, message.content, {
+              screenshot: () => {
+                if (error !== undefined) {
+                  failures.push(`Computer call ${owner.id} failed: ${error}`)
+                  return lastScreenshot ?? { type: 'computer_screenshot' }
+                }
+                lastScreenshot = this.screenshotOf(message.content)
+                return lastScreenshot
+              },
+              failed: error !== undefined,
+            })
           : null
         if (userOutput) {
           result.push(userOutput)
@@ -3145,8 +3193,37 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       })
     }
 
+    pushFailures()
     result.push(...(insertBefore?.get(messages.length) ?? []))
     return result
+  }
+
+  /**
+   * The first image of a tool result, as a computer screenshot. It goes out
+   * with `detail: 'original'`, as in OpenAI's computer use guide, so the
+   * model sees the screen at full size. The SDK type has no `detail` yet.
+   *
+   * @throws Error when the result has no image. A computer call output
+   *   needs a screenshot.
+   */
+  private screenshotOf(
+    content: ModelMessage['content'],
+  ): ResponseComputerToolCallOutputScreenshot & { detail?: 'original' } {
+    const image = Array.isArray(content)
+      ? content.find((part) => part.type === 'image')
+      : undefined
+    const input = image ? this.convertContentPartToInput(image) : undefined
+    if (input?.type !== 'input_image' || (!input.image_url && !input.file_id)) {
+      throw new Error(
+        'The computer tool result has no screenshot. Return an image part from the computer tool.',
+      )
+    }
+    return {
+      type: 'computer_screenshot',
+      ...(input.image_url ? { image_url: input.image_url } : {}),
+      ...(input.file_id ? { file_id: input.file_id } : {}),
+      detail: 'original',
+    }
   }
 
   /**

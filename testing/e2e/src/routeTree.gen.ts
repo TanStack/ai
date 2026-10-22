@@ -54,6 +54,8 @@ import { Route as ApiActivityTestRouteImport } from './routes/api.activity-test'
 import { Route as ApiAdapterInputModalitiesRouteImport } from './routes/api.adapter-input-modalities'
 import { Route as ApiAnthropicAuthWireRouteImport } from './routes/api.anthropic-auth-wire'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
+import { Route as ApiAnthropicComputerToolsetWireRouteImport } from './routes/api.anthropic-computer-toolset-wire'
+import { Route as ApiAnthropicComputerUseWireRouteImport } from './routes/api.anthropic-computer-use-wire'
 import { Route as ApiAnthropicHaiku55WireRouteImport } from './routes/api.anthropic-haiku-5-5-wire'
 import { Route as ApiAnthropicMaxTokensUsageRouteImport } from './routes/api.anthropic-max-tokens-usage'
 import { Route as ApiAnthropicMultiTurnStructuredWireRouteImport } from './routes/api.anthropic-multi-turn-structured-wire'
@@ -130,6 +132,7 @@ import { Route as ApiMoonshotUsageDetailsRouteImport } from './routes/api.moonsh
 import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.multimodal-tool-result-wire'
 import { Route as ApiNonStreamingRunErrorRouteImport } from './routes/api.non-streaming-run-error'
 import { Route as ApiOpenaiCompletedResponseTextRouteImport } from './routes/api.openai-completed-response-text'
+import { Route as ApiOpenaiComputerUseWireRouteImport } from './routes/api.openai-computer-use-wire'
 import { Route as ApiOpenaiImage25ModelsRouteImport } from './routes/api.openai-image-2-5-models'
 import { Route as ApiOpenaiMalformedToolArgumentsRouteImport } from './routes/api.openai-malformed-tool-arguments'
 import { Route as ApiOpenaiResponsesUsageRouteImport } from './routes/api.openai-responses-usage'
@@ -413,6 +416,18 @@ const ApiAnthropicBugTestRoute = ApiAnthropicBugTestRouteImport.update({
   path: '/api/anthropic-bug-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAnthropicComputerToolsetWireRoute =
+  ApiAnthropicComputerToolsetWireRouteImport.update({
+    id: '/api/anthropic-computer-toolset-wire',
+    path: '/api/anthropic-computer-toolset-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAnthropicComputerUseWireRoute =
+  ApiAnthropicComputerUseWireRouteImport.update({
+    id: '/api/anthropic-computer-use-wire',
+    path: '/api/anthropic-computer-use-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAnthropicHaiku55WireRoute = ApiAnthropicHaiku55WireRouteImport.update({
   id: '/api/anthropic-haiku-5-5-wire',
   path: '/api/anthropic-haiku-5-5-wire',
@@ -815,6 +830,12 @@ const ApiOpenaiCompletedResponseTextRoute =
     path: '/api/openai-completed-response-text',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiOpenaiComputerUseWireRoute =
+  ApiOpenaiComputerUseWireRouteImport.update({
+    id: '/api/openai-computer-use-wire',
+    path: '/api/openai-computer-use-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOpenaiImage25ModelsRoute = ApiOpenaiImage25ModelsRouteImport.update({
   id: '/api/openai-image-2-5-models',
   path: '/api/openai-image-2-5-models',
@@ -1143,6 +1164,8 @@ export interface FileRoutesByFullPath {
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
   '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-computer-toolset-wire': typeof ApiAnthropicComputerToolsetWireRoute
+  '/api/anthropic-computer-use-wire': typeof ApiAnthropicComputerUseWireRoute
   '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
@@ -1219,6 +1242,7 @@ export interface FileRoutesByFullPath {
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
+  '/api/openai-computer-use-wire': typeof ApiOpenaiComputerUseWireRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
   '/api/openai-malformed-tool-arguments': typeof ApiOpenaiMalformedToolArgumentsRoute
   '/api/openai-responses-usage': typeof ApiOpenaiResponsesUsageRoute
@@ -1319,6 +1343,8 @@ export interface FileRoutesByTo {
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
   '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-computer-toolset-wire': typeof ApiAnthropicComputerToolsetWireRoute
+  '/api/anthropic-computer-use-wire': typeof ApiAnthropicComputerUseWireRoute
   '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
@@ -1395,6 +1421,7 @@ export interface FileRoutesByTo {
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
+  '/api/openai-computer-use-wire': typeof ApiOpenaiComputerUseWireRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
   '/api/openai-malformed-tool-arguments': typeof ApiOpenaiMalformedToolArgumentsRoute
   '/api/openai-responses-usage': typeof ApiOpenaiResponsesUsageRoute
@@ -1496,6 +1523,8 @@ export interface FileRoutesById {
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
   '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-computer-toolset-wire': typeof ApiAnthropicComputerToolsetWireRoute
+  '/api/anthropic-computer-use-wire': typeof ApiAnthropicComputerUseWireRoute
   '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
@@ -1572,6 +1601,7 @@ export interface FileRoutesById {
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
+  '/api/openai-computer-use-wire': typeof ApiOpenaiComputerUseWireRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
   '/api/openai-malformed-tool-arguments': typeof ApiOpenaiMalformedToolArgumentsRoute
   '/api/openai-responses-usage': typeof ApiOpenaiResponsesUsageRoute
@@ -1674,6 +1704,8 @@ export interface FileRouteTypes {
     | '/api/adapter-input-modalities'
     | '/api/anthropic-auth-wire'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-computer-toolset-wire'
+    | '/api/anthropic-computer-use-wire'
     | '/api/anthropic-haiku-5-5-wire'
     | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
@@ -1750,6 +1782,7 @@ export interface FileRouteTypes {
     | '/api/multimodal-tool-result-wire'
     | '/api/non-streaming-run-error'
     | '/api/openai-completed-response-text'
+    | '/api/openai-computer-use-wire'
     | '/api/openai-image-2-5-models'
     | '/api/openai-malformed-tool-arguments'
     | '/api/openai-responses-usage'
@@ -1850,6 +1883,8 @@ export interface FileRouteTypes {
     | '/api/adapter-input-modalities'
     | '/api/anthropic-auth-wire'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-computer-toolset-wire'
+    | '/api/anthropic-computer-use-wire'
     | '/api/anthropic-haiku-5-5-wire'
     | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
@@ -1926,6 +1961,7 @@ export interface FileRouteTypes {
     | '/api/multimodal-tool-result-wire'
     | '/api/non-streaming-run-error'
     | '/api/openai-completed-response-text'
+    | '/api/openai-computer-use-wire'
     | '/api/openai-image-2-5-models'
     | '/api/openai-malformed-tool-arguments'
     | '/api/openai-responses-usage'
@@ -2026,6 +2062,8 @@ export interface FileRouteTypes {
     | '/api/adapter-input-modalities'
     | '/api/anthropic-auth-wire'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-computer-toolset-wire'
+    | '/api/anthropic-computer-use-wire'
     | '/api/anthropic-haiku-5-5-wire'
     | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
@@ -2102,6 +2140,7 @@ export interface FileRouteTypes {
     | '/api/multimodal-tool-result-wire'
     | '/api/non-streaming-run-error'
     | '/api/openai-completed-response-text'
+    | '/api/openai-computer-use-wire'
     | '/api/openai-image-2-5-models'
     | '/api/openai-malformed-tool-arguments'
     | '/api/openai-responses-usage'
@@ -2203,6 +2242,8 @@ export interface RootRouteChildren {
   ApiAdapterInputModalitiesRoute: typeof ApiAdapterInputModalitiesRoute
   ApiAnthropicAuthWireRoute: typeof ApiAnthropicAuthWireRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
+  ApiAnthropicComputerToolsetWireRoute: typeof ApiAnthropicComputerToolsetWireRoute
+  ApiAnthropicComputerUseWireRoute: typeof ApiAnthropicComputerUseWireRoute
   ApiAnthropicHaiku55WireRoute: typeof ApiAnthropicHaiku55WireRoute
   ApiAnthropicMaxTokensUsageRoute: typeof ApiAnthropicMaxTokensUsageRoute
   ApiAnthropicMultiTurnStructuredWireRoute: typeof ApiAnthropicMultiTurnStructuredWireRoute
@@ -2279,6 +2320,7 @@ export interface RootRouteChildren {
   ApiMultimodalToolResultWireRoute: typeof ApiMultimodalToolResultWireRoute
   ApiNonStreamingRunErrorRoute: typeof ApiNonStreamingRunErrorRoute
   ApiOpenaiCompletedResponseTextRoute: typeof ApiOpenaiCompletedResponseTextRoute
+  ApiOpenaiComputerUseWireRoute: typeof ApiOpenaiComputerUseWireRoute
   ApiOpenaiImage25ModelsRoute: typeof ApiOpenaiImage25ModelsRoute
   ApiOpenaiMalformedToolArgumentsRoute: typeof ApiOpenaiMalformedToolArgumentsRoute
   ApiOpenaiResponsesUsageRoute: typeof ApiOpenaiResponsesUsageRoute
@@ -2645,6 +2687,20 @@ declare module '@tanstack/react-router' {
       path: '/api/anthropic-bug-test'
       fullPath: '/api/anthropic-bug-test'
       preLoaderRoute: typeof ApiAnthropicBugTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-computer-toolset-wire': {
+      id: '/api/anthropic-computer-toolset-wire'
+      path: '/api/anthropic-computer-toolset-wire'
+      fullPath: '/api/anthropic-computer-toolset-wire'
+      preLoaderRoute: typeof ApiAnthropicComputerToolsetWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-computer-use-wire': {
+      id: '/api/anthropic-computer-use-wire'
+      path: '/api/anthropic-computer-use-wire'
+      fullPath: '/api/anthropic-computer-use-wire'
+      preLoaderRoute: typeof ApiAnthropicComputerUseWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/anthropic-haiku-5-5-wire': {
@@ -3179,6 +3235,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOpenaiCompletedResponseTextRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/openai-computer-use-wire': {
+      id: '/api/openai-computer-use-wire'
+      path: '/api/openai-computer-use-wire'
+      fullPath: '/api/openai-computer-use-wire'
+      preLoaderRoute: typeof ApiOpenaiComputerUseWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/openai-image-2-5-models': {
       id: '/api/openai-image-2-5-models'
       path: '/api/openai-image-2-5-models'
@@ -3656,6 +3719,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdapterInputModalitiesRoute: ApiAdapterInputModalitiesRoute,
   ApiAnthropicAuthWireRoute: ApiAnthropicAuthWireRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
+  ApiAnthropicComputerToolsetWireRoute: ApiAnthropicComputerToolsetWireRoute,
+  ApiAnthropicComputerUseWireRoute: ApiAnthropicComputerUseWireRoute,
   ApiAnthropicHaiku55WireRoute: ApiAnthropicHaiku55WireRoute,
   ApiAnthropicMaxTokensUsageRoute: ApiAnthropicMaxTokensUsageRoute,
   ApiAnthropicMultiTurnStructuredWireRoute:
@@ -3737,6 +3802,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMultimodalToolResultWireRoute: ApiMultimodalToolResultWireRoute,
   ApiNonStreamingRunErrorRoute: ApiNonStreamingRunErrorRoute,
   ApiOpenaiCompletedResponseTextRoute: ApiOpenaiCompletedResponseTextRoute,
+  ApiOpenaiComputerUseWireRoute: ApiOpenaiComputerUseWireRoute,
   ApiOpenaiImage25ModelsRoute: ApiOpenaiImage25ModelsRoute,
   ApiOpenaiMalformedToolArgumentsRoute: ApiOpenaiMalformedToolArgumentsRoute,
   ApiOpenaiResponsesUsageRoute: ApiOpenaiResponsesUsageRoute,

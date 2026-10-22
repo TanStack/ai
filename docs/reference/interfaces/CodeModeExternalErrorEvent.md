@@ -3,7 +3,7 @@ id: CodeModeExternalErrorEvent
 title: CodeModeExternalErrorEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1886](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1886)
+Defined in: [packages/ai/src/types.ts:1928](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1928)
 
 Custom event for extensibility.
 
@@ -21,7 +21,7 @@ Custom event for extensibility.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1747](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1747)
+Defined in: [packages/ai/src/types.ts:1789](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1789)
 
 Extra information attached to this event.
 
@@ -37,7 +37,7 @@ Extra information attached to this event.
 name: "code_mode:external_error";
 ```
 
-Defined in: [packages/ai/src/types.ts:1887](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1887)
+Defined in: [packages/ai/src/types.ts:1929](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1929)
 
 What this custom event is. Required: without it a consumer cannot route
 the value.
@@ -56,7 +56,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1746](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1746)
+Defined in: [packages/ai/src/types.ts:1788](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1788)
 
 #### Inherited from
 
@@ -70,7 +70,7 @@ Defined in: [packages/ai/src/types.ts:1746](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1888](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1888)
+Defined in: [packages/ai/src/types.ts:1930](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1930)
 
 The payload. Any JSON value, and required.
 

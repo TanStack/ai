@@ -120,7 +120,7 @@ VAD configuration
 ### vadMode?
 
 ```ts
-optional vadMode?: "server" | "semantic" | "manual";
+optional vadMode?: "server" | "manual" | "semantic";
 ```
 
 Defined in: [packages/ai/src/realtime/types.ts:45](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L45)

@@ -1,5 +1,37 @@
 # @tanstack/ai-octane
 
+## 0.9.1
+
+### Patch Changes
+
+- Updated dependencies [[`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325)]:
+  - @tanstack/ai@0.71.0
+  - @tanstack/ai-client@0.40.1
+
+## 0.9.0
+
+### Minor Changes
+
+- [#1232](https://github.com/TanStack/ai/pull/1232) [`ef6c44f`](https://github.com/TanStack/ai/commit/ef6c44f75dd0e5c1f9187a2093d9fa1347acb85b) - Hold client UI state in a TanStack Store atom. Framework hooks read `getSnapshot()` instead of copying fields through change callbacks. React `useChat()` first commits `initialMessages` and `initialResumeSnapshot`, then applies browser persistence after attach. This timing applies to client-only rendering and keeps the server snapshot stable during SSR hydration. Until the stored transcript is applied, `isHydrating` is `true`.
+
+  The snapshot `messages` and `queue` arrays are frozen in every adapter. An in-place change such as `messages.push()` throws a `TypeError`. Use `setMessages` to change messages. The hook return types now show this: `messages` and `queue` are `ReadonlyArray`, and so is `RealtimeClientState.messages`. If you pass `messages` to your own component or function, type that parameter as `ReadonlyArray<UIMessage>`.
+
+  Snapshot message `parts` are frozen at runtime too, but their TypeScript type stays mutable, because a readonly part list is not assignable to `UIMessage`. Tool `input`, `output`, and subagent transcripts on a snapshot are copies.
+
+  A message or part that did not change keeps the same object from one snapshot to the next. Memoized message rows do not render again when a different message streams.
+
+  `ChatClient` adds `subscribeSnapshot` / `getSnapshot`. The live connection method stays `subscribe()`. Generation, video, realtime, and BYOK clients expose `subscribe` / `getSnapshot`. `AudioRecorder.subscribe` still passes the new state value.
+
+  `RealtimeClient` behavior changes: when `connect()` connects, it clears the messages and the pending user and assistant transcripts from the previous session. A transcript that arrives while the microphone starts is kept. A failed connection keeps the previous transcript. `interrupt()` now clears `pendingAssistantTranscript`.
+
+  `setMessages` accepts the hook's readonly `messages`, including nested subagent cards. A listener that throws does not skip the other listeners in any client, and it does not leave `isLoading` stuck. The error goes to `reportError` in the browser and to `console.error` in other runtimes.
+
+### Patch Changes
+
+- Updated dependencies [[`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`ef6c44f`](https://github.com/TanStack/ai/commit/ef6c44f75dd0e5c1f9187a2093d9fa1347acb85b), [`5f95dbd`](https://github.com/TanStack/ai/commit/5f95dbd08f2780442000ac52074ea747d1b44187), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`3292bad`](https://github.com/TanStack/ai/commit/3292bad7b26990c5aa4676cc9d9fe33b1741fc1a), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`4298480`](https://github.com/TanStack/ai/commit/429848047c8c514f29855f8a99a7260253eb5d5b), [`f68da51`](https://github.com/TanStack/ai/commit/f68da51f63f999b70ac7aaf5aebc0109a7e9daf7), [`30fa651`](https://github.com/TanStack/ai/commit/30fa651d173e519db8de50c9f888ded71b951640), [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b)]:
+  - @tanstack/ai@0.70.0
+  - @tanstack/ai-client@0.40.0
+
 ## 0.8.0
 
 ### Minor Changes

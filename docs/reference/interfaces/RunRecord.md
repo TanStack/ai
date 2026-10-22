@@ -9,6 +9,42 @@ Durable bookkeeping for a single run.
 
 ## Properties
 
+### activity?
+
+```ts
+optional activity?: string;
+```
+
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:186](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L186)
+
+The activity of a `kind: 'activity'` run (`'image'`, `'chat'`, ...).
+
+***
+
+### agent?
+
+```ts
+optional agent?: string;
+```
+
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:188](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L188)
+
+The agent name of a `kind: 'agent'` run.
+
+***
+
+### artifacts?
+
+```ts
+optional artifacts?: RunArtifactRef[];
+```
+
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:192](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L192)
+
+Durable artifact references produced by this run.
+
+***
+
 ### cancelRequested?
 
 ```ts
@@ -24,6 +60,18 @@ inferable from the disconnect).
 Written by `requestRunCancel` and read by `wasCancelRequested` (both in
 `../cancel`). Deliberately NOT a status: recording intent is not the same as
 the run having stopped, and only the driver knows when it has.
+
+***
+
+### checkpoint?
+
+```ts
+optional checkpoint?: RunCheckpoint;
+```
+
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:203](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L203)
+
+Crash-resume data saved at the last model or tool boundary.
 
 ***
 
@@ -83,6 +131,44 @@ Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:136](https:
 
 ***
 
+### kind?
+
+```ts
+optional kind?: RunKind;
+```
+
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:184](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L184)
+
+What kind of work this run is, when a host session recorded it:
+a chat turn, an agent run, one activity call inside an agent, a user
+command, or a compaction. Absent on runs recorded by plain `chat()`.
+
+***
+
+### leaseExpiresAt?
+
+```ts
+optional leaseExpiresAt?: number;
+```
+
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:201](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L201)
+
+***
+
+### leaseOwner?
+
+```ts
+optional leaseOwner?: string;
+```
+
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:200](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L200)
+
+The host that currently drives this run, and when its claim expires. The
+driver renews `leaseExpiresAt`. Another host may resume the run after it
+passes. Pairs with `driverEpoch` for fencing.
+
+***
+
 ### name?
 
 ```ts
@@ -105,6 +191,36 @@ Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:125](https:
 
 Parent chat run that started this child, when this record is a subagent.
 Absent on the parent run itself.
+
+***
+
+### principal?
+
+```ts
+optional principal?: object;
+```
+
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:194](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L194)
+
+Who started this run, from the host's `authorize`.
+
+#### id
+
+```ts
+id: string;
+```
+
+***
+
+### result?
+
+```ts
+optional result?: unknown;
+```
+
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:190](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L190)
+
+Terminal result metadata (ids, urls, text). Never media bytes.
 
 ***
 

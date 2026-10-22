@@ -193,3 +193,6 @@ allowBuilds:
   '@prisma/engines': false
   prisma: false
   better-sqlite3: false
+  # @tanstack/ai-computer-local needs only the types. Its tests use a fake
+  # robot, so nothing loads the native addon that this script downloads.
+  '@jitsi/robotjs': false
