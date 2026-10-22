@@ -2,7 +2,7 @@
 title: Control how a turn ends
 id: harness-turn-control
 order: 4
-description: "Send the model back to work when it stops too soon, retry model errors or continue a partial answer, choose which waiting messages join a running turn, run tools one at a time, and give one prompt its own model and tools."
+description: "Send the model back to work when it stops too soon, retry model errors on the same or another model or continue a partial answer, choose which waiting messages join a running turn, run tools one at a time, and give one prompt its own model and tools."
 keywords:
   - tanstack ai
   - harness
@@ -159,6 +159,36 @@ When the hook answers `'continue'`:
 - The `harness.turn.retry` event has `continued: true`.
 
 `partial` is true when the failed call streamed text, reasoning, or a tool call before the error. Only text can be continued. When no text streamed, `'continue'` acts as `'retry'`, and the failed call adds nothing to the turn result.
+
+### Retry on another model
+
+A provider can stay down for longer than your backoff. Return `{ retry: true, adapter }` from `onModelError` to run the retry on another model:
+
+```ts group=harness-turn-control
+import { anthropicText } from '@tanstack/ai-anthropic'
+
+const backup = anthropicText('claude-sonnet-5-5')
+
+const failover = defineHarness({
+  name: 'acme/failover',
+  adapter: openaiText('gpt-6.1-sol'),
+  turn: {
+    onModelError: ({ error, retries, adapter }) => {
+      if (retries >= 3 || !isTransientModelError(error)) return undefined
+      if (adapter === backup) return 'retry'
+      return { retry: true, adapter: backup }
+    },
+  },
+})
+```
+
+- `adapter` is the adapter of the failed call. `model` is its `provider/model` name, the same as `TurnInfo.model`.
+- The retry and every later model call of this turn use the new adapter. The next turn starts on its own model again.
+- `TurnInfo.model` and the `harness.usage` records name the new model.
+- The retry counts in `retries`, the same as a `'retry'`. Your limit on `retries` still stops the turn.
+- A keyed adapter gets the key of the turn's user, as the turn's own adapter does.
+
+The answer acts as `'retry'`: the text of the failed call is dropped. A recovery after a host stop runs the turn on its own model.
 
 ### Compact after a context overflow
 

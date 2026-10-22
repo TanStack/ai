@@ -842,7 +842,8 @@ export abstract class SessionTurn<
           picked ??
           this.harness.adapter)
       if (!model) throw new Error(NO_MODEL)
-      const adapter: AnyTextAdapter = await run.keys.adapter(model)
+      // `turn.onModelError` can move the rest of the turn to another adapter.
+      let adapter: AnyTextAdapter = await run.keys.adapter(model)
       info.model = `${adapter.name}/${adapter.model}`
       const resolvePrompt = (prompt: string | ((turn: TurnInfo) => string)) =>
         typeof prompt === 'function' ? prompt(info) : prompt
@@ -1393,13 +1394,18 @@ export abstract class SessionTurn<
                 error: runError,
                 retries,
                 partial,
+                adapter,
+                model: `${adapter.name}/${adapter.model}`,
                 signal,
               })
-          if (
-            (answer === 'retry' || answer === 'continue') &&
-            !signal.aborted
-          ) {
+          if (answer && !signal.aborted) {
             retries += 1
+            // ponytail: the tools stay as they were prepared for the first
+            // model. Prepare them again if a preparer depends on the model.
+            if (typeof answer === 'object' && !isToolTurn) {
+              adapter = await run.keys.adapter(answer.adapter)
+              info.model = `${adapter.name}/${adapter.model}`
+            }
             // Only streamed text can be continued. Reasoning and a cut tool
             // call do not stay, so with no text, 'continue' acts as 'retry'.
             const isContinued = answer === 'continue' && text !== textBefore

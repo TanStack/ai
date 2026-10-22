@@ -11,6 +11,8 @@ const context = (message: string, retries = 0): ModelErrorContext => ({
   // The policy reads only the error, the retries, the partial flag, and the
   // signal.
   session: undefined as never,
+  adapter: undefined as never,
+  model: 'mock/test-model',
   operationId: 'op-1',
   error: { message },
   retries,

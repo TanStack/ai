@@ -5,6 +5,7 @@ import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import {
   createHarnessHost,
   defineHarness,
+  definePlugin,
   logIdOf,
   retryTransientErrors,
 } from '../src'
@@ -22,6 +23,7 @@ import {
 } from './helpers'
 import type { AnyTool, StreamChunk } from '@tanstack/ai'
 import type {
+  HarnessPlugin,
   HarnessTurnOptions,
   OwnershipOptions,
   ProjectOptions,
@@ -116,6 +118,7 @@ async function open(options: {
   replies: Array<Reply> | Reply
   turn: HarnessTurnOptions
   tools?: Array<AnyTool>
+  plugins?: Array<HarnessPlugin>
 }) {
   const { adapter, calls } = mockAdapter(options.replies)
   const { metadata } = memoryPersistence().stores
@@ -128,6 +131,7 @@ async function open(options: {
       name: 'test/turn-control',
       adapter,
       tools: options.tools,
+      ...(options.plugins ? { plugins: () => options.plugins ?? [] } : {}),
       turn: options.turn,
       durability: { addRecordsToModelContext: project },
     }),
@@ -403,6 +407,89 @@ describe('turn.onModelError', () => {
     await host.close()
   })
 
+  it('retries on the adapter that the hook returns, for the rest of the turn', async () => {
+    const backup = mockAdapter([
+      textThenLookup('Checking. '),
+      () =>
+        text('Done.').map(
+          (chunk): StreamChunk =>
+            chunk.type === EventType.RUN_FINISHED
+              ? {
+                  ...chunk,
+                  usage: {
+                    promptTokens: 7,
+                    completionTokens: 3,
+                    totalTokens: 10,
+                  },
+                }
+              : chunk,
+        ),
+    ])
+    const backupAdapter = { ...backup.adapter, model: 'backup-model' }
+    const seen: Array<{ model: string; adapter: string }> = []
+    const turnModels: Array<string | undefined> = []
+    const watcher = definePlugin({
+      name: 'test/turn-model',
+      lifetime: 'turn',
+      setup: () => ({
+        prompts: [
+          (turn) => {
+            turnModels.push(turn.model)
+            return ''
+          },
+        ],
+      }),
+    })
+    const { host, session, calls } = await open({
+      replies: failsWith('503 Service Unavailable'),
+      tools: [lookup()],
+      plugins: [watcher],
+      turn: {
+        onModelError: ({ adapter, model, retries }) => {
+          seen.push({ model, adapter: adapter.model })
+          return retries === 0
+            ? { retry: true, adapter: backupAdapter }
+            : undefined
+        },
+      },
+    })
+
+    expect(await session.send('go')).toEqual({
+      text: 'Checking. Done.',
+      media: [],
+    })
+    // One failed call on the turn's adapter. The retry and the call after
+    // the tool phase run on the backup.
+    expect(calls).toHaveLength(1)
+    expect(backup.calls).toHaveLength(2)
+    expect(seen).toEqual([{ model: 'mock/test-model', adapter: 'test-model' }])
+    expect(turnModels).toEqual(['mock/test-model', 'mock/backup-model'])
+    expect(Object.keys(session.usage().byModel)).toEqual(['mock/backup-model'])
+    await host.close()
+  })
+
+  it('keeps the retry limit when the hook moves to another adapter', async () => {
+    const backup = mockAdapter(failsWith('503 Service Unavailable'))
+    const { host, session, calls } = await open({
+      replies: failsWith('503 Service Unavailable'),
+      turn: {
+        onModelError: async (ctx) => {
+          const answer = await retryTransientErrors({
+            maxRetries: 2,
+            baseDelayMs: 1,
+          })(ctx)
+          return answer && { retry: true, adapter: backup.adapter }
+        },
+      },
+    })
+
+    await expect(session.send('go')).rejects.toThrow('503 Service Unavailable')
+
+    expect(calls).toHaveLength(1)
+    expect(backup.calls).toHaveLength(2)
+    await host.close()
+  })
+
   it('continues a partial answer: the next call gets it and a note', async () => {
     const { host, session, calls } = await open({
       replies: [failsWith('overloaded', 'Hello wor'), () => text('ld')],
@@ -489,6 +576,8 @@ describe('turn.onModelError', () => {
         error: { message: 'overloaded' },
         retries: 0,
         partial,
+        adapter: mockAdapter([]).adapter,
+        model: 'mock/test-model',
         signal: new AbortController().signal,
       })
       expect(answer).toBe(expected)
@@ -510,6 +599,8 @@ describe('turn.onModelError', () => {
         error: { message: 'rate limited', code: '429', retryAfterMs },
         retries: 0,
         partial: false,
+        adapter: mockAdapter([]).adapter,
+        model: 'mock/test-model',
         signal: controller.signal,
       })
       return { host, answer, controller }

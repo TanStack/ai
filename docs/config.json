@@ -1169,7 +1169,7 @@
           "label": "Control how a turn ends",
           "to": "harness/turn-control",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Store settings per thread",

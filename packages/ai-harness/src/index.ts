@@ -179,6 +179,7 @@ export type {
   HarnessTurnOptions,
   JoinCandidate,
   JoinContext,
+  ModelErrorAnswer,
   ModelErrorContext,
   RecoverContext,
   RecoverDecision,
