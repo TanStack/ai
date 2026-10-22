@@ -88,9 +88,7 @@ test.describe('subagents', () => {
     await expect(page.getByTestId('card-cleaner')).toContainText(
       'text:Deleted the old logs.',
     )
-    await expect(page.getByTestId('parent-text')).toHaveText(
-      'Cleanup is done.',
-    )
+    await expect(page.getByTestId('parent-text')).toHaveText('Cleanup is done.')
   })
 
   test('a card overrides the kit widgets for its own parts', async ({
