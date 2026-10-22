@@ -61,6 +61,7 @@ import { Route as ApiAnthropicMaxTokensUsageRouteImport } from './routes/api.ant
 import { Route as ApiAnthropicMultiTurnStructuredWireRouteImport } from './routes/api.anthropic-multi-turn-structured-wire'
 import { Route as ApiAnthropicOpus5CombinedWireRouteImport } from './routes/api.anthropic-opus-5-combined-wire'
 import { Route as ApiAnthropicRedactedThinkingWireRouteImport } from './routes/api.anthropic-redacted-thinking-wire'
+import { Route as ApiAnthropicRefusalRouteImport } from './routes/api.anthropic-refusal'
 import { Route as ApiAnthropicSkillsWireRouteImport } from './routes/api.anthropic-skills-wire'
 import { Route as ApiAnthropicSonnet55WireRouteImport } from './routes/api.anthropic-sonnet-5-5-wire'
 import { Route as ApiAnthropicThinkingOrderWireRouteImport } from './routes/api.anthropic-thinking-order-wire'
@@ -109,6 +110,9 @@ import { Route as ApiMaxToolCallsWireRouteImport } from './routes/api.max-tool-c
 import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
 import { Route as ApiMcpAppsChatRouteImport } from './routes/api.mcp-apps-chat'
 import { Route as ApiMcpAppsServerRouteImport } from './routes/api.mcp-apps-server'
+import { Route as ApiMcpEventsControlRouteImport } from './routes/api.mcp-events-control'
+import { Route as ApiMcpEventsServerRouteImport } from './routes/api.mcp-events-server'
+import { Route as ApiMcpEventsWebhookRouteImport } from './routes/api.mcp-events-webhook'
 import { Route as ApiMcpInputServerRouteImport } from './routes/api.mcp-input-server'
 import { Route as ApiMcpInputTestRouteImport } from './routes/api.mcp-input-test'
 import { Route as ApiMcpLifecycleTestRouteImport } from './routes/api.mcp-lifecycle-test'
@@ -456,6 +460,11 @@ const ApiAnthropicRedactedThinkingWireRoute =
     path: '/api/anthropic-redacted-thinking-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAnthropicRefusalRoute = ApiAnthropicRefusalRouteImport.update({
+  id: '/api/anthropic-refusal',
+  path: '/api/anthropic-refusal',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAnthropicSkillsWireRoute = ApiAnthropicSkillsWireRouteImport.update({
   id: '/api/anthropic-skills-wire',
   path: '/api/anthropic-skills-wire',
@@ -707,6 +716,21 @@ const ApiMcpAppsChatRoute = ApiMcpAppsChatRouteImport.update({
 const ApiMcpAppsServerRoute = ApiMcpAppsServerRouteImport.update({
   id: '/api/mcp-apps-server',
   path: '/api/mcp-apps-server',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpEventsControlRoute = ApiMcpEventsControlRouteImport.update({
+  id: '/api/mcp-events-control',
+  path: '/api/mcp-events-control',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpEventsServerRoute = ApiMcpEventsServerRouteImport.update({
+  id: '/api/mcp-events-server',
+  path: '/api/mcp-events-server',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpEventsWebhookRoute = ApiMcpEventsWebhookRouteImport.update({
+  id: '/api/mcp-events-webhook',
+  path: '/api/mcp-events-webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMcpInputServerRoute = ApiMcpInputServerRouteImport.update({
@@ -1164,6 +1188,7 @@ export interface FileRoutesByFullPath {
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
+  '/api/anthropic-refusal': typeof ApiAnthropicRefusalRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-sonnet-5-5-wire': typeof ApiAnthropicSonnet55WireRoute
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
@@ -1212,6 +1237,9 @@ export interface FileRoutesByFullPath {
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
+  '/api/mcp-events-control': typeof ApiMcpEventsControlRoute
+  '/api/mcp-events-server': typeof ApiMcpEventsServerRoute
+  '/api/mcp-events-webhook': typeof ApiMcpEventsWebhookRoute
   '/api/mcp-input-server': typeof ApiMcpInputServerRoute
   '/api/mcp-input-test': typeof ApiMcpInputTestRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
@@ -1342,6 +1370,7 @@ export interface FileRoutesByTo {
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
+  '/api/anthropic-refusal': typeof ApiAnthropicRefusalRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-sonnet-5-5-wire': typeof ApiAnthropicSonnet55WireRoute
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
@@ -1390,6 +1419,9 @@ export interface FileRoutesByTo {
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
+  '/api/mcp-events-control': typeof ApiMcpEventsControlRoute
+  '/api/mcp-events-server': typeof ApiMcpEventsServerRoute
+  '/api/mcp-events-webhook': typeof ApiMcpEventsWebhookRoute
   '/api/mcp-input-server': typeof ApiMcpInputServerRoute
   '/api/mcp-input-test': typeof ApiMcpInputTestRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
@@ -1521,6 +1553,7 @@ export interface FileRoutesById {
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
+  '/api/anthropic-refusal': typeof ApiAnthropicRefusalRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-sonnet-5-5-wire': typeof ApiAnthropicSonnet55WireRoute
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
@@ -1569,6 +1602,9 @@ export interface FileRoutesById {
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
+  '/api/mcp-events-control': typeof ApiMcpEventsControlRoute
+  '/api/mcp-events-server': typeof ApiMcpEventsServerRoute
+  '/api/mcp-events-webhook': typeof ApiMcpEventsWebhookRoute
   '/api/mcp-input-server': typeof ApiMcpInputServerRoute
   '/api/mcp-input-test': typeof ApiMcpInputTestRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
@@ -1701,6 +1737,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-redacted-thinking-wire'
+    | '/api/anthropic-refusal'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-sonnet-5-5-wire'
     | '/api/anthropic-thinking-order-wire'
@@ -1749,6 +1786,9 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
+    | '/api/mcp-events-control'
+    | '/api/mcp-events-server'
+    | '/api/mcp-events-webhook'
     | '/api/mcp-input-server'
     | '/api/mcp-input-test'
     | '/api/mcp-lifecycle-test'
@@ -1879,6 +1919,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-redacted-thinking-wire'
+    | '/api/anthropic-refusal'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-sonnet-5-5-wire'
     | '/api/anthropic-thinking-order-wire'
@@ -1927,6 +1968,9 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
+    | '/api/mcp-events-control'
+    | '/api/mcp-events-server'
+    | '/api/mcp-events-webhook'
     | '/api/mcp-input-server'
     | '/api/mcp-input-test'
     | '/api/mcp-lifecycle-test'
@@ -2057,6 +2101,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-redacted-thinking-wire'
+    | '/api/anthropic-refusal'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-sonnet-5-5-wire'
     | '/api/anthropic-thinking-order-wire'
@@ -2105,6 +2150,9 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
+    | '/api/mcp-events-control'
+    | '/api/mcp-events-server'
+    | '/api/mcp-events-webhook'
     | '/api/mcp-input-server'
     | '/api/mcp-input-test'
     | '/api/mcp-lifecycle-test'
@@ -2236,6 +2284,7 @@ export interface RootRouteChildren {
   ApiAnthropicMultiTurnStructuredWireRoute: typeof ApiAnthropicMultiTurnStructuredWireRoute
   ApiAnthropicOpus5CombinedWireRoute: typeof ApiAnthropicOpus5CombinedWireRoute
   ApiAnthropicRedactedThinkingWireRoute: typeof ApiAnthropicRedactedThinkingWireRoute
+  ApiAnthropicRefusalRoute: typeof ApiAnthropicRefusalRoute
   ApiAnthropicSkillsWireRoute: typeof ApiAnthropicSkillsWireRoute
   ApiAnthropicSonnet55WireRoute: typeof ApiAnthropicSonnet55WireRoute
   ApiAnthropicThinkingOrderWireRoute: typeof ApiAnthropicThinkingOrderWireRoute
@@ -2284,6 +2333,9 @@ export interface RootRouteChildren {
   ApiMcpAppsCallRoute: typeof ApiMcpAppsCallRoute
   ApiMcpAppsChatRoute: typeof ApiMcpAppsChatRoute
   ApiMcpAppsServerRoute: typeof ApiMcpAppsServerRoute
+  ApiMcpEventsControlRoute: typeof ApiMcpEventsControlRoute
+  ApiMcpEventsServerRoute: typeof ApiMcpEventsServerRoute
+  ApiMcpEventsWebhookRoute: typeof ApiMcpEventsWebhookRoute
   ApiMcpInputServerRoute: typeof ApiMcpInputServerRoute
   ApiMcpInputTestRoute: typeof ApiMcpInputTestRoute
   ApiMcpLifecycleTestRoute: typeof ApiMcpLifecycleTestRoute
@@ -2724,6 +2776,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAnthropicRedactedThinkingWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/anthropic-refusal': {
+      id: '/api/anthropic-refusal'
+      path: '/api/anthropic-refusal'
+      fullPath: '/api/anthropic-refusal'
+      preLoaderRoute: typeof ApiAnthropicRefusalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/anthropic-skills-wire': {
       id: '/api/anthropic-skills-wire'
       path: '/api/anthropic-skills-wire'
@@ -3058,6 +3117,27 @@ declare module '@tanstack/react-router' {
       path: '/api/mcp-apps-server'
       fullPath: '/api/mcp-apps-server'
       preLoaderRoute: typeof ApiMcpAppsServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-events-control': {
+      id: '/api/mcp-events-control'
+      path: '/api/mcp-events-control'
+      fullPath: '/api/mcp-events-control'
+      preLoaderRoute: typeof ApiMcpEventsControlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-events-server': {
+      id: '/api/mcp-events-server'
+      path: '/api/mcp-events-server'
+      fullPath: '/api/mcp-events-server'
+      preLoaderRoute: typeof ApiMcpEventsServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-events-webhook': {
+      id: '/api/mcp-events-webhook'
+      path: '/api/mcp-events-webhook'
+      fullPath: '/api/mcp-events-webhook'
+      preLoaderRoute: typeof ApiMcpEventsWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/mcp-input-server': {
@@ -3706,6 +3786,7 @@ const rootRouteChildren: RootRouteChildren = {
     ApiAnthropicMultiTurnStructuredWireRoute,
   ApiAnthropicOpus5CombinedWireRoute: ApiAnthropicOpus5CombinedWireRoute,
   ApiAnthropicRedactedThinkingWireRoute: ApiAnthropicRedactedThinkingWireRoute,
+  ApiAnthropicRefusalRoute: ApiAnthropicRefusalRoute,
   ApiAnthropicSkillsWireRoute: ApiAnthropicSkillsWireRoute,
   ApiAnthropicSonnet55WireRoute: ApiAnthropicSonnet55WireRoute,
   ApiAnthropicThinkingOrderWireRoute: ApiAnthropicThinkingOrderWireRoute,
@@ -3758,6 +3839,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpAppsCallRoute: ApiMcpAppsCallRoute,
   ApiMcpAppsChatRoute: ApiMcpAppsChatRoute,
   ApiMcpAppsServerRoute: ApiMcpAppsServerRoute,
+  ApiMcpEventsControlRoute: ApiMcpEventsControlRoute,
+  ApiMcpEventsServerRoute: ApiMcpEventsServerRoute,
+  ApiMcpEventsWebhookRoute: ApiMcpEventsWebhookRoute,
   ApiMcpInputServerRoute: ApiMcpInputServerRoute,
   ApiMcpInputTestRoute: ApiMcpInputTestRoute,
   ApiMcpLifecycleTestRoute: ApiMcpLifecycleTestRoute,

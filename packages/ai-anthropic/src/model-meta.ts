@@ -8,6 +8,7 @@ import type {
   AnthropicCacheControlOptions,
   AnthropicContainerOptions,
   AnthropicContextManagementOptions,
+  AnthropicFallbackOptions,
   AnthropicMCPOptions,
   AnthropicMaxTokensOptions,
   AnthropicSamplingOptions,
@@ -473,6 +474,7 @@ const CLAUDE_FABLE_5 = {
   AnthropicCacheControlOptions &
     AnthropicContainerOptions &
     AnthropicContextManagementOptions &
+    AnthropicFallbackOptions &
     AnthropicMCPOptions &
     AnthropicServiceTierOptions &
     AnthropicStopSequencesOptions &
@@ -569,6 +571,7 @@ const CLAUDE_OPUS_5 = {
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
     AnthropicContextManagementOptions &
+    AnthropicFallbackOptions &
     AnthropicMCPOptions &
     AnthropicServiceTierOptions &
     AnthropicStopSequencesOptions &
@@ -611,6 +614,7 @@ const CLAUDE_FABLE_5_1 = {
   AnthropicCacheControlOptions &
     AnthropicContainerOptions &
     AnthropicContextManagementOptions &
+    AnthropicFallbackOptions &
     AnthropicMCPOptions &
     AnthropicServiceTierOptions &
     AnthropicStopSequencesOptions &
@@ -653,6 +657,7 @@ const CLAUDE_OPUS_5_5 = {
   AnthropicCacheControlOptions &
     AnthropicContainerOptions &
     AnthropicContextManagementOptions &
+    AnthropicFallbackOptions &
     AnthropicMCPOptions &
     AnthropicServiceTierOptions &
     AnthropicStopSequencesOptions &
@@ -701,6 +706,7 @@ const CLAUDE_SONNET_5_5 = {
   AnthropicCacheControlOptions &
     AnthropicContainerOptions &
     AnthropicContextManagementOptions &
+    AnthropicFallbackOptions &
     AnthropicMCPOptions &
     AnthropicServiceTierOptions &
     AnthropicStopSequencesOptions &
@@ -989,6 +995,7 @@ export type AnthropicChatModelProviderOptionsByName = {
   [CLAUDE_FABLE_5.id]: AnthropicCacheControlOptions &
     AnthropicContainerOptions &
     AnthropicContextManagementOptions &
+    AnthropicFallbackOptions &
     AnthropicMCPOptions &
     AnthropicServiceTierOptions &
     AnthropicStopSequencesOptions &
@@ -1007,6 +1014,7 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicMaxTokensOptions
   [CLAUDE_OPUS_5.id]: AnthropicContainerOptions &
     AnthropicContextManagementOptions &
+    AnthropicFallbackOptions &
     AnthropicMCPOptions &
     AnthropicServiceTierOptions &
     AnthropicStopSequencesOptions &
@@ -1015,6 +1023,7 @@ export type AnthropicChatModelProviderOptionsByName = {
   [CLAUDE_FABLE_5_1.id]: AnthropicCacheControlOptions &
     AnthropicContainerOptions &
     AnthropicContextManagementOptions &
+    AnthropicFallbackOptions &
     AnthropicMCPOptions &
     AnthropicServiceTierOptions &
     AnthropicStopSequencesOptions &
@@ -1023,6 +1032,7 @@ export type AnthropicChatModelProviderOptionsByName = {
   [CLAUDE_OPUS_5_5.id]: AnthropicCacheControlOptions &
     AnthropicContainerOptions &
     AnthropicContextManagementOptions &
+    AnthropicFallbackOptions &
     AnthropicMCPOptions &
     AnthropicServiceTierOptions &
     AnthropicStopSequencesOptions &
@@ -1033,6 +1043,7 @@ export type AnthropicChatModelProviderOptionsByName = {
   [CLAUDE_SONNET_5_5.id]: AnthropicCacheControlOptions &
     AnthropicContainerOptions &
     AnthropicContextManagementOptions &
+    AnthropicFallbackOptions &
     AnthropicMCPOptions &
     AnthropicServiceTierOptions &
     AnthropicStopSequencesOptions &

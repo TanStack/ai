@@ -20,6 +20,8 @@ keywords:
 > [!NOTE]
 > MCP tools run on the server. Call `createMCPClient` in a server route or a serverless function, never in browser code.
 
+Servers can also push signed webhooks through the experimental MCP Events extension. See [MCP Events](./mcp-events). A Start app that subscribes and receives a delivery is in [Subscribe to MCP Events](../tutorials/mcp-events).
+
 ## Quick setup
 
 You need a working chat first. If you do not have one, start with the [Quick Start](../getting-started/quick-start).

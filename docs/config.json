@@ -99,6 +99,11 @@
           "to": "tutorials/computer-use",
           "addedAt": "2026-10-21",
           "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Subscribe to MCP Events",
+          "to": "tutorials/mcp-events",
+          "addedAt": "2026-10-17"
         }
       ]
     },
@@ -145,6 +150,11 @@
           "label": "Computer Use",
           "to": "framework/react/examples/computer-use",
           "addedAt": "2026-10-21"
+        },
+        {
+          "label": "MCP Events",
+          "to": "framework/react/examples/mcp-events",
+          "addedAt": "2026-10-17"
         }
       ]
     },
@@ -633,6 +643,11 @@
           "label": "MCP Server Tools: Advanced",
           "to": "tools/mcp-advanced",
           "addedAt": "2026-10-21"
+        },
+        {
+          "label": "MCP Events",
+          "to": "tools/mcp-events",
+          "addedAt": "2026-10-17"
         },
         {
           "label": "MCP Apps",

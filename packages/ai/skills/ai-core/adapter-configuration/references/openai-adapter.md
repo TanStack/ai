@@ -104,8 +104,11 @@ OPENAI_API_KEY
 - `chat({ reasoning })` takes only the levels of the selected model. A level
   that the model does not have moves to the nearest one.
 - `conversation` and `previous_response_id` cannot be used together.
-- Reasoning models (`o*`, `gpt-5*` except `*-chat-latest`)
-  pair each `function_call` with a `reasoning` item. The adapter requests
+- Reasoning models (a catalog row with `reasoning`, plus `o*`, `gpt-5*`,
+  and `gpt-6*`; not `*-chat-latest`) pair each
+  `function_call` with a `reasoning` item. The adapter requests
   `include: ['reasoning.encrypted_content']` for those models and replays that
-  item on the next turn. Pre-5 chat models are left unchanged. If you persist
-  history by hand, keep `thinking[].signature`.
+  item on the next turn. It also drops `temperature`, `top_p`, and
+  `top_logprobs`, unless reasoning effort is `none`. Pre-5 chat
+  models are left unchanged. If you persist history by hand, keep
+  `thinking[].signature`.

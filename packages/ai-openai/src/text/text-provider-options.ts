@@ -18,7 +18,7 @@ import type { WebSearchToolConfig } from '../tools/web-search-tool'
 export interface OpenAISamplingOptions {
   /**
    * Sampling temperature, 0–2. Higher = more random. Recommend altering this or top_p, not both.
-   * Note: OpenAI reasoning models (o-series, GPT-5 reasoning) reject temperature/top_p.
+   * Note: OpenAI reasoning models (o-series, GPT-5, GPT-6) reject temperature/top_p. `*-chat-latest` still accepts them. The adapter drops them unless reasoning effort is `none`.
    * https://platform.openai.com/docs/api-reference/responses/create#responses_create-temperature
    */
   temperature?: number
