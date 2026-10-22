@@ -220,6 +220,9 @@ function toAnthropicToolChoice(
   return { type: 'tool' as const, name: choice.name }
 }
 
+/** Models already warned that `chat({ reasoning })` does nothing for them. */
+const modelsWarnedWithoutReasoning = new Set<string>()
+
 /** JSON Schema keywords that Anthropic structured outputs reject. */
 const UNSUPPORTED_SCHEMA_KEYWORDS = new Set([
   'minimum',
@@ -979,6 +982,17 @@ export class AnthropicTextAdapter<
     }
 
     // `chat({ reasoning })`, as this model's thinking fields.
+    if (
+      options.reasoning !== undefined &&
+      !(this.model in ANTHROPIC_MODEL_REASONING) &&
+      !modelsWarnedWithoutReasoning.has(this.model)
+    ) {
+      modelsWarnedWithoutReasoning.add(this.model)
+      console.warn(
+        `[ai-anthropic] chat({ reasoning }) is ignored for model "${this.model}": ` +
+          'the model is not in the reasoning table, so no thinking fields are sent.',
+      )
+    }
     const { output_config: reasoningOutputConfig, ...thinkingFields } =
       anthropicThinking(
         this.model,
