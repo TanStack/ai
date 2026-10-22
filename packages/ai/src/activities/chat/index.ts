@@ -965,8 +965,8 @@ interface TextEngineConfig<
    *   fires. If it throws, the engine records a `finalizationError` and fires
    *   `onError` instead of `onFinish` (per spec §7.3). On success, the
    *   returned value is stored as the validated result and retrievable via
-   *   `getValidatedStructuredOutput()`. Used by `runAgenticStructuredOutput`
-   *   to perform Standard Schema validation inside the engine.
+   *   `getValidatedStructuredOutput()`. Both structured-output paths (Promise
+   *   and stream) pass it for a Standard Schema.
    * - nativeCombined: when true, the adapter declared
    *   `supportsCombinedToolsAndSchema()` and the engine wires `jsonSchema`
    *   into the regular `chatStream` call instead of running a separate
@@ -1458,6 +1458,37 @@ class TextEngine<
     rawText?: string
   } | null {
     return this.finalizationError
+  }
+
+  /**
+   * Check `data` with the `validate` of the structured output, once. A
+   * failure sets `finalizationError` with the model text, so the run ends
+   * with `onError` (and a RUN_ERROR on a stream).
+   */
+  private validateStructuredOutput(data: unknown, rawText: string): void {
+    const validate = this.finalStructuredOutput?.validate
+    if (!validate || this.hasValidatedStructuredOutput) return
+    try {
+      this.validatedStructuredOutput = validate(data)
+      this.hasValidatedStructuredOutput = true
+    } catch (err: unknown) {
+      this.finalizationError = {
+        message: err instanceof Error ? err.message : String(err),
+        code: 'structured-output-validation-failed',
+        cause: err,
+        rawText,
+      }
+    }
+  }
+
+  /** True when `data` passes the `validate` of the structured output, or there is none. */
+  private passesStructuredCheck(data: unknown): boolean {
+    try {
+      this.finalStructuredOutput?.validate?.(data)
+      return true
+    } catch {
+      return false
+    }
   }
 
   private async runTerminalHook(): Promise<void> {
@@ -2098,6 +2129,9 @@ class TextEngine<
             ? this.finalStructuredOutput.normalize(parsed.object)
             : parsed.object
           this.structuredOutputResult = { data: object, rawText: parsed.raw }
+          // A value that fails the schema is not sent. The harvest after the
+          // loop checks it again and ends the run with RUN_ERROR.
+          if (!this.passesStructuredCheck(object)) continue
           this.combinedCompleteEmitted = true
           const value = raw.value
           const completeMessageId = readCustomEventMessageId(value)
@@ -4911,6 +4945,10 @@ class TextEngine<
             ) {
               outboundChunk = { ...chunk, value: { ...value, object } }
             }
+            // Check the value before a consumer gets it. A value that fails
+            // the schema is not sent: the run ends with RUN_ERROR instead.
+            this.validateStructuredOutput(object, parsed.raw)
+            if (this.finalizationError) break
           }
         }
 
@@ -4985,26 +5023,11 @@ class TextEngine<
     // chooser runs. Per spec §7.3, validation failures must route through
     // `onError`, not `onFinish`. We do this by writing to `finalizationError`
     // so the chooser in `run()` picks `onError`.
-    if (
-      this.structuredOutputResult &&
-      !this.finalizationError &&
-      this.finalStructuredOutput.validate
-    ) {
-      try {
-        const validated = this.finalStructuredOutput.validate(
-          this.structuredOutputResult.data,
-        )
-        this.validatedStructuredOutput = validated
-        this.hasValidatedStructuredOutput = true
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        this.finalizationError = {
-          message,
-          code: 'structured-output-validation-failed',
-          cause: err,
-          rawText: this.structuredOutputResult.rawText,
-        }
-      }
+    if (this.structuredOutputResult && !this.finalizationError) {
+      this.validateStructuredOutput(
+        this.structuredOutputResult.data,
+        this.structuredOutputResult.rawText,
+      )
     }
 
     // Streaming consumers must see a RUN_ERROR for finalization failures
@@ -5029,14 +5052,7 @@ class TextEngine<
         startEmitted = true
       }
 
-      const errChunk: StreamChunk = {
-        type: EventType.RUN_ERROR,
-        timestamp: Date.now(),
-        message: this.finalizationError.message,
-        ...(this.finalizationError.code
-          ? { code: this.finalizationError.code }
-          : {}),
-      }
+      const errChunk = finalizationErrorChunk(this.finalizationError)
       yield* this.emitPublicChunks(
         await this.middlewareRunner.runOnChunk(this.middlewareCtx, errChunk),
       )
@@ -5124,26 +5140,11 @@ class TextEngine<
 
     // Validate against the Standard Schema (when supplied). Validation
     // failures route through onError just like the fallback path.
-    if (
-      this.structuredOutputResult &&
-      !this.finalizationError &&
-      this.finalStructuredOutput.validate
-    ) {
-      try {
-        const validated = this.finalStructuredOutput.validate(
-          this.structuredOutputResult.data,
-        )
-        this.validatedStructuredOutput = validated
-        this.hasValidatedStructuredOutput = true
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        this.finalizationError = {
-          message,
-          code: 'structured-output-validation-failed',
-          cause: err,
-          rawText: this.structuredOutputResult.rawText,
-        }
-      }
+    if (this.structuredOutputResult && !this.finalizationError) {
+      this.validateStructuredOutput(
+        this.structuredOutputResult.data,
+        this.structuredOutputResult.rawText,
+      )
     }
 
     if (!yieldChunks) {
@@ -5204,14 +5205,7 @@ class TextEngine<
     // On failure, emit a synthetic RUN_ERROR so the streaming consumer's
     // `for await` doesn't end silently. Mirrors the fallback path.
     if (this.finalizationError) {
-      const errChunk: StreamChunk = {
-        type: EventType.RUN_ERROR,
-        timestamp: Date.now(),
-        message: this.finalizationError.message,
-        ...(this.finalizationError.code
-          ? { code: this.finalizationError.code }
-          : {}),
-      }
+      const errChunk = finalizationErrorChunk(this.finalizationError)
       yield* this.emitPublicChunks(
         await this.middlewareRunner.runOnChunk(this.middlewareCtx, errChunk),
       )
@@ -7234,16 +7228,14 @@ async function* fallbackStructuredOutputStream(
  * RUN_STARTED/RUN_FINISHED are suppressed; the structured-output finalization
  * step's pair brackets the run for the consumer.
  *
- * Standard Schema *validation* is intentionally NOT run on this path — it is
- * the consumer's responsibility. This is a deliberate asymmetry vs.
- * `runAgenticStructuredOutput` (Promise<T> path), which DOES validate inside
- * the engine and routes validation failures through `onError`. The reason:
- * streaming consumers typically render partial JSON progressively (via
- * `parsePartialJSON` or `useChat`'s `partial` slot) and validate downstream
- * after assembly. Running validation server-side would force a hard error
- * on partial-by-design payloads. See `docs/structured-outputs/overview.md`.
+ * A Standard Schema checks the assembled value, as on the Promise<T> path
+ * (`runAgenticStructuredOutput`). Partial JSON deltas are not checked. A
+ * value that fails the check ends the stream with RUN_ERROR
+ * `structured-output-validation-failed`, with the model text as
+ * `metadata.tanstack.rawText`, and routes through `onError`. A plain JSON Schema is not
+ * checked. See `docs/structured-outputs/overview.md`.
  *
- * Null-widening normalization, however, IS run on both paths: the
+ * Null-widening normalization also runs on both paths: the
  * `structured-output.complete` CUSTOM event is forwarded with its `value.object`
  * already un-widened (synthesized strict-mode nulls dropped, genuine
  * `.nullable()` nulls kept), so a consumer validating the assembled object
@@ -7302,6 +7294,27 @@ function runStreamingStructuredOutput<TSchema extends SchemaInput>(
 }
 
 /**
+ * The RUN_ERROR of a failed structured-output finalization. A parse or
+ * schema failure keeps the model text as `rawText` (public chunks have it as
+ * `metadata.tanstack.rawText`), as the Promise path keeps it on the thrown
+ * error.
+ */
+function finalizationErrorChunk(failure: {
+  message: string
+  code?: string
+  rawText?: string
+}): StreamChunk {
+  const { message, code, rawText } = failure
+  return {
+    type: EventType.RUN_ERROR,
+    timestamp: Date.now(),
+    message,
+    ...(code ? { code } : {}),
+    ...(rawText !== undefined ? { rawText } : {}),
+  }
+}
+
+/**
  * Internal generator return type — broader than the public
  * `StructuredOutputStream<T>`. The structured-output completion event remains
  * the pinned public CUSTOM event for this stream; approval and client-tool
@@ -7347,6 +7360,12 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
   const source =
     adapter.combinedStructuredOutputSource?.(options.modelOptions) ?? 'text'
 
+  // The same check as the Promise path. A value that fails a Standard Schema
+  // ends the stream with RUN_ERROR `structured-output-validation-failed`.
+  const validate = isStandardSchema(outputSchema)
+    ? (data: unknown): unknown => parseWithStandardSchema(outputSchema, data)
+    : undefined
+
   const mcpManager = MCPManager.from(mcp)
   const mcpTools = await mcpManager.discover()
   if (mcpTools.length > 0) {
@@ -7369,6 +7388,7 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
         jsonSchema,
         yieldChunks: true,
         normalize,
+        ...(validate ? { validate } : {}),
         ...(nativeCombined ? { nativeCombined: true } : {}),
         source,
       },
@@ -7384,12 +7404,6 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
   } finally {
     await mcpManager.dispose()
   }
-
-  // Standard Schema validation for the streaming variant remains the
-  // consumer's responsibility — they read the CUSTOM 'structured-output.complete'
-  // from the yielded stream. (Null-widening normalization, by contrast, already
-  // ran inside the engine via `normalize`, so the object they read is un-widened.)
-  void outputSchema
 }
 
 // Re-export adapter types

@@ -171,12 +171,43 @@ describe('chat({ outputSchema, stream: true })', () => {
       expect(value.object).toEqual(validPerson)
     })
 
-    it('forwards the adapter-emitted structured-output.complete event without orchestrator-side schema validation', async () => {
-      // The streaming orchestrator no longer schema-validates the terminal
-      // event — that's the consumer's responsibility (they call
-      // parseWithStandardSchema on `value.object`). The orchestrator only
-      // pipes chunks through the engine + middleware pipeline.
+    it('ends with RUN_ERROR, the code, and the raw text when the value fails the schema', async () => {
       const invalidObject = { name: 'X', email: 'not-an-email' }
+      const raw = JSON.stringify(invalidObject)
+      const adapter = makeAdapter({
+        structuredOutputStream: () =>
+          (async function* () {
+            for (const c of structuredStreamChunks(raw, invalidObject)) yield c
+          })(),
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          threadId: 'thread-1',
+          adapter,
+          messages: [{ role: 'user', content: 'extract' }],
+          outputSchema: PersonSchema,
+          stream: true,
+        }),
+      )
+
+      const runError = chunks.find((c) => c.type === EventType.RUN_ERROR)
+      expect(runError).toMatchObject({
+        code: 'structured-output-validation-failed',
+        metadata: { tanstack: { rawText: raw } },
+      })
+      // A value that fails the check is not sent as complete.
+      expect(
+        chunks.some(
+          (c) =>
+            c.type === EventType.CUSTOM &&
+            c.name === 'structured-output.complete',
+        ),
+      ).toBe(false)
+    })
+
+    it('does not check a plain JSON Schema', async () => {
+      const invalidObject = { name: 'X' }
       const adapter = makeAdapter({
         structuredOutputStream: () =>
           (async function* () {
@@ -188,31 +219,21 @@ describe('chat({ outputSchema, stream: true })', () => {
           })(),
       })
 
-      const stream = chat({
-        threadId: 'thread-1',
-        adapter,
-        messages: [{ role: 'user', content: 'extract' }],
-        outputSchema: PersonSchema,
-        stream: true,
-      })
+      const chunks = await collectChunks(
+        chat({
+          threadId: 'thread-1',
+          adapter,
+          messages: [{ role: 'user', content: 'extract' }],
+          outputSchema: {
+            type: 'object',
+            properties: { name: { type: 'string' }, age: { type: 'number' } },
+            required: ['name', 'age'],
+          },
+          stream: true,
+        }),
+      )
 
-      const chunks = await collectChunks(stream)
-
-      // No orchestrator-emitted schema-validation RUN_ERROR.
-      const runError = chunks.find((c) => c.type === EventType.RUN_ERROR) as
-        | { type: EventType.RUN_ERROR; code?: string; message?: string }
-        | undefined
-      expect(runError).toBeUndefined()
-
-      // The unvalidated `structured-output.complete` event is forwarded
-      // verbatim so the consumer can run its own schema validation.
-      const complete = chunks.find(
-        (c) =>
-          c.type === EventType.CUSTOM &&
-          (c as { name?: string }).name === 'structured-output.complete',
-      ) as { value: { object: unknown } } | undefined
-      expect(complete).toBeDefined()
-      expect(complete!.value.object).toEqual(invalidObject)
+      expect(chunks.some((c) => c.type === EventType.RUN_ERROR)).toBe(false)
     })
 
     it('forwards `reasoning` through schema validation', async () => {
@@ -485,39 +506,34 @@ describe('chat({ outputSchema, stream: true })', () => {
       }
     })
 
-    it('forwards the fallback-synthesized structured-output.complete event without orchestrator-side schema validation', async () => {
-      // Same invariant as the native-stream variant: schema validation is
-      // the consumer's responsibility. The fallback synthesizes an
-      // AG-UI lifecycle around `structuredOutput` and forwards the
-      // `structured-output.complete` event verbatim.
+    it('checks the fallback value against the schema', async () => {
       const invalidObject = { name: 'X', age: 'not-a-number' }
+      const raw = JSON.stringify(invalidObject)
       const adapter = makeAdapter({
-        structuredOutput: async () => ({
-          data: invalidObject,
-          rawText: JSON.stringify(invalidObject),
+        structuredOutput: async () => ({ data: invalidObject, rawText: raw }),
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          threadId: 'thread-1',
+          adapter,
+          messages: [{ role: 'user', content: 'extract' }],
+          outputSchema: PersonSchema,
+          stream: true,
         }),
+      )
+
+      expect(chunks.find((c) => c.type === EventType.RUN_ERROR)).toMatchObject({
+        code: 'structured-output-validation-failed',
+        metadata: { tanstack: { rawText: raw } },
       })
-
-      const stream = chat({
-        threadId: 'thread-1',
-        adapter,
-        messages: [{ role: 'user', content: 'extract' }],
-        outputSchema: PersonSchema,
-        stream: true,
-      })
-
-      const chunks = await collectChunks(stream)
-
-      const runError = chunks.find((c) => c.type === EventType.RUN_ERROR)
-      expect(runError).toBeUndefined()
-
-      const complete = chunks.find(
-        (c) =>
-          c.type === EventType.CUSTOM &&
-          (c as { name?: string }).name === 'structured-output.complete',
-      ) as { value: { object: unknown } } | undefined
-      expect(complete).toBeDefined()
-      expect(complete!.value.object).toEqual(invalidObject)
+      expect(
+        chunks.some(
+          (c) =>
+            c.type === EventType.CUSTOM &&
+            c.name === 'structured-output.complete',
+        ),
+      ).toBe(false)
     })
 
     it('forwards adapter-reported usage onto RUN_FINISHED (#758)', async () => {

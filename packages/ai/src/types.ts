@@ -773,6 +773,8 @@ export interface TanStackRunMetadata {
   index?: number
   /** On a `RUN_ERROR`. See `RunErrorEvent.retryAfterMs`. */
   retryAfterMs?: number
+  /** On a `RUN_ERROR`. See `RunErrorEvent.rawText`. */
+  rawText?: string
   state?: ToolOutputState
   /** Parsed `TOOL_CALL_END` input. Spec `TOOL_CALL_END` has no top-level `input`. */
   input?: unknown
@@ -1659,6 +1661,12 @@ export interface RunErrorEvent extends Pick<
   model?: string
   /** Nested payload kept for in-process / durability consumers. */
   error?: { message: string; code?: string }
+  /**
+   * The model text of a failed structured output: JSON that did not parse,
+   * or a value that failed the `outputSchema` check. `chat()` moves it to
+   * `metadata.tanstack.rawText`.
+   */
+  rawText?: string
   /**
    * How long the provider asks you to wait before a retry, in milliseconds.
    * Adapters read it from the `retry-after-ms` or `retry-after` header.
