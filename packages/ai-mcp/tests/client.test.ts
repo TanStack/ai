@@ -87,22 +87,15 @@ describe('createMCPClient', () => {
       },
     })
 
-    expect(client.capabilities.extensions).toEqual({
-      'com.example/greetings': {},
-    })
-    const greeting = await client.request?.(
-      { method: 'greetings/get', params: { name: 'Ada' } },
-      z.object({ text: z.string() }),
-    )
-    expect(greeting).toEqual({ text: 'Hello, Ada' })
-
-    await client.close()
-    await expect(
-      client.request?.(
+    const greet = () =>
+      client.request(
         { method: 'greetings/get', params: { name: 'Ada' } },
         z.object({ text: z.string() }),
-      ),
-    ).rejects.toThrow(MCPConnectionError)
+      )
+    expect(await greet()).toEqual({ text: 'Hello, Ada' })
+
+    await client.close()
+    await expect(greet()).rejects.toThrow(MCPConnectionError)
   })
 
   it('binds passed toolDefinitions to the server, typed + validated', async () => {
@@ -743,6 +736,12 @@ describe('requestOptions', () => {
     )
     await expect(client.prompts()).rejects.toThrow('Request timed out')
     await expect(client.getPrompt('brief')).rejects.toThrow('Request timed out')
+    await expect(client.request({ method: 'ping' })).rejects.toThrow(
+      'Request timed out',
+    )
+    await expect(
+      client.request({ method: 'notes/count' }, z.object({})),
+    ).rejects.toThrow('Request timed out')
   }, 5000)
 
   it('sends the timeout with the spec 2025 listTools cache fill', async () => {

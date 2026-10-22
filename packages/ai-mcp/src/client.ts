@@ -41,8 +41,12 @@ import type {
   McpSubscription,
   Prompt,
   ReadResourceResult,
+  Request as McpRequest,
+  RequestMethod,
+  RequestOptions,
   Resource,
   ResourceTemplateType,
+  StandardSchemaV1,
   Tool as McpToolDef,
   Transport,
 } from '@modelcontextprotocol/client'
@@ -134,11 +138,10 @@ export interface MCPClient<
    * Sends one request with the SDK `Client.request`, with the same
    * arguments. Use it for a method this client has no helper for, such as
    * a method of an MCP extension. Pass a result schema as the second
-   * argument for a method that is not in the MCP spec.
-   *
-   * Optional so an existing hand-rolled `MCPClient` keeps compiling.
+   * argument for a method that is not in the MCP spec. The client's
+   * `requestOptions` apply under the options you pass.
    */
-  request?: Client['request']
+  request: Client['request']
   /**
    * The ORIGINAL connection descriptor this client was created from — the
    * `transport` input and `prefix` passed to `createMCPClient`. Used by
@@ -488,11 +491,26 @@ class MCPClientImpl<
     return result as TypedCallToolResult<TServer['tools'][TName]['output']>
   }
 
-  // The SDK method is overloaded. The arguments pass through unchanged, so
-  // the cast to the SDK type is safe.
-  request = (async (...args: Parameters<Client['request']>) => {
+  // The SDK method is overloaded: (request, options?) for a spec method, and
+  // (request, resultSchema, options?) for any other. This takes both shapes
+  // and forwards the same one, so the casts to the SDK types are safe.
+  request = (async (
+    request: McpRequest,
+    schemaOrOptions?: StandardSchemaV1 | RequestOptions,
+    options?: RequestOptions,
+  ) => {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
-    return this.#client.request(...args)
+    const defaults = sdkRequestOptions(this.#policy.requestOptions)
+    if (schemaOrOptions !== undefined && '~standard' in schemaOrOptions) {
+      return this.#client.request(request, schemaOrOptions, {
+        ...defaults,
+        ...options,
+      })
+    }
+    return this.#client.request(
+      request as { method: RequestMethod; params?: Record<string, unknown> },
+      { ...defaults, ...schemaOrOptions },
+    )
   }) as Client['request']
 
   async close(): Promise<void> {

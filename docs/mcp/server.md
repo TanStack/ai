@@ -196,7 +196,13 @@ const server = createMCPServer({
 })
 ```
 
-The server builds a new `McpServer` for each spec 2026 request, so `setup` runs on each request. Keep it fast. To call the method from a client, see [Extension methods](../tools/mcp-manual#extension-methods).
+Rules for `setup`:
+
+- It runs each time the server builds an `McpServer`. That is each request, or once for each spec 2025 session when `sessions` is `'memory'`. Keep it fast.
+- It must be synchronous. The server connects as soon as `setup` returns, so an `async` function fails the request.
+- Add new methods only. Do not replace a method the server already handles, such as `tools/call`.
+
+To call the method from a client, see [Extension methods](../tools/mcp-manual#extension-methods).
 
 ## Shape the result yourself
 

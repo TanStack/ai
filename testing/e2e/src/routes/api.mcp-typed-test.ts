@@ -61,13 +61,13 @@ export const Route = createFileRoute('/api/mcp-typed-test')({
             },
           })
           try {
-            const counted = await notes.request?.(
+            const counted = await notes.request(
               { method: 'notes/count', params: {} },
               z.object({ count: z.number() }),
             )
             return Response.json({
               extensions: notes.capabilities.extensions ?? null,
-              counted: counted ?? null,
+              counted,
             })
           } finally {
             await notes.close()

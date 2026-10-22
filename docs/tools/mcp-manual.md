@@ -104,9 +104,9 @@ In a [multi-server pool](./mcp#per-server-access), each client has its own value
 
 ## Extension methods
 
-A server can serve an [MCP extension](https://modelcontextprotocol.io/extensions/overview), with methods that `MCPClient` has no helper for. Call them with `mcp.request`. It takes the same arguments as the SDK `Client.request`.
+A server can serve an [MCP extension](https://modelcontextprotocol.io/extensions/overview), with methods that `MCPClient` has no helper for. Call them with `mcp.request`. It takes the same arguments as the SDK `Client.request`, and it uses the client's `requestOptions`.
 
-1. Declare the extension in `clientOptions.capabilities.extensions`. A server uses an extension only when the client declares it.
+1. Declare the extension in `clientOptions.capabilities.extensions`. The spec asks both sides to list the extensions they support, and a server can change what it sends based on this list.
 2. After connect, look for the extension in `mcp.capabilities.extensions`.
 3. Call the method. For a method that is not in the MCP spec, pass a result schema as the second argument.
 
@@ -127,11 +127,11 @@ if (
   extensions !== null &&
   'com.example/notes' in extensions
 ) {
-  const notes = await mcp.request?.(
+  const notes = await mcp.request(
     { method: 'notes/count', params: {} },
     z.object({ count: z.number() }),
   )
-  console.log(notes?.count)
+  console.log(notes.count)
 }
 ```
 
