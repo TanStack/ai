@@ -371,7 +371,8 @@ export abstract class SessionInputs<
         message: steer.message,
       })
     }
-    // A resolve and a turn that recovery runs again have no new message.
+    // A resolve has no new message. Nor does a turn that recovery runs
+    // again, when the transcript has its message.
     for (const turn of this.queue) {
       if (turn.inputId === undefined || turn.message === undefined) continue
       waiting.push({

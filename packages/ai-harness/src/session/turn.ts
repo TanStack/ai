@@ -27,6 +27,7 @@ import { HARNESS_EVENTS, InputRejectedError } from '../types'
 import { isRecord } from '../utils'
 import {
   createInputId,
+  inputMessageId,
   customEvent,
   errorText,
   cacheObject,
@@ -424,13 +425,15 @@ export abstract class SessionTurn<
     const { operation } = turn
     const inputId = turn.inputId ?? operation.id
     const isOperator = turn.operator === true
-    // A held turn that recovery runs again has its message in the
-    // transcript. An operator reply is found by its id.
+    // Recovery gives a held turn its message only when the transcript lacks
+    // it. An operator reply is found by its id.
     const sent = isOperator ? (turn.message ?? turn.sentMessage) : turn.message
     this.publishStarted(operation)
     let error: { message: string; code?: string } | undefined
     try {
-      const id = `${isOperator ? 'operator' : 'held'}-${inputId}`
+      // A held message has the id of a model turn's message, so a recovery
+      // that holds the turn finds a message that a model turn saved.
+      const id = isOperator ? `operator-${inputId}` : inputMessageId(inputId)
       const history = await this.messages.loadThread(this.threadId)
       const isAdded = history.some(
         (message) => message.id === id || message.id === attachmentId(id),
@@ -863,9 +866,15 @@ export abstract class SessionTurn<
         retention: turnCache?.retention ?? this.promptCache.retention,
         key: turnCache?.key ?? this.promptCache.key,
       }
+      // Under the id of its input: a recovery finds it by that id.
       let message =
         turn.message !== undefined
-          ? await this.userMessage(turn.message, turn.wake)
+          ? {
+              ...(await this.userMessage(turn.message, turn.wake)),
+              ...(turn.inputId !== undefined
+                ? { id: inputMessageId(turn.inputId) }
+                : {}),
+            }
           : undefined
       let resume = withChildRequests(
         turn.resume,

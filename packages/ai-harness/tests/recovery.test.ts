@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { memoryLogStore } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, logIdOf } from '../src'
+import { createHarnessHost, defineHarness, definePlugin, logIdOf } from '../src'
 import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import { CUT_OFF_NOTE, INTERRUPTED_TOOL_RESULT } from '../src/resume'
 import {
   CRASHING_OWNERSHIP,
+  after,
   gate,
   messageTexts,
   mockAdapter,
@@ -18,7 +19,7 @@ import {
 } from './helpers'
 import type { AnyTool, StreamChunk } from '@tanstack/ai'
 import type { LogStore } from '@tanstack/ai-persistence'
-import type { AnyAgent, HarnessConfig, OwnershipOptions } from '../src'
+import type { HarnessConfig, OwnershipOptions, PluginSessionApi } from '../src'
 import type { Reply } from './helpers'
 
 // Coverage runs in CI are slow, so polled checks wait up to 5 s.
@@ -381,7 +382,7 @@ describe('close({ recoverable: true })', () => {
   async function openOn(
     persistence: ReturnType<typeof durableStores>,
     replies: Array<Reply>,
-    options: { tools?: Array<AnyTool>; agents?: Array<AnyAgent> } = {},
+    options: Pick<HarnessConfig, 'tools' | 'agents' | 'plugins'> = {},
   ) {
     const { adapter, calls } = mockAdapter(replies)
     const host = createHarnessHost({ persistence })
@@ -398,6 +399,38 @@ describe('close({ recoverable: true })', () => {
     (await persistence.stores.log.read({ logId: LOG })).map(
       (entry) => entry.record,
     )
+
+  /**
+   * A plugin that holds the turn of input `inputId` after the turn started,
+   * before its first model call, until the host stops it. `reached` resolves
+   * when the turn waits there. `note` adds a note through the plugin.
+   */
+  function holdAtStart(inputId: string) {
+    const reached = gate()
+    let api: PluginSessionApi | undefined
+    const plugin = definePlugin({
+      name: 'test/hold-at-start',
+      setup: (ctx) => {
+        api = ctx.session
+        return {
+          onTurnStart: (turn) => {
+            if (turn.inputId !== inputId) return
+            reached.open()
+            return new Promise<void>((resolve) =>
+              turn.run.signal.addEventListener('abort', () => resolve(), {
+                once: true,
+              }),
+            )
+          },
+        }
+      },
+    })
+    const note = async (content: string) => {
+      if (!api) throw new Error('The plugin is not set up.')
+      await api.note(content)
+    }
+    return { plugin, reached: reached.opened, note }
+  }
 
   it('runs a turn stopped in a model call again on the next host, with no settlement', async () => {
     const persistence = durableStores()
@@ -424,6 +457,102 @@ describe('close({ recoverable: true })', () => {
     )
     expect(applied.map((record) => record.attempt)).toEqual([1, 2])
     expect(messageTexts(next.calls[0])).toEqual(['go'])
+    await next.host.close()
+  })
+
+  it('keeps the message of a turn stopped before its first model call', async () => {
+    const persistence = durableStores()
+    const hold = holdAtStart('in-1')
+    const first = await openOn(persistence, [], {
+      plugins: () => [hold.plugin],
+    })
+    void first.session.send('go', { inputId: 'in-1' }).then(
+      () => {},
+      () => {},
+    )
+    await hold.reached
+
+    await first.host.close({ recoverable: true })
+    const next = await openOn(persistence, [() => text('recovered')])
+
+    expect(await next.session.settled({ inputId: 'in-1' })).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(first.calls).toHaveLength(0)
+    expect(messageTexts(next.calls[0])).toEqual(['go'])
+    expect(roles(await next.session.transcript())).toEqual([
+      ['user', 'go'],
+      ['assistant', 'recovered'],
+    ])
+    await next.host.close()
+  })
+
+  it('keeps one message when a run again stops before its first model call', async () => {
+    const persistence = durableStores()
+    const first = await openOn(persistence, [untilAborted()])
+    void first.session.send('go', { inputId: 'in-1' }).then(
+      () => {},
+      () => {},
+    )
+    await waitFor(() => expect(first.calls).toHaveLength(1))
+    await first.host.close({ recoverable: true })
+    // The second host runs the turn again, and stops before its model call.
+    const hold = holdAtStart('in-1')
+    const second = await openOn(persistence, [], {
+      plugins: () => [hold.plugin],
+    })
+    await hold.reached
+    await second.host.close({ recoverable: true })
+
+    const third = await openOn(persistence, [() => text('recovered')])
+
+    expect(await third.session.settled({ inputId: 'in-1' })).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(messageTexts(third.calls[0])).toEqual(['go'])
+    expect(roles(await third.session.transcript())).toEqual([
+      ['user', 'go'],
+      ['assistant', 'recovered'],
+    ])
+    await third.host.close()
+  })
+
+  it('runs a turn stopped before its first model call after a note, and keeps its message', async () => {
+    const persistence = durableStores()
+    const hold = holdAtStart('in-2')
+    const release = gate()
+    const first = await openOn(persistence, [after(release.opened, 'one')], {
+      plugins: () => [hold.plugin],
+    })
+    void first.session.send('first', { inputId: 'in-1' }).then(
+      () => {},
+      () => {},
+    )
+    await waitFor(() => expect(first.calls).toHaveLength(1))
+    // The note waits for the running turn. The next turn adds it at its start.
+    await hold.note('Build finished.')
+    void first.session.send('second', { inputId: 'in-2' }).then(
+      () => {},
+      () => {},
+    )
+    release.open()
+    await hold.reached
+
+    await first.host.close({ recoverable: true })
+    const next = await openOn(persistence, [() => text('two')])
+
+    expect(await next.session.settled({ inputId: 'in-2' })).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(next.calls).toHaveLength(1)
+    expect(messageTexts(next.calls[0]).at(-1)).toBe('second')
+    expect(roles(await next.session.transcript())).toEqual([
+      ['user', 'first'],
+      ['assistant', 'one'],
+      ['assistant', 'Build finished.'],
+      ['user', 'second'],
+      ['assistant', 'two'],
+    ])
     await next.host.close()
   })
 

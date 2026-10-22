@@ -22,6 +22,7 @@ import {
   CHAT_OPS,
   CONTROL_OPS,
   hasFinalAnswer,
+  inputMessageId,
   loggedExtras,
   notifyListeners,
   offeredInputRecord,
@@ -1184,11 +1185,22 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
             ...settlement,
           })),
         )
-      // A final answer in the log comes first: the turn ended.
-      const fallback: RecoverDecision = hasFinalAnswer(
-        writer.state.messages,
-        input.appliedAt ?? 0,
+      const sent = input.input
+      // The first model call of a turn saves its message, under the id of
+      // its input. A user message after the turn started is its message too.
+      // A host that stopped before that call saved none.
+      const start = input.appliedAt ?? 0
+      const isSaved = writer.state.messages.some(
+        (message, index) =>
+          message.id === inputMessageId(input.inputId) ||
+          (index >= start && message.role === 'user'),
       )
+      // A final answer in the log comes first: the turn ended. A turn with
+      // no saved message has no answer: a note it added first is not one.
+      const hasAnswer =
+        (isSaved || !('message' in sent)) &&
+        hasFinalAnswer(writer.state.messages, start)
+      const fallback: RecoverDecision = hasAnswer
         ? { action: 'settle', outcome: 'completed' }
         : input.abortRequested
           ? { action: 'settle', outcome: 'aborted' }
@@ -1357,14 +1369,15 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
           ...(operationId ? { resumedFrom: operationId } : {}),
         }),
       )
-      // The transcript has the message, so the turn adds none. Plugins and
-      // the router still get what the input sent.
-      const sent = input.input
+      // The turn adds a message that is not saved. For a saved message,
+      // plugins and the router still get what the input sent.
       this.enqueueTurn({
         operation,
         inputId: input.inputId,
         user: input.user,
-        ...('message' in sent ? { sentMessage: sent.message } : {}),
+        ...('message' in sent && isSaved ? { sentMessage: sent.message } : {}),
+        ...('message' in sent && !isSaved ? { message: sent.message } : {}),
+        ...(sent.op === 'followUp' && sent.wake ? { wake: true } : {}),
         ...('context' in sent ? { context: sent.context } : {}),
         // An operator reply runs no model.
         ...(sent.op === 'prompt' && sent.as === 'operator'
