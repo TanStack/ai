@@ -633,8 +633,17 @@ export interface TurnInfo {
   message?: UserInput
   /** The `context` of the input. Client data: do not trust it. */
   context?: unknown
-  /** Who sent the input. Default: the user that opened the session. */
+  /**
+   * Who the turn runs as: its tools get this user's credentials and keys.
+   * The sender of the input, and for a resolve the sender of the stopped
+   * turn. Default: the user that opened the session.
+   */
   user?: HarnessUser
+  /**
+   * Who sent the input that started the turn. The same as `user`, except on
+   * a resolve: there it is the user who resolved.
+   */
+  sender?: HarnessUser
   /** The settings of this turn only. Not kept after a restart. */
   overrides?: TurnOverrides
   /** The run of this turn: its user, and that user's credentials and keys. */

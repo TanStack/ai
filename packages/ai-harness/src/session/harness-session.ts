@@ -1321,6 +1321,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
             resume: input.input.resume,
             answers: this.interrupted,
             user: this.interrupted.user ?? input.user,
+            ...(input.user ? { sender: input.user } : {}),
             context: this.interrupted.context,
             ...this.recoveredExtras(input.inputId, decision.overrides),
           })

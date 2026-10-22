@@ -507,6 +507,11 @@ export interface QueuedTurn {
   ephemeral?: ReadonlyArray<ModelMessage>
   /** Who sent the input. Its credentials and keys run the turn. */
   user?: HarnessUser
+  /**
+   * A resolve: who sent it. The turn runs as `user`, the sender of the
+   * stopped turn.
+   */
+  sender?: HarnessUser
   /** The `context` of the input. */
   context?: unknown
   /** A wake input of the harness: its user message gets `metadata.harness.wake`. */

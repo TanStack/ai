@@ -705,6 +705,7 @@ export abstract class SessionTurn<
       ...(sentMessage !== undefined ? { message: sentMessage } : {}),
       ...(turn.context !== undefined ? { context: turn.context } : {}),
       ...(sender ? { user: sender } : {}),
+      ...(turn.sender || sender ? { sender: turn.sender ?? sender } : {}),
       ...(turn.overrides ? { overrides: turn.overrides } : {}),
       run,
       ...(attempt ? { attempt } : {}),

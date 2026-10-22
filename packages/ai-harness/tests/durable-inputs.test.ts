@@ -10,6 +10,7 @@ import {
   InputRejectedError,
   createHarnessHost,
   defineHarness,
+  definePlugin,
   logIdOf,
 } from '../src'
 import {
@@ -37,6 +38,7 @@ import type {
   HarnessInput,
   OwnershipOptions,
   RecoverDecision,
+  TurnInfo,
 } from '../src'
 import type { Reply } from './helpers'
 
@@ -1805,11 +1807,13 @@ describe('durable approval recovery', () => {
         threadId: THREAD,
       },
     )
-    const result = await firstSession.send('remove')
+    const result = await firstSession.send('remove', {
+      user: { id: 'alice' },
+    })
     const approval = result.interrupts?.[0]
     if (!approval) throw new Error('The turn did not stop for approval.')
     await first.close()
-    // A host that applied a resolve and then crashed.
+    // A host that applied a resolve of bob and then crashed.
     await appendToLog(log, { threadId: THREAD }, [
       {
         type: 'harness.input',
@@ -1820,6 +1824,7 @@ describe('durable approval recovery', () => {
             { interruptId: approval.id, status: 'resolved', payload: true },
           ],
         },
+        user: { id: 'bob' },
         at: Date.now(),
       },
       {
@@ -1831,12 +1836,20 @@ describe('durable approval recovery', () => {
       stoppedRun('resume-stopped', THREAD),
     ])
     const nextAdapter = mockAdapter([() => text('Recovered approval.')])
+    const turns: Array<TurnInfo | undefined> = []
     const next = createHarnessHost({ persistence })
     const session = await next.open(
       defineHarness({
         name: 'crash-approval',
         adapter: nextAdapter.adapter,
         tools: [tool],
+        plugins: () => [
+          definePlugin({
+            name: 'test/turns',
+            lifetime: 'turn',
+            setup: (ctx) => void turns.push(ctx.turn),
+          }),
+        ],
       }),
       {
         threadId: THREAD,
@@ -1851,6 +1864,10 @@ describe('durable approval recovery', () => {
     )
     expect(nextAdapter.calls).toHaveLength(1)
     expect(turnInterrupts(session.snapshot())).toEqual([])
+    // It runs as alice, and names bob, who resolved.
+    expect(turns).toEqual([
+      expect.objectContaining({ user: { id: 'alice' }, sender: { id: 'bob' } }),
+    ])
     await next.close()
   })
 

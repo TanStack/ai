@@ -722,6 +722,7 @@ export abstract class SessionRequests<
         inputId,
         answers,
         user: answers.user ?? user,
+        ...(user ? { sender: user } : {}),
         context: answers.context,
       }
       if (isEnding) this.queue.unshift(turn)

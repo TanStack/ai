@@ -475,7 +475,8 @@ The `turn` has these fields:
 | `inputId` | The id of the input, when the turn has one. |
 | `message` | The user message of the input. `undefined` for a resolve and a continue. |
 | `context` | The [context of the input](./inputs#send-context-with-a-message). It is client data, so do not trust it. |
-| `user` | Who sent the input. Default: the user that opened the session. See [Share a thread](./shared-threads). |
+| `user` | Who the turn runs as. Its tools get this user's credentials and keys. It is the sender of the input, and for a resolve the sender of the stopped turn. Default: the user that opened the session. See [Share a thread](./shared-threads). |
+| `sender` | Who sent the input. The same as `user`, except on a resolve: there it is the user who resolved. |
 | `overrides` | The [overrides of the prompt](./turn-control#give-one-prompt-its-own-settings), when it has some. |
 | `run` | The run of the turn: its user, and that user's credentials and keys. See [Act as the user of a run](#act-as-the-user-of-a-run). |
 | `model` | The model of the turn, as `provider/model`. The turn sets it when it picks its adapter, so `setup`, `onTurnStart`, and the picker do not see it yet. |
