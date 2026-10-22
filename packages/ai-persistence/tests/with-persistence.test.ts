@@ -12,6 +12,7 @@ import type {
 } from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'
+import { reconstructChat } from '../src/reconstruct'
 import { defineAIPersistence } from '../src/types'
 import { threadMessages } from './persistence-fixtures'
 
@@ -296,7 +297,6 @@ describe('withPersistence (state-only)', () => {
           type: EventType.TOOL_CALL_START,
           toolCallId: 'call_1',
           toolCallName: 'search',
-          toolName: 'search',
           parentMessageId: 'agent-tool',
           timestamp: 1,
         },
@@ -318,7 +318,6 @@ describe('withPersistence (state-only)', () => {
             totalTokens: 12,
             promptTokensDetails: { cachedTokens: 3 },
             billed: { quantity: 2, unit: 'units' },
-            unitsBilled: 2,
             cost: 1,
           },
         },
@@ -339,7 +338,6 @@ describe('withPersistence (state-only)', () => {
           completionTokensDetails: { reasoningTokens: 2 },
           providerUsageDetails: { requestId: 'final' },
           billed: { quantity: 1, unit: 'units' },
-          unitsBilled: 1,
           cost: 2,
         }),
       ],
@@ -364,7 +362,6 @@ describe('withPersistence (state-only)', () => {
       completionTokensDetails: { reasoningTokens: 2 },
       providerUsageDetails: { requestId: 'final' },
       billed: { quantity: 3, unit: 'units' },
-      unitsBilled: 3,
       cost: 3,
     })
   })
@@ -471,7 +468,6 @@ describe('withPersistence (state-only)', () => {
             type: EventType.TOOL_CALL_START,
             toolCallId: 'call_1',
             toolCallName: 'search',
-            toolName: 'search',
             parentMessageId: 'stream-assistant',
             timestamp: 1,
           }
@@ -529,7 +525,6 @@ describe('withPersistence (state-only)', () => {
               type: EventType.TOOL_CALL_START,
               toolCallId: 'call_1',
               toolCallName: 'search',
-              toolName: 'search',
               parentMessageId: 'assistant-turn-1',
               timestamp: 1,
             }
@@ -651,7 +646,6 @@ describe('withPersistence (state-only)', () => {
           type: EventType.TOOL_CALL_START,
           toolCallId: 'call_1',
           toolCallName: 'search',
-          toolName: 'search',
           parentMessageId: 'stream-assistant',
           timestamp: 1,
         },
@@ -729,7 +723,6 @@ describe('withPersistence (state-only)', () => {
           type: EventType.TOOL_CALL_START,
           toolCallId: 'call_1',
           toolCallName: 'search',
-          toolName: 'search',
           parentMessageId: 'stream-tool',
           timestamp: 1,
         },
@@ -800,7 +793,6 @@ describe('withPersistence (state-only)', () => {
                 type: EventType.TOOL_CALL_START,
                 toolCallId: 'call_1',
                 toolCallName: 'search',
-                toolName: 'search',
                 parentMessageId: 'stream-assistant',
                 timestamp: 1,
               } satisfies AdapterYieldChunk
@@ -1103,8 +1095,9 @@ describe('withPersistence (state-only)', () => {
           timestamp: 1,
         },
         {
-          type: EventType.STEP_STARTED,
-          stepName: 'think-1',
+          type: EventType.REASONING_MESSAGE_START,
+          messageId: 'reasoning-1',
+          role: 'reasoning',
           timestamp: 1,
         },
         {
@@ -1114,8 +1107,8 @@ describe('withPersistence (state-only)', () => {
           timestamp: 1,
         },
         {
-          type: EventType.STEP_FINISHED,
-          stepName: 'think-1',
+          type: EventType.REASONING_MESSAGE_END,
+          messageId: 'reasoning-1',
           timestamp: 1,
         },
         ev.text('Ada'),
@@ -1194,7 +1187,6 @@ describe('withPersistence (state-only)', () => {
           type: EventType.TOOL_CALL_START,
           toolCallId: 'call_1',
           toolCallName: 'search',
-          toolName: 'search',
           parentMessageId: 'agent-tool',
           timestamp: 1,
         },
@@ -1488,6 +1480,397 @@ describe('withPersistence (state-only)', () => {
     )
     expect(chunks.every((c) => !('cursor' in c))).toBe(true)
   })
+
+  it('saves live activity and reconstructs it without sending it to the adapter', async () => {
+    const persistence = memoryPersistence()
+    const { adapter, calls } = mockAdapter([
+      [
+        ev.runStarted(),
+        {
+          type: EventType.ACTIVITY_SNAPSHOT,
+          messageId: 'act-1',
+          activityType: 'SEARCH',
+          content: { q: 'x' },
+          timestamp: 1,
+        },
+        {
+          type: EventType.ACTIVITY_DELTA,
+          messageId: 'act-1',
+          activityType: 'SEARCH',
+          patch: [{ op: 'add', path: '/done', value: true }],
+          timestamp: 1,
+        },
+        ev.text('hello'),
+        ev.runFinished(),
+      ],
+      [ev.runStarted('r2'), ev.text('again'), ev.runFinished('r2')],
+    ])
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'hi' }],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
+      { role: 'user', content: 'hi' },
+      expect.objectContaining({ role: 'assistant', content: 'hello' }),
+    ])
+    expect(await persistence.stores.activities!.loadActivities('t1')).toEqual([
+      {
+        id: 'act-1',
+        activityType: 'SEARCH',
+        content: { q: 'x', done: true },
+        index: 1,
+      },
+    ])
+
+    const reconstructed = (await (
+      await reconstructChat(
+        persistence,
+        new Request('http://example.test/api/chat?threadId=t1'),
+      )
+    ).json()) as { messages: Array<{ role: string }> }
+    expect(reconstructed.messages.map((message) => message.role)).toEqual([
+      'user',
+      'activity',
+      'assistant',
+    ])
+
+    await collect(
+      chat({
+        adapter,
+        messages: [
+          { role: 'user', content: 'hi' },
+          { role: 'assistant', content: 'hello' },
+          { role: 'user', content: 'again' },
+        ],
+        runId: 'r2',
+        threadId: 't1',
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    for (const call of calls) {
+      const messages = (call as { messages: Array<{ role: string }> }).messages
+      expect(messages.every((message) => message.role !== 'activity')).toBe(
+        true,
+      )
+    }
+  })
+
+  it('saves activity that middleware adds and reconstructs it (#1803)', async () => {
+    const persistence = memoryPersistence()
+    const { adapter } = mockAdapter([
+      [ev.runStarted(), ev.text('hello'), ev.runFinished()],
+    ])
+    const searchProgress: ChatMiddleware = {
+      name: 'search-progress',
+      onChunk(_ctx, chunk) {
+        if (chunk.type === EventType.RUN_STARTED) {
+          return [
+            chunk,
+            {
+              type: EventType.ACTIVITY_SNAPSHOT,
+              messageId: 'act-1',
+              activityType: 'SEARCH',
+              content: { hits: 0 },
+              timestamp: 1,
+            },
+          ]
+        }
+        if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
+          return [
+            {
+              type: EventType.ACTIVITY_DELTA,
+              messageId: 'act-1',
+              activityType: 'SEARCH',
+              patch: [{ op: 'replace', path: '/hits', value: 3 }],
+              timestamp: 1,
+            },
+            chunk,
+          ]
+        }
+        return [chunk]
+      },
+    }
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'hi' }],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence), searchProgress],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(await persistence.stores.activities!.loadActivities('t1')).toEqual([
+      expect.objectContaining({
+        id: 'act-1',
+        activityType: 'SEARCH',
+        content: { hits: 3 },
+      }),
+    ])
+    const reconstructed = (await (
+      await reconstructChat(
+        persistence,
+        new Request('http://example.test/api/chat?threadId=t1'),
+      )
+    ).json()) as { messages: Array<{ role: string }> }
+    expect(reconstructed.messages.map((message) => message.role)).toEqual([
+      'user',
+      'activity',
+      'assistant',
+    ])
+  })
+
+  it('keeps activity metadata from the stream and from inbound rows', async () => {
+    const persistence = memoryPersistence()
+    const { adapter } = mockAdapter([
+      [
+        ev.runStarted(),
+        {
+          type: EventType.ACTIVITY_SNAPSHOT,
+          messageId: 'act-live',
+          activityType: 'SEARCH',
+          content: { q: 'x' },
+          metadata: { source: 'stream' },
+          timestamp: 1,
+        },
+        ev.text('hello'),
+        ev.runFinished(),
+      ],
+    ])
+
+    await collect(
+      chat({
+        adapter,
+        messages: [
+          { role: 'user', content: 'hi' },
+          {
+            id: 'act-inbound',
+            role: 'activity',
+            parts: [{ type: 'activity', activityType: 'PLAN', content: {} }],
+            metadata: { source: 'client' },
+          },
+        ],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const records = await persistence.stores.activities.loadActivities('t1')
+    expect(
+      records.map((record) => [record.id, record.metadata?.source]),
+    ).toEqual([
+      ['act-inbound', 'client'],
+      ['act-live', 'stream'],
+    ])
+
+    const reconstructed = (await (
+      await reconstructChat(
+        persistence,
+        new Request('http://example.test/api/chat?threadId=t1'),
+      )
+    ).json()) as { messages: Array<{ id: string; metadata?: unknown }> }
+    expect(
+      reconstructed.messages.filter((message) => message.id.startsWith('act-')),
+    ).toEqual([
+      expect.objectContaining({
+        id: 'act-inbound',
+        metadata: { source: 'client' },
+      }),
+      expect.objectContaining({
+        id: 'act-live',
+        metadata: { source: 'stream' },
+      }),
+    ])
+  })
+
+  describe('stored activity on a later run', () => {
+    const user = { id: 'u1', role: 'user', content: 'hi' } as const
+    const assistant = { id: 'a1', role: 'assistant', content: 'hello' } as const
+    const next = { id: 'u2', role: 'user', content: 'again' } as const
+    const stored = {
+      id: 'act-1',
+      activityType: 'SEARCH',
+      content: { q: 'x' },
+      index: 1,
+    }
+
+    async function seeded() {
+      const persistence = memoryPersistence()
+      await persistence.stores.messages!.saveThread('t1', [user, assistant])
+      await persistence.stores.activities.saveActivities('t1', [stored])
+      return persistence
+    }
+
+    it('keeps it when a pending-turn snapshot runs before the load', async () => {
+      const persistence = await seeded()
+      await runPersistedChat(persistence, [user, assistant, next])
+      expect(await persistence.stores.activities.loadActivities('t1')).toEqual([
+        stored,
+      ])
+    })
+
+    it('merges an inbound row instead of replacing the stored rows', async () => {
+      const persistence = await seeded()
+      const { adapter } = mockAdapter([
+        [ev.runStarted(), ev.text('hello'), ev.runFinished()],
+      ])
+      await collect(
+        chat({
+          adapter,
+          messages: [
+            user,
+            assistant,
+            next,
+            {
+              id: 'act-2',
+              role: 'activity',
+              parts: [{ type: 'activity', activityType: 'PLAN', content: {} }],
+            },
+          ],
+          runId: 'r1',
+          threadId: 't1',
+          middleware: [withPersistence(persistence)],
+        }) as AsyncIterable<StreamChunk>,
+      )
+      const records = await persistence.stores.activities.loadActivities('t1')
+      expect(records.map((record) => record.id)).toEqual(['act-1', 'act-2'])
+    })
+
+    it('drops the rows of a turn that a reload replaces', async () => {
+      const persistence = await seeded()
+      await runPersistedChat(persistence, [user])
+      expect(await persistence.stores.activities.loadActivities('t1')).toEqual(
+        [],
+      )
+    })
+  })
+
+  // #1804: a stopped or failed run must keep its activity rows too.
+  it.each(['stop', 'error'] as const)(
+    'saves activity when the run ends with %s',
+    async (end) => {
+      const persistence = memoryPersistence()
+      const controller = new AbortController()
+      const adapter = {
+        kind: 'text',
+        name: 'mock',
+        model: 'test-model',
+        '~types': {},
+        async *chatStream() {
+          yield ev.runStarted()
+          yield {
+            type: EventType.ACTIVITY_SNAPSHOT,
+            messageId: 'act-1',
+            activityType: 'SEARCH',
+            content: { status: 'running' },
+            timestamp: 1,
+          }
+          if (end === 'stop') controller.abort()
+          else throw new Error('provider failed')
+          yield ev.runFinished()
+        },
+      } as unknown as AnyTextAdapter
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      try {
+        await collect(
+          chat({
+            adapter,
+            messages: [{ role: 'user', content: 'hi' }],
+            runId: 'r1',
+            threadId: 't1',
+            abortController: controller,
+            middleware: [withPersistence(persistence)],
+          }) as AsyncIterable<StreamChunk>,
+        ).catch(() => undefined)
+      } finally {
+        error.mockRestore()
+      }
+
+      expect((await persistence.stores.runs.get('r1'))?.status).toBe(
+        end === 'stop' ? 'aborted' : 'failed',
+      )
+      expect(await persistence.stores.activities.loadActivities('t1')).toEqual([
+        expect.objectContaining({
+          id: 'act-1',
+          content: { status: 'running' },
+        }),
+      ])
+    },
+  )
+
+  describe('when the activity store fails', () => {
+    function failingActivityPersistence() {
+      const memory = memoryPersistence()
+      return {
+        memory,
+        persistence: defineAIPersistence({
+          stores: {
+            ...memory.stores,
+            activities: {
+              loadActivities: () => Promise.resolve([]),
+              saveActivities: () =>
+                Promise.reject(new Error('activity store down')),
+            },
+          },
+        }),
+      }
+    }
+
+    it('still completes the run', async () => {
+      const { memory, persistence } = failingActivityPersistence()
+      const { adapter } = mockAdapter([
+        [ev.runStarted(), ev.text('hello'), ev.runFinished()],
+      ])
+
+      const chunks = await collect(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'hi' }],
+          runId: 'r1',
+          threadId: 't1',
+          middleware: [withPersistence(persistence)],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+        false,
+      )
+      expect((await memory.stores.runs.get('r1'))?.status).toBe('completed')
+      expect(await memory.stores.messages.loadThread('t1')).toEqual([
+        { role: 'user', content: 'hi' },
+        expect.objectContaining({ role: 'assistant', content: 'hello' }),
+      ])
+    })
+
+    it('still marks an interrupted run interrupted', async () => {
+      const { memory, persistence } = failingActivityPersistence()
+      const { adapter } = mockAdapter([[ev.runStarted(), ev.interrupted()]])
+
+      await collect(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'hi' }],
+          runId: 'r1',
+          threadId: 't1',
+          middleware: [withPersistence(persistence)],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect((await memory.stores.runs.get('r1'))?.status).toBe('interrupted')
+      expect(await memory.stores.interrupts.listPending('t1')).toHaveLength(1)
+    })
+  })
 })
 
 describe('withPersistence (merge by id)', () => {
@@ -1627,5 +2010,59 @@ describe('withPersistence (merge by id)', () => {
       { role: 'user', content: 'go' },
       expect.objectContaining({ role: 'assistant', content: 'hello' }),
     ])
+  })
+
+  it('keeps the stored change record when the incoming copy has none', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'ask', id: 'u1' },
+      {
+        role: 'assistant',
+        content: 'done',
+        id: 'a1',
+        midConversationChange: { tools: ['read'], systemPrompts: [] },
+      },
+    ])
+
+    const thread = await runPersistedChat(persistence, [
+      { role: 'user', content: 'ask', id: 'u1' },
+      { role: 'assistant', content: 'done', id: 'a1' },
+      { role: 'user', content: 'next', id: 'u2' },
+    ])
+
+    expect(thread.find((message) => message.id === 'a1')).toEqual({
+      role: 'assistant',
+      content: 'done',
+      id: 'a1',
+      midConversationChange: { tools: ['read'], systemPrompts: [] },
+    })
+  })
+
+  it('lets an incoming change record win', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'ask', id: 'u1' },
+      {
+        role: 'assistant',
+        content: 'done',
+        id: 'a1',
+        midConversationChange: { tools: ['read'], systemPrompts: [] },
+      },
+    ])
+
+    const thread = await runPersistedChat(persistence, [
+      { role: 'user', content: 'ask', id: 'u1' },
+      {
+        role: 'assistant',
+        content: 'done',
+        id: 'a1',
+        midConversationChange: { toolsAdded: ['grep'] },
+      },
+      { role: 'user', content: 'next', id: 'u2' },
+    ])
+
+    expect(
+      thread.find((message) => message.id === 'a1')?.midConversationChange,
+    ).toEqual({ toolsAdded: ['grep'] })
   })
 })

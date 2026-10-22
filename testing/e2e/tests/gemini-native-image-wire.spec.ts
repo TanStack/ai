@@ -1,43 +1,38 @@
 import { test, expect } from './fixtures'
 
 /**
- * Wire-format verification for Gemini-native `modelOptions` on the image
- * generation path (fix/gemini-native-image-model-options).
+ * Wire-format verification for Gemini-native image modelOptions on the
+ * Interactions API.
  *
- * `/api/gemini-native-image-wire` drives `generateImage()` against
- * `gemini-2.5-flash-image` with `modelOptions: { safetySettings,
- * thinkingConfig }`. That request lands on `geminiNativeImageMount` in
- * global-setup.ts, which reads the raw, untranslated request body (aimock's
- * own journal normalises this endpoint's requests and drops these exact
- * fields before journalling — see that mount's comment) and rejects with 400
- * unless `safetySettings` is present at the request root,
- * `generationConfig.thinkingConfig` is present nested under
- * `generationConfig`, and no Imagen-only field (`personGeneration`,
- * `negativePrompt`, a root-level `aspectRatio`, …) appears anywhere in the
- * body.
- *
- * Before the fix, `generateWithGeminiApi` only forwarded `modelOptions.seed`
- * — `safetySettings` and `thinkingConfig` were silently dropped even though
- * the adapter's own provider-options type already declared them. Reverting
- * the fix reproduces that: the outgoing request loses both fields, the mount
- * rejects it with 400, `client.models.generateContent()` throws, and the
- * route returns `ok: false` — this spec's `ok` assertion fails.
+ * `/api/gemini-native-image-wire` generates with `safetySettings` and
+ * `thinkingConfig.thinkingLevel`, then edits with `previous_interaction_id`.
+ * `geminiNativeImageMount` 400s unless the first body has snake_case
+ * `safety_settings` and `generation_config.thinking_level: "low"`, and the
+ * second body chains without an image block. The two ids are the server
+ * interaction ids.
  */
-test.describe('gemini native image — modelOptions reach the generateContent wire', () => {
-  test('safetySettings and thinkingConfig survive to the request; no Imagen field does', async ({
+test.describe('gemini native image — modelOptions reach the Interactions wire', () => {
+  test('safety settings, thinking level, and a chained edit survive', async ({
     request,
   }) => {
     const res = await request.post('/api/gemini-native-image-wire')
     expect(res.ok()).toBe(true)
 
-    const { ok, images, error } = (await res.json()) as {
-      ok: boolean
-      images?: number
-      error?: string
-    }
+    const { ok, images, editImages, firstId, editId, error } =
+      (await res.json()) as {
+        ok: boolean
+        images?: number
+        editImages?: number
+        firstId?: string
+        editId?: string
+        error?: string
+      }
 
     expect(error ?? null).toBeNull()
     expect(ok).toBe(true)
     expect(images).toBe(1)
+    expect(editImages).toBe(1)
+    expect(firstId).toBe('int_e2e_create')
+    expect(editId).toBe('int_e2e_edit')
   })
 })

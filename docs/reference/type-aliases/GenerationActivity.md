@@ -20,7 +20,7 @@ type GenerationActivity =
   | "liveVideo";
 ```
 
-Defined in: [packages/ai/src/activities/middleware/types.ts:37](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L37)
+Defined in: packages/ai/src/activities/middleware/types.ts:37
 
 The activity an observability event describes.
 

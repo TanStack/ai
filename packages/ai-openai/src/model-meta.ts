@@ -1,18 +1,80 @@
 import type {
+  MidConversationChannels,
+  Modality,
+  ModelReasoning,
+} from '@tanstack/ai'
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
+import type {
   OpenAIBaseOptions,
   OpenAIMetadataOptions,
-  OpenAIReasoningOptions,
-  OpenAIReasoningOptionsWithConcise,
   OpenAIStreamingOptions,
   OpenAIStructuredOutputOptions,
   OpenAIToolsOptions,
 } from './text/text-provider-options'
 import type { OpenAIEmbeddingProviderOptions } from './embedding/embedding-provider-options'
 
+// Reasoning shapes: the levels a model has for `chat({ reasoning })`, and
+// the provider value to send for each. Each model points at one of them.
+const EFFORT_HIGH = { levels: { high: 'high' }, budget: false } as const
+const EFFORT_LOW_TO_HIGH = {
+  levels: { low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_LOW_TO_MAX = {
+  levels: {
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+    max: 'max',
+  },
+  budget: false,
+} as const
+const EFFORT_MEDIUM = { levels: { medium: 'medium' }, budget: false } as const
+const EFFORT_MEDIUM_TO_XHIGH = {
+  levels: { medium: 'medium', high: 'high', xhigh: 'xhigh' },
+  budget: false,
+} as const
+const EFFORT_MINIMAL_TO_HIGH = {
+  levels: { minimal: 'minimal', low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_NONE_LOW_TO_HIGH = {
+  levels: { off: 'none', low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_NONE_LOW_TO_MAX = {
+  levels: {
+    off: 'none',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+    max: 'max',
+  },
+  budget: false,
+} as const
+const EFFORT_NONE_LOW_TO_XHIGH = {
+  levels: {
+    off: 'none',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+  },
+  budget: false,
+} as const
+
 interface ModelMeta<TProviderOptions = unknown> {
   name: string
   supports: {
     input: Array<'text' | 'image' | 'audio' | 'video' | 'document'>
+    /**
+     * The mid-conversation channels on the Responses API (from pi 0.87.1):
+     * added tools go out as an `additional_tools` item, and added prompts as
+     * a mid-conversation `developer` message.
+     */
+    mid_conversation_channels?: MidConversationChannels
     output: Array<'text' | 'image' | 'audio' | 'video'>
     endpoints: Array<
       | 'chat'
@@ -46,6 +108,7 @@ interface ModelMeta<TProviderOptions = unknown> {
       | 'code_interpreter'
       | 'mcp'
       | 'computer_use'
+      | 'computer'
       | 'local_shell'
       | 'shell'
       | 'apply_patch'
@@ -67,6 +130,8 @@ interface ModelMeta<TProviderOptions = unknown> {
    * Type-level description of which provider options this model supports.
    */
   providerOptions?: TProviderOptions
+  /** The model's data for `chat({ reasoning })`. None: it does not reason. */
+  reasoning?: ModelReasoning
 }
 
 const GPT5_2 = {
@@ -92,6 +157,7 @@ const GPT5_2 = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -106,9 +172,9 @@ const GPT5_2 = {
       normal: 14,
     },
   },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -132,6 +198,7 @@ const GPT5_2_PRO = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -145,9 +212,9 @@ const GPT5_2_PRO = {
       normal: 168,
     },
   },
+  reasoning: EFFORT_MEDIUM_TO_XHIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
@@ -181,9 +248,9 @@ const GPT5_2_CHAT = {
       normal: 14,
     },
   },
+  reasoning: EFFORT_MEDIUM,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -212,6 +279,7 @@ const GPT5_1 = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -226,9 +294,9 @@ const GPT5_1 = {
       normal: 10,
     },
   },
+  reasoning: EFFORT_NONE_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -263,9 +331,9 @@ const GPT5_1_CODEX = {
       normal: 10,
     },
   },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -295,6 +363,7 @@ const GPT5 = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -309,9 +378,9 @@ const GPT5 = {
       normal: 10,
     },
   },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -336,6 +405,7 @@ const GPT5_MINI = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -350,9 +420,9 @@ const GPT5_MINI = {
       normal: 2,
     },
   },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -386,14 +456,15 @@ const GPT5_NANO = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
     ],
   },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -426,14 +497,15 @@ const GPT5_PRO = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
     ],
   },
+  reasoning: EFFORT_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -468,9 +540,9 @@ const GPT5_CODEX = {
       'apply_patch',
     ],
   },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -664,16 +736,14 @@ const O3_DEEP_RESEARCH = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
     ],
   },
 } as const satisfies ModelMeta<
-  OpenAIBaseOptions &
-    OpenAIReasoningOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
+  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
 >
 
 const O4_MINI_DEEP_RESEARCH = {
@@ -703,16 +773,14 @@ const O4_MINI_DEEP_RESEARCH = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
     ],
   },
 } as const satisfies ModelMeta<
-  OpenAIBaseOptions &
-    OpenAIReasoningOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
+  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
 >
 
 const O3_PRO = {
@@ -741,14 +809,15 @@ const O3_PRO = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
     ],
   },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -894,14 +963,15 @@ const O3 = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
     ],
   },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -940,11 +1010,13 @@ const O4_MINI = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
     ],
   },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -992,6 +1064,7 @@ const GPT4_1 = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -999,7 +1072,6 @@ const GPT4_1 = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -1044,6 +1116,7 @@ const GPT4_1_MINI = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -1096,6 +1169,7 @@ const GPT4_1_NANO = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -1129,38 +1203,10 @@ const O1_PRO = {
     features: ['function_calling', 'structured_outputs'],
     tools: ['file_search', 'code_interpreter', 'mcp'],
   },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
-    OpenAIToolsOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
->
-
-const COMPUTER_USE_PREVIEW = {
-  name: 'computer-use-preview',
-  context_window: 8_192,
-  max_output_tokens: 1_024,
-  knowledge_cutoff: '2023-10-01',
-  pricing: {
-    input: {
-      normal: 3,
-    },
-    output: {
-      normal: 12,
-    },
-  },
-  supports: {
-    input: ['text', 'image'],
-    output: ['text'],
-    endpoints: ['chat', 'batch'],
-    features: ['function_calling'],
-    tools: ['computer_use'],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions &
-    OpenAIReasoningOptionsWithConcise &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
@@ -1246,38 +1292,10 @@ const O3_MINI = {
       'apply_patch',
     ],
   },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
-    OpenAIToolsOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
->
-
-const GPT_4O_MINI_AUDIO = {
-  name: 'gpt-4o-mini-audio',
-  context_window: 128_000,
-  max_output_tokens: 16_384,
-  knowledge_cutoff: '2023-10-01',
-  pricing: {
-    // todo audio tokens
-    input: {
-      normal: 0.15,
-    },
-    output: {
-      normal: 0.6,
-    },
-  },
-  supports: {
-    input: ['text', 'audio'],
-    output: ['text', 'audio'],
-    endpoints: ['chat-completions'],
-    features: ['function_calling', 'streaming'],
-    tools: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
@@ -1332,9 +1350,9 @@ const O1 = {
     features: ['function_calling', 'structured_outputs', 'streaming'],
     tools: ['file_search', 'code_interpreter', 'mcp'],
   },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -1403,36 +1421,7 @@ const GPT_4O = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
-    OpenAIToolsOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
->
-
-const GPT_4O_AUDIO = {
-  name: 'gpt-4o-audio',
-  context_window: 128_000,
-  max_output_tokens: 16_384,
-  knowledge_cutoff: '2023-10-01',
-  pricing: {
-    // todo audio tokens
-    input: {
-      normal: 2.5,
-    },
-    output: {
-      normal: 10,
-    },
-  },
-  supports: {
-    input: ['text', 'audio'],
-    output: ['text', 'audio'],
-    endpoints: ['chat-completions'],
-    features: ['streaming', 'function_calling'],
-    tools: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
@@ -1540,37 +1529,6 @@ const GPT_4_TURBO = {
     OpenAIMetadataOptions
 >
 
-const CHATGPT_40 = {
-  name: 'chatgpt-4o-latest',
-  context_window: 128_000,
-  max_output_tokens: 4_096,
-  knowledge_cutoff: '2023-10-01',
-  pricing: {
-    input: {
-      normal: 5,
-    },
-    output: {
-      normal: 15,
-    },
-  },
-  supports: {
-    input: ['text', 'image'],
-    output: ['text'],
-    endpoints: ['chat', 'chat-completions'],
-    features: ['predicted_outcomes', 'streaming'],
-    tools: [
-      'web_search',
-      'web_search_preview',
-      'file_search',
-      'image_generation',
-      'code_interpreter',
-      'mcp',
-    ],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
->
-
 const GPT_5_1_CODEX_MINI = {
   name: 'gpt-5.1-codex-mini',
   context_window: 400_000,
@@ -1599,92 +1557,13 @@ const GPT_5_1_CODEX_MINI = {
       'apply_patch',
     ],
   },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
->
-
-const CODEX_MINI_LATEST = {
-  name: 'codex-mini-latest',
-  context_window: 200_000,
-  max_output_tokens: 100_000,
-  knowledge_cutoff: '2024-06-01',
-  pricing: {
-    input: {
-      normal: 1.5,
-      cached: 0.375,
-    },
-    output: {
-      normal: 6,
-    },
-  },
-  supports: {
-    input: ['text', 'image'],
-    output: ['text'],
-    endpoints: ['chat'],
-    features: ['streaming', 'function_calling', 'structured_outputs'],
-    tools: [
-      'file_search',
-      'code_interpreter',
-      'mcp',
-      'local_shell',
-      'shell',
-      'apply_patch',
-    ],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions &
-    OpenAIReasoningOptions &
-    OpenAIStructuredOutputOptions &
-    OpenAIToolsOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
->
-
-const DALL_E_2 = {
-  name: 'dall-e-2',
-  pricing: {
-    // todo image tokens
-    input: {
-      normal: 0.016,
-    },
-    output: {
-      normal: 0.02,
-    },
-  },
-  supports: {
-    input: ['text'],
-    output: ['image'],
-    endpoints: ['image-generation', 'image-edit'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
->
-
-const DALL_E_3 = {
-  name: 'dall-e-3',
-  pricing: {
-    // todo image tokens
-    input: {
-      normal: 0.04,
-    },
-    output: {
-      normal: 0.08,
-    },
-  },
-  supports: {
-    input: ['text'],
-    output: ['image'],
-    endpoints: ['image-generation', 'image-edit'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
 >
 
 const GPT_3_5_TURBO = {
@@ -1864,7 +1743,6 @@ const GPT_5_1_CHAT = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -1901,7 +1779,6 @@ const GPT_5_CHAT = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -1957,6 +1834,7 @@ const GPT_5_4_MINI = {
   max_output_tokens: 128_000,
   supports: {
     input: ['image', 'text'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: [
@@ -1973,6 +1851,7 @@ const GPT_5_4_MINI = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -1987,9 +1866,9 @@ const GPT_5_4_MINI = {
       normal: 4.5,
     },
   },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2018,6 +1897,7 @@ const GPT_5_4_NANO = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -2032,9 +1912,9 @@ const GPT_5_4_NANO = {
       normal: 1.25,
     },
   },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2063,6 +1943,7 @@ const GPT_5_4_IMAGE_2 = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -2077,55 +1958,9 @@ const GPT_5_4_IMAGE_2 = {
       normal: 15,
     },
   },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
-    OpenAIStructuredOutputOptions &
-    OpenAIToolsOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
->
-
-const GPT_5_6 = {
-  name: 'gpt-5.6',
-  context_window: 1_050_000,
-  max_output_tokens: 128_000,
-  knowledge_cutoff: '2026-02-16',
-  supports: {
-    input: ['image', 'text'],
-    output: ['text'],
-    endpoints: ['chat', 'chat-completions'],
-    features: [
-      'streaming',
-      'function_calling',
-      'structured_outputs',
-      'distillation',
-    ],
-    tools: [
-      'web_search',
-      'web_search_preview',
-      'file_search',
-      'image_generation',
-      'code_interpreter',
-      'mcp',
-      'computer_use',
-      'local_shell',
-      'shell',
-      'apply_patch',
-    ],
-  },
-  pricing: {
-    input: {
-      normal: 5,
-      cached: 0.5,
-    },
-    output: {
-      normal: 30,
-    },
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2139,6 +1974,7 @@ const GPT_5_6_SOL = {
   knowledge_cutoff: '2026-02-16',
   supports: {
     input: ['image', 'text'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: [
@@ -2155,6 +1991,7 @@ const GPT_5_6_SOL = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -2169,9 +2006,9 @@ const GPT_5_6_SOL = {
       normal: 30,
     },
   },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2185,6 +2022,7 @@ const GPT_5_6_TERRA = {
   knowledge_cutoff: '2026-02-16',
   supports: {
     input: ['image', 'text'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: [
@@ -2201,6 +2039,7 @@ const GPT_5_6_TERRA = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -2215,9 +2054,9 @@ const GPT_5_6_TERRA = {
       normal: 12,
     },
   },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2231,6 +2070,7 @@ const GPT_5_6_LUNA = {
   knowledge_cutoff: '2026-02-16',
   supports: {
     input: ['image', 'text'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: [
@@ -2247,6 +2087,7 @@ const GPT_5_6_LUNA = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -2261,9 +2102,9 @@ const GPT_5_6_LUNA = {
       normal: 1.2,
     },
   },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2276,6 +2117,7 @@ const GPT_5_5 = {
   max_output_tokens: 128_000,
   supports: {
     input: ['text', 'image', 'document'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: [
@@ -2292,6 +2134,7 @@ const GPT_5_5 = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -2306,9 +2149,9 @@ const GPT_5_5 = {
       normal: 30,
     },
   },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2337,6 +2180,7 @@ const GPT_5_5_PRO = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -2350,9 +2194,9 @@ const GPT_5_5_PRO = {
       normal: 180,
     },
   },
+  reasoning: EFFORT_MEDIUM_TO_XHIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2381,6 +2225,7 @@ const GPT_CHAT_LATEST = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'local_shell',
       'shell',
       'apply_patch',
@@ -2395,9 +2240,9 @@ const GPT_CHAT_LATEST = {
       normal: 30,
     },
   },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2424,9 +2269,9 @@ const GPT_5_6_LUNA_PRO = {
       normal: 1.2,
     },
   },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2453,9 +2298,9 @@ const GPT_5_6_SOL_PRO = {
       normal: 15,
     },
   },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2482,9 +2327,9 @@ const GPT_5_6_TERRA_PRO = {
       normal: 12,
     },
   },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2497,6 +2342,7 @@ const GPT_6_ASTRA = {
   max_output_tokens: 128_000,
   supports: {
     input: ['image', 'text'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: ['streaming', 'function_calling', 'structured_outputs'],
@@ -2507,6 +2353,7 @@ const GPT_6_ASTRA = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'shell',
       'apply_patch',
     ],
@@ -2520,9 +2367,9 @@ const GPT_6_ASTRA = {
       normal: 50,
     },
   },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2549,9 +2396,9 @@ const GPT_6_ASTRA_PRO = {
       normal: 50,
     },
   },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2564,6 +2411,7 @@ const GPT_6_LUNA = {
   max_output_tokens: 128_000,
   supports: {
     input: ['image', 'text'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: ['streaming', 'function_calling', 'structured_outputs'],
@@ -2574,6 +2422,7 @@ const GPT_6_LUNA = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'shell',
       'apply_patch',
     ],
@@ -2587,9 +2436,9 @@ const GPT_6_LUNA = {
       normal: 0.5,
     },
   },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2616,9 +2465,9 @@ const GPT_6_LUNA_PRO = {
       normal: 0.5,
     },
   },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2631,6 +2480,7 @@ const GPT_6_SOL = {
   max_output_tokens: 128_000,
   supports: {
     input: ['image', 'text'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: ['streaming', 'function_calling', 'structured_outputs'],
@@ -2641,6 +2491,7 @@ const GPT_6_SOL = {
       'code_interpreter',
       'mcp',
       'computer_use',
+      'computer',
       'shell',
       'apply_patch',
     ],
@@ -2654,9 +2505,9 @@ const GPT_6_SOL = {
       normal: 10,
     },
   },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2683,9 +2534,91 @@ const GPT_6_SOL_PRO = {
       normal: 10,
     },
   },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+>
+
+const GPT_6_1_SOL = {
+  name: 'gpt-6.1-sol',
+  context_window: 1_050_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['image', 'text'],
+    output: ['text'],
+    endpoints: ['chat', 'chat-completions'],
+    features: ['streaming', 'function_calling', 'structured_outputs'],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+      'computer_use',
+      'computer',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 2,
+      cached: 0.1,
+    },
+    output: {
+      normal: 10,
+    },
+  },
+  reasoning: EFFORT_LOW_TO_MAX,
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+>
+
+const GPT_6_1_SOL_PRO = {
+  name: 'gpt-6.1-sol-pro',
+  context_window: 1_050_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['image', 'text'],
+    output: ['text'],
+    endpoints: ['chat', 'chat-completions'],
+    features: ['streaming', 'function_calling', 'structured_outputs'],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+      'computer_use',
+      'computer',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 2,
+      cached: 0.1,
+    },
+    output: {
+      normal: 10,
+    },
+  },
+  reasoning: EFFORT_LOW_TO_MAX,
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2693,6 +2626,8 @@ const GPT_6_SOL_PRO = {
 >
 
 export const OPENAI_CHAT_MODELS = [
+  GPT_6_1_SOL.name,
+  GPT_6_1_SOL_PRO.name,
   GPT_6_LUNA.name,
   GPT_6_LUNA_PRO.name,
   GPT_6_SOL.name,
@@ -2733,25 +2668,19 @@ export const OPENAI_CHAT_MODELS = [
   // Audio-enabled chat models
   GPT_AUDIO.name,
   GPT_AUDIO_MINI.name,
-  GPT_4O_AUDIO.name,
-  GPT_4O_MINI_AUDIO.name,
   // ChatGPT models
   GPT_5_1_CHAT.name,
   GPT_5_CHAT.name,
-  CHATGPT_40.name,
   // Specialized
   GPT_5_1_CODEX_MINI.name,
-  CODEX_MINI_LATEST.name,
   // Preview models
   GPT_4O_SEARCH_PREVIEW.name,
   GPT_4O_MINI_SEARCH_PREVIEW.name,
-  COMPUTER_USE_PREVIEW.name,
   // Legacy reasoning
   O1.name,
   O1_PRO.name,
 
   // GPT-5.6 / 5.5 / 5.4 extended family
-  GPT_5_6.name,
   GPT_5_6_SOL.name,
   GPT_5_6_TERRA.name,
   GPT_5_6_LUNA.name,
@@ -2768,18 +2697,34 @@ export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number]
 /**
  * Whether a model rejects the `temperature` / `top_p` sampling knobs.
  *
- * OpenAI's reasoning models — the o-series (`o1`, `o3`, `o4`, …) and the GPT-5
- * reasoning family — return `400 Unsupported parameter: 'temperature'` if either
- * is sent. Their `*-chat-latest` counterparts are ordinary chat models that
- * still accept them, so those are excluded. Matching by name (rather than a
- * per-model flag) keeps future `gpt-5.x` reasoning models covered automatically.
- * See the note in `text/text-provider-options.ts`.
+ * OpenAI reasoning models return `400 Unsupported parameter: 'temperature'`
+ * if either is sent with a reasoning effort other than `none`. The caller
+ * checks the effort. `*-chat-latest` models still accept them.
+ * A model in `OPENAI_MODEL_REASONING` is a reasoning model, so a future
+ * family is covered when its catalog row has `reasoning`. Name checks stay
+ * for o-series and GPT-5 snapshots that are not in the catalog yet.
  */
 export function openAIModelRejectsSamplingParams(model: string): boolean {
+  if (model.endsWith('-chat-latest')) return false
+  if (Object.hasOwn(OPENAI_MODEL_REASONING, model)) return true
   if (/^o\d/.test(model)) return true
-  if (model.startsWith('gpt-5') && !model.endsWith('-chat-latest')) return true
-  if (model === 'codex-mini-latest') return true
+  if (model.startsWith('gpt-5')) return true
   return false
+}
+
+/**
+ * Whether a model takes OpenAI's explicit prompt cache controls
+ * (`prompt_cache_options`) in place of `prompt_cache_retention`.
+ * This is true for gpt-5.6 and later, and for gpt-6 and later.
+ */
+export function openAIModelUsesExplicitPromptCache(model: string) {
+  // ponytail: name match on the version number. If OpenAI ships a model that
+  // breaks this pattern, add a per-model flag to the model meta.
+  const match = /^gpt-(\d+)(?:\.(\d+))?/.exec(model)
+  if (!match) return false
+  const major = Number(match[1])
+  const minor = Number(match[2] ?? 0)
+  return major > 5 || (major === 5 && minor >= 6)
 }
 
 // Image generation models (based on endpoints: "image-generation" or "image-edit")
@@ -2789,8 +2734,6 @@ export const OPENAI_IMAGE_MODELS = [
   GPT_IMAGE_2.name,
   GPT_IMAGE_1.name,
   GPT_IMAGE_1_MINI.name,
-  DALL_E_3.name,
-  DALL_E_2.name,
 ] as const
 
 export type OpenAIImageModel = (typeof OPENAI_IMAGE_MODELS)[number]
@@ -2833,7 +2776,7 @@ export type OpenAIVideoModel = (typeof OPENAI_VIDEO_MODELS)[number]
 export const OPENAI_TTS_MODELS = [
   'tts-1',
   'tts-1-hd',
-  'gpt-4o-audio-preview',
+  'gpt-4o-mini-tts',
 ] as const
 
 export type OpenAITTSModel = (typeof OPENAI_TTS_MODELS)[number]
@@ -2887,54 +2830,45 @@ export type OpenAIEmbeddingModelInputModalitiesByName = {
  */
 export type OpenAIChatModelProviderOptionsByName = {
   [GPT5_2.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT5_2_CHAT.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT5_2_PRO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT5_1.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT5_1_CODEX.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT5.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT5_MINI.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT5_NANO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT5_PRO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2983,29 +2917,14 @@ export type OpenAIChatModelProviderOptionsByName = {
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  [CHATGPT_40.name]: OpenAIBaseOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
-  [O3.name]: OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIMetadataOptions
-  [O3_PRO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
-    OpenAIMetadataOptions
-  [O3_MINI.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
-    OpenAIMetadataOptions
-  [O4_MINI.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
-    OpenAIMetadataOptions
-  [O3_DEEP_RESEARCH.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
-    OpenAIMetadataOptions
-  [O4_MINI_DEEP_RESEARCH.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
-    OpenAIMetadataOptions
-  [O1.name]: OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIMetadataOptions
-  [O1_PRO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
-    OpenAIMetadataOptions
+  [O3.name]: OpenAIBaseOptions & OpenAIMetadataOptions
+  [O3_PRO.name]: OpenAIBaseOptions & OpenAIMetadataOptions
+  [O3_MINI.name]: OpenAIBaseOptions & OpenAIMetadataOptions
+  [O4_MINI.name]: OpenAIBaseOptions & OpenAIMetadataOptions
+  [O3_DEEP_RESEARCH.name]: OpenAIBaseOptions & OpenAIMetadataOptions
+  [O4_MINI_DEEP_RESEARCH.name]: OpenAIBaseOptions & OpenAIMetadataOptions
+  [O1.name]: OpenAIBaseOptions & OpenAIMetadataOptions
+  [O1_PRO.name]: OpenAIBaseOptions & OpenAIMetadataOptions
 
   // Audio models
   [GPT_AUDIO.name]: OpenAIBaseOptions &
@@ -3014,30 +2933,17 @@ export type OpenAIChatModelProviderOptionsByName = {
   [GPT_AUDIO_MINI.name]: OpenAIBaseOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  [GPT_4O_AUDIO.name]: OpenAIBaseOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
-  [GPT_4O_MINI_AUDIO.name]: OpenAIBaseOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
 
   // Chat-only models
   [GPT_5_1_CHAT.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIMetadataOptions
   [GPT_5_CHAT.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIMetadataOptions
 
   // Codex models
   [GPT_5_1_CODEX_MINI.name]: OpenAIBaseOptions &
-    OpenAIStructuredOutputOptions &
-    OpenAIToolsOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
-  [CODEX_MINI_LATEST.name]: OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -3056,121 +2962,102 @@ export type OpenAIChatModelProviderOptionsByName = {
     OpenAIMetadataOptions
 
   // Special models
-  [COMPUTER_USE_PREVIEW.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptionsWithConcise &
-    OpenAIToolsOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
   [GPT_5_4_MINI.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_5_4_NANO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_5_4_IMAGE_2.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
-    OpenAIStructuredOutputOptions &
-    OpenAIToolsOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
-  [GPT_5_6.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_5_6_SOL.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_5_6_TERRA.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_5_6_LUNA.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_5_5.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_5_5_PRO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_CHAT_LATEST.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_5_6_LUNA_PRO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_5_6_SOL_PRO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_5_6_TERRA_PRO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_6_ASTRA.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_6_ASTRA_PRO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_6_LUNA.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_6_LUNA_PRO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_6_SOL.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_6_SOL_PRO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+  [GPT_6_1_SOL.name]: OpenAIBaseOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+  [GPT_6_1_SOL_PRO.name]: OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -3209,22 +3096,16 @@ export type OpenAIChatModelToolCapabilitiesByName = {
   [GPT_3_5_TURBO.name]: typeof GPT_3_5_TURBO.supports.tools
   [GPT_AUDIO.name]: typeof GPT_AUDIO.supports.tools
   [GPT_AUDIO_MINI.name]: typeof GPT_AUDIO_MINI.supports.tools
-  [GPT_4O_AUDIO.name]: typeof GPT_4O_AUDIO.supports.tools
-  [GPT_4O_MINI_AUDIO.name]: typeof GPT_4O_MINI_AUDIO.supports.tools
   [GPT_5_1_CHAT.name]: typeof GPT_5_1_CHAT.supports.tools
   [GPT_5_CHAT.name]: typeof GPT_5_CHAT.supports.tools
-  [CHATGPT_40.name]: typeof CHATGPT_40.supports.tools
   [GPT_5_1_CODEX_MINI.name]: typeof GPT_5_1_CODEX_MINI.supports.tools
-  [CODEX_MINI_LATEST.name]: typeof CODEX_MINI_LATEST.supports.tools
   [GPT_4O_SEARCH_PREVIEW.name]: typeof GPT_4O_SEARCH_PREVIEW.supports.tools
   [GPT_4O_MINI_SEARCH_PREVIEW.name]: typeof GPT_4O_MINI_SEARCH_PREVIEW.supports.tools
-  [COMPUTER_USE_PREVIEW.name]: typeof COMPUTER_USE_PREVIEW.supports.tools
   [O1.name]: typeof O1.supports.tools
   [O1_PRO.name]: typeof O1_PRO.supports.tools
   [GPT_5_4_MINI.name]: typeof GPT_5_4_MINI.supports.tools
   [GPT_5_4_NANO.name]: typeof GPT_5_4_NANO.supports.tools
   [GPT_5_4_IMAGE_2.name]: typeof GPT_5_4_IMAGE_2.supports.tools
-  [GPT_5_6.name]: typeof GPT_5_6.supports.tools
   [GPT_5_6_SOL.name]: typeof GPT_5_6_SOL.supports.tools
   [GPT_5_6_TERRA.name]: typeof GPT_5_6_TERRA.supports.tools
   [GPT_5_6_LUNA.name]: typeof GPT_5_6_LUNA.supports.tools
@@ -3237,6 +3118,8 @@ export type OpenAIChatModelToolCapabilitiesByName = {
   [GPT_6_LUNA_PRO.name]: typeof GPT_6_LUNA_PRO.supports.tools
   [GPT_6_SOL.name]: typeof GPT_6_SOL.supports.tools
   [GPT_6_SOL_PRO.name]: typeof GPT_6_SOL_PRO.supports.tools
+  [GPT_6_1_SOL.name]: typeof GPT_6_1_SOL.supports.tools
+  [GPT_6_1_SOL_PRO.name]: typeof GPT_6_1_SOL_PRO.supports.tools
 }
 
 /**
@@ -3266,12 +3149,9 @@ export type OpenAIModelInputModalitiesByName = {
   [GPT_4O.name]: typeof GPT_4O.supports.input
   [GPT_4O_MINI.name]: typeof GPT_4O_MINI.supports.input
   [GPT_4_TURBO.name]: typeof GPT_4_TURBO.supports.input
-  [CHATGPT_40.name]: typeof CHATGPT_40.supports.input
   [GPT_5_1_CHAT.name]: typeof GPT_5_1_CHAT.supports.input
   [GPT_5_CHAT.name]: typeof GPT_5_CHAT.supports.input
   [GPT_5_1_CODEX_MINI.name]: typeof GPT_5_1_CODEX_MINI.supports.input
-  [CODEX_MINI_LATEST.name]: typeof CODEX_MINI_LATEST.supports.input
-  [COMPUTER_USE_PREVIEW.name]: typeof COMPUTER_USE_PREVIEW.supports.input
   [O3.name]: typeof O3.supports.input
   [O3_PRO.name]: typeof O3_PRO.supports.input
   [O3_DEEP_RESEARCH.name]: typeof O3_DEEP_RESEARCH.supports.input
@@ -3283,8 +3163,6 @@ export type OpenAIModelInputModalitiesByName = {
   // Models with text + audio input
   [GPT_AUDIO.name]: typeof GPT_AUDIO.supports.input
   [GPT_AUDIO_MINI.name]: typeof GPT_AUDIO_MINI.supports.input
-  [GPT_4O_AUDIO.name]: typeof GPT_4O_AUDIO.supports.input
-  [GPT_4O_MINI_AUDIO.name]: typeof GPT_4O_MINI_AUDIO.supports.input
 
   // Text-only models
   [GPT_4.name]: typeof GPT_4.supports.input
@@ -3295,7 +3173,6 @@ export type OpenAIModelInputModalitiesByName = {
   [GPT_5_4_MINI.name]: typeof GPT_5_4_MINI.supports.input
   [GPT_5_4_NANO.name]: typeof GPT_5_4_NANO.supports.input
   [GPT_5_4_IMAGE_2.name]: typeof GPT_5_4_IMAGE_2.supports.input
-  [GPT_5_6.name]: typeof GPT_5_6.supports.input
   [GPT_5_6_SOL.name]: typeof GPT_5_6_SOL.supports.input
   [GPT_5_6_TERRA.name]: typeof GPT_5_6_TERRA.supports.input
   [GPT_5_6_LUNA.name]: typeof GPT_5_6_LUNA.supports.input
@@ -3311,4 +3188,153 @@ export type OpenAIModelInputModalitiesByName = {
   [GPT_6_LUNA_PRO.name]: typeof GPT_6_LUNA_PRO.supports.input
   [GPT_6_SOL.name]: typeof GPT_6_SOL.supports.input
   [GPT_6_SOL_PRO.name]: typeof GPT_6_SOL_PRO.supports.input
+  [GPT_6_1_SOL.name]: typeof GPT_6_1_SOL.supports.input
+  [GPT_6_1_SOL_PRO.name]: typeof GPT_6_1_SOL_PRO.supports.input
+}
+
+/**
+ * Runtime map from chat model name to its supported input modalities, for the
+ * text adapter's `inputModalities`. `satisfies` keeps it equal to
+ * {@link OpenAIModelInputModalitiesByName}. An unknown name gives `undefined`.
+ */
+export const OPENAI_MODEL_INPUT_MODALITIES: Readonly<
+  Record<string, ReadonlyArray<Modality>>
+> = {
+  [GPT5_2.name]: GPT5_2.supports.input,
+  [GPT5_2_PRO.name]: GPT5_2_PRO.supports.input,
+  [GPT5_2_CHAT.name]: GPT5_2_CHAT.supports.input,
+  [GPT5_1.name]: GPT5_1.supports.input,
+  [GPT5_1_CODEX.name]: GPT5_1_CODEX.supports.input,
+  [GPT5.name]: GPT5.supports.input,
+  [GPT5_MINI.name]: GPT5_MINI.supports.input,
+  [GPT5_NANO.name]: GPT5_NANO.supports.input,
+  [GPT5_PRO.name]: GPT5_PRO.supports.input,
+  [GPT5_CODEX.name]: GPT5_CODEX.supports.input,
+  [GPT4_1.name]: GPT4_1.supports.input,
+  [GPT4_1_MINI.name]: GPT4_1_MINI.supports.input,
+  [GPT4_1_NANO.name]: GPT4_1_NANO.supports.input,
+  [GPT_4O.name]: GPT_4O.supports.input,
+  [GPT_4O_MINI.name]: GPT_4O_MINI.supports.input,
+  [GPT_4_TURBO.name]: GPT_4_TURBO.supports.input,
+  [GPT_5_1_CHAT.name]: GPT_5_1_CHAT.supports.input,
+  [GPT_5_CHAT.name]: GPT_5_CHAT.supports.input,
+  [GPT_5_1_CODEX_MINI.name]: GPT_5_1_CODEX_MINI.supports.input,
+  [O3.name]: O3.supports.input,
+  [O3_PRO.name]: O3_PRO.supports.input,
+  [O3_DEEP_RESEARCH.name]: O3_DEEP_RESEARCH.supports.input,
+  [O4_MINI_DEEP_RESEARCH.name]: O4_MINI_DEEP_RESEARCH.supports.input,
+  [O4_MINI.name]: O4_MINI.supports.input,
+  [O1.name]: O1.supports.input,
+  [O1_PRO.name]: O1_PRO.supports.input,
+  [GPT_AUDIO.name]: GPT_AUDIO.supports.input,
+  [GPT_AUDIO_MINI.name]: GPT_AUDIO_MINI.supports.input,
+  [GPT_4.name]: GPT_4.supports.input,
+  [GPT_3_5_TURBO.name]: GPT_3_5_TURBO.supports.input,
+  [O3_MINI.name]: O3_MINI.supports.input,
+  [GPT_4O_SEARCH_PREVIEW.name]: GPT_4O_SEARCH_PREVIEW.supports.input,
+  [GPT_4O_MINI_SEARCH_PREVIEW.name]: GPT_4O_MINI_SEARCH_PREVIEW.supports.input,
+  [GPT_5_4_MINI.name]: GPT_5_4_MINI.supports.input,
+  [GPT_5_4_NANO.name]: GPT_5_4_NANO.supports.input,
+  [GPT_5_4_IMAGE_2.name]: GPT_5_4_IMAGE_2.supports.input,
+  [GPT_5_6_SOL.name]: GPT_5_6_SOL.supports.input,
+  [GPT_5_6_TERRA.name]: GPT_5_6_TERRA.supports.input,
+  [GPT_5_6_LUNA.name]: GPT_5_6_LUNA.supports.input,
+  [GPT_5_5.name]: GPT_5_5.supports.input,
+  [GPT_5_5_PRO.name]: GPT_5_5_PRO.supports.input,
+  [GPT_CHAT_LATEST.name]: GPT_CHAT_LATEST.supports.input,
+  [GPT_5_6_LUNA_PRO.name]: GPT_5_6_LUNA_PRO.supports.input,
+  [GPT_5_6_SOL_PRO.name]: GPT_5_6_SOL_PRO.supports.input,
+  [GPT_5_6_TERRA_PRO.name]: GPT_5_6_TERRA_PRO.supports.input,
+  [GPT_6_ASTRA.name]: GPT_6_ASTRA.supports.input,
+  [GPT_6_ASTRA_PRO.name]: GPT_6_ASTRA_PRO.supports.input,
+  [GPT_6_LUNA.name]: GPT_6_LUNA.supports.input,
+  [GPT_6_LUNA_PRO.name]: GPT_6_LUNA_PRO.supports.input,
+  [GPT_6_SOL.name]: GPT_6_SOL.supports.input,
+  [GPT_6_SOL_PRO.name]: GPT_6_SOL_PRO.supports.input,
+  [GPT_6_1_SOL.name]: GPT_6_1_SOL.supports.input,
+  [GPT_6_1_SOL_PRO.name]: GPT_6_1_SOL_PRO.supports.input,
+} satisfies OpenAIModelInputModalitiesByName
+
+// Reasoning
+//
+// Each model's `reasoning` field holds its data for `chat({ reasoning })`: the
+// levels it has, with the provider value for each, and whether it takes a
+// thinking token budget. The data comes from models.dev. The generator that
+// writes it comes with the model catalog later. Until then, the sync scripts
+// keep these fields as they are.
+
+const OPENAI_REASONING = {
+  [GPT5_2.name]: GPT5_2.reasoning,
+  [GPT5_2_PRO.name]: GPT5_2_PRO.reasoning,
+  [GPT5_2_CHAT.name]: GPT5_2_CHAT.reasoning,
+  [GPT5_1.name]: GPT5_1.reasoning,
+  [GPT5_1_CODEX.name]: GPT5_1_CODEX.reasoning,
+  [GPT5.name]: GPT5.reasoning,
+  [GPT5_MINI.name]: GPT5_MINI.reasoning,
+  [GPT5_NANO.name]: GPT5_NANO.reasoning,
+  [GPT5_PRO.name]: GPT5_PRO.reasoning,
+  [GPT5_CODEX.name]: GPT5_CODEX.reasoning,
+  [GPT_5_1_CODEX_MINI.name]: GPT_5_1_CODEX_MINI.reasoning,
+  [O3.name]: O3.reasoning,
+  [O3_PRO.name]: O3_PRO.reasoning,
+  [O4_MINI.name]: O4_MINI.reasoning,
+  [O1.name]: O1.reasoning,
+  [O1_PRO.name]: O1_PRO.reasoning,
+  [O3_MINI.name]: O3_MINI.reasoning,
+  [GPT_5_4_MINI.name]: GPT_5_4_MINI.reasoning,
+  [GPT_5_4_NANO.name]: GPT_5_4_NANO.reasoning,
+  [GPT_5_4_IMAGE_2.name]: GPT_5_4_IMAGE_2.reasoning,
+  [GPT_5_6_SOL.name]: GPT_5_6_SOL.reasoning,
+  [GPT_5_6_TERRA.name]: GPT_5_6_TERRA.reasoning,
+  [GPT_5_6_LUNA.name]: GPT_5_6_LUNA.reasoning,
+  [GPT_5_5.name]: GPT_5_5.reasoning,
+  [GPT_5_5_PRO.name]: GPT_5_5_PRO.reasoning,
+  [GPT_CHAT_LATEST.name]: GPT_CHAT_LATEST.reasoning,
+  [GPT_5_6_LUNA_PRO.name]: GPT_5_6_LUNA_PRO.reasoning,
+  [GPT_5_6_SOL_PRO.name]: GPT_5_6_SOL_PRO.reasoning,
+  [GPT_5_6_TERRA_PRO.name]: GPT_5_6_TERRA_PRO.reasoning,
+  [GPT_6_ASTRA.name]: GPT_6_ASTRA.reasoning,
+  [GPT_6_ASTRA_PRO.name]: GPT_6_ASTRA_PRO.reasoning,
+  [GPT_6_LUNA.name]: GPT_6_LUNA.reasoning,
+  [GPT_6_LUNA_PRO.name]: GPT_6_LUNA_PRO.reasoning,
+  [GPT_6_SOL.name]: GPT_6_SOL.reasoning,
+  [GPT_6_SOL_PRO.name]: GPT_6_SOL_PRO.reasoning,
+  [GPT_6_1_SOL.name]: GPT_6_1_SOL.reasoning,
+  [GPT_6_1_SOL_PRO.name]: GPT_6_1_SOL_PRO.reasoning,
+}
+
+/**
+ * Each chat model's reasoning levels, and whether it takes a token budget,
+ * for `chat({ reasoning })`. Derived from the `reasoning` field. A model
+ * that is not here does not reason.
+ */
+export type OpenAIModelReasoningByName = {
+  [K in keyof typeof OPENAI_REASONING]: ModelReasoningCapability<
+    (typeof OPENAI_REASONING)[K]
+  >
+}
+
+/**
+ * Runtime map from chat model name to its reasoning data, for the text adapter.
+ * An unknown name gives `undefined`: the adapter sends no reasoning field.
+ */
+export const OPENAI_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> =
+  OPENAI_REASONING
+
+/**
+ * The mid-conversation channels of each Responses model, from
+ * `supports.mid_conversation_channels`. An unknown name gives `undefined`,
+ * so the adapter has no channels.
+ */
+export const OPENAI_MODEL_MID_CONVERSATION_CHANNELS: Readonly<
+  Record<string, MidConversationChannels>
+> = {
+  [GPT_5_4_MINI.name]: GPT_5_4_MINI.supports.mid_conversation_channels,
+  [GPT_5_5.name]: GPT_5_5.supports.mid_conversation_channels,
+  [GPT_5_6_LUNA.name]: GPT_5_6_LUNA.supports.mid_conversation_channels,
+  [GPT_5_6_SOL.name]: GPT_5_6_SOL.supports.mid_conversation_channels,
+  [GPT_5_6_TERRA.name]: GPT_5_6_TERRA.supports.mid_conversation_channels,
+  [GPT_6_ASTRA.name]: GPT_6_ASTRA.supports.mid_conversation_channels,
+  [GPT_6_LUNA.name]: GPT_6_LUNA.supports.mid_conversation_channels,
+  [GPT_6_SOL.name]: GPT_6_SOL.supports.mid_conversation_channels,
 }

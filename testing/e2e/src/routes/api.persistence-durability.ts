@@ -4,6 +4,7 @@ import {
   INTERRUPT_BINDING_VERSION,
   canonicalInterruptJson,
   chat,
+  defineChatMiddleware,
   digestInterruptJson,
   memoryStream,
   resumeServerSentEventsResponse,
@@ -56,6 +57,11 @@ import type {
  *   their stored cumulative usage.
  * - `tool-error` — runs a server tool that throws through `withPersistence`,
  *   then hydrates the failed tool call from `reconstructChat`.
+ * - `subagent-stopped` — reconstructs a stopped child. Its run record has no
+ *   error, so the card error comes from the stored child metadata.
+ * - `stopped-progress`: stops a run after a middleware emits a
+ *   `{ batch: true }` CUSTOM event, then hydrates the stopped assistant
+ *   message from `reconstructChat` to check its stored metadata.
  *
  * Exempt from the aimock policy: this route never reaches an LLM provider's HTTP
  * layer, so there is nothing to mock.
@@ -155,6 +161,7 @@ const harnessOutputAdapter: AnyTextAdapter = {
 } as unknown as AnyTextAdapter
 
 const toolErrorPersistence = memoryPersistence()
+const subagentStoppedPersistence = memoryPersistence()
 const failingTool = toolDefinition({
   name: 'check_status',
   description: 'Check the service status',
@@ -182,7 +189,6 @@ function toolErrorRun(
       type: 'TOOL_CALL_START',
       toolCallId: 'call-status',
       toolCallName: 'check_status',
-      toolName: 'check_status',
       timestamp: Date.now(),
     } as StreamChunk
     yield {
@@ -221,6 +227,26 @@ const toolErrorAdapter: AnyTextAdapter = {
     messages: ReadonlyArray<{ role: string }>
   }) => toolErrorRun(threadId, runId, messages),
 } as unknown as AnyTextAdapter
+
+const stoppedProgressPersistence = memoryPersistence()
+const stoppedProgressAdapter: AnyTextAdapter = {
+  kind: 'text',
+  name: 'fixed',
+  model: 'test-model',
+  '~types': {},
+  chatStream: ({ threadId, runId }: { threadId: string; runId: string }) =>
+    textRun(threadId, runId),
+} as unknown as AnyTextAdapter
+const progressMiddleware = defineChatMiddleware({
+  name: 'progress',
+  onChunk(ctx, chunk) {
+    if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+      ctx.emitCustomEvent('progress', { step: 1 }, { batch: true })
+    }
+    // Stop once withPersistence, listed first, has seen the batched event.
+    if (chunk.type === 'CUSTOM' && chunk.name === 'progress') ctx.abort()
+  },
+})
 
 const confirmSchema = {
   type: 'object',
@@ -376,7 +402,9 @@ function scenarioOf(
   | 'structured-output'
   | 'harness-output'
   | 'usage'
-  | 'tool-error' {
+  | 'tool-error'
+  | 'subagent-stopped'
+  | 'stopped-progress' {
   try {
     const value = new URL(request.url).searchParams.get('scenario')
     if (value === 'interrupt') return 'interrupt'
@@ -385,6 +413,8 @@ function scenarioOf(
     if (value === 'harness-output') return 'harness-output'
     if (value === 'usage') return 'usage'
     if (value === 'tool-error') return 'tool-error'
+    if (value === 'subagent-stopped') return 'subagent-stopped'
+    if (value === 'stopped-progress') return 'stopped-progress'
     return 'text'
   } catch {
     return 'text'
@@ -478,6 +508,76 @@ export const Route = createFileRoute('/api/persistence-durability')({
           for await (const _ of stream) void _
           return Response.json({ runId, threadId })
         }
+        if (scenario === 'subagent-stopped') {
+          const { stores } = subagentStoppedPersistence
+          if (!stores.messages || !stores.runs) {
+            throw new Error('memory persistence has message and run stores')
+          }
+          const startedAt = Date.now()
+          const childRunId = `${runId}-child`
+          await stores.runs.createOrResume({
+            runId,
+            threadId,
+            status: 'completed',
+            startedAt,
+          })
+          await stores.messages.saveThread(threadId, [
+            {
+              id: `assistant:${runId}`,
+              role: 'assistant',
+              content: '',
+              metadata: { tanstack: { runId } },
+            },
+          ])
+          await stores.runs.createOrResume({
+            runId: childRunId,
+            threadId: `subagent:${childRunId}`,
+            parentRunId: runId,
+            subagentRunId: childRunId,
+            name: 'researcher',
+            status: 'aborted',
+            startedAt,
+          })
+          // A stopped child has no error on its run record.
+          await stores.runs.update(childRunId, { finishedAt: startedAt })
+          await stores.messages.saveThread(`subagent:${childRunId}`, [
+            {
+              id: `child:${childRunId}`,
+              role: 'assistant',
+              content: '',
+              metadata: {
+                tanstack: {
+                  subagent: {
+                    name: 'researcher',
+                    status: 'error',
+                    error: { message: 'Stopped' },
+                    placeholder: true,
+                  },
+                },
+              },
+            },
+          ])
+          return Response.json({ runId, threadId })
+        }
+        if (scenario === 'stopped-progress') {
+          const stream = chat({
+            adapter: stoppedProgressAdapter,
+            messages: [
+              { role: 'user', content: 'tell me about the lighthouse' },
+            ],
+            threadId,
+            runId,
+            middleware: [
+              withPersistence(stoppedProgressPersistence, {
+                snapshotStreaming: true,
+                snapshotIntervalMs: 0,
+              }),
+              progressMiddleware,
+            ],
+          })
+          for await (const _ of stream) void _
+          return Response.json({ runId, threadId })
+        }
         if (scenario === 'usage') {
           const run = await cumulativeUsage(threadId, runId)
           return Response.json({ runId, threadId, usage: run?.usage })
@@ -513,6 +613,16 @@ export const Route = createFileRoute('/api/persistence-durability')({
         }
         if (scenarioOf(request) === 'tool-error') {
           return reconstructChat(toolErrorPersistence, request, {
+            authorize: (threadId) => threadId.length > 0,
+          })
+        }
+        if (scenarioOf(request) === 'subagent-stopped') {
+          return reconstructChat(subagentStoppedPersistence, request, {
+            authorize: (threadId) => threadId.length > 0,
+          })
+        }
+        if (scenarioOf(request) === 'stopped-progress') {
+          return reconstructChat(stoppedProgressPersistence, request, {
             authorize: (threadId) => threadId.length > 0,
           })
         }

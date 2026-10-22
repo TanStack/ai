@@ -35,6 +35,7 @@ import {
   completeOpenRouterPkceIntoByok,
   startOpenRouterPkceLogin,
 } from '@tanstack/ai-openrouter/pkce'
+import { refreshChatGptSignIn } from '@tanstack/ai-openai/siwc'
 import { clientTools } from '@tanstack/ai-client'
 import { ThinkingPart } from '@tanstack/ai-react/ui'
 import type { BoundInterrupts } from '@tanstack/ai-client'
@@ -108,7 +109,7 @@ function Messages({
   messages,
   interrupts,
 }: {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   interrupts: BoundInterrupts<ChatTools>
 }) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
@@ -464,6 +465,18 @@ function ChatPage() {
       .finally(() => setOpenRouterCompleting(false))
   }, [])
 
+  // A ChatGPT sign-in token lasts an hour. Refresh it before it expires.
+  useEffect(() => {
+    const refresh = () => {
+      void refreshChatGptSignIn(byok).catch((error: unknown) =>
+        console.warn('ChatGPT token refresh failed', error),
+      )
+    }
+    refresh()
+    const timer = setInterval(refresh, 60_000)
+    return () => clearInterval(timer)
+  }, [])
+
   useEffect(() => {
     if (snapshot.prompt?.reason === 'missing') {
       setKeyDialog({ open: true, provider: snapshot.prompt.provider })
@@ -503,6 +516,7 @@ function ChatPage() {
     interrupts,
     stop,
   } = useChat({
+    threadId: 'guitar-chat',
     connection: fetchServerSentEvents('/api/tanchat'),
     tools,
     byok,
@@ -535,6 +549,7 @@ function ChatPage() {
   const [recordError, setRecordError] = useState<string | null>(null)
 
   const { generate: transcribe, isLoading: isTranscribing } = useTranscription({
+    threadId: 'voice-input',
     connection: fetchServerSentEvents('/api/transcribe'),
     onResult: (r) => setInput((prev) => (prev ? `${prev} ${r.text}` : r.text)),
     // A failed transcription (network/provider) is just as silent as a mic

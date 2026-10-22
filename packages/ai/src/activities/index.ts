@@ -45,10 +45,19 @@ export {
   type DefinedAgent,
   type SubagentChoiceOptions,
   type SubagentRunContext,
+  type SubagentRunInput,
+  type AgentProduces,
 } from './chat/agents/define-agent'
+export type {
+  BoundActivities,
+  SubagentBinding,
+  SubagentForward,
+} from './chat/agents/bound'
+export { SubagentBudget, type SubagentLimits } from './chat/agents/limits'
 export { subagentRoute, type SubagentRouteOptions } from './chat/agents/route'
 export type {
   SubagentOrder,
+  SubagentPick,
   SubagentRouterPick,
   SubagentRouterPlan,
   SubagentStep,
@@ -209,9 +218,10 @@ export {
   type VideoAdapterConfig,
   type AnyVideoAdapter,
   type DurationOptions,
+  type VideoDurationSpell,
 } from './generateVideo/adapter'
 
-export { snapToDurationOption } from './generateVideo/snap'
+export { durationToSeconds, snapToDurationOption } from './generateVideo/snap'
 
 // ===========================
 // TTS Activity

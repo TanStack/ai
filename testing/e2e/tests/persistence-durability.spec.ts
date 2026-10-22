@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { sendMessage, waitForResponse } from './helpers'
+import { collectHydrationErrors, sendMessage, waitForResponse } from './helpers'
 import type { Page } from '@playwright/test'
 
 /**
@@ -59,6 +59,8 @@ test.describe('persistence durability (browser refresh)', () => {
     expect(Array.isArray(record.messages)).toBe(true)
     expect(record.messages.length).toBeGreaterThanOrEqual(2)
 
+    const hydrationErrors = collectHydrationErrors(page)
+
     // Full reload: the conversation must come back from localStorage alone.
     await page.reload()
 
@@ -71,6 +73,7 @@ test.describe('persistence durability (browser refresh)', () => {
     )
     // No in-flight run to rejoin after a clean finish — the page settles idle.
     await expect(page.getByTestId('loading-indicator')).toHaveCount(0)
+    expect(hydrationErrors).toEqual([])
   })
 
   test('a pending interrupt survives a reload (rehydrated from the resume snapshot)', async ({
@@ -98,6 +101,8 @@ test.describe('persistence durability (browser refresh)', () => {
     const record = JSON.parse(stored!) as { resume?: unknown }
     expect(record.resume).toBeTruthy()
 
+    const hydrationErrors = collectHydrationErrors(page)
+
     // Full reload: the interrupt must rehydrate from localStorage, not a refetch.
     await page.reload()
 
@@ -108,6 +113,7 @@ test.describe('persistence durability (browser refresh)', () => {
     await expect(page.getByTestId('interrupt-confirm-shipment')).toBeVisible()
     await expect(page.getByTestId('interrupt-kind')).toHaveText('generic')
     await expect(page.getByTestId('interrupt-source')).toHaveText('hydrate')
+    expect(hydrationErrors).toEqual([])
   })
 
   test('restores a pending interrupt from the SERVER on a fresh load (persistence: true)', async ({
@@ -142,6 +148,35 @@ test.describe('persistence durability (browser refresh)', () => {
       ),
     )
     expect(stored).toBeNull()
+  })
+
+  test('sends one hydrate GET when a chat mounts under React Strict Mode (persistence: true)', async ({
+    page,
+  }) => {
+    // The dev server replays a client mount's effects (attach, detach, attach)
+    // before the first GET returns. Each attach used to send its own hydrate
+    // GET. The page mounts the chat after hydration, because a hydrated mount
+    // gets no replay.
+    const hydrateGets: Array<string> = []
+    page.on('request', (req) => {
+      const url = new URL(req.url())
+      if (
+        req.method() === 'GET' &&
+        url.pathname === '/api/persistence-durability' &&
+        url.searchParams.has('threadId')
+      ) {
+        hydrateGets.push(req.url())
+      }
+    })
+
+    await page.goto('/client-mount-hydrate')
+
+    // The interrupt comes from the hydrate response, so every hydrate GET of
+    // this mount was already sent when it shows.
+    await expect
+      .poll(() => interruptCount(page), { timeout: 15_000 })
+      .toBeGreaterThanOrEqual(1)
+    expect(hydrateGets).toHaveLength(1)
   })
 })
 
@@ -329,6 +364,68 @@ test.describe('server persistence', () => {
         toolCallId: 'call-status',
         state: 'error',
         error: 'Status service unavailable',
+      }),
+    )
+  })
+
+  test('stores only the call metadata on a stopped message', async ({
+    request,
+  }) => {
+    const threadId = `stopped-progress-${crypto.randomUUID()}`
+    const run = await request.post(
+      '/api/persistence-durability?scenario=stopped-progress',
+      { data: { threadId, runId: crypto.randomUUID() } },
+    )
+    expect(run.ok()).toBe(true)
+
+    const hydration = await request.get(
+      `/api/persistence-durability?scenario=stopped-progress&threadId=${encodeURIComponent(threadId)}`,
+    )
+    expect(hydration.ok()).toBe(true)
+    const body = (await hydration.json()) as {
+      messages: Array<{
+        role: string
+        metadata?: { tanstack?: Record<string, unknown> }
+      }>
+    }
+    const assistant = body.messages.find(
+      (message) => message.role === 'assistant',
+    )
+
+    expect(assistant?.metadata).toEqual({
+      tanstack: {
+        source: { provider: 'fixed', api: 'text', model: 'test-model' },
+        stopReason: 'aborted',
+      },
+    })
+  })
+
+  test('restores the error of a stopped child', async ({ request }) => {
+    const threadId = `subagent-stopped-${crypto.randomUUID()}`
+    const runId = crypto.randomUUID()
+    const seed = await request.post(
+      '/api/persistence-durability?scenario=subagent-stopped',
+      { data: { threadId, runId } },
+    )
+    expect(seed.ok()).toBe(true)
+
+    const hydration = await request.get(
+      `/api/persistence-durability?scenario=subagent-stopped&threadId=${encodeURIComponent(threadId)}`,
+    )
+    expect(hydration.ok()).toBe(true)
+    const body = (await hydration.json()) as {
+      messages: Array<{ parts: Array<Record<string, unknown>> }>
+    }
+    const parts = body.messages.flatMap((message) => message.parts)
+
+    expect(parts).toContainEqual(
+      expect.objectContaining({
+        type: 'subagent',
+        subagent: expect.objectContaining({
+          name: 'researcher',
+          status: 'error',
+          error: { message: 'Stopped' },
+        }),
       }),
     )
   })

@@ -62,6 +62,7 @@ export function Chat() @{
   const [input, setInput] = useState('')
   const chat = useChat({
     fetcher: myFetcher,
+    threadId: 'support-42',
   })
 
   <div>

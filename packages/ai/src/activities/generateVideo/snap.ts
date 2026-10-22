@@ -1,8 +1,38 @@
 import type { DurationOptions } from './adapter'
 
 /**
+ * `"6"`, `"6s"`, and `"6.5s"` are seconds. Anything else (`"auto"`) is a
+ * keyword the model must list exactly.
+ */
+const DURATION_TEMPLATE = /^(\d+(?:\.\d+)?)s?$/
+
+/**
+ * Seconds from a caller-supplied template, or `null` when `input` is a
+ * keyword (`"auto"`) rather than a length.
+ */
+function templateToSeconds(input: string): number | null {
+  const match = DURATION_TEMPLATE.exec(input)
+  const digits = match?.[1]
+  if (digits === undefined) return null
+  const seconds = Number(digits)
+  return Number.isFinite(seconds) ? seconds : null
+}
+
+/**
+ * Seconds from a duration a caller wrote: `6`, `"6"`, or `"6s"`.
+ * Returns `undefined` for keywords such as `"auto"` and for non-finite numbers.
+ */
+export function durationToSeconds(input: number | string): number | undefined {
+  if (typeof input === 'number') {
+    return Number.isFinite(input) ? input : undefined
+  }
+  const seconds = templateToSeconds(input)
+  return seconds === null ? undefined : seconds
+}
+
+/**
  * Extract a numeric seconds value from a `DurationOptions` entry. Returns
- * `null` for entries that don't parse as a number — e.g. `'auto'`.
+ * `null` for entries that don't parse as a number, for example `'auto'`.
  *
  * Handles the keyword-with-unit form FAL uses for Luma/Veo (`'8s'`, `'9s'`)
  * by stripping a trailing `s`. Pure-numeric strings (`'5'`, `'10'`) parse via
@@ -12,14 +42,16 @@ function entryToSeconds(entry: string | number): number | null {
   if (typeof entry === 'number') {
     return Number.isFinite(entry) ? entry : null
   }
-  const stripped = entry.endsWith('s') ? entry.slice(0, -1) : entry
-  const parsed = Number(stripped)
-  return Number.isFinite(parsed) ? parsed : null
+  return templateToSeconds(entry)
 }
 
 /**
- * Snap a raw seconds value to the closest valid duration for a model's
- * `DurationOptions`.
+ * Snap a caller duration to the closest valid option.
+ *
+ * `input` may be seconds (`7`), a numeric string (`"7"`), a template
+ * (`"6s"`), or a keyword the model lists (`"auto"`). A keyword that is not
+ * in the set returns `undefined`. Equal numeric distances keep the earlier
+ * option.
  *
  * - `none`            → `undefined`
  * - `discrete`        → closest numeric-parseable entry; if none parse,
@@ -30,6 +62,32 @@ function entryToSeconds(entry: string | number): number | null {
  * @experimental Video generation is an experimental feature and may change.
  */
 export function snapToDurationOption<T extends string | number | undefined>(
+  input: number | string,
+  options: DurationOptions<T>,
+): T | undefined {
+  // NaN is not a length. Infinity still clamps inside snapSeconds.
+  if (typeof input === 'number' && Number.isNaN(input)) return undefined
+
+  if (typeof input === 'string') {
+    const seconds = templateToSeconds(input)
+    if (seconds === null) return matchKeyword(input, options)
+    return snapSeconds(seconds, options)
+  }
+  return snapSeconds(input, options)
+}
+
+function matchKeyword<T extends string | number | undefined>(
+  keyword: string,
+  options: DurationOptions<T>,
+): T | undefined {
+  if (options.kind !== 'discrete' && options.kind !== 'mixed') return undefined
+  for (const value of options.values) {
+    if (value === keyword) return value
+  }
+  return undefined
+}
+
+function snapSeconds<T extends string | number | undefined>(
   seconds: number,
   options: DurationOptions<T>,
 ): T | undefined {

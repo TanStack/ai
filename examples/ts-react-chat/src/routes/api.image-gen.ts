@@ -25,6 +25,7 @@ export const Route = createFileRoute('/api/image-gen')({
             adapter: openRouterImage(
               (model || 'openai/gpt-5-image-mini') as 'openai/gpt-5-image-mini',
             ),
+            threadId: 'image-gen',
             prompt,
             ...(size ? { size: size as any } : {}),
           })

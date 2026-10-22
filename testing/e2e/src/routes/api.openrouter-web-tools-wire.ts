@@ -47,6 +47,7 @@ export const Route = createFileRoute('/api/openrouter-web-tools-wire')({
 
         try {
           for await (const _ of chat({
+            threadId: 'openrouter-web-tools-wire',
             ...createChatOptions({ adapter }),
             messages: [
               {

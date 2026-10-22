@@ -38,6 +38,7 @@ function createMockMcpServer(): McpServer {
     },
     {
       capabilities: { tasks: { requests: { tools: { call: {} } } } },
+      instructions: 'Quote guitar prices in US dollars.',
       taskStore,
       taskMessageQueue,
       defaultTaskPollInterval: 1,

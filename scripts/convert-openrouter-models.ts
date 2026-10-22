@@ -13,6 +13,25 @@ import { videoModels as videoApiModels } from './openrouter.video-models'
 import type { OpenRouterModel } from './openrouter.models'
 import type { OpenRouterVideoApiModel } from './openrouter.video-models'
 import { toModelConstName } from './model-sync/ids'
+import {
+  reasoningShapeName,
+  reasoningShapeTable,
+} from './model-sync/reasoning-shapes'
+import type { ModelReasoning } from '@tanstack/ai'
+import type { ReasoningShape } from './model-sync/reasoning-shapes'
+
+/**
+ * Each model's `chat({ reasoning })` data comes from models.dev, which this
+ * script does not read. Keep the entries that the current model-meta.ts has,
+ * so a sync does not drop them.
+ */
+// ponytail: preserved, not generated. The models.dev generator comes with the model catalog.
+const existingReasoning: Readonly<Record<string, ModelReasoning>> =
+  (
+    (await import('../packages/ai-openrouter/src/model-meta')) as {
+      OPENROUTER_MODEL_REASONING?: Readonly<Record<string, ModelReasoning>>
+    }
+  ).OPENROUTER_MODEL_REASONING ?? {}
 
 type InputModality = 'text' | 'image' | 'audio' | 'video' | 'document'
 
@@ -49,7 +68,10 @@ const perModelInputModalities: Record<string, string> = {}
 const imageModels = new Set<string>([])
 const chatModels = new Set<string>([])
 const combinedToolsAndSchemaModels = new Set<string>([])
+const jsonObjectOnlyModels = new Set<string>([])
 const videoModels = new Set<string>([])
+const reasoningModels = new Set<string>([])
+const reasoningShapes: Array<ReasoningShape> = []
 
 /**
  * Catalog ids whose `supported_parameters` include `structured_outputs`, `tools`
@@ -64,6 +86,22 @@ function generateCombinedToolsAndSchemaModelsSet(): string {
  */
 export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS: ReadonlySet<string> =
   new Set<string>([\n${Array.from(combinedToolsAndSchemaModels)
+    .map((id) => `    ${id},`)
+    .join('\n')}\n  ])`
+}
+
+/**
+ * Catalog ids whose `supported_parameters` include `response_format` and not
+ * `structured_outputs`. Structured output sends JSON mode for these.
+ */
+function generateJsonObjectOnlyModelsSet(): string {
+  return `/**
+ * Generated: chat models whose catalog \`supported_parameters\` include
+ * \`response_format\` and do not include \`structured_outputs\`.
+ * Structured output sends JSON mode for these ids.
+ */
+export const OPENROUTER_JSON_OBJECT_ONLY_MODELS: ReadonlySet<string> =
+  new Set<string>([\n${Array.from(jsonObjectOnlyModels)
     .map((id) => `    ${id},`)
     .join('\n')}\n  ])`
 }
@@ -83,6 +121,91 @@ function generateChatModelsArray(): string {
   return `export const OPENROUTER_CHAT_MODELS = [\n${modelIds
     .map((id) => `  ${id},`)
     .join('\n')}\n] as const`
+}
+
+/**
+ * Runtime twin of OpenRouterModelInputModalitiesByName for the chat models,
+ * read by the text adapters' `inputModalities`. The `satisfies` clause makes a
+ * missing, extra, or different entry a type error.
+ */
+function generateChatModelInputModalitiesMap(): string {
+  const idRefs = Array.from(chatModels)
+  if (idRefs.length === 0) {
+    return ''
+  }
+  const entries = idRefs.map(
+    (idRef) => `  [${idRef}]: ${idRef.replace(/\.id$/, '.supports.input')},`,
+  )
+  if (
+    !idRefs.some(
+      (id) => id.includes('openrouter/auto') || id === 'OPENROUTER_AUTO.id',
+    )
+  ) {
+    entries.push(
+      `  'openrouter/auto': ['text', 'image', 'audio', 'video', 'document'],`,
+    )
+  }
+  return `/**
+ * Generated: runtime map from chat model id to its input modalities, read by
+ * the text adapters' \`inputModalities\`. \`satisfies\` ties it to
+ * \`OpenRouterModelInputModalitiesByName\`, so the two cannot drift.
+ */
+export const OPENROUTER_MODEL_INPUT_MODALITIES: Readonly<Record<string, ReadonlyArray<Modality>>> = {\n${entries.join(
+    '\n',
+  )}\n} satisfies { [K in (typeof OPENROUTER_CHAT_MODELS)[number]]: OpenRouterModelInputModalitiesByName[K] }`
+}
+
+/**
+ * The reasoning type map and its runtime twin, from the `reasoning` field of
+ * each model. `openrouter/auto` has no constant, so its entry is a literal.
+ */
+function generateReasoningMaps(): string {
+  const entries = Array.from(reasoningModels).map(
+    (constName) => `  [${constName}.id]: ${constName}.reasoning,`,
+  )
+  const auto = existingReasoning['openrouter/auto']
+  if (auto) {
+    entries.push(`  'openrouter/auto': ${reasoningShapeName(auto)},`)
+    reasoningShapes.push(auto)
+  }
+  if (entries.length === 0) return ''
+  return `// Reasoning
+//
+// Each model's \`reasoning\` field holds its data for \`chat({ reasoning })\`:
+// the levels it has, with the provider value for each, and whether it takes
+// a thinking token budget. The data comes from models.dev. The generator
+// that writes it comes with the model catalog later. Until then,
+// scripts/convert-openrouter-models.ts keeps the entries of the current file.
+
+const OPENROUTER_REASONING = {
+${entries.join('\n')}
+}
+
+/**
+ * Generated: each chat model's reasoning levels, and whether it takes a token
+ * budget, for \`chat({ reasoning })\`. A model that is not here does not reason.
+ */
+export type OpenRouterModelReasoningByName = {
+  [K in keyof typeof OPENROUTER_REASONING]: ModelReasoningCapability<
+    (typeof OPENROUTER_REASONING)[K]
+  >
+}
+
+/**
+ * Generated: runtime map from chat model id to its reasoning data, for the
+ * text adapters.
+ */
+export const OPENROUTER_MODEL_REASONING: Readonly<
+  Record<string, ModelReasoning>
+> = OPENROUTER_REASONING`
+}
+
+/** One constant per distinct reasoning shape. Models point at them. */
+function generateReasoningShapes(): string {
+  if (reasoningShapes.length === 0) return ''
+  return `// Reasoning shapes: the levels a model has for \`chat({ reasoning })\`, and
+// the provider value to send for each. Each model points at one of them.
+${reasoningShapeTable(reasoningShapes).code}`
 }
 
 /**
@@ -225,6 +348,9 @@ function generateModelMetaString(model: OpenRouterModel): string {
     ) {
       combinedToolsAndSchemaModels.add(`${constName}.id`)
     }
+    if (params.has('response_format') && !params.has('structured_outputs')) {
+      jsonObjectOnlyModels.add(`${constName}.id`)
+    }
   }
   if (outputModalities.includes('image')) {
     imageModels.add(`${constName}.id`)
@@ -321,12 +447,19 @@ function generateModelMetaString(model: OpenRouterModel): string {
   lines.push(`      },`)
   lines.push(`      image: ${imagePrice},`)
   lines.push(`    },`)
+  const reasoning = existingReasoning[model.id]
+  if (reasoning) {
+    lines.push(`    reasoning: ${reasoningShapeName(reasoning)},`)
+    reasoningModels.add(constName)
+    reasoningShapes.push(reasoning)
+  }
   lines.push(`  } as const`)
 
   const supportedParams =
     model.supported_parameters
       ?.map((p) => {
-        if (excludedParams.has(p)) return ''
+        // `chat({ reasoning })` owns reasoning, so it is not a model option.
+        if (excludedParams.has(p) || p === 'reasoning') return ''
         const mapped = paramNameMap[p] ?? p
         return `'${mapped}'`
       })
@@ -357,11 +490,18 @@ function convertModels(sourceModels: Array<OpenRouterModel>): string {
 
 console.log('// Generated ModelMeta entries:')
 console.log('')
+// The shapes go above the models, but come from them: convert first.
+const modelsCode = convertModels(models)
+const reasoningMapsCode = generateReasoningMaps()
 const file = `// AUTO-GENERATED by scripts/convert-openrouter-models.ts from scripts/openrouter.models.json
 // (\`pnpm generate:models\`). Do not edit by hand — every block here is rewritten on sync.
+import type { Modality, ModelReasoning } from '@tanstack/ai'
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 import type { OpenRouterBaseOptions, OpenRouterCommonOptions } from './text/text-provider-options'
-  
-${convertModels(models)}
+
+${generateReasoningShapes()}
+
+${modelsCode}
 
 ${createPerModelModelOptions()}
 
@@ -369,12 +509,18 @@ ${createPerModelInputModalities()}
 
 ${generateChatModelsArray()}
 
+${generateChatModelInputModalitiesMap()}
+
+${reasoningMapsCode}
+
 ${generateChatToolCapabilitiesType()}
 ${generateVideoModelsArray()}
 ${generateVideoModelMeta()}
 ${generateImageModelsArray()}
 
 ${generateCombinedToolsAndSchemaModelsSet()}
+
+${generateJsonObjectOnlyModelsSet()}
 `
 console.log(file)
 writeFile('packages/ai-openrouter/src/model-meta.ts', file).then(() => {

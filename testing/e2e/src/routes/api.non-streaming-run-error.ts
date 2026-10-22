@@ -24,7 +24,8 @@ export const Route = createFileRoute('/api/non-streaming-run-error')({
         })
 
         try {
-          const text = await chat({
+          const { text } = await chat({
+            threadId: 'non-streaming-run-error',
             adapter,
             messages: [
               {

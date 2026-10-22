@@ -1,5 +1,18 @@
+import type { Modality, ModelReasoning } from '@tanstack/ai'
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 import type { GroqTextProviderOptions } from './text/text-provider-options'
 import type { GroqTTSProviderOptions } from './audio/tts-provider-options'
+
+// Reasoning shapes: the levels a model has for `chat({ reasoning })`, and
+// the provider value to send for each. Each model points at one of them.
+const EFFORT_LOW_TO_HIGH = {
+  levels: { low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_NONE_LOW_TO_HIGH = {
+  levels: { off: 'none', low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
 
 /**
  * Internal metadata structure describing a Groq model's capabilities and pricing.
@@ -34,91 +47,9 @@ interface ModelMeta<TProviderOptions = unknown> {
    * Type-level description of which provider options this model supports.
    */
   providerOptions?: TProviderOptions
+  /** The model's data for `chat({ reasoning })`. None: it does not reason. */
+  reasoning?: ModelReasoning
 }
-
-const LLAMA_3_3_70B_VERSATILE = {
-  name: 'llama-3.3-70b-versatile',
-  context_window: 131_072,
-  max_completion_tokens: 32_768,
-  pricing: {
-    input: {
-      normal: 0.59,
-    },
-    output: {
-      normal: 0.79,
-    },
-  },
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    endpoints: ['chat'],
-    features: ['streaming', 'tools', 'json_object'],
-    tools: [] as const,
-  },
-} as const satisfies ModelMeta<GroqTextProviderOptions>
-
-const LLAMA_4_MAVERICK_17B_128E_INSTRUCT = {
-  name: 'meta-llama/llama-4-maverick-17b-128e-instruct',
-  context_window: 131_072,
-  max_completion_tokens: 8_192,
-  pricing: {
-    input: {
-      normal: 0.2,
-    },
-    output: {
-      normal: 0.6,
-    },
-  },
-  supports: {
-    input: ['text', 'image'],
-    output: ['text'],
-    endpoints: ['chat'],
-    features: ['streaming', 'tools', 'json_object', 'json_schema', 'vision'],
-    tools: [] as const,
-  },
-} as const satisfies ModelMeta<GroqTextProviderOptions>
-
-const LLAMA_4_SCOUT_17B_16E_INSTRUCT = {
-  name: 'meta-llama/llama-4-scout-17b-16e-instruct',
-  context_window: 131_072,
-  max_completion_tokens: 8_192,
-  pricing: {
-    input: {
-      normal: 0.05,
-    },
-    output: {
-      normal: 0.08,
-    },
-  },
-  supports: {
-    input: ['text', 'image'],
-    output: ['text'],
-    endpoints: ['chat'],
-    features: ['streaming', 'tools', 'json_object'],
-    tools: [] as const,
-  },
-} as const satisfies ModelMeta<GroqTextProviderOptions>
-
-const LLAMA_GUARD_4_12B = {
-  name: 'meta-llama/llama-guard-4-12b',
-  context_window: 131_072,
-  max_completion_tokens: 1024,
-  pricing: {
-    input: {
-      normal: 0.2,
-    },
-    output: {
-      normal: 0.2,
-    },
-  },
-  supports: {
-    input: ['text', 'image'],
-    output: ['text'],
-    endpoints: ['chat'],
-    features: ['streaming', 'json_object', 'content_moderation', 'vision'],
-    tools: [] as const,
-  },
-} as const satisfies ModelMeta<GroqTextProviderOptions>
 
 const LLAMA_PROMPT_GUARD_2_86M = {
   name: 'meta-llama/llama-prompt-guard-2-86m',
@@ -137,27 +68,6 @@ const LLAMA_PROMPT_GUARD_2_86M = {
     output: ['text'],
     endpoints: ['chat'],
     features: ['streaming', 'content_moderation', 'json_object'],
-    tools: [] as const,
-  },
-} as const satisfies ModelMeta<GroqTextProviderOptions>
-
-const LLAMA_3_1_8B_INSTANT = {
-  name: 'llama-3.1-8b-instant',
-  context_window: 131_072,
-  max_completion_tokens: 131_072,
-  pricing: {
-    input: {
-      normal: 0.05,
-    },
-    output: {
-      normal: 0.08,
-    },
-  },
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    endpoints: ['chat'],
-    features: ['streaming', 'json_object', 'tools'],
     tools: [] as const,
   },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
@@ -211,6 +121,7 @@ const GPT_OSS_120B = {
     ],
     tools: [] as const,
   },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
 const GPT_OSS_SAFEGUARD_20B = {
@@ -242,6 +153,7 @@ const GPT_OSS_SAFEGUARD_20B = {
     ],
     tools: [] as const,
   },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
 const GPT_OSS_20B = {
@@ -272,67 +184,68 @@ const GPT_OSS_20B = {
     ],
     tools: [] as const,
   },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
-const KIMI_K2_INSTRUCT_0905 = {
-  name: 'moonshotai/kimi-k2-instruct-0905',
-  context_window: 262_144,
+const QWEN_QWEN3_8_27B = {
+  name: 'qwen/qwen3.8-27b',
+  context_window: 131_072,
   max_completion_tokens: 16_384,
   pricing: {
     input: {
-      normal: 1,
-      cached: 0.5,
+      normal: 0.8,
     },
     output: {
-      normal: 3,
+      normal: 4,
     },
   },
   supports: {
-    input: ['text'],
+    input: ['text', 'image'],
     output: ['text'],
     endpoints: ['chat'],
-    features: ['streaming', 'tools', 'json_object', 'json_schema'],
+    features: [
+      'streaming',
+      'tools',
+      'json_object',
+      'json_schema',
+      'reasoning',
+      'vision',
+    ],
     tools: [] as const,
   },
+  reasoning: EFFORT_NONE_LOW_TO_HIGH,
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
-const QWEN3_32B = {
-  name: 'qwen/qwen3-32b',
-  context_window: 131_072,
-  max_completion_tokens: 40_960,
-  pricing: {
-    input: {
-      normal: 0.29,
-    },
-    output: {
-      normal: 0.59,
-    },
-  },
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    endpoints: ['chat'],
-    features: ['streaming', 'json_object', 'tools', 'reasoning'],
-    tools: [] as const,
-  },
-} as const satisfies ModelMeta<GroqTextProviderOptions>
+const GROQ_CHAT_MODEL_META = [
+  LLAMA_PROMPT_GUARD_2_86M,
+  LLAMA_PROMPT_GUARD_2_22M,
+  GPT_OSS_20B,
+  GPT_OSS_120B,
+  GPT_OSS_SAFEGUARD_20B,
+  QWEN_QWEN3_8_27B,
+] as const
+
+/**
+ * `true` when structured output must send JSON mode (`json_object`).
+ * The model declares `json_object` and does not declare `json_schema`.
+ */
+export function groqModelPrefersJsonObject(model: string): boolean {
+  const found = GROQ_CHAT_MODEL_META.find((item) => item.name === model)
+  if (!found) return false
+  const features: ReadonlyArray<string> = found.supports.features
+  return features.includes('json_object') && !features.includes('json_schema')
+}
 
 /**
  * All supported Groq chat model identifiers.
  */
 export const GROQ_CHAT_MODELS = [
-  LLAMA_3_1_8B_INSTANT.name,
-  LLAMA_3_3_70B_VERSATILE.name,
-  LLAMA_4_MAVERICK_17B_128E_INSTRUCT.name,
-  LLAMA_4_SCOUT_17B_16E_INSTRUCT.name,
-  LLAMA_GUARD_4_12B.name,
   LLAMA_PROMPT_GUARD_2_86M.name,
   LLAMA_PROMPT_GUARD_2_22M.name,
   GPT_OSS_20B.name,
   GPT_OSS_120B.name,
   GPT_OSS_SAFEGUARD_20B.name,
-  KIMI_K2_INSTRUCT_0905.name,
-  QWEN3_32B.name,
+  QWEN_QWEN3_8_27B.name,
 ] as const
 
 /**
@@ -344,19 +257,29 @@ export type GroqChatModels = (typeof GROQ_CHAT_MODELS)[number]
  * Type-only map from Groq chat model name to its supported input modalities.
  */
 export type GroqModelInputModalitiesByName = {
-  [LLAMA_3_1_8B_INSTANT.name]: typeof LLAMA_3_1_8B_INSTANT.supports.input
-  [LLAMA_3_3_70B_VERSATILE.name]: typeof LLAMA_3_3_70B_VERSATILE.supports.input
-  [LLAMA_4_MAVERICK_17B_128E_INSTRUCT.name]: typeof LLAMA_4_MAVERICK_17B_128E_INSTRUCT.supports.input
-  [LLAMA_4_SCOUT_17B_16E_INSTRUCT.name]: typeof LLAMA_4_SCOUT_17B_16E_INSTRUCT.supports.input
-  [LLAMA_GUARD_4_12B.name]: typeof LLAMA_GUARD_4_12B.supports.input
   [LLAMA_PROMPT_GUARD_2_86M.name]: typeof LLAMA_PROMPT_GUARD_2_86M.supports.input
   [LLAMA_PROMPT_GUARD_2_22M.name]: typeof LLAMA_PROMPT_GUARD_2_22M.supports.input
   [GPT_OSS_20B.name]: typeof GPT_OSS_20B.supports.input
   [GPT_OSS_120B.name]: typeof GPT_OSS_120B.supports.input
   [GPT_OSS_SAFEGUARD_20B.name]: typeof GPT_OSS_SAFEGUARD_20B.supports.input
-  [KIMI_K2_INSTRUCT_0905.name]: typeof KIMI_K2_INSTRUCT_0905.supports.input
-  [QWEN3_32B.name]: typeof QWEN3_32B.supports.input
+  [QWEN_QWEN3_8_27B.name]: typeof QWEN_QWEN3_8_27B.supports.input
 }
+
+/**
+ * Runtime map from chat model name to its supported input modalities, for the
+ * text adapter's `inputModalities`. `satisfies` keeps it equal to
+ * {@link GroqModelInputModalitiesByName}. An unknown name gives `undefined`.
+ */
+export const GROQ_MODEL_INPUT_MODALITIES: Readonly<
+  Record<string, ReadonlyArray<Modality>>
+> = {
+  [LLAMA_PROMPT_GUARD_2_86M.name]: LLAMA_PROMPT_GUARD_2_86M.supports.input,
+  [LLAMA_PROMPT_GUARD_2_22M.name]: LLAMA_PROMPT_GUARD_2_22M.supports.input,
+  [GPT_OSS_20B.name]: GPT_OSS_20B.supports.input,
+  [GPT_OSS_120B.name]: GPT_OSS_120B.supports.input,
+  [GPT_OSS_SAFEGUARD_20B.name]: GPT_OSS_SAFEGUARD_20B.supports.input,
+  [QWEN_QWEN3_8_27B.name]: QWEN_QWEN3_8_27B.supports.input,
+} satisfies GroqModelInputModalitiesByName
 
 /**
  * Type-only map from Groq chat model name to its provider options type.
@@ -372,18 +295,12 @@ export type GroqChatModelProviderOptionsByName = {
  * a Groq adapter produces a compile-time type error.
  */
 export type GroqChatModelToolCapabilitiesByName = {
-  [LLAMA_3_1_8B_INSTANT.name]: typeof LLAMA_3_1_8B_INSTANT.supports.tools
-  [LLAMA_3_3_70B_VERSATILE.name]: typeof LLAMA_3_3_70B_VERSATILE.supports.tools
-  [LLAMA_4_MAVERICK_17B_128E_INSTRUCT.name]: typeof LLAMA_4_MAVERICK_17B_128E_INSTRUCT.supports.tools
-  [LLAMA_4_SCOUT_17B_16E_INSTRUCT.name]: typeof LLAMA_4_SCOUT_17B_16E_INSTRUCT.supports.tools
-  [LLAMA_GUARD_4_12B.name]: typeof LLAMA_GUARD_4_12B.supports.tools
   [LLAMA_PROMPT_GUARD_2_86M.name]: typeof LLAMA_PROMPT_GUARD_2_86M.supports.tools
   [LLAMA_PROMPT_GUARD_2_22M.name]: typeof LLAMA_PROMPT_GUARD_2_22M.supports.tools
   [GPT_OSS_20B.name]: typeof GPT_OSS_20B.supports.tools
   [GPT_OSS_120B.name]: typeof GPT_OSS_120B.supports.tools
   [GPT_OSS_SAFEGUARD_20B.name]: typeof GPT_OSS_SAFEGUARD_20B.supports.tools
-  [KIMI_K2_INSTRUCT_0905.name]: typeof KIMI_K2_INSTRUCT_0905.supports.tools
-  [QWEN3_32B.name]: typeof QWEN3_32B.supports.tools
+  [QWEN_QWEN3_8_27B.name]: typeof QWEN_QWEN3_8_27B.supports.tools
 }
 
 /**
@@ -472,3 +389,36 @@ export const GROQ_TTS_MODELS = [
  * Union type of all supported Groq TTS model names.
  */
 export type GroqTTSModel = (typeof GROQ_TTS_MODELS)[number]
+
+// Reasoning
+//
+// Each model's `reasoning` field holds its data for `chat({ reasoning })`: the
+// levels it has, with the provider value for each, and whether it takes a
+// thinking token budget. The data comes from models.dev. The generator that
+// writes it comes with the model catalog later. Until then, the sync scripts
+// keep these fields as they are.
+
+const GROQ_REASONING = {
+  [GPT_OSS_20B.name]: GPT_OSS_20B.reasoning,
+  [GPT_OSS_120B.name]: GPT_OSS_120B.reasoning,
+  [GPT_OSS_SAFEGUARD_20B.name]: GPT_OSS_SAFEGUARD_20B.reasoning,
+  [QWEN_QWEN3_8_27B.name]: QWEN_QWEN3_8_27B.reasoning,
+}
+
+/**
+ * Each chat model's reasoning levels, and whether it takes a token budget,
+ * for `chat({ reasoning })`. Derived from the `reasoning` field. A model
+ * that is not here does not reason.
+ */
+export type GroqModelReasoningByName = {
+  [K in keyof typeof GROQ_REASONING]: ModelReasoningCapability<
+    (typeof GROQ_REASONING)[K]
+  >
+}
+
+/**
+ * Runtime map from chat model name to its reasoning data, for the text adapter.
+ * An unknown name gives `undefined`: the adapter sends no reasoning field.
+ */
+export const GROQ_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> =
+  GROQ_REASONING

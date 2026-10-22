@@ -26,7 +26,7 @@ export interface ChatClientToolFixtureAppliedEvent {
   execute?: boolean
   message?: {
     id: string
-    role: 'system' | 'user' | 'assistant'
+    role: UIMessage['role']
     parts: Array<unknown>
     createdAt?: number | string
   }
@@ -290,23 +290,6 @@ export abstract class ChatClientEventEmitter {
       toolName,
       output,
       state,
-      ...context,
-    })
-  }
-
-  /**
-   * Emit tool approval responded event
-   */
-  toolApprovalResponded(
-    approvalId: string,
-    toolCallId: string,
-    approved: boolean,
-    context?: ChatClientRunEventContext,
-  ): void {
-    this.emitEvent('tools:approval:responded', {
-      approvalId,
-      toolCallId,
-      approved,
       ...context,
     })
   }

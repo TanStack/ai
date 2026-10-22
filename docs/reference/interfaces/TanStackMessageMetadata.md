@@ -3,12 +3,26 @@ id: TanStackMessageMetadata
 title: TanStackMessageMetadata
 ---
 
-Defined in: [packages/ai/src/types.ts:558](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L558)
+Defined in: packages/ai/src/types.ts:699
 
 Shape of `metadata.tanstack` on a message.
 `createdAt` is an ISO-8601 string.
 
 ## Properties
+
+### continues?
+
+```ts
+optional continues?: string;
+```
+
+Defined in: packages/ai/src/types.ts:751
+
+On an assistant wire row that exists only to keep the block order: the
+id of the assistant row before it. Our server joins the two rows into
+one message with a `blockOrder` map. See `uiMessagesToWire`.
+
+***
 
 ### createdAt?
 
@@ -16,7 +30,20 @@ Shape of `metadata.tanstack` on a message.
 optional createdAt?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:559](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L559)
+Defined in: packages/ai/src/types.ts:700
+
+***
+
+### finishReason?
+
+```ts
+optional finishReason?: "length" | "stop" | "content_filter" | "tool_calls" | null;
+```
+
+Defined in: packages/ai/src/types.ts:709
+
+Why the model call of this assistant message ended. A `'length'` message
+stopped at the output limit, so its tool calls are not complete.
 
 ***
 
@@ -26,7 +53,75 @@ Defined in: [packages/ai/src/types.ts:559](https://github.com/TanStack/ai/blob/m
 optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:560](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L560)
+Defined in: packages/ai/src/types.ts:701
+
+***
+
+### responseId?
+
+```ts
+optional responseId?: string;
+```
+
+Defined in: packages/ai/src/types.ts:704
+
+***
+
+### responseItems?
+
+```ts
+optional responseItems?: object[];
+```
+
+Defined in: packages/ai/src/types.ts:715
+
+The provider's answer items of this assistant message, in order, for a
+same-model replay. The OpenAI Responses adapter keeps each output
+message item's `id` and `phase` (`commentary` or `final_answer`).
+
+#### id
+
+```ts
+id: string;
+```
+
+#### phase?
+
+```ts
+optional phase?: string;
+```
+
+***
+
+### run?
+
+```ts
+optional run?: object;
+```
+
+Defined in: packages/ai/src/types.ts:723
+
+The chat run that produced this assistant message. `withPersistence` sets
+`id`. `reconstructChat` with `includeRuns: true` adds the finished run's
+timings, in epoch ms.
+
+#### finishedAt?
+
+```ts
+optional finishedAt?: number;
+```
+
+#### id
+
+```ts
+id: string;
+```
+
+#### startedAt?
+
+```ts
+optional startedAt?: number;
+```
 
 ***
 
@@ -36,7 +131,7 @@ Defined in: [packages/ai/src/types.ts:560](https://github.com/TanStack/ai/blob/m
 optional runId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:562](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L562)
+Defined in: packages/ai/src/types.ts:717
 
 Parent chat run that produced this assistant message.
 
@@ -48,9 +143,29 @@ Parent chat run that produced this assistant message.
 optional signature?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:566](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L566)
+Defined in: packages/ai/src/types.ts:727
 
 Thinking signature for a `role: 'reasoning'` fan-out message.
+
+***
+
+### source?
+
+```ts
+optional source?: MessageSource;
+```
+
+Defined in: packages/ai/src/types.ts:702
+
+***
+
+### stopReason?
+
+```ts
+optional stopReason?: "error" | "aborted";
+```
+
+Defined in: packages/ai/src/types.ts:703
 
 ***
 
@@ -60,7 +175,7 @@ Thinking signature for a `role: 'reasoning'` fan-out message.
 optional structuredOutput?: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:574](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L574)
+Defined in: packages/ai/src/types.ts:737
 
 #### data?
 
@@ -106,7 +221,7 @@ optional status?: "error" | "complete" | "streaming";
 optional subagent?: SubagentWireInfo;
 ```
 
-Defined in: [packages/ai/src/types.ts:564](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L564)
+Defined in: packages/ai/src/types.ts:725
 
 Card data on a child wire message. See `uiMessagesToWire`.
 
@@ -118,7 +233,7 @@ Card data on a child wire message. See `uiMessagesToWire`.
 optional toolCallMetadata?: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/types.ts:568](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L568)
+Defined in: packages/ai/src/types.ts:729
 
 Per-tool-call provider metadata keyed by tool call id (e.g. Gemini thoughtSignature).
 
@@ -130,7 +245,7 @@ Per-tool-call provider metadata keyed by tool call id (e.g. Gemini thoughtSignat
 optional toolResult?: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:569](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L569)
+Defined in: packages/ai/src/types.ts:730
 
 #### content?
 
@@ -152,10 +267,22 @@ optional id?: string;
 
 ***
 
+### toolResultOutcome?
+
+```ts
+optional toolResultOutcome?: ToolResultOutcome;
+```
+
+Defined in: packages/ai/src/types.ts:736
+
+Outcome of a cancelled or denied tool result; when present, the UI state is `error`.
+
+***
+
 ### uiResources?
 
 ```ts
 optional uiResources?: UIResourcePart[];
 ```
 
-Defined in: [packages/ai/src/types.ts:582](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L582)
+Defined in: packages/ai/src/types.ts:745

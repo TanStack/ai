@@ -56,6 +56,7 @@ describe('ChatClient byok', () => {
       data?: Record<string, unknown>
     } = {}
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: recordingConnection(record),
       byok,
       forwardedProps: { provider: 'openai', model: 'gpt-5.5' },
@@ -77,6 +78,7 @@ describe('ChatClient byok', () => {
       data?: Record<string, unknown>
     } = {}
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: recordingConnection(record),
       byok,
       forwardedProps: { provider: 'openai', model: 'gpt-5.5' },
@@ -97,6 +99,7 @@ describe('ChatClient byok', () => {
       data?: Record<string, unknown>
     } = {}
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: recordingConnection(record),
       byok,
       forwardedProps: { provider: 'openai', model: 'gpt-5.5' },
@@ -124,6 +127,7 @@ describe('ChatClient byok', () => {
       data?: Record<string, unknown>
     } = {}
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: recordingConnection(record),
       byok,
     })
@@ -140,6 +144,7 @@ describe('ChatClient byok', () => {
       yield runFinished()
     })
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: { connect },
       byok,
     })
@@ -163,6 +168,7 @@ describe('ChatClient byok', () => {
       connect?: ReturnType<typeof vi.fn>
     } = {}
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: recordingConnection(record),
       byok,
     })
@@ -182,6 +188,7 @@ describe('ChatClient byok', () => {
       yield runFinished()
     })
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: { connect },
       byok,
       forwardedProps: { provider: 'OpenAI' },
@@ -201,6 +208,7 @@ describe('ChatClient byok', () => {
       data?: Record<string, unknown>
     } = {}
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: recordingConnection(record),
       byok,
       forwardedProps: { provider: 'bedrock', model: 'claude' },
@@ -217,6 +225,7 @@ describe('ChatClient byok', () => {
       yield runFinished()
     })
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: { connect },
       byok,
       forwardedProps: { provider: 'openai', model: 'gpt-5.5' },
@@ -236,6 +245,7 @@ describe('ChatClient byok', () => {
     const byok = defineByok({ storage: memoryStorage() })
     await byok.update('openai', OPENAI_KEY)
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: {
         async *connect() {
           throw new ByokMissingError('openai')

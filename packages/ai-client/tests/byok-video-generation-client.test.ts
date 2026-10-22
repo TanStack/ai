@@ -24,6 +24,7 @@ describe('VideoGenerationClient byok', () => {
     await byok.update('elevenlabs', ELEVENLABS_KEY)
     const fetcher = vi.fn(async () => VIDEO_RESULT)
     const client = new VideoGenerationClient({
+      threadId: 'thread-1',
       fetcher,
       byok,
     })
@@ -35,6 +36,8 @@ describe('VideoGenerationClient byok', () => {
       { prompt: 'hello' },
       {
         signal: expect.any(AbortSignal),
+        threadId: 'thread-1',
+        runId: expect.any(String),
         headers: { 'x-byok-elevenlabs': ELEVENLABS_KEY },
       },
     )
@@ -55,6 +58,7 @@ describe('VideoGenerationClient byok', () => {
     })
     const connection: ConnectConnectionAdapter = { connect }
     const client = new VideoGenerationClient({
+      threadId: 'thread-1',
       connection,
       byok,
       byokProvider: () => 'elevenlabs',
@@ -76,6 +80,7 @@ describe('VideoGenerationClient byok', () => {
     const byok = defineByok({ storage: memoryStorage() })
     await byok.update('elevenlabs', ELEVENLABS_KEY)
     const client = new VideoGenerationClient({
+      threadId: 'thread-1',
       fetcher: async () => {
         throw new ByokMissingError('elevenlabs')
       },
@@ -92,10 +97,71 @@ describe('VideoGenerationClient byok', () => {
     expect(client.getError()).toBeInstanceOf(ByokMissingError)
   })
 
+  it('stops the failed run when the BYOK request subscriber stops', async () => {
+    const byok = defineByok({ storage: memoryStorage() })
+    await byok.update('elevenlabs', ELEVENLABS_KEY)
+    const onErrorChange = vi.fn()
+    let client!: VideoGenerationClient
+    client = new VideoGenerationClient({
+      threadId: 'thread-1',
+      fetcher: async () => {
+        throw new ByokMissingError('elevenlabs')
+      },
+      byok,
+      byokProvider: () => 'elevenlabs',
+      onErrorChange,
+    })
+    byok.subscribe(() => {
+      if (byok.getSnapshot().prompt) client.stop()
+    })
+
+    await client.generate({ prompt: 'first' })
+
+    expect(client.getStatus()).toBe('idle')
+    expect(client.getError()).toBeUndefined()
+    expect(onErrorChange).not.toHaveBeenCalledWith(expect.any(Error))
+  })
+
+  it('does not let a failed BYOK run overwrite a replacement', async () => {
+    const byok = defineByok({ storage: memoryStorage() })
+    await byok.update('elevenlabs', ELEVENLABS_KEY)
+    let releaseSecond!: (value: typeof VIDEO_RESULT) => void
+    const secondResult = new Promise<typeof VIDEO_RESULT>((resolve) => {
+      releaseSecond = resolve
+    })
+    let secondGenerate: Promise<void> | undefined
+    let replaced = false
+    const client = new VideoGenerationClient({
+      threadId: 'thread-1',
+      fetcher: async (input) => {
+        if (input.prompt === 'first') {
+          throw new ByokMissingError('elevenlabs')
+        }
+        return secondResult
+      },
+      byok,
+      byokProvider: () => 'elevenlabs',
+    })
+    byok.subscribe(() => {
+      if (!byok.getSnapshot().prompt || replaced) return
+      replaced = true
+      client.stop()
+      secondGenerate = client.generate({ prompt: 'second' })
+    })
+
+    await client.generate({ prompt: 'first' })
+
+    expect(client.getStatus()).toBe('generating')
+    expect(client.getError()).toBeUndefined()
+    releaseSecond(VIDEO_RESULT)
+    await secondGenerate
+  })
+
   it('requests a missing key when the fetcher returns a byokMissing Response', async () => {
     const byok = defineByok({ storage: memoryStorage() })
     await byok.update('elevenlabs', ELEVENLABS_KEY)
     const client = new VideoGenerationClient({
+      threadId: 'thread-1',
       fetcher: async () => byokMissing('elevenlabs'),
       byok,
       byokProvider: () => 'elevenlabs',
@@ -113,6 +179,7 @@ describe('VideoGenerationClient byok', () => {
     const byok = defineByok()
     const fetcher = vi.fn()
     const client = new VideoGenerationClient({
+      threadId: 'thread-1',
       fetcher,
       byok,
       byokProvider: () => 'elevenlabs',
@@ -134,6 +201,7 @@ describe('VideoGenerationClient byok', () => {
     await byok.update('elevenlabs', ELEVENLABS_KEY)
     const fetcher = vi.fn()
     const client = new VideoGenerationClient({
+      threadId: 'thread-1',
       fetcher,
       byok,
     })

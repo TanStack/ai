@@ -107,7 +107,6 @@ const toolCallStart = (
   type: EventType.TOOL_CALL_START,
   toolCallId,
   toolCallName: toolName,
-  toolName,
   index,
   model,
   timestamp,

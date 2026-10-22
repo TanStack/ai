@@ -95,6 +95,7 @@ export type UseChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'onHydratingChange'
   | 'onQueueChange'
   | 'onResumeStateChange'
   | 'onRunIdChange'
@@ -161,7 +162,7 @@ interface BaseUseChatReturn<
    * `messages[i].parts.find(p => p.type === 'structured-output')` is typed
    * with the schema's inferred shape — `data: T`, `partial: DeepPartial<T>`.
    */
-  messages: Array<UIMessage<TTools, TData>>
+  messages: ReadonlyArray<UIMessage<TTools, TData>>
 
   /**
    * Send a message and get a response.
@@ -180,7 +181,7 @@ interface BaseUseChatReturn<
    * Pending messages queued while the client is busy (streaming, claiming a
    * send, or draining). Separate from `messages` until they drain.
    */
-  queue: Array<QueuedMessage>
+  queue: ReadonlyArray<QueuedMessage>
 
   /**
    * Cancel a queued message before it drains. No-op if already sent.
@@ -204,14 +205,6 @@ interface BaseUseChatReturn<
   }) => Promise<void>
 
   /**
-   * Respond to a tool approval request
-   */
-  addToolApprovalResponse: (response: {
-    id: string // approval.id, not toolCallId
-    approved: boolean
-  }) => Promise<void>
-
-  /**
    * The id of the run this client has in flight — one it started or rejoined —
    * or `null` when there is none (including while a run sits paused on an
    * interrupt, waiting on approval).
@@ -224,8 +217,6 @@ interface BaseUseChatReturn<
    */
   runId: string | null
   interrupts: BoundInterrupts<TTools, TInterrupts>
-  /** @deprecated Use `interrupts`. */
-  pendingInterrupts: BoundInterrupts<TTools, TInterrupts>
   interruptErrors: ChatInterruptState<TTools, TInterrupts>['interruptErrors']
   resuming: boolean
   resolveInterrupts: {
@@ -239,11 +230,6 @@ interface BaseUseChatReturn<
   cancelInterrupts: () => void
   retryInterrupts: () => void
   resumeInterruptsUnsafe: (
-    resume: Array<RunAgentResumeItem>,
-    state?: ChatResumeState,
-  ) => Promise<boolean>
-  /** @deprecated Use bound interrupt methods or `resumeInterruptsUnsafe`. */
-  resumeInterrupts: (
     resume: Array<RunAgentResumeItem>,
     state?: ChatResumeState,
   ) => Promise<boolean>
@@ -302,9 +288,17 @@ interface BaseUseChatReturn<
   sessionGenerating: boolean
 
   /**
+   * Whether the chat is being rebuilt from persistence (the server hydrate, or
+   * an async storage adapter). While it is true, show a loading state instead
+   * of an empty chat. It turns false when the transcript is in place and any
+   * in-flight run is re-joined. From then on `isLoading` covers the stream.
+   */
+  isHydrating: boolean
+
+  /**
    * Set messages manually
    */
-  setMessages: (messages: Array<UIMessage<TTools, TData>>) => void
+  setMessages: (messages: ReadonlyArray<UIMessage<TTools, TData>>) => void
 
   /**
    * Clear all messages

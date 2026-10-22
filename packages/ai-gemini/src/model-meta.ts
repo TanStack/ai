@@ -1,12 +1,32 @@
+import type { Modality, ModelReasoning } from '@tanstack/ai'
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 import type {
   GeminiCachedContentOptions,
   GeminiCommonConfigOptions,
   GeminiSafetyOptions,
   GeminiStructuredOutputOptions,
-  GeminiThinkingOptions,
   GeminiToolConfigOptions,
 } from './text/text-provider-options'
 import type { GeminiEmbeddingProviderOptions } from './embedding/embedding-provider-options'
+
+// Reasoning shapes: the levels a model has for `chat({ reasoning })`, and
+// the provider value to send for each. Each model points at one of them.
+const BUDGET_MINIMAL_TO_HIGH = {
+  levels: { minimal: 'minimal', low: 'low', medium: 'medium', high: 'high' },
+  budget: true,
+} as const
+const BUDGET_OFF_HIGH = {
+  levels: { off: 'off', high: 'high' },
+  budget: true,
+} as const
+const EFFORT_LOW_TO_HIGH = {
+  levels: { low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_MINIMAL_TO_HIGH = {
+  levels: { minimal: 'minimal', low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
 
 interface ModelMeta<TProviderOptions = unknown> {
   name: string
@@ -49,6 +69,8 @@ interface ModelMeta<TProviderOptions = unknown> {
    * Type-level description of which provider options this model supports.
    */
   providerOptions?: TProviderOptions
+  /** The model's data for `chat({ reasoning })`. None: it does not reason. */
+  reasoning?: ModelReasoning
 }
 
 const GEMINI_3_1_PRO = {
@@ -76,13 +98,13 @@ const GEMINI_3_1_PRO = {
       normal: 15,
     },
   },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_3_FLASH = {
@@ -110,13 +132,13 @@ const GEMINI_3_FLASH = {
       normal: 3,
     },
   },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 /**
@@ -148,42 +170,7 @@ const GEMINI_3_PRO_IMAGE = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
->
-
-/**
- * @deprecated `gemini-3-pro-image-preview` was shut down on 2026-06-25. Use
- * the GA id `gemini-3-pro-image` instead — the preview id now 404s.
- * Kept in the model union so existing code still compiles.
- * @see https://ai.google.dev/gemini-api/docs/deprecations
- */
-const GEMINI_3_PRO_IMAGE_PREVIEW = {
-  name: 'gemini-3-pro-image-preview',
-  max_input_tokens: 65_536,
-  max_output_tokens: 32_768,
-  knowledge_cutoff: '2025-01-01',
-  supports: {
-    input: ['text', 'image'],
-    output: ['text', 'image'],
-    capabilities: ['batch_api', 'structured_output', 'thinking'],
-    tools: ['google_search'],
-  },
-  pricing: {
-    input: {
-      normal: 2,
-    },
-    output: {
-      normal: 0.134,
-    },
-  },
-} as const satisfies ModelMeta<
-  GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiCommonConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 /**
@@ -215,42 +202,7 @@ const GEMINI_3_1_FLASH_IMAGE = {
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiThinkingOptions
->
-
-/**
- * @deprecated `gemini-3.1-flash-image-preview` was shut down on 2026-06-25.
- * Use the GA id `gemini-3.1-flash-image` instead — the preview id now 404s.
- * Kept in the model union so existing code still compiles.
- * @see https://ai.google.dev/gemini-api/docs/deprecations
- */
-const GEMINI_3_1_FLASH_IMAGE_PREVIEW = {
-  name: 'gemini-3.1-flash-image-preview',
-  max_input_tokens: 65_536,
-  max_output_tokens: 65_536,
-  knowledge_cutoff: '2025-01-01',
-  supports: {
-    input: ['text', 'image'],
-    output: ['text', 'image'],
-    capabilities: ['batch_api', 'structured_output', 'thinking'],
-    tools: ['google_search'],
-  },
-  pricing: {
-    input: {
-      normal: 0.25,
-    },
-    output: {
-      normal: 1.5,
-    },
-  },
-} as const satisfies ModelMeta<
-  GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiCommonConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiCachedContentOptions
 >
 
 /**
@@ -281,8 +233,38 @@ const GEMINI_3_1_FLASH_LITE_IMAGE = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
+>
+
+/**
+ * Nano Banana 2.1 — GA. 1K / 2K / 4K output, no 512 tier. The id does not
+ * follow the `gemini-<version>-flash-image` pattern of the earlier models.
+ * Token limits are the values `GET /v1beta/models` returns.
+ * @see https://ai.google.dev/gemini-api/docs/models/gemini-nano-banana-2.1
+ */
+const GEMINI_NANO_BANANA_2_1 = {
+  name: 'gemini-nano-banana-2.1',
+  max_input_tokens: 65_536,
+  max_output_tokens: 65_536,
+  supports: {
+    input: ['text', 'image'],
+    output: ['text', 'image'],
+    capabilities: ['batch_api', 'thinking'],
+    tools: ['google_search'],
+  },
+  pricing: {
+    input: {
+      normal: 1.5,
+    },
+    output: {
+      normal: 7.5,
+    },
+  },
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions
 >
 
 const GEMINI_3_1_FLASH_LITE = {
@@ -310,13 +292,13 @@ const GEMINI_3_1_FLASH_LITE = {
       normal: 1.5,
     },
   },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_3_1_FLASH_LITE_PREVIEW = {
@@ -344,13 +326,13 @@ const GEMINI_3_1_FLASH_LITE_PREVIEW = {
       normal: 1.5,
     },
   },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_2_5_PRO = {
@@ -384,13 +366,13 @@ const GEMINI_2_5_PRO = {
       normal: 15,
     },
   },
+  reasoning: BUDGET_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_2_5_PRO_TTS = {
@@ -449,51 +431,15 @@ const GEMINI_2_5_FLASH = {
       normal: 2.5,
     },
   },
+  reasoning: BUDGET_OFF_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
-/**
- * Gemini 2.5 Flash Image ("Nano Banana") — still GA, but documented as the
- * legacy member of the family. Google publishes no `image_size` value for it,
- * so its size type is a bare aspect ratio and the adapter sends no
- * `imageConfig.imageSize`.
- * @deprecated `gemini-2.5-flash-image` shuts down on 2026-10-02. Migrate to
- * `gemini-3.1-flash-lite-image` (cheapest successor) or
- * `gemini-3.1-flash-image`. Google's deprecations table still names the
- * already-dead `gemini-3.1-flash-image-preview` as the replacement.
- * @see https://ai.google.dev/gemini-api/docs/deprecations
- */
-const GEMINI_2_5_FLASH_IMAGE = {
-  name: 'gemini-2.5-flash-image',
-  max_input_tokens: 1_048_576,
-  max_output_tokens: 65_536,
-  knowledge_cutoff: '2025-06-01',
-  supports: {
-    input: ['text', 'image'],
-    output: ['text', 'image'],
-    capabilities: ['batch_api', 'caching', 'structured_output'],
-    tools: ['file_search'],
-  },
-  pricing: {
-    input: {
-      normal: 0.3,
-    },
-    output: {
-      normal: 0.4,
-    },
-  },
-} as const satisfies ModelMeta<
-  GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiCommonConfigOptions &
-    GeminiCachedContentOptions
->
 /**
 const GEMINI_2_5_FLASH_LIVE = {
   name: 'gemini-2.5-flash-native-audio-preview-09-2025',
@@ -525,8 +471,7 @@ const GEMINI_2_5_FLASH_LIVE = {
   GeminiToolConfigOptions &
   GeminiSafetyOptions &
   GeminiGenerationConfigOptions &
-  GeminiCachedContentOptions &
-  GeminiThinkingOptions
+  GeminiCachedContentOptions
 >
 */
 const GEMINI_2_5_FLASH_TTS = {
@@ -655,82 +600,13 @@ const GEMINI_2_5_FLASH_LITE = {
       normal: 0.4,
     },
   },
+  reasoning: BUDGET_OFF_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
->
-
-const IMAGEN_4_GENERATE = {
-  name: 'imagen-4.0-generate-001',
-  max_input_tokens: 480,
-  max_output_tokens: 4,
-  supports: {
-    input: ['text'],
-    output: ['image'],
-  },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0.4,
-    },
-  },
-} as const satisfies ModelMeta<
-  GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiCommonConfigOptions &
-    GeminiCachedContentOptions
->
-
-const IMAGEN_4_GENERATE_ULTRA = {
-  name: 'imagen-4.0-ultra-generate-001',
-  max_input_tokens: 480,
-  max_output_tokens: 4,
-  supports: {
-    input: ['text'],
-    output: ['image'],
-  },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0.6,
-    },
-  },
-} as const satisfies ModelMeta<
-  GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiCommonConfigOptions &
-    GeminiCachedContentOptions
->
-
-const IMAGEN_4_GENERATE_FAST = {
-  name: 'imagen-4.0-fast-generate-001',
-  max_input_tokens: 480,
-  max_output_tokens: 4,
-  supports: {
-    input: ['text'],
-    output: ['image'],
-  },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0.2,
-    },
-  },
-} as const satisfies ModelMeta<
-  GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiCommonConfigOptions &
-    GeminiCachedContentOptions
+    GeminiStructuredOutputOptions
 >
 
 /**
@@ -841,36 +717,6 @@ const GEMINI_OMNI_1_1_FLASH = {
     GeminiCachedContentOptions
 >
 
-/**
- * @deprecated `gemini-omni-flash-preview` shuts down on 2026-09-30. Use the
- * GA id `gemini-omni-1.1-flash` instead. Kept in the model union so existing
- * code still compiles until shutdown.
- * @see https://ai.google.dev/gemini-api/docs/models/gemini-omni-flash
- * @experimental Omni video generation is an experimental feature and may change.
- */
-const GEMINI_OMNI_FLASH_PREVIEW = {
-  name: 'gemini-omni-flash-preview',
-  max_input_tokens: 1_048_576,
-  max_output_tokens: 1,
-  supports: {
-    input: ['text', 'image', 'video'],
-    output: ['video', 'audio'],
-  },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0.1,
-    },
-  },
-} as const satisfies ModelMeta<
-  GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiCommonConfigOptions &
-    GeminiCachedContentOptions
->
-
 const GEMINI_3_8_FLASH = {
   name: 'gemini-3.8-flash',
   max_input_tokens: 1_048_576,
@@ -905,13 +751,13 @@ const GEMINI_3_8_FLASH = {
       normal: 3.75,
     },
   },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions<'LOW' | 'MEDIUM' | 'HIGH'>
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_3_7_FLASH = {
@@ -950,13 +796,13 @@ const GEMINI_3_7_FLASH = {
       normal: 3.75,
     },
   },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_3_6_FLASH = {
@@ -993,13 +839,13 @@ const GEMINI_3_6_FLASH = {
       normal: 7.5,
     },
   },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_3_5_FLASH = {
@@ -1034,13 +880,13 @@ const GEMINI_3_5_FLASH = {
       normal: 9,
     },
   },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_3_5_FLASH_LITE = {
@@ -1076,13 +922,13 @@ const GEMINI_3_5_FLASH_LITE = {
       normal: 2.5,
     },
   },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 export const GEMINI_MODELS = [
@@ -1121,40 +967,16 @@ export const GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
 
 export type GeminiModels = (typeof GEMINI_MODELS)[number]
 
-/**
- * @deprecated Shut down 2026-06-25. Use `gemini-3.1-flash-image`.
- */
-type Gemini31FlashImagePreviewModel = 'gemini-3.1-flash-image-preview'
+export type GeminiImageModels = (typeof GEMINI_IMAGE_MODELS)[number]
 
 /**
- * @deprecated Shut down 2026-06-25. Use `gemini-3-pro-image`.
- */
-type Gemini3ProImagePreviewModel = 'gemini-3-pro-image-preview'
-
-export type GeminiImageModels =
-  | Exclude<
-      (typeof GEMINI_IMAGE_MODELS)[number],
-      Gemini31FlashImagePreviewModel | Gemini3ProImagePreviewModel
-    >
-  | Gemini31FlashImagePreviewModel
-  | Gemini3ProImagePreviewModel
-
-/**
- * Image generation models. GA ids come first; the trailing `-preview` ids are
- * shut-down aliases kept only so existing code keeps compiling — new code
- * should use the GA id above its alias.
+ * Image generation models.
  */
 export const GEMINI_IMAGE_MODELS = [
+  GEMINI_NANO_BANANA_2_1.name,
   GEMINI_3_1_FLASH_IMAGE.name,
   GEMINI_3_1_FLASH_LITE_IMAGE.name,
   GEMINI_3_PRO_IMAGE.name,
-  GEMINI_2_5_FLASH_IMAGE.name,
-  IMAGEN_4_GENERATE.name,
-  IMAGEN_4_GENERATE_FAST.name,
-  IMAGEN_4_GENERATE_ULTRA.name,
-  // Deprecated aliases — shut down 2026-06-25.
-  GEMINI_3_1_FLASH_IMAGE_PREVIEW.name,
-  GEMINI_3_PRO_IMAGE_PREVIEW.name,
 ] as const
 
 /**
@@ -1226,19 +1048,15 @@ export const GEMINI_VIDEO_MODELS = [
   VEO_3_1_FAST_PREVIEW.name,
   VEO_3_1_LITE_PREVIEW.name,
   GEMINI_OMNI_1_1_FLASH.name,
-  // Deprecated alias — shuts down 2026-09-30.
-  GEMINI_OMNI_FLASH_PREVIEW.name,
 ] as const
 
 /**
  * Video models served by the Interactions API rather than Veo's
- * `:predictLongRunning` operations flow. GA id first; the trailing
- * `-preview` id is a shutdown alias kept so existing code compiles.
+ * `:predictLongRunning` operations flow.
  * @experimental Omni video generation is an experimental feature and may change.
  */
 export const GEMINI_INTERACTIONS_VIDEO_MODELS = [
   GEMINI_OMNI_1_1_FLASH.name,
-  GEMINI_OMNI_FLASH_PREVIEW.name,
 ] as const
 
 /**
@@ -1270,74 +1088,62 @@ export type GeminiChatModelProviderOptionsByName = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions<'LOW' | 'MEDIUM' | 'HIGH'>
+    GeminiStructuredOutputOptions
   [GEMINI_3_7_FLASH.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_3_6_FLASH.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_3_5_FLASH.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_3_5_FLASH_LITE.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_3_1_PRO.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_3_FLASH.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_3_1_FLASH_LITE.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_3_1_FLASH_LITE_PREVIEW.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_2_5_PRO.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_2_5_FLASH.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_2_5_FLASH_LITE.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 }
 
 /**
@@ -1389,3 +1195,67 @@ export type GeminiModelInputModalitiesByName = {
   // Models with text, image, audio, video (no document)
   [GEMINI_2_5_FLASH.name]: typeof GEMINI_2_5_FLASH.supports.input
 }
+
+/**
+ * Runtime map from chat model name to its supported input modalities, for the
+ * text adapter's `inputModalities`. `satisfies` keeps it equal to
+ * {@link GeminiModelInputModalitiesByName}. An unknown name gives `undefined`.
+ */
+export const GEMINI_MODEL_INPUT_MODALITIES: Readonly<
+  Record<string, ReadonlyArray<Modality>>
+> = {
+  [GEMINI_3_8_FLASH.name]: GEMINI_3_8_FLASH.supports.input,
+  [GEMINI_3_7_FLASH.name]: GEMINI_3_7_FLASH.supports.input,
+  [GEMINI_3_6_FLASH.name]: GEMINI_3_6_FLASH.supports.input,
+  [GEMINI_3_5_FLASH.name]: GEMINI_3_5_FLASH.supports.input,
+  [GEMINI_3_5_FLASH_LITE.name]: GEMINI_3_5_FLASH_LITE.supports.input,
+  [GEMINI_3_1_PRO.name]: GEMINI_3_1_PRO.supports.input,
+  [GEMINI_3_FLASH.name]: GEMINI_3_FLASH.supports.input,
+  [GEMINI_3_1_FLASH_LITE.name]: GEMINI_3_1_FLASH_LITE.supports.input,
+  [GEMINI_3_1_FLASH_LITE_PREVIEW.name]:
+    GEMINI_3_1_FLASH_LITE_PREVIEW.supports.input,
+  [GEMINI_2_5_PRO.name]: GEMINI_2_5_PRO.supports.input,
+  [GEMINI_2_5_FLASH_LITE.name]: GEMINI_2_5_FLASH_LITE.supports.input,
+  [GEMINI_2_5_FLASH.name]: GEMINI_2_5_FLASH.supports.input,
+} satisfies GeminiModelInputModalitiesByName
+
+// Reasoning
+//
+// Each model's `reasoning` field holds its data for `chat({ reasoning })`: the
+// levels it has, with the provider value for each, and whether it takes a
+// thinking token budget. The data comes from models.dev. The generator that
+// writes it comes with the model catalog later. Until then, the sync scripts
+// keep these fields as they are.
+
+const GEMINI_REASONING = {
+  [GEMINI_3_8_FLASH.name]: GEMINI_3_8_FLASH.reasoning,
+  [GEMINI_3_7_FLASH.name]: GEMINI_3_7_FLASH.reasoning,
+  [GEMINI_3_6_FLASH.name]: GEMINI_3_6_FLASH.reasoning,
+  [GEMINI_3_5_FLASH.name]: GEMINI_3_5_FLASH.reasoning,
+  [GEMINI_3_5_FLASH_LITE.name]: GEMINI_3_5_FLASH_LITE.reasoning,
+  [GEMINI_3_1_PRO.name]: GEMINI_3_1_PRO.reasoning,
+  [GEMINI_3_FLASH.name]: GEMINI_3_FLASH.reasoning,
+  [GEMINI_3_1_FLASH_LITE.name]: GEMINI_3_1_FLASH_LITE.reasoning,
+  [GEMINI_3_1_FLASH_LITE_PREVIEW.name]: GEMINI_3_1_FLASH_LITE_PREVIEW.reasoning,
+  [GEMINI_2_5_PRO.name]: GEMINI_2_5_PRO.reasoning,
+  [GEMINI_2_5_FLASH_LITE.name]: GEMINI_2_5_FLASH_LITE.reasoning,
+  [GEMINI_2_5_FLASH.name]: GEMINI_2_5_FLASH.reasoning,
+}
+
+/**
+ * Each chat model's reasoning levels, and whether it takes a token budget,
+ * for `chat({ reasoning })`. Derived from the `reasoning` field. A model
+ * that is not here does not reason.
+ */
+export type GeminiModelReasoningByName = {
+  [K in keyof typeof GEMINI_REASONING]: ModelReasoningCapability<
+    (typeof GEMINI_REASONING)[K]
+  >
+}
+
+/**
+ * Runtime map from chat model name to its reasoning data, for the text adapter.
+ * An unknown name gives `undefined`: the adapter sends no reasoning field.
+ */
+export const GEMINI_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> =
+  GEMINI_REASONING

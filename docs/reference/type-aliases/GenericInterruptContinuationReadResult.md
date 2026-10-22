@@ -18,4 +18,4 @@ type GenericInterruptContinuationReadResult =
 };
 ```
 
-Defined in: [packages/ai/src/generic-interrupt-continuation.ts:29](https://github.com/TanStack/ai/blob/main/packages/ai/src/generic-interrupt-continuation.ts#L29)
+Defined in: packages/ai/src/generic-interrupt-continuation.ts:29

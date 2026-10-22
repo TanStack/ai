@@ -1,5 +1,8 @@
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
-import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
+import {
+  resolveReasoning,
+  toRunErrorRawEvent,
+} from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   SandboxCapability,
@@ -16,13 +19,13 @@ import {
   mergeChunkStreams,
   nodeHttpBridgeProvisioner,
   resolveDurableRunId,
-  resolveDurableThreadId,
   spawnNdjson,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
 import { translateThreadEvents } from '../stream/translate'
 import { projectCodexWorkspace } from './projection'
 import { mapPolicyToCodexFlags } from './policy-map'
+import { CODEX_MODEL_REASONING } from '../model-meta'
 import type { CodexPolicyFlags } from './policy-map'
 import type { HostToolBridge, SandboxHandle } from '@tanstack/ai-sandbox'
 import type {
@@ -33,9 +36,10 @@ import type {
   DefaultMessageMetadataByModality,
   Modality,
   AdapterYieldChunk,
+  ReasoningRequest,
   TextOptions,
 } from '@tanstack/ai'
-import type { CodexModel } from '../model-meta'
+import type { CodexModel, CodexModelReasoningByName } from '../model-meta'
 import type { CodexTextProviderOptions } from '../provider-options'
 import type { CodexThreadEvent } from '../stream/sdk-types'
 
@@ -77,7 +81,10 @@ export interface CodexTextConfig {
   sandboxMode?: CodexSandboxMode
   /** Codex approval policy (`--config approval_policy=`). Defaults to `'never'`. */
   approvalPolicy?: CodexApprovalMode
-  /** Model reasoning effort (`--config model_reasoning_effort=`). */
+  /**
+   * The default reasoning effort (`--config model_reasoning_effort=`) when a
+   * call sets no `chat({ reasoning })`.
+   */
   modelReasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   /** Skip Codex's git-repo safety check (`--skip-git-repo-check`). Defaults to true. */
   skipGitRepoCheck?: boolean
@@ -104,6 +111,26 @@ function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof CodexModelReasoningByName
+    ? CodexModelReasoningByName[TModel]
+    : never
+
+/**
+ * Codex's `model_reasoning_effort` for `chat({ reasoning })`: the model's
+ * effort for the level, or `fallback` when the call sets none.
+ */
+export function codexReasoningEffort(
+  model: string,
+  request: ReasoningRequest | undefined,
+  fallback: string | undefined,
+): string | undefined {
+  return (
+    resolveReasoning(request, CODEX_MODEL_REASONING[model])?.value ?? fallback
+  )
+}
+
 export class CodexTextAdapter<
   TModel extends CodexModel,
 > extends BaseTextAdapter<
@@ -113,7 +140,8 @@ export class CodexTextAdapter<
   DefaultMessageMetadataByModality,
   ReadonlyArray<string>,
   unknown,
-  never
+  never,
+  ResolveReasoning<TModel>
 > {
   readonly name = 'codex' as const
 
@@ -121,9 +149,34 @@ export class CodexTextAdapter<
 
   private readonly adapterConfig: CodexTextConfig
 
+  /** `toolChoice` warnings that this instance already logged. */
+  private readonly toolChoiceWarnings = new Set<string>()
+
   constructor(config: CodexTextConfig, model: TModel) {
     super({}, model)
     this.adapterConfig = config
+  }
+
+  /**
+   * The chat() tools to bridge for `toolChoice`: none for `'none'`, and only
+   * the named tool for `{ type: 'tool', name }`. Codex cannot turn off its
+   * built-in tools or force a tool call, so every value except `'auto'` logs
+   * a warning once.
+   */
+  private toolsForChoice(options: TextOptions<CodexTextProviderOptions>) {
+    const { toolChoice, tools = [] } = options
+    if (toolChoice === undefined || toolChoice === 'auto') return tools
+    const warning =
+      toolChoice === 'required'
+        ? "codex: toolChoice 'required' is not supported. The agent decides which tools to call."
+        : 'codex: toolChoice limits only the chat() tools. The built-in Codex tools stay on.'
+    if (!this.toolChoiceWarnings.has(warning)) {
+      this.toolChoiceWarnings.add(warning)
+      options.logger.warn(warning)
+    }
+    if (toolChoice === 'none') return []
+    if (toolChoice === 'required') return tools
+    return tools.filter((tool) => tool.name === toolChoice.name)
   }
 
   private sandboxFrom(
@@ -182,8 +235,11 @@ export class CodexTextAdapter<
       'never'
     const networkAccessEnabled =
       config.networkAccessEnabled ?? policyFlags.networkAccessEnabled
-    const reasoning =
-      modelOptions?.modelReasoningEffort ?? config.modelReasoningEffort
+    const reasoning = codexReasoningEffort(
+      this.model,
+      options.reasoning,
+      config.modelReasoningEffort,
+    )
     const skipGitRepoCheck =
       modelOptions?.skipGitRepoCheck ?? config.skipGitRepoCheck
 
@@ -263,17 +319,7 @@ export class CodexTextAdapter<
       adapter: 'codex',
       fallback: () => this.generateId(),
     })
-    // `threadId` is stamped on every chunk `translateThreadEvents` emits, so an
-    // ATTACHING run that mints a fresh one replays a stream the stored log
-    // cannot match at index 0. `resolveDurableThreadId` refuses that up front
-    // instead of letting alignment discover it mid-stream; a durable FRESH run
-    // and a non-durable run both keep the generated fallback untouched.
-    const threadId = resolveDurableThreadId(options.threadId, {
-      durable: durability !== undefined,
-      attaching: durability?.attach === true,
-      adapter: 'codex',
-      fallback: () => this.generateId(),
-    })
+    const threadId = options.threadId
     // Surfaces custom events from bridged tools (e.g. code mode console logs)
     // on this run's live output stream.
     const channel = createBridgeEventChannel({
@@ -282,6 +328,7 @@ export class CodexTextAdapter<
       runId,
     })
     try {
+      const tools = this.toolsForChoice(options)
       const sandbox = this.sandboxFrom(options)
       cleanupSandbox = sandbox
       const cwd = this.workdir(options)
@@ -294,13 +341,14 @@ export class CodexTextAdapter<
         : undefined
       if (projection) await projectCodexWorkspace(sandbox, projection)
 
-      if (options.tools && options.tools.length > 0) {
+      if (tools.length > 0) {
         const provisioner =
           (options.capabilities
             ? getToolBridgeProvisioner(options.capabilities, { optional: true })
             : undefined) ?? nodeHttpBridgeProvisioner
-        bridge = await provisioner.provision(options.tools, {
+        bridge = await provisioner.provision(tools, {
           provider: sandbox.provider,
+          threadId,
           context: options.context,
           emitCustomEvent: channel.emitCustomEvent,
           ...(options.abortController?.signal

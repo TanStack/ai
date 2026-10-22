@@ -7,7 +7,6 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 import type { Signal } from '@angular/core'
@@ -99,6 +98,7 @@ export interface InjectGenerateAudioResult<
  * })
  * export class AudioComponent {
  *   private gen = injectGenerateAudio({
+ *     threadId: 'theme-audio',
  *     connection: fetchServerSentEvents('/api/generate/audio'),
  *   })
  *
@@ -109,12 +109,9 @@ export interface InjectGenerateAudioResult<
  * ```
  */
 export function injectGenerateAudio<TTransformed = void>(
-  options: Omit<
-    InjectGenerateAudioOptions,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<InjectGenerateAudioOptions, 'onResult'> & {
     onResult?: (result: AudioGenerationResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ): InjectGenerateAudioResult<
   InferGenerationOutputFromReturn<AudioGenerationResult, TTransformed>
 > {

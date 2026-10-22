@@ -2,16 +2,16 @@
 title: Quick Start
 id: quick-start
 order: 2
-description: "Run a Grok Build coding agent inside a sandbox, fix a bug in a cloned repo, and stream the diff, in minutes."
+description: "Run a Grok Build coding agent inside a Docker sandbox, let it fix a bug in a cloned repo, and print the diff. About 10 minutes."
 ---
 
-You have an app that already calls `chat()`, and you have an `XAI_API_KEY` (or
-you've logged in on grok.com). By the end of this guide a Grok Build agent will
-clone a repo into a Docker sandbox, fix a bug, and stream the resulting `git diff`
-back to you.
+This guide runs a Grok Build agent in Docker. The agent clones a repo, fixes a bug, and the script prints the `git diff`.
 
-If you only want concepts first, read the [Overview](./overview). Otherwise, start
-here.
+You need:
+
+- Docker, running.
+- An `XAI_API_KEY`.
+- A public GitHub repo with a bug. The samples use `owner/buggy-app`. Replace it with your repo.
 
 ## 1. Install the packages
 
@@ -28,116 +28,93 @@ octane: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-s
 
 <!-- ::end:tabs -->
 
-- `@tanstack/ai`: the core `chat()` pipeline.
-- `@tanstack/ai-grok-build`: the Grok Build **harness adapter**.
-- `@tanstack/ai-sandbox`: `defineSandbox`, `defineWorkspace`, `withSandbox`.
-- `@tanstack/ai-sandbox-docker`: the Docker **provider** that runs the agent in a
-  container.
+- `@tanstack/ai`: the `chat()` pipeline.
+- `@tanstack/ai-grok-build`: the Grok Build harness adapter.
+- `@tanstack/ai-sandbox`: `defineSandbox`, `defineWorkspace`, and `withSandbox`.
+- `@tanstack/ai-sandbox-docker`: the Docker provider. It runs the agent in a container.
 
-You'll also need Docker running locally, and the **`grok` CLI available in your
-sandbox image** (the Grok Build harness spawns it inside the sandbox). No Docker?
-See [the local-process alternative](#no-docker-run-on-your-host) below. For a
-microVM instead of a container, see [Docker Sandboxes](#docker-sandboxes-microvm-sbx).
+## 2. Write the agent script
 
-## 2. Define the sandbox
-
-A sandbox bundles three things: a **provider** (the isolation primitive; here
-Docker), a **workspace** (what the agent sees; here a cloned git repo plus a
-setup step), and a **lifecycle** (when to reuse, snapshot, and tear it down).
+Save this as `fix-bug.mts`:
 
 ```ts
+import { chat } from '@tanstack/ai'
+import { GROK_CLI_INSTALL_COMMAND, grokBuildText } from '@tanstack/ai-grok-build'
 import {
   createSecrets,
   defineSandbox,
   defineWorkspace,
   githubRepo,
+  withSandbox,
 } from '@tanstack/ai-sandbox'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 
-export const repoSandbox = defineSandbox({
+const repoSandbox = defineSandbox({
   id: 'bug-fixer',
   provider: dockerSandbox({ image: 'node:22' }),
   workspace: defineWorkspace({
-    // Where the working tree comes from (shallow clone by default).
+    // Where the code comes from. A shallow clone by default.
     source: githubRepo({ repo: 'owner/buggy-app' }),
     packageManager: 'pnpm',
-    // Commands that run once during bootstrap.
-    setup: ['corepack enable', 'pnpm install'],
-    // Injected into the sandbox env at create/resume, never persisted to
-    // snapshots, the sandbox store, or the event log.
+    // These commands run once, when the sandbox is new.
+    setup: [GROK_CLI_INSTALL_COMMAND, 'corepack enable', 'pnpm install'],
+    // Put into the sandbox env. Never saved to snapshots, stores, or logs.
     secrets: createSecrets({
       XAI_API_KEY: process.env.XAI_API_KEY ?? '',
     }),
   }),
   lifecycle: { reuse: 'thread', snapshot: 'after-setup', keepAlive: '30m' },
 })
-```
-
-`snapshot: 'after-setup'` (the default when the provider supports snapshots) means
-the next run resumes from a post-`pnpm install` snapshot instead of re-cloning and
-re-installing, so only the first run pays the cold-start cost.
-
-For everything `defineWorkspace()` can describe, package manager auto-detection,
-parallel setup groups, clone depth, see [Workspace](./workspace).
-
-## 3. Call `chat()` with the harness adapter
-
-The Grok Build adapter declares that it `requires` a sandbox capability.
-`withSandbox(...)` is the middleware that **provides** it: it resumes-or-creates
-the sandbox, bootstraps the workspace, and tears it down per the lifecycle.
-
-```ts
-import { chat } from '@tanstack/ai'
-import { grokBuildText } from '@tanstack/ai-grok-build'
-import { withSandbox } from '@tanstack/ai-sandbox'
-import { messages, threadId } from './chat-context'
-import { repoSandbox } from './sandbox'
 
 const stream = chat({
-  threadId,
+  threadId: 'bug-fix-1',
   adapter: grokBuildText('grok-build'),
-  messages,
+  messages: [
+    { role: 'user', content: 'The tests fail. Find the bug and fix it.' },
+  ],
   middleware: [withSandbox(repoSandbox)],
 })
-```
-
-Here `messages` is your conversation (e.g. a user turn asking the agent to fix the
-bug), and `threadId` keys the sandbox so the same thread reuses the same container.
-Spawning `grok` happens **inside** the sandbox; its events stream back as normal
-`chat()` chunks.
-
-## 4. Stream the result and read the diff
-
-Harness runs emit standard AG-UI chunks (text, tool calls, reasoning) plus a
-namespaced `CUSTOM` event. When the run finishes, the Grok Build adapter emits a
-`file.changed` event carrying the working-tree `git diff`:
-
-```ts
-import { stream } from './my-run'
 
 for await (const chunk of stream) {
   if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
     process.stdout.write(chunk.delta)
   }
-
   if (chunk.type === 'CUSTOM' && chunk.name === 'file.changed') {
-    const value = chunk.value
-    if (value !== null && typeof value === 'object' && 'diff' in value) {
-      console.log('\n--- diff ---\n')
-      console.log(value.diff)
-    }
+    console.log('\n--- diff ---\n')
+    console.log(chunk.value.diff)
   }
 }
 ```
 
-That `diff` is point B: the agent cloned the repo, found the bug, edited the files,
-and you printed the change it made, all without the agent touching your host
-filesystem.
+- `provider` is where the agent runs. Here it is a Docker container.
+- `workspace` is what the agent sees: the cloned repo, the Grok CLI, and the installed dependencies.
+- `lifecycle` keeps one sandbox per thread. It also takes a snapshot after setup, so only the first run pays for the clone and the install.
+- `threadId` names the sandbox. The next run with the same `threadId` uses the same container.
+
+## 3. Run it
+
+```bash
+XAI_API_KEY=your-key npx tsx fix-bug.mts
+```
+
+You see the agent's text as it works. When the run ends, you see the diff of every file it changed. The agent cloned the repo, found the bug, and edited the files, all inside the container.
+
+## How it works
+
+- `grokBuildText` declares that it needs a sandbox. `withSandbox(repoSandbox)` gives it one.
+- `withSandbox` resumes the sandbox for `threadId`, or creates it and runs `setup`.
+- The adapter starts `grok` inside the sandbox. Its events come back as normal `chat()` chunks.
+- When the run ends, the Grok Build adapter sends a `file.changed` event with the `git diff` of the working tree.
+
+To learn more about each piece:
+
+- [Workspace](./workspace): package manager detection, parallel setup steps, and clone depth.
+- [Events](./events): every event a harness run sends.
+- [Lifecycle & Snapshots](./lifecycle): reuse and snapshots.
 
 ## No Docker? Run on your host
 
-Swap the provider for the local-process one to skip Docker entirely. It runs the
-agent directly on your host (no isolation), which makes for the fastest dev loop:
+The local-process provider runs the agent directly on your host. It gives no isolation, but it is the fastest loop for development.
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
@@ -152,6 +129,8 @@ octane: @tanstack/ai-sandbox-local-process
 
 <!-- ::end:tabs -->
 
+This sample uses the `grok login` on your machine, so the `grok` CLI must be installed on your host.
+
 ```ts
 import { chat } from '@tanstack/ai'
 import { grokBuildText } from '@tanstack/ai-grok-build'
@@ -162,9 +141,8 @@ import {
   withSandbox,
 } from '@tanstack/ai-sandbox'
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
-import { messages } from './chat-context'
 
-export const repoSandbox = defineSandbox({
+const repoSandbox = defineSandbox({
   id: 'bug-fixer',
   provider: localProcessSandbox({
     scrubEnv: ['XAI_API_KEY', 'GROK_API_KEY'],
@@ -178,28 +156,33 @@ export const repoSandbox = defineSandbox({
 
 const stream = chat({
   adapter: grokBuildText('composer-2.5', { authMode: 'host' }),
-  messages,
+  messages: [
+    { role: 'user', content: 'The tests fail. Find the bug and fix it.' },
+  ],
+  threadId: 'thread-1',
   middleware: [withSandbox(repoSandbox)],
 })
+
+for await (const chunk of stream) {
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT') process.stdout.write(chunk.delta)
+}
 ```
 
-Set `authMode: 'host'` so the adapter uses `grok login`. `scrubEnv` removes
-keys the host process inherited. Those keys would override the login.
+- `authMode: 'host'` tells the adapter to use your `grok login`.
+- `scrubEnv` removes API keys that the host process inherited. If those keys stay, they override the login.
 
-A local-process run can also be a CI runner. That machine has no browser
-login. Set `authMode: 'api-key'`. Then inject `XAI_API_KEY` as a workspace
-secret. The sandbox type does not pick this. See [Harness Auth](./auth).
+On a CI runner there is no browser login. There, set `authMode: 'api-key'` and pass `XAI_API_KEY` as a workspace secret. See [Harness Auth](./auth).
 
-## Docker Sandboxes microVM (sbx)
+## Want a microVM? Use Docker Sandboxes
 
-If you want a hypervisor microVM, use `sbxSandbox()`. This is not a Docker container.
+`sbxSandbox()` runs the agent in a hypervisor microVM, not in a container.
 
-1. Install Docker Sandboxes so `sbx` is on `PATH`.
-   - macOS: `brew trust docker/tap`, then `brew install docker/tap/sbx`
-   - Windows: enable HypervisorPlatform, then `winget install -h Docker.sbx`
+1. Install Docker Sandboxes so that `sbx` is on your `PATH`:
+   - macOS: `brew trust docker/tap`, then `brew install docker/tap/sbx`.
+   - Windows: turn on HypervisorPlatform, then `winget install -h Docker.sbx`.
    - Debian or Ubuntu: `curl -fsSL https://get.docker.com | sudo REPO_ONLY=1 sh`, then `apt-get install docker-sbx`. Add your user to the `kvm` group.
 2. Run `sbx login`.
-3. Swap the provider. Pass `allowNetwork` so `pnpm install` can reach the npm registry. A known adapter such as `grok-build` also adds its model API host.
+3. Change `repoSandbox` in `fix-bug.mts`:
 
 ```ts
 import {
@@ -210,7 +193,7 @@ import {
 } from '@tanstack/ai-sandbox'
 import { sbxSandbox } from '@tanstack/ai-sandbox-docker'
 
-export const repoSandbox = defineSandbox({
+const repoSandbox = defineSandbox({
   id: 'bug-fixer',
   provider: sbxSandbox({
     allowNetwork: ['*.npmjs.org', 'registry.npmjs.org'],
@@ -226,21 +209,18 @@ export const repoSandbox = defineSandbox({
 })
 ```
 
-`sbxSandbox()` always clones a Git repo into the VM. It does not snapshot. Resume is by sandbox name.
+`allowNetwork` lets `pnpm install` reach the npm registry. A known adapter such as `grok-build` also adds its model API host.
 
-## Run the working example
+`sbxSandbox()` always clones a Git repo into the VM. It does not take snapshots. It resumes a sandbox by its name.
 
-A complete, runnable app ships at
-[`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web).
-That app is a "build me an app" agent (Claude Code on a Docker sandbox) with
-durable, refresh-surviving runs. It scaffolds an app in the sandbox, runs the
-dev server, and streams back a live preview URL. For a coding agent running at
-the edge, with the harness (Claude Code, Codex, Grok Build) picked per run
-from the UI, see
-[`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare).
+## Run a full example app
 
-From here:
+[`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web) is a complete app. It is a "build me an app" agent (Claude Code on Docker) with runs that continue after a refresh. It scaffolds an app in the sandbox, starts the dev server, and streams back a live preview URL.
 
-- Give the agent your own server-side tools (DB lookups, secrets), see [Tools](./tools).
-- Lock down what the agent is allowed to run, see [Policy](./policy).
-- Watch every file the agent touches as it works, see [Events](./events).
+[`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare) runs a coding agent at the edge. You pick Claude Code, Codex, or Grok Build for each run in the UI.
+
+Next, pick one:
+
+- Give the agent your own server tools (database lookups, secrets): [Tools](./tools).
+- Limit what the agent can run: [Policy](./policy).
+- Watch each file the agent touches: [Events](./events).

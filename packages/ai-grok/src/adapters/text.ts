@@ -1,11 +1,19 @@
 import OpenAI from 'openai'
 import { fileReferenceFor, isFileSource } from '@tanstack/ai'
-import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
+import {
+  OpenAIBaseResponsesTextAdapter,
+  toResponsesToolChoice,
+} from '@tanstack/openai-base'
+import {
+  GROK_MODEL_INPUT_MODALITIES,
+  GROK_MODEL_REASONING,
+} from '../model-meta'
 import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
 import { convertToolsToProviderFormat } from '../tools'
 import type {
   GROK_CHAT_MODELS,
   GrokChatModelToolCapabilitiesByName,
+  GrokModelReasoningByName,
   GrokTextAdapterModel,
   ResolveInputModalities,
   ResolveProviderOptions,
@@ -21,6 +29,12 @@ import type {
 /**
  * Resolve tool capabilities for a specific Grok model.
  */
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof GrokModelReasoningByName
+    ? GrokModelReasoningByName[TModel]
+    : never
+
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof GrokChatModelToolCapabilitiesByName
     ? NonNullable<GrokChatModelToolCapabilitiesByName[TModel]>
@@ -62,7 +76,8 @@ export class GrokTextAdapter<
   TProviderOptions,
   TInputModalities,
   GrokMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   override readonly name = 'grok' as const
@@ -70,9 +85,29 @@ export class GrokTextAdapter<
   // public URL. See convertContentPartToInput below for why it is a URL and
   // not a file_id.
   override readonly supportsFileSources = true
+  override readonly inputModalities = GROK_MODEL_INPUT_MODALITIES[this.model]
 
   constructor(config: GrokTextConfig, model: TModel) {
-    super(model, 'grok', new OpenAI(withGrokDefaults(config)))
+    const options = withGrokDefaults(config)
+    super(model, 'grok', new OpenAI(options), { fetch: options.fetch })
+  }
+
+  /**
+   * xAI has no error code for a context overflow. It answers 400 with the
+   * tag `[input_too_large]` in the error text.
+   */
+  protected override isContextOverflow(error: {
+    message: string
+    code: string | undefined
+  }): boolean {
+    return (
+      super.isContextOverflow(error) ||
+      (error.code === '400' && error.message.includes('[input_too_large]'))
+    )
+  }
+
+  protected override modelReasoning(model: string) {
+    return GROK_MODEL_REASONING[model]
   }
 
   /**
@@ -113,17 +148,20 @@ export class GrokTextAdapter<
     })
     void _baseTools
 
-    if (this.model === 'grok-build-0.1' && request.reasoning !== undefined) {
-      throw new Error(
-        'grok-build-0.1 does not support reasoning modelOptions; omit reasoning for this model.',
-      )
-    }
-
     const tools = options.tools
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
+    // The base saw no tools, so it sent no `chat({ toolChoice })`. Set it
+    // here when the request has tools. It goes before `request`, so a
+    // `tool_choice` from modelOptions wins.
+    const toolChoiceField =
+      tools?.length && options.toolChoice !== undefined
+        ? { tool_choice: toResponsesToolChoice(options.toolChoice) }
+        : undefined
+
     return {
+      ...toolChoiceField,
       ...request,
       // xAI recommends encrypted reasoning for reasoning-capable Responses
       // requests; callers can still override either field in modelOptions.

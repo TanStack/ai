@@ -22,13 +22,14 @@ describe('OpenAI per-model chat modelOptions gating', () => {
   describe('gpt-5.2 — full superset (reasoning + structured output + tools + streaming + metadata)', () => {
     it('accepts every option group', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('gpt-5.2'),
         messages: [{ role: 'user', content: 'hi' }],
+        reasoning: { level: 'medium', summary: true },
         modelOptions: {
           background: false,
           service_tier: 'auto',
           verbosity: 'medium',
-          reasoning: { effort: 'medium', summary: 'auto' },
           text: { format: { type: 'text' } },
           tool_choice: 'auto',
           max_tool_calls: 5,
@@ -39,21 +40,31 @@ describe('OpenAI per-model chat modelOptions gating', () => {
       })
     })
 
-    it('rejects the computer-use-preview-only "concise" summary', () => {
+    it('takes reasoning only as the chat() option, not in modelOptions', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('gpt-5.2'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
-          reasoning: {
-            // @ts-expect-error - 'concise' is only valid on computer-use-preview
-            summary: 'concise',
-          },
+          // @ts-expect-error - reasoning is the top-level `reasoning` option now
+          reasoning: { effort: 'low' },
         },
+      })
+    })
+
+    it('rejects a level the model does not have', () => {
+      chat({
+        threadId: 'thread-1',
+        adapter: openaiText('gpt-5.2'),
+        messages: [{ role: 'user', content: 'hi' }],
+        // @ts-expect-error - gpt-5.2 has no `max` level
+        reasoning: 'max',
       })
     })
 
     it('rejects unknown options', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('gpt-5.2'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -67,10 +78,11 @@ describe('OpenAI per-model chat modelOptions gating', () => {
   describe('gpt-5.2-pro — reasoning + tools + streaming + metadata (NO structured output)', () => {
     it('accepts reasoning, tools, and streaming options', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('gpt-5.2-pro'),
         messages: [{ role: 'user', content: 'hi' }],
+        reasoning: 'high',
         modelOptions: {
-          reasoning: { effort: 'high' },
           tool_choice: 'required',
           stream_options: { include_obfuscation: true },
           metadata: { run: '1' },
@@ -80,6 +92,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
 
     it('rejects structured-output `text` option', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('gpt-5.2-pro'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -93,6 +106,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
   describe('gpt-4 — tools + streaming + metadata (NO reasoning, NO structured output)', () => {
     it('accepts tools + streaming + metadata', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('gpt-4'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -106,6 +120,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
 
     it('rejects reasoning option', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('gpt-4'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -117,6 +132,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
 
     it('rejects structured-output `text` option', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('gpt-4'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -130,6 +146,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
   describe('gpt-3.5-turbo — tools + streaming + metadata (NO reasoning, NO structured output)', () => {
     it('accepts tools + streaming options', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('gpt-3.5-turbo'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -141,6 +158,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
 
     it('rejects reasoning option', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('gpt-3.5-turbo'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -154,10 +172,11 @@ describe('OpenAI per-model chat modelOptions gating', () => {
   describe('o3 — reasoning + metadata (NO tools, NO streaming, NO structured output)', () => {
     it('accepts reasoning + metadata', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('o3'),
         messages: [{ role: 'user', content: 'hi' }],
+        reasoning: 'high',
         modelOptions: {
-          reasoning: { effort: 'high', summary: 'auto' },
           metadata: { case: 'reasoning-only' },
         },
       })
@@ -165,6 +184,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
 
     it('rejects tools options', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('o3'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -176,6 +196,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
 
     it('rejects streaming options', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('o3'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -187,6 +208,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
 
     it('rejects structured-output `text` option', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('o3'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -197,25 +219,14 @@ describe('OpenAI per-model chat modelOptions gating', () => {
     })
   })
 
-  describe('computer-use-preview — accepts "concise" reasoning summary', () => {
-    it('accepts the concise summary value', () => {
-      chat({
-        adapter: openaiText('computer-use-preview'),
-        messages: [{ role: 'user', content: 'hi' }],
-        modelOptions: {
-          reasoning: { summary: 'concise' },
-        },
-      })
-    })
-  })
-
-  describe('chatgpt-4o-latest — base + streaming + metadata only', () => {
+  describe('gpt-audio — base + streaming + metadata only', () => {
     it('rejects tools options', () => {
       chat({
-        adapter: openaiText('chatgpt-4o-latest'),
+        threadId: 'thread-1',
+        adapter: openaiText('gpt-audio'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
-          // @ts-expect-error - 'tool_choice' is not available on chatgpt-4o-latest
+          // @ts-expect-error - 'tool_choice' is not available on gpt-audio
           tool_choice: 'auto',
         },
       })
@@ -223,10 +234,11 @@ describe('OpenAI per-model chat modelOptions gating', () => {
 
     it('rejects reasoning option', () => {
       chat({
-        adapter: openaiText('chatgpt-4o-latest'),
+        threadId: 'thread-1',
+        adapter: openaiText('gpt-audio'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
-          // @ts-expect-error - 'reasoning' is not available on chatgpt-4o-latest
+          // @ts-expect-error - 'reasoning' is not available on gpt-audio
           reasoning: { effort: 'low' },
         },
       })
@@ -245,8 +257,8 @@ describe('OpenAI provider options shape assertions', () => {
   describe('gpt-5.2 — full feature set', () => {
     type Options = OpenAIChatModelProviderOptionsByName['gpt-5.2']
 
-    it('has reasoning', () => {
-      expectTypeOf<Options>().toHaveProperty('reasoning')
+    it('has no reasoning (it is the chat() option now)', () => {
+      expectTypeOf<Options>().not.toHaveProperty('reasoning')
     })
     it('has text (structured output)', () => {
       expectTypeOf<Options>().toHaveProperty('text')
@@ -265,8 +277,8 @@ describe('OpenAI provider options shape assertions', () => {
   describe('o3 — reasoning + metadata only', () => {
     type Options = OpenAIChatModelProviderOptionsByName['o3']
 
-    it('has reasoning', () => {
-      expectTypeOf<Options>().toHaveProperty('reasoning')
+    it('has no reasoning (it is the chat() option now)', () => {
+      expectTypeOf<Options>().not.toHaveProperty('reasoning')
     })
     it('has metadata', () => {
       expectTypeOf<Options>().toHaveProperty('metadata')
@@ -299,8 +311,8 @@ describe('OpenAI provider options shape assertions', () => {
     })
   })
 
-  describe('chatgpt-4o-latest — base + streaming + metadata only', () => {
-    type Options = OpenAIChatModelProviderOptionsByName['chatgpt-4o-latest']
+  describe('gpt-audio — base + streaming + metadata only', () => {
+    type Options = OpenAIChatModelProviderOptionsByName['gpt-audio']
 
     it('has stream_options', () => {
       expectTypeOf<Options>().toHaveProperty('stream_options')
@@ -339,6 +351,7 @@ describe('OpenAI provider options shape assertions', () => {
 
     it('accepts sampling options through chat() modelOptions', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('gpt-4o'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {

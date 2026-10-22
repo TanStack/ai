@@ -121,6 +121,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       const chunks = await collect(
         adapter.structuredOutputStream!({
           chatOptions: {
+            threadId: 'thread-1',
             model: 'test-model',
             messages: [{ role: 'user', content: 'extract' }],
             logger: testLogger,
@@ -147,6 +148,38 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       expect(complete!.value.raw).toBe(json)
     })
 
+    it('skips a usage-only chunk that has no choices field at all', async () => {
+      setupStreamingMock([
+        deltaChunk('{"name":"John","age":30}', 'stop'),
+        {
+          id: 'chatcmpl-1',
+          model: 'test-model',
+          usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+        },
+      ])
+      const adapter = new TestAdapter()
+
+      const chunks = await collect(
+        adapter.structuredOutputStream!({
+          chatOptions: {
+            threadId: 'thread-1',
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'extract' }],
+            logger: testLogger,
+          },
+          outputSchema: personSchema,
+        }),
+      )
+
+      expect(chunks.find((c) => c.type === 'RUN_ERROR')).toBeUndefined()
+      const complete = chunks.find(
+        (c) =>
+          c.type === 'CUSTOM' &&
+          (c as { name?: string }).name === 'structured-output.complete',
+      ) as { value: { object: unknown } } | undefined
+      expect(complete?.value.object).toEqual({ name: 'John', age: 30 })
+    })
+
     it('timestamps lifecycle events when they are emitted', async () => {
       vi.useFakeTimers()
       try {
@@ -160,6 +193,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
 
         for await (const chunk of adapter.structuredOutputStream!({
           chatOptions: {
+            threadId: 'thread-1',
             model: 'test-model',
             messages: [{ role: 'user', content: 'extract' }],
             logger: testLogger,
@@ -197,6 +231,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       const chunks = await collect(
         adapter.structuredOutputStream!({
           chatOptions: {
+            threadId: 'thread-1',
             model: 'test-model',
             messages: [{ role: 'user', content: 'extract' }],
             logger: testLogger,
@@ -228,6 +263,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       await collect(
         adapter.structuredOutputStream!({
           chatOptions: {
+            threadId: 'thread-1',
             model: 'test-model',
             messages: [{ role: 'user', content: 'extract' }],
             logger: testLogger,
@@ -253,6 +289,38 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       expect(request.tools).toBeUndefined()
     })
 
+    it('sends json_object and the schema as one system prompt when modelOptions sets json_object', async () => {
+      setupStreamingMock([deltaChunk('{"name":"X","age":1}'), finishChunk()])
+      const adapter = new TestAdapter()
+
+      await collect(
+        adapter.structuredOutputStream!({
+          chatOptions: {
+            threadId: 'thread-1',
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'extract' }],
+            logger: testLogger,
+            modelOptions: { response_format: { type: 'json_object' } },
+            // A direct caller can also set it here; the prompt must not repeat.
+            outputSchema: personSchema,
+          },
+          outputSchema: personSchema,
+        }),
+      )
+
+      const request = mockCreate.mock.calls[0]![0] as {
+        response_format?: { type: string; json_schema?: unknown }
+        messages: Array<{ role: string; content: unknown }>
+      }
+      expect(request.response_format).toEqual({ type: 'json_object' })
+      expect(request.messages.filter((m) => m.role === 'system')).toEqual([
+        {
+          role: 'system',
+          content: expect.stringContaining(JSON.stringify(personSchema)),
+        },
+      ])
+    })
+
     it('accumulates JSON text from deltas and emits exactly one structured-output.complete', async () => {
       setupStreamingMock([
         deltaChunk('{"name":"A"'),
@@ -264,6 +332,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       const chunks = await collect(
         adapter.structuredOutputStream!({
           chatOptions: {
+            threadId: 'thread-1',
             model: 'test-model',
             messages: [{ role: 'user', content: 'extract' }],
             logger: testLogger,
@@ -298,6 +367,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
         const chunks = await collect(
           adapter.structuredOutputStream!({
             chatOptions: {
+              threadId: 'thread-1',
               model: 'test-model',
               messages: [{ role: 'user', content: 'extract' }],
               logger: testLogger,
@@ -324,6 +394,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       const chunks = await collect(
         adapter.structuredOutputStream!({
           chatOptions: {
+            threadId: 'thread-1',
             model: 'test-model',
             messages: [{ role: 'user', content: 'extract' }],
             logger: testLogger,
@@ -354,6 +425,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       const chunks = await collect(
         adapter.structuredOutputStream!({
           chatOptions: {
+            threadId: 'thread-1',
             model: 'test-model',
             messages: [{ role: 'user', content: 'extract' }],
             logger: testLogger,
@@ -395,6 +467,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       await collect(
         adapter.structuredOutputStream!({
           chatOptions: {
+            threadId: 'thread-1',
             model: 'test-model',
             messages: [{ role: 'user', content: 'extract' }],
             logger: verboseLogger,

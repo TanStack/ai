@@ -3,11 +3,13 @@ id: DefinedAgent
 title: DefinedAgent
 ---
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:50](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L50)
+Defined in: packages/ai/src/activities/chat/agents/define-agent.ts:101
 
-A named child agent. `run` is a `chat()` call (or any stream of AG-UI chunks).
+A named child agent. `run` is a `chat()` call (or any stream of AG-UI
+chunks), or a promise of a plain value such as an image result. A
+`chat({ stream: false })` result counts as its text.
 `TTools` and `TSchema` stay on the object so `useChat({ subagents })` can
-type that child's parts.
+type that child's parts. `TResult` is the value a promise `run` resolves to.
 
 ## Extends
 
@@ -31,6 +33,18 @@ type that child's parts.
 
 `TInterrupts` *extends* `ReadonlyArray`\<[`InterruptDefinition`](InterruptDefinition.md)\<`any`, `any`, `any`, `any`\>\> = `ReadonlyArray`\<[`InterruptDefinition`](InterruptDefinition.md)\<`any`, `any`, `any`, `any`\>\>
 
+### TInput
+
+`TInput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined` = `any`
+
+### TResult
+
+`TResult` = `unknown`
+
+### TProduces
+
+`TProduces` *extends* [`AgentProduces`](../type-aliases/AgentProduces.md) \| `undefined` = [`AgentProduces`](../type-aliases/AgentProduces.md) \| `undefined`
+
 ## Properties
 
 ### description
@@ -39,7 +53,7 @@ type that child's parts.
 description: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:59](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L59)
+Defined in: packages/ai/src/activities/chat/agents/define-agent.ts:113
 
 Required here: the router and the synthetic tool both read it.
 
@@ -51,13 +65,33 @@ AGUISubagentInfo.description
 
 ***
 
+### inputSchema?
+
+```ts
+optional inputSchema?: TInput;
+```
+
+Defined in: packages/ai/src/activities/chat/agents/define-agent.ts:133
+
+The input this agent needs, such as a short brief. `run` reads it as
+`ctx.input`, and the client card as `part.subagent.input`. In tool mode,
+the parent model writes it when it calls this agent's tool. Without it,
+the tool takes a text `prompt`. When the run uses `sessionId` or
+`background`, that name is reserved. A `subagents.router` gives it in
+its pick as `{ name, input }`. The input is checked against this schema
+first. A router can start this agent only when the schema is a Standard
+Schema, such as a zod schema. A plain JSON Schema works in tool mode
+only. A turn with a router input cannot resume after an interrupt.
+
+***
+
 ### interrupts?
 
 ```ts
 optional interrupts?: TInterrupts;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:64](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L64)
+Defined in: packages/ai/src/activities/chat/agents/define-agent.ts:135
 
 ***
 
@@ -67,7 +101,7 @@ Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:64](https://
 name: TName;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:57](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L57)
+Defined in: packages/ai/src/activities/chat/agents/define-agent.ts:111
 
 Unique name or identifier of the subagent.
 
@@ -85,7 +119,19 @@ AGUISubagentInfo.name
 optional outputSchema?: TSchema;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:65](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L65)
+Defined in: packages/ai/src/activities/chat/agents/define-agent.ts:136
+
+***
+
+### produces?
+
+```ts
+optional produces?: TProduces;
+```
+
+Defined in: packages/ai/src/activities/chat/agents/define-agent.ts:121
+
+What this agent makes. See [AgentProduces](../type-aliases/AgentProduces.md).
 
 ***
 
@@ -94,21 +140,23 @@ Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:65](https://
 ```ts
 run: (ctx) => 
   | AsyncIterable<AGUIEvent, any, any>
-| Promise<AsyncIterable<AGUIEvent, any, any>>;
+  | Promise<AsyncIterable<AGUIEvent, any, any>>
+| Promise<TResult>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:60](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L60)
+Defined in: packages/ai/src/activities/chat/agents/define-agent.ts:114
 
 #### Parameters
 
 ##### ctx
 
-[`SubagentRunContext`](SubagentRunContext.md)
+[`SubagentRunContext`](../type-aliases/SubagentRunContext.md)\<`TInput`\>
 
 #### Returns
 
   \| `AsyncIterable`\<[`AGUIEvent`](../type-aliases/AGUIEvent.md), `any`, `any`\>
   \| `Promise`\<`AsyncIterable`\<[`AGUIEvent`](../type-aliases/AGUIEvent.md), `any`, `any`\>\>
+  \| `Promise`\<`TResult`\>
 
 ***
 
@@ -118,7 +166,7 @@ Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:60](https://
 optional subagents?: unknown;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:66](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L66)
+Defined in: packages/ai/src/activities/chat/agents/define-agent.ts:137
 
 ***
 
@@ -128,4 +176,4 @@ Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:66](https://
 optional tools?: TTools;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:63](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L63)
+Defined in: packages/ai/src/activities/chat/agents/define-agent.ts:134

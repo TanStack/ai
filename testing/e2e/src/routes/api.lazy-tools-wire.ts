@@ -64,6 +64,7 @@ export const Route = createFileRoute('/api/lazy-tools-wire')({
 
         try {
           for await (const _ of chat({
+            threadId: 'lazy-tools-wire',
             ...createChatOptions({ adapter }),
             messages: [
               {

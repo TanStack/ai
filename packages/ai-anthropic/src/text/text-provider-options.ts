@@ -1,6 +1,9 @@
+import type { AnthropicThinkingFields } from './reasoning'
 import type {
   BetaContextManagementConfig,
+  BetaFallbacksParam,
   BetaMessageParam,
+  BetaTool,
   BetaToolChoiceAny,
   BetaToolChoiceAuto,
   BetaToolChoiceTool,
@@ -57,20 +60,11 @@ export interface AnthropicCacheControlOptions {
 
 export interface AnthropicContainerOptions {
   /**
-   * Container identifier for reuse across requests.
-   * Container parameters with skills to be loaded.
+   * Container identifier for reuse across requests. To load skills into the
+   * container, use `codeExecutionTool(config, { skills })`.
    */
   container?: {
     id: string | null
-    /**
-     * List of skills to load into the container.
-     *
-     * @deprecated Configure skills on the `code_execution` tool instead:
-     * `codeExecutionTool(config, { skills })`. The adapter lifts those into
-     * `container.skills` and attaches the required beta headers. Setting
-     * skills here bypasses the beta-header wiring and may stop working.
-     */
-    skills: Array<AnthropicContainerSkill> | null
   } | null
 }
 
@@ -81,6 +75,17 @@ export interface AnthropicContextManagementOptions {
 This allows you to control how Claude manages context across multiple requests, such as whether to clear function results or not.
    */
   context_management?: BetaContextManagementConfig | null
+}
+
+export interface AnthropicFallbackOptions {
+  /**
+   * Server-side refusal fallback (beta, Claude API only). When a safety
+   * classifier declines the request, the API retries it on another model in
+   * the same call. `'default'` uses the model Anthropic recommends for the
+   * refusal category. A list names up to three models to try in order.
+   * The adapter adds the `server-side-fallback-2026-07-01` beta header.
+   */
+  fallbacks?: BetaFallbacksParam | null
 }
 
 export interface AnthropicMCPOptions {
@@ -109,115 +114,6 @@ If you want the model to stop generating when it encounters custom strings of te
   stop_sequences?: Array<string>
 }
 
-export interface AnthropicThinkingOptions {
-  /**
-     * Configuration for enabling Claude's extended thinking.
-
-When enabled, responses include thinking content blocks showing Claude's thinking process before the final answer. Requires a minimum budget of 1,024 tokens and counts towards your max_tokens limit.
-     */
-  thinking?:
-    | {
-        /**
-* Determines how many tokens Claude can use for its internal reasoning process. Larger budgets can enable more thorough analysis for complex problems, improving response quality.
-
-Must be ≥1024 and less than max_tokens
-*/
-        budget_tokens: number
-
-        type: 'enabled'
-      }
-    | {
-        type: 'disabled'
-      }
-}
-
-export interface AnthropicAdaptiveThinkingOptions {
-  /**
-   * Configuration for Claude's adaptive thinking (Opus 4.6+).
-   *
-   * In adaptive mode, Claude dynamically decides when and how much to think.
-   * Use the effort parameter to control thinking depth.
-   * `thinking: {type: "enabled"}` with `budget_tokens` is deprecated on Opus 4.6.
-   */
-  thinking?:
-    | {
-        type: 'adaptive'
-        /**
-         * Controls what (if any) thinking content is streamed back.
-         *
-         * - `'summarized'`: stream summarized thinking via `thinking_delta`
-         *   events (the user-visible reasoning text).
-         * - `'omitted'`: stream the thinking block's `signature_delta` only
-         *   (no reasoning text reaches the client).
-         *
-         * On Claude Opus 4.6 the default is `'summarized'`. On
-         * Claude Opus 4.7 the default flipped to `'omitted'` — callers
-         * must set `'summarized'` explicitly to get the reasoning text.
-         */
-        display?: 'summarized' | 'omitted'
-      }
-    | {
-        /**
-         * @deprecated Use `type: 'adaptive'` with the effort parameter on Opus 4.6+.
-         */
-        budget_tokens: number
-        type: 'enabled'
-      }
-    | {
-        type: 'disabled'
-      }
-}
-
-/**
- * Thinking configuration for models where thinking is always on
- * (e.g. Claude Fable 5).
- *
- * On these models the only accepted explicit configuration is
- * `{type: 'adaptive'}` — both `{type: 'disabled'}` and
- * `{type: 'enabled', budget_tokens}` are rejected with a 400. Omitting the
- * `thinking` field entirely also runs adaptive thinking.
- */
-export interface AnthropicAdaptiveOnlyThinkingOptions {
-  thinking?: {
-    type: 'adaptive'
-    /**
-     * Controls what (if any) thinking content is streamed back.
-     *
-     * - `'summarized'`: stream summarized thinking via `thinking_delta`
-     *   events (the user-visible reasoning text).
-     * - `'omitted'` (default): stream the thinking block's
-     *   `signature_delta` only (no reasoning text reaches the client).
-     */
-    display?: 'summarized' | 'omitted'
-  }
-}
-
-/**
- * Thinking configuration for models that accept adaptive thinking or an
- * explicit opt-out, but no manual token budget (e.g. Claude Sonnet 5,
- * Claude Opus 4.7/4.8).
- *
- * `{type: 'enabled', budget_tokens}` is rejected with a 400 on these
- * models. On Claude Sonnet 5, omitting the `thinking` field runs adaptive
- * thinking by default; on Opus 4.7/4.8 it runs without thinking — set
- * `{type: 'adaptive'}` explicitly there.
- */
-export interface AnthropicAdaptiveOrDisabledThinkingOptions {
-  thinking?:
-    | {
-        type: 'adaptive'
-        /**
-         * Controls what (if any) thinking content is streamed back.
-         * Defaults to `'omitted'` — set `'summarized'` to receive the
-         * reasoning text.
-         */
-        display?: 'summarized' | 'omitted'
-      }
-    | {
-        type: 'disabled'
-      }
-}
-
 /**
  * `max_tokens` on its own, for models that reject the sampling parameters
  * (`temperature`, `top_p`, `top_k`) — e.g. Claude Fable 5 and Claude Opus
@@ -230,42 +126,6 @@ export interface AnthropicMaxTokensOptions {
    * Range x >= 1.
    */
   max_tokens?: number
-}
-
-export interface AnthropicEffortOptions {
-  /**
-   * Controls the thinking depth for adaptive thinking mode (Opus 4.6+).
-   *
-   * - `max`: Absolute highest capability
-   * - `high`: Default - Claude will almost always think
-   * - `medium`: Balanced cost-quality
-   * - `low`: May skip thinking for simpler problems
-   */
-  effort?: 'max' | 'high' | 'medium' | 'low'
-}
-
-export interface AnthropicOutputConfigOptions {
-  /**
-   * Output configuration for the model's response.
-   *
-   * On Claude 4.7+ the top-level `effort` field was relocated under
-   * `output_config.effort`, and `thinking: { type: 'enabled', budget_tokens }`
-   * was replaced by `thinking: { type: 'adaptive' }` paired with
-   * `output_config.effort`. Earlier models continue to accept the legacy
-   * top-level `effort` / `thinking.type: 'enabled'` shape.
-   *
-   * The engine also writes `output_config.format` here when the caller
-   * passes `outputSchema` to a Claude 4.5+ adapter (issue #605 native
-   * combined mode). Both fields coexist: user-supplied `effort` is
-   * preserved when the engine adds `format`.
-   */
-  output_config?: {
-    /**
-     * `'xhigh'` is accepted on Claude Opus 4.7+, Claude Sonnet 5, and
-     * Claude Fable 5; older models support `'low'`–`'max'` only.
-     */
-    effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max' | null
-  }
 }
 
 export interface AnthropicToolChoiceOptions {
@@ -305,17 +165,17 @@ Required range: x >= 0
 export type ExternalTextProviderOptions = AnthropicCacheControlOptions &
   AnthropicContainerOptions &
   AnthropicContextManagementOptions &
+  AnthropicFallbackOptions &
   AnthropicMCPOptions &
   AnthropicServiceTierOptions &
   AnthropicStopSequencesOptions &
-  AnthropicThinkingOptions &
   AnthropicToolChoiceOptions &
-  AnthropicSamplingOptions &
-  Partial<AnthropicAdaptiveThinkingOptions> &
-  Partial<AnthropicEffortOptions> &
-  Partial<AnthropicOutputConfigOptions>
+  AnthropicSamplingOptions
 
-export interface InternalTextProviderOptions extends ExternalTextProviderOptions {
+export interface InternalTextProviderOptions
+  extends
+    ExternalTextProviderOptions,
+    Omit<AnthropicThinkingFields, 'output_config'> {
   model: string
 
   messages: Array<BetaMessageParam>
@@ -340,7 +200,17 @@ export interface InternalTextProviderOptions extends ExternalTextProviderOptions
    */
   system?: string | Array<TextBlockParam>
 
-  tools?: Array<AnthropicTool>
+  /**
+   * Container for the request. The adapter sets `skills` from the
+   * `code_execution` tool.
+   */
+  container?: {
+    id: string | null
+    skills?: Array<AnthropicContainerSkill> | null
+  } | null
+
+  /** `BetaTool`: the placeholder and the deferred tools of mid-conversation tool mode. */
+  tools?: Array<AnthropicTool | BetaTool>
 
   /**
    * Schema-constrained final answer in a single Messages request (issue

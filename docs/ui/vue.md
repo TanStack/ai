@@ -2,7 +2,7 @@
 title: Vue Chat UI
 id: typed-headless-ui-vue
 order: 3
-description: "Build a typed, headless Vue chat UI with createChatHook and static primitives. Slots replace render callbacks."
+description: "Render a streaming chat in Vue with your own components. createChatHook types every tool, part, and interrupt, and slots place the pieces."
 keywords:
   - tanstack ai
   - createChatHook
@@ -11,76 +11,295 @@ keywords:
   - ToolProps
 ---
 
-Install `@tanstack/ai-vue`. Import the UI factory from `@tanstack/ai-vue/ui`. Call `createChatHook({ options, ...components })` once. Your app calls `useAppChat()` to create the instance. Pass the descriptor as `ui` into `UIChat`, `UIProvider`, and the other static primitives.
+`createChatHook` from `@tanstack/ai-vue/ui` binds your chat options and components once. Tool calls and approvals stay typed.
 
-> **Deprecated.** Do not install `@tanstack/ai-vue-ui`. That package re-exports this subpath until 1.0.0. See [Chat UI packages](../migration/create-ui).
+Each screen then creates a chat with `useAppChat()` and renders it with `UIChat`. You supply every visible component. There is no default markup or style.
 
-The factory needs a `toolsComponents` entry for every tool name in `chatOptions`. It also needs an `interruptsComponents.generic` entry for every interrupt id. `generic.fallback` is optional. Widgets go in `components`, `partsComponents`, `toolsComponents`, and `interruptsComponents`, the same way Form and Table register components.
+> [!NOTE]
+> Upgrading from `@tanstack/ai-vue-ui`? Read [Upgrade to 1.0](../migration/v1#chat-ui-components).
 
-The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI text adapter.
+## Quick setup
 
-The [chat UI recipes](./recipes/index) show the same option groups one at a time. The code there is React, and the shape carries over.
+1. Install the packages:
 
-## Client
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+vue: @tanstack/ai @tanstack/ai-vue @tanstack/ai-openai
+
+<!-- ::end:tabs -->
+
+2. Put `OPENAI_API_KEY` in your server environment. Then add a `POST` route at `/api/chat`:
+
+```ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
+
+  const stream = chat({
+    adapter: openaiText('gpt-6.1-sol'),
+    messages,
+    threadId,
+    runId,
+  })
+
+  return toServerSentEventsResponse(stream)
+}
+```
+
+3. Create `src/chat-ui.ts`:
 
 ```ts
 import { defineComponent, h } from 'vue'
 import { fetchServerSentEvents } from '@tanstack/ai-vue'
-import { createChatHook, UIChat } from '@tanstack/ai-vue/ui'
-import { toolDefinition } from '@tanstack/ai'
-import { z } from 'zod'
-
-const getWeather = toolDefinition({
-  name: 'getWeather',
-  description: 'Look up weather',
-  inputSchema: z.object({ city: z.string() }),
-  outputSchema: z.object({ temperature: z.number() }),
-}).client()
+import { createChatHook } from '@tanstack/ai-vue/ui'
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
-  tools: [getWeather],
 }
 
-const { useAppChat, ui } = createChatHook({
+export const { useAppChat, ui } = createChatHook({
   options: chatOptions,
   components: {
-  layout: defineComponent((_, { slots }) => () =>
-    h('div', [slots.messages?.(), slots.interrupts?.(), slots.queue?.(), slots.input?.()]),
-  ),
-  message: defineComponent((_, { slots }) => () => h('article', slots.parts?.())),
+    layout: defineComponent((_, { slots }) => () =>
+      h('section', slots.messages?.()),
+    ),
+    message: defineComponent({
+      props: ['message'],
+      setup(props, { slots }) {
+        return () =>
+          h('article', { 'data-role': props.message.role }, slots.parts?.())
+      },
+    }),
   },
   partsComponents: {
-  fallback: defineComponent({
-    props: ['part'],
-    setup(props) {
-      return () => h('span', props.part.type)
-    },
-  }),
-  },
-  toolsComponents: {
-  getWeather: defineComponent({
-    props: ['part'],
-    setup(props) {
-      return () => h('strong', props.part.input?.city)
-    },
-  }),
-  },
-})
-
-export default defineComponent({
-  setup() {
-    const chat = useAppChat({ threadId: 'support-1' })
-    return () => h(UIChat, { ui, chat })
+    text: defineComponent({
+      props: ['part'],
+      setup(props) {
+        return () => h('p', props.part.content)
+      },
+    }),
+    fallback: defineComponent(() => () => null),
   },
 })
 ```
 
-Layout uses slots `messages`, `interrupts`, `queue`, and `input`. Message uses slot `parts`. Manual lists use the default slot on `UIMessages` with `{ messages }`.
+4. Create `src/Chat.vue`:
 
-## Type a component in its own file
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+import { UIChat } from '@tanstack/ai-vue/ui'
+import { ui, useAppChat } from './chat-ui'
 
-Use `ToolProps` on the component props. Share the same `chatOptions` object that you pass to `createChatHook`.
+const chat = useAppChat({ threadId: 'support-chat' })
+const draft = ref('')
+
+function send() {
+  const text = draft.value.trim()
+  if (!text) return
+  draft.value = ''
+  void chat.sendMessage(text)
+}
+</script>
+
+<template>
+  <main>
+    <UIChat :ui="ui" :chat="chat" />
+    <form @submit.prevent="send">
+      <input v-model="draft" />
+      <button type="submit">Send</button>
+    </form>
+  </main>
+</template>
+```
+
+5. Render `<Chat />` and send a message.
+
+The reply streams into the page as the model writes it.
+
+## How it works
+
+- `createChatHook` runs once, at module scope. It binds `chatOptions` to your components. It returns `ui`, the descriptor that `UIChat` reads.
+- `useAppChat({ threadId })` creates one chat instance. `UIChat` renders that instance with your components.
+- `layout` places the message list with the `messages` slot. `message` gets one message plus a `parts` slot. The `parts` slot picks a component for each part.
+- `partsComponents.text` renders text. `fallback` catches every part type that you did not register.
+
+## Next steps
+
+Each step adds one thing to the quick setup. The [chat UI recipes](./recipes/index) have the full file for each one. The recipes use React, and the option names are the same in Vue.
+
+### Render a tool
+
+Add the tool to `tools` in `chatOptions`. Then register a component under the tool name in `toolsComponents`. A tool component gets the `part`, `result`, and `interrupt` props.
+
+```ts ignore
+toolsComponents: {
+  getWeather: defineComponent({
+    props: ['part'],
+    setup(props) {
+      return () =>
+        props.part.state === 'complete'
+          ? h('p', `${props.part.input?.city}: ${props.part.output?.temperature}`)
+          : h('p', 'Looking up weather')
+    },
+  }),
+},
+```
+
+The factory needs one entry for every tool in `chatOptions`. Full example: [Make a tool look right](./recipes/format-a-tool).
+
+### Ask before a tool runs
+
+Set `needsApproval: true` on the tool. The tool component then gets an `interrupt` prop:
+
+```ts ignore
+toolsComponents: {
+  deleteFile: defineComponent({
+    props: ['part', 'interrupt'],
+    setup(props) {
+      return () =>
+        props.interrupt?.status === 'pending'
+          ? h(
+              'button',
+              { onClick: () => props.interrupt.resolveInterrupt(true) },
+              `Delete ${props.part.input?.path}`,
+            )
+          : h('p', props.part.input?.path)
+    },
+  }),
+},
+```
+
+`resolveInterrupt(true)` approves. `resolveInterrupt(false)` denies. Full example: [Ask before a tool runs](./recipes/tool-approval).
+
+### Ask the user your own question
+
+Define the question with `defineInterrupt`. Add it to `interrupts` in `chatOptions`. Register a component under its id in `interruptsComponents.generic`, and render the `interrupts` slot in the layout:
+
+```ts ignore
+const choosePlan = defineInterrupt({
+  id: 'choosePlan',
+  payloadSchema: z.object({ title: z.string() }),
+  responseSchema: z.string(),
+})
+
+// In createChatHook:
+interruptsComponents: {
+  generic: {
+    choosePlan: defineComponent({
+      props: ['interrupt'],
+      setup(props) {
+        return () =>
+          h(
+            'button',
+            { onClick: () => props.interrupt.resolveInterrupt('pro') },
+            props.interrupt.payload?.title,
+          )
+      },
+    }),
+  },
+},
+```
+
+The factory needs one entry for every interrupt id in `chatOptions`. Full example: [Ask the user your own question](./recipes/custom-interrupt).
+
+### Read chat state inside a widget
+
+Mapped components do not get `chat` as a prop. Read the chat from context inside the widget. This also moves the composer into the layout: register it as `input`, then render the `input` slot.
+
+A widget that the factory registers cannot read `ui` from the same call. Create the context first with `createChatHookContexts()`, and pass its `chatKey` under `context`:
+
+```ts
+import { defineComponent, h, ref } from 'vue'
+import { fetchServerSentEvents } from '@tanstack/ai-vue'
+import {
+  createChatHook,
+  createChatHookContexts,
+} from '@tanstack/ai-vue/ui'
+
+const { chatKey, useChatContext } = createChatHookContexts()
+
+const ChatInput = defineComponent(() => {
+  const chat = useChatContext()
+  const draft = ref('')
+
+  return () =>
+    h(
+      'form',
+      {
+        onSubmit: (event: Event) => {
+          event.preventDefault()
+          const text = draft.value.trim()
+          if (!text) return
+          draft.value = ''
+          void chat.sendMessage(text)
+        },
+      },
+      [
+        h('input', {
+          value: draft.value,
+          disabled: chat.isLoading.value,
+          onInput: (event: Event) => {
+            if (event.target instanceof HTMLInputElement) {
+              draft.value = event.target.value
+            }
+          },
+        }),
+        h('button', { type: 'submit' }, 'Send'),
+      ],
+    )
+})
+
+const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+}
+
+export const { useAppChat, ui } = createChatHook({
+  options: chatOptions,
+  context: { chatKey },
+  components: {
+    input: ChatInput,
+    layout: defineComponent((_, { slots }) => () =>
+      h('main', [slots.messages?.(), slots.input?.()]),
+    ),
+    message: defineComponent((_, { slots }) => () =>
+      h('article', slots.parts?.()),
+    ),
+  },
+  partsComponents: { fallback: defineComponent(() => () => null) },
+})
+```
+
+In Vue, `chat.messages`, `chat.isLoading`, and `chat.error` are refs. Read them with `.value` in script. Call `useChatContext()` only inside `UIChat` or `UIProvider`. A call outside that tree throws.
+
+### Render markdown
+
+Model replies arrive as markdown. Register `TextPart` from `@tanstack/ai-vue/ui` as the text part:
+
+```ts ignore
+import { TextPart } from '@tanstack/ai-vue/ui'
+
+partsComponents: {
+  text: defineComponent({
+    props: ['part'],
+    setup(props) {
+      return () => h(TextPart, { content: props.part.content })
+    },
+  }),
+},
+```
+
+`TextPart` uses [TanStack Markdown](https://tanstack.com/markdown). It escapes raw HTML and removes executable URLs. To color fenced code, read [Highlight markdown code](./markdown).
+
+### Type a widget in its own file
+
+Move a widget to its own file and type its props with `ToolProps`, `PartProps`, or `InterruptProps`. Pass `typeof chatOptions` and a name:
 
 ```ts
 import { defineComponent, h } from 'vue'
@@ -120,15 +339,30 @@ export const { useAppChat, ui } = createChatHook({
 })
 ```
 
-Part components use `PartProps<typeof chatOptions, 'text'>`. Then `part` is already a text part.
+Put `chatOptions` in a shared module so every widget file can import its type.
 
-Interrupt components use `InterruptProps<typeof chatOptions, 'choosePlan'>`. Then `interrupt.payload` matches the definition.
+You now have a typed chat UI in Vue. Each widget is your own component.
 
-Mapped components do not receive `chat` as a prop. Call `ui.useChatContext()` when a component needs live chat. That call opts the component into chat updates. Nested children can call it too.
+## Advanced
 
-## Read chat from `ui.useChatContext()`
+### Slots and props
 
-Call `ui.useChatContext()` inside a child of `UIChat` or `UIProvider`.
+The config keys, part keys, and prop types are the same as in React. See [Every widget slot](./react#every-widget-slot). In Vue, components place content with slots:
+
+- `layout`: the `messages`, `interrupts`, `queue`, and `input` slots.
+- `message`: the `message` prop and the `parts` slot.
+
+`useAppChat()` takes per-instance options: `threadId` (required), `initialMessages`, `live`, and `forwardedProps`.
+
+### Approvals and generic interrupts
+
+- A tool approval renders in the tool when you read the `interrupt` prop.
+- To show it in the list instead, register a component under `interruptsComponents.tools` and render the `interrupts` slot.
+- Generic interrupts always render in the list. `generic.fallback` renders an unregistered id and an unbound interrupt. If the copy must be different, branch on `interrupt.kind === 'unbound'`.
+
+### Use `ui.useChatContext()` in a child file
+
+A child component in its own file can import `ui` and call `ui.useChatContext()`. Inside the factory module, declare the child after the `createChatHook` call. Annotate it as `Component`, so its type does not depend on the components map that renders it:
 
 ```ts
 import { defineComponent, h } from 'vue'
@@ -151,54 +385,30 @@ const { useAppChat, ui } = createChatHook({
   partsComponents: { fallback: defineComponent(() => () => null) },
 })
 
-// Declared after `ui`, and annotated, so that reading `ui.useChatContext()`
-// here does not form an inference cycle with the components map that renders
-// it. `h(StatusLine)` above only runs at render time, so the order is fine.
+// h(StatusLine) runs only at render time, so this order is safe.
 const StatusLine: Component = defineComponent({
   setup() {
     const chat = ui.useChatContext()
-    return () => {
-      const messages = Array.isArray(chat.messages) ? chat.messages : []
-      return h('p', String(messages.length) + ' messages')
-    }
+    return () => h('p', `${chat.messages.value.length} messages`)
   },
 })
 
 export default defineComponent({
   setup() {
-    const chat = useAppChat()
+    const chat = useAppChat({ threadId: 'support-chat' })
     return () => h(UIChat, { ui, chat })
   },
 })
 ```
 
-`useChat(chatOptions)` from `@tanstack/ai-vue` owns the state. `ui.useChatContext()` reads the instance you passed into `UIChat`.
+### Walk messages yourself
 
-## Interrupts
+`UIMessages` has a default slot with `{ messages }`. `UIMessage` has a default slot with `{ parts }`. Pass `ui` to each one.
 
-Tool approvals sit in the tool when you read the `interrupt` prop. Put a component on `interruptsComponents.tools` to send that approval to the list instead. Generic interrupts always sit in the list under `interruptsComponents.generic`: `{ choosePlan, fallback }`. An unbound interrupt uses `fallback`. Branch on `interrupt.kind === 'unbound'` if the copy must differ.
+### `TextPart` options
 
-The full map is on the [React page](./react).
+- `highlighter`: a synchronous `CodeHighlighter`. Its output is trusted HTML, so use `createTanStackMarkdownHighlighter` or another highlighter that escapes source text.
+- `extensions`: more TanStack Markdown extensions. The streaming extension is always on.
+- `class`, `userClass`, `assistantClass`: classes for the wrapper. Pass `role` to apply the role class.
 
-## Render markdown
-
-Model replies arrive as markdown. `TextPart` from `@tanstack/ai-vue/ui` renders it with [TanStack Markdown](https://tanstack.com/markdown). By default, raw HTML is escaped and executable URLs are removed.
-
-```ts
-import { defineComponent, h } from 'vue'
-import { TextPart } from '@tanstack/ai-vue/ui'
-
-export default defineComponent({
-  props: { content: { type: String, required: true } },
-  setup(props) {
-    return () => h(TextPart, { content: props.content })
-  },
-})
-```
-
-Fenced code stays plain until you pass a `highlighter`. Build one with TanStack Highlight: [Highlight markdown code](./markdown). A custom `highlighter` returns trusted HTML. Use `createTanStackMarkdownHighlighter`, or another highlighter that escapes source text.
-
-- `highlighter`: a synchronous `CodeHighlighter`.
-- `extensions`: extra TanStack Markdown extensions. The streaming extension is always on.
-
-If you still pass `remarkPlugins`, `rehypePlugins`, or `disableDefaultPlugins`, see [TextPart markdown](../migration/text-part-markdown).
+If you still pass `remarkPlugins`, `rehypePlugins`, or `disableDefaultPlugins`, read [TextPart markdown](../migration/text-part-markdown).

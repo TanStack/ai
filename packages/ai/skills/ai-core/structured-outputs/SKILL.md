@@ -36,6 +36,7 @@ import { z } from 'zod'
 const person = await chat({
   adapter: openaiText('gpt-5.2'),
   messages: [{ role: 'user', content: 'John Doe, 30' }],
+  threadId: 'thread-1',
   outputSchema: z.object({
     name: z.string(),
     age: z.number(),
@@ -86,6 +87,7 @@ const person = await chat({
         'Extract the person info: John Doe is 30 years old, email john@example.com',
     },
   ],
+  threadId: 'thread-1',
   outputSchema: PersonSchema,
 })
 
@@ -134,6 +136,7 @@ const company = await chat({
       content: 'Extract company info from this article: ...',
     },
   ],
+  threadId: 'thread-1',
   outputSchema: CompanySchema,
 })
 
@@ -163,6 +166,7 @@ const stream = chat({
   messages: [
     { role: 'user', content: 'Extract: John Doe is 30, john@example.com' },
   ],
+  threadId: 'thread-1',
   outputSchema: PersonSchema,
   stream: true,
 })
@@ -182,23 +186,25 @@ The terminal event is a `CUSTOM` chunk: `{ type: 'CUSTOM', name: 'structured-out
 
 **Adapter coverage for streaming:**
 
-| Adapter                                               | `outputSchema` + `stream: true`                                                                                                                       |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@tanstack/ai-openai` (Responses + Chat Completions)  | **Native combined mode (#605)** — schema wired into the regular `chatStream` call alongside `tools`; engine harvests JSON, no finalization round-trip |
-| `@tanstack/ai-anthropic` (Claude 4.5+ only)           | **Native combined mode (#605)** — `output_config.format` + `tools` in one beta Messages call. Older Claude models fall back                           |
-| `@tanstack/ai-gemini` (Gemini 3.x only)               | **Native combined mode (#605)** — `responseSchema` + `tools` in one `generateContentStream`. Gemini 2.x falls back                                    |
-| `@tanstack/ai-grok`                                   | **Native combined mode (#605)** — OpenAI Responses `text.format` + `tools` for grok-4.6, grok-4.5, grok-4.3, and grok-build-0.1                       |
-| `@tanstack/ai-openrouter`                             | Native single-request stream (legacy `structuredOutputStream` path; per-call combined-mode lookup is a follow-up)                                     |
-| `@tanstack/ai-groq`                                   | Legacy `structuredOutputStream` only (no tools — Groq's API rejects schema + tools + stream)                                                          |
-| `@tanstack/ai-bedrock`                                | Separate native `structuredOutputStream` finalization through Converse or an OpenAI-compatible API                                                    |
-| `@tanstack/ai-byteplus`                               | Native combined mode on supported models; unsupported models emit `RUN_ERROR`                                                                         |
-| `@tanstack/ai-cloudflare`                             | Native `structuredOutputStream` without tools; with tools, a separate finalization call (Workers AI models answer the tool turn in prose)             |
-| `@tanstack/ai-claude-code`                            | Combined + event source — `--json-schema` on the same harness turn. Read `useChat().final`. See Pattern 6.                                            |
-| `@tanstack/ai-codex`                                  | Combined + event source — `--output-schema` on the same harness turn. Read `useChat().final`. See Pattern 6.                                          |
-| `@tanstack/ai-opencode`                               | Combined + event source — prompt-and-parse. Read `useChat().final`. See Pattern 6.                                                                    |
-| `@tanstack/ai-grok-build`                             | Combined + event source — prompt-and-parse (ACP and streaming-json). Read `useChat().final` or the `structured-output` part. See Pattern 6.           |
-| `@tanstack/ai-acp` (`acpCompatible`)                  | Combined + event source — prompt-and-parse. Read `useChat().final` or the `structured-output` part. See Pattern 6.                                    |
-| All other adapters (ollama, older Claude, Gemini 2.x) | Fallback: runs non-streaming `structuredOutput`, emits one `structured-output.complete` event                                                         |
+| Adapter                                              | `outputSchema` + `stream: true`                                                                                                                       |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@tanstack/ai-openai` (Responses + Chat Completions) | **Native combined mode (#605)** — schema wired into the regular `chatStream` call alongside `tools`; engine harvests JSON, no finalization round-trip |
+| `@tanstack/ai-anthropic` (Claude 4.5+ only)          | **Native combined mode (#605)** — `output_config.format` + `tools` in one beta Messages call. Older Claude models fall back                           |
+| `@tanstack/ai-gemini` (Gemini 3.x only)              | **Native combined mode (#605)** — `responseSchema` + `tools` in one `generateContentStream`. Gemini 2.x falls back                                    |
+| `@tanstack/ai-grok`                                  | **Native combined mode (#605)** — OpenAI Responses `text.format` + `tools` for grok-4.6, grok-4.5, grok-4.3, and grok-build-0.1                       |
+| `@tanstack/ai-openrouter`                            | Native single-request stream (legacy `structuredOutputStream` path; per-call combined-mode lookup is a follow-up)                                     |
+| `@tanstack/ai-groq`                                  | Legacy `structuredOutputStream` only (no tools — Groq's API rejects schema + tools + stream)                                                          |
+| `@tanstack/ai-bedrock`                               | Separate native `structuredOutputStream` finalization through Converse or an OpenAI-compatible API                                                    |
+| `@tanstack/ai-byteplus`                              | Native combined mode on supported models; unsupported models emit `RUN_ERROR`                                                                         |
+| `@tanstack/ai-cloudflare`                            | Native `structuredOutputStream` without tools; with tools, a separate finalization call (Workers AI models answer the tool turn in prose)             |
+| `@tanstack/ai-claude-code`                           | Combined + event source — `--json-schema` on the same harness turn. Read `useChat().final`. See Pattern 6.                                            |
+| `@tanstack/ai-codex`                                 | Combined + event source — `--output-schema` on the same harness turn. Read `useChat().final`. See Pattern 6.                                          |
+| `@tanstack/ai-opencode`                              | Combined + event source — prompt-and-parse. Read `useChat().final`. See Pattern 6.                                                                    |
+| `@tanstack/ai-grok-build`                            | Combined + event source — prompt-and-parse (ACP and streaming-json). Read `useChat().final` or the `structured-output` part. See Pattern 6.           |
+| `@tanstack/ai-acp` (`acpCompatible`)                 | Combined + event source — prompt-and-parse. Read `useChat().final` or the `structured-output` part. See Pattern 6.                                    |
+
+**JSON mode (`json_object`).** Some OpenRouter and Groq models reject strict `json_schema`. For those models the adapter sends `json_object` and adds the schema as a system prompt. The model is asked for the shape but is not held to it. A caller can force JSON mode with `modelOptions` (`responseFormat: { type: 'json_object' }` on OpenRouter, `response_format` on Groq and other OpenAI-base adapters). JSON mode is never combined with tools: the schema prompt goes only on the finalization call. Only `await chat({ outputSchema })` with a Standard Schema validates the reply, so prefer Zod/Valibot/ArkType over a plain JSON Schema on these models.
+| All other adapters (ollama, older Claude, Gemini 2.x) | Fallback: runs non-streaming `structuredOutput`, emits one `structured-output.complete` event |
 
 **Native-combined output vs separate finalization** is signaled by the adapter's
 optional `supportsCombinedToolsAndSchema(modelOptions)` method. When
@@ -231,10 +237,11 @@ const PersonSchema = z.object({
 })
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
   const stream = chat({
     adapter: openaiText('gpt-5.2'),
     messages,
+    threadId,
     outputSchema: PersonSchema,
     stream: true,
   })
@@ -257,6 +264,7 @@ const PersonSchema = z.object({
 function PersonExtractor() {
   const { sendMessage, isLoading, partial, final } = useChat({
     connection: fetchServerSentEvents('/api/extract-person'),
+    threadId: 'support-42',
     outputSchema: PersonSchema,
   })
 
@@ -306,6 +314,7 @@ function RecipeBuilder() {
   const { messages, sendMessage } = useChat({
     outputSchema: RecipeSchema,
     connection: fetchServerSentEvents('/api/recipes'),
+    threadId: 'support-42',
   })
 
   return (
@@ -357,11 +366,33 @@ Dedicated harness adapters honor `chat({ outputSchema })` on the same turn. Nati
 A UI endpoint must pass `stream: true`. Without it, `chat()` returns a `Promise`, not SSE.
 
 ```typescript
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
-import { withSandbox } from '@tanstack/ai-sandbox'
+import {
+  createSecrets,
+  defineSandbox,
+  defineWorkspace,
+  githubRepo,
+  withSandbox,
+} from '@tanstack/ai-sandbox'
+import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 import { z } from 'zod'
-import { sandbox } from './sandbox'
+
+const sandbox = defineSandbox({
+  id: 'repo-report',
+  provider: dockerSandbox({ image: 'node:22' }),
+  workspace: defineWorkspace({
+    source: githubRepo({ repo: 'owner/app' }),
+    setup: ['npm install -g @anthropic-ai/claude-code --include=optional'],
+    secrets: createSecrets({
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
+    }),
+  }),
+})
 
 const ReportSchema = z.object({
   name: z.string(),
@@ -369,18 +400,13 @@ const ReportSchema = z.object({
 })
 
 export async function POST(request: Request) {
-  const body: unknown = await request.json()
-  const messages =
-    typeof body === 'object' &&
-    body !== null &&
-    'messages' in body &&
-    Array.isArray(body.messages)
-      ? body.messages
-      : []
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
 
   const stream = chat({
     adapter: claudeCodeText('claude-opus-4-8'),
     messages,
+    threadId,
+    runId,
     outputSchema: ReportSchema,
     stream: true,
     middleware: [withSandbox(sandbox)],
@@ -401,6 +427,7 @@ const ReportSchema = z.object({
 function RepoReport() {
   const { final, sendMessage } = useChat({
     connection: fetchServerSentEvents('/api/repo-report'),
+    threadId: 'support-42',
     outputSchema: ReportSchema,
   })
 
@@ -439,6 +466,7 @@ const RecipeSchema = z.object({
 function useRecipeChat() {
   return useChat({
     connection: fetchServerSentEvents('/api/recipes'),
+    threadId: 'support-42',
     outputSchema: RecipeSchema,
   })
 }
@@ -542,6 +570,7 @@ The adapter already handles provider differences (OpenAI uses `response_format`,
 chat({
   adapter,
   messages,
+  threadId: 'thread-1',
   modelOptions: {
     responseFormat: { type: 'json_schema', json_schema: mySchema },
   },
@@ -557,6 +586,7 @@ import { z } from 'zod'
 const person = await chat({
   adapter: openaiText('gpt-5.2'),
   messages: [{ role: 'user', content: 'John Doe, 30' }],
+  threadId: 'thread-1',
   outputSchema: z.object({ name: z.string(), age: z.number() }),
 })
 ```
@@ -583,6 +613,7 @@ const messages = [{ role: 'user' as const, content: 'John Doe, 30' }]
 const untyped = await chat({
   adapter,
   messages,
+  threadId: 'thread-1',
   outputSchema: {
     type: 'object',
     properties: {
@@ -598,6 +629,7 @@ const untyped = await chat({
 const person = await chat({
   adapter,
   messages,
+  threadId: 'thread-1',
   outputSchema: z.object({
     name: z.string(),
     age: z.number(),

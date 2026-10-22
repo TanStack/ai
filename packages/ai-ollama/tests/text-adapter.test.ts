@@ -112,6 +112,7 @@ describe('OllamaTextAdapter.chatStream (content streaming)', () => {
     const adapter = createOllamaChat('llama3.2')
     const chunks = await collectStream(
       adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'hi' }],
@@ -165,6 +166,7 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
     const adapter = createOllamaChat('llama3.2')
     const chunks = await collectStream(
       adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'find cats' }],
@@ -178,9 +180,9 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
     expect(types).toContain('TOOL_CALL_END')
 
     const startChunk = chunks.find((c) => c.type === 'TOOL_CALL_START') as
-      | { toolName: string; toolCallId: string }
+      | { toolCallName: string; toolCallId: string }
       | undefined
-    expect(startChunk!.toolName).toBe('search')
+    expect(startChunk!.toolCallName).toBe('search')
     expect(startChunk!.toolCallId).toBe('tc-123')
   })
 
@@ -218,6 +220,7 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
     const adapter = createOllamaChat('llama3.2')
     const chunks = await collectStream(
       adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'find cats' }],
@@ -264,6 +267,7 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
     const adapter = createOllamaChat('llama3.2')
     const chunks = await collectStream(
       adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'find' }],
@@ -271,9 +275,57 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
       }),
     )
     const startChunk = chunks.find((c) => c.type === 'TOOL_CALL_START') as
-      | { toolCallId: string; toolName: string }
+      | { toolCallId: string; toolCallName: string }
       | undefined
     expect(startChunk!.toolCallId).toMatch(/^search_\d+/)
+  })
+
+  async function toolCallEnd(args: unknown) {
+    chatMock.mockResolvedValueOnce(
+      asyncIterable([
+        {
+          message: {
+            role: 'assistant',
+            content: '',
+            tool_calls: [
+              { id: 'tc-raw', function: { name: 'search', arguments: args } },
+            ],
+          },
+          done: true,
+          done_reason: 'stop',
+        },
+      ]),
+    )
+    const chunks = await collectStream(
+      createOllamaChat('llama3.2').chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'llama3.2',
+        messages: [{ role: 'user', content: 'find cats' }],
+        tools: [searchTool],
+      }),
+    )
+    return chunks.find((c) => c.type === 'TOOL_CALL_END')
+  }
+
+  it('puts the raw argument string on TOOL_CALL_END', async () => {
+    const end = await toolCallEnd('{"q": "cats", "n": 1.50}')
+    expect(end).toMatchObject({
+      toolCallId: 'tc-raw',
+      args: '{"q": "cats", "n": 1.50}',
+      input: { q: 'cats', n: 1.5 },
+    })
+  })
+
+  it('puts the serialized object arguments on TOOL_CALL_END', async () => {
+    const end = await toolCallEnd({ q: 'cats' })
+    expect(end).toMatchObject({ args: '{"q":"cats"}', input: { q: 'cats' } })
+  })
+
+  it('sends malformed raw arguments on TOOL_CALL_END without an input', async () => {
+    const end = await toolCallEnd('{"a":')
+    expect(end).toMatchObject({ toolCallId: 'tc-raw', args: '{"a":' })
+    expect(end).not.toHaveProperty('input')
   })
 
   it('forwards tools to the ollama client in provider format', async () => {
@@ -290,6 +342,7 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
     const adapter = createOllamaChat('llama3.2')
     await collectStream(
       adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'hi' }],
@@ -321,6 +374,7 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
     const adapter = createOllamaChat('llama3.2')
     await collectStream(
       adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'hi' }],
@@ -365,6 +419,23 @@ describe('OllamaTextAdapter.structuredOutput', () => {
         outputSchema: { type: 'object', properties: {} },
       } as any),
     ).rejects.toThrow(/Failed to parse structured output/)
+  })
+
+  it('reports a length stop as truncation, not a parse failure', async () => {
+    chatMock.mockResolvedValueOnce({
+      message: { role: 'assistant', content: '{"result":' },
+      done_reason: 'length',
+    })
+    const adapter = createOllamaChat('llama3.2')
+    await expect(
+      adapter.structuredOutput({
+        chatOptions: {
+          logger: testLogger,
+          messages: [{ role: 'user', content: 'q' }],
+        },
+        outputSchema: { type: 'object', properties: {} },
+      } as any),
+    ).rejects.toThrow(/maximum token limit was reached/)
   })
 
   it('surfaces upstream errors as structured-output errors', async () => {
@@ -465,6 +536,7 @@ describe('OllamaTextAdapter modelOptions (nested options contract)', () => {
     const adapter = createOllamaChat('llama3.2')
     await collectStream(
       adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'hi' }],
@@ -477,7 +549,7 @@ describe('OllamaTextAdapter modelOptions (nested options contract)', () => {
     expect(call.options).toEqual({})
   })
 
-  it('forwards request-level fields (format, keep_alive, think) outside of options', async () => {
+  it('forwards request-level fields (format, keep_alive) outside of options', async () => {
     chatMock.mockResolvedValueOnce(
       asyncIterable([
         {
@@ -497,7 +569,6 @@ describe('OllamaTextAdapter modelOptions (nested options contract)', () => {
         modelOptions: {
           options: { temperature: 0.3 },
           keep_alive: '10m',
-          think: true,
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any),
@@ -506,13 +577,45 @@ describe('OllamaTextAdapter modelOptions (nested options contract)', () => {
     const call = chatMock.mock.calls[0]![0] as {
       options?: Record<string, unknown>
       keep_alive?: unknown
-      think?: unknown
     }
     expect(call.keep_alive).toBe('10m')
-    expect(call.think).toBe(true)
     // Request-level fields must not leak into the sampling options bag.
     expect(call.options).toEqual({ temperature: 0.3 })
   })
+
+  it.each([
+    ['qwen3:8b', 'high', true],
+    ['qwen3:8b', 'off', false],
+    ['gpt-oss:20b', 'medium', 'medium'],
+    // A model name this package does not list gets the on/off toggle.
+    ['my-custom-model', 'high', true],
+    // A listed model that does not reason gets no think field.
+    ['athene-v2:latest', 'high', undefined],
+  ] as const)(
+    'maps chat({ reasoning }) on %s at %s to think %s',
+    async (model, level, think) => {
+      chatMock.mockResolvedValueOnce(
+        asyncIterable([
+          {
+            message: { role: 'assistant', content: 'ok' },
+            done: true,
+            done_reason: 'stop',
+          },
+        ]),
+      )
+      await collectStream(
+        createOllamaChat(model).chatStream({
+          threadId: 'thread-1',
+          logger: testLogger,
+          model,
+          messages: [{ role: 'user', content: 'hi' }],
+          reasoning: { level, summary: true },
+        }),
+      )
+      const call = chatMock.mock.calls[0]![0] as { think?: unknown }
+      expect(call.think).toBe(think)
+    },
+  )
 })
 
 describe('OllamaTextAdapter system prompts', () => {
@@ -530,6 +633,7 @@ describe('OllamaTextAdapter system prompts', () => {
     const adapter = createOllamaChat('llama3.2')
     await collectStream(
       adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'hi' }],
@@ -577,6 +681,7 @@ describe('OllamaTextAdapter system prompts', () => {
     const adapter = createOllamaChat('llama3.2')
     await collectStream(
       adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'hi' }],
@@ -597,6 +702,7 @@ describe('Ollama adapter error handling', () => {
     const adapter = createOllamaChat('llama3.2')
     const chunks = await collectStream(
       adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'hi' }],

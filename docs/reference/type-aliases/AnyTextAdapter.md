@@ -4,10 +4,10 @@ title: AnyTextAdapter
 ---
 
 ```ts
-type AnyTextAdapter = TextAdapter<any, any, any, any, any, any, any>;
+type AnyTextAdapter = TextAdapter<any, any, any, any, any, any, any, any>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:192](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L192)
+Defined in: packages/ai/src/activities/chat/adapter.ts:236
 
 A TextAdapter with any/unknown type parameters.
 Useful as a constraint in generic functions and interfaces.

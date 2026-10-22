@@ -3,11 +3,12 @@ import type { StreamChunk } from '../types'
 import type { AdapterYieldChunk } from './adapter-yield-chunk'
 import { isTanstackUsage, rebuildTokenUsage } from './ag-ui-usage'
 import { tanstackMetadata } from './merge-metadata'
+import { parseToolArguments } from './tool-call-arguments'
 
 /**
  * Rebuild TanStack `TokenUsage` (`promptTokens`) from spec `usage[]` plus
- * leftover fields in `metadata.tanstack.usage`. Restore in-process aliases
- * that the wire does not keep (`toolName`, `TOOL_CALL_END.input`). Mutates
+ * leftover fields in `metadata.tanstack.usage`. Restore the in-process field
+ * that the wire does not keep (`TOOL_CALL_END.input`). Mutates
  * in place so WeakMap run-id stamps stay attached.
  */
 export function restorePublicUsage(chunk: StreamChunk): StreamChunk {
@@ -25,16 +26,13 @@ export function restorePublicUsage(chunk: StreamChunk): StreamChunk {
     }
   }
 
-  if (
-    chunk.type === EventType.TOOL_CALL_START &&
-    chunk.toolName === undefined &&
-    chunk.toolCallName
-  ) {
-    chunk.toolName = chunk.toolCallName
-  }
-
   if (chunk.type === EventType.TOOL_CALL_END && chunk.input === undefined) {
-    const input = tanstackMetadata(chunk)?.input
+    const tanstack = tanstackMetadata(chunk)
+    const input =
+      tanstack?.input ??
+      (typeof tanstack?.args === 'string'
+        ? parseToolArguments(tanstack.args)
+        : undefined)
     if (input !== undefined) {
       chunk.input = input
     }

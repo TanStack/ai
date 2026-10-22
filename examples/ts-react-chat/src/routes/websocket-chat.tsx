@@ -15,6 +15,7 @@ const connection = webSocket('/api/chat-ws')
 
 function WebSocketChatPage() {
   const { messages, sendMessage, isLoading, connectionStatus } = useChat({
+    threadId: 'websocket-chat',
     connection,
   })
   const [input, setInput] = useState('Write a short haiku about WebSockets.')

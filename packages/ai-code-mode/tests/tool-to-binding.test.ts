@@ -199,6 +199,75 @@ describe('createEventAwareBindings', () => {
     )
   })
 
+  it('passes the parent abortSignal, threadId, and context, not its toolCallId or inputResponse', async () => {
+    const emitCustomEvent = vi.fn<ToolExecutionContext['emitCustomEvent']>()
+    const binding = makeBinding('external_fetch')
+    const controller = new AbortController()
+    const wrapped = createEventAwareBindings(
+      { external_fetch: binding },
+      emitCustomEvent,
+      {
+        toolCallId: 'parent-call',
+        threadId: 'thread-1',
+        abortSignal: controller.signal,
+        context: { userId: 'u1' },
+        inputResponse: { status: 'cancelled' },
+        emitCustomEvent: vi.fn(),
+      },
+    )
+
+    await wrapped['external_fetch']!.execute({})
+
+    const ctx = binding.execute.mock.calls[0]![1]
+    expect(ctx?.abortSignal).toBe(controller.signal)
+    expect(ctx?.context).toEqual({ userId: 'u1' })
+    expect(ctx?.threadId).toBe('thread-1')
+    expect(ctx?.toolCallId).toBeUndefined()
+    expect(ctx?.inputResponse).toBeUndefined()
+    // The wrapper's emitCustomEvent is the one the binding gets.
+    expect(ctx?.emitCustomEvent).toBe(emitCustomEvent)
+  })
+
+  it('builds a context with no threadId when there is no parent context', async () => {
+    const emitCustomEvent = vi.fn<ToolExecutionContext['emitCustomEvent']>()
+    const binding = makeBinding('external_fetch')
+    const wrapped = createEventAwareBindings(
+      { external_fetch: binding },
+      emitCustomEvent,
+    )
+
+    await wrapped['external_fetch']!.execute({})
+
+    const ctx = binding.execute.mock.calls[0]![1]
+    expect(ctx?.emitCustomEvent).toBe(emitCustomEvent)
+    expect(ctx?.threadId).toBeUndefined()
+  })
+
+  it('does not run the binding when the parent signal is already aborted', async () => {
+    const emitCustomEvent = vi.fn<ToolExecutionContext['emitCustomEvent']>()
+    const binding = makeBinding('external_fetch')
+    const controller = new AbortController()
+    controller.abort()
+    const wrapped = createEventAwareBindings(
+      { external_fetch: binding },
+      emitCustomEvent,
+      {
+        threadId: 'thread-1',
+        abortSignal: controller.signal,
+        emitCustomEvent: vi.fn(),
+      },
+    )
+
+    await expect(wrapped['external_fetch']!.execute({})).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+    expect(binding.execute).not.toHaveBeenCalled()
+    expect(emitCustomEvent).toHaveBeenCalledWith(
+      'code_mode:external_error',
+      expect.objectContaining({ function: 'external_fetch' }),
+    )
+  })
+
   it('event data includes function name, args, and timestamps', async () => {
     const emitCustomEvent = vi.fn<ToolExecutionContext['emitCustomEvent']>()
     const binding = makeBinding('external_search')

@@ -32,7 +32,11 @@ export function generateTypeStubs(
     const outputTypeName = `${capitalize(name)}Output`
 
     // Generate input type
-    const inputType = jsonSchemaToTypeScript(binding.inputSchema, inputTypeName)
+    const inputType = jsonSchemaToTypeScript(
+      binding.inputSchema,
+      inputTypeName,
+      includeDescriptions,
+    )
     if (inputType.declaration) {
       declarations.push(inputType.declaration)
     }
@@ -43,6 +47,7 @@ export function generateTypeStubs(
       const outputType = jsonSchemaToTypeScript(
         binding.outputSchema,
         outputTypeName,
+        includeDescriptions,
       )
       if (outputType.declaration) {
         declarations.push(outputType.declaration)
@@ -77,14 +82,18 @@ interface TypeResult {
 export function jsonSchemaToTypeScript(
   schema: Record<string, unknown>,
   typeName: string,
+  includeDescriptions = true,
 ): TypeResult {
-  const type = schemaToType(schema)
+  const type = schemaToType(schema, includeDescriptions)
 
-  // For object schemas with properties, create a named interface
+  // For object schemas with properties, create a named interface. An enum or
+  // const wins in schemaToType, so its literal type stays an inline alias
   if (
     schema.type === 'object' &&
     schema.properties &&
-    Object.keys(schema.properties).length > 0
+    Object.keys(schema.properties).length > 0 &&
+    !Array.isArray(schema.enum) &&
+    !('const' in schema)
   ) {
     return {
       name: typeName,
@@ -102,9 +111,21 @@ export function jsonSchemaToTypeScript(
 /**
  * Convert a JSON Schema to a TypeScript type string
  */
-function schemaToType(schema: Record<string, unknown>): string {
+function schemaToType(
+  schema: Record<string, unknown>,
+  includeDescriptions: boolean,
+): string {
   if (typeof schema !== 'object') {
     return 'unknown'
+  }
+
+  // Enums and consts narrow a typed schema (e.g. { type: 'string', enum: [...] }),
+  // so they must win over the plain type below. const is the narrower of the two
+  if ('const' in schema) {
+    return JSON.stringify(schema.const)
+  }
+  if (Array.isArray(schema.enum)) {
+    return schema.enum.map((v) => JSON.stringify(v)).join(' | ')
   }
 
   const schemaType = schema.type
@@ -118,7 +139,9 @@ function schemaToType(schema: Record<string, unknown>): string {
   // Handle arrays
   if (schemaType === 'array') {
     const items = schema.items as Record<string, unknown> | undefined
-    const itemType = items ? schemaToType(items) : 'unknown'
+    const itemType = items
+      ? schemaToType(items, includeDescriptions)
+      : 'unknown'
     return `Array<${itemType}>`
   }
 
@@ -135,22 +158,20 @@ function schemaToType(schema: Record<string, unknown>): string {
     const props = Object.entries(properties)
       .map(([key, propSchema]) => {
         const optional = required.has(key) ? '' : '?'
-        const propType = schemaToType(propSchema)
+        const propType = schemaToType(propSchema, includeDescriptions)
         // Handle property names that need quoting
         const safeName = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(key)
           ? key
           : `"${key}"`
-        return `  ${safeName}${optional}: ${propType};`
+        const doc =
+          includeDescriptions && typeof propSchema.description === 'string'
+            ? `  /** ${propSchema.description.replace(/\*\//g, '*\\/')} */\n`
+            : ''
+        return `${doc}  ${safeName}${optional}: ${propType};`
       })
       .join('\n')
 
     return `{\n${props}\n}`
-  }
-
-  // Handle enums
-  if (schema.enum) {
-    const enumValues = schema.enum as Array<unknown>
-    return enumValues.map((v) => JSON.stringify(v)).join(' | ')
   }
 
   // Handle union types (anyOf, oneOf)
@@ -158,7 +179,7 @@ function schemaToType(schema: Record<string, unknown>): string {
     const variants = (schema.anyOf || schema.oneOf) as Array<
       Record<string, unknown>
     >
-    return variants.map((v) => schemaToType(v)).join(' | ')
+    return variants.map((v) => schemaToType(v, includeDescriptions)).join(' | ')
   }
 
   // Handle type arrays (e.g., ["string", "null"])

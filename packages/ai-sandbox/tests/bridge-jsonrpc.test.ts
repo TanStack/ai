@@ -11,7 +11,10 @@ import {
 } from '../src/tool-bridge'
 import type { AnyTool } from '@tanstack/ai'
 
-function tool(name: string, execute: (args: unknown) => unknown): AnyTool {
+function tool(
+  name: string,
+  execute: (args: unknown, context?: unknown) => unknown,
+): AnyTool {
   return {
     name,
     description: `${name} tool`,
@@ -35,9 +38,10 @@ function rpc(value: unknown): {
 }
 
 describe('handleBridgeJsonRpc', () => {
-  const core = createToolBridgeCore([
-    tool('echo', (args) => ({ echoed: args })),
-  ])
+  const core = createToolBridgeCore(
+    [tool('echo', (args) => ({ echoed: args }))],
+    { threadId: 'thread-1' },
+  )
 
   it('returns -32600 for a non-object message', async () => {
     expect(rpc(await handleBridgeJsonRpc(core, null)).error?.code).toBe(-32600)
@@ -98,23 +102,56 @@ describe('handleBridgeJsonRpc', () => {
 
 describe('createToolBridgeCore', () => {
   it('returns an isError result when a tool throws (never rejects)', async () => {
-    const core = createToolBridgeCore([
-      tool('boom', () => {
-        throw new Error('kaboom')
-      }),
-    ])
+    const core = createToolBridgeCore(
+      [
+        tool('boom', () => {
+          throw new Error('kaboom')
+        }),
+      ],
+      { threadId: 'thread-1' },
+    )
     const result = await core.callTool('boom', {})
     expect(result.isError).toBe(true)
     expect(result.content[0]?.text).toContain('kaboom')
   })
 
+  it('passes the run thread id to the tool', async () => {
+    let seen: unknown
+    const core = createToolBridgeCore(
+      [
+        tool('who', (_args, context) => {
+          seen = context
+          return 'ok'
+        }),
+      ],
+      { threadId: 'thread-7' },
+    )
+    await core.callTool('who', {})
+    expect(seen).toMatchObject({ threadId: 'thread-7' })
+  })
+
+  it('refuses a tool with needsApproval instead of running it unapproved', () => {
+    let ran = false
+    const gated = {
+      ...tool('deleteUser', () => {
+        ran = true
+      }),
+      needsApproval: true,
+    }
+    expect(() =>
+      createToolBridgeCore([gated], { threadId: 'thread-1' }),
+    ).toThrow(/"deleteUser" has needsApproval/)
+    expect(ran).toBe(false)
+  })
+
   it('throws for an unknown tool', async () => {
-    const core = createToolBridgeCore([])
+    const core = createToolBridgeCore([], { threadId: 'thread-1' })
     await expect(core.callTool('ghost', {})).rejects.toThrow(/Unknown tool/)
   })
 
   it('advertises + resolves the permission tool', async () => {
     const core = createToolBridgeCore([], {
+      threadId: 'thread-1',
       permission: {
         toolName: 'approval_prompt',
         resolve: () => ({ behavior: 'allow' }),

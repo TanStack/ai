@@ -7,14 +7,14 @@ title: chat
 function chat<TAdapter, TSchema, TStream, TTools, TInterrupts, TContext, TMiddleware, TAgents>(options): TextActivityResult<TSchema, TStream, TTools>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/index.ts:4949](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L4949)
+Defined in: packages/ai/src/activities/chat/index.ts:5864
 
 Text activity - handles agentic text generation, one-shot text generation, and agentic structured output.
 
 This activity supports four modes:
 1. **Streaming agentic text**: Stream responses with automatic tool execution
 2. **Streaming one-shot text**: Simple streaming request/response without tools
-3. **Non-streaming text**: Returns collected text as a string (stream: false)
+3. **Non-streaming text**: Returns a ChatResult with the text and every chunk (stream: false)
 4. **Agentic structured output**: Run tools, then return structured data
 
 ## Type Parameters
@@ -57,7 +57,7 @@ This activity supports four modes:
 
 ### TAgents
 
-`TAgents` *extends* readonly [`DefinedAgent`](../interfaces/DefinedAgent.md)\<`string`, readonly `SubagentTool`[], [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined`, readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[]\>[] = readonly [`DefinedAgent`](../interfaces/DefinedAgent.md)\<`string`, readonly `SubagentTool`[], [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined`, readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[]\>[]
+`TAgents` *extends* readonly [`DefinedAgent`](../interfaces/DefinedAgent.md)\<`string`, readonly `SubagentTool`[], [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined`, readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[], `any`, `unknown`, [`AgentProduces`](../type-aliases/AgentProduces.md) \| `undefined`\>[] = readonly [`DefinedAgent`](../interfaces/DefinedAgent.md)\<`string`, readonly `SubagentTool`[], [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined`, readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[], `any`, `unknown`, [`AgentProduces`](../type-aliases/AgentProduces.md) \| `undefined`\>[]
 
 ## Parameters
 
@@ -80,6 +80,7 @@ import { openaiText } from '@tanstack/ai-openai'
 for await (const chunk of chat({
   adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'What is the weather?' }],
+  threadId,
   tools: [weatherTool]
 })) {
   if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
@@ -93,7 +94,8 @@ for await (const chunk of chat({
 ```ts
 for await (const chunk of chat({
   adapter: openaiText('gpt-5.5'),
-  messages: [{ role: 'user', content: 'Hello!' }]
+  messages: [{ role: 'user', content: 'Hello!' }],
+  threadId,
 })) {
   console.log(chunk)
 }
@@ -102,12 +104,14 @@ for await (const chunk of chat({
 **Non-streaming text (stream: false)**
 
 ```ts
-const text = await chat({
+const { text, chunks } = await chat({
   adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'Hello!' }],
+  threadId,
   stream: false
 })
 // text is a string with the full response
+// chunks is every chunk the run produced, in order
 ```
 
 **Agentic structured output (tools + structured response)**
@@ -118,6 +122,7 @@ import { z } from 'zod'
 const result = await chat({
   adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'Research and summarize the topic' }],
+  threadId,
   tools: [researchTool, analyzeTool],
   outputSchema: z.object({
     summary: z.string(),

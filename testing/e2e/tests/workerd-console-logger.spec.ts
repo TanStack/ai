@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
+import type { Readable } from 'node:stream'
 import { expect, test } from '@playwright/test'
 import { Miniflare } from 'miniflare'
 
@@ -62,7 +63,7 @@ test.describe('ConsoleLogger on real workerd', () => {
       script: await buildWorkerScript(),
       compatibilityDate: '2025-01-01',
       compatibilityFlags: ['nodejs_compat'],
-      handleRuntimeStdio(stdout, stderr) {
+      handleRuntimeStdio(stdout: Readable, stderr: Readable) {
         stdout.on('data', (chunk: Buffer) => chunks.push(chunk))
         stderr.on('data', (chunk: Buffer) => chunks.push(chunk))
       },

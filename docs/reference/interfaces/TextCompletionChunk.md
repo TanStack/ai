@@ -3,7 +3,7 @@ id: TextCompletionChunk
 title: TextCompletionChunk
 ---
 
-Defined in: [packages/ai/src/types.ts:1818](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1818)
+Defined in: packages/ai/src/types.ts:2129
 
 ## Properties
 
@@ -13,7 +13,7 @@ Defined in: [packages/ai/src/types.ts:1818](https://github.com/TanStack/ai/blob/
 content: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1821](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1821)
+Defined in: packages/ai/src/types.ts:2132
 
 ***
 
@@ -23,7 +23,7 @@ Defined in: [packages/ai/src/types.ts:1821](https://github.com/TanStack/ai/blob/
 optional finishReason?: "length" | "stop" | "content_filter" | null;
 ```
 
-Defined in: [packages/ai/src/types.ts:1823](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1823)
+Defined in: packages/ai/src/types.ts:2134
 
 ***
 
@@ -33,7 +33,7 @@ Defined in: [packages/ai/src/types.ts:1823](https://github.com/TanStack/ai/blob/
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1819](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1819)
+Defined in: packages/ai/src/types.ts:2130
 
 ***
 
@@ -43,7 +43,7 @@ Defined in: [packages/ai/src/types.ts:1819](https://github.com/TanStack/ai/blob/
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1820](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1820)
+Defined in: packages/ai/src/types.ts:2131
 
 ***
 
@@ -53,7 +53,7 @@ Defined in: [packages/ai/src/types.ts:1820](https://github.com/TanStack/ai/blob/
 optional role?: "assistant";
 ```
 
-Defined in: [packages/ai/src/types.ts:1822](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1822)
+Defined in: packages/ai/src/types.ts:2133
 
 ***
 
@@ -63,4 +63,4 @@ Defined in: [packages/ai/src/types.ts:1822](https://github.com/TanStack/ai/blob/
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1824](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1824)
+Defined in: packages/ai/src/types.ts:2135

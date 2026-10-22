@@ -155,6 +155,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     const adapter = createAdapter()
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'hi' }],
       }),
@@ -253,6 +254,7 @@ describe('GeminiTextInteractionsAdapter', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           { role: 'user', content: 'Hi, my name is Amir.' },
@@ -305,6 +307,7 @@ describe('GeminiTextInteractionsAdapter', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: providerOptions,
@@ -337,6 +340,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     const adapter = createAdapter()
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           { role: 'user', content: 'Weather in Madrid?' },
@@ -384,6 +388,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     const adapter = createAdapter()
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           { role: 'user', content: 'Hello' },
@@ -419,6 +424,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     const adapter = createAdapter()
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hello' }],
       }),
@@ -464,6 +470,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     const adapter = createAdapter()
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Weather in Madrid?' }],
         tools: [weatherTool],
@@ -482,7 +489,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     const startEvent = chunks.find((c) => c.type === 'TOOL_CALL_START') as any
     expect(startEvent).toBeDefined()
     expect(startEvent.toolCallId).toBe('call_1')
-    expect(startEvent.toolName).toBe('lookup_weather')
+    expect(startEvent.toolCallName).toBe('lookup_weather')
 
     const argsEvent = chunks.find((c) => c.type === 'TOOL_CALL_ARGS') as any
     expect(argsEvent.delta).toBe('{"location":"Madrid"}')
@@ -540,6 +547,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     const adapter = createAdapter()
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Weather in Berlin?' }],
         tools: [{ name: 'lookup_weather', description: 'Return the weather' }],
@@ -548,7 +556,7 @@ describe('GeminiTextInteractionsAdapter', () => {
 
     const startEvent = chunks.find((c) => c.type === 'TOOL_CALL_START') as any
     expect(startEvent.toolCallId).toBe('call_frag')
-    expect(startEvent.toolName).toBe('lookup_weather')
+    expect(startEvent.toolCallName).toBe('lookup_weather')
 
     // The last TOOL_CALL_ARGS event carries the fully-accumulated buffer.
     const argsEvents = chunks.filter(
@@ -563,11 +571,9 @@ describe('GeminiTextInteractionsAdapter', () => {
     expect(endEvent.input).toEqual({ location: 'Berlin', unit: 'celsius' })
   })
 
-  it('preserves the last good args when the arguments stream truncates mid-fragment', async () => {
-    // If the stream ends after an incomplete fragment, the tool input must
-    // retain whatever was parsed so far rather than being reset to `{}` — a
-    // strict JSON.parse would throw on the partial buffer and lose the
-    // already-merged keys.
+  it('keeps truncated arguments raw on TOOL_CALL_END with no input', async () => {
+    // A partial value can appear while the arguments stream. It is not the
+    // final input: core reports the malformed raw arguments as a tool error.
     mocks.interactionsCreateSpy.mockResolvedValue(
       mkStream([
         {
@@ -602,20 +608,105 @@ describe('GeminiTextInteractionsAdapter', () => {
       ]),
     )
 
-    const adapter = createAdapter()
     const chunks = await collectChunks(
-      chat({
-        adapter,
+      createAdapter().chatStream({
+        threadId: 'thread-1',
+        model: 'gemini-2.5-flash',
+        logger: testLogger,
         messages: [{ role: 'user', content: 'Weather in London?' }],
         tools: [{ name: 'lookup_weather', description: 'Return the weather' }],
       }),
     )
 
-    // No parse-failure RUN_ERROR, and the completed key survives truncation.
     expect(chunks.find((c) => c.type === 'RUN_ERROR')).toBeUndefined()
-    const endEvent = chunks.find((c) => c.type === 'TOOL_CALL_END') as any
-    expect(endEvent.input).toEqual({ city: 'London' })
+    const endEvent = chunks.find((c) => c.type === 'TOOL_CALL_END')
+    expect(endEvent).toMatchObject({ args: '{"city":"London","unit":' })
+    expect(endEvent).not.toHaveProperty('input')
   })
+
+  const rawArgumentCases: Array<{
+    name: string
+    deltas: Array<string | undefined>
+    args: string
+    input: Record<string, unknown>
+  }> = [
+    {
+      name: 'the initial snapshot when no argument delta arrives',
+      deltas: [],
+      args: '{"initial":1}',
+      input: { initial: 1 },
+    },
+    {
+      name: 'the streamed text over the initial snapshot',
+      deltas: ['{"n": ', '1.50}'],
+      args: '{"n": 1.50}',
+      input: { n: 1.5 },
+    },
+    {
+      name: 'the initial snapshot when a delta has no arguments',
+      deltas: [undefined],
+      args: '{"initial":1}',
+      input: { initial: 1 },
+    },
+  ]
+
+  it.each(rawArgumentCases)(
+    'sends $name as the raw TOOL_CALL_END args',
+    async ({ deltas, args, input }) => {
+      mocks.interactionsCreateSpy.mockResolvedValue(
+        mkStream([
+          {
+            event_type: 'interaction.created',
+            interaction: { id: 'int_raw', status: 'in_progress' },
+          },
+          {
+            event_type: 'step.start',
+            index: 0,
+            step: {
+              type: 'function_call',
+              id: 'call_raw',
+              name: 'inspect',
+              arguments: { initial: 1 },
+            },
+          },
+          ...deltas.map((fragment) => ({
+            event_type: 'step.delta',
+            index: 0,
+            delta: {
+              type: 'arguments_delta',
+              ...(fragment !== undefined && { arguments: fragment }),
+            },
+          })),
+          { event_type: 'step.stop', index: 0 },
+          {
+            event_type: 'interaction.completed',
+            interaction: { id: 'int_raw', status: 'completed' },
+          },
+        ]),
+      )
+
+      const chunks = await collectChunks(
+        createAdapter().chatStream({
+          threadId: 'thread-1',
+          model: 'gemini-2.5-flash',
+          logger: testLogger,
+          messages: [{ role: 'user', content: 'Go' }],
+          tools: [{ name: 'inspect', description: 'Inspect' }],
+        }),
+      )
+
+      expect(chunks.find((c) => c.type === 'TOOL_CALL_END')).toMatchObject({
+        args,
+        input,
+      })
+      // A client that only reads the deltas gets the same arguments.
+      const streamed = chunks
+        .filter((c) => c.type === 'TOOL_CALL_ARGS')
+        .map((c) => ('delta' in c ? c.delta : ''))
+        .join('')
+      expect(streamed).toBe(args)
+    },
+  )
 
   it('translates thought_summary deltas into REASONING events', async () => {
     mocks.interactionsCreateSpy.mockResolvedValue(
@@ -661,6 +752,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     const adapter = createAdapter()
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Think, then answer.' }],
       }),
@@ -730,6 +822,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     const adapter = createAdapter()
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Weather in Berlin?' }],
         tools: [weatherTool],
@@ -766,6 +859,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     const adapter = createAdapter()
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           { role: 'user', content: 'Weather in Madrid?' },
@@ -815,6 +909,7 @@ describe('GeminiTextInteractionsAdapter', () => {
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           {
@@ -857,6 +952,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     const adapter = createAdapter()
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'What happened yesterday?' }],
         tools: [
@@ -905,6 +1001,7 @@ describe('GeminiTextInteractionsAdapter', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: createAdapter(),
         messages: [{ role: 'user', content: 'Use an application function.' }],
         tools,
@@ -937,6 +1034,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     const adapter = createAdapter()
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Find it.' }],
         tools: [
@@ -981,6 +1079,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     const adapter = createAdapter()
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [
@@ -1026,6 +1125,44 @@ describe('GeminiTextInteractionsAdapter', () => {
         },
       },
     ])
+  })
+
+  it('keeps a tool parameter named __proto__', async () => {
+    mocks.interactionsCreateSpy.mockResolvedValue(
+      mkStream([
+        {
+          event_type: 'interaction.created',
+          interaction: { id: 'int_proto', status: 'in_progress' },
+        },
+        {
+          event_type: 'interaction.completed',
+          interaction: { id: 'int_proto', status: 'completed' },
+        },
+      ]),
+    )
+
+    const adapter = createAdapter()
+    await collectChunks(
+      chat({
+        threadId: 'thread-1',
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        tools: [
+          {
+            name: 'inspect',
+            description: 'Inspect',
+            inputSchema: JSON.parse(
+              '{"type":"object","properties":{"__proto__":{"type":"string"}},"required":["__proto__"]}',
+            ),
+          },
+        ],
+      }),
+    )
+
+    const [payload] = mocks.interactionsCreateSpy.mock.calls[0]!
+    expect(JSON.stringify(payload.tools[0].parameters)).toBe(
+      '{"type":"object","properties":{"__proto__":{"type":"string"}},"required":["__proto__"]}',
+    )
   })
 
   it('surfaces built-in tool deltas as gemini.* CUSTOM events and keeps finish reason "stop"', async () => {
@@ -1076,6 +1213,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     const adapter = createAdapter()
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Weather in Madrid?' }],
         tools: [googleSearchTool()],
@@ -1107,6 +1245,7 @@ describe('GeminiTextInteractionsAdapter', () => {
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Search' }],
         // Retrieval is rejected at the capability union; the test still
@@ -1129,6 +1268,7 @@ describe('GeminiTextInteractionsAdapter', () => {
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Directions' }],
         tools: [googleMapsTool()],
@@ -1158,6 +1298,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     const adapter = createAdapter()
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'hi' }],
       }),
@@ -1186,6 +1327,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     const adapter = createAdapter()
     const result = await adapter.structuredOutput({
       chatOptions: {
+        threadId: 'thread-1',
         model: 'gemini-2.5-flash',
         messages: [{ role: 'user', content: 'Give JSON' }],
         logger: testLogger,
@@ -1215,6 +1357,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     const events = await collectChunks(
       adapter.structuredOutputStream({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'gemini-2.5-flash',
           messages: [{ role: 'user', content: 'Give JSON' }],
           logger: testLogger,
@@ -1267,6 +1410,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     await collectChunks(
       createAdapter().structuredOutputStream({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'gemini-2.5-flash',
           messages: [{ role: 'user', content: 'Give JSON' }],
           logger: testLogger,
@@ -1290,6 +1434,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     await collectChunks(
       createAdapter().structuredOutputStream({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'gemini-2.5-flash',
           messages: [{ role: 'user', content: 'Give JSON' }],
           logger: testLogger,
@@ -1311,6 +1456,7 @@ describe('GeminiTextInteractionsAdapter', () => {
 
     const events = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: createAdapter(),
         messages: [{ role: 'user', content: 'Give JSON' }],
         outputSchema: z.object({ foo: z.string() }),
@@ -1341,6 +1487,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     const events = await collectChunks(
       createAdapter().structuredOutputStream({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'gemini-2.5-flash',
           messages: [{ role: 'user', content: 'Give JSON' }],
           logger: testLogger,
@@ -1380,6 +1527,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     const events = await collectChunks(
       createAdapter().structuredOutputStream({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'gemini-2.5-flash',
           messages: [{ role: 'user', content: 'Give JSON' }],
           logger: testLogger,
@@ -1415,6 +1563,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     const events = await collectChunks(
       createAdapter().structuredOutputStream({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'gemini-2.5-flash',
           messages: [{ role: 'user', content: 'Give JSON' }],
           logger: testLogger,

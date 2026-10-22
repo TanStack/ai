@@ -9,9 +9,11 @@ import {
   acceptedContent,
   createMcpHandler,
   fromJsonSchema,
+  isCallToolResult,
   inputRequired,
   inputResponse,
   isLegacyRequest,
+  legacyStatelessFallback,
   requireBearerAuth,
 } from '@modelcontextprotocol/server'
 import type {
@@ -19,8 +21,11 @@ import type {
   BearerAuthOptions,
   JsonSchemaType,
   McpRequestContext,
+  McpServerFactory,
   ServerContext,
+  StandardSchemaWithJSON,
   ToolAnnotations,
+  Variables,
 } from '@modelcontextprotocol/server'
 import {
   ToolInputRequiredError,
@@ -28,7 +33,9 @@ import {
   inputDeclinedMessage,
 } from './context'
 import type { SampleRequest, ToolInputRequest } from './context'
-import { rememberServerOptions } from './registry'
+import { isServedOverStdio, rememberServerOptions } from './registry'
+import { parseToolOutput } from './output'
+import type { MCPResourceContext, MCPResourceList } from './definitions'
 import { getTask, startTask, toCallToolResult } from './tasks'
 import { inMemoryTaskStore } from './stores'
 import type { TaskStore } from './stores'
@@ -59,7 +66,20 @@ type McpResource = {
   mimeType: string
   uri?: string
   uriTemplate?: string
-  read: () => unknown
+  list?: MCPResourceList
+  read: BivariantResourceRead
+}
+
+// A method type is bivariant, so a `read` with narrower params assigns.
+// The lint rule bans method signatures, hence the class.
+type BivariantResourceRead = BivariantResourceReadSignature['bivarianceHack']
+
+declare abstract class BivariantResourceReadSignature {
+  abstract bivarianceHack(
+    uri: URL,
+    variables: Variables,
+    ctx: MCPResourceContext,
+  ): unknown
 }
 
 // A method type is bivariant. A function property is strict, so a prompt
@@ -97,14 +117,45 @@ export type MCPServerOptions = {
    */
   auth?: BearerAuthOptions
   /**
-   * What to do with a spec 2025 session. `'memory'` (the default) keeps
-   * sessions in this process. `'reject'` answers every spec 2025 request
-   * with the SDK rejection, so a host with many instances never opens a
-   * session it cannot find on the next request.
+   * How to serve a spec 2025 client. `'stateless'` (the default) serves
+   * each spec 2025 request with a new server and keeps no session, so it
+   * works on a host with many instances. `'memory'` keeps sessions in this
+   * process for 30 idle minutes. `'reject'` answers every spec 2025 request
+   * with the SDK rejection. Under `serveMCPStdio`, the default is
+   * `'memory'`. Elicitation and client sampling need a
+   * session: in that mode `ctx.context.requestInput` throws, and
+   * `ctx.context.sample` calls `sample` or throws.
    */
-  sessions?: 'memory' | 'reject'
+  sessions?: 'memory' | 'reject' | 'stateless'
+  /**
+   * Receives errors that the SDK does not send to a tool: transport and
+   * protocol errors, and rejected requests. `serveMCPStdio` also sends its
+   * transport errors here instead of to stderr. It only reports. It does
+   * not change the response.
+   */
+  onerror?: (error: Error) => void
   sample?: (request: SampleRequest) => Promise<unknown>
   waitUntil?: (promise: Promise<unknown>) => void
+  /**
+   * Runs on every SDK `McpServer` this server builds, after the tools,
+   * resources, and prompts are registered and before the server connects.
+   * Declare more capabilities with `server.server.registerCapabilities` and
+   * add request handlers with `server.server.setRequestHandler`, for example
+   * to serve an MCP extension. Leave the methods this server already
+   * handles alone.
+   *
+   * `context` is the `handleOptions.context` of the request that builds the
+   * server. A spec 2025 session with `sessions: 'memory'` builds its server
+   * once, so there it is the context of the request that opened the session.
+   * A later request on that session does not run `setup` again.
+   *
+   * It must be synchronous. The server connects as soon as it returns, so
+   * an async `setup` throws a `TypeError`.
+   */
+  setup?: (
+    server: McpServer,
+    context: Record<string, unknown> | undefined,
+  ) => void
 }
 
 /**
@@ -112,7 +163,8 @@ export type MCPServerOptions = {
  *
  * `authInfo` is a token your own middleware already verified. The server
  * skips its `auth` gate for that request.
- * `context` is merged into `ctx.context` for every tool call of that request.
+ * `context` is merged into `ctx.context` for every tool call, resource read,
+ * and resource list of that request.
  */
 export type MCPHandleOptions = {
   authInfo?: AuthInfo
@@ -166,9 +218,13 @@ type LegacySessions = Map<string, LegacySession>
  * A missing or bad token gets a 401. A token without a required scope gets a 403.
  * Spec 2025 sessions and tasks belong to the caller: the `clientId` of the
  * token plus its `sub` claim. A tool reads the token as `ctx.context.authInfo`.
- * Spec 2025 sessions live in this process. They close after 30 idle minutes.
+ * A spec 2025 client gets no session unless `options.sessions` is `'memory'`.
  * `options.sample` is the model adapter for `ctx.context.sample` on spec 2026.
  * `options.waitUntil` receives the task promise so a worker can stay alive.
+ * `options.setup` gets each SDK `McpServer` before it connects, so it can add
+ * capabilities and request handlers, such as an MCP extension. It also gets
+ * the `handle` context of the request that builds the server. A spec 2025
+ * memory session passes the context of the request that opened it.
  *
  * The result has `fetch(request)`, `handle(request, options)`, `tools`,
  * `resources`, and `prompts`. `handle` takes a token your own middleware
@@ -176,7 +232,7 @@ type LegacySessions = Map<string, LegacySession>
  * Those three lists keep the types you passed in.
  * Export the result from one package and pass it to `createMCPClient({ server })` in another.
  * `fetch` serves tools, resources, and prompts.
- * It speaks spec `2026-07-28` and full spec 2025 sessions.
+ * It speaks spec `2026-07-28` and spec 2025.
  * It does not serve the OAuth discovery documents. Mount
  * `oauthMetadataResponse` at the app root for them.
  *
@@ -184,9 +240,9 @@ type LegacySessions = Map<string, LegacySession>
  * the work ends. Spec 2026-07-28 has no tasks, so that tool runs inline there.
  * A tool reads its hooks on `ctx.context`. Type it with `MCPToolContext`.
  * On spec 2026, `ctx.context.sample` calls `options.sample` and does not ask the client.
- * On spec 2025, `ctx.context.sample` asks the MCP client.
+ * On spec 2025 with `sessions: 'memory'`, `ctx.context.sample` asks the MCP client.
  * On spec 2026, `ctx.context.requestInput` stops the call until the client sends the answer.
- * On spec 2025, `ctx.context.requestInput` waits on the open session.
+ * On spec 2025 with `sessions: 'memory'`, `ctx.context.requestInput` waits on the open session.
  *
  * @param options - Server name, version, tools, and the optional stores
  *
@@ -218,29 +274,38 @@ export function createMCPServer<
   const resources = options.resources ?? []
   const prompts = options.prompts ?? []
   const hasTaskTool = tools.some((tool) => tool.execution === 'task')
+  // Convert and compile each schema once. Every request reuses them.
+  const schemas = compileSchemas(tools, prompts)
   const gate =
     options.auth === undefined ? undefined : requireBearerAuth(options.auth)
-  // The SDK hands the factory the same Request object that fetch received.
+  // modern.fetch and legacyStatelessFallback hand the factory the same
+  // Request object that handle received.
   const contextByRequest = new WeakMap<Request, Record<string, unknown>>()
 
-  const modern = createMcpHandler(
-    (ctx) => {
-      const request = ctx.requestInfo
-      return buildMcpServer({
-        options,
-        tools,
-        resources,
-        prompts,
-        taskStore,
-        era: ctx.era === 'modern' ? '2026' : '2025',
-        hasTaskTool,
-        owner: ownerOf(ctx.authInfo),
-        appContext: () =>
-          request === undefined ? undefined : contextByRequest.get(request),
-      })
-    },
-    { legacy: 'reject', keepAliveMs: 0 },
-  )
+  const factory: McpServerFactory = (ctx) => {
+    const request = ctx.requestInfo
+    return buildMcpServer({
+      options,
+      resources,
+      schemas,
+      taskStore,
+      era: ctx.era === 'modern' ? '2026' : '2025',
+      // Only the stateless leg builds a spec 2025 server here.
+      sessionless: ctx.era !== 'modern',
+      hasTaskTool,
+      owner: ownerOf(ctx.authInfo),
+      appContext: () =>
+        request === undefined ? undefined : contextByRequest.get(request),
+    })
+  }
+  const modern = createMcpHandler(factory, {
+    legacy: 'reject',
+    keepAliveMs: 0,
+    onerror: options.onerror,
+  })
+  // createMcpHandler hands its own stateless leg a clone of the request,
+  // so the context lookup would miss. Route spec 2025 here instead.
+  const stateless = legacyStatelessFallback(factory, options.onerror)
 
   const mcpServer = {
     name: options.name,
@@ -261,8 +326,9 @@ export function createMCPServer<
      * A spec 2025 request uses the session id header.
      * When `auth` is set, a missing or invalid bearer token returns 401,
      * and a token without a required scope returns 403.
-     * `handleOptions.authInfo` skips that gate. `handleOptions.context` reaches every
-     * tool call of this request on `ctx.context`.
+     * `handleOptions.authInfo` skips that gate. `handleOptions.context` reaches
+     * `ctx.context` of every tool call, resource read, and resource list of
+     * this request.
      *
      * @param request - The HTTP request to the MCP route
      * @param handleOptions - A verified token and values for `ctx.context`
@@ -279,9 +345,13 @@ export function createMCPServer<
       const owner = ownerOf(authInfo)
       const context = handleOptions?.context
 
+      // Over stdio, one client owns the process, so sessions are the default.
+      const sessionMode =
+        options.sessions ??
+        (isServedOverStdio(mcpServer) ? 'memory' : 'stateless')
       const legacy =
-        options.sessions !== 'reject' && (await isLegacyRequest(request))
-      if (legacy) {
+        sessionMode !== 'reject' && (await isLegacyRequest(request))
+      if (legacy && sessionMode === 'memory') {
         return legacyFetch(request, {
           open: () =>
             openLegacySession(request, {
@@ -289,14 +359,15 @@ export function createMCPServer<
               owner,
               authInfo,
               context,
+              onerror: options.onerror,
               build: (appContext) =>
                 buildMcpServer({
                   options,
-                  tools,
                   resources,
-                  prompts,
+                  schemas,
                   taskStore,
                   era: '2025',
+                  sessionless: false,
                   hasTaskTool,
                   owner,
                   appContext,
@@ -313,10 +384,28 @@ export function createMCPServer<
 
       if (context !== undefined) contextByRequest.set(request, context)
       // The SDK passes authInfo through to the factory and to each handler.
-      return modern.fetch(
-        request,
-        authInfo === undefined ? undefined : { authInfo },
-      )
+      const requestOptions = authInfo === undefined ? undefined : { authInfo }
+      if (legacy) return stateless(request, requestOptions)
+      if (
+        request.method === 'POST' &&
+        request.headers.get('mcp-method') === 'subscriptions/listen'
+      ) {
+        const body: unknown = await request
+          .clone()
+          .json()
+          .catch(() => undefined)
+        if (isRecord(body) && body.method === 'subscriptions/listen') {
+          return Response.json({
+            jsonrpc: '2.0',
+            id:
+              typeof body.id === 'string' || typeof body.id === 'number'
+                ? body.id
+                : null,
+            error: { code: -32601, message: 'Method not found' },
+          })
+        }
+      }
+      return modern.fetch(request, requestOptions)
     },
   }
   rememberServerOptions(mcpServer, options)
@@ -343,13 +432,57 @@ async function closeIdleSessions(sessions: LegacySessions) {
   }
 }
 
+type CompiledTool = {
+  tool: AnyServerTool
+  inputSchema: StandardSchemaWithJSON
+  outputSchema: StandardSchemaWithJSON | undefined
+}
+
+type CompiledPrompt = {
+  prompt: McpPrompt
+  argsSchema: StandardSchemaWithJSON
+}
+
+type CompiledSchemas = {
+  tools: ReadonlyArray<CompiledTool>
+  prompts: ReadonlyArray<CompiledPrompt>
+}
+
+function compileSchemas(
+  tools: ReadonlyArray<AnyServerTool>,
+  prompts: ReadonlyArray<McpPrompt>,
+): CompiledSchemas {
+  return {
+    tools: tools.map((tool) => ({
+      tool,
+      inputSchema: standardSchema(tool.inputSchema) ?? emptyObjectSchema,
+      outputSchema: outputSchemaOf(tool.outputSchema),
+    })),
+    prompts: prompts.map((prompt) => ({
+      prompt,
+      argsSchema: standardSchema(prompt.argsSchema) ?? emptyObjectSchema,
+    })),
+  }
+}
+
+// An output schema can have any root, like z.string(). The SDK wraps it in
+// `{ result }` for a spec 2025 client. A bare transform has no JSON Schema
+// for its output view, so that tool advertises no output schema.
+function outputSchemaOf(schema: unknown) {
+  try {
+    return standardSchema(schema, 'output')
+  } catch {
+    return undefined
+  }
+}
+
 function buildMcpServer(input: {
   options: MCPServerOptions
-  tools: ReadonlyArray<AnyServerTool>
   resources: ReadonlyArray<McpResource>
-  prompts: ReadonlyArray<McpPrompt>
+  schemas: CompiledSchemas
   taskStore: TaskStore
   era: ProtocolYear
+  sessionless: boolean
   hasTaskTool: boolean
   owner: string | undefined
   appContext: AppContext
@@ -358,53 +491,57 @@ function buildMcpServer(input: {
     { name: input.options.name, version: input.options.version },
     serverOptions(input.era, input.hasTaskTool),
   )
-  const toolList = input.tools
-  for (const tool of toolList) {
-    registerServerTool(server, tool, input)
+  if (input.options.onerror !== undefined) {
+    server.server.onerror = input.options.onerror
   }
-  const resourceList = input.resources
-  for (const resource of resourceList) {
-    registerServerResource(server, resource)
+  for (const compiled of input.schemas.tools) {
+    registerServerTool(server, compiled, input)
   }
-  const promptList = input.prompts
-  for (const prompt of promptList) {
-    registerServerPrompt(server, prompt)
+  for (const resource of input.resources) {
+    registerServerResource(server, resource, input.appContext)
+  }
+  for (const compiled of input.schemas.prompts) {
+    registerServerPrompt(server, compiled)
   }
   if (input.era === '2025') {
     registerLegacyTaskMethods(server, input.taskStore, input.owner)
+  }
+  const setupResult: unknown = input.options.setup?.(server, input.appContext())
+  if (setupResult instanceof Promise) {
+    throw new TypeError('createMCPServer: setup must be synchronous')
   }
   return server
 }
 
 // Tasks exist on spec 2025-11-25 only. Spec 2026-07-28 has no tasks yet.
 function serverOptions(era: ProtocolYear, hasTaskTool: boolean) {
-  if (!hasTaskTool || era !== '2025') return undefined
   return {
     capabilities: {
-      tasks: { requests: { tools: { call: {} } } },
+      tools: { listChanged: false },
+      resources: { listChanged: false },
+      prompts: { listChanged: false },
+      ...(hasTaskTool && era === '2025'
+        ? { tasks: { requests: { tools: { call: {} } } } }
+        : {}),
     },
   }
 }
 
 function registerServerTool(
   server: McpServer,
-  tool: AnyServerTool,
+  { tool, inputSchema, outputSchema: compiledOutput }: CompiledTool,
   input: {
     options: MCPServerOptions
     taskStore: TaskStore
     era: ProtocolYear
+    sessionless: boolean
     owner: string | undefined
     appContext: AppContext
   },
 ) {
-  const inputSchema = standardSchema(tool.inputSchema) ?? emptyObjectSchema
   // A task tool answers with a task handle, not with its output.
   const asTask = tool.execution === 'task' && input.era === '2025'
-  // An output schema can have any root, like z.string(). The SDK wraps it
-  // in `{ result }` for a spec 2025 client.
-  const outputSchema = asTask
-    ? undefined
-    : standardSchema(tool.outputSchema, true)
+  const outputSchema = asTask ? undefined : compiledOutput
   const registered = server.registerTool(
     tool.name,
     {
@@ -419,6 +556,7 @@ function registerServerTool(
       }
       const ctx = toolCallContext(
         input.era,
+        input.sessionless,
         sdkCtx,
         input.options.sample,
         input.appContext,
@@ -454,18 +592,20 @@ const annotationHints = [
   'openWorldHint',
 ] as const
 
-// `metadata.title` and `metadata.annotations` on a tool definition reach
-// the host as the MCP tool title and annotations.
+// `metadata.title`, `metadata.annotations`, and `metadata._meta` on a tool
+// definition reach the host as the MCP tool title, annotations, and `_meta`.
+// `_meta.ui.resourceUri` links an MCP Apps view to the tool.
 function toolPresentation(metadata: Record<string, unknown> | undefined) {
   const title = typeof metadata?.title === 'string' ? metadata.title : undefined
+  const _meta = isRecord(metadata?._meta) ? metadata._meta : undefined
   const raw = metadata?.annotations
-  if (!isRecord(raw)) return { title }
+  if (!isRecord(raw)) return { title, _meta }
   const annotations: ToolAnnotations = {}
   if (typeof raw.title === 'string') annotations.title = raw.title
   for (const hint of annotationHints) {
     if (typeof raw[hint] === 'boolean') annotations[hint] = raw[hint]
   }
-  return { title, annotations }
+  return { title, annotations, _meta }
 }
 
 async function runTaskTool(
@@ -480,14 +620,11 @@ async function runTaskTool(
   authInfo: AuthInfo | undefined,
 ) {
   const ctx = taskContext(input.options.sample, authInfo, input.appContext)
-  const handle = await startTask(
-    () => Promise.resolve(runTool(tool, args, ctx)),
-    {
-      store: input.taskStore,
-      waitUntil: input.options.waitUntil,
-      owner: input.owner,
-    },
-  )
+  const handle = await startTask(() => runTool(tool, args, ctx), {
+    store: input.taskStore,
+    waitUntil: input.options.waitUntil,
+    owner: input.owner,
+  })
   const polled = await getTask(handle.taskId, input.taskStore, input.owner)
   if (polled === null) {
     throw new Error(`Task ${handle.taskId} was not saved.`)
@@ -531,7 +668,7 @@ function taskContext(
   }
 }
 
-function runTool(
+async function runTool(
   tool: AnyServerTool,
   args: unknown,
   ctx: ReturnType<typeof toolCallContext> | ReturnType<typeof taskContext>,
@@ -540,11 +677,18 @@ function runTool(
   if (execute === undefined) {
     throw new Error(`Tool ${tool.name} has no execute function.`)
   }
-  return execute(args ?? {}, ctx)
+  const output: unknown = await execute(args ?? {}, ctx)
+  return parseToolOutput(tool, output, isCallToolResult)
 }
+
+// A stateless spec 2025 server never saw initialize and keeps no session,
+// so it cannot send the client a request.
+const sessionlessMessage =
+  'needs a spec 2025 session. Set sessions: "memory" in createMCPServer.'
 
 function toolCallContext(
   era: ProtocolYear,
+  sessionless: boolean,
   sdkCtx: ServerContext,
   sample: MCPServerOptions['sample'],
   appContext: AppContext,
@@ -554,8 +698,20 @@ function toolCallContext(
     era === '2025'
       ? createServerToolContext({
           era: '2025',
-          waitForInput: (request) => waitForInput(sdkCtx, request),
-          clientSample: (request) => askClientToSample(sdkCtx, request),
+          waitForInput: sessionless
+            ? () =>
+                Promise.reject(
+                  new Error(`ctx.context.requestInput ${sessionlessMessage}`),
+                )
+            : (request) => waitForInput(sdkCtx, request),
+          clientSample: sessionless
+            ? (request) =>
+                sample === undefined
+                  ? Promise.reject(
+                      new Error(`ctx.context.sample ${sessionlessMessage}`),
+                    )
+                  : sample(request)
+            : (request) => askClientToSample(sdkCtx, request),
           sample,
           authInfo,
         })
@@ -639,27 +795,50 @@ function isTextBlock(value: unknown): value is { type: 'text'; text: string } {
   )
 }
 
-function registerServerResource(server: McpServer, resource: McpResource) {
+function registerServerResource(
+  server: McpServer,
+  resource: McpResource,
+  appContext: AppContext,
+) {
   const metadata = { mimeType: resource.mimeType }
-  const read = async (uri: URL) =>
-    resourceContents(uri.href, resource.mimeType, await resource.read())
+  const resourceContext = (sdkCtx: ServerContext): MCPResourceContext => ({
+    context: { ...appContext(), authInfo: sdkCtx.http?.authInfo },
+  })
+  const read = async (uri: URL, variables: Variables, sdkCtx: ServerContext) =>
+    resourceContents(
+      uri.href,
+      resource.mimeType,
+      await resource.read(uri, variables, resourceContext(sdkCtx)),
+    )
   if (resource.uri !== undefined) {
-    server.registerResource(resource.name, resource.uri, metadata, read)
+    server.registerResource(resource.name, resource.uri, metadata, (uri, ctx) =>
+      read(uri, {}, ctx),
+    )
     return
   }
   if (resource.uriTemplate === undefined) return
+  const list = resource.list
   const template = new ResourceTemplate(resource.uriTemplate, {
-    list: undefined,
+    list:
+      list === undefined
+        ? undefined
+        : (sdkCtx: ServerContext) => list(resourceContext(sdkCtx)),
   })
+  // A template gets the variables the SDK matched in the asked-for URI.
   server.registerResource(resource.name, template, metadata, read)
 }
 
 function resourceContents(uri: string, mimeType: string, body: unknown) {
-  if (isRecord(body) && typeof body.text === 'string') {
-    return { contents: [{ uri, mimeType, text: body.text }] }
-  }
-  if (isRecord(body) && typeof body.blob === 'string') {
-    return { contents: [{ uri, mimeType, blob: body.blob }] }
+  if (isRecord(body)) {
+    // A `{ text | blob }` body can name its own MIME type: one template can
+    // serve many types. Any other object is sent as JSON with the default.
+    const own = typeof body.mimeType === 'string' ? body.mimeType : mimeType
+    if (typeof body.text === 'string') {
+      return { contents: [{ uri, mimeType: own, text: body.text }] }
+    }
+    if (typeof body.blob === 'string') {
+      return { contents: [{ uri, mimeType: own, blob: body.blob }] }
+    }
   }
   if (typeof body === 'string') {
     return { contents: [{ uri, mimeType, text: body }] }
@@ -668,8 +847,10 @@ function resourceContents(uri: string, mimeType: string, body: unknown) {
   return { contents: [{ uri, mimeType, text: JSON.stringify(body) ?? '' }] }
 }
 
-function registerServerPrompt(server: McpServer, prompt: McpPrompt) {
-  const argsSchema = standardSchema(prompt.argsSchema) ?? emptyObjectSchema
+function registerServerPrompt(
+  server: McpServer,
+  { prompt, argsSchema }: CompiledPrompt,
+) {
   server.registerPrompt(
     prompt.name,
     { description: prompt.description, argsSchema },
@@ -761,10 +942,11 @@ function taskIdFrom(params: unknown) {
 }
 
 // Input schemas and prompt arguments must have an object root.
-function standardSchema(schema: unknown, anyRoot = false) {
+// An output schema can have any root and uses the parsed (output) view.
+function standardSchema(schema: unknown, io: 'input' | 'output' = 'input') {
   if (!isSchemaInput(schema)) return undefined
-  const jsonSchema = convertSchemaToJsonSchema(schema)
-  if (!anyRoot) {
+  const jsonSchema = convertSchemaToJsonSchema(schema, { io })
+  if (io === 'input') {
     return isJsonObjectSchema(jsonSchema)
       ? fromJsonSchema(jsonSchema)
       : undefined
@@ -830,14 +1012,22 @@ async function openLegacySession(
     owner: string | undefined
     authInfo: AuthInfo | undefined
     context: Record<string, unknown> | undefined
+    onerror: ((error: Error) => void) | undefined
     build: (appContext: AppContext) => McpServer
   },
 ) {
   // Before the session exists, the opening request's context applies.
   let session: LegacySession | undefined
-  const server = input.build(() =>
-    session === undefined ? input.context : session.context,
-  )
+  let server: McpServer
+  try {
+    server = input.build(() =>
+      session === undefined ? input.context : session.context,
+    )
+  } catch (error) {
+    // `setup` runs in build. Answer the way the SDK does on the other paths.
+    input.onerror?.(error instanceof Error ? error : new Error(String(error)))
+    return internalError()
+  }
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: () => crypto.randomUUID(),
     enableJsonResponse: true,
@@ -865,6 +1055,17 @@ async function openLegacySession(
     // A request that never opens a session must not keep the server.
     if (transport.sessionId === undefined) await server.close()
   }
+}
+
+function internalError() {
+  return Response.json(
+    {
+      jsonrpc: '2.0',
+      id: null,
+      error: { code: -32603, message: 'Internal server error' },
+    },
+    { status: 500 },
+  )
 }
 
 function sessionNotFound() {

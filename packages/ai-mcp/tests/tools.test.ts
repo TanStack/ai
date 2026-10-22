@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   Client,
-  DEFAULT_REQUEST_TIMEOUT_MSEC,
   InMemoryTransport,
   SUPPORTED_PROTOCOL_VERSIONS,
 } from '@modelcontextprotocol/client'
@@ -41,7 +40,11 @@ function mcpToolDef(def: {
   name: string
   title?: string
   description?: string
-  inputSchema?: { type: 'object'; properties?: Record<string, unknown> }
+  inputSchema?: {
+    type?: 'object'
+    properties?: Record<string, unknown>
+    required?: Array<string>
+  }
   execution?: { taskSupport?: 'optional' | 'required' | 'forbidden' }
   annotations?: {
     title?: string
@@ -223,7 +226,7 @@ describe('callMcpTool', () => {
       expect(tool).toBeDefined()
       const result = await tool!.execute!(
         { query: 'tide' },
-        { toolCallId: 't', emitCustomEvent: () => {} },
+        { threadId: 'thread-1', toolCallId: 't', emitCustomEvent: () => {} },
       )
       expect(result).toBe('Research complete: tide')
     } finally {
@@ -519,7 +522,10 @@ describe('makeMcpExecute', () => {
     })
     const tool = tools.find((t) => t.name === 'always_fails')!
     await expect(
-      tool.execute!({}, { toolCallId: 't', emitCustomEvent: () => {} }),
+      tool.execute!(
+        {},
+        { threadId: 'thread-1', toolCallId: 't', emitCustomEvent: () => {} },
+      ),
     ).rejects.toThrow(/always_fails.*boom/)
     await client.close()
   })
@@ -548,6 +554,45 @@ describe('makeMcpExecute', () => {
     expect(callTool).toHaveBeenCalledWith(
       { name: 'x', arguments: {} },
       { signal: controller.signal, allowInputRequired: true },
+    )
+  })
+
+  it('sends requestOptions with the abortSignal to client.callTool', async () => {
+    const callTool = vi
+      .fn()
+      .mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] })
+    const controller = new AbortController()
+    const execute = makeMcpExecute(fakeMcpClient(callTool), 'x', false, false, {
+      timeout: 5000,
+      resetTimeoutOnProgress: true,
+    })
+    await expect(execute({}, { abortSignal: controller.signal })).resolves.toBe(
+      'ok',
+    )
+    expect(callTool).toHaveBeenCalledWith(
+      { name: 'x', arguments: {} },
+      {
+        timeout: 5000,
+        resetTimeoutOnProgress: true,
+        // The SDK asks the server for progress only with an onprogress callback.
+        onprogress: expect.any(Function),
+        signal: controller.signal,
+        allowInputRequired: true,
+      },
+    )
+  })
+
+  it('adds no onprogress when resetTimeoutOnProgress is not set', async () => {
+    const callTool = vi
+      .fn()
+      .mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] })
+    const execute = makeMcpExecute(fakeMcpClient(callTool), 'x', false, false, {
+      timeout: 5000,
+    })
+    await execute({})
+    expect(callTool).toHaveBeenCalledWith(
+      { name: 'x', arguments: {} },
+      { timeout: 5000, allowInputRequired: true },
     )
   })
 
@@ -682,6 +727,116 @@ describe('toServerTools — annotations + title', () => {
     expect(tool.name).toBe('wx_get_weather')
     expect(tool.metadata.mcp.title).toBe('Weather Lookup')
   })
+
+  it('gives a frozen copy of the title and all 5 annotation fields', () => {
+    const annotations = {
+      title: 'Weather Lookup',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    }
+    const def = mcpToolDef({ name: 'get_weather', annotations })
+    const [tool] = toServerTools(fakeMcpClient(vi.fn()), [def], {})
+    const mcp = tool!.metadata.mcp
+    expect(mcp.title).toBe('Weather Lookup')
+    expect(mcp.annotations).toStrictEqual({
+      title: 'Weather Lookup',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    })
+    expect(Object.isFrozen(mcp.annotations)).toBe(true)
+    // A copy: the server's own object stays as it was.
+    expect(mcp.annotations).not.toBe(def.annotations)
+    expect(Object.isFrozen(def.annotations)).toBe(false)
+  })
+})
+
+describe('toServerTools — input schema defaults', () => {
+  it('adds properties: {} to a schema without properties', () => {
+    const [tool] = toServerTools(
+      fakeMcpClient(vi.fn()),
+      [mcpToolDef({ name: 'ping', inputSchema: { type: 'object' } })],
+      {},
+    )
+    expect(tool!.inputSchema).toEqual({ type: 'object', properties: {} })
+  })
+
+  it("adds type: 'object' to a schema without type and keeps its other keys", () => {
+    const [tool] = toServerTools(
+      fakeMcpClient(vi.fn()),
+      [
+        mcpToolDef({
+          name: 'search',
+          inputSchema: {
+            properties: { query: { type: 'string' } },
+            required: ['query'],
+          },
+        }),
+      ],
+      {},
+    )
+    expect(tool!.inputSchema).toEqual({
+      type: 'object',
+      properties: { query: { type: 'string' } },
+      required: ['query'],
+    })
+  })
+
+  it('gives a tool without an input schema an empty object schema', () => {
+    const def = mcpToolDef({ name: 'bare' })
+    Reflect.deleteProperty(def, 'inputSchema')
+    const [tool] = toServerTools(fakeMcpClient(vi.fn()), [def], {})
+    expect(tool!.inputSchema).toEqual({ type: 'object', properties: {} })
+  })
+
+  it('keeps a full schema as the server sent it', () => {
+    const inputSchema = {
+      type: 'object' as const,
+      properties: { city: { type: 'string' } },
+      required: ['city'],
+    }
+    const [tool] = toServerTools(
+      fakeMcpClient(vi.fn()),
+      [mcpToolDef({ name: 'get_weather', inputSchema })],
+      {},
+    )
+    expect(tool!.inputSchema).toEqual(inputSchema)
+  })
+})
+
+describe('toServerTools — toolName', () => {
+  it('names each tool with toolName, which wins over the prefix', () => {
+    const [tool] = toServerTools(
+      fakeMcpClient(vi.fn()),
+      [mcpToolDef({ name: 'get_weather' })],
+      { prefix: 'wx', toolName: (def) => `mcp__wx__${def.name}` },
+    )
+    expect(tool!.name).toBe('mcp__wx__get_weather')
+    expect(tool!.metadata.mcp).toMatchObject({
+      serverToolName: 'get_weather',
+      serverId: 'wx',
+    })
+  })
+
+  it('calls the server tool by its own name', async () => {
+    const callTool = vi
+      .fn()
+      .mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] })
+    const [tool] = toServerTools(
+      fakeMcpClient(callTool),
+      [mcpToolDef({ name: 'get_weather' })],
+      { toolName: () => 'renamed' },
+    )
+    expect(tool!.name).toBe('renamed')
+    await expect(tool!.execute!({})).resolves.toBe('ok')
+    expect(callTool).toHaveBeenCalledWith(
+      { name: 'get_weather', arguments: {} },
+      expect.anything(),
+    )
+  })
 })
 
 describe('toServerTools', () => {
@@ -701,6 +856,7 @@ describe('toServerTools', () => {
     const result = await tool.execute!(
       { city: 'Brooklyn' },
       {
+        threadId: 'thread-1',
         toolCallId: 't',
         emitCustomEvent: () => {},
       },
@@ -739,38 +895,25 @@ describe('toServerTools', () => {
   })
 })
 
-type RawMessage = { id: string; params: Record<string, unknown> }
-
-/**
- * A spec 2026 client whose transport answers each raw request at once with
- * the messages `reply` returns. Like `fakeMcpClient`, the partial needs the
- * `unknown` bridge.
- */
-function scriptedModernClient(
-  reply: (message: RawMessage) => Array<unknown>,
-  extra: Record<string, unknown> = {},
-) {
-  const sent: Array<RawMessage> = []
-  const transport: {
-    onmessage?: (message: unknown) => void
-    send: (message: RawMessage) => Promise<void>
-  } = {
-    async send(message) {
-      sent.push(message)
-      for (const answer of reply(message)) transport.onmessage?.(answer)
-      if (extra.sendError instanceof Error) throw extra.sendError
-    },
-  }
-  const client = {
-    getProtocolEra: () => 'modern',
-    transport,
-    ...extra,
-  } as unknown as Client
-  return { client, sent }
+type ToolCall = {
+  params: Record<string, unknown>
+  options: Record<string, unknown>
 }
 
-function answerWith(result: unknown) {
-  return (message: RawMessage) => [{ jsonrpc: '2.0', id: message.id, result }]
+/**
+ * A spec 2026 client. `reply` answers each SDK `callTool` call, counted
+ * from 1. Like `fakeMcpClient`, the partial needs the `unknown` bridge.
+ */
+function scriptedModernClient(reply: (call: number) => unknown) {
+  const calls: Array<ToolCall> = []
+  const client = {
+    getProtocolEra: () => 'modern',
+    async callTool(params: ToolCall['params'], options: ToolCall['options']) {
+      calls.push({ params, options })
+      return reply(calls.length)
+    },
+  } as unknown as Client
+  return { client, calls }
 }
 
 /** A spec 2025 client. Each SDK request is answered by `answers[method]`. */
@@ -794,118 +937,40 @@ function scriptedLegacyClient(
 const okResult = { content: [{ type: 'text', text: 'ok' }] }
 const missingResult = 'ended without a result or error'
 
-describe('callMcpTool — spec 2026 raw requests', () => {
-  it('fails when the reply has no tool result, and sends the envelope', async () => {
-    const { client, sent } = scriptedModernClient(answerWith(null), {
-      _outboundMetaEnvelope: () => ({ version: '2026-07-28' }),
-    })
-
-    await expect(callMcpTool(client, 'ask', {}, false)).rejects.toThrow(
-      missingResult,
-    )
-    expect(sent[0]?.params._meta).toEqual({ version: '2026-07-28' })
-  })
-
-  it('sends no envelope when the client gives none', async () => {
-    for (const extra of [{}, { _outboundMetaEnvelope: () => 'x' }]) {
-      const { client, sent } = scriptedModernClient(answerWith(okResult), extra)
-      await expect(callMcpTool(client, 'ask', {}, false)).resolves.toEqual(
-        okResult,
-      )
-      expect(sent[0]?.params._meta).toBeUndefined()
+describe('callMcpTool — spec 2026 calls', () => {
+  it('passes the input schema and the signal to the SDK callTool', async () => {
+    const inputSchema = {
+      type: 'object' as const,
+      properties: { region: { type: 'string', 'x-mcp-header': 'Region' } },
     }
-  })
+    const signal = new AbortController().signal
+    const { client, calls } = scriptedModernClient(() => okResult)
 
-  it('uses defaults for a JSON-RPC error without code or message', async () => {
-    const { client } = scriptedModernClient((message) => [
-      { jsonrpc: '2.0', id: message.id, error: {} },
-    ])
-
-    await expect(callMcpTool(client, 'ask', {}, false)).rejects.toMatchObject({
-      code: ProtocolErrorCode.InternalError,
-      message: 'The MCP request failed.',
-    })
-  })
-
-  it('ignores messages for other requests', async () => {
-    const { client } = scriptedModernClient((message) => [
-      { jsonrpc: '2.0', id: 'other', result: {} },
-      { jsonrpc: '2.0', id: message.id, result: okResult },
-    ])
-
-    await expect(callMcpTool(client, 'ask', {}, false)).resolves.toEqual(
-      okResult,
-    )
-  })
-
-  it('keeps the answer when send fails after it, and fails without one', async () => {
-    const sendError = new Error('send failed')
-    const answered = scriptedModernClient(answerWith(okResult), { sendError })
-    await expect(
-      callMcpTool(answered.client, 'ask', {}, false),
-    ).resolves.toEqual(okResult)
-
-    const silent = scriptedModernClient(() => [], { sendError })
-    await expect(callMcpTool(silent.client, 'ask', {}, false)).rejects.toBe(
-      sendError,
-    )
-  })
-
-  it('fails when the client has no transport', async () => {
-    const client = { getProtocolEra: () => 'modern' } as unknown as Client
-
-    await expect(callMcpTool(client, 'ask', {}, false)).rejects.toThrow(
-      'The MCP client is not connected.',
-    )
-  })
-
-  it('stops on abort and resolves with a signal that never fires', async () => {
-    const answered = scriptedModernClient(answerWith(okResult))
     await expect(
       callMcpTool(
-        answered.client,
-        'ask',
-        {},
+        client,
+        'lookup',
+        { region: 'eu' },
         false,
-        new AbortController().signal,
+        signal,
+        undefined,
+        undefined,
+        inputSchema,
       ),
     ).resolves.toEqual(okResult)
-
-    const silent = scriptedModernClient(() => [])
-    const controller = new AbortController()
-    const pending = callMcpTool(
-      silent.client,
-      'ask',
-      {},
-      false,
-      controller.signal,
-    )
-    controller.abort(new Error('stop'))
-    await expect(pending).rejects.toThrow('stop')
-  })
-
-  it('times out when the reply never comes', async () => {
-    vi.useFakeTimers()
-    try {
-      const { client } = scriptedModernClient(() => [])
-      const pending = expect(
-        callMcpTool(client, 'ask', {}, false),
-      ).rejects.toThrow(/timed out/)
-      await vi.advanceTimersByTimeAsync(DEFAULT_REQUEST_TIMEOUT_MSEC)
-      await pending
-    } finally {
-      vi.useRealTimers()
-    }
+    expect(calls[0]).toEqual({
+      params: { name: 'lookup', arguments: { region: 'eu' } },
+      options: {
+        signal,
+        allowInputRequired: true,
+        toolDefinition: { name: 'lookup', inputSchema },
+      },
+    })
   })
 
   it('reads every input request shape', async () => {
     const call = (result: unknown) =>
-      callMcpTool(
-        scriptedModernClient(answerWith(result)).client,
-        'ask',
-        {},
-        false,
-      )
+      callMcpTool(scriptedModernClient(() => result).client, 'ask', {}, false)
 
     await expect(
       call({
@@ -929,10 +994,6 @@ describe('callMcpTool — spec 2026 raw requests', () => {
     expect((await inputRequiredFrom(() => call(invalid))).request).toEqual(
       invalid,
     )
-
-    await expect(
-      call({ status: 'input_required', inputRequests: {} }),
-    ).rejects.toThrow(missingResult)
   })
 
   async function retrySent(
@@ -940,18 +1001,13 @@ describe('callMcpTool — spec 2026 raw requests', () => {
     inputResponse: Parameters<typeof callMcpTool>[5],
     requestState?: string,
   ) {
-    const { client, sent } = scriptedModernClient((message) => [
-      {
-        jsonrpc: '2.0',
-        id: message.id,
-        result:
-          sent.length === 1
-            ? { resultType: 'input_required', inputRequests, requestState }
-            : okResult,
-      },
-    ])
+    const { client, calls } = scriptedModernClient((call) =>
+      call === 1
+        ? { resultType: 'input_required', inputRequests, requestState }
+        : okResult,
+    )
     await callMcpTool(client, 'draft', {}, false, undefined, inputResponse)
-    return sent[1]?.params
+    return calls[1]?.params
   }
 
   it('answers a sampling request with text, a result object, or a cancel', async () => {
@@ -1072,6 +1128,23 @@ describe('callMcpTool — spec 2025 task replies', () => {
     await expect(callMcpTool(client, 'job', {}, true)).resolves.toEqual(
       okResult,
     )
+  })
+
+  it('sends requestOptions with the task tools/call', async () => {
+    const seen: Array<unknown> = []
+    const client = {
+      getProtocolEra: () => 'legacy',
+      async request(_rpc: unknown, _schema: unknown, options?: unknown) {
+        seen.push(options)
+        return okResult
+      },
+    } as unknown as Client
+    await expect(
+      callMcpTool(client, 'job', {}, true, undefined, undefined, {
+        timeout: 5000,
+      }),
+    ).resolves.toEqual(okResult)
+    expect(seen).toEqual([{ timeout: 5000 }])
   })
 
   it('throws the abort reason when the request fails after an abort', async () => {

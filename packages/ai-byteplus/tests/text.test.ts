@@ -252,6 +252,7 @@ describe('BytePlus text adapter', () => {
 
       const chunks = await collect(
         adapter.chatStream({
+          threadId: 'thread-1',
           model: THINKING_SUMMARY_MODEL,
           messages: [{ role: 'user', content: 'Say hi' }],
           logger: testLogger,
@@ -288,30 +289,27 @@ describe('BytePlus text adapter', () => {
       })
     })
 
-    it('attaches encrypted_content to the reasoning step as its signature', async () => {
+    it('ties encrypted_content to the reasoning message', async () => {
       setupMockSdkClient(thinkingStreamChunks(THINKING_SUMMARY_MODEL))
-      const adapter = createBytePlusText(THINKING_SUMMARY_MODEL, 'ark-test-key')
 
-      const chunks = await collect(
-        adapter.chatStream({
-          model: THINKING_SUMMARY_MODEL,
-          messages: [{ role: 'user', content: 'Say hi' }],
-          logger: testLogger,
-        }),
-      )
+      const chunks = []
+      for await (const chunk of chat({
+        threadId: 'thread-1',
+        adapter: createBytePlusText(THINKING_SUMMARY_MODEL, 'ark-test-key'),
+        messages: [{ role: 'user', content: 'Say hi' }],
+      })) {
+        chunks.push(chunk)
+      }
 
-      const stepFinished = chunks.filter(
-        (c) => c.type === EventType.STEP_FINISHED,
+      const reasoningIds = chunks.flatMap((c) =>
+        c.type === EventType.REASONING_MESSAGE_START ? [c.messageId] : [],
       )
-      expect(stepFinished).toHaveLength(1)
-      const step = stepFinished[0]
-      if (step?.type !== EventType.STEP_FINISHED) throw new Error('no step')
-      expect(step.signature).toBe(ENCRYPTED_BLOB)
-      // `delta` must carry the reasoning text too. chat()'s agent loop
-      // accumulates thinking only from STEP_FINISHED.delta and discards the
-      // whole step — signature included — when that accumulation is empty, so
-      // a signature without a delta never reaches the continuation message.
-      expect(step.delta).toBe('The user wants a greeting.')
+      const values = chunks.flatMap((c) =>
+        c.type === EventType.REASONING_ENCRYPTED_VALUE ? [c] : [],
+      )
+      expect(values.map((v) => v.encryptedValue)).toEqual([ENCRYPTED_BLOB])
+      // An AG-UI client attaches the value to the message with this id.
+      expect(values.map((v) => v.entityId)).toEqual(reasoningIds)
     })
 
     it('does not treat the encrypted chunk as reasoning text', async () => {
@@ -342,6 +340,7 @@ describe('BytePlus text adapter', () => {
 
       const chunks = await collect(
         adapter.chatStream({
+          threadId: 'thread-1',
           model: THINKING_SUMMARY_MODEL,
           messages: [{ role: 'user', content: 'Say hi' }],
           logger: testLogger,
@@ -354,12 +353,12 @@ describe('BytePlus text adapter', () => {
 
       // Pinning the consequence, not endorsing it: with no reasoning deltas
       // the base never opens a reasoning lifecycle, so there is no
-      // STEP_FINISHED to stamp and the blob is silently dropped. Live Ark
-      // always sends the encrypted chunk *after* reasoning deltas, but that
-      // ordering is observed behaviour rather than a documented contract — if
-      // this assertion ever fails because a STEP_FINISHED appeared, the
-      // capture path needs revisiting, not this expectation.
-      expect(chunks.some((c) => c.type === EventType.STEP_FINISHED)).toBe(false)
+      // REASONING_MESSAGE_END to attach to and the blob is silently dropped.
+      // Live Ark always sends the encrypted chunk *after* reasoning deltas, but
+      // that ordering is observed behaviour rather than a documented contract.
+      expect(
+        chunks.some((c) => c.type === EventType.REASONING_ENCRYPTED_VALUE),
+      ).toBe(false)
     })
 
     it('emits AG-UI tool-call events with the OpenAI tool shape', async () => {
@@ -406,6 +405,7 @@ describe('BytePlus text adapter', () => {
 
       const chunks = await collect(
         adapter.chatStream({
+          threadId: 'thread-1',
           model: 'seed-2-0-lite-260428',
           messages: [{ role: 'user', content: 'Weather in Berlin?' }],
           tools: [weatherTool],
@@ -449,7 +449,14 @@ describe('BytePlus text adapter', () => {
         },
       ])
       const adapter = createBytePlusText(model, 'ark-test-key')
-      await collect(adapter.chatStream({ model, messages, logger: testLogger }))
+      await collect(
+        adapter.chatStream({
+          threadId: 'thread-1',
+          model,
+          messages,
+          logger: testLogger,
+        }),
+      )
       return mockCreate.mock.calls[0]?.[0]
     }
 
@@ -506,7 +513,7 @@ describe('BytePlus text adapter', () => {
   })
 
   describe('provider options', () => {
-    it('forwards Ark-only and sampling options into the request body', async () => {
+    it('forwards Ark-only options, sampling options, and chat({ reasoning })', async () => {
       const mockCreate = setupMockSdkClient([
         {
           id: 'chatcmpl-opts',
@@ -517,8 +524,6 @@ describe('BytePlus text adapter', () => {
       const adapter = createBytePlusText('seed-2-0-lite-260428', 'ark-test-key')
 
       const modelOptions: BytePlusTextProviderOptions = {
-        thinking: { type: 'enabled' },
-        reasoning_effort: 'high',
         repetition_penalty: 1.05,
         service_tier: 'flex',
         temperature: 0.4,
@@ -527,9 +532,11 @@ describe('BytePlus text adapter', () => {
 
       await collect(
         adapter.chatStream({
+          threadId: 'thread-1',
           model: 'seed-2-0-lite-260428',
           messages: [{ role: 'user', content: 'Hello' }],
           modelOptions,
+          reasoning: { level: 'high', summary: true },
           logger: testLogger,
         }),
       )
@@ -547,6 +554,43 @@ describe('BytePlus text adapter', () => {
     })
   })
 
+  describe('chat({ reasoning })', () => {
+    async function requestFor(
+      model: 'glm-4-7-251222' | 'glm-5-2-260617',
+      level: 'off' | 'high',
+    ) {
+      const mockCreate = setupMockSdkClient([
+        {
+          id: 'chatcmpl-reasoning',
+          model,
+          choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+        },
+      ])
+      await collect(
+        createBytePlusText(model, 'ark-test-key').chatStream({
+          threadId: 'thread-1',
+          model,
+          messages: [{ role: 'user', content: 'Hello' }],
+          reasoning: { level, summary: true },
+          logger: testLogger,
+        }),
+      )
+      return mockCreate.mock.calls[0]?.[0] as Record<string, unknown>
+    }
+
+    it('off sends thinking disabled and no effort', async () => {
+      const body = await requestFor('glm-5-2-260617', 'off')
+      expect(body.thinking).toEqual({ type: 'disabled' })
+      expect(body).not.toHaveProperty('reasoning_effort')
+    })
+
+    it('an on/off model sends thinking enabled and no effort', async () => {
+      const body = await requestFor('glm-4-7-251222', 'high')
+      expect(body.thinking).toEqual({ type: 'enabled' })
+      expect(body).not.toHaveProperty('reasoning_effort')
+    })
+  })
+
   describe('multimodal content parts', () => {
     async function contentPartsFor(parts: Array<ContentPart>): Promise<any> {
       const mockCreate = setupMockSdkClient([
@@ -561,6 +605,7 @@ describe('BytePlus text adapter', () => {
       const adapter = createBytePlusText('seed-2-0-lite-260428', 'ark-test-key')
       await collect(
         adapter.chatStream({
+          threadId: 'thread-1',
           model: 'seed-2-0-lite-260428',
           messages: [{ role: 'user', content: parts }],
           logger: testLogger,
@@ -711,6 +756,7 @@ describe('BytePlus text adapter', () => {
     it('fails loud on inline audio with an unrecognised mimeType', async () => {
       const chunks = await collect(
         createBytePlusText('seed-2-0-lite-260428', 'ark-test-key').chatStream({
+          threadId: 'thread-1',
           model: 'seed-2-0-lite-260428',
           messages: [
             {
@@ -761,6 +807,7 @@ describe('BytePlus text adapter', () => {
       await expect(
         adapter.structuredOutput({
           chatOptions: {
+            threadId: 'thread-1',
             model: UNSTRUCTURED_MODEL,
             messages: [{ role: 'user', content: 'Hi' }],
             logger: testLogger,
@@ -786,6 +833,7 @@ describe('BytePlus text adapter', () => {
 
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Say hi' }],
         outputSchema: { type: 'object', properties: {} },
@@ -810,6 +858,7 @@ describe('BytePlus text adapter', () => {
       const adapter = createBytePlusText(STRUCTURED_MODEL, 'ark-test-key')
 
       for await (const _ of chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Say hi' }],
         outputSchema: { type: 'object', properties: {} },
@@ -828,6 +877,7 @@ describe('BytePlus text adapter', () => {
       const chunks = await collect(
         adapter.structuredOutputStream({
           chatOptions: {
+            threadId: 'thread-1',
             model: UNSTRUCTURED_MODEL,
             messages: [{ role: 'user', content: 'Hi' }],
             logger: testLogger,
@@ -851,6 +901,7 @@ describe('BytePlus text adapter', () => {
 
       const result = await adapter.structuredOutput({
         chatOptions: {
+          threadId: 'thread-1',
           model: STRUCTURED_MODEL,
           messages: [{ role: 'user', content: 'Where is the Eiffel tower?' }],
           logger: testLogger,
@@ -893,6 +944,7 @@ describe('BytePlus text adapter', () => {
       const chunks = await collect(
         adapter.structuredOutputStream({
           chatOptions: {
+            threadId: 'thread-1',
             model: STRUCTURED_MODEL,
             messages: [{ role: 'user', content: 'Where is the Eiffel tower?' }],
             logger: testLogger,
@@ -1045,6 +1097,7 @@ describe('encrypted_content through the chat() agent loop', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Weather in Berlin?' }],
       tools: [lookupWeather],
@@ -1087,16 +1140,9 @@ describe('encrypted_content through the chat() agent loop', () => {
   })
 })
 
-// The adapter stamps `delta` onto a STEP_FINISHED that already carries the
-// same reasoning text via REASONING_MESSAGE_CONTENT, because chat()'s agent
-// loop reads thinking only from STEP_FINISHED.delta and drops the whole step —
-// signature included — when that accumulation is empty.
-//
-// Nothing double-counts today only because StreamProcessor short-circuits
-// STEP_FINISHED content once it has seen reasoning events. That guarantee
-// lives in @tanstack/ai, not here, so without this test a change over there
-// would double every BytePlus reasoning block in the UI while this package
-// stayed green.
+// The thinking text arrives only through REASONING_MESSAGE_CONTENT, and the
+// signature through REASONING_ENCRYPTED_VALUE. This test guards that
+// StreamProcessor builds one thinking part with both.
 describe('reasoning delta round-trip through StreamProcessor', () => {
   it('surfaces the thinking text once, with the signature attached', async () => {
     setupMockSdkClient(thinkingStreamChunks(THINKING_SUMMARY_MODEL))
@@ -1104,6 +1150,7 @@ describe('reasoning delta round-trip through StreamProcessor', () => {
 
     const processor = new StreamProcessor()
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: THINKING_SUMMARY_MODEL,
       messages: [{ role: 'user', content: 'Say hi' }],
       logger: testLogger,
@@ -1117,8 +1164,7 @@ describe('reasoning delta round-trip through StreamProcessor', () => {
       .filter((part) => part.type === 'thinking')
 
     expect(thinkingParts).toHaveLength(1)
-    // Not 'The user wants a greeting.The user wants a greeting.' — the exact
-    // failure the STEP_FINISHED short-circuit prevents.
+    // Not 'The user wants a greeting.The user wants a greeting.'
     expect(thinkingParts[0]).toMatchObject({
       content: 'The user wants a greeting.',
       signature: ENCRYPTED_BLOB,

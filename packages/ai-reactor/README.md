@@ -38,6 +38,7 @@ import { reactorWorld } from '@tanstack/ai-reactor'
 
 const world = await generateWorld({
   adapter: reactorWorld('visko-orbis-stable'),
+  threadId: 'thread-1',
   prompt: 'A neon cyberpunk city at night',
 })
 
@@ -52,6 +53,7 @@ import { reactorVideo } from '@tanstack/ai-reactor'
 
 const live = await generateLiveVideo({
   adapter: reactorVideo('helios'),
+  threadId: 'thread-1',
   prompt: 'A neon cyberpunk city at night',
 })
 

@@ -6,12 +6,10 @@ export type { CreateMcpAppBridgeOptions } from './create-mcp-app-bridge.ts'
 export {
   createPageWebMCPTools,
   createRegisterWebMCPTools,
-  createWebMCPTools,
 } from './create-web-mcp-tools.ts'
 export type {
   CreatePageWebMCPToolsOptions,
   CreateRegisterWebMCPToolsOptions,
-  CreateWebMCPToolsOptions,
 } from './create-web-mcp-tools.ts'
 export type {
   DeepPartial,
@@ -114,6 +112,7 @@ export {
   webSocket,
   fetchServerSentEvents,
   fetchHttpStream,
+  fetchJson,
   xhrServerSentEvents,
   xhrHttpStream,
   stream,
@@ -128,6 +127,7 @@ export {
   type SubscribeConnectionAdapter,
   type RunAgentInputContext,
   type FetchConnectionOptions,
+  type FetchJsonOptions,
   type XhrConnectionOptions,
   type InferChatMessages,
   type GenerationClientState,

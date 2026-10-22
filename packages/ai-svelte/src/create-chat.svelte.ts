@@ -2,13 +2,9 @@ import { ChatClient } from '@tanstack/ai-client'
 import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import { onMount } from 'svelte'
 import type {
-  ChatClientState,
   ResolvableChatInterrupt,
-  ChatInterruptState,
   ChatResumeState,
-  ConnectionStatus,
   InferredClientContext,
-  QueuedMessage,
   SendMessageOptions,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
@@ -29,9 +25,6 @@ import type {
   UIMessage,
 } from './types'
 
-const EMPTY_INTERRUPTS = Object.freeze([])
-const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
-
 /**
  * Creates a reactive chat instance for Svelte 5.
  *
@@ -45,6 +38,7 @@ const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
  *   import { createChat, fetchServerSentEvents } from '@tanstack/ai-svelte'
  *
  *   const chat = createChat({
+ *     threadId: 'support-1',
  *     connection: fetchServerSentEvents('/api/chat'),
  *   })
  * </script>
@@ -72,24 +66,6 @@ export function createChat<
 >(
   options: CreateChatOptions<TTools, TSchema, TContext, TInterrupts>,
 ): CreateChatReturn<TTools, TSchema, TContext, TInterrupts> {
-  // Create reactive state using Svelte 5 runes
-  let messages = $state<Array<UIMessage<TTools>>>(options.initialMessages || [])
-  let isLoading = $state(false)
-  let hasOlderMessages = $state(false)
-  let error = $state<Error | undefined>(undefined)
-  let status = $state<ChatClientState>('ready')
-  let isSubscribed = $state(false)
-  let connectionStatus = $state<ConnectionStatus>('disconnected')
-  let sessionGenerating = $state(false)
-  let queue = $state<Array<QueuedMessage>>([])
-  let runId = $state<string | null>(null)
-  let interruptState = $state.raw<ChatInterruptState<TTools, TInterrupts>>({
-    interrupts: EMPTY_INTERRUPTS,
-    pendingInterrupts: EMPTY_INTERRUPTS,
-    interruptErrors: EMPTY_INTERRUPT_ERRORS,
-    resuming: false,
-  })
-
   // Structured-output `partial` / `final` are derived from `messages` —
   // specifically from the structured-output part on the latest assistant
   // message (the one after the most recent user message). Per-turn parts
@@ -111,37 +87,25 @@ export function createChat<
     ? { connection: options.connection }
     : { fetcher: options.fetcher }
 
-  // The hook's identity is its `threadId`. When no `threadId` is given the
-  // client mints one after mount, so an ephemeral chat still works but is not
-  // restored on reload.
+  // The hook's identity is its `threadId`.
   const client = new ChatClient<TTools, TContext, TInterrupts>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),
-    ...(typeof options.threadId === 'string' && options.persistence === true
+    threadId: options.threadId,
+    ...(options.persistence === true
       ? {
           persistence: true,
-          threadId: options.threadId,
           ...(options.history !== undefined && {
             history: options.history,
           }),
         }
-      : typeof options.threadId === 'string' && options.persistence
-        ? {
-            persistence: options.persistence,
-            threadId: options.threadId,
-          }
-        : {
-            ...(options.threadId !== undefined && {
-              threadId: options.threadId,
-            }),
-          }),
+      : { persistence: options.persistence }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
     }),
-    ...(options.body !== undefined && { body: options.body }),
     ...(options.forwardedProps !== undefined && {
       forwardedProps: options.forwardedProps,
     }),
@@ -174,49 +138,17 @@ export function createChat<
     ...(options.streamProcessor !== undefined && {
       streamProcessor: options.streamProcessor,
     }),
-    onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
-      messages = newMessages
-      hasOlderMessages = client.getHasOlderMessages()
-    },
-    onLoadingChange: (newIsLoading: boolean) => {
-      isLoading = newIsLoading
-      syncResumeState()
-    },
-    onStatusChange: (newStatus: ChatClientState) => {
-      status = newStatus
-    },
-    onErrorChange: (newError: Error | undefined) => {
-      error = newError
-    },
-    onSubscriptionChange: (nextIsSubscribed: boolean) => {
-      isSubscribed = nextIsSubscribed
-    },
-    onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
-      connectionStatus = nextStatus
-    },
-    onSessionGeneratingChange: (isGenerating: boolean) => {
-      sessionGenerating = isGenerating
-    },
     ...(options.queue !== undefined && { queue: options.queue }),
-    onQueueChange: (nextQueue: Array<QueuedMessage>) => {
-      queue = nextQueue
-    },
-    onRunIdChange: (nextRunId) => {
-      runId = nextRunId
-    },
     onInterruptStateChange: (nextInterruptState, context) => {
-      interruptState = nextInterruptState
       options.onInterruptStateChange?.(nextInterruptState, context)
     },
   })
 
-  function syncResumeState() {
-    runId = client.getCurrentRunId()
-    interruptState = client.getInterruptState()
-  }
-
-  messages = client.getMessages()
-  interruptState = client.getInterruptState()
+  // One raw rune: the snapshot is frozen and replaced on every change.
+  let snapshot = $state.raw(client.getSnapshot())
+  const unsubscribeSnapshot = client.subscribeSnapshot(() => {
+    snapshot = client.getSnapshot()
+  })
 
   if (options.live) {
     client.subscribe()
@@ -240,7 +172,6 @@ export function createChat<
         // Delivery-durability resume is transparent: the resumable SSE
         // connection adapter reattaches via the browser's native
         // Last-Event-ID on reconnect. We only seed interrupt (state) resume.
-        syncResumeState()
         client.attach()
         // ONLY THE VIEW ON SCREEN HOLDS A STREAM. `onMount`'s returned function
         // runs when the component is destroyed, which is the one automatic
@@ -252,6 +183,7 @@ export function createChat<
         // `detach` keeps the transcript and the resume pointer, so re-entering
         // the view picks the run back up from the durable log.
         return () => {
+          unsubscribeSnapshot()
           client.detach()
         }
       })
@@ -269,34 +201,21 @@ export function createChat<
     content: string | MultimodalContent,
     sendOptions?: SendMessageOptions,
   ) => {
-    try {
-      await client.sendMessage(content, undefined, sendOptions)
-    } finally {
-      syncResumeState()
-    }
+    await client.sendMessage(content, undefined, sendOptions)
   }
 
   const cancelQueued = (id: string) => client.cancelQueued(id)
 
   const append = async (message: ModelMessage | UIMessage<TTools>) => {
-    try {
-      await client.append(message)
-    } finally {
-      syncResumeState()
-    }
+    await client.append(message)
   }
 
   const reload = async () => {
-    try {
-      await client.reload()
-    } finally {
-      syncResumeState()
-    }
+    await client.reload()
   }
 
   const loadOlderMessages = async () => {
     await client.loadOlderMessages()
-    hasOlderMessages = client.getHasOlderMessages()
   }
 
   const stop = () => {
@@ -304,15 +223,15 @@ export function createChat<
   }
 
   const dispose = () => {
+    unsubscribeSnapshot()
     client.dispose()
   }
 
   const clear = () => {
     client.clear()
-    syncResumeState()
   }
 
-  const setMessages = (newMessages: Array<UIMessage<TTools>>) => {
+  const setMessages = (newMessages: ReadonlyArray<UIMessage<TTools>>) => {
     client.setMessagesManually(newMessages)
   }
 
@@ -324,23 +243,6 @@ export function createChat<
     errorText?: string
   }) => {
     await client.addToolResult(result)
-  }
-
-  const addToolApprovalResponse = async (response: {
-    id: string
-    approved: boolean
-  }) => {
-    await client.addToolApprovalResponse(response)
-    syncResumeState()
-  }
-
-  const resumeInterrupts = async (
-    resumeItems: Array<RunAgentResumeItem>,
-    state?: ChatResumeState,
-  ) => {
-    const result = await client.resumeInterrupts(resumeItems, state)
-    syncResumeState()
-    return result
   }
 
   const resolveInterrupts = (
@@ -370,14 +272,6 @@ export function createChat<
     state?: ChatResumeState,
   ) => client.resumeInterruptsUnsafe(resumeItems, state)
 
-  /**
-   * @deprecated Use `updateForwardedProps` instead.
-   * Both populate the same wire payload.
-   */
-  const updateBody = (newBody: Record<string, any>) => {
-    client.updateOptions({ body: newBody })
-  }
-
   const updateForwardedProps = (newForwardedProps: Record<string, any>) => {
     client.updateOptions({ forwardedProps: newForwardedProps })
   }
@@ -394,6 +288,7 @@ export function createChat<
   // multi-line scan re-runs whenever `messages` changes.
   const activeStructuredPart: StructuredOutputPart | null = $derived.by(() => {
     let lastUserIndex = -1
+    const messages = snapshot.messages
     for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i]?.role === 'user') {
         lastUserIndex = i
@@ -429,46 +324,46 @@ export function createChat<
   // oxlint-disable-next-line eslint-js/no-restricted-syntax -- rune return shape diverges from generic CreateChatReturn<TTools, TSchema, TContext> due to TSchema conditional partial/final fields; TS can't structurally narrow.
   return {
     get messages() {
-      return messages
+      return snapshot.messages
     },
     get isLoading() {
-      return isLoading
+      return snapshot.isLoading
     },
     get hasOlderMessages() {
-      return hasOlderMessages
+      return snapshot.hasOlderMessages
     },
     get error() {
-      return error
+      return snapshot.error
     },
     get status() {
-      return status
+      return snapshot.status
     },
     get isSubscribed() {
-      return isSubscribed
+      return snapshot.isSubscribed
     },
     get connectionStatus() {
-      return connectionStatus
+      return snapshot.connectionStatus
     },
     get sessionGenerating() {
-      return sessionGenerating
+      return snapshot.sessionGenerating
+    },
+    get isHydrating() {
+      return snapshot.isHydrating
     },
     get queue() {
-      return queue
+      return snapshot.queue
     },
     get runId() {
-      return runId
+      return snapshot.runId
     },
     get interrupts() {
-      return interruptState.interrupts
-    },
-    get pendingInterrupts() {
-      return interruptState.interrupts
+      return snapshot.interruptState.interrupts
     },
     get interruptErrors() {
-      return interruptState.interruptErrors
+      return snapshot.interruptState.interruptErrors
     },
     get resuming() {
-      return interruptState.resuming
+      return snapshot.interruptState.resuming
     },
     get partial() {
       return partial
@@ -486,13 +381,10 @@ export function createChat<
     setMessages,
     clear,
     addToolResult,
-    addToolApprovalResponse,
     resolveInterrupts,
     cancelInterrupts,
     retryInterrupts,
     resumeInterruptsUnsafe,
-    resumeInterrupts,
-    updateBody,
     updateForwardedProps,
     updateContext,
   } as unknown as CreateChatReturn<TTools, TSchema, TContext, TInterrupts>

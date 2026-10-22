@@ -234,6 +234,28 @@ describe('Mistral adapters', () => {
       )
     })
 
+    it('reports a length stop as truncation in structured output', async () => {
+      mockComplete.mockReset().mockResolvedValue({
+        choices: [
+          { message: { content: '{"value":' }, finishReason: 'length' },
+        ],
+      })
+      const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+
+      await expect(
+        adapter.structuredOutput({
+          chatOptions: chatOpts({
+            model: 'mistral-large-latest',
+            messages: [{ role: 'user', content: 'Return structured output' }],
+          }),
+          outputSchema: {
+            type: 'object',
+            properties: { value: { type: 'string' } },
+          },
+        }),
+      ).rejects.toThrow(/maximum token limit was reached/)
+    })
+
     it('throws if MISTRAL_API_KEY is not set when using mistralText', () => {
       vi.stubEnv('MISTRAL_API_KEY', '')
 
@@ -541,7 +563,7 @@ describe('Mistral AG-UI event emission', () => {
     expect(toolStartChunk).toBeDefined()
     if (toolStartChunk?.type === 'TOOL_CALL_START') {
       expect(toolStartChunk.toolCallId).toBe('call_abc123')
-      expect(toolStartChunk.toolName).toBe('lookup_weather')
+      expect(toolStartChunk.toolCallName).toBe('lookup_weather')
     }
 
     const toolArgsChunks = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
@@ -551,7 +573,7 @@ describe('Mistral AG-UI event emission', () => {
     expect(toolEndChunk).toBeDefined()
     if (toolEndChunk?.type === 'TOOL_CALL_END') {
       expect(toolEndChunk.toolCallId).toBe('call_abc123')
-      expect(toolEndChunk.toolName).toBe('lookup_weather')
+      expect(toolEndChunk.toolCallName).toBe('lookup_weather')
       expect(toolEndChunk.input).toEqual({
         location: 'Berlin',
         note: null,
@@ -678,6 +700,7 @@ describe('Mistral AG-UI event emission', () => {
 
     for await (const chunk of chat({
       ...createChatOptions({ adapter }),
+      threadId: 'thread-1',
       messages: [{ role: 'user', content: 'Ask me a question' }],
       tools: [askUser],
       agentLoopStrategy: maxIterations(3),
@@ -1065,6 +1088,109 @@ describe('Mistral AG-UI event emission', () => {
     expect(caught?.message).toMatch(/lookup_weather/)
   })
 
+  it('puts the raw argument string on TOOL_CALL_END', async () => {
+    setupMockStream([
+      {
+        id: 'cmpl-raw',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: {
+              toolCalls: [
+                {
+                  index: 0,
+                  id: 'tc_raw',
+                  function: {
+                    name: 'lookup_weather',
+                    arguments: '{"location": "Berlin", ',
+                  },
+                },
+              ],
+            },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'cmpl-raw',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: {
+              toolCalls: [{ index: 0, function: { arguments: '"n": 1.50}' } }],
+            },
+            finishReason: 'tool_calls',
+          },
+        ],
+      },
+    ])
+
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of adapter.chatStream(
+      chatOpts({
+        model: 'mistral-large-latest',
+        messages: [{ role: 'user', content: 'Weather in Berlin?' }],
+        tools: [weatherTool],
+      }),
+    )) {
+      chunks.push(chunk)
+    }
+
+    const end = chunks.find((c) => c.type === 'TOOL_CALL_END')
+    expect(end).toMatchObject({
+      toolCallId: 'tc_raw',
+      args: '{"location": "Berlin", "n": 1.50}',
+      input: { location: 'Berlin' },
+    })
+  })
+
+  it('sends malformed raw arguments on TOOL_CALL_END without an input', async () => {
+    setupMockStream([
+      {
+        id: 'cmpl-bad',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: {
+              toolCalls: [
+                {
+                  index: 0,
+                  id: 'tc_bad',
+                  function: { name: 'lookup_weather', arguments: '{"a":' },
+                },
+              ],
+            },
+            finishReason: 'tool_calls',
+          },
+        ],
+      },
+    ])
+
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    const chunks: Array<AdapterYieldChunk> = []
+    await expect(
+      (async () => {
+        for await (const chunk of adapter.chatStream(
+          chatOpts({
+            model: 'mistral-large-latest',
+            messages: [{ role: 'user', content: 'x' }],
+            tools: [weatherTool],
+          }),
+        )) {
+          chunks.push(chunk)
+        }
+      })(),
+    ).rejects.toThrow(/Failed to parse tool call arguments/)
+
+    const end = chunks.find((c) => c.type === 'TOOL_CALL_END')
+    expect(end).toMatchObject({ toolCallId: 'tc_bad', args: '{"a":' })
+    expect(end).not.toHaveProperty('input')
+  })
+
   it('sends stream_options.include_usage so Mistral returns usage on streaming', async () => {
     let capturedBody: unknown
     vi.stubGlobal(
@@ -1181,6 +1307,71 @@ describe('Mistral AG-UI event emission', () => {
     expect(caught?.message).toMatch(
       /Mistral text adapter does not support content part of type 'audio'/,
     )
+  })
+
+  it('sends the images of a tool result as image chunks in the tool message', async () => {
+    let capturedBody:
+      | { messages: Array<{ role: string; content: unknown }> }
+      | undefined
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: { body?: string }) => {
+        capturedBody = init?.body ? JSON.parse(init.body) : undefined
+        return {
+          ok: true,
+          status: 200,
+          body: new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
+              controller.close()
+            },
+          }),
+        }
+      }),
+    )
+    mockComplete.mockReset()
+
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    for await (const _chunk of adapter.chatStream(
+      chatOpts({
+        model: 'mistral-large-latest',
+        messages: [
+          { role: 'user', content: 'Take a screenshot' },
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              {
+                id: 'call12345',
+                type: 'function',
+                function: { name: 'screenshot', arguments: '{}' },
+              },
+            ],
+          },
+          {
+            role: 'tool',
+            toolCallId: 'call12345',
+            content: [
+              { type: 'text', content: 'The screenshot' },
+              {
+                type: 'image',
+                source: { type: 'url', value: 'https://example.com/s.png' },
+              },
+            ],
+          },
+        ],
+      }),
+    )) {
+      // drain
+    }
+
+    const toolMessage = capturedBody?.messages.find(
+      (message) => message.role === 'tool',
+    )
+    expect(toolMessage?.content).toEqual([
+      { type: 'text', text: 'The screenshot' },
+      { type: 'image_url', image_url: 'https://example.com/s.png' },
+    ])
   })
 })
 

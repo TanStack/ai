@@ -70,6 +70,38 @@ afterEach(() => {
   delete process.env.BOXD_ORG
 })
 
+describe('boxdSandbox provider: cancellation during adoption', () => {
+  it('rejects create aborted during readiness and deletes its machine', async () => {
+    const controller = new AbortController()
+    const reason = new Error('adoption cancelled')
+    machines.waitUntilReady.mockImplementation(async () => {
+      controller.abort(reason)
+      return machine()
+    })
+    await expect(
+      boxdSandbox({ apiKey: 'k' }).create({ signal: controller.signal }),
+    ).rejects.toBe(reason)
+    expect(machines.delete).toHaveBeenCalledExactlyOnceWith('vm-1')
+    expect(machines.exec).not.toHaveBeenCalled()
+  })
+
+  it('rejects restore aborted during workspace setup and deletes its machine', async () => {
+    const controller = new AbortController()
+    const reason = new Error('adoption cancelled')
+    machines.exec.mockImplementation(async () => {
+      controller.abort(reason)
+      return ok
+    })
+    await expect(
+      boxdSandbox({ apiKey: 'k' }).restoreSnapshot!({
+        snapshotId: 'saved-workspace',
+        signal: controller.signal,
+      }),
+    ).rejects.toBe(reason)
+    expect(machines.delete).toHaveBeenCalledExactlyOnceWith('vm-1')
+  })
+})
+
 describe('boxdSandbox provider: create', () => {
   it('creates an isolated machine named after the deterministic id, in the org, at the requested size', async () => {
     const handle = await boxdSandbox({

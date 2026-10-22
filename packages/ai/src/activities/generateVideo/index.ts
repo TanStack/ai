@@ -35,6 +35,7 @@ import type {
   GenerationMiddleware,
   GenerationMiddlewareContext,
 } from '../middleware/types'
+import { inlineVideoStream } from './adapter'
 import type { VideoAdapter } from './adapter'
 import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
 import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
@@ -46,12 +47,41 @@ import type {
   TokenUsage,
   VideoJobResult,
   VideoStatusResult,
+  VideoStreamResult,
   VideoUrlResult,
 } from '../../types'
 
 // ===========================
 // Activity Kind
 // ===========================
+
+/** A provider URL passes through; bytes go to middleware to be hosted. */
+function videoMedia(result: VideoUrlResult | VideoStreamResult) {
+  return result.body
+    ? { body: result.body, contentType: result.contentType }
+    : {
+        url: result.url,
+        ...(result.expiresAt ? { expiresAt: result.expiresAt } : {}),
+      }
+}
+
+/**
+ * Settle the result's `url` after middleware ran. A hosted stream already has
+ * one; an unhosted stream is buffered into a `data:` URL, so video generation
+ * works without persistence.
+ */
+async function settleVideoUrl<
+  T extends {
+    url?: string
+    body?: ReadableStream<Uint8Array>
+    contentType?: string
+  },
+>(result: T) {
+  if (result.url !== undefined && result.body && !result.body.locked) {
+    await result.body.cancel().catch(() => {})
+  }
+  return await inlineVideoStream(result)
+}
 
 /** The adapter kind this activity handles */
 export const kind = 'video' as const
@@ -173,10 +203,11 @@ export type VideoCreateOptions<
   /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
   size?: VideoSizeForAdapter<TAdapter>
   /**
-   * Video duration in seconds. Adapters that declare a per-model duration
-   * map narrow this to the model's valid union (e.g. `4 | 6 | 8` for Veo 3).
-   * Pass `adapter.snapDuration(seconds)` to coerce raw seconds to a valid
-   * value.
+   * Video duration. Adapters that declare a per-model duration map narrow
+   * this to that model's union (for example `4 | 6 | 8` for Veo 3, or
+   * `4 | "4" | "4s"` for Sora). Pass `adapter.snapDuration(input)` to coerce
+   * a raw value. `input` may be seconds, a `"6s"` template, or `"auto"` when
+   * the model lists it.
    */
   duration?: VideoDurationForAdapter<TAdapter>
   /**
@@ -205,15 +236,13 @@ export type VideoCreateOptions<
    */
   runId?: string
   /**
-   * Stable conversation/thread id for correlating this run when persisted.
+   * Stable conversation/thread id. Required.
    *
-   * Also the `threadId` stamped on the emitted `RUN_STARTED` / `RUN_FINISHED`
-   * chunks; when omitted a throwaway id is minted for those chunks only, and
-   * the persisted run record carries NO thread link rather than a fabricated
-   * one. Pass it whenever persistence is on — it is the slot a reloading client
-   * hydrates by, so a run stored without it can only be fetched by run id.
+   * It is the `threadId` on the emitted `RUN_STARTED` / `RUN_FINISHED`
+   * chunks, and the slot a reloading client hydrates by when persistence is
+   * on.
    */
-  threadId?: string
+  threadId: string
   /**
    * Enable debug logging. Pass `true` to enable all categories, `false` to
    * silence everything including errors, or a `DebugConfig` object for granular
@@ -362,7 +391,8 @@ export type VideoActivityResult<
  * // Start a video generation job
  * const { jobId } = await generateVideo({
  *   adapter: openaiVideo('sora-2'),
- *   prompt: 'A cat chasing a dog in a sunny park'
+ *   prompt: 'A cat chasing a dog in a sunny park',
+ *   threadId,
  * })
  *
  * console.log('Job started:', jobId)
@@ -373,6 +403,7 @@ export type VideoActivityResult<
  * const status = await getVideoJobStatus({
  *   adapter: openaiVideo('sora-2'),
  *   jobId,
+ *   threadId,
  * })
  * ```
  *
@@ -384,6 +415,7 @@ export type VideoActivityResult<
  * const stream = generateVideo({
  *   adapter: openaiVideo('sora-2'),
  *   prompt: 'A cat chasing a dog in a sunny park',
+ *   threadId,
  *   stream: true,
  *   pollingInterval: 3000,
  * })
@@ -480,10 +512,6 @@ async function runCreateVideoJob<
       provider: adapter.name,
       model,
       modelOptions,
-      // Deliberately the CALLER's `threadId` — no minted fallback. A thread id
-      // nobody else knows would file the run in a slot no client could hydrate,
-      // which is worse than no link because it looks like one. Mirrors the
-      // streaming path.
       threadId: options.threadId,
       runId,
       artifactInputs: { prompt },
@@ -603,15 +631,12 @@ async function* runStreamingVideoGeneration<
     (adapter as { name?: string }).name ??
     'unknown'
 
-  // The wire needs a thread id on every RUN_* chunk, so one is minted when the
-  // caller passes none — matching `streamGenerationResult`, which the other
-  // activities stream through.
-  const wireThreadId = options.threadId ?? createId('thread')
+  const threadId = options.threadId
 
   yield {
     type: 'RUN_STARTED',
     runId,
-    threadId: wireThreadId,
+    threadId,
     timestamp: Date.now(),
   } as StreamChunk
 
@@ -624,12 +649,7 @@ async function* runStreamingVideoGeneration<
     // Identity has to reach the middleware, not just the chunks: persistence
     // keys the run record on these, and without them it falls back to the
     // internal `requestId` and records no thread link at all.
-    //
-    // Deliberately the CALLER's `threadId`, never `wireThreadId`: a minted id is
-    // known to nobody, so persisting it would file the run in a slot no client
-    // could ever hydrate — worse than recording no link, because it looks like
-    // one. This mirrors `generateImage`.
-    threadId: options.threadId,
+    threadId,
     runId,
     artifactInputs: { prompt },
     createId,
@@ -691,13 +711,13 @@ async function* runStreamingVideoGeneration<
       }
 
       if (statusResult.status === 'completed') {
-        const urlResult = await adapter.getVideoUrl(jobResult.jobId)
+        const video = await adapter.getVideo(jobResult.jobId)
 
         logger.output(
           `activity=generateVideo jobId=${jobResult.jobId} status=completed`,
           {
             jobId: jobResult.jobId,
-            url: urlResult.url,
+            url: video.url,
           },
         )
 
@@ -710,21 +730,22 @@ async function* runStreamingVideoGeneration<
         const rawResult = {
           jobId: jobResult.jobId,
           status: 'completed' as const,
-          url: urlResult.url,
-          expiresAt: urlResult.expiresAt,
-          ...(urlResult.usage ? { usage: urlResult.usage } : {}),
+          ...videoMedia(video),
+          ...(video.usage ? { usage: video.usage } : {}),
         }
-        const result = await applyGenerationResultTransforms(mwCtx, rawResult)
+        const result = await settleVideoUrl(
+          await applyGenerationResultTransforms(mwCtx, rawResult),
+        )
 
         // Fire finish before yielding the terminal chunks: the generation has
         // succeeded, so a consumer that stops reading after `generation:result`
         // (without pulling `RUN_FINISHED`) must not trip the abandonment path in
         // `finally`, which would otherwise report a spurious cancellation.
-        if (urlResult.usage)
-          await runGenerationUsage(middleware, mwCtx, urlResult.usage)
+        if (video.usage)
+          await runGenerationUsage(middleware, mwCtx, video.usage)
         await runGenerationFinish(middleware, mwCtx, {
           duration: Date.now() - obsStartTime,
-          usage: urlResult.usage,
+          usage: video.usage,
         })
         settled = true
         abortControls.clear()
@@ -739,7 +760,7 @@ async function* runStreamingVideoGeneration<
         yield* normalizeStreamChunk({
           type: 'RUN_FINISHED',
           runId,
-          threadId: wireThreadId,
+          threadId,
           finishReason: 'stop',
           timestamp: Date.now(),
         } as AdapterYieldChunk)
@@ -779,7 +800,7 @@ async function* runStreamingVideoGeneration<
     yield* normalizeStreamChunk({
       type: 'RUN_ERROR',
       runId,
-      threadId: wireThreadId,
+      threadId,
       message: payload.message,
       ...(payload.code !== undefined ? { code: payload.code } : {}),
       timestamp: Date.now(),
@@ -804,8 +825,8 @@ async function* runStreamingVideoGeneration<
  *
  * The run this poll finishes is identified by `adapter` + `jobId` alone — the
  * same pair the submitting `generateVideo()` call derived it from — so there is
- * no run id to thread through. Pass the submission's `threadId` and the same
- * `middleware`.
+ * no run id to thread through. With middleware, pass the submission's
+ * `threadId` and the same `middleware`.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
@@ -817,10 +838,9 @@ export interface VideoJobStatusOptions<
   /** The job ID to check status for */
   jobId: string
   /**
-   * The scope the run is filed under. Must match the submission's `threadId` —
-   * generation persistence REFUSES a run without a scope (a run filed under
-   * none can never be hydrated by one), so omitting it throws rather than
-   * quietly filing the finished video somewhere unreachable.
+   * The scope the run is filed under. Must match the submission's `threadId`.
+   * Only middleware reads it. Generation persistence throws without it,
+   * unless you set its own `threadId` option. A plain status poll can omit it.
    */
   threadId?: string
   /**
@@ -955,12 +975,12 @@ export async function getVideoJobStatus<
 
   // If completed, also get the URL
   if (statusResult.status === 'completed') {
-    let urlResult: VideoUrlResult
+    let video: VideoUrlResult | VideoStreamResult
     // Scoped tightly to the provider call: a middleware hook that throws must
     // surface as itself, not be relabelled "failed to get video URL" and then
     // re-reported to the very middleware that threw.
     try {
-      urlResult = await adapter.getVideoUrl(jobId)
+      video = await adapter.getVideo(jobId)
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Failed to get video URL'
@@ -998,39 +1018,56 @@ export async function getVideoJobStatus<
       jobId,
       status: statusResult.status,
       progress: statusResult.progress,
-      url: urlResult.url,
+      url: video.url,
       duration: Date.now() - startTime,
       timestamp: Date.now(),
     })
-    if (urlResult.usage) {
+    if (video.usage) {
       aiEventClient.emit('video:usage', {
         requestId,
         model: adapter.model,
-        usage: urlResult.usage,
+        usage: video.usage,
         timestamp: Date.now(),
       })
     }
 
     const mwCtx = terminalContext()
     await runGenerationStart(middleware, mwCtx)
-    const result = await applyGenerationResultTransforms<VideoJobStatusResult>(
-      mwCtx,
-      {
+    const transformed = await applyGenerationResultTransforms<
+      VideoJobStatusResult & {
+        body?: ReadableStream<Uint8Array>
+        contentType?: string
+      }
+    >(mwCtx, {
+      jobId,
+      status: 'completed',
+      ...(statusResult.progress !== undefined
+        ? { progress: statusResult.progress }
+        : {}),
+      ...videoMedia(video),
+      ...(video.usage ? { usage: video.usage } : {}),
+    })
+    let result: VideoJobStatusResult
+    try {
+      result = await settleVideoUrl(transformed)
+    } catch (error) {
+      // The download broke mid-stream: the job is terminal, so fail the run.
+      await runGenerationError(middleware, mwCtx, {
+        error,
+        duration: Date.now() - startTime,
+      })
+      return {
         jobId,
-        status: 'completed',
-        ...(statusResult.progress !== undefined
-          ? { progress: statusResult.progress }
-          : {}),
-        url: urlResult.url,
-        ...(urlResult.expiresAt ? { expiresAt: urlResult.expiresAt } : {}),
-        ...(urlResult.usage ? { usage: urlResult.usage } : {}),
-      },
-    )
-    if (urlResult.usage)
-      await runGenerationUsage(middleware, mwCtx, urlResult.usage)
+        status: 'failed' as const,
+        progress: statusResult.progress,
+        error:
+          error instanceof Error ? error.message : 'Failed to download video',
+      }
+    }
+    if (video.usage) await runGenerationUsage(middleware, mwCtx, video.usage)
     await runGenerationFinish(middleware, mwCtx, {
       duration: Date.now() - startTime,
-      usage: urlResult.usage,
+      usage: video.usage,
     })
     return result
   }

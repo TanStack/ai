@@ -230,6 +230,14 @@ export interface ConvertSchemaOptions {
    * @default false
    */
   forStructuredOutput?: boolean
+  /**
+   * Which view of a Standard JSON Schema to convert. A schema with a
+   * transform or a pipe has a different `output` view. Use `'output'` to
+   * describe the value that parsing returns.
+   *
+   * @default 'input'
+   */
+  io?: 'input' | 'output'
 }
 
 /**
@@ -238,16 +246,20 @@ export interface ConvertSchemaOptions {
  *
  * - Standard JSON Schemas are rebuilt structurally (dropping `$schema`, which
  *   LLM providers ignore) and given the explicit `type`/`properties`/`required`
- *   defaults object shapes need downstream.
+ *   defaults object shapes need downstream. `io` picks the `input` (default)
+ *   or `output` view.
  * - Plain `JSONSchema` inputs are rebuilt into the typed view; non-object inputs
  *   are surfaced untouched (they can't be widened).
  * - Standard Schema validators lacking a `~standard.jsonSchema` converter throw
  *   with actionable guidance, rather than shipping `{ '~standard': … }` to the
  *   provider and producing an opaque downstream error.
  */
-function toTypedJsonSchema(schema: SchemaInput): JSONSchema | undefined {
+function toTypedJsonSchema(
+  schema: SchemaInput,
+  io: 'input' | 'output' = 'input',
+): JSONSchema | undefined {
   if (isStandardJSONSchema(schema)) {
-    const jsonSchema = schema['~standard'].jsonSchema.input({
+    const jsonSchema = schema['~standard'].jsonSchema[io]({
       target: 'draft-07',
     })
     const result: JSONSchema = toJsonSchema(jsonSchema)
@@ -340,7 +352,7 @@ export function convertSchemaToJsonSchema(
 ): JSONSchema | undefined {
   if (!schema) return undefined
 
-  const { forStructuredOutput = false } = options
+  const { forStructuredOutput = false, io } = options
 
   // Plain-JSONSchema passthrough: with no widening requested, return the schema
   // by reference so callers comparing via `===` keep identity. Only the widening
@@ -353,7 +365,7 @@ export function convertSchemaToJsonSchema(
     return schema
   }
 
-  const base = toTypedJsonSchema(schema)
+  const base = toTypedJsonSchema(schema, io)
   // Non-object inputs can't be widened; surface them untouched.
   if (!base || typeof base !== 'object') return base
   if (!forStructuredOutput) return base

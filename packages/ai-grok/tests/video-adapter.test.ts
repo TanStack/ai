@@ -1247,7 +1247,7 @@ describe('Grok Video Adapter', () => {
     })
   })
 
-  describe('getVideoUrl', () => {
+  describe('getVideo', () => {
     it('returns the video URL with billed seconds and exact cost', async () => {
       const fetchMock = mockFetch(() =>
         jsonResponse({
@@ -1263,7 +1263,7 @@ describe('Grok Video Adapter', () => {
       )
       const adapter = adapterWithFetch(fetchMock)
 
-      expect(await adapter.getVideoUrl('req-123')).toEqual({
+      expect(await adapter.getVideo('req-123')).toEqual({
         jobId: 'req-123',
         url: 'https://vidgen.x.ai/video.mp4',
         usage: {
@@ -1271,7 +1271,6 @@ describe('Grok Video Adapter', () => {
           completionTokens: 0,
           totalTokens: 0,
           billed: { quantity: 5, unit: 'seconds' },
-          unitsBilled: 5,
           cost: 0.25,
         },
       })
@@ -1286,7 +1285,7 @@ describe('Grok Video Adapter', () => {
       )
       const adapter = adapterWithFetch(fetchMock)
 
-      expect(await adapter.getVideoUrl('req-123')).toEqual({
+      expect(await adapter.getVideo('req-123')).toEqual({
         jobId: 'req-123',
         url: 'https://vidgen.x.ai/video.mp4',
       })
@@ -1298,7 +1297,7 @@ describe('Grok Video Adapter', () => {
       )
       const adapter = adapterWithFetch(fetchMock)
 
-      await expect(adapter.getVideoUrl('req-123')).rejects.toThrow(
+      await expect(adapter.getVideo('req-123')).rejects.toThrow(
         /not ready for download/,
       )
     })
@@ -1309,7 +1308,7 @@ describe('Grok Video Adapter', () => {
       )
       const adapter = adapterWithFetch(fetchMock)
 
-      await expect(adapter.getVideoUrl('req-123')).rejects.toThrow(
+      await expect(adapter.getVideo('req-123')).rejects.toThrow(
         /Video generation failed: moderation/,
       )
     })
@@ -1320,7 +1319,7 @@ describe('Grok Video Adapter', () => {
       )
       const adapter = adapterWithFetch(fetchMock)
 
-      await expect(adapter.getVideoUrl('missing')).rejects.toThrow(
+      await expect(adapter.getVideo('missing')).rejects.toThrow(
         /Video job not found: missing/,
       )
     })
@@ -1379,6 +1378,7 @@ describe('Grok Video Adapter', () => {
       expect(adapter.snapDuration(0)).toBe(1)
       expect(adapter.snapDuration(16)).toBe(15)
       expect(adapter.snapDuration(2.5)).toBe(3)
+      expect(adapter.snapDuration('2.5s')).toBe(3)
       expect(adapter.snapDuration(7)).toBe(7)
     })
   })

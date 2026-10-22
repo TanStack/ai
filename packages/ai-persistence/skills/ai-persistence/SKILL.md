@@ -49,7 +49,7 @@ the result to `withPersistence`. The core never inspects your tables.
 | `withPersistence` / `withGenerationPersistence`                             | Chat + generation middleware                                |
 | `memoryPersistence()`                                                       | In-process reference backend, all seven stores (dev, tests) |
 | `reconstructChat` / `reconstructGeneration`                                 | Server hydrate route helpers (chat / generation)            |
-| `retrieveArtifact` / `retrieveBlob` / `resolveArtifactBlobKey`              | Serve persisted generation-media bytes back                 |
+| `retrieveArtifact` / `retrieveBlob`                                         | Serve persisted generation-media bytes back                 |
 | `LockStore` / `withLocks` / `InMemoryLockStore` (from `@tanstack/ai/locks`) | Coordination, **not** this package — see ai-core/locks      |
 | `@tanstack/ai-persistence/testkit`                                          | `runPersistenceConformance` gate (chat state stores)        |
 
@@ -69,10 +69,10 @@ build the R2/D1-backed byte stores for a Worker, see
 receives `{ artifactId, runId, threadId, role, activity, path, mimeType, name }`
 and returns the key. Server-side only (a browser-supplied key is path traversal +
 cross-tenant writes). The resolved key is recorded on `ArtifactRecord.blobKey`
-because it is no longer derivable; read through `resolveArtifactBlobKey(record)`,
-never by recomputing. Records predating `blobKey` fall back to the default
-convention — which is why that convention can never be changed retroactively. A
-non-unique key overwrites, so include `artifactId` unless that is intended.
+because it is no longer derivable; read `record.blobKey`, never recompute it.
+`blobKey` is required. 0.x records without it are not supported:
+`retrieveBlob` throws for them. Backfill `blob_key` before upgrading. A non-unique key
+overwrites, so include `artifactId` unless that is intended.
 
 **Byte storage stores generated output, not prompt URLs.** Provider result URLs
 expire, so they are downloaded and kept. Prompt media sent as base64

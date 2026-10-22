@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { EventType, generateImage, summarize } from '@tanstack/ai'
 import { createGrokText, grokText } from '../src/adapters/text'
+import { grokVertexText } from '../src/vertex'
 import { createGrokImage, grokImage } from '../src/adapters/image'
 import { createGrokSummarize, grokSummarize } from '../src/adapters/summarize'
 import { GROK_CHAT_MODELS } from '../src/model-meta'
@@ -158,6 +159,7 @@ describe('Grok adapters', () => {
 
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         model: 'grok-build-0.1',
         messages: [{ role: 'user', content: 'Hello' }],
         modelOptions,
@@ -192,6 +194,7 @@ describe('Grok adapters', () => {
 
       await consume(
         adapter.chatStream({
+          threadId: 'thread-1',
           model: 'grok-build-0.1',
           messages: [{ role: 'user', content: 'Hello' }],
           modelOptions: {
@@ -208,33 +211,60 @@ describe('Grok adapters', () => {
       })
     })
 
-    it('rejects reasoning options locally for grok-build-0.1', async () => {
-      const adapter = createGrokText('grok-build-0.1', 'test-api-key')
-      const mockCreate = injectMockResponsesClient(adapter, [])
+    it('sends reasoning.effort from chat({ reasoning })', async () => {
+      const adapter = createGrokText('grok-4.3', 'test-api-key')
+      const mockCreate = injectMockResponsesClient(adapter, [
+        responseCreated,
+        responseCompleted,
+      ])
 
-      const chunks: Array<AdapterYieldChunk> = []
-      for await (const chunk of adapter.chatStream({
-        model: 'grok-build-0.1',
-        messages: [{ role: 'user', content: 'Hello' }],
-        modelOptions: {
-          reasoning: { effort: 'high' },
-        } as any,
-        logger: testLogger,
-      })) {
-        chunks.push(chunk)
-      }
-
-      expect(mockCreate).not.toHaveBeenCalled()
-      expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
-        true,
+      await consume(
+        adapter.chatStream({
+          threadId: 'thread-1',
+          model: 'grok-4.3',
+          messages: [{ role: 'user', content: 'Hello' }],
+          reasoning: { level: 'high', summary: true },
+          logger: testLogger,
+        }),
       )
-      expect(
-        chunks.find((chunk) => chunk.type === EventType.RUN_ERROR),
-      ).toMatchObject({
-        message:
-          'grok-build-0.1 does not support reasoning modelOptions; omit reasoning for this model.',
+
+      expect(mockCreate.mock.calls[0]?.[0]).toMatchObject({
+        reasoning: { effort: 'high', summary: 'auto' },
       })
     })
+
+    it.each([
+      ['grok-build-0.1', () => createGrokText('grok-build-0.1', 'k')],
+      [
+        'grok-4.20-reasoning',
+        () =>
+          grokVertexText('grok-4.20-reasoning', {
+            project: 'p',
+            getAccessToken: async () => 'token',
+          }),
+      ],
+    ] as const)(
+      'sends no reasoning for %s, which has no levels',
+      async (model, createAdapter) => {
+        const adapter = createAdapter()
+        const mockCreate = injectMockResponsesClient(adapter, [
+          responseCreated,
+          responseCompleted,
+        ])
+
+        await consume(
+          adapter.chatStream({
+            threadId: 'thread-1',
+            model,
+            messages: [{ role: 'user', content: 'Hello' }],
+            reasoning: { level: 'off', summary: true },
+            logger: testLogger,
+          }),
+        )
+
+        expect(mockCreate.mock.calls[0]?.[0]).not.toHaveProperty('reasoning')
+      },
+    )
 
     it('converts function tools to Responses API tools', async () => {
       const adapter = createGrokText('grok-build-0.1', 'test-api-key')
@@ -245,6 +275,7 @@ describe('Grok adapters', () => {
 
       await consume(
         adapter.chatStream({
+          threadId: 'thread-1',
           model: 'grok-build-0.1',
           messages: [{ role: 'user', content: 'What is the weather?' }],
           tools: [weatherTool],
@@ -272,6 +303,7 @@ describe('Grok adapters', () => {
 
       await consume(
         adapter.chatStream({
+          threadId: 'thread-1',
           model: 'grok-build-0.1',
           messages: [{ role: 'user', content: 'Use server tools' }],
           tools: [
@@ -335,6 +367,7 @@ describe('Grok adapters', () => {
 
       await consume(
         adapter.chatStream({
+          threadId: 'thread-1',
           model: 'grok-build-0.1',
           messages: [
             { role: 'user', content: 'Call my local web_search tool' },
@@ -522,6 +555,7 @@ describe('Grok adapters', () => {
       // Via the public generateImage() entry point so the per-model provider
       // options map is exercised: `quality` only type-checks on the 2.0 model.
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A skyline',
         size: '16:9',
@@ -569,10 +603,18 @@ describe('Grok adapters', () => {
       // Type-level regression guard: the SummarizeAdapter constraint only
       // instantiates at the summarize() call site, so constructing the adapter
       // (covered above) is not enough. This closure is type-checked but never
-      // executed — passing CI's test:types is the assertion.
+      // executed - passing CI's test:types is the assertion.
       const _typeCheck = () => {
-        void summarize({ adapter: grokSummarize('grok-4.3'), text: '' })
-        void summarize({ adapter: grokSummarize('grok-build-0.1'), text: '' })
+        void summarize({
+          threadId: 'thread-1',
+          adapter: grokSummarize('grok-4.3'),
+          text: '',
+        })
+        void summarize({
+          threadId: 'thread-1',
+          adapter: grokSummarize('grok-build-0.1'),
+          text: '',
+        })
       }
 
       expect(_typeCheck).toBeInstanceOf(Function)

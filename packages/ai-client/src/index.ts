@@ -39,6 +39,7 @@ export type {
   ToolCallPart,
   ToolResultPart,
   ThinkingPart,
+  ActivityPart,
   StructuredOutputPart,
   SubagentPart,
   SubagentPartOf,
@@ -71,6 +72,7 @@ export type {
   ChatRequestBody,
   InferChatMessages,
   InferredClientContext,
+  ChatClientSnapshot,
   ChatClientState,
   ConnectionStatus,
   ChatFetcher,
@@ -91,7 +93,9 @@ export type {
 export type {
   InferGenerationOutput,
   InferGenerationOutputFromReturn,
+  GenerationClientSnapshot,
   GenerationClientState,
+  VideoGenerationClientSnapshot,
   GenerationPersistenceOptions,
   GenerationClientOptions,
   GenerationFetcher,
@@ -155,8 +159,6 @@ export type {
   RunFinishedOutcome,
 } from '@tanstack/ai/client'
 export type {
-  RealtimeAdapter,
-  RealtimeConnection,
   RealtimeClientOptions,
   RealtimeClientState,
   RealtimeStateChangeCallback,
@@ -164,6 +166,7 @@ export type {
 export {
   fetchServerSentEvents,
   fetchHttpStream,
+  fetchJson,
   xhrServerSentEvents,
   xhrHttpStream,
   stream,
@@ -176,6 +179,7 @@ export {
   type ConnectionAdapter,
   type GenerationHydrationResult,
   type FetchConnectionOptions,
+  type FetchJsonOptions,
   type ReconnectOptions,
   type ResumableConnectConnectionAdapter,
   type RunAgentInputContext,

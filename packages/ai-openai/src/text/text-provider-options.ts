@@ -1,24 +1,24 @@
 import type OpenAI from 'openai'
 import type { ResponseInput } from 'openai/resources/responses/responses'
-import type { ApplyPatchTool } from '../tools/apply-patch-tool'
-import type { CodeInterpreterTool } from '../tools/code-interpreter-tool'
-import type { ComputerUseTool } from '../tools/computer-use-tool'
-import type { CustomTool } from '../tools/custom-tool'
-import type { FileSearchTool } from '../tools/file-search-tool'
-import type { FunctionTool } from '../tools/function-tool'
-import type { ImageGenerationTool } from '../tools/image-generation-tool'
-import type { LocalShellTool } from '../tools/local-shell-tool'
-import type { MCPTool } from '../tools/mcp-tool'
-import type { ShellTool } from '../tools/shell-tool'
+import type { ApplyPatchToolConfig } from '../tools/apply-patch-tool'
+import type { CodeInterpreterToolConfig } from '../tools/code-interpreter-tool'
+import type { ComputerUseToolConfig } from '../tools/computer-use-tool'
+import type { CustomToolConfig } from '../tools/custom-tool'
+import type { FileSearchToolConfig } from '../tools/file-search-tool'
+import type { FunctionToolConfig } from '../tools/function-tool'
+import type { ImageGenerationToolConfig } from '../tools/image-generation-tool'
+import type { LocalShellToolConfig } from '../tools/local-shell-tool'
+import type { MCPToolConfig } from '../tools/mcp-tool'
+import type { ShellToolConfig } from '../tools/shell-tool'
 import type { ToolChoice } from '../tools/tool-choice'
-import type { WebSearchPreviewTool } from '../tools/web-search-preview-tool'
-import type { WebSearchTool } from '../tools/web-search-tool'
+import type { WebSearchPreviewToolConfig } from '../tools/web-search-preview-tool'
+import type { WebSearchToolConfig } from '../tools/web-search-tool'
 
 /** Sampling controls shared by all Responses-API models. */
 export interface OpenAISamplingOptions {
   /**
    * Sampling temperature, 0–2. Higher = more random. Recommend altering this or top_p, not both.
-   * Note: OpenAI reasoning models (o-series, GPT-5 reasoning) reject temperature/top_p.
+   * Note: OpenAI reasoning models (o-series, GPT-5, GPT-6) reject temperature/top_p. `*-chat-latest` still accepts them. The adapter drops them unless reasoning effort is `none`.
    * https://platform.openai.com/docs/api-reference/responses/create#responses_create-temperature
    */
   temperature?: number
@@ -147,61 +147,6 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
 
 // Feature fragments that can be stitched per-model
 
-// Shared base types for reasoning options
-type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high'
-type ReasoningSummary = 'auto' | 'detailed'
-
-/**
- * Reasoning options for most models (excludes 'concise' summary).
- */
-export interface OpenAIReasoningOptions {
-  /**
-   * Reasoning controls for models that support it.
-   * Lets you guide how much chain-of-thought computation to spend.
-   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-reasoning
-   * https://platform.openai.com/docs/guides/reasoning
-   */
-  reasoning?: {
-    /**
-     * gpt-5.1 defaults to none, which does not perform reasoning. The supported reasoning values for gpt-5.1 are none, low, medium, and high. Tool calls are supported for all reasoning values in gpt-5.1.
-     * All models before gpt-5.1 default to medium reasoning effort, and do not support none.
-     * The gpt-5-pro model defaults to (and only supports) high reasoning effort.
-     */
-    effort?: ReasoningEffort
-    /**
-     * A summary of the reasoning performed by the model. This can be useful for debugging and understanding the model's reasoning process.
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-reasoning-summary
-     */
-    summary?: ReasoningSummary
-  }
-}
-
-/**
- * Reasoning options for computer-use-preview model (includes 'concise' summary).
- */
-export interface OpenAIReasoningOptionsWithConcise {
-  /**
-   * Reasoning controls for models that support it.
-   * Lets you guide how much chain-of-thought computation to spend.
-   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-reasoning
-   * https://platform.openai.com/docs/guides/reasoning
-   */
-  reasoning?: {
-    /**
-     * gpt-5.1 defaults to none, which does not perform reasoning. The supported reasoning values for gpt-5.1 are none, low, medium, and high. Tool calls are supported for all reasoning values in gpt-5.1.
-     * All models before gpt-5.1 default to medium reasoning effort, and do not support none.
-     * The gpt-5-pro model defaults to (and only supports) high reasoning effort.
-     */
-    effort?: ReasoningEffort
-    /**
-     * A summary of the reasoning performed by the model. This can be useful for debugging and understanding the model's reasoning process.
-     * `concise` is only supported for `computer-use-preview` models.
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-reasoning-summary
-     */
-    summary?: ReasoningSummary | 'concise'
-  }
-}
-
 export interface OpenAIStructuredOutputOptions {
   /**
    * Configuration options for a text response from the model. Can be plain text or structured JSON data. Learn more:
@@ -256,7 +201,6 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
 }
 
 export type ExternalTextProviderOptions = OpenAIBaseOptions &
-  OpenAIReasoningOptions &
   OpenAIStructuredOutputOptions &
   OpenAIToolsOptions &
   OpenAIStreamingOptions &
@@ -297,18 +241,18 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
    * https://platform.openai.com/docs/guides/tools-web-search
    */
   tools?: Array<
-    | FunctionTool
-    | FileSearchTool
-    | ComputerUseTool
-    | WebSearchTool
-    | MCPTool
-    | CodeInterpreterTool
-    | ImageGenerationTool
-    | ShellTool
-    | LocalShellTool
-    | CustomTool
-    | WebSearchPreviewTool
-    | ApplyPatchTool
+    | FunctionToolConfig
+    | FileSearchToolConfig
+    | ComputerUseToolConfig
+    | WebSearchToolConfig
+    | MCPToolConfig
+    | CodeInterpreterToolConfig
+    | ImageGenerationToolConfig
+    | ShellToolConfig
+    | LocalShellToolConfig
+    | CustomToolConfig
+    | WebSearchPreviewToolConfig
+    | ApplyPatchToolConfig
   >
 }
 

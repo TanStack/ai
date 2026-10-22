@@ -22,18 +22,14 @@ import { groqText } from '@tanstack/ai-groq'
 
 ## Key Chat Models
 
-| Model                                           | Context Window | Notes                     |
-| ----------------------------------------------- | -------------- | ------------------------- |
-| `llama-3.3-70b-versatile`                       | 131K           | General purpose           |
-| `meta-llama/llama-4-maverick-17b-128e-instruct` | 131K           | Vision, JSON schema       |
-| `meta-llama/llama-4-scout-17b-16e-instruct`     | 131K           | Vision, tool calling      |
-| `openai/gpt-oss-120b`                           | 131K           | Reasoning, browser search |
-| `openai/gpt-oss-20b`                            | 131K           | Budget reasoning          |
-| `qwen/qwen3-32b`                                | 131K           | Reasoning, tool calling   |
-| `moonshotai/kimi-k2-instruct-0905`              | 262K           | Large context             |
-| `llama-3.1-8b-instant`                          | 131K           | Ultra-fast, budget        |
+| Model                 | Context Window | Notes                     |
+| --------------------- | -------------- | ------------------------- |
+| `openai/gpt-oss-120b` | 131K           | Reasoning, browser search |
+| `openai/gpt-oss-20b`  | 131K           | Budget reasoning          |
+| `qwen/qwen3.8-27b`    | 131K           | Reasoning, vision, tools  |
 
-Guard models: `meta-llama/llama-guard-4-12b`, `meta-llama/llama-prompt-guard-2-86m`
+Guard models: `openai/gpt-oss-safeguard-20b`, `meta-llama/llama-prompt-guard-2-86m`,
+`meta-llama/llama-prompt-guard-2-22m`
 
 ## Provider-Specific modelOptions
 
@@ -44,11 +40,11 @@ import { groqText } from '@tanstack/ai-groq'
 const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 chat({
-  adapter: groqText('llama-3.3-70b-versatile'),
+  adapter: groqText('openai/gpt-oss-120b'),
   messages,
+  threadId: 'thread-1',
   modelOptions: {
     // Reasoning
-    reasoning_effort: 'medium', // 'none' | 'default' | 'low' | 'medium' | 'high'
     reasoning_format: 'parsed', // 'hidden' | 'raw' | 'parsed' (mutually exclusive with include_reasoning)
     include_reasoning: true, // mutually exclusive with reasoning_format
     // Response format
@@ -96,12 +92,12 @@ GROQ_API_KEY
 
 ## Gotchas
 
-- `reasoning_effort` and `reasoning_format` behave differently per model:
-  - qwen3 models: `'none'` disables reasoning, `'default'` or null enables it
-  - openai/gpt-oss models: `'low'`, `'medium'` (default), or `'high'`
+- `chat({ reasoning })` sends `reasoning_effort`. openai/gpt-oss and
+  qwen/qwen3.8-27b models take `low`, `medium`, and `high`. qwen/qwen3.8-27b also
+  takes `off` (sends `'none'`).
 - `include_reasoning` and `reasoning_format` are mutually exclusive.
 - Most models have `max_completion_tokens` of 8K-65K, not unlimited.
 - Groq specializes in inference speed; model selection is more limited
   than other providers.
-- Guard models (`llama-guard-4-12b`, `llama-prompt-guard-2-*`) are for
+- Guard models (`gpt-oss-safeguard-20b`, `llama-prompt-guard-2-*`) are for
   content moderation, not general chat.

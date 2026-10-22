@@ -94,6 +94,11 @@ export interface WebSocketStreamInit<TOffset extends string = string> {
   durability?: (ctx: WsRunContext) => StreamDurability<TOffset>
   /** Chunks buffered per durability append (default 32). */
   batch?: number
+  /**
+   * Most ms a chunk waits in the batch for the next one before the batch is
+   * appended and sent anyway (default 50). `0` appends every chunk on its own.
+   */
+  batchWaitMs?: number
   /** Heartbeat ping interval in ms (default 30_000). */
   heartbeatMs?: number
   /**
@@ -250,6 +255,9 @@ export function toWebSocketStream<TOffset extends string = string>(
           {
             abortController: turnAbort,
             ...(init.batch === undefined ? {} : { batch: init.batch }),
+            ...(init.batchWaitMs === undefined
+              ? {}
+              : { batchWaitMs: init.batchWaitMs }),
             logger,
           },
         )
@@ -320,7 +328,8 @@ export function resumeWebSocketStream<TOffset extends string = string>(
     {
       abortController,
       ...(options.batch === undefined ? {} : { batch: options.batch }),
-      logger,
+      // No `logger`: a resume only replays, and the catch below already logs a
+      // replay failure (and a failed `socket.send`) once.
     },
   )
   void (async () => {

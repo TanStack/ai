@@ -7,6 +7,7 @@ export interface FunctionTool {
     name: string
     description?: string
     parameters: Record<string, unknown>
+    strict?: boolean
   }
   /**
    * Anthropic-style prompt-cache breakpoint for the tool definition.
@@ -51,6 +52,10 @@ export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
       name: tool.name,
       description: tool.description,
       parameters: inputSchema,
+      // Sent explicitly for every model. Observed behaviour (#1542): with
+      // `strict` omitted, OpenAI models through OpenRouter treat the schema as
+      // strict, so every optional field becomes required.
+      strict: false,
     },
     // Only present when supplied — additive and non-breaking.
     ...(cacheControl ? { cacheControl } : {}),

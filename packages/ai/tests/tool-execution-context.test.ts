@@ -19,11 +19,47 @@ describe('ToolExecutionContext.abortSignal', () => {
     await tool.execute!(
       { v: 'hi' },
       {
+        threadId: 'thread-1',
         toolCallId: 't1',
         emitCustomEvent: () => {},
         abortSignal: controller.signal,
       },
     )
     expect(seen).toBe(controller.signal)
+  })
+})
+
+describe('ToolExecutionContext.detach', () => {
+  it('lets a tool return the note when the host moves its work', async () => {
+    let finish: (value: string) => void = () => {}
+    const work = new Promise<string>((resolve) => {
+      finish = resolve
+    })
+    let moved: Promise<unknown> | undefined
+    const tool = toolDefinition({
+      name: 'build',
+      description: 'Run a long build',
+      inputSchema: z.object({}),
+    }).server((_args, ctx) =>
+      ctx?.detach ? Promise.race([work, ctx.detach(work)]) : work,
+    )
+
+    const result = await tool.execute!(
+      {},
+      {
+        threadId: 'thread-1',
+        toolCallId: 't1',
+        emitCustomEvent: () => {},
+        detach: (job) => {
+          moved = job
+          return Promise.resolve('Moved to the background.')
+        },
+      },
+    )
+
+    expect(result).toBe('Moved to the background.')
+    // The host keeps the work, and it still ends.
+    finish('built')
+    await expect(moved).resolves.toBe('built')
   })
 })

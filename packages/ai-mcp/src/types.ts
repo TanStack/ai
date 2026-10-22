@@ -1,10 +1,12 @@
 import type { ServerTool, ToolDefinition } from '@tanstack/ai'
 import type {
   ClientOptions,
+  PriorDiscovery,
   Tool as McpToolDef,
   ToolAnnotations,
 } from '@modelcontextprotocol/client'
 import type { TransportInput } from './transport'
+import type { MCPEventsOptions } from './events/types'
 
 /** A bare tool definition (from `toolDefinition({...})`, no `.server()`/`.client()` called). */
 export type AnyToolDefinition = ToolDefinition<any, any, string>
@@ -41,8 +43,8 @@ export interface McpToolMetadata {
   /** MCP Apps widget link, from the tool def's `_meta.ui.resourceUri`. */
   uiResourceUri?: string
   /**
-   * The server's `annotations` for this tool, forwarded verbatim (absent when
-   * the server declares none). All fields are **hints** — useful for display
+   * A frozen copy of the server's `annotations` for this tool (absent when
+   * the server declares none). All fields are **hints**: useful for display
    * and for shaping an approval UI, never a security boundary.
    */
   annotations?: ToolAnnotations
@@ -87,6 +89,24 @@ export interface MCPClientOptions {
   transport: TransportInput
   /** Tool-name prefix (e.g. 'github' → 'github_search'). Default: none. */
   prefix?: string
+  /**
+   * The name the model sees for each tool. Wins over `prefix`.
+   * Receives the raw MCP tool definition (native `name`).
+   * Default: `${prefix}_${tool.name}` with a prefix, else `tool.name`.
+   *
+   * Applies to `tools()` and `tools([...defs])`. Two tools with the same
+   * final name throw `DuplicateToolNameError`.
+   * `metadata.mcp.serverToolName` keeps the server's own name, so
+   * `callTool()` and MCP Apps widget calls still reach the tool.
+   *
+   * ```ts
+   * const mcp = await createMCPClient({
+   *   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+   *   toolName: (tool) => `mcp__github__${tool.name}`,
+   * })
+   * ```
+   */
+  toolName?: (tool: McpToolDef) => string
   /** Client identity sent to the server. */
   name?: string
   version?: string
@@ -116,8 +136,45 @@ export interface MCPClientOptions {
    */
   clientOptions?: ClientOptions
   /**
-   * Return `false` to hide a server tool. Receives the raw MCP tool definition
-   * (native `name`, `title`, `annotations`). Default: every tool.
+   * Sent with the connect handshake, tool lists, tool calls, resources, and
+   * prompts. SDK defaults when unset.
+   *
+   * A spec 2026 `tools/call` gets no progress notifications, so there only
+   * `timeout` applies.
+   *
+   * ```ts
+   * const mcp = await createMCPClient({
+   *   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+   *   requestOptions: { timeout: 120_000, resetTimeoutOnProgress: true },
+   * })
+   * ```
+   */
+  requestOptions?: {
+    /** Milliseconds. The SDK default is 60,000. */
+    timeout?: number
+    /** Restart the timeout when the server sends a progress notification. */
+    resetTimeoutOnProgress?: boolean
+  }
+  /**
+   * A saved era verdict for the SDK `Client.connect`. Save the discover
+   * result from `MCPClient.getDiscoverResult()` and pass
+   * `{ kind: 'modern', discover }` to skip the `server/discover` request.
+   * Reuse it only for the same authorization context, and expire it
+   * yourself. With `prior`, connect sends no request, so a dead server or
+   * a revoked token fails on the first call. A prior with no shared
+   * protocol version throws `MCPConnectionError`.
+   */
+  prior?: PriorDiscovery
+  /**
+   * Choose the server tools the model gets. Default: every tool.
+   *
+   * - A function: keep the tools it returns `true` for. It receives the raw
+   *   MCP tool definition (native `name`, `title`, `annotations`).
+   * - A list of server tool names: keep exactly these, in this order. A name
+   *   the server does not have, or a repeated name, throws
+   *   `MCPToolFilterError`. A listed tool that needs task execution, on a
+   *   server without task support, throws `MCPTaskRequiredToolError`. An
+   *   empty list keeps no tools.
    *
    * Applies to `tools()`, `chat({ mcp })`, and MCP Apps widget calls. In
    * `tools([...defs])` a hidden definition throws `MCPToolNotFoundError`.
@@ -125,13 +182,18 @@ export interface MCPClientOptions {
    * a security boundary.
    *
    * ```ts
-   * const mcp = await createMCPClient({
+   * const readOnly = await createMCPClient({
    *   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
    *   toolFilter: (tool) => tool.annotations?.readOnlyHint === true,
    * })
+   *
+   * const listed = await createMCPClient({
+   *   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+   *   toolFilter: ['search_issues', 'get_issue'],
+   * })
    * ```
    */
-  toolFilter?: (tool: McpToolDef) => boolean
+  toolFilter?: ((tool: McpToolDef) => boolean) | ReadonlyArray<string>
   /**
    * Return `true` to require user approval before a discovered tool runs.
    * Default: no approval. `tools([...defs])` keeps each definition's own
@@ -145,6 +207,26 @@ export interface MCPClientOptions {
    * ```
    */
   needsApproval?: (tool: McpToolDef) => boolean
+  /**
+   * MCP Events (SEP-3415). Omit for discovery-only (`list()`).
+   *
+   * Direct mode (`{ store }`) talks to the MCP server and stores webhook
+   * subscriptions. Managed mode (`{ adapter }`) delegates subscribe to a
+   * hosted backend such as Vercel Connect.
+   *
+   * @experimental
+   *
+   * @example
+   * ```ts
+   * import { inMemoryMCPEventStore } from '@tanstack/ai-mcp/events'
+   *
+   * const mcp = await createMCPClient({
+   *   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+   *   experimental_events: { store: inMemoryMCPEventStore() },
+   * })
+   * ```
+   */
+  experimental_events?: MCPEventsOptions
 }
 
 export interface ToolsOptions {
@@ -193,3 +275,29 @@ export type DescriptorTools<TServer extends ServerDescriptor> = Array<
     [K in keyof TServer['tools'] & string]: DescribedTool<K>
   }[keyof TServer['tools'] & string]
 >
+
+export type {
+  DirectMCPEventsOptions,
+  JSONObject,
+  ManagedMCPEvents,
+  ManagedMCPEventsOptions,
+  ManagedMCPSubscribeInput,
+  ManagedMCPSubscription,
+  ManagedMCPSubscriptionStatus,
+  MCPEventAdapter,
+  MCPEventAdapterTransport,
+  MCPEventDefinition,
+  MCPEventDeliveryMode,
+  MCPEventDeliveryStatus,
+  MCPEventOccurrence,
+  MCPEventOperations,
+  MCPEvents,
+  MCPEventsOptions,
+  MCPEventStore,
+  MCPEventSubscribeResult,
+  MCPEventSubscription,
+  MCPEventSubscriptionInfo,
+  MCPEventSubscriptionRef,
+  MCPEventWebhookOptions,
+  SubscribeMCPEventOptions,
+} from './events/types'

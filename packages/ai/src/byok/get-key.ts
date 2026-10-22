@@ -1,6 +1,22 @@
 import { byokHeaderName, resolveProviderId } from './providers'
+import type { KeyedAdapter, KeyedAdapterResult } from './keyed'
 import type { ByokProvider } from './define-provider'
 import type { ProviderId } from './providers'
+
+/**
+ * Read `provider.env` in order and return the first value that is set. A
+ * slug has no env names. Where `process` is missing (a browser) it returns
+ * `null`.
+ */
+export function envKey(provider: ProviderId | ByokProvider) {
+  if (typeof provider === 'string') return null
+  const env = globalThis.process?.env
+  for (const name of provider.env ?? []) {
+    const value = env?.[name]
+    if (typeof value === 'string' && value.length > 0) return value
+  }
+  return null
+}
 
 /**
  * Read a key on the relay. Import from `@tanstack/ai/byok/server` so this
@@ -18,12 +34,7 @@ export function getByokKey(
     const trimmed = value.trim()
     if (trimmed.length > 0) return trimmed
   }
-  if (typeof provider === 'string') return null
-  for (const name of provider.env ?? []) {
-    const envValue = process.env[name]
-    if (typeof envValue === 'string' && envValue.length > 0) return envValue
-  }
-  return null
+  return envKey(provider)
 }
 
 /**
@@ -42,4 +53,40 @@ export function getByokKeys<
       getByokKey(request, provider),
     ]),
   ) as { [K in keyof TProviders]: string | null }
+}
+
+/**
+ * Build the adapter of the first provider that has a key. The user's own key
+ * (the `x-byok-<id>` header) wins, in order. Then each keyed adapter made with
+ * a BYOK descriptor tries its `env` names, in order. Gives `null` when no
+ * provider has a key, so the route can answer with `byokMissing`.
+ *
+ * @example
+ * ```ts
+ * const adapter = keyedAdapterFromRequest(request, models)
+ * if (!adapter) return byokMissing('openai')
+ * return toServerSentEventsResponse(chat({ adapter, messages }))
+ * ```
+ */
+export function keyedAdapterFromRequest<
+  const T extends
+    | Record<string, KeyedAdapter<unknown>>
+    | ReadonlyArray<KeyedAdapter<unknown>>,
+>(
+  request: Request,
+  adapters: T,
+): KeyedAdapterResult<
+  T extends ReadonlyArray<unknown> ? T[number] : T[keyof T]
+> | null {
+  const list: ReadonlyArray<KeyedAdapter<unknown>> = Object.values(adapters)
+  // A slug reads only the header, so the first pass finds the user's own key.
+  for (const keyed of list) {
+    const key = getByokKey(request, resolveProviderId(keyed.provider))
+    if (key) return keyed.create(key) as never
+  }
+  for (const keyed of list) {
+    const key = getByokKey(request, keyed.provider)
+    if (key) return keyed.create(key) as never
+  }
+  return null
 }

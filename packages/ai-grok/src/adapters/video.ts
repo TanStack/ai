@@ -3,7 +3,7 @@ import {
   resolveMediaPrompt,
   unsupportedFileSourceError,
 } from '@tanstack/ai'
-import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
+import { BaseVideoAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
 import {
@@ -94,7 +94,6 @@ function buildGrokVideoUsage(
     totalTokens: 0,
     ...(seconds !== undefined && {
       billed: { quantity: seconds, unit: 'seconds' },
-      unitsBilled: seconds,
     }),
     ...(ticks !== undefined && { cost: ticks / USD_TICKS_PER_DOLLAR }),
   }
@@ -573,7 +572,7 @@ export class GrokVideoAdapter<
     }
   }
 
-  async getVideoUrl(jobId: string): Promise<VideoUrlResult> {
+  override async getVideo(jobId: string): Promise<VideoUrlResult> {
     let response: GrokVideoStatusResponse
     try {
       response = await this.retrieveJob(jobId)
@@ -640,16 +639,6 @@ export class GrokVideoAdapter<
     GrokVideoModelDurationByName[TModel]
   > {
     return getGrokVideoDurationOptions(this.model)
-  }
-
-  /**
-   * Coerce a raw seconds value to the closest valid duration (clamped to
-   * [1, 15] and rounded to whole seconds).
-   */
-  override snapDuration(
-    seconds: number,
-  ): GrokVideoModelDurationByName[TModel] | undefined {
-    return snapToDurationOption(seconds, this.availableDurations())
   }
 }
 

@@ -71,6 +71,6 @@ export const EVAL_MODELS: Array<EvalModel> = [
   { name: 'Grok Build 0.1', model: 'grok:grok-build-0.1' },
 
   // --- Groq ---
-  { name: 'Llama 3.3 70B (Groq)', model: 'groq:llama-3.3-70b-versatile' },
-  { name: 'Qwen3 32B (Groq)', model: 'groq:qwen/qwen3-32b' },
+  { name: 'GPT-OSS 120B (Groq)', model: 'groq:openai/gpt-oss-120b' },
+  { name: 'Qwen3.8 27B (Groq)', model: 'groq:qwen/qwen3.8-27b' },
 ]

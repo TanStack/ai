@@ -70,6 +70,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'cloudflare',
     'openai-compatible-legacy',
   ]),
+  'multi-turn-reasoning': new Set(['anthropic']),
   'multi-turn': new Set([
     'openai',
     'anthropic',
@@ -115,6 +116,10 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'llmgateway',
     'cloudflare',
   ]),
+  // OpenAI only: aimock's journal keeps `tool_choice` for Responses requests,
+  // but stores Anthropic requests in OpenAI shape without it. Anthropic is
+  // covered by `/api/tool-choice-wire`, which captures the request body.
+  'tool-choice': new Set(['openai']),
   'parallel-tool-calls': new Set([
     'openai',
     'anthropic',
@@ -384,7 +389,8 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'vercel-gateway',
     'lovable',
   ]),
-  // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
+  // Gemini excluded: its image adapter uses the Interactions API, which aimock
+  // doesn't mock. gemini-native-image-wire and gemini-image-ga-models cover it.
   // vercel-gateway uses POST /v1/images/generations, the same path aimock
   // already mocks for openai. Drop this entry if the first run has no fixture.
   'image-gen': new Set([
@@ -450,13 +456,13 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // BytePlus Seedance uses its own create→poll task API
   // (POST/GET /api/v3/contents/generations/tasks), mounted as
   // byteplusSeedanceMount in global-setup.ts for the same reason.
-  // OpenRouter excluded: its dedicated async video API
-  // (`POST /api/v1/videos` → poll → `unsigned_urls`) is a different wire
-  // shape from the OpenAI `/v1/videos` handler aimock 1.29 mocks. The
-  // adapter's submit/poll/download lifecycle is covered by unit tests
-  // (packages/ai-openrouter/tests/video-adapter.test.ts). Add it here when
-  // aimock learns the OpenRouter job endpoints
-  // (https://github.com/CopilotKit/aimock/issues/261).
+  // OpenRouter excluded: aimock mocks its async video API since 1.38, but
+  // answers `POST /api/v1/videos` with 200 and the official SDK accepts
+  // only 202, so job creation fails
+  // (https://github.com/CopilotKit/aimock/issues/491). The adapter's
+  // submit/poll/download lifecycle is covered by unit tests
+  // (packages/ai-openrouter/tests/video-adapter.test.ts). When that is
+  // fixed, bump aimock and add it here.
   'video-gen': new Set(['openai', 'gemini', 'byteplus', 'lovable']),
   // image-to-video (image parts in the generateVideo prompt). aimock 1.29's
   // `/v1/videos` handler parses Sora's multipart upload (the SDK switches to

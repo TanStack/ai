@@ -1,4 +1,9 @@
 import {
+  hashToolCallId,
+  orderedAssistantBlocks,
+  transformMessagesForReplay,
+} from '@tanstack/ai/adapter-internals'
+import {
   isFileSource,
   normalizeSystemPrompts,
   unsupportedFileSourceError,
@@ -30,6 +35,14 @@ import type {
 
 function base64ToBytes(b64: string): Uint8Array {
   return new Uint8Array(Buffer.from(b64, 'base64'))
+}
+
+// AWS ToolResultContentBlock.image: Nova and Claude 3/4 ids only.
+// ponytail: id substring, not the image-input catalog (Llama accepts user images).
+function supportsToolResultImage(model: string | undefined): boolean {
+  return /amazon\.nova|anthropic\.claude-(?:3|(?:opus|sonnet|haiku)-4)/i.test(
+    model ?? '',
+  )
 }
 
 function imageFormat(mime: string): 'png' | 'jpeg' | 'gif' | 'webp' {
@@ -153,9 +166,15 @@ function contentPartToBlock(part: ContentPart, docIndex: number): ContentBlock {
   )
 }
 
+interface ConverseReplayContext {
+  model: string
+  provider?: string
+}
+
 function messageToBlocks(
   msg: ModelMessage,
   docCounter: { value: number },
+  context?: ConverseReplayContext,
 ): Array<ContentBlock> {
   const blocks: Array<ContentBlock> = []
 
@@ -166,16 +185,79 @@ function messageToBlocks(
       )
     }
     const textContent = stringContent(msg.content)
-    const toolResult: ToolResultContentBlock = { text: textContent }
+    const content: Array<ToolResultContentBlock> = textContent
+      ? [{ text: textContent }]
+      : []
+    for (const part of Array.isArray(msg.content) ? msg.content : []) {
+      // Inline bytes on Nova and Claude 3/4 only. Skip the rest, as before.
+      if (
+        !supportsToolResultImage(context?.model) ||
+        !isImagePart(part) ||
+        !isDataSource(part.source)
+      )
+        continue
+      let image: ContentBlock['image']
+      try {
+        image = contentPartToBlock(part, 0).image
+      } catch {
+        continue
+      }
+      if (image) content.push({ image })
+    }
+    if (content.length === 0) content.push({ text: textContent })
     blocks.push({
       toolResult: {
         toolUseId: msg.toolCallId,
-        content: [toolResult],
-        status: 'success',
+        content,
+        status: msg.error !== undefined ? 'error' : 'success',
       },
     })
     return blocks
   }
+
+  // Thinking goes back as reasoning blocks. Claude needs its signature, so
+  // unsigned Claude thinking goes back as text.
+  function appendThinking(
+    thinking: NonNullable<ModelMessage['thinking']>[number],
+  ): void {
+    if (thinking.redacted) {
+      if (thinking.signature)
+        blocks.push({
+          reasoningContent: {
+            redactedContent: base64ToBytes(thinking.signature),
+          },
+        })
+      return
+    }
+    const text = thinking.content
+    if (!text) return
+    const claude = /anthropic[./]claude/i.test(context?.model ?? '')
+    if (claude && !thinking.signature) blocks.push({ text })
+    else
+      blocks.push({
+        reasoningContent: {
+          reasoningText: {
+            text,
+            ...(claude && thinking.signature
+              ? { signature: thinking.signature }
+              : {}),
+          },
+        },
+      })
+  }
+  const ordered =
+    msg.role === 'assistant' ? orderedAssistantBlocks(msg) : undefined
+  if (ordered) {
+    for (const block of ordered) {
+      if (block.type === 'thinking') appendThinking(block.thinking)
+      else if (block.type === 'tool-call')
+        blocks.push(toolUseBlock(block.toolCall))
+      else blocks.push({ text: block.text })
+    }
+    return blocks
+  }
+  if (msg.role === 'assistant')
+    for (const thinking of msg.thinking ?? []) appendThinking(thinking)
 
   // Map content field to text/image/document blocks
   if (typeof msg.content === 'string') {
@@ -194,42 +276,39 @@ function messageToBlocks(
   }
   // null → no text blocks
 
-  // Append toolUse blocks for assistant tool calls. Malformed or non-object
-  // arguments come from a prior assistant turn the engine already accepted, so
-  // they signal a real upstream problem — throw rather than silently coercing to
-  // `{}` and forwarding a corrupted tool call (the adapter's catch surfaces it
-  // as a RUN_ERROR).
+  // Append toolUse blocks for assistant tool calls. Malformed JSON stays in
+  // the history next to its tool error, so it goes out as `{}`. Non-object
+  // arguments signal a real upstream problem and throw (the adapter's catch
+  // surfaces it as a RUN_ERROR).
   if (msg.role === 'assistant' && msg.toolCalls) {
-    for (const call of msg.toolCalls) {
-      const rawArguments = call.function.arguments || '{}'
-      let parsed: unknown
-      try {
-        parsed = JSON.parse(rawArguments)
-      } catch (error: unknown) {
-        throw new Error(
-          `Bedrock Converse: tool call "${call.function.name}" has malformed JSON arguments (${String(error)}). Raw: ${rawArguments}`,
-        )
-      }
-      if (
-        parsed === null ||
-        typeof parsed !== 'object' ||
-        Array.isArray(parsed)
-      ) {
-        throw new Error(
-          `Bedrock Converse: tool call "${call.function.name}" arguments must be a JSON object, got ${Array.isArray(parsed) ? 'array' : typeof parsed}.`,
-        )
-      }
-      blocks.push({
-        toolUse: {
-          toolUseId: call.id,
-          name: call.function.name,
-          input: parsed as DocumentType,
-        },
-      })
-    }
+    for (const call of msg.toolCalls) blocks.push(toolUseBlock(call))
   }
 
   return blocks
+}
+
+function toolUseBlock(
+  call: NonNullable<ModelMessage['toolCalls']>[number],
+): ContentBlock {
+  const rawArguments = call.function.arguments || '{}'
+  let parsed: unknown = {}
+  try {
+    parsed = JSON.parse(rawArguments)
+  } catch {
+    // The tool result already told the model the arguments were malformed.
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(
+      `Bedrock Converse: tool call "${call.function.name}" arguments must be a JSON object, got ${Array.isArray(parsed) ? 'array' : typeof parsed}.`,
+    )
+  }
+  return {
+    toolUse: {
+      toolUseId: call.id,
+      name: call.function.name,
+      input: parsed as DocumentType,
+    },
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -248,6 +327,7 @@ function messageToBlocks(
 export function toConverseMessages(
   messages: Array<ModelMessage>,
   systemPrompts?: Array<SystemPrompt>,
+  context?: ConverseReplayContext,
 ): { system: Array<SystemContentBlock>; messages: Array<Message> } {
   // Build system blocks (uses normalizeSystemPrompts for runtime validation)
   const system: Array<SystemContentBlock> =
@@ -264,12 +344,33 @@ export function toConverseMessages(
   // gets a unique name, preventing Bedrock ValidationException for duplicate names.
   const docCounter = { value: 0 }
 
-  for (const msg of messages) {
+  // History from another model loses its signatures, and its tool IDs are
+  // rewritten to the shape Converse accepts. Each call stays paired.
+  const replay = transformMessagesForReplay(
+    messages,
+    context
+      ? {
+          provider: context.provider ?? 'amazon-bedrock',
+          api: 'bedrock-converse-stream',
+          model: context.model,
+        }
+      : undefined,
+    (id, { foreign, attempt }) => {
+      if (!foreign && attempt === 0) return id
+      const clean = id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64)
+      return attempt === 0
+        ? clean
+        : clean.slice(0, 47) +
+            '_' +
+            hashToolCallId(id + ':' + attempt).slice(0, 16)
+    },
+  )
+  for (const msg of replay.messages) {
     // Map TanStack roles to Converse roles
     const converseRole: 'user' | 'assistant' =
       msg.role === 'assistant' ? 'assistant' : 'user'
 
-    const blocks = messageToBlocks(msg, docCounter)
+    const blocks = messageToBlocks(msg, docCounter, context)
 
     // Skip messages that produce no content blocks (e.g. assistant with
     // null content and no toolCalls). Pushing an empty-content message to
@@ -286,4 +387,35 @@ export function toConverseMessages(
   }
 
   return { system, messages: converseMessages }
+}
+
+/**
+ * Write the `toolUse` and `toolResult` blocks as text blocks. Bedrock rejects
+ * these blocks in a request with no `toolConfig`, so a request with no tools
+ * sends its tool history this way.
+ */
+export function toolBlocksToText(messages: Array<Message>): Array<Message> {
+  return messages.map((message) => ({
+    ...message,
+    content: message.content?.flatMap((block): Array<ContentBlock> => {
+      if (block.toolUse) {
+        const { toolUseId, name, input } = block.toolUse
+        return [
+          {
+            text: `[Tool call ${toolUseId} ${name}(${JSON.stringify(input)})]`,
+          },
+        ]
+      }
+      if (block.toolResult) {
+        const { toolUseId, content = [] } = block.toolResult
+        const text = content.map((part) => part.text ?? '').join('')
+        // Keep the images of the result as image blocks after the text.
+        const images = content.flatMap((part) =>
+          part.image ? [{ image: part.image }] : [],
+        )
+        return [{ text: `[Tool result ${toolUseId}: ${text}]` }, ...images]
+      }
+      return [block]
+    }),
+  }))
 }

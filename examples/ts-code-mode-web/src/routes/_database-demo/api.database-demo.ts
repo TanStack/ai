@@ -226,9 +226,7 @@ function wrapWithTimingEvents(
   })()
 }
 
-export const Route = createFileRoute(
-  '/_database-demo/api/database-demo' as any,
-)({
+export const Route = createFileRoute('/_database-demo/api/database-demo')({
   server: {
     handlers: {
       POST: async ({ request }) => {
@@ -239,7 +237,7 @@ export const Route = createFileRoute(
 
         const abortController = new AbortController()
         const body = await request.json()
-        const { messages, data } = body
+        const { messages, forwardedProps: data } = body
 
         const provider: Provider = data?.provider || 'anthropic'
         const model: string | undefined = data?.model
@@ -279,6 +277,7 @@ export const Route = createFileRoute(
           }
 
           const stream = chat({
+            threadId: body.threadId,
             adapter: instrumentedAdapter,
             messages,
             tools,

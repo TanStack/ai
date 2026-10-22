@@ -14,5 +14,5 @@
     "jsxImportSource": "remix/ui",
     "noEmit": true
   },
-  "exclude": ["dist", "**/*.test.ts", "**/*.e2e.ts"]
+  "exclude": ["dist"]
 }

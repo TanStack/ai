@@ -39,6 +39,8 @@ An example chat application built with TanStack Start, TanStack Store, and **Tan
 OPENAI_API_KEY=your_openai_api_key
 ```
 
+No key? Open the key dialog and click **Continue with ChatGPT**. Start the app with `pnpm dev`, not `pnpm dev:vite`. `pnpm dev` also runs `scripts/serve-chatgpt-callback.mjs`, which sends the ChatGPT callback from `127.0.0.1` to `localhost`.
+
 ## Trying Out Lazy Tool Discovery
 
 This example includes three **lazy tools** — tools that are not sent to the LLM upfront. Instead, the LLM sees a `__lazy__tool__discovery__` tool that lists their names. When the LLM needs one, it discovers it first (getting the full description and schema), then calls it normally.
@@ -400,7 +402,7 @@ conversation is still there. Needs `OPENAI_API_KEY` in `.env`.
 ## Sandboxes — GitHub issue triage (`/sandboxes`)
 
 Pick a harness adapter (Claude Code, Codex, OpenCode) and a sandbox
-provider (Docker, local process, Vercel, Daytona), paste a GitHub **issue URL**,
+provider (Docker, local process, Vercel, Daytona, Railway), paste a GitHub **issue URL**,
 and the agent clones that repo into a sandbox, investigates read-only, and
 reports whether the bug is still relevant and its root cause — streaming tool
 calls and file activity live.
@@ -419,12 +421,14 @@ calls and file activity live.
   - `VERCEL_TEAM_ID` + `VERCEL_PROJECT_ID`. (Token alone falls back to OIDC and
     fails.) OIDC tokens are short-lived — re-pull when they expire.
 - **Daytona** — `DAYTONA_API_KEY`.
+- **Railway** — `RAILWAY_ENVIRONMENT_ID`, plus a project token in
+  `RAILWAY_TOKEN` **or** an account or workspace token in `RAILWAY_API_TOKEN`.
 
 ### Harness keys
 
 Set the chosen harness's key in `.env.local` (read by the dev server):
 `ANTHROPIC_API_KEY` (Claude Code / OpenCode), `CODEX_API_KEY` (Codex).
-For **sandboxed** providers (Docker/Vercel/Daytona)
+For **sandboxed** providers (Docker/Vercel/Daytona/Railway)
 the key is injected into the sandbox; for **local process** the host CLI uses
 your own host auth (the env key, or a `claude login`). Optional `GITHUB_TOKEN`
 for private repos / higher rate limits.
@@ -461,7 +465,7 @@ bridge is obvious:
 
 The bridge is a **localhost** HTTP server, so it's only directly reachable from
 same-machine providers (**local process**, **Docker**). For **remote** cloud
-sandboxes (Daytona, Vercel) the agent can't dial your laptop — set
+sandboxes (Daytona, Vercel, Railway) the agent can't dial your laptop — set
 `NGROK_AUTHTOKEN` and the example tunnels the bridge out over ngrok so the tools
 work there too (the per-run bearer token still gates every call). Without it,
 cloud runs skip the tools and do a plain triage. In production you wouldn't need

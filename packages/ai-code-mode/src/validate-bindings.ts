@@ -1,3 +1,5 @@
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
+
 /**
  * Single words that on their own signal "this is a credential".
  * Matched after splitting a parameter name into camelCase/snake/kebab words.
@@ -161,9 +163,11 @@ export function warnIfBindingsExposeSecrets(
   options: {
     handler?: SecretParameterHandler
     dedupCache?: Set<string>
+    /** Receives `'warn'` output instead of `console.warn` when provided. */
+    logger?: InternalLogger
   } = {},
 ): void {
-  const { handler = 'warn', dedupCache } = options
+  const { handler = 'warn', dedupCache, logger } = options
   if (handler === 'ignore') return
 
   for (const tool of tools) {
@@ -190,6 +194,8 @@ export function warnIfBindingsExposeSecrets(
         handler(info)
       } else if (handler === 'throw') {
         throw new Error(buildMessage(tool.name, entry.path))
+      } else if (logger) {
+        logger.warn(buildMessage(tool.name, entry.path), { ...info })
       } else {
         console.warn(buildMessage(tool.name, entry.path))
       }

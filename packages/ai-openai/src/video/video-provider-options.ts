@@ -6,6 +6,9 @@
  * @experimental Video generation is an experimental feature and may change.
  */
 
+import { durationToSeconds } from '@tanstack/ai/adapters'
+import type { DurationOptions, VideoDurationSpell } from '@tanstack/ai/adapters'
+
 /**
  * Supported video sizes for OpenAI Sora video generation.
  * Based on the official API documentation.
@@ -19,13 +22,22 @@ export type OpenAIVideoSize =
   | '1024x1792' // Portrait tall
 
 /**
- * Supported video durations (in seconds) for OpenAI Sora video generation.
- * The API uses the `seconds` parameter with STRING values '4', '8', or '12'.
- * Yes, really. They're strings.
+ * Wire values for the Sora `seconds` parameter. The API stores these as
+ * strings: `'4'`, `'8'`, or `'12'`.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
 export type OpenAIVideoSeconds = '4' | '8' | '12'
+
+/**
+ * Spellings of a Sora clip length. Both `sora-2` and `sora-2-pro` accept
+ * 4, 8, or 12 seconds (Videos API, checked 2026-09-28). There is no `"auto"`.
+ * Callers may pass the number, the numeric string, or a `"4s"` template.
+ * The adapter sends {@link OpenAIVideoSeconds}.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export type OpenAIVideoDuration = VideoDurationSpell<4 | 8 | 12>
 
 /**
  * Provider-specific options for OpenAI video generation.
@@ -67,6 +79,46 @@ export type OpenAIVideoModelSizeByName = {
 }
 
 /**
+ * Per-model duration union. Same vocabulary on both Sora models.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export type OpenAIVideoModelDurationByName = {
+  'sora-2': OpenAIVideoDuration
+  'sora-2-pro': OpenAIVideoDuration
+}
+
+const SORA_SECONDS = [
+  '4',
+  '8',
+  '12',
+] as const satisfies ReadonlyArray<OpenAIVideoSeconds>
+
+/**
+ * Runtime duration table backing `availableDurations()` / `snapDuration()`.
+ * `snapDuration` returns the API string (`'4' | '8' | '12'`).
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export const OPENAI_VIDEO_DURATIONS = {
+  'sora-2': { kind: 'discrete', values: SORA_SECONDS },
+  'sora-2-pro': { kind: 'discrete', values: SORA_SECONDS },
+} as const satisfies {
+  [Model in keyof OpenAIVideoModelDurationByName]: DurationOptions<OpenAIVideoSeconds>
+}
+
+/**
+ * Look up the duration options for a Sora model.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export function getOpenAIVideoDurationOptions<
+  TModel extends keyof OpenAIVideoModelDurationByName,
+>(model: TModel): DurationOptions<OpenAIVideoSeconds> {
+  return OPENAI_VIDEO_DURATIONS[model]
+}
+
+/**
  * Per-model prompt input modalities. Sora models accept a single image part
  * in the prompt, mapped to the API's `input_reference` field.
  *
@@ -101,39 +153,33 @@ export function validateVideoSize(
 }
 
 /**
- * Validate video duration (seconds) for a given model.
- * Accepts both string and number for convenience, but the API requires strings.
+ * Validate a Sora duration. Accepts `4`, `"4"`, and `"4s"` (and 8, 12).
+ * Rejects other lengths, including `"6s"` and `"auto"`.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
 export function validateVideoSeconds(
   model: string,
   seconds?: number | string,
-): asserts seconds is OpenAIVideoSeconds | number | undefined {
-  const validSeconds: Array<string> = ['4', '8', '12']
-  const validNumbers: Array<number> = [4, 8, 12]
+): asserts seconds is OpenAIVideoDuration | undefined {
+  if (seconds === undefined) return
+  if (toApiSeconds(seconds) !== undefined) return
 
-  if (seconds !== undefined) {
-    const isValid =
-      typeof seconds === 'string'
-        ? validSeconds.includes(seconds)
-        : validNumbers.includes(seconds)
-
-    if (!isValid) {
-      throw new Error(
-        `Duration "${seconds}" is not supported by model "${model}". Supported durations: 4, 8, or 12 seconds`,
-      )
-    }
-  }
+  throw new Error(
+    `Duration "${seconds}" is not supported by model "${model}". Supported durations: 4, 8, or 12 seconds ("4", "4s", or 4).`,
+  )
 }
 
 /**
- * Convert duration to API format (string).
- * The OpenAI Sora API inexplicably requires seconds as a string.
+ * Convert a duration spelling to the API string (`'4' | '8' | '12'`).
  */
 export function toApiSeconds(
   seconds: number | string | undefined,
 ): OpenAIVideoSeconds | undefined {
   if (seconds === undefined) return undefined
-  return String(seconds) as OpenAIVideoSeconds
+  const value = durationToSeconds(seconds)
+  if (value === 4) return '4'
+  if (value === 8) return '8'
+  if (value === 12) return '12'
+  return undefined
 }

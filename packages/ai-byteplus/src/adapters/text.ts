@@ -6,7 +6,11 @@ import {
 } from '@tanstack/ai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import { generateId } from '@tanstack/ai-utils'
+import { resolveReasoning } from '@tanstack/ai/adapter-internals'
+import type { ResolvedReasoning } from '@tanstack/ai/adapter-internals'
 import {
+  BYTEPLUS_MODEL_INPUT_MODALITIES,
+  BYTEPLUS_MODEL_REASONING,
   BYTEPLUS_STRUCTURED_OUTPUT_CHAT_MODELS,
   emitsEncryptedContent,
   supportsStructuredOutput,
@@ -34,6 +38,7 @@ import type {
 import type {
   BYTEPLUS_CHAT_MODELS,
   BytePlusChatModelToolCapabilitiesByName,
+  BytePlusModelReasoningByName,
   ResolveInputModalities,
   ResolveProviderOptions,
 } from '../model-meta'
@@ -87,6 +92,26 @@ export type { BytePlusTextProviderOptions } from '../text/text-provider-options'
  *    ignores the schema), and Ark rejects `json_object` everywhere, so there
  *    is no JSON-mode fallback.
  */
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof BytePlusModelReasoningByName
+    ? BytePlusModelReasoningByName[TModel]
+    : never
+
+/**
+ * Ark's thinking fields for `chat({ reasoning })`: `thinking.type`, plus
+ * `reasoning_effort` when the level has an effort value. `off` sends only
+ * `disabled`, because Ark refuses an effort next to it.
+ */
+function arkThinking(resolved: ResolvedReasoning | undefined) {
+  if (!resolved) return {}
+  if (resolved.level === 'off') return { thinking: { type: 'disabled' } }
+  const effort = resolved.value
+  return effort === 'enabled'
+    ? { thinking: { type: 'enabled' } }
+    : { thinking: { type: 'enabled' }, reasoning_effort: effort }
+}
+
 export class BytePlusTextAdapter<
   TModel extends (typeof BYTEPLUS_CHAT_MODELS)[number],
   // `Record<string, any>` (not `unknown`) mirrors the OpenAI/Groq/Grok text
@@ -103,10 +128,13 @@ export class BytePlusTextAdapter<
   TProviderOptions,
   TInputModalities,
   BytePlusMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   override readonly name = 'byteplus' as const
+  override readonly inputModalities =
+    BYTEPLUS_MODEL_INPUT_MODALITIES[this.model]
 
   constructor(config: BytePlusTextConfig, model: TModel) {
     super(
@@ -114,6 +142,39 @@ export class BytePlusTextAdapter<
       'byteplus',
       new OpenAI(withBytePlusArkDefaults(config)),
       config,
+    )
+  }
+
+  /**
+   * Ark has no error code for a context overflow. It answers
+   * `InvalidParameter` for every bad request, so the message text is the
+   * only signal.
+   */
+  protected override isContextOverflow(error: {
+    message: string
+    code: string | undefined
+  }): boolean {
+    return (
+      super.isContextOverflow(error) ||
+      (error.code === 'InvalidParameter' &&
+        error.message.includes('exceed max message tokens'))
+    )
+  }
+
+  /**
+   * Adds Ark's thinking fields for `chat({ reasoning })`. They are Ark
+   * fields that the OpenAI SDK type does not list, so they go on with
+   * Object.assign.
+   */
+  protected override mapOptionsToRequest(options: TextOptions) {
+    return Object.assign(
+      super.mapOptionsToRequest(options),
+      arkThinking(
+        resolveReasoning(
+          options.reasoning,
+          BYTEPLUS_MODEL_REASONING[options.model],
+        ),
+      ),
     )
   }
 
@@ -126,7 +187,7 @@ export class BytePlusTextAdapter<
   protected override extractReasoning(
     chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
   ): { text: string } | undefined {
-    const delta = chunk.choices[0]?.delta as
+    const delta = chunk.choices?.[0]?.delta as
       | BytePlusStreamDeltaExtras
       | undefined
     const raw = delta?.reasoning_content
@@ -137,15 +198,17 @@ export class BytePlusTextAdapter<
   }
 
   /**
-   * Captures Ark's `encrypted_content` and attaches it to the reasoning
-   * step's `STEP_FINISHED` event as its `signature`.
+   * Captures Ark's `encrypted_content` and sends it as a
+   * `REASONING_ENCRYPTED_VALUE` for the reasoning message, right before its
+   * `REASONING_MESSAGE_END`. Its `entityId` is the reasoning message id, so an
+   * AG-UI client finds that message.
    *
    * On a thinking-summary model Ark streams the whole blob as one dedicated
    * chunk (empty `content` and `reasoning_content`) sitting between the
    * reasoning deltas and the content deltas — so it is always captured before
    * the base closes the reasoning lifecycle at the first content delta.
    *
-   * `signature` is the framework's existing provider-signature seam: the chat
+   * The encrypted value is the framework's provider-signature seam: the chat
    * engine stores it on the `ThinkingPart`, which
    * `buildAssistantMessages` carries into `ModelMessage.thinking[].signature`,
    * which {@link BytePlusTextAdapter.convertMessage} echoes back to Ark on the
@@ -168,33 +231,29 @@ export class BytePlusTextAdapter<
     },
   ): AsyncIterable<AdapterYieldChunk> {
     const captured: { encryptedContent?: string } = {}
+    let reasoningMessageId: string | undefined
 
     for await (const event of super.processStreamChunks(
       captureEncryptedContent(stream, captured),
       options,
       aguiState,
     )) {
+      if (event.type === EventType.REASONING_MESSAGE_START) {
+        reasoningMessageId = event.messageId
+      }
       if (
-        event.type === EventType.STEP_FINISHED &&
+        event.type === EventType.REASONING_MESSAGE_END &&
         captured.encryptedContent !== undefined &&
-        event.signature === undefined
+        event.messageId === reasoningMessageId
       ) {
-        // `delta` is stamped alongside the signature because the two consumers
-        // read this event differently. `chat()`'s server agent loop accumulates
-        // thinking ONLY from `STEP_FINISHED.delta` and then drops the whole
-        // step — signature included — when the accumulated content is empty
-        // (`finalizeCurrentThinkingStep`); the OpenAI base emits `content` but
-        // never `delta`, so without this the blob never reaches the
-        // continuation message. The client `StreamProcessor` can't double-count
-        // it: it short-circuits STEP_FINISHED content once
-        // `hasSeenReasoningEvents` is set, which the REASONING_MESSAGE_CONTENT
-        // events preceding every STEP_FINISHED here always set.
         yield {
-          ...event,
-          signature: captured.encryptedContent,
-          delta: event.delta ?? event.content ?? '',
+          type: EventType.REASONING_ENCRYPTED_VALUE,
+          subtype: 'message' as const,
+          entityId: reasoningMessageId,
+          encryptedValue: captured.encryptedContent,
+          model: event.model,
+          timestamp: event.timestamp,
         }
-        continue
       }
       yield event
     }
@@ -352,7 +411,7 @@ export class BytePlusTextAdapter<
       yield {
         type: EventType.RUN_STARTED,
         runId,
-        threadId: options.chatOptions.threadId ?? generateId(this.name),
+        threadId: options.chatOptions.threadId,
         model: options.chatOptions.model,
         timestamp: Date.now(),
         parentRunId: options.chatOptions.parentRunId,
@@ -403,7 +462,7 @@ async function* captureEncryptedContent(
   captured: { encryptedContent?: string },
 ): AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk> {
   for await (const chunk of stream) {
-    const delta = chunk.choices[0]?.delta as
+    const delta = chunk.choices?.[0]?.delta as
       | BytePlusStreamDeltaExtras
       | undefined
     const blob = delta?.encrypted_content

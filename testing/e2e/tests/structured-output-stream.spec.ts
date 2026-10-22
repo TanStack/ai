@@ -85,6 +85,35 @@ for (const provider of providersFor('structured-output-stream')) {
       expect(Number(countAttr)).toBeGreaterThan(1)
     })
 
+    test('reasoning before the JSON does not add a text part', async ({
+      page,
+      testId,
+      aimockPort,
+    }) => {
+      test.skip(
+        provider !== 'openai',
+        'Pins the Responses path that streams reasoning under its own message id (#1632)',
+      )
+      await page.goto(
+        featureUrl(provider, 'structured-output-stream', testId, aimockPort),
+      )
+
+      await sendMessage(
+        page,
+        '[structured-stream-reasoning] recommend a guitar as json',
+      )
+      await waitForResponse(page)
+
+      const assistantMessage = page.getByTestId('assistant-message').last()
+      await expect(assistantMessage.getByTestId('thinking-block')).toHaveCount(
+        1,
+      )
+      await expect(
+        assistantMessage.getByTestId('structured-output-part'),
+      ).toHaveCount(1)
+      await expect(assistantMessage.getByTestId('text-part')).toHaveCount(0)
+    })
+
     test('aborting mid-stream stops the run cleanly', async ({
       page,
       testId,
@@ -147,4 +176,41 @@ for (const provider of providersFor('structured-output-stream')) {
       )
     })
   })
+}
+
+for (const malformed of [false, true]) {
+  for (const reasoning of ['positive', 'zero', 'missing']) {
+    test(`OpenRouter structured usage: malformed=${malformed}, reasoning=${reasoning}`, async ({
+      request,
+    }) => {
+      const response = await request.post(
+        `/api/openrouter-structured-usage?malformed=${malformed}&reasoning=${reasoning}`,
+      )
+      expect(response.ok()).toBe(true)
+      const { result, events, usageReports, requests } = await response.json()
+      expect(requests).toBe(1)
+      const terminal = events.at(-1)
+      expect(terminal.type).toBe(malformed ? 'RUN_ERROR' : 'RUN_FINISHED')
+      expect(
+        events.filter((event: { usage?: unknown }) => event.usage),
+      ).toHaveLength(1)
+      expect(terminal.usage).toMatchObject({
+        promptTokens: 10,
+        completionTokens: 50,
+        totalTokens: 60,
+        cost: 0.002,
+      })
+      expect(terminal.usage.completionTokensDetails?.reasoningTokens).toBe(
+        reasoning === 'missing' ? undefined : reasoning === 'zero' ? 0 : 42,
+      )
+      expect(usageReports).toHaveLength(malformed ? 0 : 1)
+      if (malformed) {
+        expect(terminal.code).toBe('parse-error')
+        expect(result.error).toContain('Failed to parse structured output')
+      } else {
+        expect(result.value).toEqual({ answer: 'ok' })
+        expect(usageReports[0]).toEqual(terminal.usage)
+      }
+    })
+  }
 }

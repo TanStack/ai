@@ -33,9 +33,19 @@
       "@tanstack/highlight/themes/*": [
         "./node_modules/.kiira/node_modules/@tanstack/highlight/dist/themes/*.d.ts"
       ],
+      "@fal-ai/client": [
+        "./node_modules/.kiira/node_modules/@fal-ai/client/src/index.d.ts",
+        "./examples/ts-react-media/node_modules/@fal-ai/client/src/index.d.ts"
+      ],
       "@fal-ai/client/realtime": [
         "./node_modules/.kiira/node_modules/@fal-ai/client/src/realtime/index.d.ts",
         "./examples/ts-react-media/node_modules/@fal-ai/client/src/realtime/index.d.ts"
+      ],
+      "@upstash/agentkit-tanstack-ai/persistence": [
+        "./node_modules/.kiira/node_modules/@upstash/agentkit-tanstack-ai/dist/persistence.d.ts"
+      ],
+      "@upstash/agentkit-tanstack-ai/memory": [
+        "./node_modules/.kiira/node_modules/@upstash/agentkit-tanstack-ai/dist/memory.d.ts"
       ]
     }
   }

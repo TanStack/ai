@@ -7,4 +7,4 @@ title: INTERRUPT_CONTINUATION_VERSION
 const INTERRUPT_CONTINUATION_VERSION: 1;
 ```
 
-Defined in: [packages/ai/src/generic-interrupt-continuation.ts:14](https://github.com/TanStack/ai/blob/main/packages/ai/src/generic-interrupt-continuation.ts#L14)
+Defined in: packages/ai/src/generic-interrupt-continuation.ts:14

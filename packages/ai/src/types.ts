@@ -6,6 +6,7 @@ import type { InternalLogger } from './logger/internal-logger'
 import type { SystemPrompt } from './system-prompts'
 import type { CapabilityContext } from './activities/chat/middleware/capabilities'
 import type { InterruptSubmissionError } from './interrupts'
+import type { ReasoningRequest } from './reasoning'
 // The canonical usage types live in the leaf `@tanstack/ai-event-client`
 // package (which `@tanstack/ai` already depends on) so there is a single source
 // of truth without a dependency cycle. They are re-exported below.
@@ -20,6 +21,7 @@ import type {
 } from '@tanstack/ai-event-client'
 import type {
   ActivityDeltaEvent as AGUIActivityDeltaEvent,
+  ActivityMessage as AGUIActivityMessage,
   ActivitySnapshotEvent as AGUIActivitySnapshotEvent,
   AudioPart as AGUIAudioPart,
   BaseEvent as AGUIBaseEvent,
@@ -370,6 +372,59 @@ export type ConstrainedContent<
   | null
   | Array<ContentPartForInputModalitiesTypes<TInputModalitiesTypes>>
 
+/**
+ * The mid-conversation record that `chat()` saves on the first assistant
+ * message of a model call. It holds tool names and prompt hashes only, so it
+ * does not depend on a provider.
+ */
+export interface MidConversationChange {
+  /** A start point: the names of every tool. */
+  tools?: Array<string>
+  /** Tool names added since the last record. */
+  toolsAdded?: Array<string>
+  /** Short prompt hashes: every prompt on a start point, the added prompts otherwise. */
+  systemPrompts?: Array<string>
+}
+
+/**
+ * What changed in the tools and system prompts between model calls.
+ * `chat()` passes it in `TextOptions.midConversationChanges`.
+ */
+export interface MidConversationChanges {
+  /**
+   * The tool names of the start point, in start order, and how many entries
+   * at the front of `systemPrompts` belong to it.
+   */
+  start: { tools: Array<string>; systemPrompts: number }
+  /**
+   * Each change goes directly before `messages[before]`, or at the end when
+   * `before === messages.length`. `tools` are the added names.
+   * `systemPrompts` is how many of the next entries of `systemPrompts` it adds.
+   */
+  changes: Array<{
+    before: number
+    tools?: Array<string>
+    systemPrompts?: number
+  }>
+}
+
+/** The mid-conversation channels of a model. */
+export interface MidConversationChannels {
+  /** Added tools can go out without a change to the tools of the start point. */
+  tools: boolean
+  /** Added system prompts can go out as a message at their place. */
+  systemPrompts: boolean
+}
+
+/**
+ * One block of an assistant `ModelMessage`, in the order the model sent it.
+ * Each entry points into a field of the message. See `ModelMessage.blockOrder`.
+ */
+export type ModelMessageBlock =
+  | { type: 'thinking'; index: number }
+  | { type: 'text'; length: number }
+  | { type: 'tool-call'; id: string }
+
 export interface ModelMessage<
   TContent extends string | null | Array<ContentPart> =
     | string
@@ -381,9 +436,28 @@ export interface ModelMessage<
   name?: string
   toolCalls?: Array<ToolCall>
   toolCallId?: string
-  thinking?: Array<{ content: string; signature?: string }>
+  /**
+   * Signed thinking to send back to the provider. `redacted: true` marks a
+   * block the provider encrypted: `content` is empty and `signature` holds its
+   * opaque data. See `ThinkingPart.signature` for the planned rename.
+   */
+  thinking?: Array<{ content: string; signature?: string; redacted?: boolean }>
+  /**
+   * The order of the blocks of an assistant message, when it is not the
+   * default order (all thinking, then the text, then the tool calls). Each
+   * entry points into `thinking`, into `content` (a string, by UTF-16 length),
+   * or into `toolCalls`. The library writes and reads this field. A reader
+   * that finds a map that does not match the message uses the default order.
+   */
+  blockOrder?: Array<ModelMessageBlock>
   /** Error reported by an AG-UI tool message. */
   error?: string
+  /**
+   * The tools and system prompts that changed before this assistant message.
+   * `chat()` writes it when the adapter has a mid-conversation channel.
+   * Providers ignore it: adapters read `TextOptions.midConversationChanges`.
+   */
+  midConversationChange?: MidConversationChange
   /** Optional AG-UI message metadata. TanStack-owned fields live under `tanstack`. */
   metadata?: Record<string, any>
   /**
@@ -465,7 +539,40 @@ export interface ThinkingPart {
   type: 'thinking'
   content: string
   stepId?: string
+  /**
+   * The provider's opaque reasoning artefact, sent back unchanged: an
+   * Anthropic signature, Anthropic redacted data, or OpenAI encrypted content.
+   * TODO(#1581): rename to `encryptedValue` to match AG-UI's `ReasoningMessage`.
+   * Renaming breaks stored messages, so it needs a read shim for `signature`.
+   */
   signature?: string
+  /**
+   * The provider encrypted this thinking block (Anthropic `redacted_thinking`).
+   * `content` is empty, and `signature` holds the opaque data that goes back
+   * to the provider unchanged. On the AG-UI wire, the reasoning message id
+   * starts with `redacted_thinking-` instead.
+   */
+  redacted?: boolean
+}
+
+/**
+ * Frontend-only AG-UI activity. Never converted into ModelMessage input.
+ * Mirrors {@link https://docs.ag-ui.com/concepts/messages | ActivityMessage}:
+ * `activityType` selects a renderer; `content` is the structured payload.
+ */
+export interface ActivityPart extends Pick<
+  AGUIActivityMessage,
+  'activityType' | 'content' | 'subagentRunId'
+> {
+  type: 'activity'
+}
+
+/**
+ * Durable sidecar row for frontend-only AG-UI activity. Never a ModelMessage.
+ * `index` is the insert position in the reconstructed UI transcript.
+ */
+export interface ActivityRecord extends Omit<AGUIActivityMessage, 'role'> {
+  index: number
 }
 
 /**
@@ -488,14 +595,26 @@ export type DeepPartial<T> =
  * consumers can thread `useChat({ outputSchema })`'s schema all the way down
  * to `messages[i].parts[j].data`. Defaults to `unknown` so untyped consumers
  * (e.g. internal codepaths that don't know about TSchema) keep working.
+ *
+ * Discriminated on `status`: checking `status === 'complete'` narrows `data`
+ * to `TData`.
  */
-export interface StructuredOutputPart<TData = unknown> {
+export type StructuredOutputPart<TData = unknown> =
+  | (StructuredOutputPartBase<TData> & {
+      status: 'streaming' | 'error'
+      /** Not set until `status === 'complete'`. */
+      data?: undefined
+    })
+  | (StructuredOutputPartBase<TData> & {
+      status: 'complete'
+      /** Validated final object. */
+      data: TData
+    })
+
+interface StructuredOutputPartBase<TData> {
   type: 'structured-output'
-  status: 'streaming' | 'complete' | 'error'
   /** Progressive parse of `raw` via parsePartialJSON — populated while streaming and after complete. */
   partial?: DeepPartial<TData>
-  /** Validated final object — only set when `status === 'complete'`. */
-  data?: TData
   /** Accumulating JSON buffer. Source of truth for wire round-trip. */
   raw: string
   /** Optional chain-of-thought surfaced by reasoning models alongside the structured output. */
@@ -561,9 +680,17 @@ export type MessagePart<TData = unknown> =
   | ToolCallPart
   | ToolResultPart
   | ThinkingPart
+  | ActivityPart
   | StructuredOutputPart<TData>
   | UIResourcePart
   | SubagentPart
+
+/** Provider, wire API, and requested model of an assistant message. */
+export interface MessageSource {
+  provider: string
+  api: string
+  model: string
+}
 
 /**
  * Shape of `metadata.tanstack` on a message.
@@ -572,6 +699,20 @@ export type MessagePart<TData = unknown> =
 export interface TanStackMessageMetadata {
   createdAt?: string
   model?: string
+  source?: MessageSource
+  stopReason?: 'error' | 'aborted'
+  responseId?: string
+  /**
+   * Why the model call of this assistant message ended. A `'length'` message
+   * stopped at the output limit, so its tool calls are not complete.
+   */
+  finishReason?: TanStackRunMetadata['finishReason']
+  /**
+   * The provider's answer items of this assistant message, in order, for a
+   * same-model replay. The OpenAI Responses adapter keeps each output
+   * message item's `id` and `phase` (`commentary` or `final_answer`).
+   */
+  responseItems?: Array<{ id: string; phase?: string }>
   /** Parent chat run that produced this assistant message. */
   runId?: string
   /**
@@ -602,13 +743,23 @@ export interface TanStackMessageMetadata {
     errorMessage?: string
   }
   uiResources?: Array<UIResourcePart>
+  /**
+   * On an assistant wire row that exists only to keep the block order: the
+   * id of the assistant row before it. Our server joins the two rows into
+   * one message with a `blockOrder` map. See `uiMessagesToWire`.
+   */
+  continues?: string
 }
 
 /**
  * Shape of `metadata.tanstack` on run events.
  */
 export interface TanStackRunMetadata {
+  source?: MessageSource
   model?: string
+  responseId?: string
+  /** The answer items of this model call. See `TanStackMessageMetadata.responseItems`. */
+  responseItems?: TanStackMessageMetadata['responseItems']
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   /** TokenUsage fields that have no AG-UI `usage[]` equivalent. */
   usage?: TokenUsageLeftover
@@ -617,9 +768,13 @@ export interface TanStackRunMetadata {
   runId?: string
   sessionId?: string
   index?: number
+  /** On a `RUN_ERROR`. See `RunErrorEvent.retryAfterMs`. */
+  retryAfterMs?: number
   state?: ToolOutputState
   /** Parsed `TOOL_CALL_END` input. Spec `TOOL_CALL_END` has no top-level `input`. */
   input?: unknown
+  /** The raw tool argument string on `TOOL_CALL_END`, as the provider sent it. */
+  args?: string
 }
 
 /**
@@ -631,7 +786,7 @@ export interface TanStackRunMetadata {
  */
 export interface UIMessage<TData = unknown> {
   id: string
-  role: 'system' | 'user' | 'assistant'
+  role: 'system' | 'user' | 'assistant' | 'activity'
   parts: Array<MessagePart<TData>>
   createdAt?: Date
   /** Optional AG-UI sender name. Converters preserve it across wire and persist. */
@@ -719,6 +874,13 @@ export type ToolExecutionContext<TContext = unknown> =
     /** The ID of the tool call being executed */
     toolCallId?: string
     /**
+     * The thread id of the chat run. `chat()` sets it to the same value as
+     * `ctx.threadId` in middleware. A tool can use it to keep its own state
+     * for each conversation. It is missing when a tool runs outside a chat,
+     * for example from an MCP server, WebMCP, or a direct `execute()` call.
+     */
+    threadId?: string
+    /**
      * Abort signal for the current chat run. Aborts when the run's
      * `abortController` fires (or middleware aborts). Long-running tools —
      * e.g. MCP `callTool` — should forward this to cancel in-flight work.
@@ -730,6 +892,22 @@ export type ToolExecutionContext<TContext = unknown> =
      * interrupt for this tool call.
      */
     inputResponse?: ToolInputResponse
+    /**
+     * Set when the host can move this call to the background. Pass it the
+     * work of the call, and race the two promises. It resolves to a short
+     * note for the model when the user moves the call. The work keeps
+     * running, and the host tells the model its result when it ends.
+     * `chat()` does not set it: a host wraps the tool's `execute` to add it.
+     * The note is a string. An object `outputSchema` rejects it. A string
+     * schema, or no schema, accepts it.
+     *
+     * @example
+     * ```ts
+     * const work = runJob(args)
+     * return context?.detach ? Promise.race([work, context.detach(work)]) : work
+     * ```
+     */
+    detach?: (work: Promise<unknown>) => Promise<string>
     /**
      * Emit a custom event during tool execution.
      * Events are streamed to the client in real-time as AG-UI CUSTOM events.
@@ -896,6 +1074,14 @@ export interface Tool<
   /** If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Works with both chat() (the synthetic discovery tool) and Code Mode (kept out of the system prompt and revealed via discover_tools). */
   lazy?: boolean
 
+  /**
+   * Whether a host may run this tool again after a crash cut the run
+   * between the call and its result. `'safe'` runs it again. Omit the
+   * field, or set `'never'`, when a second run is not safe. The host
+   * writes the model note. `chat()` does not read this field.
+   */
+  replay?: 'safe' | 'never'
+
   /** Additional metadata for adapters or custom extensions */
   metadata?: Record<string, any> | undefined
 }
@@ -1057,6 +1243,64 @@ export interface AgentLoopState {
 export type AgentLoopStrategy = (state: AgentLoopState) => boolean
 
 /**
+ * How the model uses the tools of a call.
+ * - `'auto'`: the model decides.
+ * - `'none'`: the model calls no tool.
+ * - `'required'`: the model must call a tool.
+ * - `{ type: 'tool', name }`: the model must call that tool.
+ *
+ * `TName` is the names of the tools of the call, for editor suggestions. Any
+ * other string is also allowed, for example a provider tool or a lazy tool.
+ */
+export type ToolChoice<TName extends string = string> =
+  | 'auto'
+  | 'none'
+  | 'required'
+  // `string & {}` keeps the `TName` literals as suggestions.
+  | { type: 'tool'; name: TName | (string & {}) }
+
+/**
+ * How long the provider keeps the cached start of a request.
+ * `'none'` turns automatic prompt caching off.
+ */
+export type PromptCacheRetention = 'none' | 'short' | 'long'
+
+/**
+ * The `promptCache` option of `chat()`: a retention, or an object with a
+ * retention and a cache key.
+ */
+export type PromptCacheOptions =
+  | PromptCacheRetention
+  | { retention?: PromptCacheRetention; key?: string }
+
+/** What chat() gives the adapter. */
+export interface ResolvedPromptCache {
+  retention: PromptCacheRetention
+  key?: string
+}
+
+/**
+ * Wraps the fetch of a model call. It gets the next fetch and gives back a
+ * new fetch. A wrapper can change the URL, the headers, the request, or the
+ * response.
+ */
+export type FetchWrapper = (next: typeof fetch) => typeof fetch
+
+/**
+ * What a `repairToolInput` function gets: a tool input that failed the check.
+ */
+export interface ToolInputRepairContext {
+  /** The tool the model called. */
+  tool: AnyTool
+  /** The call, with its id and the raw arguments text. */
+  toolCall: ToolCall
+  /** The input that failed, after approval edits and middleware. */
+  input: unknown
+  /** The validation error. A Standard Schema error also has `issues`. */
+  error: Error
+}
+
+/**
  * Options passed into the SDK and further piped to the AI provider.
  */
 export interface TextOptions<
@@ -1089,6 +1333,38 @@ export interface TextOptions<
   systemPrompts?: Array<SystemPrompt>
   agentLoopStrategy?: AgentLoopStrategy
   /**
+   * How the server tools of one model turn run. `'parallel'` (the default)
+   * starts them together, and `'sequential'` runs them one at a time.
+   */
+  toolExecution?: 'parallel' | 'sequential'
+  /**
+   * How a tool input that fails the final check is repaired. By default,
+   * common model mistakes such as `"5"` for a number are repaired against the
+   * schema. `false` turns the repair off. A function replaces the built-in
+   * repair: it returns the input to check again, or `undefined` to send the
+   * validation error to the model.
+   */
+  repairToolInput?:
+    | false
+    | ((context: ToolInputRepairContext) => unknown | Promise<unknown>)
+  /**
+   * Retry a model call when the provider error has a wait time (usually a
+   * 429). `chat()` waits for the `retryAfterMs` time of the `RUN_ERROR`, then
+   * calls the model again. It retries only when the wait time is at most
+   * `maxWaitMs` and the call has streamed no output yet. The structured-output
+   * call is not retried. Off by default.
+   */
+  retry?: {
+    /**
+     * Extra model calls after the first, for each model call of the run. `0`
+     * means no retry. The provider SDK does its own retries first, from the
+     * `maxRetries` of the adapter config.
+     */
+    maxRetries: number
+    /** Longest wait time to accept, in milliseconds. Default 60 000. */
+    maxWaitMs?: number
+  }
+  /**
    * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
    * Tunes how much of each lazy tool's description appears in the discovery
    * catalog. Optional — defaults to `{ includeDescription: 'none' }`.
@@ -1106,6 +1382,13 @@ export interface TextOptions<
    */
   metadata?: Record<string, any> | undefined
   modelOptions?: TProviderOptionsForModel
+  /**
+   * How hard the model thinks, normalized by `chat()`. `undefined`: the user
+   * did not ask, so the adapter sends nothing and the provider default applies.
+   * The adapter clamps the level to the model's levels and writes its own
+   * wire field.
+   */
+  reasoning?: ReasoningRequest
   request?: Request | RequestInit
 
   /**
@@ -1136,17 +1419,6 @@ export interface TextOptions<
    */
   outputSchema?: SchemaInput
   /**
-   * @deprecated Use `threadId` instead. `conversationId` is the legacy
-   * pre-AG-UI name for the same concept (a stable per-conversation
-   * identifier used to correlate client/server devtools events). When
-   * `conversationId` is omitted, the runtime falls back to `threadId`
-   * automatically, so most callers can simply pass `threadId` (or rely
-   * on `chatParamsFromRequest`, which surfaces it on `params`).
-   *
-   * Will be removed in a future major release.
-   */
-  conversationId?: string
-  /**
    * AbortController for request cancellation.
    *
    * Allows you to cancel an in-progress request using an AbortController.
@@ -1169,10 +1441,15 @@ export interface TextOptions<
   logger: InternalLogger
 
   /**
-   * Thread ID for AG-UI protocol run correlation.
-   * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
+   * Thread ID for AG-UI protocol run correlation. Required. It is used in
+   * RunStartedEvent and RunFinishedEvent.
    */
-  threadId?: string
+  threadId: string
+  /**
+   * Automatic prompt caching for this request. `chat()` sets it. When it is
+   * absent, the adapter adds no automatic cache fields.
+   */
+  promptCache?: ResolvedPromptCache
   /**
    * Run ID for AG-UI protocol run correlation.
    * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
@@ -1185,11 +1462,40 @@ export interface TextOptions<
    */
   parentRunId?: string
   /**
+   * How the model uses the tools of this request. `chat()` sets it only when
+   * the request has tools. A provider value in `modelOptions` wins over it.
+   */
+  toolChoice?: ToolChoice
+  /**
+   * Wraps the fetch of this request. The engine composes the `chat()` option
+   * and the middleware wrappers into one function. An adapter that supports
+   * it calls `wrapFetch(baseFetch)` and sends the request with the result.
+   */
+  wrapFetch?: FetchWrapper
+  /**
+   * The tools and system prompts that changed between model calls. The
+   * engine sets it only when `adapter.midConversationChannels` has a channel
+   * that is on. `tools` and `systemPrompts` stay the full current lists, so
+   * an adapter that ignores this field sends the same request as before.
+   * Adapters resolve it with `splitMidConversationChanges`.
+   */
+  midConversationChanges?: MidConversationChanges
+  /**
    * AG-UI subagent run id when this chat runs as a child of another run.
    * A child `chat()` passes `ctx.subagentRunId`. Middleware reads it as
    * `ctx.subagentRunId`. Absent on a top-level run.
    */
   subagentRunId?: string
+  /**
+   * The agent name when this chat runs as a subagent. Middleware reads it as
+   * `ctx.subagentName`.
+   */
+  subagentName?: string
+  /**
+   * The subagentRunId of the child that started this one, for a nested child.
+   * Middleware reads it as `ctx.parentSubagentRunId`.
+   */
+  parentSubagentRunId?: string
 
   /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
   state?: unknown
@@ -1220,6 +1526,18 @@ export interface TextOptions<
   approvals?: ReadonlyMap<string, boolean>
 }
 
+/** What `TextAdapter.compact` receives. */
+export interface TextCompactOptions {
+  /** The history to compact. */
+  messages: Array<ModelMessage>
+  model: string
+  signal?: AbortSignal
+  /** Wraps the fetch of the compaction request. */
+  wrapFetch?: FetchWrapper
+  /** The system prompts of the chat call. */
+  systemPrompts?: Array<SystemPrompt>
+}
+
 // ============================================================================
 // AG-UI Protocol Event Types
 // ============================================================================
@@ -1229,20 +1547,6 @@ export interface TextOptions<
  * Use `EventType.RUN_STARTED` etc. when constructing event objects.
  */
 export { EventType } from '@ag-ui/core'
-
-/**
- * AG-UI Protocol event types.
- * @deprecated Use `EventType` enum from `@ag-ui/core` instead. This type alias
- * is kept for backward compatibility but will be removed in a future version.
- * @see https://docs.ag-ui.com/concepts/events
- */
-export type AGUIEventType = `${EventType}`
-
-/**
- * Stream chunk/event types (AG-UI protocol).
- * @deprecated Use `EventType` enum instead.
- */
-export type StreamChunkType = AGUIEventType
 
 /**
  * Base structure for AG-UI events.
@@ -1278,13 +1582,6 @@ export type {
   UsageCostBreakdown,
 }
 
-/**
- * @deprecated Renamed to {@link TokenUsage}. Kept as an alias for backward
- * compatibility with `@tanstack/ai@0.23` and earlier; will be removed in a
- * future release.
- */
-export type UsageTotals = TokenUsage
-
 export type Interrupt = AGUIInterrupt
 
 export type RunFinishedOutcome = AGUIRunFinishedOutcome
@@ -1309,6 +1606,8 @@ export interface RunFinishedEvent extends Pick<
   usage?: Array<SpecTokenUsage> | TokenUsage
   /** Restored on the client from `metadata.tanstack`. */
   model?: string
+  /** Provider generation ID. Restored from `metadata.tanstack`. */
+  responseId?: string
   /** Restored on the client from `metadata.tanstack`. */
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   metadata?: { tanstack?: TanStackRunMetadata } & Record<string, any>
@@ -1335,6 +1634,12 @@ export interface RunErrorEvent extends Pick<
   model?: string
   /** Nested payload kept for in-process / durability consumers. */
   error?: { message: string; code?: string }
+  /**
+   * How long the provider asks you to wait before a retry, in milliseconds.
+   * Adapters read it from the `retry-after-ms` or `retry-after` header.
+   * `chat()` moves it to `metadata.tanstack.retryAfterMs`.
+   */
+  retryAfterMs?: number
   metadata?: { tanstack?: TanStackRunMetadata } & Record<string, any>
 }
 
@@ -1370,8 +1675,6 @@ export interface ToolCallStartEvent extends Omit<
   'type'
 > {
   type: 'TOOL_CALL_START'
-  /** Alias of `toolCallName`. Kept so existing stream readers still compile. */
-  toolName?: string
   /** Provider-specific metadata to carry into the ToolCall. */
   metadata?: Record<string, any>
 }
@@ -1491,46 +1794,6 @@ export interface StructuredOutputStartEvent extends CustomEvent {
   value: { messageId: string }
 }
 
-/**
- * Emitted when a server tool requires approval before execution. The agent
- * loop yields this and pauses — `structured-output.complete` will not fire
- * for that run. The shape is fixed by the orchestrator's tool-approval flow
- * (the agent-loop branch of `runStreamingStructuredOutputImpl` in
- * `activities/chat/index.ts` forwards CUSTOM events from `TextEngine.run()`).
- */
-/**
- * @deprecated Native interrupts use RUN_FINISHED interrupt outcomes. This
- * compatibility event remains readable until 1.0.
- */
-export interface ApprovalRequestedEvent extends CustomEvent {
-  name: 'approval-requested'
-  value: {
-    toolCallId: string
-    toolName: string
-    input: unknown
-    approval: { id: string; needsApproval: true }
-  }
-}
-
-/**
- * Emitted when a client tool is invoked. The agent loop yields this and
- * pauses to let the caller run the tool client-side — `structured-output.complete`
- * will not fire for that run. Shape fixed by the agent-loop forwarding in
- * `runStreamingStructuredOutputImpl` in `activities/chat/index.ts`.
- */
-/**
- * @deprecated Native interrupts use RUN_FINISHED interrupt outcomes. This
- * compatibility event remains readable until 1.0.
- */
-export interface ToolInputAvailableEvent extends CustomEvent {
-  name: 'tool-input-available'
-  value: {
-    toolCallId: string
-    toolName: string
-    input: unknown
-  }
-}
-
 /** Emitted when an MCP tool returns a ui:// resource (MCP Apps). Reconciled into
  *  a UIResourcePart on the assistant UIMessage. Never enters model input. */
 export interface UIResourceEvent extends CustomEvent {
@@ -1636,8 +1899,6 @@ export type KnownCustomEvent =
   | SnippetRegisteredEvent
   | StructuredOutputStartEvent
   | StructuredOutputCompleteEvent
-  | ApprovalRequestedEvent
-  | ToolInputAvailableEvent
   | UIResourceEvent
 
 /** The default chat streaming result: standard chunks plus every typed
@@ -1656,10 +1917,7 @@ export type ChatStream = AsyncIterable<
  * - `structured-output.complete` — terminal event with typed `value.object: T`
  *
  * User-actionable waits, such as tool approval and client tool input, are
- * represented by `RUN_FINISHED.outcome.type === 'interrupt'` in current core
- * streams. Legacy `approval-requested` and `tool-input-available` custom
- * events may still be consumed for replay and backward compatibility, but
- * they are not the current source of truth for waits.
+ * represented by `RUN_FINISHED.outcome.type === 'interrupt'`.
  *
  * Each variant has a literal `name`, so a single discriminated narrow gives
  * you a typed `value` with no helper or cast:
@@ -1684,8 +1942,6 @@ export type StructuredOutputStream<T = unknown> = AsyncIterable<
   | Exclude<StreamChunk, CustomEvent>
   | StructuredOutputStartEvent
   | StructuredOutputCompleteEvent<T>
-  | ApprovalRequestedEvent
-  | ToolInputAvailableEvent
 >
 
 // ============================================================================
@@ -1734,11 +1990,31 @@ export interface ReasoningEndEvent extends AGUIReasoningEndEvent {}
  */
 export interface ReasoningEncryptedValueEvent extends AGUIReasoningEncryptedValueEvent {}
 
-/** AG-UI 1.0 ActivitySnapshotEvent shape. */
-export interface ActivitySnapshotEvent extends AGUIActivitySnapshotEvent {}
+/**
+ * Full activity state for an `ActivityMessage`.
+ *
+ * @ag-ui/core provides: `messageId`, `activityType`, `content`, `replace?`,
+ * `metadata?`, `subagentRunId?`. When `replace` is omitted it means `true`.
+ */
+export interface ActivitySnapshotEvent extends Omit<
+  AGUIActivitySnapshotEvent,
+  'type'
+> {
+  type: 'ACTIVITY_SNAPSHOT'
+}
 
-/** AG-UI 1.0 ActivityDeltaEvent shape. */
-export interface ActivityDeltaEvent extends AGUIActivityDeltaEvent {}
+/**
+ * RFC 6902 JSON Patch against an existing activity's `content`.
+ *
+ * @ag-ui/core provides: `messageId`, `activityType`, `patch`, `metadata?`,
+ * `subagentRunId?`
+ */
+export interface ActivityDeltaEvent extends Omit<
+  AGUIActivityDeltaEvent,
+  'type'
+> {
+  type: 'ACTIVITY_DELTA'
+}
 
 /** AG-UI 1.0 RawEvent shape. */
 export interface RawEvent extends AGUIRawEvent {}
@@ -1827,8 +2103,8 @@ export type StreamChunk = AGUIEvent
  * `value` with no helper or cast:
  *
  * ```ts
- * if (chunk.type === 'CUSTOM' && chunk.name === 'approval-requested') {
- *   chunk.value.toolCallId // typed as string
+ * if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.start') {
+ *   chunk.value.messageId // typed as string
  * }
  * ```
  *
@@ -1847,8 +2123,6 @@ export type StreamChunk = AGUIEvent
 export type TaggedCustomEvent<T = unknown> =
   | StructuredOutputStartEvent
   | StructuredOutputCompleteEvent<T>
-  | ApprovalRequestedEvent
-  | ToolInputAvailableEvent
 
 // Simple streaming format for basic text completions
 // Converted to StreamChunk format by convertTextCompletionStream()
@@ -1880,7 +2154,7 @@ export interface SummarizationOptions<
    * their own.
    */
   runId?: string
-  threadId?: string
+  threadId: string
   /**
    * Internal logger threaded from the summarize() entry point. Adapters must
    * call logger.request() before the SDK call and logger.errors() in catch blocks.
@@ -1962,7 +2236,6 @@ export interface RerankResult<TDocument = string> {
    * units" (`usage.billed = { quantity, unit: 'units' }`) rather than tokens.
    * Some providers (e.g. OpenRouter) may also report `totalTokens` and `cost`.
    * Cohere reports only search units and leaves the token counts at 0.
-   * The deprecated `unitsBilled` field is still populated for compatibility.
    */
   usage: TokenUsage
 }
@@ -2277,9 +2550,10 @@ export interface VideoGenerationOptions<
   /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
   size?: TSize
   /**
-   * Video duration in seconds. Adapters that declare a per-model duration
-   * map narrow this to the model's valid union; use
-   * `adapter.snapDuration(seconds)` to coerce raw seconds to a valid value.
+   * Video duration. Adapters that declare a per-model duration map narrow
+   * this to that model's union (a number, `"8"`, or `"8s"`). Use
+   * `adapter.snapDuration(input)` to coerce a raw value. `input` may be
+   * seconds, a `"6s"` template, or `"auto"` when the model lists it.
    */
   duration?: TDuration
   /** Model-specific options for video generation */
@@ -2351,6 +2625,25 @@ export interface VideoUrlResult {
   usage?: TokenUsage
   /** Persisted artifact references for generated assets, when available */
   artifacts?: Array<PersistedArtifactRef>
+  body?: never
+}
+
+/**
+ * Video bytes from a provider that has no public URL for the finished video.
+ * Core passes `body` to generation middleware, which streams it into storage
+ * and sets `url`. Use `withGenerationPersistence` with `artifactUrl`.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export interface VideoStreamResult {
+  /** Job identifier */
+  jobId: string
+  /** The video bytes. Read once, with backpressure. Never buffer it whole. */
+  body: ReadableStream<Uint8Array>
+  /** MIME type of `body`, e.g. `video/mp4`. */
+  contentType: string
+  usage?: TokenUsage
+  url?: never
 }
 
 // ============================================================================

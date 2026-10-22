@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 import type { PhaseCapture } from '../src/lib/phase-capture'
 import { expect, test } from './fixtures'
+import { collectHydrationErrors } from './helpers'
 
 const genericMode = 'generic-lifecycle'
 
@@ -174,7 +175,7 @@ for (const boundaryCase of boundaryCases) {
       new RegExp(`"boundary":"${boundaryCase.boundary}"`),
     )
 
-    if (boundaryCase.mixed) await resolveMixedBatch(page)
+    if ('mixed' in boundaryCase) await resolveMixedBatch(page)
     else await resolveReview(page)
     await waitForFinished(page)
     await expectAssistantText(page, boundaryCase.result)
@@ -195,6 +196,19 @@ for (const boundaryCase of boundaryCases) {
     ])
   })
 }
+
+test('keeps the afterModel turn thinking in the interrupt snapshot', async ({
+  page,
+  testId,
+  aimockPort,
+}) => {
+  await startScenario(page, testId, aimockPort, 'generic-after-model')
+  // The client loads the interrupt's MESSAGES_SNAPSHOT. It must still hold
+  // the thinking of the turn that the interrupt paused.
+  await expect(page.locator('#mw-messages-json')).toContainText(
+    'AFTER_MODEL_REASONING',
+  )
+})
 
 test('cancels a typed generic interrupt and records the cancellation', async ({
   page,
@@ -307,6 +321,7 @@ test('restores a pending generic interrupt after reload and resumes it', async (
   aimockPort,
 }) => {
   await startScenario(page, testId, aimockPort, 'generic-before-model')
+  const hydrationErrors = collectHydrationErrors(page)
   await page.reload()
   await expect(page.getByTestId('generic-review-plan')).toBeVisible()
   await resolveReview(page)
@@ -318,4 +333,5 @@ test('restores a pending generic interrupt after reload and resumes it', async (
   expect(capture.resolutions).toEqual([
     expect.objectContaining({ status: 'resolved' }),
   ])
+  expect(hydrationErrors).toEqual([])
 })

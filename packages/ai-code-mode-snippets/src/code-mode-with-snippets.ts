@@ -45,12 +45,14 @@ export type { CodeModeWithSnippetsOptions, CodeModeWithSnippetsResult }
  *     maxSnippetsInContext: 5,
  *   },
  *   messages,
+ *   threadId,
  * });
  *
  * const stream = chat({
  *   adapter: openaiText('gpt-4o'),  // Main model
  *   toolRegistry: toolsRegistry,  // Dynamic tool registry
  *   messages,
+ *   threadId,
  *   systemPrompts: [BASE_PROMPT, systemPrompt],
  * });
  * ```
@@ -60,6 +62,7 @@ export async function codeModeWithSnippets({
   adapter,
   snippets,
   messages,
+  threadId,
   snippetsAsTools = true,
 }: CodeModeWithSnippetsOptions): Promise<CodeModeWithSnippetsResult> {
   const { storage, maxSnippetsInContext = 5 } = snippets
@@ -71,6 +74,7 @@ export async function codeModeWithSnippets({
   const selectedSnippets = await selectRelevantSnippets({
     adapter,
     messages,
+    threadId,
     snippetIndex,
     maxSnippets: maxSnippetsInContext,
     storage,
@@ -95,14 +99,18 @@ export async function codeModeWithSnippets({
           description: snippet.description,
           inputSchema: snippet.inputSchema,
           outputSchema: snippet.outputSchema,
-          execute: async (input: unknown) => {
+          execute: async (input: unknown, toolContext) => {
             // This is a simplified execution - the full snippetToTool handles events
             const wrappedCode = `const input = ${JSON.stringify(input)};\n${snippet.code}`
             const { stripTypeScript, createEventAwareBindings } =
               await import('@tanstack/ai-code-mode')
             const strippedCode = await stripTypeScript(wrappedCode)
             const context = await config.driver.createContext({
-              bindings: createEventAwareBindings(baseBindings, () => {}),
+              bindings: createEventAwareBindings(
+                baseBindings,
+                () => {},
+                toolContext,
+              ),
               timeout: config.timeout,
               ...(config.memoryLimit !== undefined && {
                 memoryLimit: config.memoryLimit,

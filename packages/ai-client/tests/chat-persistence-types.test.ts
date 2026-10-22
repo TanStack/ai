@@ -2,9 +2,9 @@
  * Type-level tests for the `persistence` / `threadId` pairing on ChatClient.
  * These assertions are pure types. They never construct a client at runtime.
  *
- * Persistence that is on (`true` or a storage adapter) requires a `threadId`.
- * Do not apply a plain `Omit` to `ChatClientOptions` later: that collapses the
- * union and the requirement disappears. Use `DistributedOmit`.
+ * `threadId` is always required. Do not apply a plain `Omit` to
+ * `ChatClientOptions` later: that collapses the union and the `history` rule
+ * disappears. Use `DistributedOmit`.
  */
 
 import { describe, it } from 'vitest'
@@ -49,9 +49,11 @@ describe('ChatClient persistence requires a threadId', () => {
     void _typeCheck
   })
 
-  it('leaves threadId optional for ephemeral chats', () => {
+  it('requires threadId for ephemeral chats too', () => {
     const _typeCheck = () => {
+      // @ts-expect-error threadId is required
       createChatClientOptions({ connection })
+      // @ts-expect-error threadId is required
       createChatClientOptions({ connection, persistence: false })
       createChatClientOptions({ connection, threadId: 'support-42' })
     }

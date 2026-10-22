@@ -2,7 +2,7 @@
 title: Serve Resources and Prompts
 id: mcp-server-content
 order: 13
-description: "Serve documents and prompts from your MCP server so a host can read a document or start from a prompt."
+description: "Serve documents and prompts from your MCP server, so a host can read a document or start from a prompt."
 keywords:
   - tanstack ai
   - mcp
@@ -15,12 +15,16 @@ keywords:
   - createMCPServer
 ---
 
-Until you serve a resource, a host cannot read your document. Until you serve a prompt, a host cannot start from that prompt.
+Serve resources and prompts from the same MCP server as your tools. A host can then read those documents and start from those prompts.
 
-## Define Resources and Prompts
+Define each document with `resourceDefinition` and each prompt with `promptDefinition`. Then pass them to `createMCPServer`.
 
-1. Define each document with `resourceDefinition`.
-2. Define each prompt with `promptDefinition`.
+## Quick setup
+
+You need an MCP server first. If you do not have one, start with [Serve Tools over HTTP](./server).
+
+1. Define a resource for each document.
+2. Define a prompt for each prompt.
 3. Pass `resources` and `prompts` to `createMCPServer`.
 
 ```ts
@@ -41,7 +45,8 @@ const file = resourceDefinition({
   name: 'file',
   mimeType: 'text/plain',
   uriTemplate: 'file:///{path}',
-}).read(async () => ({ text: 'file body' }))
+  argsSchema: z.object({ path: z.string() }),
+}).read(async (_uri, { path }) => ({ text: `The body of ${path}` }))
 
 const summarize = promptDefinition({
   name: 'summarize',
@@ -61,32 +66,90 @@ export function handleMcp(request: Request) {
 }
 ```
 
-## Resources
+Now the host gets these results:
 
-A resource must have `uri` or `uriTemplate`.
+- It reads `file:///readme.md`. The `text` is `# Hello`.
+- It reads `file:///notes.md`. The `text` is `The body of notes.md`.
+- It starts from the `summarize` prompt with the topic `weather`. It gets one message: the `role` is `user`, and the `content` is `weather`.
 
-- `uri`: one document. An example is `file:///readme.md`.
-- `uriTemplate`: a URI pattern. An example is `file:///{path}`.
+## How it works
 
-If the resource has no `uri` and no `uriTemplate`, `resourceDefinition` throws `This resource has no uri and no uriTemplate. Pass a uri or a uriTemplate.`
+A resource has one of two addresses:
 
-If you pass `uri` and `uriTemplate`, the server uses `uri`.
+- `uri`: one document, for example `file:///readme.md`.
+- `uriTemplate`: a URI pattern for many documents, for example `file:///{path}`.
 
-`read` takes no arguments. `read` returns `{ text }` for a text document. For a binary document, `read` returns `{ blob }` with a base64 string.
+`read` returns the body of the document:
 
-## Prompts
+- `{ text }` for a text document.
+- `{ blob }` with a base64 string for a binary document.
 
-`argsSchema.parse` runs first. Then `render` receives the parsed arguments.
+A prompt parses its arguments with `argsSchema`. Then `render` returns an array of messages. Each message has a `role` (`user` or `assistant`) and a `content` string.
 
-`render` returns an array of messages. Each message has these fields:
+## Serve one resource per item
 
-- `role`: `user` or `assistant`.
-- `content`: the message text.
+A template such as `myapp://items/{itemId}/summary` serves many documents. The read must know which item the host asked for, and which user asks. A host also needs a list of the items that exist.
 
-If `role` is not `user` or `assistant`, the server sends that message as `user`.
+1. Read `itemId` from the `variables` argument of `read`.
+2. Read the user from `ctx.context`.
+3. Add `list` to return the real resources for `resources/list`.
 
-## What the Host Gets
+```ts
+import { createMCPServer, resourceDefinition } from '@tanstack/ai-mcp/server'
 
-The host reads `file:///readme.md`. The `text` is `# Hello`.
+const summaries = new Map([
+  ['1', 'First item'],
+  ['2', 'Second item'],
+])
 
-The host starts from the `summarize` prompt with topic `weather`. The `role` is `user`. The `content` string is `weather`.
+const summary = resourceDefinition({
+  name: 'item-summary',
+  mimeType: 'text/plain',
+  uriTemplate: 'myapp://items/{itemId}/summary',
+  list: async () => ({
+    resources: [...summaries.keys()].map((id) => ({
+      uri: `myapp://items/${id}/summary`,
+      name: `Item ${id}`,
+    })),
+  }),
+}).read(async (uri, variables, ctx) => {
+  const itemId = String(variables.itemId)
+  const userId = String(ctx.context.userId)
+  return { text: `${summaries.get(itemId) ?? 'Unknown'} (for ${userId})` }
+})
+
+const server = createMCPServer({
+  name: 'items',
+  version: '1.0.0',
+  resources: [summary],
+})
+
+export function handleMcp(request: Request, userId: string) {
+  return server.handle(request, { context: { userId } })
+}
+```
+
+The host lists `Item 1` and `Item 2`. A read of `myapp://items/1/summary` returns `First item` plus the user id.
+
+## Advanced
+
+### The arguments of `read`
+
+`read` gets three arguments:
+
+- `uri`: the URI that the host asked for, as a `URL`.
+- `variables`: the values from the template. A resource with `uri` gets `{}`. When the template has `argsSchema`, `argsSchema.parse` runs first, so `read` gets the parsed values. For `file:///notes.md`, `path` is `notes.md`.
+- `ctx.context`: the values from `handle(request, { context })`, plus the verified token as `authInfo`. A tool gets the same values, plus `requestInput` and `sample`.
+
+`list` gets the same `ctx`. It returns `{ resources }`, with a `uri` and a `name` for each resource. Only a resource with `uriTemplate` can have `list`.
+
+### Resource rules
+
+- If the resource has no `uri` and no `uriTemplate`, `resourceDefinition` throws `This resource has no uri and no uriTemplate. Pass a uri or a uriTemplate.`
+- If you pass `uri` and `uriTemplate`, the server uses `uri`.
+- When one template serves files of different types, add `mimeType` to the object that `read` returns.
+
+### Prompt rules
+
+- `argsSchema.parse` runs first. Then `render` receives the parsed arguments.
+- If `role` is not `user` or `assistant`, the server sends that message as `user`.

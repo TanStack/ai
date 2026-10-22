@@ -57,7 +57,7 @@ export const Route = createFileRoute('/api/structured')({
       POST: async ({ request }) => {
         const body = await request.json()
         const { recipeName, mode = 'structured' } = body
-        const data = body.data || {}
+        const data = body.forwardedProps || {}
         const provider: Provider = data.provider || body.provider || 'openai'
         // Don't set a global default - let each adapter use its own default model
         const model: string | undefined = data.model || body.model
@@ -98,6 +98,7 @@ export const Route = createFileRoute('/api/structured')({
           if (mode === 'structured') {
             // Structured output mode - returns validated object
             const result = await chat({
+              threadId: 'panel-structured',
               adapter,
               messages: [
                 {
@@ -122,7 +123,8 @@ export const Route = createFileRoute('/api/structured')({
             )
           } else {
             // One-shot markdown mode - returns streamed text
-            const markdown = await chat({
+            const { text: markdown } = await chat({
+              threadId: 'panel-structured',
               adapter,
               stream: false,
               messages: [

@@ -72,6 +72,18 @@ async function* closeMcpOnDrain(
 export const Route = createFileRoute('/api/mcp-test')({
   server: {
     handlers: {
+      // Returns the server's instructions from the connect handshake.
+      GET: async ({ request }) => {
+        const origin = new URL(request.url).origin
+        const mcp = await createMCPClient({
+          transport: { type: 'http', url: `${origin}/api/mcp-server` },
+        })
+        try {
+          return Response.json({ instructions: mcp.instructions ?? null })
+        } finally {
+          await mcp.close()
+        }
+      },
       POST: async ({ request }) => {
         if (request.signal.aborted) {
           return new Response(null, { status: 499 })

@@ -1,9 +1,14 @@
+import type { ReasoningRequest, ToolChoice } from '@tanstack/ai'
 import type { Feature, Provider } from '@/lib/types'
 import { getGuitars, compareGuitars, addToCart } from '@/lib/tools'
 
 interface FeatureConfig {
   tools: Array<any>
   modelOptions: Record<string, any>
+  /** `chat({ reasoning })` for the feature. */
+  reasoning?: ReasoningRequest
+  /** `chat({ toolChoice })` for the feature. */
+  toolChoice?: ToolChoice
   modelOverrides?: Partial<Record<Provider, string>>
   dedicatedRoute?: string
   /**
@@ -39,12 +44,19 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
   },
   reasoning: {
     tools: [],
-    modelOptions: { reasoning: { effort: 'high' } },
+    modelOptions: {},
+    reasoning: { level: 'high', summary: true },
     modelOverrides: {
       openai: 'o3',
       anthropic: 'claude-sonnet-4-5',
       mistral: 'magistral-medium-latest',
     },
+  },
+  'multi-turn-reasoning': {
+    tools: [getGuitars],
+    modelOptions: {},
+    reasoning: { level: 'high', summary: true },
+    modelOverrides: { anthropic: 'claude-sonnet-4-5' },
   },
   'multi-turn': {
     tools: [],
@@ -53,6 +65,11 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
   'tool-calling': {
     tools: [getGuitars],
     modelOptions: {},
+  },
+  'tool-choice': {
+    tools: [getGuitars],
+    modelOptions: {},
+    toolChoice: { type: 'tool', name: 'getGuitars' },
   },
   'parallel-tool-calls': {
     tools: [getGuitars, compareGuitars],

@@ -3,8 +3,8 @@
  * clients. These assertions are pure types. They never construct a client at
  * runtime.
  *
- * Persistence that is on requires a `threadId`. Identity is only `threadId`.
- * There is no instance `id`.
+ * `threadId` is always required. Identity is only `threadId`. There is no
+ * instance `id`.
  */
 
 import { describe, it } from 'vitest'
@@ -46,13 +46,18 @@ describe('GenerationClient persistence requires a threadId', () => {
     void _typeCheck
   })
 
-  it('leaves threadId optional for ephemeral generations', () => {
+  it('requires threadId for ephemeral generations too', () => {
     const _typeCheck = () => {
+      // @ts-expect-error threadId is required
       new GenerationClient({ connection })
-      new GenerationClient({ connection, persistence: false })
-      new GenerationClient({ connection, threadId: 'product-123-hero' })
-      new VideoGenerationClient({ connection })
+      // @ts-expect-error threadId is required
       new VideoGenerationClient({ connection, persistence: false })
+      new GenerationClient({ connection, threadId: 'product-123-hero' })
+      new VideoGenerationClient({
+        connection,
+        persistence: false,
+        threadId: 'video-9-start-frame',
+      })
     }
     void _typeCheck
   })

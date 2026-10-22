@@ -221,7 +221,7 @@ function SandboxWaiting({ kind }: { kind: SandboxWaitKind }) {
 
 function sandboxWaitKind(
   isLoading: boolean,
-  messages: Array<UIMessage>,
+  messages: ReadonlyArray<UIMessage>,
 ): SandboxWaitKind | false {
   if (
     !isLoading ||
@@ -243,7 +243,7 @@ function Messages({
   messages,
   waiting,
 }: {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   waiting: SandboxWaitKind | false
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -383,8 +383,9 @@ function SandboxesPage() {
   const canUseSubscription = provider === 'local' && harness === 'claude-code'
 
   const { messages, sendMessage, isLoading, stop, error } = useChat({
+    threadId,
     connection: fetchServerSentEvents('/api/sandbox-triage'),
-    body: {
+    forwardedProps: {
       harness,
       provider,
       issueUrl,

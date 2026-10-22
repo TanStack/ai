@@ -120,6 +120,7 @@ After performing the calculation, provide a structured report about the result.`
   try {
     // First, run the code mode analysis
     const analysisStream = chat({
+      threadId: 'test-cli',
       adapter,
       messages,
       tools: [executeTypescript] as any,
@@ -196,6 +197,7 @@ After performing the calculation, provide a structured report about the result.`
 
     // Use chat with outputSchema for structured output
     const structuredResult = await chat({
+      threadId: 'test-cli',
       adapter,
       messages: structuredRequestMessages,
       systemPrompts: [systemPrompt],

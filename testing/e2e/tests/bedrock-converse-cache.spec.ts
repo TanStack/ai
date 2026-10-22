@@ -24,8 +24,9 @@ test.describe('bedrock-converse — prompt cache checkpoints', () => {
     expect(error ?? null).toBeNull()
     expect(ok).toBe(true)
     expect(observed).toEqual({ tools: true, system: true, lastMessage: true })
+    // promptTokens is the total input: 3 uncached + 8409 cache read + 0 write.
     expect(usage).toMatchObject({
-      promptTokens: 3,
+      promptTokens: 8412,
       promptTokensDetails: { cachedTokens: 8409, cacheWriteTokens: 0 },
     })
   })

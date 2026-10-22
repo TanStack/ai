@@ -28,7 +28,6 @@ import {
   mergeChunkStreams,
   nodeHttpBridgeProvisioner,
   resolveDurableRunId,
-  resolveDurableThreadId,
   resolveHarnessCwd,
   spawnNdjson,
 } from '@tanstack/ai-sandbox'
@@ -125,9 +124,34 @@ export class GrokBuildTextAdapter<
 
   private readonly adapterConfig: GrokBuildTextConfig
 
+  /** `toolChoice` warnings that this instance already logged. */
+  private readonly toolChoiceWarnings = new Set<string>()
+
   constructor(config: GrokBuildTextConfig, model: TModel) {
     super({}, model)
     this.adapterConfig = config
+  }
+
+  /**
+   * The chat() tools to bridge for `toolChoice`: none for `'none'`, and only
+   * the named tool for `{ type: 'tool', name }`. `grok agent` has no flag to
+   * turn off its built-in tools or to force a tool call, so every value
+   * except `'auto'` logs a warning once.
+   */
+  private toolsForChoice(options: TextOptions<GrokBuildTextProviderOptions>) {
+    const { toolChoice, tools = [] } = options
+    if (toolChoice === undefined || toolChoice === 'auto') return tools
+    const warning =
+      toolChoice === 'required'
+        ? "grok-build: toolChoice 'required' is not supported. The agent decides which tools to call."
+        : 'grok-build: toolChoice limits only the chat() tools. The built-in Grok Build tools stay on.'
+    if (!this.toolChoiceWarnings.has(warning)) {
+      this.toolChoiceWarnings.add(warning)
+      options.logger.warn(warning)
+    }
+    if (toolChoice === 'none') return []
+    if (toolChoice === 'required') return tools
+    return tools.filter((tool) => tool.name === toolChoice.name)
   }
 
   private sandboxFrom(
@@ -251,6 +275,7 @@ export class GrokBuildTextAdapter<
     let onAbort: (() => void) | undefined
 
     try {
+      const tools = this.toolsForChoice(options)
       const sandbox = this.sandboxFrom(options)
       const cwd = this.workdir(options)
       const harnessCwd = this.harnessCwd(sandbox, options)
@@ -269,18 +294,7 @@ export class GrokBuildTextAdapter<
         adapter: 'grok-build',
         fallback: () => this.generateId(),
       })
-      // `durable: false` / `attaching: false` for the same reason `runId` above
-      // is `durable: false`: this is the ACP path, which never journals and has
-      // no stored log, so it has no attach route and no `threadId` it is
-      // required to reuse. Routed through the helper anyway so that if this path
-      // ever gains a journal it inherits the requirement instead of re-deriving
-      // it. See `chatStreamNdjson` for the journaled path.
-      const threadId = resolveDurableThreadId(options.threadId, {
-        durable: false,
-        attaching: false,
-        adapter: 'grok-build',
-        fallback: () => this.generateId(),
-      })
+      const threadId = options.threadId
 
       // Same misconfiguration class `DurableRunIdRequiredError` guards
       // against: durability wired but silently not delivered. Throwing here
@@ -336,16 +350,15 @@ export class GrokBuildTextAdapter<
       const sessionId = modelOptions?.sessionId
       const { prompt: resumePrompt } = buildPrompt(options.messages, sessionId)
 
-      const bridgedToolNames = new Set(
-        (options.tools ?? []).map((tool) => tool.name),
-      )
-      if (options.tools && options.tools.length > 0) {
+      const bridgedToolNames = new Set(tools.map((tool) => tool.name))
+      if (tools.length > 0) {
         const provisioner =
           (options.capabilities
             ? getToolBridgeProvisioner(options.capabilities, { optional: true })
             : undefined) ?? nodeHttpBridgeProvisioner
-        bridge = await provisioner.provision(options.tools, {
+        bridge = await provisioner.provision(tools, {
           provider: sandbox.provider,
+          threadId,
           context: options.context,
           emitCustomEvent: channel.emitCustomEvent,
           ...(externalSignal ? { signal: externalSignal } : {}),
@@ -612,6 +625,7 @@ export class GrokBuildTextAdapter<
     const { logger } = options
     let bridge: HostToolBridge | undefined
     try {
+      const tools = this.toolsForChoice(options)
       const sandbox = this.sandboxFrom(options)
       const cwd = this.workdir(options)
       const harnessCwd = this.harnessCwd(sandbox, options)
@@ -630,17 +644,7 @@ export class GrokBuildTextAdapter<
         adapter: 'grok-build',
         fallback: () => this.generateId(),
       })
-      // `threadId` is stamped on every chunk `translateThreadEvents` emits, so an
-      // ATTACHING run that mints a fresh one replays a stream the stored log
-      // cannot match at index 0. `resolveDurableThreadId` refuses that up front
-      // instead of letting alignment discover it mid-stream; a durable FRESH run
-      // and a non-durable run both keep the generated fallback untouched.
-      const threadId = resolveDurableThreadId(options.threadId, {
-        durable: durability !== undefined,
-        attaching: durability?.attach === true,
-        adapter: 'grok-build',
-        fallback: () => this.generateId(),
-      })
+      const threadId = options.threadId
 
       const projection = options.capabilities
         ? getWorkspaceProjection(options.capabilities, { optional: true })
@@ -652,13 +656,14 @@ export class GrokBuildTextAdapter<
         : undefined
 
       // Bridge server tools over MCP (streamable-HTTP via DO or node:http).
-      if (options.tools && options.tools.length > 0) {
+      if (tools.length > 0) {
         const provisioner =
           (options.capabilities
             ? getToolBridgeProvisioner(options.capabilities, { optional: true })
             : undefined) ?? nodeHttpBridgeProvisioner
-        bridge = await provisioner.provision(options.tools, {
+        bridge = await provisioner.provision(tools, {
           provider: sandbox.provider,
+          threadId,
           context: options.context,
           ...(options.abortController?.signal
             ? { signal: options.abortController.signal }

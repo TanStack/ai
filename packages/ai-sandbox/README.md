@@ -77,6 +77,7 @@ Pick a **provider** package for where the sandbox runs:
 | `@tanstack/ai-sandbox-blaxel`        | Blaxel cloud sandboxes and previews    |
 | `@tanstack/ai-sandbox-boxd`          | boxd microVMs, live fork, snapshots    |
 | `@tanstack/ai-sandbox-e2b`           | E2B microVMs, snapshots and fork       |
+| `@tanstack/ai-sandbox-railway`       | Railway sandboxes, private networking  |
 
 Install the provider you select separately. For Blaxel:
 
@@ -207,7 +208,7 @@ const secrets = createSecrets({ XAI_API_KEY: process.env.XAI_API_KEY ?? '' })
 ## Run flow
 
 ```text
-chat({ adapter: grokBuildText(), middleware: [withSandbox(sandbox)] })
+chat({ adapter: grokBuildText(), threadId: 'thread-1', middleware: [withSandbox(sandbox)] })
   │
   ├─ withSandbox.setup     → resume → restore snapshot → create + bootstrap
   ├─ adapter.chatStream    → spawn `grok` (or other harness CLI) inside sandbox; stream AG-UI chunks

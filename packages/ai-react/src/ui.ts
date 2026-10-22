@@ -24,22 +24,5 @@ export {
   createChatHookContexts,
   type ChatUIContexts,
 } from './chat-ui/create-ui-contexts'
-export { Chat, useChatContext, type ChatProps } from './chat-ui/chat'
-export { ChatMessages, type ChatMessagesProps } from './chat-ui/chat-messages'
-export {
-  ChatMessage,
-  type ChatMessageProps,
-  type ToolCallRenderProps,
-} from './chat-ui/chat-message'
-export {
-  ChatInput,
-  type ChatInputProps,
-  type ChatInputRenderProps,
-} from './chat-ui/chat-input'
-export {
-  ToolApproval,
-  type ToolApprovalProps,
-  type ToolApprovalRenderProps,
-} from './chat-ui/tool-approval'
 export { TextPart, type TextPartProps } from './chat-ui/text-part'
 export { ThinkingPart, type ThinkingPartProps } from './chat-ui/thinking-part'

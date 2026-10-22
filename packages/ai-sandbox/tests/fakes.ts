@@ -258,12 +258,13 @@ export function makeMiddlewareCtx(input: {
     streamId: `stream-${input.runId}`,
     runId: input.runId,
     threadId: input.threadId,
-    conversationId: input.threadId,
     phase: 'init',
     iteration: 0,
     chunkIndex: 0,
+    callMetadata: {},
     signal: controller.signal,
     abort: (reason) => controller.abort(reason),
+    retry: () => {},
     emitCustomEvent: () => {},
     context: {},
     defer: () => {},
@@ -281,6 +282,7 @@ export function makeMiddlewareCtx(input: {
     currentMessageId: null,
     accumulatedContent: '',
     messages: [],
+    activities: [],
     createId: (prefix: string) =>
       `${prefix}-${Math.random().toString(36).slice(2)}`,
     capabilities:

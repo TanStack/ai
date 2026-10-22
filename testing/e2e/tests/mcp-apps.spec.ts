@@ -16,13 +16,12 @@ import { test, expect } from './fixtures'
  *     `{ ok: false }`.
  */
 
-// The fields these tests read off SSE events. Tool-call events carry a tool
-// name under one of two keys depending on the wire variant; ui-resource CUSTOM
-// events carry a `value`. All optional — a parsed event may be any AG-UI event.
+// The fields these tests read off SSE events. Tool-call events carry the tool
+// name in `toolCallName`. ui-resource CUSTOM events carry a `value`. All fields
+// are optional, because a parsed event can be any AG-UI event.
 type StreamEvent = {
   type: string
   name?: string
-  toolName?: string
   toolCallName?: string
   value?: UiResourceValue
 }
@@ -76,7 +75,14 @@ function parseCallResponse(body: string): CallHandlerResponse {
   ) {
     throw new Error(`expected a { ok: boolean } response, got: ${body}`)
   }
-  return parsed
+  return {
+    ok: parsed.ok,
+    result: 'result' in parsed ? parsed.result : undefined,
+    error:
+      'error' in parsed && typeof parsed.error === 'string'
+        ? parsed.error
+        : undefined,
+  }
 }
 
 test.describe('mcp-apps — data + interactive planes', () => {
@@ -114,9 +120,7 @@ test.describe('mcp-apps — data + interactive planes', () => {
 
     // The agentic loop must have invoked the ui-linked tool.
     const toolStart = events.find(
-      (e) =>
-        e.type === 'TOOL_CALL_START' &&
-        (e.toolName === 'show_widget' || e.toolCallName === 'show_widget'),
+      (e) => e.type === 'TOOL_CALL_START' && e.toolCallName === 'show_widget',
     )
     expect(toolStart, 'expected a TOOL_CALL_START for show_widget').toBeTruthy()
 

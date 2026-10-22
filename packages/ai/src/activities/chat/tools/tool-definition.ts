@@ -130,6 +130,7 @@ export interface ClientTool<
   approvalSchema?: TApprovalSchema
   execution?: 'task'
   lazy?: boolean
+  replay?: 'safe' | 'never'
   metadata?: Record<string, unknown>
   execute?: ToolExecuteFunction<TInput, TOutput, TContext>
 }
@@ -223,6 +224,13 @@ export type ToolDefinitionConfig<
   inputSchema?: TInput
   outputSchema?: TOutput
   lazy?: boolean
+  /**
+   * Whether a host may run this tool again after a crash cut the run
+   * between the call and its result. `'safe'` runs it again. Omit the
+   * field, or set `'never'`, when a second run is not safe. The host
+   * writes the model note. `chat()` does not read this field.
+   */
+  replay?: 'safe' | 'never'
   metadata?: Record<string, unknown>
   execution?: 'task'
 } & ApprovalConfig<TNeedsApproval, TApprovalSchema>

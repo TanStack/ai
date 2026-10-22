@@ -2,7 +2,7 @@
 title: Devtools
 id: devtools
 order: 3
-description: "Inspect and debug TanStack AI apps with the TanStack Devtools panel — live chat messages, tool call inputs and outputs, state, and errors."
+description: "See what your TanStack AI app does while it runs. The devtools panel shows live messages, runs, tool call inputs and outputs, memory, and errors."
 keywords:
   - tanstack ai
   - devtools
@@ -13,84 +13,11 @@ keywords:
   - observability
 ---
 
-TanStack Devtools is a unified devtools panel for inspecting and debugging TanStack libraries, including TanStack AI. It provides real-time insights into AI interactions, tool calls, and state changes, making it easier to develop and troubleshoot AI-powered applications.
+Devtools shows the messages sent to the model, the tool input, and the tool result for a chat run.
 
-## Features
-- **Hook dashboard** - Discover every active TanStack AI hook on the page, including chat, structured output, image, video, audio, speech, transcription, and summarize hooks.
-- **Run timeline** - Inspect user turns, linked runs, stream events, client snapshots, and server-only events by `threadId` and `runId`.
-- **Real-time Monitoring** - View live chat messages, tool invocations, and AI responses.
-- **Tool Call Inspection** - Inspect input and output of tool calls.
-- **Tool Fixture Replay** - Build tool payloads from a tool's standard-schema input, append the result into chat messages, and save fixtures in localStorage for repeated UI iteration.
-- **State Visualization** - Visualize chat state and message history.
-- **Memory Inspector** - For chats wired with `memoryMiddleware`, see what memory recalled and injected each turn plus the current stored records and facts.
-- **Error Tracking** - Monitor errors and exceptions in AI interactions.
+The TanStack AI devtools panel shows you this while the app runs. It is a plugin for TanStack Devtools. This takes about 3 minutes.
 
-## Hook Dashboard
-
-The AI devtools panel listens for active TanStack AI clients and shows them in the left sidebar. Hooks register when they are created, emit a snapshot immediately, and respond again whenever the devtools panel opens or requests state. This keeps hooks discoverable even when the panel is opened after the app has already rendered.
-
-Each hook entry includes its type, lifecycle, message count, run count, and the latest linked `threadId`. Selecting a hook opens the full timeline for that hook. Chat hooks keep the current turn-based view: a user message wraps every run and event that happened while answering that turn. The details view also includes lightweight client/server state snapshots between runs so you can see exactly what changed.
-
-### Naming Hooks
-
-When a page has more than one AI hook, pass `devtools.name` to give each hook a user-facing label in the dashboard. The configured name is display-only; hook type, framework, thread id, and run correlation still come from the TanStack AI client.
-
-```tsx
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-
-export function SupportChat() {
-  const chat = useChat({
-    threadId: 'support-chat',
-    connection: fetchServerSentEvents('/api/chat'),
-    devtools: {
-      name: 'Support Chat',
-    },
-  })
-
-  // render your chat UI with `chat.messages`, `chat.sendMessage`, etc.
-}
-```
-
-The same display option works for specialized generation hooks:
-
-```tsx
-import { fetchServerSentEvents, useGenerateImage } from '@tanstack/ai-react'
-
-export function ImageStudio() {
-  const image = useGenerateImage({
-    threadId: 'generation-hooks:useGenerateImage',
-    connection: fetchServerSentEvents('/api/image'),
-    devtools: {
-      name: 'Image Studio',
-    },
-  })
-
-  // render your image generation UI with `image.generate` and `image.result`
-}
-```
-
-## Tool Fixtures
-
-When a `useChat` hook receives tools, the devtools panel lists those tools and their schemas. For standard-schema-compatible inputs, the panel renders a small form from the input schema so you can create a tool call payload without hand-writing JSON.
-
-Applying a tool fixture appends the tool call and result into the real chat messages for that hook. Saved fixtures are stored in browser localStorage under the AI devtools namespace so they are available the next time you open the panel.
-
-## Memory Inspector
-
-When a chat is wired with [`memoryMiddleware`](../memory/overview.md), the hook's **Memory** tab shows what the server-side memory backend did for that conversation, grouped by scope (session):
-
-- **Operations timeline** - Each turn's recall: the query, how many fragments came back, how many characters were injected into the system prompt, whether memory-provided tools were exposed, and the recall duration.
-- **Stored records & facts** - The current contents of the memory store for the scope, when the adapter implements the optional `inspect`/`listFacts` methods (the built-in `inMemory()` and `redis()` adapters do). Adapters without introspection still show the operations timeline.
-
-Because memory runs on the server, its state is transported to the panel over the chat stream (a `CUSTOM` event the client re-emits) rather than a separate channel — the same way generation results reach the panel. The snapshot reflects memory as of the start of each turn, so a turn's own writes appear in the next turn's snapshot. Opening the panel after a turn replays the latest memory state, so the tab is populated even when you open devtools mid-conversation.
-
-## Event Sources
-
-Client-visible state is emitted by the headless client. Server-only details, such as middleware and provider stream events that never exist on the client, are emitted from the server counterpart. Events include a source descriptor and stable envelope id so the panel can link related events and avoid displaying duplicates.
-
-## Installation
-
-Install the matching Devtools package:
+## 1. Install
 
 <!-- ::start:tabs variant="package-manager" mode="dev-install" -->
 
@@ -101,9 +28,11 @@ svelte: @tanstack/svelte-ai-devtools @tanstack/svelte-devtools
 
 <!-- ::end:tabs -->
 
-## Usage
+## 2. Add the panel
 
-Import and include the TanStackDevtools component in your application:
+Render `TanStackDevtools` with the AI plugin in your app root. Set `connectToServerBus: true` so the panel also gets events from the server.
+
+React:
 
 ```tsx
 import { TanStackDevtools } from '@tanstack/react-devtools'
@@ -112,22 +41,18 @@ import { aiDevtoolsPlugin } from '@tanstack/react-ai-devtools'
 const App = () => {
   return (
     <>
-       <TanStackDevtools 
-          plugins={[
-            // ... other plugins
-            aiDevtoolsPlugin(),
-          ]}
-          // this config is important to connect to the server event bus
-          eventBusConfig={{
-            connectToServerBus: true,
-          }}
-        />
+      <TanStackDevtools
+        plugins={[aiDevtoolsPlugin()]}
+        eventBusConfig={{
+          connectToServerBus: true,
+        }}
+      />
     </>
   )
 }
 ```
 
-For Svelte, register the plugin with the Svelte Devtools component:
+Svelte:
 
 ```svelte
 <script lang="ts">
@@ -145,25 +70,120 @@ const plugins = [aiDevtoolsPlugin()]
 />
 ```
 
-## Using with Next.js (or without a Vite plugin)
+If you already use other devtools plugins, add `aiDevtoolsPlugin()` to the same `plugins` array.
 
-`connectToServerBus: true` relies on a WebSocket/SSE server on port 4206 that is normally started by `@tanstack/devtools-vite`. If you're using Next.js (or any non-Vite bundler), you need to start `ServerEventBus` manually at server boot.
+## 3. Start the server bus (without Vite)
 
-In Next.js, do this in `instrumentation.ts`:
+`connectToServerBus: true` needs a WebSocket/SSE server on port 4206. With Vite, `@tanstack/devtools-vite` starts it for you. Skip this step.
+
+With Next.js or another bundler, start `ServerEventBus` when the server boots. In Next.js, put this in `instrumentation.ts`:
 
 ```ts ignore
 export async function register() {
-     if (
-         process.env["NEXT_RUNTIME"] === "nodejs" &&
-         process.env.NODE_ENV === "development"
-     ) {
-         const { ServerEventBus } = await import(
-             "@tanstack/devtools-event-bus/server"
-         );
-         const bus = new ServerEventBus();
-         await bus.start();
-     }
+  if (
+    process.env['NEXT_RUNTIME'] === 'nodejs' &&
+    process.env.NODE_ENV === 'development'
+  ) {
+    const { ServerEventBus } = await import(
+      '@tanstack/devtools-event-bus/server'
+    )
+    const bus = new ServerEventBus()
+    await bus.start()
+  }
 }
 ```
 
-This sets globalThis.__TANSTACK_EVENT_TARGET__ so the server-side devtoolsMiddleware (which runs automatically inside every chat() call) can emit tool call events to the bus, which then forwards them to the devtools panel.
+## 4. Open the panel
+
+Start the app, open the devtools, and open the AI panel. Send a chat message. The panel lists your chat hook, and the timeline fills with the run, its events, and any tool calls.
+
+## What you see
+
+- **Hook dashboard:** every active TanStack AI hook on the page. This includes chat, structured output, image, video, audio, speech, transcription, and summarize hooks.
+- **Run timeline:** user turns, linked runs, stream events, client snapshots, and server-only events, by `threadId` and `runId`.
+- **Tool calls:** the input and output of each tool call.
+- **Chat state:** the live messages and the message history.
+- **Errors:** errors and exceptions in AI calls.
+
+Also there when you need it:
+
+- **Tool fixture replay:** build a tool payload from the input schema of a tool, and add the result to the chat. See [Tool Fixtures](#tool-fixtures).
+- **Memory inspector:** for chats with `memoryMiddleware`, see what memory recalled and added each turn. See [Memory Inspector](#memory-inspector).
+
+## How it works
+
+Events come from two places:
+
+- **The client.** The headless client sends the state that the browser can see.
+- **The server.** The server sends details that never reach the client, such as middleware and provider stream events. `devtoolsMiddleware` runs inside every `chat()` call and sends these to the server bus. The bus forwards them to the panel.
+
+Each event has a source descriptor and a stable envelope id. The panel uses them to link related events and to skip duplicates.
+
+## Advanced
+
+### Hook dashboard
+
+The panel listens for active TanStack AI clients and shows them in the left sidebar.
+
+- A hook registers when it is created and sends a snapshot at once.
+- It sends a new snapshot when the panel opens or asks for state. So the hooks show up even if you open the panel after the app rendered.
+
+Each hook entry shows its type, lifecycle, message count, run count, and the latest linked `threadId`. Select a hook to open its full timeline.
+
+Chat hooks use a view by turn. A user message wraps every run and event that happened while the model answered that turn. The details view also shows small client and server state snapshots between runs, so you can see what changed.
+
+### Naming hooks
+
+When a page has more than one AI hook, give each one a label with `devtools.name`. The name changes only the label. Hook type, framework, thread id, and run links still come from the TanStack AI client.
+
+```tsx
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+
+export function SupportChat() {
+  const chat = useChat({
+    threadId: 'support-chat',
+    connection: fetchServerSentEvents('/api/chat'),
+    devtools: {
+      name: 'Support Chat',
+    },
+  })
+
+  // render your chat UI with `chat.messages`, `chat.sendMessage`, etc.
+}
+```
+
+The same option works for the generation hooks:
+
+```tsx
+import { fetchServerSentEvents, useGenerateImage } from '@tanstack/ai-react'
+
+export function ImageStudio() {
+  const image = useGenerateImage({
+    threadId: 'generation-hooks:useGenerateImage',
+    connection: fetchServerSentEvents('/api/image'),
+    devtools: {
+      name: 'Image Studio',
+    },
+  })
+
+  // render your image generation UI with `image.generate` and `image.result`
+}
+```
+
+### Tool Fixtures
+
+When a `useChat` hook gets tools, the panel lists the tools and their schemas. For inputs that use a Standard Schema, the panel shows a small form, so you can build a tool call payload without writing JSON by hand.
+
+When you apply a fixture, the panel adds the tool call and its result to the real chat messages of that hook. The panel saves fixtures in browser localStorage, under the AI devtools namespace. They are there the next time you open the panel.
+
+### Memory Inspector
+
+When a chat uses [`memoryMiddleware`](../memory/overview.md), the **Memory** tab of the hook shows what the server memory backend did for that conversation. The tab groups the data by scope (session):
+
+- **Operations timeline:** the recall for each turn. It shows the query, how many fragments came back, how many characters went into the system prompt, if memory tools were shown to the model, and how long the recall took.
+- **Stored records and facts:** the current contents of the memory store for the scope. This needs an adapter with the optional `inspect`/`listFacts` methods. The built-in `inMemory()` and `redis()` adapters have them. Adapters without them still show the operations timeline.
+
+Memory runs on the server. Its state gets to the panel over the chat stream, as a `CUSTOM` event that the client sends again, the same way generation results do.
+
+- The snapshot shows memory as it was at the start of each turn. So the writes of a turn show up in the snapshot of the next turn.
+- If you open the panel after a turn, it replays the latest memory state. The tab has data even when you open devtools in the middle of a conversation.

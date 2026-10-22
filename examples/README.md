@@ -12,6 +12,8 @@ Choose an example based on your use case:
 - **Want typed ticket routing?** → [Evaluate](#evaluate)
 - **Want a blog desk with three agents?** → [Subagents](#subagents)
 - **Want your own MCP server?** → [MCP server](#mcp-server)
+- **Want a signed MCP webhook?** → [MCP Events](#mcp-events)
+- **Want the model to use a web page?** → [Computer Use](#computer-use)
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
 - **Need a live world stream?** → [World generation (ts-react-media)](#world-generation-ts-react-media)
 - **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
@@ -112,7 +114,7 @@ Open http://localhost:3105. Paste an OpenRouter key. Send a prompt. Then refresh
 
 ### Evaluate
 
-A slim TanStack Start app. Paste a support ticket. Jev answers queue, urgency, and refund.
+A slim TanStack Start app. Paste a support ticket. The app shows queue, urgency, and refund.
 
 **Path:** `examples/react/evaluate`
 
@@ -122,7 +124,7 @@ A slim TanStack Start app. Paste a support ticket. Jev answers queue, urgency, a
 pnpm --filter evaluate dev
 ```
 
-Open http://localhost:3100. Add a key in `.env`. Pick a provider. Click Submit.
+Open http://localhost:3100. For a hosted provider, add its key in `.env`. For Ollaya, run `ollaya serve` and `ollaya pull laya:latest`. Pick a provider. Click Submit.
 
 📖 [Full Documentation](react/evaluate/README.md)
 
@@ -143,6 +145,43 @@ pnpm --filter mcp-server dev
 Open http://localhost:3100. Click Call the server.
 
 📖 [Full Documentation](react/mcp-server/README.md)
+
+---
+
+### MCP Events
+
+A slim TanStack Start app. Subscribe to `incident.created`, then receive a signed webhook.
+
+**Path:** `examples/react/mcp-events`
+
+**Getting Started:**
+
+```bash
+pnpm --filter mcp-events dev
+```
+
+Open http://127.0.0.1:3101. Click Subscribe, then Emit incident.
+
+📖 [Full Documentation](react/mcp-events/README.md)
+
+---
+
+### Computer Use
+
+A slim TanStack Start app. The model opens tanstack.com in Chromium and finds the computer use docs. One provider (OpenAI). Each screenshot shows in the chat.
+
+**Path:** `examples/react/computer-use`
+
+**Getting Started:**
+
+```bash
+pnpm --filter computer-use exec playwright-core install chromium
+pnpm --filter computer-use dev
+```
+
+Set `OPENAI_API_KEY` in `.env.local`. Open http://localhost:3100. Click Send.
+
+📖 [Full Documentation](react/computer-use/README.md)
 
 ---
 

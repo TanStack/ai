@@ -92,6 +92,7 @@ export const Route = createFileRoute('/api/file-source-wire')({
         let runError: string | undefined
         try {
           for await (const chunk of chat({
+            threadId: 'file-source-wire',
             ...createChatOptions({ adapter }),
             messages,
           })) {

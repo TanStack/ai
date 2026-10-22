@@ -74,7 +74,7 @@ export type DeepPartial<T> =
  * inference; server-side validation still runs against the schema passed to
  * `chat({ outputSchema })` on the server route.
  *
- * Note: Connection and body changes will recreate the ChatClient instance.
+ * Note: Connection changes will recreate the ChatClient instance.
  * To update these options, remount the component or use a key prop.
  */
 export type UseChatOptions<
@@ -92,6 +92,7 @@ export type UseChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'onHydratingChange'
   | 'onQueueChange'
   | 'onResumeStateChange'
   | 'onRunIdChange'
@@ -156,7 +157,7 @@ interface BaseUseChatReturn<
    * `messages[i].parts.find(p => p.type === 'structured-output')` is typed
    * by the schema — `data: T`, `partial: DeepPartial<T>`.
    */
-  messages: Readonly<ShallowRef<Array<UIMessage<TTools, TData>>>>
+  messages: Readonly<ShallowRef<ReadonlyArray<UIMessage<TTools, TData>>>>
 
   /**
    * Send a message and get a response.
@@ -172,7 +173,7 @@ interface BaseUseChatReturn<
   /**
    * Pending messages queued while a stream is in flight.
    */
-  queue: Readonly<ShallowRef<Array<QueuedMessage>>>
+  queue: Readonly<ShallowRef<ReadonlyArray<QueuedMessage>>>
 
   /**
    * Cancel a queued message before it drains. No-op if already sent.
@@ -196,14 +197,6 @@ interface BaseUseChatReturn<
   }) => Promise<void>
 
   /**
-   * Respond to a tool approval request
-   */
-  addToolApprovalResponse: (response: {
-    id: string // approval.id, not toolCallId
-    approved: boolean
-  }) => Promise<void>
-
-  /**
    * The id of the run this client has in flight — one it started or rejoined —
    * or `null` when there is none (including while a run sits paused on an
    * interrupt, waiting on approval).
@@ -216,8 +209,6 @@ interface BaseUseChatReturn<
    */
   runId: DeepReadonly<ShallowRef<string | null>>
   interrupts: Readonly<ShallowRef<BoundInterrupts<TTools, TInterrupts>>>
-  /** @deprecated Use `interrupts`. */
-  pendingInterrupts: Readonly<ShallowRef<BoundInterrupts<TTools, TInterrupts>>>
   interruptErrors: DeepReadonly<
     ShallowRef<ChatInterruptState<TTools, TInterrupts>['interruptErrors']>
   >
@@ -233,11 +224,6 @@ interface BaseUseChatReturn<
   cancelInterrupts: () => void
   retryInterrupts: () => void
   resumeInterruptsUnsafe: (
-    resume: Array<RunAgentResumeItem>,
-    state?: ChatResumeState,
-  ) => Promise<boolean>
-  /** @deprecated Use bound interrupt methods or `resumeInterruptsUnsafe`. */
-  resumeInterrupts: (
     resume: Array<RunAgentResumeItem>,
     state?: ChatResumeState,
   ) => Promise<boolean>
@@ -275,7 +261,7 @@ interface BaseUseChatReturn<
   /**
    * Set messages manually
    */
-  setMessages: (messages: Array<UIMessage<TTools, TData>>) => void
+  setMessages: (messages: ReadonlyArray<UIMessage<TTools, TData>>) => void
 
   /**
    * Clear all messages
@@ -304,6 +290,14 @@ interface BaseUseChatReturn<
    * activity visible to all subscribers (e.g. across tabs/devices).
    */
   sessionGenerating: DeepReadonly<ShallowRef<boolean>>
+
+  /**
+   * Whether the chat is being rebuilt from persistence (the server hydrate, or
+   * an async storage adapter). While it is true, show a loading state instead
+   * of an empty chat. It turns false when the transcript is in place and any
+   * in-flight run is re-joined. From then on `isLoading` covers the stream.
+   */
+  isHydrating: DeepReadonly<ShallowRef<boolean>>
 }
 
 // Note: createChatClientOptions and InferChatMessages are now in @tanstack/ai-client

@@ -117,6 +117,25 @@ export const serverTools = {
   }),
 }
 
+/** A server tool that waits 300 ms and returns when it started and ended. */
+function timedServerTool(name: string) {
+  return toolDefinition({
+    name,
+    description: `Timed ${name}`,
+    inputSchema: z.object({}).passthrough(),
+  }).server(async () => {
+    const startedAt = Date.now()
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    return JSON.stringify({ startedAt, endedAt: Date.now() })
+  })
+}
+
+/** The calls of the `parallel-tools` fixture, as slow tools that report their timing. */
+export const timedServerTools = {
+  get_weather: timedServerTool('get_weather'),
+  get_time: timedServerTool('get_time'),
+}
+
 /**
  * Client-side tool definitions (tools that execute on the client)
  * These use .client() without an execute function - execution happens on client side
@@ -140,6 +159,12 @@ export const clientToolDefinitions = {
       message: z.string(),
       type: z.enum(['info', 'warning', 'error']),
     }),
+    // Must match the browser tool's outputSchema. A different schema makes
+    // the client treat the pause as a generic interrupt, not a client tool.
+    outputSchema: z.object({
+      displayed: z.boolean(),
+      timestamp: z.number(),
+    }),
   }).client(),
 
   display_chart: toolDefinition({
@@ -148,6 +173,10 @@ export const clientToolDefinitions = {
     inputSchema: z.object({
       type: z.enum(['bar', 'line', 'pie']),
       data: z.array(z.number()),
+    }),
+    outputSchema: z.object({
+      rendered: z.boolean(),
+      chartId: z.string(),
     }),
   }).client(),
 
@@ -236,6 +265,11 @@ export const SCENARIO_LIST = [
     category: 'basic',
   },
   { id: 'parallel-tools', label: 'Parallel Tools', category: 'basic' },
+  {
+    id: 'parallel-server-timing',
+    label: 'Parallel Server Tool Timing',
+    category: 'basic',
+  },
   {
     id: 'lazy-tool-discovery',
     label: 'Lazy Tool Discovery',
@@ -383,6 +417,9 @@ export function getToolsForScenario(scenario: string) {
 
     case 'parallel-tools':
       return [serverTools.get_weather, serverTools.get_time]
+
+    case 'parallel-server-timing':
+      return [timedServerTools.get_weather, timedServerTools.get_time]
 
     // Race condition / event flow scenarios
     case 'sequential-client-tools':

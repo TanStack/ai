@@ -4,7 +4,6 @@ import type { Signal } from '@angular/core'
 import type { TTSResult } from '@tanstack/ai'
 import type {
   GenerationClientState,
-  GenerationPersistenceOptions,
   InferGenerationOutputFromReturn,
   SpeechGenerateInput,
 } from '@tanstack/ai-client'
@@ -32,12 +31,9 @@ export interface InjectGenerateSpeechResult<TOutput = TTSResult> extends Omit<
 }
 
 export function injectGenerateSpeech<TTransformed = void>(
-  options: Omit<
-    InjectGenerateSpeechOptions,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<InjectGenerateSpeechOptions, 'onResult'> & {
     onResult?: (result: TTSResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ): InjectGenerateSpeechResult<
   InferGenerationOutputFromReturn<TTSResult, TTransformed>
 > {

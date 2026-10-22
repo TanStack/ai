@@ -4,6 +4,7 @@ import {
   OAuthErrorCode,
   createMCPServer,
   promptDefinition,
+  resourceDefinition,
 } from '@tanstack/ai-mcp/server'
 import { z } from 'zod'
 
@@ -43,6 +44,8 @@ const tripBrief = promptDefinition({
 export const typedServer = createMCPServer({
   name: 'typed-weather',
   version: '1.0.0',
+  // The e2e suite checks that a spec 2025 session belongs to its token.
+  sessions: 'memory',
   tools: [forecast, buildReport],
   prompts: [tripBrief],
   auth: {
@@ -60,5 +63,52 @@ export const typedServer = createMCPServer({
         }
       },
     },
+  },
+})
+
+/**
+ * A spec 2025 server for a host with many instances: no session store.
+ *
+ * - `notes://{noteId}` reads the template variable and the `tenant` from
+ *   the `handle` context, and lists one concrete note.
+ * - `show_note` links an MCP Apps view through `metadata._meta`.
+ * - `setup` serves the `com.example/notes` extension with a `notes/count`
+ *   method that reads the `tenant` from the `handle` context.
+ */
+const note = resourceDefinition({
+  name: 'note',
+  mimeType: 'text/plain',
+  uriTemplate: 'notes://{noteId}',
+  list: async (ctx) => ({
+    resources: [
+      { uri: 'notes://1', name: `Note 1 for ${String(ctx.context.tenant)}` },
+    ],
+  }),
+}).read(async (_uri, variables, ctx) => ({
+  text: `note ${String(variables.noteId)} for ${String(ctx.context.tenant)}`,
+}))
+
+const showNote = toolDefinition({
+  name: 'show_note',
+  description: 'Show a note in a view',
+  inputSchema: z.object({}),
+  metadata: { _meta: { ui: { resourceUri: 'ui://notes/view' } } },
+}).server(async () => 'shown')
+
+export const statelessServer = createMCPServer({
+  name: 'stateless-notes',
+  version: '1.0.0',
+  sessions: 'stateless',
+  tools: [showNote],
+  resources: [note],
+  setup: (server, context) => {
+    server.server.registerCapabilities({
+      extensions: { 'com.example/notes': {} },
+    })
+    server.server.setRequestHandler(
+      'notes/count',
+      { params: z.object({}) },
+      () => ({ count: 1, tenant: String(context?.tenant) }),
+    )
   },
 })

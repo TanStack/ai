@@ -87,6 +87,13 @@ nothing else bounds the transfer:
 | chunked (no declared length)            | wrapped, length-less              | multipart           |
 | `content-encoding: gzip`                | wrapped, length-less              | multipart           |
 
+A second source of length-less streams needs no URL fetch at all. A video
+provider with no public URL for the finished video (OpenRouter, Lovable, Sora
+jobs without `url`) returns the download as a `ReadableStream`, and the
+middleware passes that stream to `put` as it is, with no `expectedLength`.
+An SDK stream such as OpenRouter's carries no declared length, so it always
+takes the multipart path.
+
 A provider CDN normally sends `content-length`, so the first row is the common
 case and `bucket.put(key, body)` just works. The recipe below is what makes the
 other two rows work: it re-declares the length from
@@ -363,7 +370,8 @@ Invariants that matter (asserted by the conformance testkit):
 - `get` / `head` return `null` for a missing key; `delete` is a silent no-op.
 - `put` **overwrites** an existing key.
 - `put` accepts a `ReadableStream` body with **no declared length** — the
-  middleware streams URL-fetched artifacts as exactly that. This is where the
+  middleware streams URL-fetched artifacts, and a provider's video download
+  stream, as exactly that. This is where the
   naive "pass the body straight to `bucket.put`" recipe fails at runtime
   (workerd requires a known length), which is what `putStream` above handles.
 - `get` honours `options.range`: it returns **only** that slice, reports it as
@@ -378,7 +386,7 @@ Invariants that matter (asserted by the conformance testkit):
 
 ## 2. ArtifactStore backed by D1
 
-`ArtifactRecord` is `{ artifactId, runId, threadId, blobKey?, name, mimeType, size,
+`ArtifactRecord` is `{ artifactId, runId, threadId, blobKey, name, mimeType, size,
 sourceUrl?, createdAt }` (`createdAt` epoch ms). One flat table is keyed by
 `artifact_id`. It has run and thread ordered indexes for `list` and
 `listForThread`.
@@ -388,7 +396,7 @@ CREATE TABLE IF NOT EXISTS generation_artifacts (
   artifact_id  text PRIMARY KEY NOT NULL,
   run_id       text NOT NULL,
   thread_id    text NOT NULL,
-  blob_key     text,
+  blob_key     text NOT NULL,
   name         text NOT NULL,
   mime_type    text NOT NULL,
   size         integer NOT NULL,
@@ -409,7 +417,7 @@ interface ArtifactRow {
   artifact_id: string
   run_id: string
   thread_id: string
-  blob_key: string | null
+  blob_key: string
   name: string
   mime_type: string
   size: number
@@ -422,7 +430,7 @@ function fromRow(row: ArtifactRow): ArtifactRecord {
     artifactId: row.artifact_id,
     runId: row.run_id,
     threadId: row.thread_id,
-    ...(row.blob_key != null ? { blobKey: row.blob_key } : {}),
+    blobKey: row.blob_key,
     name: row.name,
     mimeType: row.mime_type,
     size: row.size,
@@ -450,7 +458,7 @@ export function d1ArtifactStore(db: D1Database) {
           record.artifactId,
           record.runId,
           record.threadId,
-          record.blobKey ?? null,
+          record.blobKey,
           record.name,
           record.mimeType,
           record.size,
@@ -507,11 +515,11 @@ export function d1ArtifactStore(db: D1Database) {
 }
 ```
 
-Omitting `source_url` / `blob_key` from the record when the column is `NULL`
-keeps records comparing cleanly against the reference in-memory store. Persist
-`blob_key` verbatim: a `storageKey` mapper can put the bytes anywhere, so a
-reader cannot recompute the path — `resolveArtifactBlobKey(record)` falls back
-to the default convention only for rows written before the column existed.
+Omitting `source_url` from the record when the column is `NULL` keeps records
+comparing cleanly against the reference in-memory store. Persist `blob_key`
+verbatim: a `storageKey` mapper can put the bytes anywhere, so a reader cannot
+recompute the path. `blobKey` is required. 0.x records without it are not
+supported: `retrieveBlob` throws for them. Backfill `blob_key` before upgrading.
 Cloudflare KV is not an equivalent ArtifactStore backend. The required ordering
 and indexed reads need a transactional indexed database. Use D1 or another
 transactional indexed database for artifact metadata. Store the bytes in R2.
@@ -705,7 +713,7 @@ between runs (see **ai-persistence/build-cloudflare-adapter** for the
   a missing key; `delete` is a silent no-op on an absent key.
 - `put` accepts a `ReadableStream` body with no declared length (a
   `TransformStream`-wrapped stream) and records the real drained size — the
-  shape every URL-fetched artifact arrives in.
+  shape a capped URL-fetched artifact and a provider video stream arrive in.
 - `get` with a `range` returns just that slice, reports it as `range`, and
   still reports the whole object's `size` — what a `206` / `Content-Range`
   response is built from.

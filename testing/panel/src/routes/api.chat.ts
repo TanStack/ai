@@ -161,7 +161,7 @@ export const Route = createFileRoute('/api/chat')({
 
         const body = await request.json()
         const messages = body.messages
-        const data = body.data || {}
+        const data = body.forwardedProps || {}
 
         // Extract provider, model, and traceId from data
         const provider: Provider = data.provider || 'openai'
@@ -222,6 +222,7 @@ export const Route = createFileRoute('/api/chat')({
           // Use the stream abort signal for proper cancellation handling
           const stream = chat({
             ...options,
+            threadId: body.threadId,
             adapter, // Use potentially wrapped adapter
             tools: [
               getGuitars, // Server tool
@@ -233,17 +234,8 @@ export const Route = createFileRoute('/api/chat')({
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             messages,
-            modelOptions: {
-              // Enable reasoning for OpenAI (gpt-5, o3 models):
-              // reasoning: {
-              //   effort: "medium", // or "low", "high", "minimal", "none" (for gpt-5.1)
-              // },
-              // Enable thinking for Anthropic:
-              /*   thinking: {
-                  type: "enabled",
-                  budget_tokens: 2048,
-                }, */
-            },
+            // Turn reasoning on for a reasoning model, for example:
+            // reasoning: 'medium',
             abortController,
           })
 

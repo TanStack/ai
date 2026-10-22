@@ -95,12 +95,9 @@ test.describe('Server-Client Sequence E2E Tests', () => {
     )
 
     const messages = await getMessages(page)
-    const toolCalls = messages.flatMap((msg) =>
-      (msg.parts || []).filter((part: any) => part.type === 'tool-call'),
-    )
-    const toolResults = messages.flatMap((msg) =>
-      (msg.parts || []).filter((part: any) => part.type === 'tool-result'),
-    )
+    const parts = messages.flatMap((msg) => msg.parts)
+    const toolCalls = parts.filter((part) => part.type === 'tool-call')
+    const toolResults = parts.filter((part) => part.type === 'tool-result')
 
     const fetchData = toolCalls.find((part) => part.name === 'fetch_data')
     expect(fetchData).toMatchObject({
@@ -121,6 +118,7 @@ test.describe('Server-Client Sequence E2E Tests', () => {
         (part) =>
           part.toolCallId === fetchData?.id &&
           part.state === 'complete' &&
+          typeof part.content === 'string' &&
           JSON.parse(part.content).source === 'api',
       ),
     ).toBe(true)
@@ -209,6 +207,42 @@ test.describe('Server-Client Sequence E2E Tests', () => {
     const toolNames = toolCalls.map((tc) => tc.name)
     expect(toolNames).toContain('get_weather')
     expect(toolNames).toContain('get_time')
+  })
+
+  test('parallel server tools run at the same time, results in call order', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(page, 'parallel-server-timing', testId, aimockPort)
+    await runTest(page)
+    await waitForTestComplete(page, 15000, 2)
+
+    const messages = await getMessages(page)
+    const parts = messages.flatMap((message) => message.parts)
+    const results = parts.filter((part) => part.type === 'tool-result')
+    const calls = parts.filter((part) => part.type === 'tool-call')
+    const nameOf = (toolCallId: string) =>
+      calls.find((call) => call.id === toolCallId)?.name
+    const timing = (name: string) => {
+      const content = results.find(
+        (r) => nameOf(r.toolCallId) === name,
+      )?.content
+      if (typeof content !== 'string') {
+        throw new Error(`no string tool result for ${name}`)
+      }
+      return JSON.parse(content)
+    }
+
+    // Each tool waits 300 ms. Run one after another, they cannot overlap.
+    const weather = timing('get_weather')
+    const time = timing('get_time')
+    expect(weather.startedAt).toBeLessThan(time.endedAt)
+    expect(time.startedAt).toBeLessThan(weather.endedAt)
+    expect(results.map((result) => nameOf(result.toolCallId))).toEqual([
+      'get_weather',
+      'get_time',
+    ])
   })
 
   test('single server tool completes', async ({ page, testId, aimockPort }) => {

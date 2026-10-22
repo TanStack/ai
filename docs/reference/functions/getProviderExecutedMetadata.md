@@ -9,7 +9,7 @@ function getProviderExecutedMetadata(toolCall):
   | null;
 ```
 
-Defined in: [packages/ai/src/utilities/provider-executed.ts:9](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/provider-executed.ts#L9)
+Defined in: packages/ai/src/utilities/provider-executed.ts:9
 
 Narrow a tool call's opaque `metadata` to the provider-executed convention.
 Returns the typed metadata when the call is provider-executed, else `null`.

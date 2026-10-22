@@ -1,7 +1,7 @@
 /**
  * Bedrock Chat Completions provider options. Bedrock accepts the standard
- * OpenAI Chat Completions request fields; we surface the commonly-used ones
- * plus `reasoning_effort` (supported by gpt-oss and reasoning models).
+ * OpenAI Chat Completions request fields; we surface the commonly-used ones.
+ * Reasoning effort is set with `chat({ reasoning })`.
  *
  * @see https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-openai.html
  */
@@ -15,8 +15,6 @@ export interface BedrockTextProviderOptions {
   metadata?: { [key: string]: string } | null
   n?: number | null
   parallel_tool_calls?: boolean | null
-  /** gpt-oss / reasoning models: 'low' | 'medium' (default) | 'high'. */
-  reasoning_effort?: 'low' | 'medium' | 'high' | null
   seed?: number | null
   stop?: string | Array<string> | null
   temperature?: number | null

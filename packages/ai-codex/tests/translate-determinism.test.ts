@@ -317,6 +317,7 @@ describe('codex chatStream wiring (real adapter, journaled call site)', () => {
 
     const chunks = await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: 'gpt-5.5-codex',
         messages: [{ role: 'user', content: 'say pong' }],
         logger: noopLogger,

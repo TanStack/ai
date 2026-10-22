@@ -24,9 +24,9 @@ import type {
 import type { StreamChunk } from '@tanstack/ai/client'
 
 /** An in-memory store capturing the last combined record written. */
-function memoryAdapter(initial?: ChatPersistedState | Array<UIMessage>): {
+function memoryAdapter(initial?: ChatPersistedState): {
   adapter: ChatClientPersistence
-  read: () => ChatPersistedState | Array<UIMessage> | undefined
+  read: () => ChatPersistedState | undefined
 } {
   let value = initial
   return {
@@ -88,17 +88,6 @@ describe('ChatPersistor combined record', () => {
     const stored = read() as ChatPersistedState
     expect(stored.messages).toHaveLength(1)
     expect(stored.resume).toBeUndefined()
-  })
-
-  it('normalizes a legacy bare-array record on read', () => {
-    const applied: Array<Array<UIMessage>> = []
-    const { adapter } = memoryAdapter([createUIMessage('m1', 'legacy')])
-    const persistor = new ChatPersistor(adapter, 'chat-1', (m) =>
-      applied.push(m),
-    )
-    const state = persistor.readInitial() as ChatPersistedState
-    expect(state.messages[0]?.id).toBe('m1')
-    expect(state.resume).toBeUndefined()
   })
 })
 
@@ -244,6 +233,61 @@ describe('ChatClient auto-rejoin after reload', () => {
     expect(joinRun).toHaveBeenCalledWith('r1', expect.anything())
     // The restored user message survives alongside the rejoined assistant reply.
     expect(latest.some((m) => m.id === 'user-1')).toBe(true)
+    void client
+  })
+
+  it('drops the hydrated assistant when the rejoin stream is chunk events', async () => {
+    const { adapter } = memoryAdapter({
+      messages: [
+        createUIMessage('user-1', 'hi', 'user'),
+        createUIMessage('partial-1', 'old', 'assistant'),
+      ],
+      resume: {
+        resumeState: { threadId: 't1', runId: 'r1' },
+      },
+    })
+    const joinRun = vi.fn(async function* () {
+      yield {
+        type: 'RUN_STARTED',
+        runId: 'r1',
+        threadId: 't1',
+        timestamp: 1,
+      } as StreamChunk
+      yield {
+        type: 'TEXT_MESSAGE_CHUNK',
+        messageId: 'assistant-1',
+        delta: 'world',
+        timestamp: 2,
+      } as StreamChunk
+      yield {
+        type: 'RUN_FINISHED',
+        runId: 'r1',
+        threadId: 't1',
+        timestamp: 3,
+        metadata: { tanstack: { finishReason: 'stop' } },
+      } as StreamChunk
+    })
+    const connection: ResumableConnectConnectionAdapter = {
+      connect: async function* () {},
+      joinRun,
+    }
+    let latest: Array<UIMessage> = []
+    const client = mountedChatClient({
+      threadId: 't1',
+      connection,
+      persistence: adapter,
+      onMessagesChange: (messages) => {
+        latest = messages
+      },
+    })
+
+    await vi.waitFor(() => {
+      const assistant = latest.find((message) => message.id === 'assistant-1')
+      const text = assistant?.parts.find((part) => part.type === 'text')
+      expect(text && 'content' in text && text.content).toBe('world')
+    })
+    expect(latest.some((message) => message.id === 'partial-1')).toBe(false)
+    expect(latest.some((message) => message.id === 'user-1')).toBe(true)
     void client
   })
 
@@ -792,7 +836,7 @@ describe('ChatClient auto-rejoin after reload', () => {
     )
 
     const stored = read()
-    if (!stored || Array.isArray(stored)) {
+    if (!stored) {
       throw new Error('expected a persisted record with a resume pointer')
     }
     expect(stored.resume?.resumeState?.runId).toBe('quiet-run')
@@ -839,14 +883,7 @@ describe('ChatClient auto-rejoin after reload', () => {
 
     // Dead pointer must be removed so the next load does not re-pin loading.
     await vi.waitFor(() => {
-      const stored = read()
-      if (stored && !Array.isArray(stored)) {
-        expect(stored.resume).toBeUndefined()
-      } else {
-        // A bare message array (or a removed key) carries no resume pointer by
-        // construction â€” nothing further to assert on the record shape.
-        expect(stored === undefined || Array.isArray(stored)).toBe(true)
-      }
+      expect(read()?.resume).toBeUndefined()
     })
     void client
   })

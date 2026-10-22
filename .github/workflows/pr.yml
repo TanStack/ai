@@ -34,6 +34,9 @@ jobs:
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # the last step posts the table as a PR comment; only it reads the token
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -106,7 +109,28 @@ jobs:
         run: |
           node "$RUNNER_TEMP/coverage-check.mjs" \
             --base "$RUNNER_TEMP/cov-base" \
-            --head "$RUNNER_TEMP/cov-head"
+            --head "$RUNNER_TEMP/cov-head" \
+            --report "$RUNNER_TEMP/coverage-report.md"
+      # One comment per PR, updated on each push. Runs when Compare fails too.
+      # A fork's token cannot write comments, so fork PRs skip this step; the
+      # table is in the job summary either way.
+      - name: Post the coverage report
+        if: ${{ !cancelled() && steps.affected.outputs.list != '' && github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          report="$RUNNER_TEMP/coverage-report.md"
+          [ -f "$report" ] || exit 0
+          ids=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- coverage-report -->"))) | .id')
+          read -r id <<< "$ids" || true
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -F "body=@$report" > /dev/null
+          else
+            gh api -X POST "repos/$REPO/issues/$PR_NUMBER/comments" -F "body=@$report" > /dev/null
+          fi
   preview:
     name: Preview
     runs-on: ubuntu-latest

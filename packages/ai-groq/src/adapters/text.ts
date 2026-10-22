@@ -1,17 +1,29 @@
 import OpenAI from 'openai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
+import {
+  GROQ_MODEL_INPUT_MODALITIES,
+  GROQ_MODEL_REASONING,
+  groqModelPrefersJsonObject,
+} from '../model-meta'
 import { getGroqApiKeyFromEnv, withGroqDefaults } from '../utils/client'
 import { makeGroqStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
 import type { Modality, TextOptions } from '@tanstack/ai'
 import type {
   GROQ_CHAT_MODELS,
   GroqChatModelToolCapabilitiesByName,
+  GroqModelReasoningByName,
   ResolveInputModalities,
   ResolveProviderOptions,
 } from '../model-meta'
 import type { GroqMessageMetadataByModality } from '../message-types'
 import type { GroqClientConfig } from '../utils/client'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
+
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof GroqModelReasoningByName
+    ? GroqModelReasoningByName[TModel]
+    : never
 
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof GroqChatModelToolCapabilitiesByName
@@ -54,13 +66,19 @@ export class GroqTextAdapter<
   TProviderOptions,
   TInputModalities,
   GroqMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   override readonly name = 'groq' as const
+  override readonly inputModalities = GROQ_MODEL_INPUT_MODALITIES[this.model]
 
   constructor(config: GroqTextConfig, model: TModel) {
     super(model, 'groq', new OpenAI(withGroqDefaults(config)), config)
+  }
+
+  protected override modelReasoning(model: string) {
+    return GROQ_MODEL_REASONING[model]
   }
 
   protected override extractRejectedToolCall(
@@ -159,7 +177,7 @@ export class GroqTextAdapter<
   protected override extractReasoning(
     chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
   ): { text: string } | undefined {
-    const delta = chunk.choices[0]?.delta as
+    const delta = chunk.choices?.[0]?.delta as
       | { reasoning?: unknown; reasoning_content?: unknown }
       | undefined
     const raw = delta?.reasoning ?? delta?.reasoning_content
@@ -178,6 +196,10 @@ export class GroqTextAdapter<
    */
   override supportsCombinedToolsAndSchema(): boolean {
     return false
+  }
+
+  protected override modelPrefersJsonObject(model: string): boolean {
+    return groqModelPrefersJsonObject(model)
   }
 }
 
@@ -210,7 +232,7 @@ async function* promoteGroqUsage(
  *
  * @example
  * ```typescript
- * const adapter = createGroqText('llama-3.3-70b-versatile', "gsk_...");
+ * const adapter = createGroqText('openai/gpt-oss-120b', "gsk_...");
  * ```
  */
 export function createGroqText<
@@ -228,7 +250,7 @@ export function createGroqText<
  *
  * @example
  * ```typescript
- * const adapter = groqText('llama-3.3-70b-versatile');
+ * const adapter = groqText('openai/gpt-oss-120b');
  * ```
  */
 export function groqText<TModel extends (typeof GROQ_CHAT_MODELS)[number]>(

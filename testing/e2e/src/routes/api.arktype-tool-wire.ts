@@ -58,6 +58,7 @@ export const Route = createFileRoute('/api/arktype-tool-wire')({
 
         try {
           for await (const chunk of chat({
+            threadId: 'arktype-tool-wire',
             ...(isGemini
               ? createTextAdapter(
                   'gemini',

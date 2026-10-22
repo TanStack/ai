@@ -2,7 +2,7 @@
 title: MCP Server Sessions
 id: mcp-server-sessions
 order: 13
-description: "Route spec 2025 sessions to the instance that opened them, and learn when a session closes."
+description: "Choose how a createMCPServer server serves spec 2025 clients: with no session, with sessions for input and sampling, or not at all."
 keywords:
   - tanstack ai
   - mcp
@@ -13,32 +13,50 @@ keywords:
   - mcp-session-id
 ---
 
-A spec 2025 client opens a session, then sends the same session id on each later request. On a deploy with more than one instance, a later request can reach an instance that did not open the session. That request gets 404.
+MCP spec 2025 sessions live in one process. A multi-instance deploy needs sticky routing for those clients.
 
-Route each session to one instance. Use the `mcp-session-id` header as the key for sticky routing on your load balancer. If you cannot route by header, [turn sessions off](#turn-sessions-off).
+The `sessions` option of `createMCPServer` sets how the server treats spec 2025 clients. By default, it keeps no session. Change it only for one of the cases below.
 
-## Where a session lives
+## Quick setup
 
-A spec 2025 session keeps a live connection object. That object stays in the process that opened the session. Another process cannot read it.
+Pick one value for `sessions`:
 
-- The client sends the session id on the `mcp-session-id` header.
-- A request with an unknown session id gets 404 `Session not found`.
-- A spec 2026 client sends no session id. Any instance can serve a spec 2026 request.
+| Value | What you get | Use it when |
+| --- | --- | --- |
+| `'stateless'` (default) | No session. Any instance can answer any request. | You deploy to serverless or to many instances. |
+| `'memory'` | Sessions in the process. The server can ask a spec 2025 client for input or a sample. | A tool calls `requestInput` or `sample` for spec 2025 clients. |
+| `'reject'` | Spec 2026 only. | You do not want to serve spec 2025 clients. |
 
-## When a session closes
+To keep sessions, set `sessions` to `'memory'`:
 
-A session closes in two cases:
+```ts
+import { createMCPServer } from '@tanstack/ai-mcp/server'
 
-- The client sends `DELETE` with its session id.
-- The session gets no request for 30 minutes.
+const server = createMCPServer({
+  name: 'weather',
+  version: '1.0.0',
+  sessions: 'memory',
+})
+```
 
-The server checks for idle sessions when a request comes in. After a session closes, the client must open a new session.
+Now a spec 2025 client opens a session, and a tool can ask that client for input or a sample.
 
-The server has no limit on the number of open sessions. Each session stays in memory until it closes, which can take 30 minutes. On a public server, set `auth`, or limit new sessions at your proxy.
+## How it works
 
-## Turn sessions off
+With the default `'stateless'` value, a new server answers each spec 2025 request, and no session stays in memory. A spec 2026 client sends no session id either, so any instance can serve both.
 
-On Cloudflare Workers, and on other hosts with many instances, a request can reach any instance. Sticky routing by header is not always possible. Set `sessions` to `'reject'`. The server then opens no session, and a spec 2025 request gets the SDK rejection. A spec 2026 request works as before.
+Without a session, the server cannot send a request back to a spec 2025 client. For that client:
+
+- `ctx.context.requestInput` throws an error that names the `sessions` option.
+- `ctx.context.sample` calls the `sample` option of the server. Without that option, it throws.
+
+A spec 2026 client gets `requestInput` and `sample` with no session.
+
+`serveMCPStdio` uses `'memory'` when you do not set `sessions`. A stdio process serves one client, so a session costs nothing there.
+
+## Turn spec 2025 off
+
+To serve spec 2026 only, set `sessions` to `'reject'`. A spec 2025 request then gets the SDK rejection. A client that speaks only spec 2025 cannot use that server.
 
 ```ts
 import { createMCPServer } from '@tanstack/ai-mcp/server'
@@ -50,10 +68,28 @@ const server = createMCPServer({
 })
 ```
 
-A client that speaks only spec 2025 cannot use that server.
+## Advanced
 
-## Sessions and auth
+### Route each session to one instance
 
-When the server has `auth`, the session belongs to the caller that opened it: the `clientId` of the token plus its `sub` claim. A request from another caller gets 404, the same as an unknown id. [MCP Server Auth](./server-auth) shows how the verifier sets them.
+A spec 2025 session keeps a live connection object. That object stays in the process that opened the session. Another process cannot read it.
 
-A client on one instance opens a session, sends its requests, and gets its answers from that same instance.
+- The client sends the session id on the `mcp-session-id` header.
+- A request with an unknown session id gets 404 `Session not found`.
+
+On a deploy with more than one instance, a later request can reach an instance that did not open the session. That request gets 404. Use the `mcp-session-id` header as the key for sticky routing on your load balancer.
+
+### When a session closes
+
+A session closes in two cases:
+
+- The client sends `DELETE` with its session id.
+- The session gets no request for 30 minutes.
+
+The server looks for idle sessions when a request comes in. After a session closes, the client must open a new session.
+
+The server has no limit on the number of open sessions. Each session stays in memory until it closes, and that can take 30 minutes. On a public server, set `auth`, or limit new sessions at your proxy.
+
+### Sessions and auth
+
+When the server has `auth`, the session belongs to the caller that opened it: the `clientId` of the token plus its `sub` claim. A request from another caller gets 404, the same as an unknown id. [MCP Server Auth](./server-auth) shows how the verifier sets these values.

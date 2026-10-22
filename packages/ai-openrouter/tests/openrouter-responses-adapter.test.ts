@@ -3,6 +3,7 @@ import { EventType, chat } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { ResponsesRequest$outboundSchema } from '@openrouter/sdk/models'
 import { createOpenRouterResponsesText } from '../src/adapters/responses-text'
+import { createToolInputNormalizer } from '../src/internal/responses-tool-converter'
 import { webSearchTool } from '../src/tools/web-search-tool'
 import { webFetchTool } from '../src/tools/web-fetch-tool'
 import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
@@ -96,6 +97,36 @@ describe('OpenRouter responses adapter — request shape', () => {
     vi.clearAllMocks()
   })
 
+  it('sends reasoning effort, a summary, and the token budget', async () => {
+    setupMockSdkClient([])
+    const adapter = createOpenRouterResponsesText(
+      'google/gemini-2.5-pro',
+      'test-key',
+    )
+
+    for await (const _ of chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'test' }],
+      reasoning: { level: 'high', budgetTokens: 4000 },
+    })) {
+      // consume
+    }
+
+    const params = mockSend.mock.calls[0]![0].responsesRequest
+    expect(params.reasoning).toEqual({
+      effort: 'high',
+      summary: 'auto',
+      maxTokens: 4000,
+    })
+    const serialized = ResponsesRequest$outboundSchema.parse(params)
+    expect(serialized.reasoning).toEqual({
+      effort: 'high',
+      summary: 'auto',
+      max_tokens: 4000,
+    })
+  })
+
   it('maps options into the Responses API payload (snake → camel)', async () => {
     setupMockSdkClient([
       {
@@ -112,6 +143,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     const adapter = createAdapter()
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       systemPrompts: ['Stay concise'],
       messages: [{ role: 'user', content: 'How is the weather?' }],
@@ -171,6 +203,7 @@ describe('OpenRouter responses adapter — request shape', () => {
 
     const adapter = createAdapter()
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {
@@ -215,6 +248,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     ])
     const adapter = createAdapter()
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       modelOptions: { variant: 'thinking' as any },
@@ -239,6 +273,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     ])
     const adapter = createAdapter()
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       // Root `metadata` is observability-only and may carry structured
@@ -269,6 +304,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     ])
     const adapter = createAdapter()
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       metadata: { observationName: 'my-call' },
@@ -284,6 +320,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     const ws = webSearchTool() as Tool
     const events: Array<AdapterYieldChunk> = []
     for await (const evt of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       tools: [ws],
@@ -308,6 +345,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     const wf = webFetchTool() as Tool
     const events: Array<AdapterYieldChunk> = []
     for await (const evt of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       tools: [wf],
@@ -342,6 +380,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     ])
     const adapter = createAdapter()
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {
@@ -382,6 +421,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     ])
     const adapter = createAdapter()
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {
@@ -427,6 +467,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     ])
     const adapter = createAdapter()
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {
@@ -465,6 +506,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     ])
     const adapter = createAdapter()
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {
@@ -505,6 +547,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     ])
     const adapter = createAdapter()
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {
@@ -549,6 +592,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     ])
     const adapter = createAdapter()
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {
@@ -590,6 +634,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     const chatAdapter = createOpenRouterText('openai/gpt-4o-mini' as any, 'k')
     const events: Array<AdapterYieldChunk> = []
     for await (const evt of chatAdapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [
         {
@@ -644,6 +689,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     ])
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'hi' }],
     })) {
@@ -687,6 +733,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const chunks: Array<AdapterYieldChunk> = []
     const run = (async () => {
       for await (const c of chat({
+        threadId: 'thread-1',
         adapter: createAdapter(),
         messages: [{ role: 'user', content: 'hi' }],
       })) {
@@ -730,6 +777,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const run = (async () => {
       for await (const c of createAdapter().structuredOutputStream({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'openai/gpt-4o-mini' as any,
           messages: [{ role: 'user', content: 'profile?' }],
           logger: testLogger,
@@ -769,6 +817,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of createAdapter().structuredOutputStream({
       chatOptions: {
+        threadId: 'thread-1',
         model: 'openai/gpt-4o-mini' as any,
         messages: [{ role: 'user', content: 'profile?' }],
         logger: testLogger,
@@ -829,6 +878,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
     })) {
@@ -891,6 +941,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'Answer carefully' }],
       logger: testLogger,
@@ -948,6 +999,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: adapter.model,
       messages: [{ role: 'user', content: 'Answer carefully' }],
       logger: testLogger,
@@ -987,6 +1039,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: adapter.model,
       messages: [{ role: 'user', content: 'Answer carefully' }],
       logger: testLogger,
@@ -1028,6 +1081,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: adapter.model,
       messages: [{ role: 'user', content: 'Answer carefully' }],
       logger: testLogger,
@@ -1092,6 +1146,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       tools: [weatherTool],
@@ -1122,6 +1177,138 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     }
     expect(finished.metadata?.tanstack?.finishReason).toBe('tool_calls')
   })
+
+  // Strict tools reach the model with optionals widened to required +
+  // nullable, so an omitted optional comes back as `null`. Only those nulls are
+  // stripped; a genuine `.nullable()` null stays. Each row delivers the
+  // arguments through a different TOOL_CALL_END emit path.
+  const widenedArguments =
+    '{"guitar":"Martin D-28","color":null,"strings":{"gauges":["10","46"],"brand":null},"note":null,"case":null,"pickup":{"store":"Berlin","date":null}}'
+  const widenedCall = {
+    type: 'function_call',
+    id: 'item_1',
+    callId: 'call_abc',
+    name: 'recommend_guitar',
+  }
+  const widenedCallAdded = {
+    type: 'response.output_item.added',
+    sequenceNumber: 1,
+    outputIndex: 0,
+    item: { ...widenedCall, arguments: '' },
+  }
+  it.each([
+    {
+      path: 'function_call_arguments.done',
+      events: [
+        widenedCallAdded,
+        {
+          type: 'response.function_call_arguments.done',
+          sequenceNumber: 2,
+          itemId: 'item_1',
+          outputIndex: 0,
+          arguments: widenedArguments,
+        },
+      ],
+      completedOutput: [{ type: 'function_call' }],
+    },
+    {
+      path: 'output_item.done backfill',
+      events: [
+        widenedCallAdded,
+        {
+          type: 'response.output_item.done',
+          sequenceNumber: 2,
+          outputIndex: 0,
+          item: { ...widenedCall, arguments: widenedArguments },
+        },
+      ],
+      completedOutput: [],
+    },
+    {
+      path: 'response.completed backfill',
+      events: [],
+      completedOutput: [{ ...widenedCall, arguments: widenedArguments }],
+    },
+  ])(
+    'undoes strict null-widening on the $path path',
+    async ({ events, completedOutput }) => {
+      const strictTool: Tool = {
+        name: 'recommend_guitar',
+        description: 'Recommend a guitar',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            guitar: { type: 'string' },
+            color: { type: 'string' },
+            strings: {
+              type: 'object',
+              properties: {
+                gauges: { type: 'array', items: { type: 'string' } },
+                brand: { type: 'string' },
+              },
+              required: ['gauges'],
+            },
+            note: { type: ['string', 'null'] },
+            case: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+            pickup: {
+              anyOf: [
+                {
+                  type: 'object',
+                  properties: {
+                    store: { type: 'string' },
+                    date: { type: 'string' },
+                  },
+                  required: ['store'],
+                },
+                { type: 'null' },
+              ],
+            },
+          },
+          required: ['guitar', 'note', 'pickup'],
+        },
+      }
+      setupMockSdkClient([
+        {
+          type: 'response.created',
+          sequenceNumber: 0,
+          response: { model: 'm', output: [] },
+        },
+        ...events,
+        {
+          type: 'response.completed',
+          sequenceNumber: 3,
+          response: {
+            model: 'm',
+            output: completedOutput,
+            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          },
+        },
+      ])
+
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const c of createAdapter().chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Hello' }],
+        tools: [strictTool],
+      })) {
+        chunks.push(c)
+      }
+
+      const end = chunks.find((c) => c.type === 'TOOL_CALL_END')
+      if (end?.type !== 'TOOL_CALL_END') {
+        throw new Error('expected TOOL_CALL_END')
+      }
+      expect(end.input).toEqual({
+        guitar: 'Martin D-28',
+        strings: { gauges: ['10', '46'] },
+        note: null,
+        case: null,
+        pickup: { store: 'Berlin' },
+      })
+    },
+  )
 
   it('preserves a streamed function-call name when later items omit it', async () => {
     setupMockSdkClient([
@@ -1172,6 +1359,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'hi' }],
       tools: [weatherTool],
@@ -1189,6 +1377,109 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     ).toMatchObject({
       toolCallId: 'call_abc',
       input: { location: 'Berlin' },
+    })
+  })
+
+  describe('raw tool arguments', () => {
+    type EndSite = 'arguments.done' | 'output_item.done' | 'response.completed'
+
+    // Each site emits TOOL_CALL_END from a different event. Without a name on
+    // output_item.added, args.done is deferred to a later backfill.
+    function rawArgsStream(
+      site: EndSite,
+      raw: string,
+    ): Array<Record<string, unknown>> {
+      const named = {
+        type: 'function_call',
+        id: 'item_raw',
+        callId: 'call_raw',
+        name: 'lookup_weather',
+      }
+      return [
+        {
+          type: 'response.output_item.added',
+          sequenceNumber: 0,
+          outputIndex: 0,
+          item:
+            site === 'arguments.done'
+              ? { ...named, arguments: '' }
+              : {
+                  type: 'function_call',
+                  id: 'item_raw',
+                  callId: 'call_raw',
+                  arguments: '',
+                },
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          sequenceNumber: 1,
+          itemId: 'item_raw',
+          outputIndex: 0,
+          arguments: raw,
+        },
+        ...(site === 'output_item.done'
+          ? [
+              {
+                type: 'response.output_item.done',
+                sequenceNumber: 2,
+                outputIndex: 0,
+                item: { ...named, arguments: raw },
+              },
+            ]
+          : []),
+        {
+          type: 'response.completed',
+          sequenceNumber: 3,
+          response: {
+            model: 'm',
+            output: [{ ...named, arguments: raw }],
+            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          },
+        },
+      ]
+    }
+
+    async function toolEnds(site: EndSite, raw: string) {
+      setupMockSdkClient(rawArgsStream(site, raw))
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of createAdapter().chatStream({
+        threadId: 'thread-1',
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'hi' }],
+        tools: [weatherTool],
+        logger: testLogger,
+      })) {
+        chunks.push(chunk)
+      }
+      return chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')
+    }
+
+    it.each<EndSite>([
+      'arguments.done',
+      'output_item.done',
+      'response.completed',
+    ])(
+      'sends the raw argument string as args on TOOL_CALL_END (%s)',
+      async (site) => {
+        const ends = await toolEnds(site, '{"n": 1.50}')
+        expect(ends).toHaveLength(1)
+        expect(ends[0]).toMatchObject({
+          toolCallId: 'call_raw',
+          args: '{"n": 1.50}',
+          input: { n: 1.5 },
+        })
+      },
+    )
+
+    it.each<EndSite>([
+      'arguments.done',
+      'output_item.done',
+      'response.completed',
+    ])('sends malformed arguments as args with no input (%s)', async (site) => {
+      const ends = await toolEnds(site, '{"a":')
+      expect(ends).toHaveLength(1)
+      expect(ends[0]).toMatchObject({ toolCallId: 'call_raw', args: '{"a":' })
+      expect(ends[0]).not.toHaveProperty('input')
     })
   })
 
@@ -1267,6 +1558,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const execute = vi.fn().mockReturnValue({ temperature: 72 })
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'How is the weather?' }],
       tools: [{ ...weatherTool, execute }],
@@ -1364,6 +1656,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
       tools: [weatherTool],
@@ -1404,6 +1697,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -1436,6 +1730,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -1468,6 +1763,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -1499,6 +1795,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -1535,6 +1832,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -1602,6 +1900,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -1653,6 +1952,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'think' }],
       logger: testLogger,
@@ -1705,6 +2005,7 @@ describe('OpenRouter responses adapter — structured output', () => {
     const adapter = createAdapter()
     const result = await adapter.structuredOutput({
       chatOptions: {
+        threadId: 'thread-1',
         model: 'openai/gpt-4o-mini' as any,
         messages: [{ role: 'user', content: 'profile?' }],
         logger: testLogger,
@@ -1756,6 +2057,7 @@ describe('OpenRouter responses adapter — structured output', () => {
     const adapter = createAdapter()
     const result = await adapter.structuredOutput({
       chatOptions: {
+        threadId: 'thread-1',
         model: 'openai/gpt-4o-mini' as any,
         messages: [{ role: 'user', content: 'title?' }],
         logger: testLogger,
@@ -1801,6 +2103,7 @@ describe('OpenRouter responses adapter — structured output', () => {
     const adapter = createAdapter()
     const result = await adapter.structuredOutput({
       chatOptions: {
+        threadId: 'thread-1',
         model: 'openai/gpt-4o-mini' as any,
         messages: [{ role: 'user', content: 'title?' }],
         logger: testLogger,
@@ -1855,6 +2158,7 @@ describe('OpenRouter responses adapter — SDK constructor wiring', () => {
     const adapter = createAdapter()
     const controller = new AbortController()
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -1881,6 +2185,7 @@ describe('OpenRouter responses adapter — SDK constructor wiring', () => {
     const adapter = createAdapter()
     const headers = { 'X-Trace-Id': 'trace-r1' }
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -1913,6 +2218,7 @@ describe('OpenRouter responses adapter — cost tracking', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -1996,6 +2302,7 @@ describe('OpenRouter responses adapter — cost tracking', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -2017,5 +2324,220 @@ describe('OpenRouter responses adapter — cost tracking', () => {
         },
       },
     })
+  })
+})
+
+describe('OpenRouter responses adapter — stream fields', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const completed = {
+    type: 'response.completed',
+    sequenceNumber: 9,
+    response: {
+      model: 'm',
+      output: [],
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+    },
+  }
+
+  const collectStream = async (events: Array<Record<string, unknown>>) => {
+    setupMockSdkClient(events)
+    const adapter = createAdapter()
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
+      model: adapter.model,
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+    return chunks
+  }
+
+  it.each([
+    {
+      shape: 'parsed',
+      event: {
+        type: 'response.completed',
+        sequenceNumber: 1,
+        response: {
+          model: 'm',
+          output: [],
+          usage: {
+            inputTokens: 100,
+            inputTokensDetails: { cachedTokens: 40 },
+            outputTokens: 50,
+            totalTokens: 150,
+          },
+        },
+      },
+    },
+    {
+      shape: 'raw (UNKNOWN)',
+      event: {
+        isUnknown: true,
+        raw: {
+          type: 'response.completed',
+          sequence_number: 1,
+          response: {
+            model: 'm',
+            output: [],
+            usage: {
+              input_tokens: 100,
+              input_tokens_details: { cached_tokens: 40 },
+              output_tokens: 50,
+              total_tokens: 150,
+            },
+          },
+        },
+      },
+    },
+  ])('reads cached input tokens from a $shape event', async ({ event }) => {
+    const chunks = await collectStream([event])
+    expect(chunks.find((c) => c.type === 'RUN_FINISHED')).toMatchObject({
+      usage: {
+        promptTokens: 100,
+        completionTokens: 50,
+        totalTokens: 150,
+        promptTokensDetails: { cachedTokens: 40 },
+      },
+    })
+  })
+
+  it('reads a function call from an output item the SDK could not parse', async () => {
+    const chunks = await collectStream([
+      {
+        type: 'response.output_item.done',
+        sequenceNumber: 1,
+        outputIndex: 0,
+        item: {
+          type: 'UNKNOWN',
+          isUnknown: true,
+          raw: {
+            type: 'function_call',
+            id: 'item_1',
+            call_id: 'call_abc',
+            name: 'lookup_weather',
+            arguments: '{"location":"Berlin"}',
+          },
+        },
+      },
+      completed,
+    ])
+    expect(chunks.find((c) => c.type === 'TOOL_CALL_START')).toMatchObject({
+      toolCallId: 'call_abc',
+      toolCallName: 'lookup_weather',
+    })
+    expect(chunks.find((c) => c.type === 'TOOL_CALL_END')).toMatchObject({
+      toolCallId: 'call_abc',
+      input: { location: 'Berlin' },
+    })
+  })
+
+  it('reads structured output from a message item the SDK could not parse', async () => {
+    setupMockSdkClient([], {
+      id: 'resp_1',
+      model: 'm',
+      output: [
+        {
+          type: 'UNKNOWN',
+          isUnknown: true,
+          raw: {
+            type: 'message',
+            id: 'msg_1',
+            role: 'assistant',
+            content: [{ type: 'output_text', text: '{"ok":true}' }],
+          },
+        },
+      ],
+    })
+    const adapter = createAdapter()
+    const result = await adapter.structuredOutput({
+      chatOptions: {
+        threadId: 'thread-1',
+        model: adapter.model,
+        messages: [{ role: 'user', content: 'ok?' }],
+        logger: testLogger,
+      },
+      outputSchema: { type: 'object' },
+    })
+    expect(result.data).toEqual({ ok: true })
+  })
+
+  it('keeps the function call namespace on the stream and on replay', async () => {
+    const chunks = await collectStream([
+      {
+        type: 'response.output_item.added',
+        sequenceNumber: 1,
+        outputIndex: 0,
+        item: {
+          type: 'function_call',
+          id: 'item_1',
+          callId: 'call_abc',
+          name: 'search_docs',
+          namespace: 'docs',
+          arguments: '',
+        },
+      },
+      completed,
+    ])
+    expect(chunks.find((c) => c.type === 'TOOL_CALL_START')).toMatchObject({
+      metadata: { itemId: 'item_1', namespace: 'docs' },
+    })
+
+    setupMockSdkClient([completed])
+    const adapter = createAdapter()
+    for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
+      model: adapter.model,
+      messages: [
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call_abc',
+              type: 'function',
+              function: { name: 'search_docs', arguments: '{}' },
+              metadata: { itemId: 'item_1', namespace: 'docs' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_abc', content: 'ok' },
+      ],
+      logger: testLogger,
+    })) {
+      // consume
+    }
+    const { input } = mockSend.mock.calls[0]![0].responsesRequest
+    expect(input).toContainEqual(
+      expect.objectContaining({
+        type: 'function_call',
+        name: 'search_docs',
+        namespace: 'docs',
+      }),
+    )
+  })
+})
+
+describe('OpenRouter responses tool input normalizer — own keys', () => {
+  it('strips the widened null of a property named __proto__', () => {
+    const normalize = createToolInputNormalizer([
+      {
+        name: 'inspect',
+        description: 'Inspect',
+        inputSchema: JSON.parse(
+          '{"type":"object","properties":{"__proto__":{"type":"string"},"keep":{"type":["string","null"]}},"required":["keep"]}',
+        ),
+      },
+    ])
+    expect(
+      JSON.stringify(
+        normalize('inspect', JSON.parse('{"__proto__":null,"keep":null}')),
+      ),
+    ).toBe('{"keep":null}')
   })
 })

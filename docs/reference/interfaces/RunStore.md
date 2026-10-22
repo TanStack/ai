@@ -3,7 +3,7 @@ id: RunStore
 title: RunStore
 ---
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:197](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L197)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:245
 
 Durable store for run lifecycle records.
 
@@ -28,7 +28,7 @@ them.
 createOrResume: (input) => Promise<RunRecord>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:208](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L208)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:256
 
 Create a run record, or return the existing one unchanged if `runId` is
 already present.
@@ -43,7 +43,7 @@ link fields are copied only on the first insert.
 
 ##### input
 
-`Pick`\<[`RunRecord`](RunRecord.md), `"threadId"` \| `"runId"` \| `"startedAt"`\> & `object`
+`Pick`\<[`RunRecord`](RunRecord.md), `"threadId"` \| `"runId"` \| `"startedAt"`\> & `object` & `Partial`\<`Pick`\<[`RunRecord`](RunRecord.md), `"activity"` \| `"kind"` \| `"agent"` \| `"principal"`\>\>
 
 #### Returns
 
@@ -57,7 +57,7 @@ link fields are copied only on the first insert.
 findActiveRun: (threadId) => Promise<RunRecord | null>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:287](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L287)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:340
 
 The most recent `'running'` run for `threadId`, or `null` if none is active.
 
@@ -90,7 +90,7 @@ tiers belong at the store level, not the method level.
 get: (runId) => Promise<RunRecord | null>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:239](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L239)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:292
 
 Current record, or null when unknown.
 
@@ -112,7 +112,7 @@ Current record, or null when unknown.
 optional listByParentRun?: (parentRunId) => Promise<RunRecord[]>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:253](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L253)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:306
 
 Child runs started by `parentRunId`, ascending by `startedAt`.
 OPTIONAL. `reconstructChat` uses this to put subagent cards back
@@ -137,7 +137,7 @@ text and not the cards.
 optional listByThread?: (threadId) => Promise<RunRecord[]>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:246](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L246)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:299
 
 Every run in a conversation, ascending by `startedAt`. OPTIONAL.
 `reconstructChat` calls it to find the parent runs of children that a
@@ -162,7 +162,7 @@ Consumers feature-detect.
 optional listReclaimable?: (opts) => Promise<RunRecord[]>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:269](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L269)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:322
 
 Runs that may be reclaimed: ALL THREE of `status === 'running'`,
 `detachedSince` is set, and `detachedSince <= now - ttlMs`. The cutoff is
@@ -202,7 +202,7 @@ method cannot be reaped at all.
 update: (runId, patch) => Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:222](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L222)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:270
 
 Patch a record's mutable fields.
 
@@ -225,7 +225,12 @@ and must not create a record.
   \| `"sandboxKey"`
   \| `"detachedSince"`
   \| `"cancelRequested"`
-  \| `"driverEpoch"`\>\>
+  \| `"driverEpoch"`
+  \| `"result"`
+  \| `"artifacts"`
+  \| `"leaseOwner"`
+  \| `"leaseExpiresAt"`
+  \| `"checkpoint"`\>\>
 
 #### Returns
 

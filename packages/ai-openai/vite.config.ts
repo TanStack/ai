@@ -33,6 +33,7 @@ export default mergeConfig(
       './src/index.ts',
       './src/byok.ts',
       './src/compatible/index.ts',
+      './src/siwc.ts',
       './src/tools/index.ts',
     ],
     srcDir: './src',

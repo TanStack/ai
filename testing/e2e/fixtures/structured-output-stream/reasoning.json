@@ -1,0 +1,13 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[structured-stream-reasoning] recommend a guitar as json"
+      },
+      "response": {
+        "reasoning": "The user wants a guitar recommendation in JSON form.",
+        "content": "{\"name\":\"Fender Stratocaster\",\"price\":1299,\"reason\":\"Versatile tone and comfortable playability\",\"rating\":5,\"condition\":null}"
+      }
+    }
+  ]
+}

@@ -22,7 +22,10 @@ TanStack AI is a type-safe, provider-agnostic AI SDK for building AI-powered app
 
 ## Package Manager & Tooling
 
-- **Package Manager**: pnpm@10.17.0 (required)
+- **Package Manager**: pnpm@11.9.0 (required, see `packageManager` in
+  `package.json`)
+- **Node**: 24.8.0 (see `.nvmrc`). On Node 22, Nx fails to load the
+  workspace plugin with `tsModule.readConfigFile is not a function`.
 - **Build System**: Nx for task orchestration and caching
 - **TypeScript**: 7.0.2 (native Go compiler). Framework build/typecheck tools
   that still need the pre-7 JS Compiler API (svelte-package, svelte-check,
@@ -169,7 +172,6 @@ The `@tanstack/ai` package provides core functions:
 - **`chat()`** - Chat completion with streaming, tools, and agent loops
 - **`embedding()`** - Generate embeddings
 - **`summarize()`** - Summarize text
-- Legacy adapters (monolithic, deprecated) use `openai()`, `anthropic()`, etc.
 
 #### 3. Isomorphic Tool System
 
@@ -225,7 +227,6 @@ Each framework integration uses the headless `ai-client` under the hood.
 - **`index.ts`** - Exports tree-shakeable adapters (openaiText, openaiEmbed, etc.)
 - **`adapters/`** - Individual adapter implementations (text.ts, embed.ts, summarize.ts, image.ts)
 - **`model-meta.ts`** - Model metadata for type safety (provider options per model)
-- **`openai-adapter.ts`** - Legacy monolithic adapter (deprecated)
 
 ## Development Workflow
 
@@ -325,10 +326,12 @@ Each package uses `exports` field in package.json for subpath exports (e.g., `@t
 - **Coverage is CI-only.** Don't run it locally and don't add it to local
   gates — it is deliberately absent from `test`, `test:pr`, `test:ci` and the
   git hooks. The `Coverage` job on each PR measures every affected package
-  twice, on the PR head and on its merge-base with `main`, and fails when a
-  metric drops more than 0.5pp between them. There is **no baseline file** —
+  twice, on the PR head and on its merge-base with `main`, and posts the
+  table as a PR comment. It fails only when a metric is at or above 60% on
+  the merge-base and under 60% on the PR. Other drops are reported, not
+  failed. There is **no baseline file** —
   don't reintroduce one, it was removed precisely because it needed manual
-  syncing and was platform-sensitive. The only remedy for a drop is tests.
+  syncing and was platform-sensitive. The only remedy for a failure is tests.
   `.github/workflows/coverage.yml` runs coverage on pushes to `main` purely to
   warm the Nx Cloud cache so the base-side run is mostly cache restores. See
   CONTRIBUTING.md.

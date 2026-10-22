@@ -209,6 +209,7 @@ export function snippetToTool({
       const eventAwareBindings = createEventAwareBindings(
         bindings,
         emitCustomEvent,
+        context,
       )
       console.log(
         `[Snippet:${snippet.name}] Event-aware bindings:`,

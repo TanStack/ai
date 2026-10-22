@@ -10,6 +10,7 @@ import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
 import type { TextActivityResult } from '../src/activities/chat'
+import type { ChatResult } from '../src/stream-to-response'
 import type {
   ChatStream,
   InferSchemaType,
@@ -99,9 +100,9 @@ describe('chat() return type', () => {
       >()
     })
 
-    it('stream: false → Promise<string>', () => {
+    it('stream: false → Promise<ChatResult>', () => {
       expectTypeOf<TextActivityResult<undefined, false>>().toEqualTypeOf<
-        Promise<string>
+        Promise<ChatResult>
       >()
     })
 

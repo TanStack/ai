@@ -174,7 +174,7 @@ describe('LLM Gateway adapters', () => {
       expect(adapter).toBeDefined()
     })
 
-    it('forwards sampling options from modelOptions', async () => {
+    it('forwards sampling options and chat({ reasoning }) as reasoning_effort', async () => {
       const streamChunks = [
         {
           id: 'chatcmpl-sampling',
@@ -191,13 +191,14 @@ describe('LLM Gateway adapters', () => {
         temperature: 0.5,
         top_p: 0.8,
         max_completion_tokens: 128,
-        reasoning_effort: 'high',
       }
 
       for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
         model: 'gpt-5.6-terra',
         messages: [{ role: 'user', content: 'Hello' }],
         modelOptions,
+        reasoning: { level: 'high', summary: true },
         logger: testLogger,
       })) {
         // consume stream
@@ -243,6 +244,7 @@ describe('LLM Gateway adapters', () => {
       )
 
       await adapter.summarize({
+        threadId: 'thread-1',
         model: 'gpt-5.6-terra',
         text: 'Some long article text that needs summarizing.',
         maxLength: 100,
@@ -299,6 +301,7 @@ describe('LLM Gateway AG-UI event emission', () => {
     const chunks: Array<StreamChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'gpt-5.6-terra',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
@@ -348,6 +351,7 @@ describe('LLM Gateway AG-UI event emission', () => {
     const chunks: Array<StreamChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'gpt-5.6-terra',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
@@ -422,6 +426,7 @@ describe('LLM Gateway AG-UI event emission', () => {
     const chunks: Array<StreamChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'kimi-k3',
       messages: [{ role: 'user', content: 'What is 2+2?' }],
       logger: testLogger,
@@ -511,6 +516,7 @@ describe('LLM Gateway AG-UI event emission', () => {
     const chunks: Array<StreamChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'gpt-5.6-terra',
       messages: [{ role: 'user', content: 'Weather in Paris?' }],
       logger: testLogger,

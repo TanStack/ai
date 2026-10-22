@@ -90,6 +90,7 @@ export const Route = createFileRoute('/api/capability-demo')({
         try {
           const options = createChatOptions({
             adapter: openaiText('gpt-5.5'),
+            threadId: params.threadId,
           })
 
           if (provideCapability) {

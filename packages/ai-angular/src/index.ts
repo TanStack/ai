@@ -6,12 +6,10 @@ export { injectByok } from './inject-byok'
 export {
   injectPageWebMCPTools,
   injectRegisterWebMCPTools,
-  injectWebMCPTools,
 } from './inject-web-mcp-tools'
 export type {
   InjectPageWebMCPToolsOptions,
   InjectRegisterWebMCPToolsOptions,
-  InjectWebMCPToolsOptions,
 } from './inject-web-mcp-tools'
 
 // Generation
@@ -143,6 +141,7 @@ export {
   type WebStoragePersistenceOptions,
   type IndexedDBPersistenceOptions,
   fetchHttpStream,
+  fetchJson,
   xhrServerSentEvents,
   xhrHttpStream,
   stream,
@@ -154,6 +153,7 @@ export {
   type SubscribeConnectionAdapter,
   type RunAgentInputContext,
   type FetchConnectionOptions,
+  type FetchJsonOptions,
   type XhrConnectionOptions,
   type WebSocketConnectionOptions,
   type InferChatMessages,

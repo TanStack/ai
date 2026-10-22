@@ -1,5 +1,224 @@
 # @tanstack/ai-openrouter
 
+## 0.23.1
+
+### Patch Changes
+
+- Updated dependencies [[`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325)]:
+  - @tanstack/ai@0.71.0
+
+## 0.23.0
+
+### Minor Changes
+
+- [#1775](https://github.com/TanStack/ai/pull/1775) [`85c2956`](https://github.com/TanStack/ai/commit/85c2956c68f3226ef409b3a4e54d5be82198931e) - Structured output sends `response_format: { type: "json_object" }` for OpenRouter and Groq models that declare a response format without strict structured outputs. These models reject strict `json_schema`. In JSON mode the adapter adds the schema as a system prompt. `await chat({ outputSchema })` checks the reply when the schema is a Standard Schema, such as Zod. Other models keep strict `json_schema`.
+
+  `modelOptions` can set `json_object` for any model. On the OpenAI-base adapters (OpenAI, Grok, Groq and others), a `json_object` in `modelOptions` was replaced by strict `json_schema`. It is now sent as given, with the schema in a system prompt. In JSON mode, `supportsCombinedToolsAndSchema()` returns `false`. Tools and the schema then go out in separate requests, so the tool-calling turns do not get the schema prompt.
+
+  OpenRouter catalog ids with a `:variant`, such as `google/gemma-4-26b-a4b-it:free`, now match their own catalog entry. Before, only the id without the variant was checked.
+
+### Patch Changes
+
+- [#1750](https://github.com/TanStack/ai/pull/1750) [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b) - Keep the provider's raw tool argument string for replay.
+  - Adapters now send the raw argument string as `args` on `TOOL_CALL_END`.
+  - The tool call in the history keeps that exact string when it is the same JSON value as the parsed input, so the next request sends the provider's own bytes back (for example `1.50`, or an id past `Number.MAX_SAFE_INTEGER`). When the parsed input differs, only the changed values are written again.
+  - The `TOOL_CALL_END` that reaches the client carries the same string in `metadata.tanstack.args`, so the client history matches the server history. It no longer also carries `metadata.tanstack.input`: in-process `chat()` and `StreamProcessor` parse `input` from `args`. Run the client and the server on the same release: an older client ignores `args`, so it builds the tool input from the streamed deltas only, and a tool call with no deltas (for example an Anthropic server tool) gets no input.
+  - History converters for Bedrock and the Gemini Interactions API send malformed tool arguments as `{}` instead of failing the request.
+  - Gemini Interactions: the initial `step.arguments` snapshot goes out as a `TOOL_CALL_ARGS` delta only when no argument deltas follow, so the deltas always add up to the final arguments.
+  - Malformed tool arguments are no longer turned into `{}` by an adapter. The tool gets a "Failed to parse tool arguments as JSON" error that the model can repair. Mistral still ends the run with an error on malformed arguments, as before.
+
+- Updated dependencies [[`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`5f95dbd`](https://github.com/TanStack/ai/commit/5f95dbd08f2780442000ac52074ea747d1b44187), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`3292bad`](https://github.com/TanStack/ai/commit/3292bad7b26990c5aa4676cc9d9fe33b1741fc1a), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`4298480`](https://github.com/TanStack/ai/commit/429848047c8c514f29855f8a99a7260253eb5d5b), [`f68da51`](https://github.com/TanStack/ai/commit/f68da51f63f999b70ac7aaf5aebc0109a7e9daf7), [`85c2956`](https://github.com/TanStack/ai/commit/85c2956c68f3226ef409b3a4e54d5be82198931e), [`30fa651`](https://github.com/TanStack/ai/commit/30fa651d173e519db8de50c9f888ded71b951640), [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b)]:
+  - @tanstack/ai@0.70.0
+  - @tanstack/ai-utils@0.5.0
+
+## 0.22.0
+
+### Minor Changes
+
+- [#1739](https://github.com/TanStack/ai/pull/1739) [`a0150c2`](https://github.com/TanStack/ai/commit/a0150c26b9e2b6050663450171e36a9dfa80915b) - Text adapters now set one stable code on `RUN_ERROR` when the input does not fit in the model's context window: `code: 'context_overflow'`. `@tanstack/ai` exports it as `CONTEXT_OVERFLOW_CODE`. The provider's own text stays in `message`.
+
+  ```ts
+  if (chunk.type === 'RUN_ERROR' && chunk.code === CONTEXT_OVERFLOW_CODE) {
+    // shorten the messages, then call chat() again
+  }
+  ```
+
+  These adapters set it: OpenAI and the other OpenAI-compatible adapters (from `code: 'context_length_exceeded'`), Anthropic, Gemini, Bedrock (Converse, Chat Completions, and Responses), OpenRouter, Grok, Cloudflare Workers AI, and BytePlus.
+
+  Changes to code that reads the old values:
+  - OpenAI-compatible adapters gave `code: 'context_length_exceeded'`. They now give `'context_overflow'`. `rawEvent` still has the provider's code.
+  - Anthropic, Grok, OpenRouter, and BytePlus gave the HTTP status or a general bad-request code for this error. Gemini and Bedrock Converse gave no code.
+  - The Anthropic adapter now sends `RUN_ERROR` with this code when the model stops with `stop_reason: 'model_context_window_exceeded'`. Before, it sent `RUN_FINISHED` with `finishReason: 'stop'`, so a cut-off answer looked complete.
+
+- [#1725](https://github.com/TanStack/ai/pull/1725) [`73bc031`](https://github.com/TanStack/ai/commit/73bc0315f1315aa61e93f9950bcd475440c20596) - Add `openrouterSignIn()` at `@tanstack/ai-openrouter/pkce`: a local app, such as a CLI, signs the user in to OpenRouter in the browser and gets an API key, with no key to copy.
+
+- [#1697](https://github.com/TanStack/ai/pull/1697) [`cef1911`](https://github.com/TanStack/ai/commit/cef19119c76fc5f618d6c971efbc486323b213c3) - Prompt caching is now on by default. Each `chat()` call asks the provider to cache the stable start of the request (system prompt, tools, and earlier messages), so repeated requests cost less and answer sooner.
+  - New `chat()` option `promptCache`: `'none' | 'short' | 'long'`, or `{ retention, key }`. The default is `'short'`. The key is `promptCache.key`, else the `threadId` or `conversationId` that you give. A `threadId` that `chat()` makes up is never the key.
+  - To turn it off, pass `promptCache: 'none'`. Do this for a large prompt that you send to Claude one time only, because Claude bills the cache write.
+  - A middleware can change it for the next model call: `onConfig` gets `config.promptCache` and can return a new value.
+  - Each adapter sends its own fields:
+    - Claude on Anthropic, Bedrock Converse, and OpenRouter gets cache markers. `'long'` asks for the 1-hour TTL.
+    - OpenAI (Responses and Chat Completions) gets `prompt_cache_key`, and `prompt_cache_retention` or `prompt_cache_options` on `'long'`.
+    - Mistral gets `prompt_cache_key`, and usage now reports cache reads.
+    - OpenRouter gets `sessionId`.
+  - A manual `cache_control`, `cachePoint`, `prompt_cache_key`, or `sessionId` wins over the automatic value.
+  - New types: `PromptCacheRetention`, `PromptCacheOptions`, and `ResolvedPromptCache`. Adapters read `TextOptions.promptCache`.
+
+- [#1692](https://github.com/TanStack/ai/pull/1692) [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c) - Set reasoning with `chat({ reasoning })` on both OpenRouter adapters.
+  - The chat adapter sends `reasoning.effort`, and `none` for `off`. Its request has no budget field, so its types take no `budgetTokens`.
+  - The Responses adapter sends `reasoning.effort`, `summary: 'auto'` when the summary is on, and `maxTokens` for `budgetTokens`.
+  - Each model has its reasoning data in `model-meta.ts`. `OpenRouterModelReasoningByName` and `OPENROUTER_MODEL_REASONING` come from it.
+
+  Breaking: `reasoning` is no longer in `modelOptions`, and `ReasoningOptions` is removed.
+
+  ```ts
+  // Before
+  chat({
+    adapter: openRouterText('openai/gpt-5.5'),
+    messages,
+    modelOptions: { reasoning: { enabled: false } },
+  })
+
+  // After
+  chat({
+    adapter: openRouterText('openai/gpt-5.5'),
+    messages,
+    reasoning: 'off',
+  })
+  ```
+
+### Patch Changes
+
+- [#1730](https://github.com/TanStack/ai/pull/1730) [`6848341`](https://github.com/TanStack/ai/commit/6848341bfe5b8481b791518c4ccc54c0e85f77f0) - Fix three gaps in the OpenRouter Responses adapter (`openRouterResponsesText`):
+  - Usage now has `promptTokensDetails.cachedTokens` when the response reports cached input tokens.
+  - An output item that the OpenRouter SDK cannot parse (the SDK gives it as `{ type: 'UNKNOWN', isUnknown: true, raw }`) is now read from its raw item, in the stream and in `structuredOutput`. Before this fix, that function call or message was lost.
+  - The `namespace` of a function call is now kept in the tool call metadata and sent back when the call is replayed.
+
+- [#1710](https://github.com/TanStack/ai/pull/1710) [`8c09384`](https://github.com/TanStack/ai/commit/8c09384be2d3c269abc3adc6f3b63917e52989d6) - `chat({ retry })` now retries an OpenRouter provider error that arrives in the stream. OpenRouter can send status 200 before the provider fails. The error then comes as an error chunk that the SDK cannot retry. When the code of that chunk is in `retryCodes` (default `['5XX']`, add `'429'` to retry a rate limit), the `RUN_ERROR` of the Chat Completions adapter now has `retryAfterMs` set to the `initialInterval` of `retryConfig` (default 500). `chat()` retries it only when the call streamed no output yet. An error after part of the answer is not retried. `retryConfig: { strategy: 'none' }` turns this off.
+
+- [#1732](https://github.com/TanStack/ai/pull/1732) [`eb4eea0`](https://github.com/TanStack/ai/commit/eb4eea05b6c53b748bba5fd414b04ce387ead05d) - Keep a schema property or a tool argument named `__proto__`. Before this fix, code that copied it with `out[key] = value` went to the `__proto__` setter instead, so the key was lost.
+  - `@tanstack/ai-utils`: `transformNullsToUndefined` and `undoNullWidening` keep the key.
+  - `@tanstack/openai-base`: the strict schema and its null-widening map keep the key.
+  - `@tanstack/ai-mistral`: the null-widening map keeps the key.
+  - `@tanstack/ai-openrouter`: the Responses tool input normalizer keeps the key.
+  - `@tanstack/ai-gemini`: the Interactions adapter keeps the key in tool parameters.
+  - `@tanstack/ai-bedrock`: the Converse adapter puts the tool schemas and tool inputs back into the request body after the AWS SDK serializes it, because the SDK drops the key.
+
+- [#1698](https://github.com/TanStack/ai/pull/1698) [`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d) - Keep a conversation valid when the next request goes to a different model.
+  - Each assistant message records `metadata.tanstack.source` (`{ provider, api, model }`), and `responseId` and the resolved `model` when the provider sends them. A failed or aborted answer gets `stopReason: 'error'` or `'aborted'`. `RUN_FINISHED` has a new `responseId` field. `TextAdapter` has new optional `provider` and `api` fields.
+  - When the next request goes to a different source, the adapter removes signatures and redacted thinking, turns readable thinking into text, and rewrites tool call IDs to the shape the target API accepts. Each call stays paired with its result.
+  - Every request drops failed and aborted assistant batches and adds a `No result provided` result for an unanswered tool call. The saved history does not change.
+  - `RUN_FINISHED` and `RUN_ERROR` metadata now merge onto the assistant messages of that model call in `StreamProcessor`.
+  - Anthropic: the new `allowEmptySignature` option (default `false`) replays unsigned thinking from the same source, for gateways. The new `provider` option names a gateway.
+  - Azure OpenAI reports the `azure-openai-responses` API.
+  - Gemini, Mistral, and Bedrock Converse send same-source thinking back to the model, in block order.
+  - `withPersistence` writes the source and the stop reason onto streaming snapshot rows.
+  - Adapter authors get `transformMessagesForReplay()` and `hashToolCallId()` from `@tanstack/ai/adapter-internals`.
+
+- [#1692](https://github.com/TanStack/ai/pull/1692) [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c) - Send `chat({ toolChoice })` to each provider.
+  - **Anthropic and Bedrock Converse.** Claude Fable 5.1, Mythos 5.1, Opus 5.5, and Sonnet 5.5 reject a forced tool, and every Claude model rejects one while thinking is on. On those, `'required'` and a named tool fall back to `auto`.
+  - **Bedrock Converse** has no `none`. `'none'` sends no tool config. Bedrock refuses tool calls in the history without a tool config, so the history goes out as text.
+  - **Gemini** maps the choice to `functionCallingConfig` (`AUTO`, `NONE`, `ANY`, and `allowedFunctionNames`). With only provider tools, such as Google Search, it sends no tool config.
+  - **OpenAI and Azure OpenAI (Responses), Grok, Mistral, and OpenRouter** (Chat Completions and Responses) send their own `tool_choice` shape.
+
+- [#1724](https://github.com/TanStack/ai/pull/1724) [`ce99a17`](https://github.com/TanStack/ai/commit/ce99a17e4814cd564b693112bda87020af6cb57c) - Images in tool results now reach the model on Chat Completions and on OpenRouter Responses.
+  - Chat Completions adapters (OpenAI and the adapters built on `@tanstack/openai-base`, and OpenRouter chat) send the tool text in the tool message and the images in one user message after the tool results. Before this fix, OpenAI sent the parts as a JSON string in the tool text, and OpenRouter dropped the images.
+  - OpenRouter Responses sends the images as `input_image` parts of the function call output. Before this fix, it dropped them.
+  - On Chat Completions, a result with only images gets the tool text `(see attached image)`.
+  - A model without image input gets no images. A result with only images then has the text `(image omitted: this model has no image input)`. The OpenAI Responses adapter now uses this text too.
+  - Other media (audio, video, documents) in a tool result with images is not sent on these adapters.
+  - OpenRouter chat with automatic prompt caching on an `anthropic/*` model puts the cache marker on the tool result before that image message, because the image message has no text block.
+
+- Updated dependencies [[`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d), [`412b0fe`](https://github.com/TanStack/ai/commit/412b0fea4f4bb569998c3d253d174efd7b501e3c), [`a0150c2`](https://github.com/TanStack/ai/commit/a0150c26b9e2b6050663450171e36a9dfa80915b), [`b881627`](https://github.com/TanStack/ai/commit/b881627d51076dcc1af031ac951046e2fb7d84c4), [`fac0555`](https://github.com/TanStack/ai/commit/fac055559de98eb0fa23a0bc725808033ba3c2fc), [`6774e80`](https://github.com/TanStack/ai/commit/6774e803da3205101613ab2857c9ed4fbf975681), [`5bd27f2`](https://github.com/TanStack/ai/commit/5bd27f2fc94ebfb6d11bfb28d46d5d858310805e), [`c20f7b0`](https://github.com/TanStack/ai/commit/c20f7b021aa618fbfcc114b3f0bef5e888ff6b84), [`cef1911`](https://github.com/TanStack/ai/commit/cef19119c76fc5f618d6c971efbc486323b213c3), [`51f72fb`](https://github.com/TanStack/ai/commit/51f72fbf60e201f9c8d014aefa6406e777c05d6a), [`6f1e559`](https://github.com/TanStack/ai/commit/6f1e55934fe95ddf2bf3fb3031488a713e48c7af), [`eb4eea0`](https://github.com/TanStack/ai/commit/eb4eea05b6c53b748bba5fd414b04ce387ead05d), [`cef1911`](https://github.com/TanStack/ai/commit/cef19119c76fc5f618d6c971efbc486323b213c3), [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c), [`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d), [`78edeb2`](https://github.com/TanStack/ai/commit/78edeb20a5ba89f2513c3f46f1267a7ed7185045), [`44e3a0a`](https://github.com/TanStack/ai/commit/44e3a0a89c86defebd38b2221dd3b7725a12839a), [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c), [`7a5c0d6`](https://github.com/TanStack/ai/commit/7a5c0d6fc1541187a7f01b444bc07a0478274bcb), [`b881627`](https://github.com/TanStack/ai/commit/b881627d51076dcc1af031ac951046e2fb7d84c4)]:
+  - @tanstack/ai@0.69.0
+  - @tanstack/ai-utils@0.4.2
+
+## 0.21.5
+
+### Patch Changes
+
+- Updated dependencies [[`723b4a4`](https://github.com/TanStack/ai/commit/723b4a4e8432825374d4980cc74c5f66dc7d1122), [`d84a49e`](https://github.com/TanStack/ai/commit/d84a49e5fef03499b10f63255880d056a55767a3)]:
+  - @tanstack/ai@0.68.0
+
+## 0.21.4
+
+### Patch Changes
+
+- [#1685](https://github.com/TanStack/ai/pull/1685) [`7dbfaf6`](https://github.com/TanStack/ai/commit/7dbfaf6c37a3d97de3b1f5bdb87be8bbbe2b0164) - Text adapters can now give `inputModalities` at run time: the input kinds that the model reads, for example `['text', 'image', 'document']`. `undefined` means that the adapter does not know.
+  - `TextAdapter` has the new optional `inputModalities` property. A `BaseTextAdapter` subclass sets it from its model metadata.
+  - The text adapters of OpenAI, Anthropic, Gemini, Mistral, Groq, BytePlus, Grok, OpenRouter, and LLM Gateway set it. A known model gives its input kinds. An unknown model gives `undefined`.
+
+- [#1680](https://github.com/TanStack/ai/pull/1680) [`377262c`](https://github.com/TanStack/ai/commit/377262c0b4e5f59f8fd467a831b9341cc705077e) - Add `wrapFetch` to `chat()`, to the middleware `onConfig` config, and to `TextOptions`. A wrapper gets the next fetch and gives back a new fetch. Use it to change the URL, the headers, the request, or the response of a model call. The new `FetchWrapper` type names the wrapper.
+
+  The engine chains the `chat()` wrapper and the middleware wrappers into one function. A middleware wrapper runs inside the `chat()` wrapper and applies to one model call only.
+
+  These text adapters send their requests through the wrapper: every adapter on `@tanstack/openai-base` (OpenAI, the OpenAI-compatible adapters, Grok, Groq, BytePlus, LLM Gateway, Lovable, Vercel AI Gateway, Cloudflare, and the Bedrock Chat Completions and Responses APIs), Anthropic, Mistral, Ollama, and OpenRouter. The wrapper wraps the fetch of the adapter config, not the global fetch. An Anthropic or Ollama adapter with an injected client ignores `wrapFetch`. In Cloudflare binding mode, the wrapper runs, but the binding does not send the URL or the headers. Without `wrapFetch`, the requests do not change.
+
+- Updated dependencies [[`7dbfaf6`](https://github.com/TanStack/ai/commit/7dbfaf6c37a3d97de3b1f5bdb87be8bbbe2b0164), [`88fd67c`](https://github.com/TanStack/ai/commit/88fd67cd7ddfbe2b154173d2395b2c0338e97644), [`3aa2e3d`](https://github.com/TanStack/ai/commit/3aa2e3d95e2dcb1c14b4fda3bcdbdf3152582092), [`c5ae415`](https://github.com/TanStack/ai/commit/c5ae4152d0a040bb6ce7321e16b7ee66d3c36f96), [`13ba1b0`](https://github.com/TanStack/ai/commit/13ba1b0e47dc822f10f6c5133184f92c2eb0a013), [`377262c`](https://github.com/TanStack/ai/commit/377262c0b4e5f59f8fd467a831b9341cc705077e)]:
+  - @tanstack/ai@0.67.0
+
+## 0.21.3
+
+### Patch Changes
+
+- [#1674](https://github.com/TanStack/ai/pull/1674) [`7a70720`](https://github.com/TanStack/ai/commit/7a7072041aeca984e19550455b039322060a0bb0) - The Chat Completions adapters and the OpenRouter chat adapter now end the run with `RUN_ERROR` when the provider sends an unknown finish reason. The error message contains the provider finish reason, for example `Provider finish_reason: error`. Before this fix, the run finished as a success. The `content_filter` behavior does not change. OpenRouter still reports its `error` finish reason as `content_filter`.
+
+- Updated dependencies [[`baafb17`](https://github.com/TanStack/ai/commit/baafb176220c2b09fced334ad176e754582cd314)]:
+  - @tanstack/ai@0.66.1
+
+## 0.21.2
+
+### Patch Changes
+
+- [#1563](https://github.com/TanStack/ai/pull/1563) [`0100d56`](https://github.com/TanStack/ai/commit/0100d5621ad82a943f9d1232dee5f74b5c5495df) - Keep a reported reasoning token count of `0` in the usage. `structuredOutputStream()` now also puts the received token usage and cost on its `RUN_ERROR` event.
+
+- Updated dependencies [[`f687c54`](https://github.com/TanStack/ai/commit/f687c54ae4b8a67f2154ff9dea0319b8d2712856), [`fb55bcb`](https://github.com/TanStack/ai/commit/fb55bcba5193d4465f43006505918a2dc4472ec4), [`630ec86`](https://github.com/TanStack/ai/commit/630ec86e9997fabe046cae1a491060d72cbc71ea)]:
+  - @tanstack/ai@0.66.0
+
+## 0.21.1
+
+### Patch Changes
+
+- [#1636](https://github.com/TanStack/ai/pull/1636) [`5a41239`](https://github.com/TanStack/ai/commit/5a41239406d75f760f96bf78492af1f2a142bae5) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`807c5e1`](https://github.com/TanStack/ai/commit/807c5e11dd1560e0fe47ae2dbc90f2513507f7cc)]:
+  - @tanstack/ai@0.65.1
+
+## 0.21.0
+
+### Minor Changes
+
+- [#1541](https://github.com/TanStack/ai/pull/1541) [`30254ad`](https://github.com/TanStack/ai/commit/30254ad70161894d232d3b45e3b21f45d49f336e) - Video adapters can hand a provider's download stream to generation persistence instead of buffering it. Adapters now implement `getVideo()`. When a provider has no public URL for the finished video (OpenRouter, Lovable, Sora jobs without `url`), it returns a `VideoStreamResult` (`{ body, contentType }`), and `withGenerationPersistence` streams it into your blob store and sets `url` from `artifactUrl`.
+
+  Nothing changes without persistence: `getVideoJobStatus()` and streaming `generateVideo()` still return a base64 `data:` URL for those providers.
+
+  `VideoAdapter.getVideoUrl()` is deprecated in favor of `getVideo()`. It still works: on the built-in adapters it is `getVideo()` with a stream buffered into a `data:` URL, and custom adapters that only implement `getVideoUrl()` keep working. A custom adapter that extends `BaseVideoAdapter` with TypeScript's `noImplicitOverride` must add `override` to its `getVideoUrl()`, or rename it to `getVideo()`.
+
+### Patch Changes
+
+- Updated dependencies [[`7b6b1a9`](https://github.com/TanStack/ai/commit/7b6b1a99d45e40165f0a1f833a04e793a09275de), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`82291b2`](https://github.com/TanStack/ai/commit/82291b22941d2c813ff0050fc9d41b024480153d), [`ff3a66e`](https://github.com/TanStack/ai/commit/ff3a66ed8f628d45b282316fab337d3ed19f34cd), [`560c76f`](https://github.com/TanStack/ai/commit/560c76fd638b5691e195e1d0619fee8a78d98c20), [`4b9dcb4`](https://github.com/TanStack/ai/commit/4b9dcb44d8fe1e7c933b79c23d8f072e7bc300f4), [`30254ad`](https://github.com/TanStack/ai/commit/30254ad70161894d232d3b45e3b21f45d49f336e), [`40fdd22`](https://github.com/TanStack/ai/commit/40fdd22ce05d55e71514b4cc80b1c28cefb4a431)]:
+  - @tanstack/ai@0.65.0
+
+## 0.20.3
+
+### Patch Changes
+
+- [#1545](https://github.com/TanStack/ai/pull/1545) [`aadfed3`](https://github.com/TanStack/ai/commit/aadfed3cff1925f647cbf956f309f0a38b7ccf85) - Keep optional tool fields optional. The Chat Completions adapter now sends function tools with `strict: false`. With `strict` omitted, OpenAI models through OpenRouter were observed to treat the schema as strict and make every optional field required, so before this fix the model could not leave one out. The Responses adapter now strips the `null` that strict mode puts in an omitted optional field before the tool input is validated, so the tool runs and sees the field as absent. A `.nullable()` field keeps its `null`. Known limit: an optional field inside a union of several object shapes is not stripped and still arrives as `null`.
+
+- [#1576](https://github.com/TanStack/ai/pull/1576) [`0977222`](https://github.com/TanStack/ai/commit/097722249c033792538d6f95f5db76473a6e3035) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`4c57d04`](https://github.com/TanStack/ai/commit/4c57d04f0f5dd98e176386f3208b68daf9e7d929)]:
+  - @tanstack/ai@0.64.1
+
+## 0.20.2
+
+### Patch Changes
+
+- [#1516](https://github.com/TanStack/ai/pull/1516) [`36e77d9`](https://github.com/TanStack/ai/commit/36e77d90f7a3e7b900abd9bfb099ce7f4d47d148) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`3a09cf0`](https://github.com/TanStack/ai/commit/3a09cf04431a45810051ea5df6bb3935af421ddb), [`ee726f5`](https://github.com/TanStack/ai/commit/ee726f537dbb036d5edb756b92739afaa7573824), [`a5fce7f`](https://github.com/TanStack/ai/commit/a5fce7f95b8b9c6eb57697aa1e3f587bf27483b9), [`94116ad`](https://github.com/TanStack/ai/commit/94116ad137015b6f62fe62b4c06a335dbde36a49)]:
+  - @tanstack/ai@0.64.0
+
 ## 0.20.1
 
 ### Patch Changes

@@ -210,11 +210,6 @@ export async function chatParamsFromRequestBody(body: unknown): Promise<{
   forwardedProps: Record<string, unknown>
   state: unknown
   resume?: Array<RunAgentResumeItem>
-  /**
-   * @deprecated Use `aguiContext` instead. This alias will be removed in a
-   * future release.
-   */
-  context: Array<AGUIContext>
   aguiContext: Array<AGUIContext>
 }> {
   if (!isRecord(body)) invalidBody('body must be a JSON object')
@@ -249,7 +244,6 @@ export async function chatParamsFromRequestBody(body: unknown): Promise<{
     forwardedProps: (body.forwardedProps ?? {}) as Record<string, unknown>,
     state: body.state,
     resume: resume as Array<RunAgentResumeItem> | undefined,
-    context: aguiContext,
     aguiContext,
   }
 }

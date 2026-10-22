@@ -28,6 +28,7 @@ function assistantText(message: UIMessage): string {
 
 function ReproPage() {
   const { messages, sendMessage, isLoading, error } = useChat({
+    threadId: 'image-tool-repro',
     connection: fetchServerSentEvents('/api/image-tool-repro'),
   })
 

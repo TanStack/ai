@@ -113,7 +113,6 @@ export type {
   PluginAutoRouter,
   Plugin,
   ProviderPreferences,
-  ReasoningOptions,
   StreamOptions,
   ImageConfig,
   OpenRouterSystemPromptMetadata,
@@ -136,7 +135,11 @@ export {
 
 export { convertToolsToProviderFormat } from './tools/tool-converter'
 
-export type { OpenRouterTool, FunctionTool, WebSearchTool } from './tools/index'
+export type {
+  OpenRouterTool,
+  FunctionTool,
+  WebSearchToolConfig,
+} from './tools/index'
 
 // Export provider usage types
 export type { OpenRouterProviderUsageDetails } from './usage'

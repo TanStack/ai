@@ -16,7 +16,7 @@ function DevtoolsRouteA() {
   const routeAChat = useChat({
     threadId: 'devtools-route-a:chat',
     connection: fetchServerSentEvents('/api/chat'),
-    body: {
+    forwardedProps: {
       provider: 'openai',
       feature: 'chat',
       testId: search.testId,
@@ -27,7 +27,7 @@ function DevtoolsRouteA() {
   const routeAAux = useChat({
     threadId: 'devtools-route-a:auxiliary',
     connection: fetchServerSentEvents('/api/chat'),
-    body: {
+    forwardedProps: {
       provider: 'openai',
       feature: 'chat',
       testId: search.testId,

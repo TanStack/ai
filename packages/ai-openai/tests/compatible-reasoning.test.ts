@@ -41,6 +41,7 @@ async function collect(streamChunks: Array<Record<string, unknown>>) {
   const adapter = makeAdapter(streamChunks)
   const chunks: Array<AdapterYieldChunk> = []
   for await (const chunk of adapter.chatStream({
+    threadId: 'thread-1',
     logger: testLogger,
     model: 'deepseek-reasoner',
     messages: [{ role: 'user', content: 'What is 2 + 2?' }],
@@ -123,5 +124,20 @@ describe('OpenAICompatibleChatAdapter reasoning', () => {
     expect(
       chunks.some((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT),
     ).toBe(true)
+  })
+
+  it('skips a usage chunk that has no choices field', async () => {
+    // Some gateways omit `choices` on the usage trailer.
+    const chunks = await collect([
+      ...textChunks,
+      { usage: { prompt_tokens: 3, completion_tokens: 1, total_tokens: 4 } },
+    ])
+
+    expect(chunks.find((c) => c.type === EventType.RUN_ERROR)).toBeUndefined()
+    expect(chunks.find((c) => c.type === EventType.RUN_FINISHED)).toMatchObject(
+      {
+        usage: { totalTokens: 4 },
+      },
+    )
   })
 })

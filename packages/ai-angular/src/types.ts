@@ -61,7 +61,7 @@ export type DeepPartial<T> =
  *
  * Mirrors the Vue `useChat` options, except:
  * - State-change callbacks are managed internally and exposed as signals.
- * - `tools`, `body`, `forwardedProps`, and `live` accept a {@link ReactiveOption} so
+ * - `tools`, `forwardedProps`, and `live` accept a {@link ReactiveOption} so
  *   they can be a static value, a `Signal`, or a getter and stay reactive.
  */
 export type InjectChatOptions<
@@ -79,12 +79,12 @@ export type InjectChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'onHydratingChange'
   | 'onQueueChange'
   | 'onResumeStateChange'
   | 'onRunIdChange'
   | 'context'
   | 'devtools'
-  | 'body'
   | 'forwardedProps'
   | 'tools'
 > & {
@@ -92,9 +92,7 @@ export type InjectChatOptions<
   devtools?: AIDevtoolsDisplayOptions
   /** Client-side tools with execution logic. Reactive. */
   tools?: ReactiveOption<TTools>
-  /** Additional request body params. Reactive. */
-  body?: ReactiveOption<Record<string, any>>
-  /** Forwarded request props (preferred over `body`). Reactive. */
+  /** Forwarded request props. Reactive. */
   forwardedProps?: ReactiveOption<Record<string, any>>
   /** Whether to keep a live subscription open. Reactive. */
   live?: ReactiveOption<boolean>
@@ -135,7 +133,7 @@ interface BaseInjectChatResult<
     readonly [],
 > {
   /** Current messages in the conversation. */
-  messages: Signal<Array<UIMessage<TTools, TData>>>
+  messages: Signal<ReadonlyArray<UIMessage<TTools, TData>>>
   /**
    * Send a message (string or multimodal content).
    * Pass `{ whenBusy }` to override the queue policy for a single send, or
@@ -159,11 +157,6 @@ interface BaseInjectChatResult<
     state?: 'output-available' | 'output-error'
     errorText?: string
   }) => Promise<void>
-  /** Respond to a tool approval request. */
-  addToolApprovalResponse: (response: {
-    id: string
-    approved: boolean
-  }) => Promise<void>
   /**
    * The id of the run this client has in flight — one it started or rejoined —
    * or `null` when there is none (including while a run sits paused on an
@@ -178,8 +171,6 @@ interface BaseInjectChatResult<
   runId: Signal<string | null>
   /** Immutable bound interrupts for the current interrupted run. */
   interrupts: Signal<BoundInterrupts<TTools, TInterrupts>>
-  /** @deprecated Use `interrupts`. */
-  pendingInterrupts: Signal<BoundInterrupts<TTools, TInterrupts>>
   /** Batch-level interrupt errors. */
   interruptErrors: Signal<
     ChatInterruptState<TTools, TInterrupts>['interruptErrors']
@@ -217,7 +208,7 @@ interface BaseInjectChatResult<
   /** Current error, if any. */
   error: Signal<Error | undefined>
   /** Set messages manually. */
-  setMessages: (messages: Array<UIMessage<TTools, TData>>) => void
+  setMessages: (messages: ReadonlyArray<UIMessage<TTools, TData>>) => void
   /** Clear all messages. */
   clear: () => void
   /** Current generation status. */
@@ -228,4 +219,6 @@ interface BaseInjectChatResult<
   connectionStatus: Signal<ConnectionStatus>
   /** Whether the shared session is actively generating. */
   sessionGenerating: Signal<boolean>
+  /** Whether the chat is being rebuilt from persistence. */
+  isHydrating: Signal<boolean>
 }

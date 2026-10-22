@@ -194,6 +194,7 @@ async function pathsFor(runId: string): Promise<RunPaths> {
     streamPartials: false,
     emitDiff: false,
   }).chatStream({
+    threadId: 'thread-1',
     model: MODEL,
     runId,
     messages: [{ role: 'user', content: 'hi' }],

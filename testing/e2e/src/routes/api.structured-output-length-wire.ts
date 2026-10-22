@@ -1,8 +1,12 @@
+import { createServer } from 'node:http'
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, createChatOptions } from '@tanstack/ai'
+import { createMistralText } from '@tanstack/ai-mistral'
+import { createOllamaChat } from '@tanstack/ai-ollama'
 import { openaiCompatible } from '@tanstack/ai-openai/compatible'
 import { createOpenRouterText } from '@tanstack/ai-openrouter'
 import { HTTPClient } from '@openrouter/sdk'
+import type { AddressInfo } from 'node:net'
 
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 
@@ -40,11 +44,36 @@ async function errorOf(run: () => Promise<unknown>): Promise<string | null> {
   }
 }
 
+/** Answers every request with `body`, for clients that take no custom `fetch`. */
+async function withServer<T>(
+  body: unknown,
+  run: (baseURL: string) => Promise<T>,
+): Promise<T> {
+  const server = createServer((req, res) => {
+    req.resume().on('end', () => {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(body))
+    })
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  try {
+    return await run(
+      `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+    )
+  } finally {
+    server.close()
+    server.closeAllConnections()
+  }
+}
+
 /**
  * `chat({ outputSchema })` on a response that stopped at the output cap
- * (`finish_reason: "length"`). `chat()` takes the adapter's streaming
- * structured-output path. A scripted `fetch` returns a truncated JSON
- * document and, for a reasoning model that spent the budget, empty content.
+ * (`finish_reason: "length"`). For OpenAI-compatible and OpenRouter,
+ * `chat()` takes the adapter's streaming structured-output path. A scripted
+ * `fetch` returns a truncated JSON document and, for a reasoning model that
+ * spent the budget, empty content. Mistral and Ollama have no
+ * streaming structured output, so `chat()` calls their `structuredOutput()`;
+ * Mistral and Ollama take no custom `fetch` and get a local server instead.
  * The companion spec checks that each adapter reports the token limit
  * instead of a JSON parse or empty-content error. No aimock fixture is used.
  */
@@ -67,6 +96,7 @@ export const Route = createFileRoute('/api/structured-output-length-wire')({
           })
           errors[`compatible-${label}`] = await errorOf(() =>
             chat({
+              threadId: 'structured-output-length-wire',
               ...createChatOptions({ adapter: compatible('gpt-4o') }),
               messages: [{ role: 'user', content: 'Give me a title' }],
               outputSchema,
@@ -80,12 +110,70 @@ export const Route = createFileRoute('/api/structured-output-length-wire')({
           })
           errors[`openrouter-${label}`] = await errorOf(() =>
             chat({
+              threadId: 'structured-output-length-wire',
               ...createChatOptions({ adapter: openRouter }),
               messages: [{ role: 'user', content: 'Give me a title' }],
               outputSchema,
             }),
           )
         }
+
+        errors['mistral-truncated'] = await withServer(
+          {
+            id: 'cmpl-length',
+            object: 'chat.completion',
+            created: 1,
+            model: 'mistral-large-latest',
+            choices: [
+              {
+                index: 0,
+                message: { role: 'assistant', content: '{"title":"cut o' },
+                finish_reason: 'length',
+              },
+            ],
+            usage: {
+              prompt_tokens: 10,
+              completion_tokens: 5,
+              total_tokens: 15,
+            },
+          },
+          (baseURL) =>
+            errorOf(() =>
+              chat({
+                threadId: 'structured-output-length-wire',
+                ...createChatOptions({
+                  adapter: createMistralText(
+                    'mistral-large-latest',
+                    DUMMY_KEY,
+                    { baseURL },
+                  ),
+                }),
+                messages: [{ role: 'user', content: 'Give me a title' }],
+                outputSchema,
+              }),
+            ),
+        )
+
+        errors['ollama-truncated'] = await withServer(
+          {
+            model: 'mistral',
+            created_at: '2026-01-01T00:00:00Z',
+            message: { role: 'assistant', content: '{"title":"cut o' },
+            done: true,
+            done_reason: 'length',
+          },
+          (baseURL) =>
+            errorOf(() =>
+              chat({
+                threadId: 'structured-output-length-wire',
+                ...createChatOptions({
+                  adapter: createOllamaChat('mistral', { baseURL }),
+                }),
+                messages: [{ role: 'user', content: 'Give me a title' }],
+                outputSchema,
+              }),
+            ),
+        )
         return Response.json({ errors })
       },
     },

@@ -7,9 +7,6 @@ import type { Tool } from '@tanstack/ai'
 
 export type { ShellToolConfig }
 
-/** @deprecated Renamed to `ShellToolConfig`. Will be removed in a future release. */
-export type ShellTool = ShellToolConfig
-
 /**
  * Config accepted by {@link shellTool}. `environment` mirrors the OpenAI
  * Responses API shell tool environment (e.g. `container_auto` + `skills`).

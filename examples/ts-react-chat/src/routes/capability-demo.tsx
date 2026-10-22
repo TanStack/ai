@@ -11,7 +11,7 @@ interface SessionConfig {
   seq: number
 }
 
-function Messages({ messages }: { messages: Array<UIMessage> }) {
+function Messages({ messages }: { messages: ReadonlyArray<UIMessage> }) {
   const visible = messages.filter((m) =>
     m.parts.some((p) => p.type === 'text' && p.content.trim()),
   )
@@ -74,7 +74,7 @@ function ChatSurface({ config }: { config: SessionConfig }) {
     // Forwarded to the route as `forwardedProps`: the provider middleware
     // provides `capabilityValue`; `provideCapability=false` omits the provider
     // so chat() throws the capability validation error.
-    body: {
+    forwardedProps: {
       capabilityValue: config.persona,
       provideCapability: config.provideCapability,
     },

@@ -54,7 +54,7 @@ export interface ToolFixtureRecord {
 
 export interface ToolFixtureMessage {
   id: string
-  role: 'system' | 'user' | 'assistant'
+  role: 'system' | 'user' | 'assistant' | 'activity'
   parts: Array<unknown>
   createdAt?: number | string
 }

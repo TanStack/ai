@@ -139,6 +139,7 @@ describe('ChatClient history paging', () => {
         'm3',
       ])
     })
+    expect(client.getSnapshot().hasOlderMessages).toBe(true)
 
     await client.loadOlderMessages()
 
@@ -148,6 +149,12 @@ describe('ChatClient history paging', () => {
       'm3',
     ])
     expect(client.getHasOlderMessages()).toBe(false)
+    expect(client.getSnapshot().hasOlderMessages).toBe(false)
+    expect(client.getSnapshot().messages.map((message) => message.id)).toEqual([
+      'm1',
+      'm2',
+      'm3',
+    ])
   })
 
   it('send with history.pageSize posts only the new turn', async () => {
@@ -538,5 +545,6 @@ describe('ChatClient history paging', () => {
 
     expect(client.getMessages()).toEqual([])
     expect(client.getHasOlderMessages()).toBe(false)
+    expect(client.getSnapshot().hasOlderMessages).toBe(false)
   })
 })

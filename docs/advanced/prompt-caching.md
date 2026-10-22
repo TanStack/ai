@@ -1,0 +1,177 @@
+---
+title: Prompt Caching
+id: prompt-caching
+order: 17
+description: "chat() asks the provider to cache the start of each request by default. A repeated system prompt, tool list, and history then cost less and answer sooner. Set the retention or the key, or turn it off."
+keywords:
+  - tanstack ai
+  - prompt caching
+  - promptCache
+  - cache_control
+  - prompt_cache_key
+  - cached tokens
+  - token cost
+---
+
+Prompt caching reuses the system prompt, tools, and earlier messages that each request sends again. The provider bills those tokens once while the cache is valid.
+
+`chat()` turns it on by default. A cache hit also makes the answer start sooner.
+
+## Quick setup
+
+This setup takes about 2 minutes.
+
+### 1. Pass the `threadId` to `chat()`
+
+`chat()` uses the `threadId` as the cache key:
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+export async function POST(request: Request) {
+  const { messages, threadId } = await chatParamsFromRequest(request);
+
+  const stream = chat({
+    adapter: openaiText("gpt-6.1-sol"),
+    systemPrompts: ["You are a support agent for Acme."],
+    messages,
+    threadId,
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+The client does not change. `useChat` already sends one `threadId` for each conversation.
+
+### 2. See the cache work
+
+Log the cached tokens in the [`onUsage`](./middleware-advanced#onusage) hook of a middleware. The hook runs one time for each model call:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import type { ChatMiddleware } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+
+const cacheLog: ChatMiddleware = {
+  name: "cache-log",
+  onUsage: (ctx, usage) => {
+    const read = usage.promptTokensDetails?.cachedTokens ?? 0;
+    console.log(`Call ${ctx.iteration}: ${read} of ${usage.promptTokens} tokens from the cache`);
+  },
+};
+
+const stream = chat({
+  adapter: anthropicText("claude-sonnet-5-5"),
+  messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
+  middleware: [cacheLog],
+});
+```
+
+From the second call of a conversation, most of the input comes from the cache.
+
+## How it works
+
+- The cache key is the first of these that you set:
+  1. `promptCache.key`.
+  2. The `threadId` that you pass to `chat()`.
+  3. No key. Claude does not need one. OpenAI uses the key to route requests, so a stable `threadId` gives more cache hits.
+- A request reads the cache only up to the first token that is different. Text that changes on each call, such as the current time in the system prompt, ends the match there.
+- `usage.promptTokens` is the full input. Two fields split it:
+  - `usage.promptTokensDetails.cachedTokens`: tokens read from the cache.
+  - `usage.promptTokensDetails.cacheWriteTokens`: tokens written to the cache. Claude reports this field.
+
+## Advanced
+
+### Turn it off, or keep it longer
+
+Set `promptCache` on `chat()`:
+
+| Value | What you get |
+|---|---|
+| `'short'` | The default. The provider keeps the cache for a short time, 5 minutes on Claude. |
+| `'long'` | A longer cache, 1 hour on Claude. For other providers, see [What each provider gets](#what-each-provider-gets). |
+| `'none'` | No caching. Most adapters send no cache fields. On gpt-5.6 and later, `openaiText` sends `prompt_cache_options: { mode: 'explicit' }`, so OpenAI caches nothing. |
+
+To set your own key too, pass an object. Both fields are optional:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openaiText("gpt-6.1-sol"),
+  messages: [{ role: "user", content: "Where is my order?" }],
+  threadId: "thread-1",
+  promptCache: { retention: "long", key: "acme-support" },
+});
+```
+
+The types come from `@tanstack/ai`: `PromptCacheRetention`, `PromptCacheOptions`, and `ResolvedPromptCache`.
+
+To change the cache for one model call only, use a middleware. See [Change the prompt cache of a call](./middleware#change-the-prompt-cache-of-a-call).
+
+### Know what it costs on Claude
+
+On OpenAI and Mistral, a cache write is free and a cache read costs less. Keep the default.
+
+Claude bills the cache write, and a read costs much less than normal input:
+
+- With the 5-minute cache (`'short'`), a write costs a bit more than normal input. A start that you send two times already costs less than no cache.
+- With the 1-hour cache (`'long'`), a write costs about two times the normal input. The start must be read more times before the cache saves money.
+
+Two cases change the choice:
+
+- **A large prompt that you send one time.** For example, a long document in each call that you never send again. Nothing reads that cache, so the write is only extra cost. Use `'none'`.
+- **Long pauses.** The short Claude cache ends 5 minutes after the last read. If your users often reply later than that, use `'long'`.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+
+export function reviewContract(contract: string) {
+  return chat({
+    adapter: anthropicText("claude-sonnet-5-5"),
+    messages: [{ role: "user", content: `Review this contract:\n\n${contract}` }],
+    threadId: "thread-1",
+    // Sent one time only: skip the cache write.
+    promptCache: "none",
+  });
+}
+```
+
+Claude caches a start only when it is longer than a minimum for the model (512 to 4096 tokens). A shorter start costs nothing extra.
+
+### What each provider gets
+
+| Adapter | Default (`'short'`) | `'long'` |
+|---|---|---|
+| `anthropicText`, `anthropicVertexText` | `cache_control` markers on the last start tool, the last block of the last user or mid-conversation system message, and the system blocks. At most 4. The last start tool is the tool before the deferred placeholder, or the last tool. | The same markers with `ttl: '1h'` |
+| `bedrockText` (Converse), Claude models only | A `cachePoint` after the system prompt and at the end of the last user message | Both with `ttl: '1h'` |
+| `openRouterText` | `sessionId` set to the key. `anthropic/*` models also get markers on the system message, the last tool, and the last message. | The markers with `ttl: '1h'` |
+| `openaiText` (Responses) | `prompt_cache_key`, cut to 64 characters, only to `api.openai.com` and its regional hosts | Also `prompt_cache_retention: '24h'`. On gpt-5.6 and later, `prompt_cache_options: { ttl: '30m' }` in its place. |
+| `openaiChatCompletions` | `prompt_cache_key`, only to `api.openai.com` and its regional hosts | The key and `prompt_cache_retention: '24h'` |
+| `mistralText` | `prompt_cache_key`, only to `api.mistral.ai`, on `chat()` and on structured output | The same |
+
+Other adapters send no cache fields.
+
+Each adapter page has the details: [Anthropic](../adapters/anthropic-advanced#prompt-caching), [Amazon Bedrock](../adapters/bedrock#prompt-caching), [OpenAI](../adapters/openai-advanced#prompt-caching), [OpenRouter](../adapters/openrouter-advanced#prompt-caching), and [Mistral](../adapters/mistral#prompt-caching).
+
+### Set the cache yourself
+
+Your own cache fields win. Then `chat()` adds no automatic fields of that kind to the request:
+
+- **Anthropic**: `cache_control` in the `metadata` of a system prompt, a message part, or a tool, or `modelOptions.cache_control`.
+- **Bedrock**: `metadata.cachePoint` on a system prompt, a message part, or a tool.
+- **OpenAI**: `modelOptions.prompt_cache_key` or `modelOptions.prompt_cache_retention`.
+- **OpenRouter**: `modelOptions.sessionId`.
+
+### Add tools without losing the cache
+
+The tools sit near the start of each request. If you add a tool during a run, the next call cannot read the cache from that point. Some GPT and Claude models take the new tool inside the conversation, so the start stays the same. See [Mid-Conversation Changes](./mid-conversation-changes).

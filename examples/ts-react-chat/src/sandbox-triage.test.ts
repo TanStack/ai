@@ -62,6 +62,7 @@ describe('registries', () => {
       'daytona',
       'docker',
       'local',
+      'railway',
       'vercel',
     ])
     for (const spec of Object.values(HARNESSES)) {
@@ -103,6 +104,28 @@ describe('registries', () => {
     )
     process.env.ANTHROPIC_API_KEY = 'x'
     expect(missingEnv('claude-code', 'docker')).toEqual([])
+  })
+
+  it('missingEnv requires a Railway token and an environment ID', () => {
+    process.env.ANTHROPIC_API_KEY = 'x'
+    delete process.env.RAILWAY_TOKEN
+    delete process.env.RAILWAY_API_TOKEN
+    delete process.env.RAILWAY_ENVIRONMENT_ID
+    expect(missingEnv('claude-code', 'railway')).toEqual([
+      'RAILWAY_API_TOKEN (or RAILWAY_TOKEN)',
+      'RAILWAY_ENVIRONMENT_ID',
+    ])
+    // Either token kind still needs the environment.
+    for (const token of ['RAILWAY_API_TOKEN', 'RAILWAY_TOKEN']) {
+      process.env[token] = 'x'
+      expect(missingEnv('claude-code', 'railway')).toEqual([
+        'RAILWAY_ENVIRONMENT_ID',
+      ])
+      process.env.RAILWAY_ENVIRONMENT_ID = 'x'
+      expect(missingEnv('claude-code', 'railway')).toEqual([])
+      delete process.env[token]
+      delete process.env.RAILWAY_ENVIRONMENT_ID
+    }
   })
 })
 

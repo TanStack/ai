@@ -47,24 +47,6 @@ export interface LLMGatewayTextProviderOptions {
   presence_penalty?: number | null
 
   /**
-   * Controls reasoning effort for reasoning-capable models.
-   *
-   * The gateway accepts the extended effort scale in addition to OpenAI's
-   * `low` / `medium` / `high`; which tiers a given model honors depends on
-   * the model and the provider it is routed to. See the model's page on
-   * https://llmgateway.io/models for the tiers it supports.
-   */
-  reasoning_effort?:
-    | 'none'
-    | 'minimal'
-    | 'low'
-    | 'medium'
-    | 'high'
-    | 'xhigh'
-    | 'max'
-    | null
-
-  /**
    * An object specifying the format that the model must output.
    *
    * - `json_schema` — enables Structured Outputs (preferred)

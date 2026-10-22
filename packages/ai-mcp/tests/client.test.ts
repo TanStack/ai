@@ -2,12 +2,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   InMemoryTransport,
+  StreamableHTTPClientTransport,
   SUPPORTED_PROTOCOL_VERSIONS,
 } from '@modelcontextprotocol/client'
 import { Server } from '@modelcontextprotocol/server'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import { createMCPClient, createMCPClientFromTransport } from '../src/client'
+import { createMCPServer } from '../src/server/create-server'
 import {
   DuplicateToolNameError,
   MCPConnectionError,
@@ -19,6 +21,7 @@ import {
   makeServerWithChangingTools,
   makeServerWithLaxOutputSchemaTool,
   makeServerWithLoopingCursor,
+  makeServerWithMixedTools,
   makeServerWithPaginatedLaxSchemaTool,
   makeServerWithPaginatedTools,
   makeServerWithPendingTaskTool,
@@ -44,6 +47,125 @@ describe('createMCPClient', () => {
     expect(client.capabilities).toBeDefined()
   })
 
+  it('exposes the server instructions after connect', async () => {
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair()
+    const server = new Server(
+      { name: 'with-instructions', version: '1.0.0' },
+      { capabilities: {}, instructions: 'Call get_weather before planning.' },
+    )
+    await server.connect(serverTransport)
+    await using client = await createMCPClientFromTransport(clientTransport)
+    expect(client.instructions).toBe('Call get_weather before planning.')
+  })
+
+  it('leaves instructions undefined when the server sends none', async () => {
+    const { clientTransport } = await makeServerWithWeatherTool()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    expect(client.instructions).toBeUndefined()
+  })
+
+  it('skips server/discover when it gets a saved discover result as prior', async () => {
+    const server = createMCPServer({
+      name: 'weather',
+      version: '1.0.0',
+      tools: [
+        toolDefinition({
+          name: 'get_weather',
+          description: 'Weather for a city',
+          inputSchema: z.object({ city: z.string() }),
+        }).server(async ({ city }) => `Sunny in ${city}`),
+      ],
+    })
+    const methods: Array<string> = []
+    const transport = {
+      type: 'http' as const,
+      url: 'https://mcp.example.com/mcp',
+      fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init)
+        const body: unknown = await request
+          .clone()
+          .json()
+          .catch(() => undefined)
+        if (typeof body === 'object' && body !== null && 'method' in body) {
+          methods.push(String(body.method))
+        }
+        return server.fetch(request)
+      },
+    }
+
+    const first = await createMCPClient({ transport })
+    const discover = first.getDiscoverResult()
+    await first.close()
+    expect(methods).toContain('server/discover')
+    expect(discover?.supportedVersions).toContain('2026-07-28')
+    if (discover === undefined) throw new Error('No discover result')
+
+    methods.length = 0
+    await using next = await createMCPClient({
+      transport,
+      prior: { kind: 'modern', discover },
+    })
+    expect(next.getDiscoverResult()).toEqual(discover)
+    const called = await next.callTool('get_weather', { city: 'Paris' })
+    expect(called.content).toEqual([{ type: 'text', text: 'Sunny in Paris' }])
+    expect(methods).not.toContain('server/discover')
+    expect(methods).toContain('tools/call')
+
+    // A prior with no shared protocol version fails connect before any request.
+    methods.length = 0
+    await expect(
+      createMCPClient({
+        transport,
+        prior: {
+          kind: 'modern',
+          discover: { ...discover, supportedVersions: ['2025-11-25'] },
+        },
+      }),
+    ).rejects.toThrow(MCPConnectionError)
+    expect(methods).toEqual([])
+  })
+
+  it('has no discover result on a spec 2025 server', async () => {
+    const { clientTransport } = await makeSilentServer()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    expect(client.getDiscoverResult()).toBeUndefined()
+  })
+
+  it('sends an extension method with request and refuses it after close', async () => {
+    const server = createMCPServer({
+      name: 'greeter',
+      version: '1.0.0',
+      setup: (built) => {
+        built.server.registerCapabilities({
+          extensions: { 'com.example/greetings': {} },
+        })
+        built.server.setRequestHandler(
+          'greetings/get',
+          { params: z.object({ name: z.string() }) },
+          ({ name }) => ({ text: `Hello, ${name}` }),
+        )
+      },
+    })
+    const client = await createMCPClient({
+      transport: {
+        type: 'http',
+        url: 'https://mcp.example.com/mcp',
+        fetch: async (input, init) => server.fetch(new Request(input, init)),
+      },
+    })
+
+    const greet = () =>
+      client.request(
+        { method: 'greetings/get', params: { name: 'Ada' } },
+        z.object({ text: z.string() }),
+      )
+    expect(await greet()).toEqual({ text: 'Hello, Ada' })
+
+    await client.close()
+    await expect(greet()).rejects.toThrow(MCPConnectionError)
+  })
+
   it('binds passed toolDefinitions to the server, typed + validated', async () => {
     const { clientTransport } = await makeServerWithWeatherTool()
     await using client = await createMCPClientFromTransport(clientTransport)
@@ -58,6 +180,7 @@ describe('createMCPClient', () => {
     const result = await tools[0].execute!(
       { city: 'Brooklyn' },
       {
+        threadId: 'thread-1',
         toolCallId: 't',
         emitCustomEvent: () => {},
       },
@@ -160,6 +283,82 @@ describe('createMCPClient', () => {
     expect(mcp.title).toBe('Weather Lookup')
   })
 
+  it('freezes a copy of the server annotations on bound definitions', async () => {
+    const { clientTransport } = await makeServerWithAnnotatedTool()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    const getWeather = toolDefinition({
+      name: 'get_weather',
+      description: 'Get weather for a city',
+      inputSchema: z.object({ city: z.string() }),
+    })
+    const tools = await client.tools([getWeather])
+    const mcp = tools[0].metadata.mcp
+    expect(mcp.annotations).toEqual({
+      title: 'Legacy Weather Title',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    })
+    expect(Object.isFrozen(mcp.annotations)).toBe(true)
+  })
+
+  it('names bound definitions with toolName and keeps the server name', async () => {
+    const { clientTransport } = await makeServerWithWeatherTool()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      prefix: 'wx',
+      toolName: (tool) => `mcp__weather__${tool.name}`,
+    })
+    const getWeather = toolDefinition({
+      name: 'get_weather',
+      description: 'Get weather for a city',
+      inputSchema: z.object({ city: z.string() }),
+    })
+    const tools = await client.tools([getWeather])
+    expect(tools[0].name).toBe('mcp__weather__get_weather')
+    expect(tools[0].metadata.mcp).toMatchObject({
+      serverToolName: 'get_weather',
+      serverId: 'wx',
+    })
+    // The call still reaches the server tool by its own name.
+    const result = await tools[0].execute!(
+      { city: 'Oslo' },
+      { threadId: 'thread-1', toolCallId: 't', emitCustomEvent: () => {} },
+    )
+    expect(JSON.stringify(result)).toContain('Sunny in Oslo')
+  })
+
+  it('throws DuplicateToolNameError naming the name when toolName gives two tools the same name', async () => {
+    const { clientTransport } = await makeServerWithMixedTools()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      toolName: () => 'same_name',
+    })
+    const error: unknown = await client.tools().catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(DuplicateToolNameError)
+    if (!(error instanceof DuplicateToolNameError)) {
+      throw new Error('expected DuplicateToolNameError')
+    }
+    expect(error.toolName).toBe('same_name')
+    expect(error.message).toContain('"same_name"')
+  })
+
+  it('reports toolName on getInfo so a rebuilt client keeps it', async () => {
+    const { clientTransport } = await makeServerWithWeatherTool()
+    const toolName = (tool: { name: string }) => `mcp__weather__${tool.name}`
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      prefix: 'wx',
+      toolName,
+    })
+    expect(client.getInfo()).toStrictEqual({
+      transport: undefined,
+      prefix: 'wx',
+      toolName,
+    })
+  })
+
   it('discovers and executes task-required tools', async () => {
     const { clientTransport } = await makeServerWithTaskRequiredTool()
     await using client = await createMCPClientFromTransport(clientTransport)
@@ -169,7 +368,7 @@ describe('createMCPClient', () => {
     await expect(
       research.execute!(
         { query: 'MCP tasks' },
-        { toolCallId: 't', emitCustomEvent: () => {} },
+        { threadId: 'thread-1', toolCallId: 't', emitCustomEvent: () => {} },
       ),
     ).resolves.toBe('Research complete: MCP tasks')
   })
@@ -186,7 +385,7 @@ describe('createMCPClient', () => {
     await expect(
       tool!.execute!(
         { query: 'typed tasks' },
-        { toolCallId: 't', emitCustomEvent: () => {} },
+        { threadId: 'thread-1', toolCallId: 't', emitCustomEvent: () => {} },
       ),
     ).resolves.toBe('Research complete: typed tasks')
   })
@@ -574,6 +773,130 @@ describe('clientOptions', () => {
   })
 })
 
+describe('requestOptions', () => {
+  it('limits the connect handshake with the timeout', async () => {
+    // Nothing listens on the other end, so only the 50 ms timeout ends connect.
+    const [clientTransport] = InMemoryTransport.createLinkedPair()
+    const error: unknown = await createMCPClient({
+      transport: clientTransport,
+      requestOptions: { timeout: 50 },
+    }).catch((e: unknown) => e)
+    if (!(error instanceof MCPConnectionError)) {
+      throw new Error('expected MCPConnectionError')
+    }
+    expect(String(error.cause)).toContain('timed out after 50ms')
+  }, 5000)
+
+  it('sends the timeout with tools/list, tools/call, resources, and prompts', async () => {
+    const { clientTransport } = await makeSilentServer()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      requestOptions: { timeout: 50 },
+    })
+    // The server never answers, so only the 50 ms timeout ends a request.
+    await expect(client.tools()).rejects.toThrow('Request timed out')
+    await expect(client.callTool('slow')).rejects.toThrow('Request timed out')
+    await expect(client.resources()).rejects.toThrow('Request timed out')
+    await expect(client.readResource('file:///a.txt')).rejects.toThrow(
+      'Request timed out',
+    )
+    await expect(client.resourceTemplates()).rejects.toThrow(
+      'Request timed out',
+    )
+    await expect(client.prompts()).rejects.toThrow('Request timed out')
+    await expect(client.getPrompt('brief')).rejects.toThrow('Request timed out')
+    // Both request shapes: no schema, and a result schema.
+    await expect(client.request({ method: 'resources/list' })).rejects.toThrow(
+      'Request timed out',
+    )
+    await expect(
+      client.request({ method: 'prompts/list' }, z.object({})),
+    ).rejects.toThrow('Request timed out')
+  }, 5000)
+
+  it('sends the timeout with the spec 2025 listTools cache fill', async () => {
+    const { clientTransport } = await makeServerThatAnswersListOnce()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      requestOptions: { timeout: 50 },
+    })
+    // The raw walk gets the first answer. Only the cache fill is left
+    // unanswered, so only the 50 ms timeout can end it.
+    await expect(client.tools()).rejects.toThrow('Request timed out')
+  }, 5000)
+
+  it('restarts the timeout on progress with resetTimeoutOnProgress', async () => {
+    const { clientTransport, sawProgressToken } = await makeProgressServer()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      requestOptions: { timeout: 200, resetTimeoutOnProgress: true },
+    })
+    // The tool runs 300 ms and reports progress every 50 ms.
+    const result = await client.callTool('slow')
+    expect(result.content).toEqual([{ type: 'text', text: 'done' }])
+    // The client asked for progress, so the server could send it.
+    expect(sawProgressToken()).toBe(true)
+  })
+
+  it('times out a long tool without resetTimeoutOnProgress', async () => {
+    const { clientTransport } = await makeProgressServer()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      requestOptions: { timeout: 200 },
+    })
+    await expect(client.callTool('slow')).rejects.toThrow('Request timed out')
+  })
+
+  it('sends requestOptions with the execute of tools from client.tools()', async () => {
+    const { clientTransport } = await makeProgressServer()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      requestOptions: { timeout: 200 },
+    })
+    const [tool] = await client.tools()
+    await expect(
+      tool!.execute!(
+        {},
+        { threadId: 'thread-1', toolCallId: 't', emitCustomEvent: () => {} },
+      ),
+    ).rejects.toThrow('Request timed out')
+  })
+
+  it('sends requestOptions with the execute of tools from client.tools([defs])', async () => {
+    const { clientTransport } = await makeProgressServer()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      requestOptions: { timeout: 200 },
+    })
+    const [tool] = await client.tools([
+      toolDefinition({
+        name: 'slow',
+        description: 'Slow tool',
+        inputSchema: z.object({}),
+      }),
+    ])
+    await expect(
+      tool!.execute!(
+        {},
+        { threadId: 'thread-1', toolCallId: 't', emitCustomEvent: () => {} },
+      ),
+    ).rejects.toThrow('Request timed out')
+  })
+
+  it('reports requestOptions on getInfo so a rebuilt client keeps them', async () => {
+    const { clientTransport } = await makeServerWithWeatherTool()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      requestOptions: { timeout: 5000 },
+    })
+    expect(client.getInfo()).toStrictEqual({
+      transport: undefined,
+      prefix: undefined,
+      requestOptions: { timeout: 5000 },
+    })
+  })
+})
+
 // tools/list always returns a new cursor, so pagination never reaches the last page.
 async function makeServerWithUnendingToolList() {
   const [clientTransport, serverTransport] =
@@ -679,3 +1002,162 @@ function isSubscriptionsListen(
     (typeof message.id === 'string' || typeof message.id === 'number')
   )
 }
+
+// A spec 2025 server that never answers a request after the handshake.
+async function makeSilentServer() {
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  const server = new Server(
+    { name: 'silent', version: '1.0.0' },
+    { capabilities: { tools: {}, resources: {}, prompts: {} } },
+  )
+  const never = () => new Promise<never>(() => {})
+  server.setRequestHandler('tools/list', never)
+  server.setRequestHandler('tools/call', never)
+  server.setRequestHandler('resources/list', never)
+  server.setRequestHandler('resources/read', never)
+  server.setRequestHandler('resources/templates/list', never)
+  server.setRequestHandler('prompts/list', never)
+  server.setRequestHandler('prompts/get', never)
+  await server.connect(serverTransport)
+  return { server, clientTransport }
+}
+
+// A spec 2025 server that answers the first tools/list and never answers again.
+async function makeServerThatAnswersListOnce() {
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  const server = new Server(
+    { name: 'answers-once', version: '1.0.0' },
+    { capabilities: { tools: {} } },
+  )
+  let calls = 0
+  server.setRequestHandler('tools/list', () => {
+    calls += 1
+    if (calls > 1) return new Promise<never>(() => {})
+    return {
+      tools: [{ name: 'slow', inputSchema: { type: 'object' as const } }],
+    }
+  })
+  await server.connect(serverTransport)
+  return { server, clientTransport }
+}
+
+// A spec 2025 tool that runs 300 ms. It reports progress every 50 ms when
+// the request carries a progressToken.
+async function makeProgressServer() {
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  const server = new Server(
+    { name: 'progress', version: '1.0.0' },
+    { capabilities: { tools: {} } },
+  )
+  let sawToken = false
+  server.setRequestHandler('tools/list', () => ({
+    tools: [{ name: 'slow', inputSchema: { type: 'object' as const } }],
+  }))
+  server.setRequestHandler('tools/call', async (_request, ctx) => {
+    const progressToken = ctx.mcpReq._meta?.progressToken
+    if (progressToken !== undefined) sawToken = true
+    for (let step = 1; step <= 6; step += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      if (progressToken !== undefined) {
+        await ctx.mcpReq.notify({
+          method: 'notifications/progress',
+          params: { progressToken, progress: step, total: 6 },
+        })
+      }
+    }
+    return { content: [{ type: 'text' as const, text: 'done' }] }
+  })
+  await server.connect(serverTransport)
+  return { server, clientTransport, sawProgressToken: () => sawToken }
+}
+
+describe('spec 2026 Mcp-Param headers', () => {
+  // A strict spec 2026 HTTP server, like GitHub's. It rejects a tools/call
+  // whose Mcp-Param-Region header is missing or differs from the argument.
+  function strictHeaderServer() {
+    const regions: Array<string | null> = []
+    const tool = {
+      name: 'lookup',
+      inputSchema: {
+        type: 'object',
+        properties: { region: { type: 'string', 'x-mcp-header': 'Region' } },
+        required: ['region'],
+      },
+    }
+    const transport = new StreamableHTTPClientTransport(
+      new URL('https://fixture.example/mcp'),
+      {
+        protocolVersion: '2026-07-28',
+        fetch: async (_url, init) => {
+          if (typeof init?.body !== 'string') {
+            return new Response(null, { status: 405 })
+          }
+          const body = JSON.parse(init.body)
+          if (body.id === undefined) return new Response(null, { status: 202 })
+          if (body.method === 'tools/call') {
+            const region = new Headers(init.headers).get('Mcp-Param-Region')
+            regions.push(region)
+            if (region !== body.params.arguments.region) {
+              return Response.json(
+                {
+                  jsonrpc: '2.0',
+                  id: body.id,
+                  error: { code: -32020, message: 'Mcp-Param-Region mismatch' },
+                },
+                { status: 400 },
+              )
+            }
+          }
+          const result =
+            body.method === 'server/discover'
+              ? {
+                  supportedVersions: ['2026-07-28'],
+                  serverInfo: { name: 'fixture', version: '1' },
+                  capabilities: { tools: {} },
+                }
+              : body.method === 'tools/list'
+                ? { tools: [tool] }
+                : { content: [{ type: 'text', text: 'ok' }] }
+          return Response.json({
+            jsonrpc: '2.0',
+            id: body.id,
+            result: {
+              resultType: 'complete',
+              ttlMs: 0,
+              cacheScope: 'private',
+              ...result,
+            },
+          })
+        },
+      },
+    )
+    return { transport, regions }
+  }
+
+  it('sends the x-mcp-header argument as a header from tools()', async () => {
+    const { transport, regions } = strictHeaderServer()
+    const mcp = await createMCPClient({ transport })
+    try {
+      const [tool] = await mcp.tools()
+      await expect(tool!.execute!({ region: 'eu' })).resolves.toBe('ok')
+      expect(regions).toEqual(['eu'])
+    } finally {
+      await mcp.close()
+    }
+  })
+
+  it('sends the x-mcp-header argument as a header from callTool()', async () => {
+    const { transport, regions } = strictHeaderServer()
+    const mcp = await createMCPClient({ transport })
+    try {
+      const result = await mcp.callTool('lookup', { region: 'eu' })
+      expect(result.content).toEqual([{ type: 'text', text: 'ok' }])
+      expect(regions).toEqual(['eu'])
+    } finally {
+      await mcp.close()
+    }
+  })
+})

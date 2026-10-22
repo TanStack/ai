@@ -1,21 +1,33 @@
-import { EventType, fileReferenceFor, isFileSource } from '@tanstack/ai'
+import {
+  CONTEXT_OVERFLOW_CODE,
+  EventType,
+  fileReferenceFor,
+  isFileSource,
+} from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { parse as parsePartialJSON } from 'partial-json'
 import {
   createGeminiClient,
   generateId,
   getGeminiApiKeyFromEnv,
+  isGeminiContextOverflow,
 } from '../../utils/client'
 import {
   getGeminiProviderToolKind,
   getGeminiProviderToolMetadata,
 } from '../../tools/gemini-provider-tool'
 import { assertUniqueToolNames } from '@tanstack/ai/adapter-internals'
+import { interactionsThinking } from '../../text/reasoning'
+import { GEMINI_MODEL_REASONING } from '../../model-meta'
+import {
+  prepareGeminiMessagesForReplay,
+  withGeminiSource,
+} from '../../adapters/text'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
-  GeminiChatModelProviderOptionsByName,
   GeminiChatModelToolCapabilitiesByName,
   GeminiModelInputModalitiesByName,
+  GeminiModelReasoningByName,
   GeminiModels,
 } from '../../model-meta'
 import type {
@@ -105,31 +117,24 @@ type ToolCallState = {
 // ===========================
 
 /**
- * Resolve provider options for a specific model. Reuses the chat-model
- * options map from `model-meta.ts` so a model's allowed thinking levels are
- * declared once: the Interactions API takes the same levels as
- * `generateContent` but lowercased (`low`, not `LOW`). Models whose chat
- * options carry no `thinkingConfig` resolve to `never`, so `thinking_level`
- * can't be set on them. Everything else falls through to the flat SDK shape.
+ * Resolve provider options for a specific model. Thinking is not here:
+ * `chat({ reasoning })` sets `thinking_level` and `thinking_summaries`.
  */
-type InteractionsThinkingLevel<TModel> =
-  TModel extends keyof GeminiChatModelProviderOptionsByName
-    ? GeminiChatModelProviderOptionsByName[TModel] extends {
-        thinkingConfig?: { thinkingLevel?: infer L extends string }
-      }
-      ? Lowercase<L>
-      : never
-    : never
-
-type ResolveProviderOptions<TModel extends GeminiModels> = Omit<
+type ResolveProviderOptions = Omit<
   GeminiTextInteractionsProviderOptions,
   'generation_config'
 > & {
   generation_config?: Omit<
     NonNullable<GeminiTextInteractionsProviderOptions['generation_config']>,
-    'thinking_level'
-  > & { thinking_level?: InteractionsThinkingLevel<TModel> }
+    'thinking_level' | 'thinking_summaries'
+  >
 }
+
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof GeminiModelReasoningByName
+    ? GeminiModelReasoningByName[TModel]
+    : never
 
 /**
  * Resolve input modalities for a specific model. Reuses the chat-model
@@ -186,7 +191,7 @@ type ResolveToolCapabilities<TModel extends string> =
  */
 export class GeminiTextInteractionsAdapter<
   TModel extends GeminiModels,
-  TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
+  TProviderOptions extends Record<string, any> = ResolveProviderOptions,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
   TToolCapabilities extends ReadonlyArray<string> =
@@ -196,10 +201,15 @@ export class GeminiTextInteractionsAdapter<
   TProviderOptions,
   TInputModalities,
   GeminiMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  unknown,
+  never,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   override readonly name = 'gemini-text-interactions' as const
+  override readonly api = 'google-interactions'
+  override readonly provider: string
   // Consumes Gemini Files API references (geminiFiles()) as content `uri`s.
   override readonly supportsFileSources = true
 
@@ -222,14 +232,34 @@ export class GeminiTextInteractionsAdapter<
 
   constructor(config: GeminiTextInteractionsConfig, model: TModel) {
     super({}, model)
+    this.provider =
+      config.vertexai === true || config.enterprise === true
+        ? 'google-vertex'
+        : 'google'
     this.client = createGeminiClient(config)
   }
 
   async *chatStream(
     options: TextOptions<GeminiTextInteractionsProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
+    const source = {
+      provider: this.provider,
+      api: this.api,
+      model: options.model,
+    }
+    const prepared = {
+      ...options,
+      messages: prepareGeminiMessagesForReplay(options.messages, source),
+    }
+    for await (const chunk of this.chatStreamRequest(prepared))
+      yield withGeminiSource(chunk, source)
+  }
+
+  private async *chatStreamRequest(
+    options: TextOptions<GeminiTextInteractionsProviderOptions>,
+  ): AsyncIterable<AdapterYieldChunk> {
     const runId = options.runId ?? generateId(this.name)
-    const threadId = options.threadId ?? generateId(this.name)
+    const threadId = options.threadId
     const timestamp = Date.now()
     const { logger } = options
 
@@ -358,13 +388,17 @@ export class GeminiTextInteractionsAdapter<
         error,
         source: 'gemini-text-interactions.chatStream',
       })
+      const code = isGeminiContextOverflow(error)
+        ? CONTEXT_OVERFLOW_CODE
+        : undefined
       yield {
         type: EventType.RUN_ERROR,
         runId,
         model: options.model,
         timestamp,
         message,
-        error: { message },
+        ...(code && { code }),
+        error: { message, ...(code && { code }) },
       }
     } finally {
       // Abandonment cleanup — consumer `.return()` (upstream `break` /
@@ -395,10 +429,15 @@ export class GeminiTextInteractionsAdapter<
     // conversation history on a fresh interaction".
     const effectivePreviousInteractionId =
       chatOptions.modelOptions?.previous_interaction_id ??
-      (threadId ? this.interactionIdByThread.get(threadId) : undefined)
+      this.interactionIdByThread.get(threadId)
 
     const baseRequest = buildInteractionsRequest({
       ...chatOptions,
+      messages: prepareGeminiMessagesForReplay(chatOptions.messages, {
+        provider: this.provider,
+        api: this.api,
+        model: chatOptions.model,
+      }),
       modelOptions: {
         ...chatOptions.modelOptions,
         previous_interaction_id: effectivePreviousInteractionId,
@@ -447,7 +486,12 @@ export class GeminiTextInteractionsAdapter<
         throw new Error(jsonContentParseError(rawText, 'structured output'))
       }
 
-      return { data: parsed, rawText }
+      return {
+        data: parsed,
+        rawText,
+        ...(result.id && { responseId: result.id }),
+        ...(result.model && { model: result.model }),
+      }
     } catch (error) {
       logger.errors('gemini-text-interactions.structuredOutput fatal', {
         error,
@@ -467,9 +511,30 @@ export class GeminiTextInteractionsAdapter<
   async *structuredOutputStream(
     options: StructuredOutputOptions<GeminiTextInteractionsProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
+    const source = {
+      provider: this.provider,
+      api: this.api,
+      model: options.chatOptions.model,
+    }
+    for await (const chunk of this.structuredOutputRequestStream({
+      ...options,
+      chatOptions: {
+        ...options.chatOptions,
+        messages: prepareGeminiMessagesForReplay(
+          options.chatOptions.messages,
+          source,
+        ),
+      },
+    }))
+      yield withGeminiSource(chunk, source)
+  }
+
+  private async *structuredOutputRequestStream(
+    options: StructuredOutputOptions<GeminiTextInteractionsProviderOptions>,
+  ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
     const runId = chatOptions.runId ?? generateId(this.name)
-    const threadId = chatOptions.threadId ?? generateId(this.name)
+    const threadId = chatOptions.threadId
     const timestamp = Date.now()
     const effectivePreviousInteractionId =
       chatOptions.modelOptions?.previous_interaction_id ??
@@ -632,7 +697,7 @@ export function createGeminiTextInteractions<TModel extends GeminiModels>(
   config?: Omit<GeminiTextInteractionsConfig, 'apiKey'>,
 ): GeminiTextInteractionsAdapter<
   TModel,
-  ResolveProviderOptions<TModel>,
+  ResolveProviderOptions,
   ResolveInputModalities<TModel>,
   ResolveToolCapabilities<TModel>
 > {
@@ -645,7 +710,7 @@ export function geminiTextInteractions<TModel extends GeminiModels>(
   config?: Omit<GeminiTextInteractionsConfig, 'apiKey'>,
 ): GeminiTextInteractionsAdapter<
   TModel,
-  ResolveProviderOptions<TModel>,
+  ResolveProviderOptions,
   ResolveInputModalities<TModel>,
   ResolveToolCapabilities<TModel>
 > {
@@ -663,6 +728,10 @@ function buildInteractionsRequest(
 
   const generationConfig: Interactions.GenerationConfig = {
     ...modelOpts?.generation_config,
+    ...interactionsThinking(
+      options.reasoning,
+      GEMINI_MODEL_REASONING[options.model],
+    ),
   }
 
   const hasGenerationConfig = Object.keys(generationConfig).length > 0
@@ -848,6 +917,22 @@ function parsePartialToolArguments(
       : undefined
   } catch {
     return undefined
+  }
+}
+
+// The raw `args` and parsed `input` of a TOOL_CALL_END. The streamed argument
+// text wins over the initial `step.arguments` snapshot. Malformed JSON sends
+// no `input`, so core reports the error from the raw `args`.
+function toolCallEndArguments(
+  streamed: string | undefined,
+  state: ToolCallState,
+): { args: string; input?: unknown } {
+  const args = streamed?.trim() ? streamed : JSON.stringify(state.args)
+  try {
+    const parsed: unknown = JSON.parse(args)
+    return { args, input: parsed && typeof parsed === 'object' ? parsed : {} }
+  } catch {
+    return { args }
   }
 }
 
@@ -1121,11 +1206,10 @@ async function* translateInteractionEvents(
   let hasEmittedTextMessageStart = false
   let textAccumulated = ''
   let interactionId: string | undefined
+  let reportedModel: string | undefined
   let sawFunctionCall = false
   const toolCalls = new Map<string, ToolCallState>()
   let nextToolIndex = 0
-  let thinkingStepId: string | null = null
-  let thinkingAccumulated = ''
   let reasoningMessageId: string | null = null
   let hasClosedReasoning = false
   // SDK 2.x routes events by step `index`, not by content id. We need to
@@ -1159,9 +1243,39 @@ async function* translateInteractionEvents(
       // interleaves text → thought → text on some models) opens a
       // fresh reasoning block instead of re-using an already-ended
       // messageId, which would violate AG-UI ordering.
-      thinkingStepId = null
       reasoningMessageId = null
       hasClosedReasoning = false
+    }
+  }
+
+  // Ends a tool call. With no streamed argument text, the initial
+  // `step.arguments` snapshot goes out as the only TOOL_CALL_ARGS delta, so
+  // the deltas always add up to the final arguments.
+  const endToolCall = function* (
+    toolCallId: string,
+    state: ToolCallState,
+  ): Generator<AdapterYieldChunk> {
+    const end = toolCallEndArguments(
+      argStringByToolCallId.get(toolCallId),
+      state,
+    )
+    if (!argStringByToolCallId.get(toolCallId)?.trim() && end.args !== '{}') {
+      yield {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId,
+        model,
+        timestamp,
+        delta: end.args,
+        args: end.args,
+      }
+    }
+    yield {
+      type: EventType.TOOL_CALL_END,
+      toolCallId,
+      toolCallName: state.name,
+      model,
+      timestamp,
+      ...end,
     }
   }
 
@@ -1175,14 +1289,7 @@ async function* translateInteractionEvents(
     for (const [toolCallId, state] of toolCalls) {
       if (state.ended) continue
       state.ended = true
-      yield {
-        type: EventType.TOOL_CALL_END,
-        toolCallId,
-        toolName: state.name,
-        model,
-        timestamp,
-        input: state.args,
-      }
+      yield* endToolCall(toolCallId, state)
     }
     if (hasEmittedTextMessageStart) {
       hasEmittedTextMessageStart = false
@@ -1200,6 +1307,12 @@ async function* translateInteractionEvents(
       hasEmittedRunStarted = true
       yield {
         type: EventType.RUN_STARTED,
+        metadata: {
+          tanstack: {
+            ...(interactionId && { responseId: interactionId }),
+            ...(reportedModel && { model: reportedModel }),
+          },
+        },
         runId,
         threadId,
         model,
@@ -1214,6 +1327,7 @@ async function* translateInteractionEvents(
     switch (event.event_type) {
       case 'interaction.created': {
         interactionId = event.interaction.id
+        if (event.interaction.model) reportedModel = event.interaction.model
         yield* emitRunStartedIfNeeded()
         break
       }
@@ -1230,8 +1344,9 @@ async function* translateInteractionEvents(
             indexToToolCallId.set(index, toolCallId)
             // `step.arguments` is required on FunctionCallStep but may
             // be an empty `{}` placeholder when streaming, where the
-            // real args arrive as `arguments_delta` events. Treat both
-            // uniformly: stash whatever we got, stringify once.
+            // real args arrive as `arguments_delta` events. Keep this
+            // initial snapshot apart from the streamed text: it is sent
+            // only when no argument delta arrives (see `endToolCall`).
             const initialArgs = step.arguments
             const state: ToolCallState = {
               name: step.name,
@@ -1241,17 +1356,10 @@ async function* translateInteractionEvents(
               ended: false,
             }
             toolCalls.set(toolCallId, state)
-            argStringByToolCallId.set(
-              toolCallId,
-              Object.keys(initialArgs).length > 0
-                ? JSON.stringify(initialArgs)
-                : '',
-            )
             yield {
               type: EventType.TOOL_CALL_START,
               toolCallId,
               toolCallName: state.name,
-              toolName: state.name,
               // Bind the tool call to the same assistant message id the
               // eventual TEXT_MESSAGE_START uses so the message id stays
               // stable when a function_call arrives before any text (#477).
@@ -1260,17 +1368,6 @@ async function* translateInteractionEvents(
               timestamp,
               index: state.index,
             }
-            if (Object.keys(initialArgs).length > 0) {
-              const argsJson = JSON.stringify(initialArgs)
-              yield {
-                type: EventType.TOOL_CALL_ARGS,
-                toolCallId,
-                model,
-                timestamp,
-                delta: argsJson,
-                args: argsJson,
-              }
-            }
             break
           }
           case 'thought': {
@@ -1278,8 +1375,7 @@ async function* translateInteractionEvents(
             // `step.delta { thought_summary }` events. If the server
             // ships a non-empty `summary` array up-front (rare, unary
             // responses), surface it immediately.
-            if (thinkingStepId === null || reasoningMessageId === null) {
-              thinkingStepId = generateId(adapterName)
+            if (reasoningMessageId === null) {
               reasoningMessageId = generateId(adapterName)
               yield {
                 type: EventType.REASONING_START,
@@ -1294,33 +1390,15 @@ async function* translateInteractionEvents(
                 model,
                 timestamp,
               }
-              yield {
-                type: EventType.STEP_STARTED,
-                stepName: thinkingStepId,
-                stepId: thinkingStepId,
-                model,
-                timestamp,
-                stepType: 'thinking',
-              }
             }
             for (const part of step.summary ?? []) {
               if (part.type !== 'text' || !part.text) continue
-              thinkingAccumulated += part.text
               yield {
                 type: EventType.REASONING_MESSAGE_CONTENT,
                 messageId: reasoningMessageId,
                 delta: part.text,
                 model,
                 timestamp,
-              }
-              yield {
-                type: EventType.STEP_FINISHED,
-                stepName: thinkingStepId,
-                stepId: thinkingStepId,
-                model,
-                timestamp,
-                delta: part.text,
-                content: thinkingAccumulated,
               }
             }
             break
@@ -1502,8 +1580,9 @@ async function* translateInteractionEvents(
               break
             }
             const state = toolCalls.get(toolCallId)
-            if (!state) break
-            const fragment = delta.arguments ?? ''
+            // A delta with no arguments keeps the initial snapshot.
+            if (!state || typeof delta.arguments !== 'string') break
+            const fragment = delta.arguments
             const buffer =
               (argStringByToolCallId.get(toolCallId) ?? '') + fragment
             argStringByToolCallId.set(toolCallId, buffer)
@@ -1529,8 +1608,7 @@ async function* translateInteractionEvents(
             const thoughtText =
               delta.content && 'text' in delta.content ? delta.content.text : ''
             if (!thoughtText) break
-            if (thinkingStepId === null || reasoningMessageId === null) {
-              thinkingStepId = generateId(adapterName)
+            if (reasoningMessageId === null) {
               reasoningMessageId = generateId(adapterName)
               yield {
                 type: EventType.REASONING_START,
@@ -1545,31 +1623,13 @@ async function* translateInteractionEvents(
                 model,
                 timestamp,
               }
-              yield {
-                type: EventType.STEP_STARTED,
-                stepName: thinkingStepId,
-                stepId: thinkingStepId,
-                model,
-                timestamp,
-                stepType: 'thinking',
-              }
             }
-            thinkingAccumulated += thoughtText
             yield {
               type: EventType.REASONING_MESSAGE_CONTENT,
               messageId: reasoningMessageId,
               delta: thoughtText,
               model,
               timestamp,
-            }
-            yield {
-              type: EventType.STEP_FINISHED,
-              stepName: thinkingStepId,
-              stepId: thinkingStepId,
-              model,
-              timestamp,
-              delta: thoughtText,
-              content: thinkingAccumulated,
             }
             break
           }
@@ -1616,14 +1676,7 @@ async function* translateInteractionEvents(
           const state = toolCalls.get(toolCallId)
           if (state && !state.ended) {
             state.ended = true
-            yield {
-              type: EventType.TOOL_CALL_END,
-              toolCallId,
-              toolName: state.name,
-              model,
-              timestamp,
-              input: state.args,
-            }
+            yield* endToolCall(toolCallId, state)
           }
           indexToToolCallId.delete(event.index)
         }
@@ -1635,6 +1688,7 @@ async function* translateInteractionEvents(
       }
 
       case 'interaction.completed': {
+        if (event.interaction.model) reportedModel = event.interaction.model
         if (event.interaction.id) {
           interactionId = event.interaction.id
         }
@@ -1679,6 +1733,12 @@ async function* translateInteractionEvents(
 
         yield {
           type: EventType.RUN_FINISHED,
+          metadata: {
+            tanstack: {
+              ...(interactionId && { responseId: interactionId }),
+              ...(reportedModel && { model: reportedModel }),
+            },
+          },
           runId,
           threadId,
           model,
@@ -1769,14 +1829,16 @@ function extractTextFromInteraction(interaction: Interaction): string {
 function sanitizeToolParameters(schema: unknown): unknown {
   if (!schema || typeof schema !== 'object') return schema
   if (Array.isArray(schema)) return schema.map(sanitizeToolParameters)
-  const out: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(schema)) {
-    if (key === 'required' && Array.isArray(value) && value.length === 0) {
-      continue
-    }
-    out[key] = sanitizeToolParameters(value)
-  }
-  return out
+  // `Object.fromEntries` keeps an own key named `__proto__`. An assignment
+  // `out['__proto__'] = x` would set the prototype instead.
+  return Object.fromEntries(
+    Object.entries(schema)
+      .filter(
+        ([key, value]) =>
+          key !== 'required' || !Array.isArray(value) || value.length > 0,
+      )
+      .map(([key, value]) => [key, sanitizeToolParameters(value)]),
+  )
 }
 
 // Re-export the stream type so consumers can import it alongside the

@@ -1391,7 +1391,8 @@ export const AIProvider: ParentComponent = (props) => {
         if (clientId && streamId) {
           streamToConversation.set(streamId, clientId)
         }
-        if (role === 'tool' || role === 'system') return
+        // Activity rows have no text or tool calls for the message list.
+        if (role === 'tool' || role === 'system' || role === 'activity') return
 
         const source = normalizeMessageSource(
           e.payload.source,
@@ -1733,65 +1734,6 @@ export const AIProvider: ParentComponent = (props) => {
         // This handles cases where the message hasn't been processed yet
         // or the tool call is a client-only tool
         addChunkToMessage(clientId, chunk)
-      }),
-    )
-
-    cleanupFns.push(
-      aiEventClient.on('tools:approval:responded', (e) => {
-        const {
-          clientId,
-          threadId,
-          streamId,
-          toolCallId,
-          approvalId,
-          approved,
-          timestamp,
-        } = e.payload
-
-        const conversationIds = getToolEventConversationIds({
-          clientId,
-          threadId,
-          streamId,
-          toolCallId,
-          approvalId,
-        })
-
-        for (const conversationId of conversationIds) {
-          const conv = state.conversations[conversationId]
-          if (!conv) continue
-
-          const location = findToolCallLocation(conversationId, {
-            toolCallId,
-            approvalId,
-          })
-          if (!location) continue
-
-          updateToolCall(
-            conversationId,
-            location.messageIndex,
-            location.toolCallIndex,
-            {
-              state: approved ? 'approved' : 'denied',
-              approvalRequired: false,
-              approvalId,
-              approvalApproved: approved,
-            },
-          )
-
-          const message = conv.messages[location.messageIndex]
-          const chunk: Chunk = {
-            id: `chunk-${Date.now()}-${Math.random()}`,
-            type: 'approval',
-            ...(message?.id ? { messageId: message.id } : {}),
-            toolCallId,
-            approvalId,
-            approved,
-            timestamp,
-            chunkCount: 1,
-          }
-
-          addChunkToMessage(conversationId, chunk)
-        }
       }),
     )
 

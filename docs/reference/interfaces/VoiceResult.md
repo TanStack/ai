@@ -3,7 +3,7 @@ id: VoiceResult
 title: VoiceResult
 ---
 
-Defined in: [packages/ai/src/types.ts:2780](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2780)
+Defined in: packages/ai/src/types.ts:3110
 
 Result of voice creation.
 
@@ -18,7 +18,7 @@ models return exactly one.
 optional artifacts?: PersistedArtifactRef[];
 ```
 
-Defined in: [packages/ai/src/types.ts:2792](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2792)
+Defined in: packages/ai/src/types.ts:3122
 
 Persisted artifact references for generated assets, when available
 
@@ -30,7 +30,7 @@ Persisted artifact references for generated assets, when available
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2782](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2782)
+Defined in: packages/ai/src/types.ts:3112
 
 Unique identifier for the generation
 
@@ -42,7 +42,7 @@ Unique identifier for the generation
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2784](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2784)
+Defined in: packages/ai/src/types.ts:3114
 
 Model used for generation
 
@@ -54,7 +54,7 @@ Model used for generation
 optional previewText?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2788](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2788)
+Defined in: packages/ai/src/types.ts:3118
 
 The line spoken in the previews, when the provider generated one
 
@@ -66,7 +66,7 @@ The line spoken in the previews, when the provider generated one
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:2790](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2790)
+Defined in: packages/ai/src/types.ts:3120
 
 Token usage information (if provided by the adapter)
 
@@ -78,6 +78,6 @@ Token usage information (if provided by the adapter)
 voices: GeneratedVoice[];
 ```
 
-Defined in: [packages/ai/src/types.ts:2786](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2786)
+Defined in: packages/ai/src/types.ts:3116
 
 The voices produced, best-first when the provider ranks them

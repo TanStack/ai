@@ -60,6 +60,7 @@ const recommendToolClient = recommendTool.client(() => ({
 describe('Tool Type Narrowing', () => {
   it('types ChatClient message APIs from registered tools', () => {
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: {
         async *connect() {},
       },
@@ -224,6 +225,7 @@ describe('Tool Type Narrowing', () => {
   it('should work with createChatClientOptions and InferChatMessages', () => {
     // This test verifies the end-to-end type flow from options to messages
     const options = createChatClientOptions({
+      threadId: 'thread-1',
       connection: {
         connect: async function* () {
           // Mock connection adapter
@@ -260,6 +262,7 @@ describe('Tool Type Narrowing', () => {
     ] as const
 
     const options = createChatClientOptions({
+      threadId: 'thread-1',
       connection: {
         connect: async function* () {},
       },
@@ -296,6 +299,7 @@ describe('Tool Type Narrowing', () => {
     })
 
     const options = createChatClientOptions({
+      threadId: 'thread-1',
       connection: {
         connect: async function* () {},
       },
@@ -318,6 +322,7 @@ describe('Tool Type Narrowing', () => {
     }).client<{ tenantId: string }>(() => ({ ok: true }))
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: {
         async *connect() {},
       },
@@ -347,6 +352,7 @@ describe('Tool Type Narrowing', () => {
     }).client<OptionalContext>(() => ({ ok: true }))
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: {
         async *connect() {},
       },
@@ -368,6 +374,7 @@ describe('Tool Type Narrowing', () => {
     })
 
     createChatClientOptions({
+      threadId: 'thread-1',
       connection: {
         connect: async function* () {},
       },
@@ -404,6 +411,7 @@ describe('Tool Type Narrowing', () => {
     })
 
     createChatClientOptions({
+      threadId: 'thread-1',
       connection: {
         connect: async function* () {},
       },
@@ -425,6 +433,7 @@ describe('Tool Type Narrowing', () => {
     }).client<TenantContext>(() => ({ ok: true }))
 
     createChatClientOptions({
+      threadId: 'thread-1',
       connection: {
         connect: async function* () {},
       },
@@ -460,6 +469,7 @@ describe('Tool Type Narrowing', () => {
     ]
 
     createChatClientOptions({
+      threadId: 'thread-1',
       connection: {
         connect: async function* () {},
       },
@@ -499,6 +509,7 @@ describe('Tool Type Narrowing', () => {
     ]
 
     createChatClientOptions({
+      threadId: 'thread-1',
       connection: {
         connect: async function* () {},
       },
@@ -526,6 +537,7 @@ describe('Tool Type Narrowing', () => {
     const optionalTools: Array<typeof optionalTool> = [optionalTool]
 
     createChatClientOptions({
+      threadId: 'thread-1',
       connection: {
         connect: async function* () {},
       },
@@ -533,6 +545,7 @@ describe('Tool Type Narrowing', () => {
     })
 
     createChatClientOptions({
+      threadId: 'thread-1',
       connection: {
         connect: async function* () {},
       },

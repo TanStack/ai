@@ -72,7 +72,7 @@ export type DeepPartial<T> =
  * validation still runs against the schema passed to `chat({ outputSchema })`
  * on the server route.
  *
- * Note: Connection and body changes will recreate the ChatClient instance.
+ * Note: Connection changes will recreate the ChatClient instance.
  * To update these options, remount the component or use a key prop.
  */
 export type CreateChatOptions<
@@ -90,6 +90,7 @@ export type CreateChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'onHydratingChange'
   | 'onQueueChange'
   | 'onResumeStateChange'
   | 'onRunIdChange'
@@ -152,7 +153,7 @@ interface BaseCreateChatReturn<
    * 'structured-output')` is typed by the schema — `data: T`,
    * `partial: DeepPartial<T>`.
    */
-  readonly messages: Array<UIMessage<TTools, TData>>
+  readonly messages: ReadonlyArray<UIMessage<TTools, TData>>
 
   /**
    * Send a message and get a response.
@@ -168,7 +169,7 @@ interface BaseCreateChatReturn<
   /**
    * Pending messages queued while a stream is in flight.
    */
-  readonly queue: Array<QueuedMessage>
+  readonly queue: ReadonlyArray<QueuedMessage>
 
   /**
    * Cancel a queued message before it drains. No-op if already sent.
@@ -192,14 +193,6 @@ interface BaseCreateChatReturn<
   }) => Promise<void>
 
   /**
-   * Respond to a tool approval request
-   */
-  addToolApprovalResponse: (response: {
-    id: string // approval.id, not toolCallId
-    approved: boolean
-  }) => Promise<void>
-
-  /**
    * The id of the run this client has in flight — one it started or rejoined —
    * or `null` when there is none (including while a run sits paused on an
    * interrupt, waiting on approval).
@@ -212,8 +205,6 @@ interface BaseCreateChatReturn<
    */
   readonly runId: string | null
   readonly interrupts: BoundInterrupts<TTools, TInterrupts>
-  /** @deprecated Use `interrupts`. */
-  readonly pendingInterrupts: BoundInterrupts<TTools, TInterrupts>
   readonly interruptErrors: ChatInterruptState<
     TTools,
     TInterrupts
@@ -230,11 +221,6 @@ interface BaseCreateChatReturn<
   cancelInterrupts: () => void
   retryInterrupts: () => void
   resumeInterruptsUnsafe: (
-    resume: Array<RunAgentResumeItem>,
-    state?: ChatResumeState,
-  ) => Promise<boolean>
-  /** @deprecated Use bound interrupt methods or `resumeInterruptsUnsafe`. */
-  resumeInterrupts: (
     resume: Array<RunAgentResumeItem>,
     state?: ChatResumeState,
   ) => Promise<boolean>
@@ -278,7 +264,7 @@ interface BaseCreateChatReturn<
   /**
    * Set messages manually
    */
-  setMessages: (messages: Array<UIMessage<TTools, TData>>) => void
+  setMessages: (messages: ReadonlyArray<UIMessage<TTools, TData>>) => void
 
   /**
    * Clear all messages
@@ -305,10 +291,12 @@ interface BaseCreateChatReturn<
    */
   readonly sessionGenerating: boolean
   /**
-   * @deprecated Use `updateForwardedProps` instead. Both populate the
-   * same wire payload; `updateBody` is retained for backward compatibility.
+   * Whether the chat is being rebuilt from persistence (the server hydrate, or
+   * an async storage adapter). While it is true, show a loading state instead
+   * of an empty chat. It turns false when the transcript is in place and any
+   * in-flight run is re-joined. From then on `isLoading` covers the stream.
    */
-  updateBody: (body: Record<string, any>) => void
+  readonly isHydrating: boolean
   /**
    * Update the AG-UI `forwardedProps` sent with requests (e.g., for
    * changing model selection or other client-driven options).

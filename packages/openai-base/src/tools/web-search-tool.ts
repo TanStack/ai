@@ -7,9 +7,6 @@ import type { Tool } from '@tanstack/ai'
 
 export type { WebSearchToolConfig }
 
-/** @deprecated Renamed to `WebSearchToolConfig`. Will be removed in a future release. */
-export type WebSearchTool = WebSearchToolConfig
-
 /**
  * Converts a standard Tool to OpenAI WebSearchTool format. Spread `metadata`
  * first, then force `type: 'web_search'` last so a different metadata type

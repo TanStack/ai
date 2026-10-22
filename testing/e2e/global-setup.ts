@@ -6,6 +6,11 @@ import { fileURLToPath } from 'url'
 import { EventStreamCodec } from '@smithy/eventstream-codec'
 import type { Mountable } from '@copilotkit/aimock'
 
+declare global {
+  // Read back by global-teardown.ts, which Playwright runs in the same process.
+  var __aimock: LLMock | undefined
+}
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
@@ -63,9 +68,12 @@ export default async function globalSetup() {
     '/v1beta/models/gemini-2.5-flash-lite:streamGenerateContent',
     geminiJsonSchemaToolMount(),
   )
-  // Gemini Veo video generation. aimock 1.29 mocks Gemini's `:predict`
-  // (Imagen) endpoint but not the long-running `:predictLongRunning` +
-  // operations-polling pair Veo uses, so mount both here. Non-Veo paths
+  // `chat({ reasoning })` wire check for Gemini: aimock's journal normalizes
+  // the body, so this mount checks `generationConfig.thinkingConfig` itself.
+  mock.mount('/reasoning-wire-gemini', geminiReasoningWireMount())
+  // Gemini Veo video generation. aimock does not mock the long-running
+  // `:predictLongRunning` + operations-polling pair Veo uses, so mount both
+  // here. Non-Veo paths
   // under /v1beta/models (chat, images) return false and fall through to
   // aimock's native Gemini handlers.
   mock.mount('/v1beta/models', geminiVeoMount())
@@ -90,10 +98,12 @@ export default async function globalSetup() {
   mock.mount('/api/embed', ollamaEmbedMount())
   mock.mount('/mistral', mistralEmbeddingsMount())
 
-  // Gemini native image generation. aimock has no generateContent image
-  // branch. One mount covers the #1104 size wire (aspectRatio / imageSize)
-  // and the #1103 modelOptions wire (safetySettings / thinkingConfig).
-  mock.mount('/v1beta/models', geminiNativeImageMount())
+  // Gemini native image generation. The adapter posts to the Interactions
+  // API. This dedicated prefix leaves aimock's /v1beta/interactions handler
+  // free for the stateful text tests. One mount covers the #1104 size wire
+  // (response_format) and the modelOptions wire (safety_settings /
+  // thinking_level), plus a chained edit.
+  mock.mount('/gemini-image', geminiNativeImageMount())
 
   // Gemini Omni Flash video generation (Interactions API). aimock handles
   // synchronous text interactions natively, but not background video jobs
@@ -152,6 +162,9 @@ export default async function globalSetup() {
   // Provider-executed web search responses need native Responses/Gemini wire
   // items that aimock does not synthesize. These mounts feed the adapter E2E
   // route deterministic search calls and grounding metadata.
+  // OpenAI Responses usage for a call that writes the prompt cache (#1734).
+  // aimock's native Responses helper cannot emit `input_tokens_details`.
+  mock.mount('/openai-responses-usage', openaiResponsesUsageMount())
   mock.mount('/provider-search-openai', openaiProviderSearchMount())
   mock.mount('/provider-search-gemini', geminiProviderSearchMount())
 
@@ -162,15 +175,11 @@ export default async function globalSetup() {
   // Bedrock's cache usage counters; the companion spec asserts both.
   mock.mount('/bedrock-converse-cache', bedrockConverseCacheMount())
 
-  // Anthropic structured-output fallback usage (#758). The Anthropic text
-  // adapter has no native `structuredOutputStream`, so streaming structured
-  // output runs through the activity layer's `fallbackStructuredOutputStream`,
-  // which wraps the non-streaming `structuredOutput()`. aimock's native
-  // Anthropic helper doesn't synthesize a tool-forced `structured_output`
-  // response with usage, so this mount hand-crafts the non-streaming
-  // `/v1/messages` JSON the adapter expects. The companion spec asserts the
-  // `usage` survives onto `RUN_FINISHED.usage` on the fallback path.
-  mock.mount('/anthropic-structured-usage', anthropicStructuredUsageMount())
+  // decide() usage on a failed answer mapping. aimock has no OpenAI Decisions
+  // endpoint, so this mount hand-crafts a `/v1/decisions` response with valid
+  // usage and a choice with no entry in `probabilities`. The companion spec
+  // asserts `decide()` rejects and still reports that usage.
+  mock.mount('/evaluate-usage-on-failure', evaluateUsageOnFailureMount())
 
   // BytePlus. Ark (chat, Seedream image, Seedance video) serves its whole data
   // plane under /api/v3, and Seed Speech (TTS/ASR) mounts its own endpoints at
@@ -192,7 +201,7 @@ export default async function globalSetup() {
 
   await mock.start()
   console.log(`[aimock] started on port 4010`)
-  ;(globalThis as any).__aimock = mock
+  globalThis.__aimock = mock
 }
 
 function registerMediaFixtures(mock: LLMock) {
@@ -214,7 +223,6 @@ function registerMediaFixtures(mock: LLMock) {
   mock.onVideo('a guitar being played in a store', {
     video: {
       url: 'https://example.com/guitar-store.mp4',
-      duration: 10,
       id: 'video-job-e2e',
       status: 'completed',
     },
@@ -227,7 +235,6 @@ function registerMediaFixtures(mock: LLMock) {
   mock.onVideo('animate this product photo', {
     video: {
       url: 'https://example.com/product-animated.mp4',
-      duration: 5,
       id: 'video-job-i2v-e2e',
       status: 'completed',
     },
@@ -372,6 +379,65 @@ function geminiJsonSchemaToolMount(): Mountable {
               content: {
                 role: 'model',
                 parts: [{ text: 'Schema accepted' }],
+              },
+              finishReason: 'STOP',
+              index: 0,
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 1,
+            candidatesTokenCount: 1,
+            totalTokenCount: 2,
+          },
+        })}\n\n`,
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * Answers a Gemini stream request only when `chat({ reasoning: { level:
+ * 'medium' } })` reached the wire as a medium thinking budget.
+ */
+function geminiReasoningWireMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+    ): Promise<boolean> {
+      if (req.method !== 'POST') return false
+      const body = await readJsonRequestBody(req)
+      const thinking = asRecord(
+        asRecord(body?.generationConfig)?.thinkingConfig,
+      )
+      if (
+        thinking?.includeThoughts !== true ||
+        thinking.thinkingBudget !== 8192 ||
+        thinking.thinkingLevel !== undefined
+      ) {
+        res.statusCode = 400
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            error: {
+              code: 400,
+              message: `Expected a thinking budget of 8192, got ${JSON.stringify(thinking)}.`,
+              status: 'INVALID_ARGUMENT',
+            },
+          }),
+        )
+        return true
+      }
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.end(
+        `data: ${JSON.stringify({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [{ text: 'Thinking config accepted' }],
               },
               finishReason: 'STOP',
               index: 0,
@@ -663,27 +729,32 @@ function rejectGeminiImageRequest(
 }
 
 /**
- * Mounts Gemini native `generateContent` image calls for
- * `gemini-3.1-flash-image` and `gemini-2.5-flash-image`.
+ * Mounts Gemini native image calls on the Interactions API for
+ * `gemini-3.1-flash-image` and `gemini-nano-banana-2.1`.
  *
- * aimock has no `generateContent` image branch. This mount reads the raw
- * body so two specs can assert on the wire:
- * - `/api/gemini-image-ga-models` checks `imageConfig.aspectRatio` / `imageSize`
- * - `/api/gemini-native-image-wire` checks top-level `safetySettings` and
- *   `generationConfig.thinkingConfig` on `gemini-2.5-flash-image`
+ * The adapter posts `POST /v1beta/interactions` with `response_format.type`
+ * `image`. This mount reads that body so two specs can assert on the wire:
+ * - `/api/gemini-image-ga-models` checks `response_format.aspect_ratio` /
+ *   `image_size`
+ * - `/api/gemini-native-image-wire` checks snake_case `safety_settings` and
+ *   `generation_config.thinking_level`, then a chained edit that sends
+ *   `previous_interaction_id` and no image block
  */
 function geminiNativeImageMount(): Mountable {
   const NATIVE_IMAGE_MODELS = new Set([
     'gemini-3.1-flash-image',
-    'gemini-2.5-flash-image',
+    'gemini-nano-banana-2.1',
   ])
 
   // Coupled to the `size` values in api.gemini-image-ga-models.ts.
   const EXPECTED_ASPECT_RATIO = '16:9'
   const EXPECTED_FLASH_IMAGE_SIZE = '2K'
+  const CREATE_ID = 'int_e2e_create'
+  const EDIT_ID = 'int_e2e_edit'
 
-  // Imagen-only GenerateImagesConfig fields must never appear on generateContent.
-  const IMAGEN_ONLY_FIELDS = [
+  // The body takes Interactions fields only. These camelCase fields of the
+  // older generateContent and predict request shapes must never reach it.
+  const ROOT_FORBIDDEN = [
     'personGeneration',
     'safetyFilterLevel',
     'addWatermark',
@@ -697,19 +768,33 @@ function geminiNativeImageMount(): Mountable {
     'includeRaiReason',
     'outputGcsUri',
     'aspectRatio',
+    'generationConfig',
+    'imageConfig',
+    'safetySettings',
+    'thinkingConfig',
+    'systemInstruction',
+    'responseModalities',
+    'response_modalities',
+    'contents',
+    'thinking_budget',
+  ]
+  const GENERATION_FORBIDDEN = [
+    'thinking_budget',
+    'thinkingBudget',
+    'thinkingConfig',
+    'image_config',
+    'imageConfig',
   ]
 
   return {
     async handleRequest(
       req: http.IncomingMessage,
       res: http.ServerResponse,
-      // aimock strips the mount prefix ('/v1beta/models'), so pathname
-      // looks like '/{model}:generateContent'.
+      // aimock strips the mount prefix ('/gemini-image'), so pathname
+      // looks like '/v1beta/interactions'.
       pathname: string,
     ): Promise<boolean> {
-      const match = pathname.match(/^\/([^/:]+):generateContent$/)
-      const model = match?.[1]
-      if (!model || !NATIVE_IMAGE_MODELS.has(model) || req.method !== 'POST') {
+      if (pathname !== '/v1beta/interactions' || req.method !== 'POST') {
         return false
       }
 
@@ -718,101 +803,125 @@ function geminiNativeImageMount(): Mountable {
         return rejectGeminiImageRequest(res, 'Malformed JSON body.')
       }
 
-      const generationConfig = asRecord(body.generationConfig)
-      const imageConfig = asRecord(generationConfig?.imageConfig)
-      const aspectRatio = imageConfig?.aspectRatio
-      const imageSize = imageConfig?.imageSize
-      const leaked = IMAGEN_ONLY_FIELDS.find(
-        (name) =>
-          name in body || (generationConfig && name in generationConfig),
-      )
-      if (leaked) {
+      const model = body.model
+      if (typeof model !== 'string' || !NATIVE_IMAGE_MODELS.has(model)) {
         return rejectGeminiImageRequest(
           res,
-          `Imagen-only field "${leaked}" reached generateContent — GenerateImagesConfig and GenerateContentConfig got crossed.`,
+          `Unexpected image model ${JSON.stringify(model)}.`,
         )
       }
 
-      const hasModelOptions =
-        Array.isArray(body.safetySettings) ||
-        (generationConfig !== undefined &&
-          typeof generationConfig.thinkingConfig === 'object' &&
-          generationConfig.thinkingConfig !== null)
+      if (body.stream !== false) {
+        return rejectGeminiImageRequest(res, 'stream must be false.')
+      }
 
-      if (model === 'gemini-2.5-flash-image' && hasModelOptions) {
-        if (
-          !Array.isArray(body.safetySettings) ||
-          body.safetySettings.length === 0
-        ) {
+      const format = asRecord(body.response_format)
+      if (!format || format.type !== 'image') {
+        return rejectGeminiImageRequest(
+          res,
+          'response_format.type must be "image".',
+        )
+      }
+
+      const leaked = ROOT_FORBIDDEN.find((name) => name in body)
+      if (leaked) {
+        return rejectGeminiImageRequest(
+          res,
+          `Field "${leaked}" reached the Interactions image request.`,
+        )
+      }
+
+      const generationConfig = asRecord(body.generation_config)
+      const leakedGeneration = generationConfig
+        ? GENERATION_FORBIDDEN.find((name) => name in generationConfig)
+        : undefined
+      if (leakedGeneration) {
+        return rejectGeminiImageRequest(
+          res,
+          `Field "${leakedGeneration}" reached generation_config.`,
+        )
+      }
+
+      const previousId = body.previous_interaction_id
+      const isEdit = typeof previousId === 'string' && previousId.length > 0
+      const hasWireOptions =
+        Array.isArray(body.safety_settings) || generationConfig !== undefined
+
+      if (isEdit) {
+        if (inputHasImage(body.input)) {
           return rejectGeminiImageRequest(
             res,
-            'Missing top-level safetySettings (modelOptions.safetySettings did not reach the wire).',
+            'A chained edit must not resend an image block.',
           )
         }
+      } else if (hasWireOptions) {
+        const settings = body.safety_settings
+        const setting = Array.isArray(settings)
+          ? asRecord(settings[0])
+          : undefined
         if (
-          !generationConfig ||
-          typeof generationConfig.thinkingConfig !== 'object' ||
-          generationConfig.thinkingConfig === null
+          !setting ||
+          setting.type !== 'dangerous_content' ||
+          setting.threshold !== 'block_only_high'
         ) {
           return rejectGeminiImageRequest(
             res,
-            'Missing generationConfig.thinkingConfig (modelOptions.thinkingConfig did not reach the wire).',
+            'safety_settings must be [{ type: "dangerous_content", threshold: "block_only_high" }].',
+          )
+        }
+        if (generationConfig?.thinking_level !== 'low') {
+          return rejectGeminiImageRequest(
+            res,
+            'generation_config.thinking_level must be "low".',
           )
         }
       } else {
+        const aspectRatio = format.aspect_ratio
+        const imageSize = format.image_size
         if (aspectRatio !== EXPECTED_ASPECT_RATIO) {
           return rejectGeminiImageRequest(
             res,
-            `${model}: generationConfig.imageConfig.aspectRatio must be "${EXPECTED_ASPECT_RATIO}", got ${JSON.stringify(aspectRatio)}.`,
+            `${model}: response_format.aspect_ratio must be "${EXPECTED_ASPECT_RATIO}", got ${JSON.stringify(aspectRatio)}.`,
           )
         }
-
-        if (model === 'gemini-3.1-flash-image') {
-          if (imageSize !== EXPECTED_FLASH_IMAGE_SIZE) {
-            return rejectGeminiImageRequest(
-              res,
-              `${model}: generationConfig.imageConfig.imageSize must be "${EXPECTED_FLASH_IMAGE_SIZE}", got ${JSON.stringify(imageSize)}.`,
-            )
-          }
-        } else if (imageSize !== undefined) {
+        if (imageSize !== EXPECTED_FLASH_IMAGE_SIZE) {
           return rejectGeminiImageRequest(
             res,
-            `${model}: generationConfig.imageConfig.imageSize must be absent.`,
+            `${model}: response_format.image_size must be "${EXPECTED_FLASH_IMAGE_SIZE}", got ${JSON.stringify(imageSize)}.`,
           )
         }
       }
 
+      const image = {
+        type: 'image',
+        mime_type: 'image/png',
+        data: TINY_PNG_BASE64,
+      }
       res.statusCode = 200
       res.setHeader('Content-Type', 'application/json')
       res.end(
         JSON.stringify({
-          candidates: [
-            {
-              content: {
-                role: 'model',
-                parts: [
-                  {
-                    inlineData: {
-                      mimeType: 'image/png',
-                      data: TINY_PNG_BASE64,
-                    },
-                  },
-                ],
-              },
-              finishReason: 'STOP',
-              index: 0,
-            },
-          ],
-          usageMetadata: {
-            promptTokenCount: 8,
-            candidatesTokenCount: 1290,
-            totalTokenCount: 1298,
+          id: isEdit ? EDIT_ID : CREATE_ID,
+          object: 'interaction',
+          status: 'completed',
+          model,
+          output_image: image,
+          steps: [{ type: 'model_output', content: [image] }],
+          usage: {
+            total_input_tokens: 8,
+            total_output_tokens: 1290,
+            total_tokens: 1298,
           },
         }),
       )
       return true
     },
   }
+}
+
+function inputHasImage(input: unknown): boolean {
+  if (!Array.isArray(input)) return false
+  return input.some((block) => asRecord(block)?.type === 'image')
 }
 
 /**
@@ -1152,7 +1261,7 @@ function rejectVoiceRequest(res: http.ServerResponse, message: string): true {
  * The success body mirrors a captured live task (see the Phase 0 probe notes):
  * `content.video_url` plus `usage.completion_tokens`, `seed`, `resolution`,
  * `ratio`, `duration`, the lowercase `framespersecond`, and `output_format`.
- * `updated_at` matters — `getVideoUrl` anchors its 24-hour `expiresAt` to it.
+ * `updated_at` matters — `getVideo` anchors its 24-hour `expiresAt` to it.
  * The `model` is echoed back from the submitted task rather than hardcoded, so
  * the poll response can't drift from what the adapter actually asked for.
  *
@@ -1834,6 +1943,68 @@ function openaiUsageDetailsMount(
   }
 }
 
+function openaiResponsesUsageMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method !== 'POST' || pathname !== '/v1/responses') {
+        return false
+      }
+      await drainBody(req)
+
+      const message = {
+        id: 'msg_e2e_usage',
+        type: 'message',
+        role: 'assistant',
+        status: 'completed',
+        content: [{ type: 'output_text', text: 'Hi', annotations: [] }],
+      }
+      const events = [
+        {
+          type: 'response.output_text.delta',
+          item_id: 'msg_e2e_usage',
+          output_index: 0,
+          content_index: 0,
+          delta: 'Hi',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp_e2e_usage',
+            object: 'response',
+            status: 'completed',
+            model: 'gpt-4o',
+            output: [message],
+            usage: {
+              input_tokens: 1941,
+              input_tokens_details: {
+                cached_tokens: 0,
+                cache_write_tokens: 1938,
+              },
+              output_tokens: 5,
+              output_tokens_details: { reasoning_tokens: 0 },
+              total_tokens: 1946,
+            },
+          },
+        },
+      ]
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      for (const event of events) {
+        res.write(`data: ${JSON.stringify(event)}\n\n`)
+      }
+      res.write('data: [DONE]\n\n')
+      res.end()
+      return true
+    },
+  }
+}
+
 function openaiProviderSearchMount(): Mountable {
   return {
     async handleRequest(
@@ -2010,51 +2181,43 @@ function geminiProviderSearchMount(): Mountable {
 }
 
 /**
- * Mounts the non-streaming Anthropic `/v1/messages` response the text adapter's
- * `structuredOutput()` expects: a tool-forced `structured_output` `tool_use`
- * block plus a `usage` object carrying `input_tokens` / `output_tokens` /
- * `cache_read_input_tokens`. `buildAnthropicUsage` normalizes those into
- * `promptTokens` / `completionTokens` / `promptTokensDetails.cachedTokens`.
- * Drives the #758 fallback-path usage regression.
+ * Mounts the OpenAI Decisions `/v1/decisions` response for the
+ * `evaluate-usage-on-failure` spec: valid usage, but a `queue` answer whose
+ * choice (`sales`) has no entry in `probabilities`, so `decide()` throws
+ * "missing probability for choice".
  */
-function anthropicStructuredUsageMount(): Mountable {
+function evaluateUsageOnFailureMount(): Mountable {
   return {
     async handleRequest(
       req: http.IncomingMessage,
       res: http.ServerResponse,
-      // The mount prefix (/anthropic-structured-usage) is stripped before
-      // dispatch; the Anthropic SDK posts to <baseURL>/v1/messages and aimock
-      // strips the ?beta=... query string from `pathname`.
       pathname: string,
     ): Promise<boolean> {
-      if (req.method !== 'POST' || !pathname.startsWith('/v1/messages')) {
+      if (req.method !== 'POST' || pathname !== '/v1/decisions') {
         return false
       }
-      // structuredOutput() makes a non-streaming request (stream: false), so
-      // respond with a single JSON message rather than an SSE stream.
       await drainBody(req)
       res.statusCode = 200
       res.setHeader('Content-Type', 'application/json')
       res.end(
         JSON.stringify({
-          id: 'msg_structured_usage_e2e',
-          type: 'message',
-          role: 'assistant',
-          model: 'claude-opus-4-1',
-          content: [
+          model: 'gpt-6-luna',
+          answers: [
             {
-              type: 'tool_use',
-              id: 'toolu_structured_output',
-              name: 'structured_output',
-              input: { recommendation: 'Fender Stratocaster', price: 1299 },
+              type: 'choice',
+              name: 'queue',
+              choice: 'sales',
+              confidence: 0.9,
+              probabilities: [
+                { value: 'billing', probability: 0.6 },
+                { value: 'tech', probability: 0.4 },
+              ],
             },
           ],
-          stop_reason: 'tool_use',
-          stop_sequence: null,
           usage: {
-            input_tokens: 125,
-            output_tokens: 1346,
-            cache_read_input_tokens: 5760,
+            input_tokens: 42,
+            output_tokens: 7,
+            total_tokens: 49,
           },
         }),
       )

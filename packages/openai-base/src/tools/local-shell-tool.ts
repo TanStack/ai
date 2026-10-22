@@ -6,9 +6,6 @@ type LocalShellToolConfig = SDKTool.LocalShell
 
 export type { LocalShellToolConfig }
 
-/** @deprecated Renamed to `LocalShellToolConfig`. Will be removed in a future release. */
-export type LocalShellTool = LocalShellToolConfig
-
 /**
  * Converts a standard Tool to OpenAI LocalShellTool format
  */

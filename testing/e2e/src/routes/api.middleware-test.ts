@@ -166,6 +166,27 @@ const toolSkipMiddleware: ChatMiddleware = {
   },
 }
 
+const toolReplaceMiddleware: ChatMiddleware = {
+  name: 'tool-replace',
+  onAfterToolCall(_ctx, info) {
+    if (info.toolName !== 'get_weather') return
+    return {
+      type: 'replaceResult',
+      result: { replaced: true, reason: 'middleware' },
+    }
+  },
+}
+
+// Rewrites the args to a value the tool's inputSchema rejects. The final
+// input check runs after this hook, so the tool must not run.
+const toolBadArgsMiddleware: ChatMiddleware = {
+  name: 'tool-bad-args',
+  onBeforeToolCall(_ctx, hookCtx) {
+    if (hookCtx.toolName !== 'get_weather') return undefined
+    return { type: 'transformArgs' as const, args: { city: { name: 'NYC' } } }
+  },
+}
+
 /**
  * Capability provide/consume flow (`capability` mode).
  *
@@ -566,6 +587,10 @@ export const Route = createFileRoute('/api/middleware-test')({
             middleware.push(chunkTransformMiddleware)
           if (middlewareMode === 'tool-skip')
             middleware.push(toolSkipMiddleware)
+          if (middlewareMode === 'tool-replace')
+            middleware.push(toolReplaceMiddleware)
+          if (middlewareMode === 'tool-bad-args')
+            middleware.push(toolBadArgsMiddleware)
           if (middlewareMode === 'capability') {
             // Order matters: the provider's setup() must run before the
             // consumer reads the capability. Array order is preserved.
@@ -650,7 +675,7 @@ export const Route = createFileRoute('/api/middleware-test')({
           const tools =
             genericScenario && testId
               ? genericTools(testId, genericScenario)
-              : scenario === 'with-tool'
+              : scenario === 'with-tool' || scenario === 'raw-tool-args'
                 ? [weatherTool]
                 : scenario === 'structured-client-tool-wait'
                   ? [clientContextToolDefinition]

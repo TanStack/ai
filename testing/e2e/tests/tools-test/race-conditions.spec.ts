@@ -62,7 +62,15 @@ test.describe('Race Condition Tests', () => {
     await expect.poll(() => requestBodies.length).toBe(2)
     expect(requestBodies[1]?.parentRunId).toBeUndefined()
     expect(requestBodies[1]?.resume).toBeUndefined()
-    await page.click('#stop-button')
+    // The server answers the stopped call with "No result provided", so the
+    // second run ends by itself. The model asks for no new tool call, and the
+    // stopped tool does not run again (the event log resets on each send).
+    await expect
+      .poll(async () => (await getMetadata(page)).isLoading)
+      .toBe('false')
+    const after = await getMetadata(page)
+    expect(after.toolCallCount).toBe('1')
+    expect(after.executionStartCount).toBe('0')
   })
 
   /**

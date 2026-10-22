@@ -78,13 +78,13 @@ describe('generation middleware — wiring', () => {
           promptTokens: 0,
           completionTokens: 0,
           totalTokens: 0,
-          unitsBilled: 1,
           cost: 0.04,
         },
       })),
     }
 
     const result = await generateImage({
+      threadId: 'thread-1',
       adapter: adapter as any,
       prompt: 'a sunset',
       middleware: [middleware],
@@ -120,6 +120,7 @@ describe('generation middleware — wiring', () => {
     }
 
     const result = await generateWorld({
+      threadId: 'thread-1',
       adapter: adapter as any,
       prompt: 'a world',
       middleware: [middleware],
@@ -152,6 +153,7 @@ describe('generation middleware — wiring', () => {
     }
 
     const result = await generateLiveVideo({
+      threadId: 'thread-1',
       adapter: adapter as any,
       prompt: 'a shot',
       middleware: [middleware],
@@ -180,6 +182,7 @@ describe('generation middleware — wiring', () => {
 
     await expect(
       generateWorld({
+        threadId: 'thread-1',
         adapter: adapter as any,
         prompt: 'x',
         middleware: [middleware],
@@ -206,6 +209,7 @@ describe('generation middleware — wiring', () => {
 
     await expect(
       generateImage({
+        threadId: 'thread-1',
         adapter: adapter as any,
         prompt: 'x',
         middleware: [middleware],
@@ -237,6 +241,7 @@ describe('generation middleware — wiring', () => {
     }
 
     await generateImage({
+      threadId: 'thread-1',
       adapter: adapter as any,
       prompt: 'a sunset',
       middleware: [otelMiddleware({ tracer })],
@@ -265,6 +270,7 @@ describe('generation middleware — wiring', () => {
     }
 
     await generateSpeech({
+      threadId: 'thread-1',
       adapter: adapter as any,
       text: 'hello',
       middleware: [middleware],
@@ -287,19 +293,23 @@ describe('generation middleware — wiring', () => {
           promptTokens: 0,
           completionTokens: 0,
           totalTokens: 0,
-          durationSeconds: 4,
+          billed: { quantity: 4, unit: 'seconds' },
         },
       })),
     }
 
     await generateTranscription({
+      threadId: 'thread-1',
       adapter: adapter as any,
       audio: 'base64',
       middleware: [middleware],
     })
 
     expect(events.start[0]!.activity).toBe('transcription')
-    expect(events.finish[0]!.info.usage?.durationSeconds).toBe(4)
+    expect(events.finish[0]!.info.usage?.billed).toEqual({
+      quantity: 4,
+      unit: 'seconds',
+    })
   })
 
   it('generateAudio fires start/finish', async () => {
@@ -314,19 +324,23 @@ describe('generation middleware — wiring', () => {
           promptTokens: 0,
           completionTokens: 0,
           totalTokens: 0,
-          unitsBilled: 1,
+          billed: { quantity: 1, unit: 'units' },
         },
       })),
     }
 
     await generateAudio({
+      threadId: 'thread-1',
       adapter: adapter as any,
       prompt: 'an upbeat track',
       middleware: [middleware],
     })
 
     expect(events.start[0]!.activity).toBe('audio')
-    expect(events.finish[0]!.info.usage?.unitsBilled).toBe(1)
+    expect(events.finish[0]!.info.usage?.billed).toEqual({
+      quantity: 1,
+      unit: 'units',
+    })
   })
 
   // Regression: the submit used to fire onFinish, so persistence stamped a run
@@ -341,7 +355,7 @@ describe('generation middleware — wiring', () => {
       model: 'sora-2',
       createVideoJob: vi.fn(async () => ({ jobId: 'job-1', model: 'sora-2' })),
       getVideoStatus: vi.fn(),
-      getVideoUrl: vi.fn(),
+      getVideo: vi.fn(),
     }
 
     const job = await generateVideo({
@@ -376,7 +390,7 @@ describe('generation middleware — wiring', () => {
       model: 'sora-2',
       createVideoJob: vi.fn(async () => ({ jobId: 'job-1', model: 'sora-2' })),
       getVideoStatus: vi.fn(),
-      getVideoUrl: vi.fn(),
+      getVideo: vi.fn(),
     }
 
     await generateVideo({
@@ -397,7 +411,7 @@ describe('generation middleware — wiring', () => {
       model: 'sora-2',
       createVideoJob: vi.fn(async () => ({ jobId: 'job-1', model: 'sora-2' })),
       getVideoStatus: vi.fn(),
-      getVideoUrl: vi.fn(),
+      getVideo: vi.fn(),
     })
     const { middleware, events } = recordingMiddleware()
 
@@ -425,7 +439,7 @@ describe('generation middleware — wiring', () => {
       model: 'sora-2',
       createVideoJob: vi.fn(async () => ({ jobId: 'job-1', model: 'sora-2' })),
       getVideoStatus: vi.fn(),
-      getVideoUrl: vi.fn(),
+      getVideo: vi.fn(),
     }
 
     const recorded: Array<unknown> = []
@@ -465,7 +479,7 @@ describe('generation middleware — wiring', () => {
         throw new Error('submit boom')
       }),
       getVideoStatus: vi.fn(),
-      getVideoUrl: vi.fn(),
+      getVideo: vi.fn(),
     }
 
     await expect(
@@ -495,13 +509,13 @@ describe('generation middleware — wiring', () => {
       model: 'sora-2',
       createVideoJob: vi.fn(async () => ({ jobId: 'job-1', model: 'sora-2' })),
       getVideoStatus: vi.fn(async () => ({ status: 'completed' as const })),
-      getVideoUrl: vi.fn(async () => ({
+      getVideo: vi.fn(async () => ({
         url: 'https://provider.test/v.mp4',
         usage: {
           promptTokens: 0,
           completionTokens: 0,
           totalTokens: 0,
-          unitsBilled: 1,
+          billed: { quantity: 1, unit: 'units' },
         },
       })),
     }
@@ -545,7 +559,10 @@ describe('generation middleware — wiring', () => {
     expect(events.finish[0]!.ctx.runId).toBe(events.start[0]!.runId)
     expect(events.finish[0]!.ctx.runId).toBe('video:openai:job-1')
     expect(events.finish[0]!.ctx.threadId).toBe('video:slot')
-    expect(events.finish[0]!.info.usage?.unitsBilled).toBe(1)
+    expect(events.finish[0]!.info.usage?.billed).toEqual({
+      quantity: 1,
+      unit: 'units',
+    })
     expect(events.usage).toHaveLength(1)
     expect(events.error).toHaveLength(0)
   })
@@ -559,7 +576,7 @@ describe('generation middleware — wiring', () => {
       model: 'sora-2',
       createVideoJob: vi.fn(async () => ({ jobId: 'job-9', model: 'sora-2' })),
       getVideoStatus: vi.fn(async () => ({ status: 'completed' as const })),
-      getVideoUrl: vi.fn(async () => ({ url: 'https://provider.test/v.mp4' })),
+      getVideo: vi.fn(async () => ({ url: 'https://provider.test/v.mp4' })),
     })
 
     const { middleware, events } = recordingMiddleware()
@@ -584,7 +601,7 @@ describe('generation middleware — wiring', () => {
   // never be hydrated by one), so a poll that drops the threadId must fail loudly
   // instead of filing the finished video somewhere unreachable. Modelled here
   // with a middleware that refuses the same way `generationScope` does.
-  it('getVideoJobStatus surfaces a scope-less poll instead of degrading', async () => {
+  it('getVideoJobStatus surfaces a poll with an empty scope instead of degrading', async () => {
     const scopeRequiring: GenerationMiddleware = {
       name: 'scope-required',
       onStart: (ctx) => {
@@ -597,11 +614,12 @@ describe('generation middleware — wiring', () => {
       model: 'sora-2',
       createVideoJob: vi.fn(),
       getVideoStatus: vi.fn(async () => ({ status: 'completed' as const })),
-      getVideoUrl: vi.fn(async () => ({ url: 'https://provider.test/v.mp4' })),
+      getVideo: vi.fn(async () => ({ url: 'https://provider.test/v.mp4' })),
     }
 
     await expect(
       getVideoJobStatus({
+        threadId: '',
         adapter: adapter as any,
         jobId: 'job-1',
         middleware: [scopeRequiring],
@@ -620,7 +638,7 @@ describe('generation middleware — wiring', () => {
         status: 'processing' as const,
         progress: 42,
       })),
-      getVideoUrl: vi.fn(),
+      getVideo: vi.fn(),
     }
 
     const status = await getVideoJobStatus({
@@ -636,7 +654,7 @@ describe('generation middleware — wiring', () => {
     expect(events.start).toHaveLength(0)
     expect(events.finish).toHaveLength(0)
     expect(events.error).toHaveLength(0)
-    expect(adapter.getVideoUrl).not.toHaveBeenCalled()
+    expect(adapter.getVideo).not.toHaveBeenCalled()
   })
 
   it('getVideoJobStatus fails the run when the job failed', async () => {
@@ -650,7 +668,7 @@ describe('generation middleware — wiring', () => {
         status: 'failed' as const,
         error: 'moderation',
       })),
-      getVideoUrl: vi.fn(),
+      getVideo: vi.fn(),
     }
 
     const status = await getVideoJobStatus({
@@ -676,7 +694,7 @@ describe('generation middleware — wiring', () => {
       model: 'sora-2',
       createVideoJob: vi.fn(),
       getVideoStatus: vi.fn(async () => ({ status: 'completed' as const })),
-      getVideoUrl: vi.fn(async () => {
+      getVideo: vi.fn(async () => {
         throw new Error('url boom')
       }),
     }
@@ -700,10 +718,11 @@ describe('generation middleware — wiring', () => {
       model: 'sora-2',
       createVideoJob: vi.fn(),
       getVideoStatus: vi.fn(async () => ({ status: 'completed' as const })),
-      getVideoUrl: vi.fn(async () => ({ url: 'https://provider.test/v.mp4' })),
+      getVideo: vi.fn(async () => ({ url: 'https://provider.test/v.mp4' })),
     }
 
     const status = await getVideoJobStatus({
+      threadId: 'thread-1',
       adapter: adapter as any,
       jobId: 'job-1',
     })
@@ -715,6 +734,112 @@ describe('generation middleware — wiring', () => {
     })
   })
 
+  const streamAdapter = (body: ReadableStream<Uint8Array>) => ({
+    kind: 'video' as const,
+    name: 'openai',
+    model: 'sora-2',
+    createVideoJob: vi.fn(),
+    getVideoStatus: vi.fn(async () => ({ status: 'completed' as const })),
+    getVideo: vi.fn(async () => ({
+      jobId: 'job-1',
+      body,
+      contentType: 'video/mp4',
+    })),
+  })
+
+  it('getVideoJobStatus hands a provider stream to middleware to host', async () => {
+    const body = new Blob(['mp4-bytes']).stream()
+    let stored = ''
+    const host: GenerationMiddleware = {
+      name: 'host',
+      onStart(ctx) {
+        ctx.resultTransforms.push(async (result: any) => {
+          stored = await new Response(result.body).text()
+          const { body: _body, contentType: _type, ...rest } = result
+          return { ...rest, url: 'https://cdn.test/job-1.mp4' }
+        })
+      },
+    }
+
+    const status = await getVideoJobStatus({
+      adapter: streamAdapter(body) as any,
+      jobId: 'job-1',
+      threadId: 'video:slot',
+      middleware: [host],
+    })
+
+    expect(stored).toBe('mp4-bytes')
+    expect(status).toEqual({
+      jobId: 'job-1',
+      status: 'completed',
+      url: 'https://cdn.test/job-1.mp4',
+    })
+  })
+
+  it('getVideoJobStatus inlines an unhosted provider stream as a data URL', async () => {
+    const { middleware, events } = recordingMiddleware()
+
+    const status = await getVideoJobStatus({
+      adapter: streamAdapter(new Blob(['mp4-bytes']).stream()) as any,
+      jobId: 'job-1',
+      threadId: 'video:slot',
+      middleware: [middleware],
+    })
+
+    expect(status).toEqual({
+      jobId: 'job-1',
+      status: 'completed',
+      url: `data:video/mp4;base64,${btoa('mp4-bytes')}`,
+    })
+    expect(events.error).toHaveLength(0)
+    expect(events.finish).toHaveLength(1)
+  })
+
+  it('getVideoJobStatus fails the run when the provider stream breaks', async () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.error(new Error('download broke'))
+      },
+    })
+    const { middleware, events } = recordingMiddleware()
+
+    const status = await getVideoJobStatus({
+      adapter: streamAdapter(body) as any,
+      jobId: 'job-1',
+      threadId: 'video:slot',
+      middleware: [middleware],
+    })
+
+    expect(status).toMatchObject({ status: 'failed', error: 'download broke' })
+    expect(events.error).toHaveLength(1)
+    expect(events.finish).toHaveLength(0)
+  })
+
+  it('generateVideo (streaming) inlines an unhosted provider stream as a data URL', async () => {
+    const adapter = {
+      ...streamAdapter(new Blob(['mp4-bytes']).stream()),
+      createVideoJob: vi.fn(async () => ({ jobId: 'job-1', model: 'sora-2' })),
+    }
+
+    const chunks: Array<{ type: string; name?: string; value?: unknown }> = []
+    for await (const chunk of generateVideo({
+      threadId: 'thread-1',
+      adapter: adapter as any,
+      prompt: 'a cat',
+      stream: true,
+      pollingInterval: 1,
+    })) {
+      chunks.push(chunk)
+    }
+
+    expect(chunks.find((c) => c.name === 'generation:result')?.value).toEqual({
+      jobId: 'job-1',
+      status: 'completed',
+      url: `data:video/mp4;base64,${btoa('mp4-bytes')}`,
+    })
+    expect(chunks.at(-1)).toMatchObject({ type: 'RUN_FINISHED' })
+  })
+
   it('generateVideo (streaming) fires finish with usage at completion', async () => {
     const { middleware, events } = recordingMiddleware()
     const adapter = {
@@ -723,18 +848,19 @@ describe('generation middleware — wiring', () => {
       model: 'sora-2',
       createVideoJob: vi.fn(async () => ({ jobId: 'job-1', model: 'sora-2' })),
       getVideoStatus: vi.fn(async () => ({ status: 'completed' as const })),
-      getVideoUrl: vi.fn(async () => ({
+      getVideo: vi.fn(async () => ({
         url: 'https://example.com/v.mp4',
         usage: {
           promptTokens: 0,
           completionTokens: 0,
           totalTokens: 0,
-          unitsBilled: 1,
+          billed: { quantity: 1, unit: 'units' },
         },
       })),
     }
 
     const stream = generateVideo({
+      threadId: 'thread-1',
       adapter: adapter as any,
       prompt: 'a cat',
       stream: true,
@@ -747,7 +873,10 @@ describe('generation middleware — wiring', () => {
 
     expect(events.start[0]!.activity).toBe('video')
     expect(events.finish).toHaveLength(1)
-    expect(events.finish[0]!.info.usage?.unitsBilled).toBe(1)
+    expect(events.finish[0]!.info.usage?.billed).toEqual({
+      quantity: 1,
+      unit: 'units',
+    })
     expect(events.error).toHaveLength(0)
   })
 
@@ -764,7 +893,7 @@ describe('generation middleware — wiring', () => {
       model: 'sora-2',
       createVideoJob: vi.fn(async () => ({ jobId: 'job-1', model: 'sora-2' })),
       getVideoStatus: vi.fn(async () => ({ status: 'completed' as const })),
-      getVideoUrl: vi.fn(async () => ({ url: 'https://provider.test/v.mp4' })),
+      getVideo: vi.fn(async () => ({ url: 'https://provider.test/v.mp4' })),
     }
 
     const seen: Array<GenerationMiddlewareContext> = []
@@ -808,36 +937,6 @@ describe('generation middleware — wiring', () => {
     })
   })
 
-  it('generateVideo (streaming) records no thread link when the caller passes none', async () => {
-    const adapter = {
-      kind: 'video' as const,
-      name: 'openai',
-      model: 'sora-2',
-      createVideoJob: vi.fn(async () => ({ jobId: 'job-1', model: 'sora-2' })),
-      getVideoStatus: vi.fn(async () => ({ status: 'completed' as const })),
-      getVideoUrl: vi.fn(async () => ({ url: 'https://provider.test/v.mp4' })),
-    }
-
-    const { middleware, events } = recordingMiddleware()
-    const chunks: Array<{ type: string; threadId?: string }> = []
-    for await (const chunk of generateVideo({
-      adapter: adapter as any,
-      prompt: 'a cat',
-      stream: true,
-      pollingInterval: 1,
-      middleware: [middleware],
-    })) {
-      chunks.push(chunk as { type: string; threadId?: string })
-    }
-
-    // The wire still needs a thread id on RUN_* chunks...
-    const started = chunks.find((c) => c.type === 'RUN_STARTED')
-    expect(typeof started?.threadId).toBe('string')
-    // ...but the minted one must NOT reach persistence: a fabricated id is a
-    // slot no client can hydrate, which is worse than recording no link.
-    expect(events.start[0]!.threadId).toBeUndefined()
-  })
-
   it('generateVideo (streaming) fires error when the job fails', async () => {
     const { middleware, events } = recordingMiddleware()
     const adapter = {
@@ -849,10 +948,11 @@ describe('generation middleware — wiring', () => {
         status: 'failed' as const,
         error: 'generation failed',
       })),
-      getVideoUrl: vi.fn(),
+      getVideo: vi.fn(),
     }
 
     const stream = generateVideo({
+      threadId: 'thread-1',
       adapter: adapter as any,
       prompt: 'a cat',
       stream: true,
@@ -891,10 +991,11 @@ describe('generation middleware — wiring', () => {
         status: 'failed' as const,
         error: 'generation failed',
       })),
-      getVideoUrl: vi.fn(),
+      getVideo: vi.fn(),
     }
 
     const stream = generateVideo({
+      threadId: 'thread-1',
       adapter: adapter as any,
       prompt: 'a cat',
       stream: true,
@@ -927,10 +1028,11 @@ describe('generation middleware — wiring', () => {
       createVideoJob: vi.fn(async () => ({ jobId: 'job-1', model: 'sora-2' })),
       // Never completes, so the poll loop keeps running until we abandon it.
       getVideoStatus: vi.fn(async () => ({ status: 'in_progress' as const })),
-      getVideoUrl: vi.fn(),
+      getVideo: vi.fn(),
     }
 
     const stream = generateVideo({
+      threadId: 'thread-1',
       adapter: adapter as any,
       prompt: 'a cat',
       stream: true,
@@ -959,18 +1061,19 @@ describe('generation middleware — wiring', () => {
       model: 'sora-2',
       createVideoJob: vi.fn(async () => ({ jobId: 'job-1', model: 'sora-2' })),
       getVideoStatus: vi.fn(async () => ({ status: 'completed' as const })),
-      getVideoUrl: vi.fn(async () => ({
+      getVideo: vi.fn(async () => ({
         url: 'https://example.com/v.mp4',
         usage: {
           promptTokens: 0,
           completionTokens: 0,
           totalTokens: 0,
-          unitsBilled: 1,
+          billed: { quantity: 1, unit: 'units' },
         },
       })),
     }
 
     const stream = generateVideo({
+      threadId: 'thread-1',
       adapter: adapter as any,
       prompt: 'a cat',
       stream: true,
@@ -984,7 +1087,10 @@ describe('generation middleware — wiring', () => {
 
     expect(events.start).toHaveLength(1)
     expect(events.finish).toHaveLength(1)
-    expect(events.finish[0]!.info.usage?.unitsBilled).toBe(1)
+    expect(events.finish[0]!.info.usage?.billed).toEqual({
+      quantity: 1,
+      unit: 'units',
+    })
     // Abandoning after success must not be reported as a cancellation.
     expect(events.abort).toHaveLength(0)
     expect(events.error).toHaveLength(0)
@@ -1191,6 +1297,7 @@ describe('generation middleware — wiring', () => {
     }
 
     await summarize({
+      threadId: 'thread-1',
       adapter: adapter as any,
       text: 'a long article',
       middleware: [otelMiddleware({ tracer })],
@@ -1221,6 +1328,7 @@ describe('generation middleware — wiring', () => {
     // middleware hooks propagate so a misbehaving middleware surfaces loudly.
     await expect(
       generateImage({
+        threadId: 'thread-1',
         adapter: adapter as any,
         prompt: 'x',
         middleware: [brokenMiddleware],

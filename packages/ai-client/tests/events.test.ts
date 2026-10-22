@@ -296,25 +296,6 @@ describe('events', () => {
       })
     })
 
-    it('emits tools:approval:responded with user-visible envelope and run context', () => {
-      emitter.toolApprovalResponded('approval-1', 'call-1', true, {
-        threadId: 'thread-1',
-        runId: 'run-1',
-      })
-
-      expect(aiEventClient.emit).toHaveBeenCalledWith(
-        'tools:approval:responded',
-        {
-          approvalId: 'approval-1',
-          toolCallId: 'call-1',
-          approved: true,
-          threadId: 'thread-1',
-          runId: 'run-1',
-          ...expectedEnvelope('tools:approval:responded', 'user-visible'),
-        },
-      )
-    })
-
     it('emits devtools:tool-fixture:applied with a user-visible envelope', () => {
       emitter.toolFixtureApplied({
         hookId: 'test-client-id',

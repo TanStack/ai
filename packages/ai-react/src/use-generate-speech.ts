@@ -6,7 +6,6 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   InferGenerationOutputFromReturn,
   SpeechGenerateInput,
 } from '@tanstack/ai-client'
@@ -49,11 +48,10 @@ export interface UseGenerateSpeechOptions<TOutput = TTSResult> {
    * `` `video-${videoId}-start-frame` ``). It is also sent as the AG-UI thread
    * id on the wire, which the protocol requires.
    *
-   * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations. If
-   * omitted, the client mints a wire id after mount.
+   * Required. A generated id would change on every reload, so persistence
+   * would restore nothing.
    */
-  threadId?: string
+  threadId: string
   /**
    * Server-driven hydration handler for `persistence: true` when the
    * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
@@ -123,6 +121,7 @@ export interface UseGenerateSpeechReturn<TOutput = TTSResult> {
  *
  * function SpeechGenerator() {
  *   const { generate, result, isLoading } = useGenerateSpeech({
+ *     threadId: 'welcome-speech',
  *     connection: fetchServerSentEvents('/api/generate/speech'),
  *   })
  *
@@ -140,12 +139,9 @@ export interface UseGenerateSpeechReturn<TOutput = TTSResult> {
  * ```
  */
 export function useGenerateSpeech<TTransformed = void>(
-  options: Omit<
-    UseGenerateSpeechOptions,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<UseGenerateSpeechOptions, 'onResult'> & {
     onResult?: (result: TTSResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ): UseGenerateSpeechReturn<
   InferGenerationOutputFromReturn<TTSResult, TTransformed>
 > {

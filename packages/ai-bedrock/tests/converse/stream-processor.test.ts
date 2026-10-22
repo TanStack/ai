@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import type { AdapterYieldChunk } from '@tanstack/ai'
 import { processConverseStream } from '../../src/converse/stream-processor'
-import type { ConverseStreamOutput } from '@aws-sdk/client-bedrock-runtime'
+import type {
+  ConverseStreamOutput,
+  TokenUsage as ConverseTokenUsage,
+} from '@aws-sdk/client-bedrock-runtime'
 
 // Test fixtures use the minimal field subset the processor reads. Cast at the
 // generator boundary to the SDK union type — the SDK marks every field as
@@ -33,6 +36,7 @@ describe('processConverseStream', () => {
         },
       ),
       () => 'msg-1',
+      { threadId: 'thread-1' },
     )) {
       types.push(c.type)
     }
@@ -53,6 +57,7 @@ describe('processConverseStream', () => {
         { messageStop: { stopReason: 'end_turn' } },
       ),
       () => 'msg-1',
+      { threadId: 'thread-1' },
     )) {
       if (c.type === EventType.TEXT_MESSAGE_CONTENT)
         contents.push((c as { delta: string }).delta)
@@ -88,6 +93,7 @@ describe('processConverseStream', () => {
         { messageStop: { stopReason: 'tool_use' } },
       ),
       () => 'msg-2',
+      { threadId: 'thread-1' },
     )) {
       types.push(c.type)
       if (c.type === EventType.TOOL_CALL_ARGS)
@@ -113,6 +119,7 @@ describe('processConverseStream', () => {
         { messageStop: { stopReason: 'end_turn' } },
       ),
       () => 'msg-3',
+      { threadId: 'thread-1' },
     )) {
       types.push(c.type)
     }
@@ -130,7 +137,9 @@ describe('processConverseStream', () => {
     ...events: Array<ConverseStreamFixture>
   ): Promise<Array<AdapterYieldChunk>> {
     const out: Array<AdapterYieldChunk> = []
-    for await (const c of processConverseStream(gen(...events), counter())) {
+    for await (const c of processConverseStream(gen(...events), counter(), {
+      threadId: 'thread-1',
+    })) {
       out.push(c)
     }
     return out
@@ -175,31 +184,51 @@ describe('processConverseStream', () => {
     }
   })
 
-  it('forwards cache read/write counts as promptTokensDetails', async () => {
+  // Run one text turn with this metadata usage and return the usage on the
+  // terminal RUN_FINISHED.
+  async function finishedUsage(usage: ConverseTokenUsage) {
     const events = await collect(
       { contentBlockDelta: { delta: { text: 'hi' }, contentBlockIndex: 0 } },
       { messageStop: { stopReason: 'end_turn' } },
-      {
-        metadata: {
-          // inputTokens is the uncached part only; the cached prefix comes as
-          // its own fields.
-          usage: {
-            inputTokens: 3,
-            outputTokens: 4,
-            totalTokens: 8416,
-            cacheReadInputTokens: 0,
-            cacheWriteInputTokens: 8409,
-          },
-        },
-      },
+      { metadata: { usage } },
     )
     const finished = events.find((e) => e.type === EventType.RUN_FINISHED)
-    expect((finished as { usage?: unknown }).usage).toEqual({
-      promptTokens: 3,
+    return (finished as { usage?: unknown }).usage
+  }
+
+  it('forwards cache read/write counts as promptTokensDetails', async () => {
+    // inputTokens is the uncached part only; the cached prefix comes as its
+    // own fields. promptTokens is the total input: 3 + 0 + 8409.
+    const usage = await finishedUsage({
+      inputTokens: 3,
+      outputTokens: 4,
+      totalTokens: 8416,
+      cacheReadInputTokens: 0,
+      cacheWriteInputTokens: 8409,
+    })
+    expect(usage).toEqual({
+      promptTokens: 8412,
       completionTokens: 4,
       totalTokens: 8416,
       // Zero is a real value here. The checkpoint was served, not missing.
       promptTokensDetails: { cachedTokens: 0, cacheWriteTokens: 8409 },
+    })
+  })
+
+  it('adds uncached, cache read, and cache write into promptTokens', async () => {
+    // No provider total here, so the total comes from the parts.
+    const usage = await finishedUsage({
+      inputTokens: 5,
+      outputTokens: 7,
+      totalTokens: undefined,
+      cacheReadInputTokens: 100,
+      cacheWriteInputTokens: 20,
+    })
+    expect(usage).toEqual({
+      promptTokens: 125,
+      completionTokens: 7,
+      totalTokens: 132,
+      promptTokensDetails: { cachedTokens: 100, cacheWriteTokens: 20 },
     })
   })
 
@@ -286,6 +315,7 @@ describe('processConverseStream', () => {
           { throttlingException: new Error('rate limited') },
         ),
         counter(),
+        { threadId: 'thread-1' },
       )) {
         // consume
       }
@@ -353,5 +383,67 @@ describe('processConverseStream', () => {
     expect(
       events.filter((e) => e.type === EventType.TOOL_CALL_END),
     ).toHaveLength(2)
+  })
+
+  it('puts the raw streamed argument string on TOOL_CALL_END', async () => {
+    const events = await collect(
+      {
+        contentBlockStart: {
+          start: { toolUse: { toolUseId: 't1', name: 'getX' } },
+          contentBlockIndex: 0,
+        },
+      },
+      {
+        contentBlockDelta: {
+          delta: { toolUse: { input: '{"n": ' } },
+          contentBlockIndex: 0,
+        },
+      },
+      {
+        contentBlockDelta: {
+          delta: { toolUse: { input: '1.50}' } },
+          contentBlockIndex: 0,
+        },
+      },
+      { contentBlockStop: { contentBlockIndex: 0 } },
+      { messageStop: { stopReason: 'tool_use' } },
+    )
+    const end = events.find((e) => e.type === EventType.TOOL_CALL_END)
+    expect(end).toMatchObject({ toolCallId: 't1', args: '{"n": 1.50}' })
+  })
+
+  it('puts malformed raw arguments on TOOL_CALL_END without an input', async () => {
+    const events = await collect(
+      {
+        contentBlockStart: {
+          start: { toolUse: { toolUseId: 't1', name: 'getX' } },
+          contentBlockIndex: 0,
+        },
+      },
+      {
+        contentBlockDelta: {
+          delta: { toolUse: { input: '{"a":' } },
+          contentBlockIndex: 0,
+        },
+      },
+      // Truncated: the drained END still carries the raw string.
+    )
+    const end = events.find((e) => e.type === EventType.TOOL_CALL_END)
+    expect(end).toMatchObject({ toolCallId: 't1', args: '{"a":' })
+    expect(end).not.toHaveProperty('input')
+  })
+
+  it('sends empty args on TOOL_CALL_END when no argument fragment arrived', async () => {
+    const events = await collect(
+      {
+        contentBlockStart: {
+          start: { toolUse: { toolUseId: 't1', name: 'getX' } },
+          contentBlockIndex: 0,
+        },
+      },
+      { contentBlockStop: { contentBlockIndex: 0 } },
+    )
+    const end = events.find((e) => e.type === EventType.TOOL_CALL_END)
+    expect(end).toMatchObject({ toolCallId: 't1', args: '' })
   })
 })

@@ -1,7 +1,8 @@
 import { defineAIPersistence } from './types'
 import { resolveBlobRange } from './blob-range'
-import type { ModelMessage } from '@tanstack/ai'
+import type { ActivityRecord, ModelMessage } from '@tanstack/ai'
 import type {
+  ActivityStore,
   ArtifactRecord,
   ArtifactStore,
   BlobBody,
@@ -53,17 +54,25 @@ class MemoryMessageStore implements MessageStore {
   }
 }
 
+class MemoryActivityStore implements ActivityStore {
+  private readonly threads = new Map<string, Array<ActivityRecord>>()
+  loadActivities(threadId: string): Promise<Array<ActivityRecord>> {
+    return Promise.resolve(this.threads.get(threadId)?.slice() ?? [])
+  }
+  saveActivities(
+    threadId: string,
+    activities: Array<ActivityRecord>,
+  ): Promise<void> {
+    this.threads.set(threadId, activities.slice())
+    return Promise.resolve()
+  }
+}
+
 class MemoryRunStore implements RunStore {
   private readonly runs = new Map<string, RunRecord>()
-  createOrResume(input: {
-    runId: string
-    threadId: string
-    status?: RunRecord['status']
-    startedAt: number
-    parentRunId?: string
-    subagentRunId?: string
-    name?: string
-  }): Promise<RunRecord> {
+  createOrResume(
+    input: Parameters<RunStore['createOrResume']>[0],
+  ): Promise<RunRecord> {
     const existing = this.runs.get(input.runId)
     if (existing) return Promise.resolve(existing)
     const record: RunRecord = {
@@ -78,25 +87,17 @@ class MemoryRunStore implements RunStore {
         ? { subagentRunId: input.subagentRunId }
         : {}),
       ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.kind !== undefined ? { kind: input.kind } : {}),
+      ...(input.activity !== undefined ? { activity: input.activity } : {}),
+      ...(input.agent !== undefined ? { agent: input.agent } : {}),
+      ...(input.principal !== undefined ? { principal: input.principal } : {}),
     }
     this.runs.set(record.runId, record)
     return Promise.resolve(record)
   }
   update(
     runId: string,
-    patch: Partial<
-      Pick<
-        RunRecord,
-        | 'status'
-        | 'finishedAt'
-        | 'error'
-        | 'usage'
-        | 'sandboxKey'
-        | 'detachedSince'
-        | 'cancelRequested'
-        | 'driverEpoch'
-      >
-    >,
+    patch: Parameters<RunStore['update']>[1],
   ): Promise<void> {
     const existing = this.runs.get(runId)
     if (existing) this.runs.set(runId, { ...existing, ...patch })
@@ -311,20 +312,54 @@ class MemoryMetadataStore implements MetadataStore {
   // `${namespace}:${key}` collision where `('a:b','c')` aliases `('a','b:c')`.
   // (This parameter is an app-defined metadata namespace string — not the
   // shared `Scope` identity type from `@tanstack/ai`.)
-  private readonly values = new Map<string, Map<string, unknown>>()
+  private readonly values = new Map<
+    string,
+    Map<string, { value: unknown; revision: string }>
+  >()
+  // One counter for the whole store, so a key that is deleted and set again
+  // never gets a revision that an earlier reader saw.
+  private lastRevision = 0
   get(namespace: string, key: string): Promise<unknown | null> {
-    const bucket = this.values.get(namespace)
-    if (!bucket || !bucket.has(key)) return Promise.resolve(null)
-    return Promise.resolve(bucket.get(key))
+    const entry = this.values.get(namespace)?.get(key)
+    return Promise.resolve(entry ? entry.value : null)
+  }
+  getVersioned(
+    namespace: string,
+    key: string,
+  ): Promise<{ value: unknown; revision: string } | null> {
+    const entry = this.values.get(namespace)?.get(key)
+    return Promise.resolve(entry ? { ...entry } : null)
   }
   set(namespace: string, key: string, value: unknown): Promise<void> {
+    this.write(namespace, key, value)
+    return Promise.resolve()
+  }
+  setIf(
+    namespace: string,
+    key: string,
+    value: unknown,
+    expectedRevision: string | null,
+  ): Promise<
+    { ok: true; revision: string } | { ok: false; reason: 'conflict' }
+  > {
+    const current = this.values.get(namespace)?.get(key)?.revision ?? null
+    if (current !== expectedRevision) {
+      return Promise.resolve({ ok: false, reason: 'conflict' })
+    }
+    return Promise.resolve({
+      ok: true,
+      revision: this.write(namespace, key, value),
+    })
+  }
+  private write(namespace: string, key: string, value: unknown): string {
     let bucket = this.values.get(namespace)
     if (!bucket) {
       bucket = new Map()
       this.values.set(namespace, bucket)
     }
-    bucket.set(key, value)
-    return Promise.resolve()
+    const revision = String(++this.lastRevision)
+    bucket.set(key, { value, revision })
+    return revision
   }
   delete(namespace: string, key: string): Promise<void> {
     const bucket = this.values.get(namespace)
@@ -558,6 +593,7 @@ class MemoryBlobStore implements BlobStore {
 
 interface MemoryPersistenceStores {
   messages: MessageStore
+  activities: ActivityStore
   runs: RunStore
   generationRuns: GenerationRunStore
   interrupts: InterruptStore
@@ -569,13 +605,15 @@ interface MemoryPersistenceStores {
 /**
  * In-process reference backend for the full state + generation store set.
  *
- * Returns messages + runs + generationRuns + interrupts + metadata + artifacts
- * + blobs. Locks are not included — use `InMemoryLockStore` + `withLocks` from
- * `@tanstack/ai` when a test or single-process app needs coordination.
+ * Returns messages + activities + runs + generationRuns + interrupts +
+ * metadata + artifacts + blobs. Locks are not included — use
+ * `InMemoryLockStore` + `withLocks` from `@tanstack/ai` when a test or
+ * single-process app needs coordination.
  */
 export function memoryPersistence() {
   const stores: MemoryPersistenceStores = {
     messages: new MemoryMessageStore(),
+    activities: new MemoryActivityStore(),
     runs: new MemoryRunStore(),
     generationRuns: new MemoryGenerationRunStore(),
     interrupts: new MemoryInterruptStore(),

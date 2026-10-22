@@ -9,11 +9,27 @@ import { chat } from '../src/activities/chat'
 import { collectChunks, createMockAdapter, ev } from './test-utils'
 import { EventType } from '../src/types'
 import type { StreamChunk } from '../src/types'
+import type { SubagentRouterPick } from '../src/activities/chat/agents/spawn'
 
 function parentAdapter() {
   return createMockAdapter({
     iterations: [[ev.runStarted(), ev.runFinished('stop')]],
   })
+}
+
+/** Run one routed turn whose router returns `pick`. */
+function routeTo(
+  agents: ReadonlyArray<DefinedAgent>,
+  pick: SubagentRouterPick,
+) {
+  return collectChunks(
+    chat({
+      threadId: 'thread-1',
+      adapter: parentAdapter().adapter,
+      messages: [{ role: 'user', content: 'Go' }],
+      subagents: { agents, router: () => pick },
+    }),
+  )
 }
 
 function childTextAdapter(text: string) {
@@ -163,6 +179,101 @@ describe('subagentRoute', () => {
       ]),
     ).toThrow('subagentRoute cannot use an agent named "order"')
   })
+
+  const skuSchema = z.object({ sku: z.string() })
+  const topicSchema = z.object({ topic: z.string() })
+  const inputDesk = [
+    defineAgent({
+      name: 'researcher',
+      description: 'Looks up facts',
+      run: async function* () {},
+    }),
+    defineAgent({
+      name: 'pricer',
+      description: 'Prices one product',
+      inputSchema: skuSchema,
+      run: async function* () {},
+    }),
+    defineAgent({
+      name: 'writer',
+      description: 'Writes the post',
+      inputSchema: topicSchema,
+      run: async function* () {},
+    }),
+    defineAgent({
+      name: 'seo',
+      description: 'Suggests titles',
+      run: async function* () {},
+    }),
+  ] as const
+  const inputs = { pricer: { sku: 'A-1' }, writer: { topic: 'Pricing' } }
+
+  /** `decide()` answers where only the given agents say yes. */
+  function yesTo(...names: Array<(typeof inputDesk)[number]['name']>) {
+    return {
+      researcher: { value: names.includes('researcher') },
+      pricer: { value: names.includes('pricer') },
+      writer: { value: names.includes('writer') },
+      seo: { value: names.includes('seo') },
+      order: { value: 'parallel' as const },
+    }
+  }
+
+  it('lists the picked agents that need input, in agent-list order', () => {
+    const route = subagentRoute(inputDesk)
+
+    expect(route.needsInput(yesTo('researcher', 'pricer', 'seo'))).toEqual([
+      { name: 'pricer', inputSchema: skuSchema },
+    ])
+    expect(route.needsInput(yesTo('writer', 'pricer'))).toEqual([
+      { name: 'pricer', inputSchema: skuSchema },
+      { name: 'writer', inputSchema: topicSchema },
+    ])
+    expect(route.needsInput(yesTo('researcher', 'seo'))).toEqual([])
+  })
+
+  it('puts each input on its name in a single pick and in names', () => {
+    const route = subagentRoute(inputDesk)
+
+    expect(route.pick(yesTo('pricer'), { inputs })).toEqual({
+      name: 'pricer',
+      input: { sku: 'A-1' },
+    })
+    expect(
+      route.pick(yesTo('researcher', 'pricer', 'writer'), { inputs }),
+    ).toEqual({
+      names: [
+        'researcher',
+        { name: 'pricer', input: { sku: 'A-1' } },
+        { name: 'writer', input: { topic: 'Pricing' } },
+      ],
+      order: 'parallel',
+    })
+  })
+
+  it('puts each input on its name in each step', () => {
+    const route = subagentRoute(inputDesk, { then: ['writer'] })
+
+    expect(
+      route.pick(yesTo('researcher', 'pricer', 'writer'), { inputs }),
+    ).toEqual({
+      steps: [
+        {
+          names: ['researcher', { name: 'pricer', input: { sku: 'A-1' } }],
+          order: 'parallel',
+        },
+        { names: [{ name: 'writer', input: { topic: 'Pricing' } }] },
+      ],
+    })
+  })
+
+  it('throws when a picked agent with a schema has no input', () => {
+    const route = subagentRoute(inputDesk)
+
+    expect(() => route.pick(yesTo('researcher', 'pricer'))).toThrow(
+      'Agent "pricer" needs input. Pass it in inputs.',
+    )
+  })
 })
 
 describe('defineAgent', () => {
@@ -202,6 +313,7 @@ describe('chat({ subagents }) router spawn', () => {
   it('emits SUBAGENT_STARTED and SUBAGENT_FINISHED with subagentRunId', async () => {
     const researcher = researcherAgent('Paris')
     const stream = chat({
+      threadId: 'thread-1',
       adapter: parentAdapter().adapter,
       messages: [{ role: 'user', content: 'Capital of France?' }],
       subagents: {
@@ -244,6 +356,7 @@ describe('chat({ subagents }) router spawn', () => {
     const { adapter, calls } = parentAdapter()
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Go' }],
         subagents: {
@@ -268,6 +381,7 @@ describe('chat({ subagents }) router spawn', () => {
     })
     const chunks: Array<StreamChunk> = []
     const stream = chat({
+      threadId: 'thread-1',
       adapter: parentAdapter().adapter,
       messages: [{ role: 'user', content: 'Go' }],
       abortController,
@@ -298,6 +412,7 @@ describe('chat({ subagents }) router spawn', () => {
     let writerSaw = ''
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: parentAdapter().adapter,
         messages: [
           { role: 'user', content: 'Research squids and write an article' },
@@ -341,6 +456,7 @@ describe('chat({ subagents }) router spawn', () => {
     let writerSaw = ''
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: parentAdapter().adapter,
         messages: [{ role: 'user', content: 'Research two animals' }],
         subagents: {
@@ -375,6 +491,7 @@ describe('chat({ subagents }) router spawn', () => {
     let writerSaw = ''
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: parentAdapter().adapter,
         messages: [
           { role: 'user', content: 'Research squids and write an article' },
@@ -416,6 +533,7 @@ describe('chat({ subagents }) router spawn', () => {
     let writerSaw = ''
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: parentAdapter().adapter,
         messages: [
           {
@@ -431,6 +549,7 @@ describe('chat({ subagents }) router spawn', () => {
               description: 'Suggests titles',
               run: () =>
                 chat({
+                  threadId: 'thread-1',
                   adapter: childTextAdapter('Title: Three hearts'),
                   messages: [],
                 }),
@@ -490,6 +609,7 @@ describe('chat({ subagents }) router spawn', () => {
   it('does not start the next step after a subagent error', async () => {
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: parentAdapter().adapter,
         messages: [{ role: 'user', content: 'Go' }],
         subagents: {
@@ -550,6 +670,7 @@ describe('chat({ subagents }) router spawn', () => {
   it("puts the failing child's own message and code on RUN_ERROR", async () => {
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: parentAdapter().adapter,
         messages: [{ role: 'user', content: 'Go' }],
         subagents: {
@@ -586,6 +707,7 @@ describe('chat({ subagents }) router spawn', () => {
   it("keeps a finished sibling's usage on the failed turn", async () => {
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: parentAdapter().adapter,
         messages: [{ role: 'user', content: 'Go' }],
         subagents: {
@@ -623,6 +745,7 @@ describe('chat({ subagents }) router spawn', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: parentAdapter().adapter,
         messages: [{ role: 'user', content: 'Go' }],
         abortController: controller,
@@ -658,6 +781,7 @@ describe('chat({ subagents }) router spawn', () => {
     await expect(
       collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter: parentAdapter().adapter,
           messages: [{ role: 'user', content: 'Go' }],
           subagents: {
@@ -696,6 +820,7 @@ describe('chat({ subagents }) synthetic tools', () => {
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Research this' }],
         subagents: { agents: [researcher] },
@@ -712,7 +837,10 @@ describe('chat({ subagents }) synthetic tools', () => {
 })
 
 describe('defineAgent inputSchema', () => {
-  const briefSchema = z.object({ task: z.string() })
+  const briefSchema = z.object({
+    task: z.string({ error: 'task must be text' }),
+  })
+  const brief = { task: 'Price Vendor A' }
 
   /** A parent model that calls `researcher` once per args string, then stops. */
   function parentCalling(...args: Array<string>) {
@@ -752,6 +880,7 @@ describe('defineAgent inputSchema', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Compare pricing' }],
         subagents: { agents: [agent] },
@@ -775,6 +904,7 @@ describe('defineAgent inputSchema', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Compare pricing' }],
         subagents: { agents: [agent] },
@@ -796,6 +926,7 @@ describe('defineAgent inputSchema', () => {
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Compare pricing' }],
         subagents: { agents: [agent] },
@@ -836,6 +967,7 @@ describe('defineAgent inputSchema', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Compare pricing' }],
         subagents: { agents: [agent] },
@@ -863,6 +995,7 @@ describe('defineAgent inputSchema', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Research this' }],
         subagents: { agents: [agent] },
@@ -870,31 +1003,176 @@ describe('defineAgent inputSchema', () => {
     )
 
     const tool = calls[0]?.tools?.find((entry) => entry.name === 'researcher')
-    // The engine gives a tool with no schema an empty object schema.
-    expect(tool?.inputSchema?.properties ?? {}).toEqual({})
+    // An agent without inputSchema takes only a prompt.
+    expect(tool?.inputSchema?.properties).toEqual({
+      prompt: { type: 'string' },
+    })
     expect(inputs).toEqual([undefined])
   })
 
-  it('throws when a router meets an agent with inputSchema', async () => {
-    const { agent } = briefResearcher()
-    let routerCalls = 0
+  const routedPicks: Array<[string, SubagentRouterPick]> = [
+    ['a single pick', { name: 'researcher', input: brief }],
+    ['a list', ['writer', { name: 'researcher', input: brief }]],
+    [
+      'a names plan',
+      { names: [{ name: 'researcher', input: brief }], order: 'sequence' },
+    ],
+    [
+      'a later step',
+      {
+        steps: [
+          { names: ['writer'] },
+          { names: [{ name: 'researcher', input: brief }] },
+        ],
+      },
+    ],
+  ]
+  it.each(routedPicks)(
+    'passes the router input to run as ctx.input for %s',
+    async (_label, pick) => {
+      const { agent, inputs } = briefResearcher()
+      await routeTo([agent, namedAgent('writer')], pick)
+      expect(inputs).toEqual([{ task: 'Price Vendor A' }])
+    },
+  )
+
+  it('fails before any child starts when a picked agent has no input', async () => {
+    const { agent, inputs } = briefResearcher()
+    let writerRuns = 0
+    const writer = namedAgent('writer', async function* () {
+      writerRuns += 1
+    })
 
     await expect(
-      collectChunks(
-        chat({
-          adapter: parentAdapter().adapter,
-          messages: [{ role: 'user', content: 'Compare pricing' }],
-          subagents: {
-            agents: [agent],
-            router: () => {
-              routerCalls += 1
-              return 'main'
-            },
-          },
-        }) as AsyncIterable<StreamChunk>,
-      ),
-    ).rejects.toThrow('Subagent "researcher" has an inputSchema')
-    expect(routerCalls).toBe(0)
+      routeTo([agent, writer], {
+        steps: [{ names: ['writer'] }, { names: ['researcher'] }],
+      }),
+    ).rejects.toThrow(
+      `Agent "researcher" needs input. Return { name: 'researcher', input } from the router.`,
+    )
+    expect(writerRuns).toBe(0)
+    expect(inputs).toEqual([])
+  })
+
+  it('fails when the router input does not match the schema', async () => {
+    const { agent, inputs } = briefResearcher()
+
+    await expect(
+      routeTo([agent], { name: 'researcher', input: { task: 42 } }),
+    ).rejects.toThrow(
+      'Input validation failed for agent researcher: task: task must be text',
+    )
+    expect(inputs).toEqual([])
+  })
+
+  const badPicks: Array<[string, SubagentRouterPick, string]> = [
+    ['an unknown agent', { name: 'ghost', input: brief }, 'Unknown subagent'],
+    [
+      'an unknown agent in a later step',
+      { steps: [{ names: ['writer'] }, { names: ['ghost'] }] },
+      'Unknown subagent: ghost',
+    ],
+    [
+      'an input for an agent with no inputSchema',
+      ['researcher', { name: 'writer', input: brief }],
+      'Agent "writer" has no inputSchema, so it takes no input.',
+    ],
+    ['an input for main', { name: 'main', input: brief }, 'main takes no'],
+    [
+      'two picks of an agent with an input in one step',
+      [
+        { name: 'researcher', input: brief },
+        { name: 'researcher', input: { task: 'Price Vendor B' } },
+      ],
+      'Agent "researcher" has an input and is in one step more than once.',
+    ],
+    [
+      'a pick with a wrong key',
+      { agent: 'writer' } as unknown as SubagentRouterPick,
+      'subagents.router must return',
+    ],
+    [
+      'no pick',
+      undefined as unknown as SubagentRouterPick,
+      'subagents.router must return',
+    ],
+  ]
+  it.each(badPicks)(
+    'fails before any child starts for %s',
+    async (_label, pick, message) => {
+      const { agent, inputs } = briefResearcher()
+      let writerRuns = 0
+      const writer = namedAgent('writer', async function* () {
+        writerRuns += 1
+      })
+
+      await expect(routeTo([agent, writer], pick)).rejects.toThrow(message)
+      expect(writerRuns).toBe(0)
+      expect(inputs).toEqual([])
+    },
+  )
+
+  it('does not start a routed agent whose inputSchema is a plain JSON Schema', async () => {
+    let runs = 0
+    const agent = defineAgent({
+      name: 'researcher',
+      description: 'Looks up facts',
+      inputSchema: {
+        type: 'object',
+        properties: { task: { type: 'string' } },
+        required: ['task'],
+      },
+      run: async function* () {
+        runs += 1
+      },
+    })
+
+    // Nothing here can check the input, so a bad one must not get through.
+    await expect(
+      routeTo([agent], { name: 'researcher', input: { task: 42 } }),
+    ).rejects.toThrow('has a plain JSON Schema as inputSchema')
+    expect(runs).toBe(0)
+  })
+
+  it('gives the same agent its own input in each step', async () => {
+    const { agent, inputs } = briefResearcher()
+
+    await routeTo([agent], {
+      steps: [
+        { names: [{ name: 'researcher', input: brief }] },
+        { names: [{ name: 'researcher', input: { task: 'Price Vendor B' } }] },
+      ],
+    })
+
+    expect(inputs).toEqual([brief, { task: 'Price Vendor B' }])
+  })
+
+  it('gives run the checked input and keeps it off the plan', async () => {
+    const inputs: Array<unknown> = []
+    const agent = defineAgent({
+      name: 'researcher',
+      description: 'Looks up facts',
+      inputSchema: z.object({
+        task: z.string().transform((task) => task.toUpperCase()),
+      }),
+      run: async function* (ctx) {
+        inputs.push(ctx.input)
+      },
+    })
+
+    const chunks = await routeTo([agent], {
+      name: 'researcher',
+      input: { task: 'price' },
+    })
+
+    expect(inputs).toEqual([{ task: 'PRICE' }])
+    // The plan goes to the client, so it has the names only.
+    expect(
+      chunks.find((chunk) => chunk.type === EventType.SUBAGENT_STARTED)
+        ?.metadata,
+    ).toEqual({
+      tanstack: { subagentPlan: { steps: [{ names: ['researcher'] }] } },
+    })
   })
 })
 
@@ -907,6 +1185,7 @@ describe('subagent guards', () => {
     const { adapter } = parentAdapter()
     expect(() =>
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         outputSchema: {

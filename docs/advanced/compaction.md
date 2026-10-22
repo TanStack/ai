@@ -2,7 +2,7 @@
 title: Compaction
 id: compaction
 order: 3
-description: "Keep long chats under the context limit with @tanstack/ai-compaction. withCompaction runs a pluggable strategy before each model call: evict, summarize, or clear old tool output."
+description: "Keep long chats under the context limit. withCompaction from @tanstack/ai-compaction shrinks what the model sees before each call: drop old messages, summarize them, or clear old tool output."
 keywords:
   - tanstack ai
   - compaction
@@ -12,31 +12,46 @@ keywords:
   - summarize history
 ---
 
-A long chat or a multi-step agent loop keeps adding messages. At some point the transcript passes the model's context limit and the call fails. You want the conversation to keep working without hitting that wall.
+Compaction shortens a transcript before it passes the model context limit. A long chat or agent loop otherwise fails on the next call.
 
-`withCompaction` shrinks provider context before each model call. When the context passes `maxTokens`, a **strategy** rewrites what the model sees. The canonical transcript does not change. Add this [`ChatMiddleware`](./middleware) to the `middleware` array of any `chat()` call.
+Add `withCompaction` to your `chat()` call. It runs before each model call.
 
-## Install
+## Quick setup
 
-```bash
-pnpm add @tanstack/ai-compaction
-```
+### 1. Install the package
 
-## Quick start
+<!-- ::start:tabs variant="package-manager" mode="install" -->
 
-The default strategy drops the oldest messages once the transcript passes `maxTokens` and keeps the recent ones.
+react: @tanstack/ai-compaction
+vue: @tanstack/ai-compaction
+solid: @tanstack/ai-compaction
+svelte: @tanstack/ai-compaction
+preact: @tanstack/ai-compaction
+angular: @tanstack/ai-compaction
+octane: @tanstack/ai-compaction
+vanilla: @tanstack/ai-compaction
+
+<!-- ::end:tabs -->
+
+### 2. Add the middleware to your chat endpoint
 
 ```typescript
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { withCompaction } from "@tanstack/ai-compaction";
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
 
   const stream = chat({
-    adapter: openaiText("gpt-5.5"),
+    adapter: openaiText("gpt-6.1-sol"),
     messages,
+    threadId,
+    runId,
     middleware: [withCompaction({ maxTokens: 100_000 })],
   });
 
@@ -44,19 +59,46 @@ export async function POST(request: Request) {
 }
 ```
 
+The client does not change. Your `useChat` code stays the same.
+
+### 3. Watch it run
+
+Use a small `maxTokens` and an `onCompact` log while you try it:
+
+```typescript
+import { withCompaction } from "@tanstack/ai-compaction";
+
+const compaction = withCompaction({
+  maxTokens: 2_000,
+  onCompact: (info) => {
+    console.log(`Compacted from ${info.before} to ${info.after} tokens`);
+  },
+});
+```
+
+Put `compaction` in the `middleware` array and chat for a few turns. The server logs a line each time the history shrinks, and the chat keeps answering.
+
+## How it works
+
+- `withCompaction` is a [chat middleware](./middleware). Before each model call, it estimates the token count of the messages (characters / 4).
+- When the count passes `maxTokens`, a **strategy** rewrites the messages that go to the provider.
+- The full transcript does not change. Persistence and the UI still see every message.
+- The system prompt is never dropped. `chat()` keeps it separate from `messages`.
+- Tool calls stay paired with their results, so the request stays valid.
+
 ## Pick a strategy
 
-Pass `strategy` to change how the history shrinks. Three are built in.
+Pass `strategy` to change how the history shrinks. Three are built in:
 
 | Strategy | What it does | Cost |
 |----------|--------------|------|
-| `evictOldest` (default) | Drop the oldest messages, leave a marker | No extra model call |
-| `summarizeOldest` | Replace the oldest messages with an LLM summary | One summarize call |
-| `clearToolResults` | Stub the content of old tool results, keep the messages | No extra model call |
+| `evictOldest` (default) | Drop the oldest messages and leave a marker | No extra model call |
+| `summarizeOldest` | Replace the oldest messages with a summary from a model | One summary call (up to two with `cut: 'turn'`) |
+| `clearToolResults` | Replace the content of old tool results with a stub, keep the messages | No extra model call |
 
 ### evictOldest
 
-Cheapest. Keeps the recent tail, drops the older head, and leaves a short marker in its place. This is the default, so you only name it to tune `keepRecentTokens`.
+This strategy is the cheapest. It keeps the recent messages, drops the older ones, and puts a short marker in their place. It is the default, so name it only to set `keepRecentTokens`:
 
 ```typescript
 import { withCompaction, evictOldest } from "@tanstack/ai-compaction";
@@ -69,32 +111,47 @@ withCompaction({
 
 ### summarizeOldest
 
-Keeps the gist of old turns instead of dropping them, at the cost of one summarization call. Pass a `summarize` callback. It gets the messages about to be dropped and returns the summary text. Wire it to `summarize()` or any model call.
+This strategy keeps the meaning of old turns and costs one summary call. Give it a `summarize` function. The function gets the messages to drop and an input with the `threadId` of the conversation. It returns the summary. Give the summary call a thread id of its own, so it does not share state with the conversation:
 
 ```typescript
-import { chat, summarize, toServerSentEventsResponse } from "@tanstack/ai";
-import { openaiText, openaiSummarize } from "@tanstack/ai-openai";
-import { withCompaction, summarizeOldest } from "@tanstack/ai-compaction";
+import {
+  chat,
+  chatParamsFromRequest,
+  summarize,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
 import type { ModelMessage } from "@tanstack/ai";
+import { openaiSummarize, openaiText } from "@tanstack/ai-openai";
+import {
+  summarizeOldest,
+  withCompaction,
+  type SummarizeInput,
+} from "@tanstack/ai-compaction";
 
-async function summarizeHistory(messages: Array<ModelMessage>): Promise<string> {
+async function summarizeHistory(
+  messages: Array<ModelMessage>,
+  { threadId }: SummarizeInput,
+) {
   const text = messages
     .map((m) => `${m.role}: ${typeof m.content === "string" ? m.content : ""}`)
     .join("\n");
 
-  const { summary } = await summarize({
-    adapter: openaiSummarize("gpt-5.5"),
+  // Return the whole result, so compaction can report its usage.
+  return summarize({
+    adapter: openaiSummarize("gpt-6.1-sol"),
     text,
+    threadId: `${threadId}:compaction`,
   });
-  return summary;
 }
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
 
   const stream = chat({
-    adapter: openaiText("gpt-5.5"),
+    adapter: openaiText("gpt-6.1-sol"),
     messages,
+    threadId,
+    runId,
     middleware: [
       withCompaction({
         maxTokens: 100_000,
@@ -107,48 +164,29 @@ export async function POST(request: Request) {
 }
 ```
 
+`summarize` can return the summary text, or an object with `summary` and `usage`. Return the `summarize()` result as it is, so that compaction can report the cost of the summary.
+
+For a coding agent, use the ready summarizer in [Better summaries](./compaction-advanced#better-summaries).
+
 ### clearToolResults
 
-Best for agent loops. Tool output (file reads, command output) is usually most of the tokens. This strategy replaces the content of old tool results with a stub and keeps every message and its tool-call pairing in place. The conversation shape does not change.
+This strategy is the best fit for agent loops. Tool output (file reads, command output) is usually most of the tokens. The strategy replaces the content of old tool results with a stub. Every message and every tool-call pair stays in place.
 
 ```typescript
 import { withCompaction, clearToolResults } from "@tanstack/ai-compaction";
 
 withCompaction({
   maxTokens: 100_000,
-  // Keep the 5 most recent tool results in full, stub the older ones.
+  // Keep the 5 most recent tool results in full. Stub the older ones.
   strategy: clearToolResults({ keepRecentToolResults: 5 }),
 });
 ```
 
-### Write your own
-
-A strategy is a function. It gets the messages and the budget, and returns the rewritten messages, or `null` to change nothing. It runs only when the estimate is over `maxTokens`.
-
-```typescript
-import { withCompaction } from "@tanstack/ai-compaction";
-import type { CompactionStrategy } from "@tanstack/ai-compaction";
-
-// Keep only the last message.
-const keepLastOnly: CompactionStrategy = (messages) => {
-  if (messages.length <= 1) return null;
-  return messages.slice(-1);
-};
-
-withCompaction({
-  maxTokens: 100_000,
-  strategy: keepLastOnly,
-  strategyKey: "keep-last-v1",
-});
-```
-
-Set `strategyKey` when you combine a custom strategy with persistence. Change
-the key when the strategy can produce different output. This prevents an old
-checkpoint from using stale behavior.
-
 ## Combine strategies
 
-`composeStrategies` runs several strategies in order and **escalates**: it stops as soon as the result is back under `maxTokens`. Put the cheap, targeted strategy first and a broad fallback last. Here it clears old tool output first, and only drops old messages if that was not enough.
+`composeStrategies` runs several strategies in order. It stops as soon as the result is under `maxTokens`. Put the cheap, targeted strategy first and a broad fallback last.
+
+This example clears old tool output first. It drops old messages only when that is not enough:
 
 ```typescript
 import {
@@ -164,85 +202,79 @@ withCompaction({
 });
 ```
 
-## Options
+## Let the provider compact
 
-### withCompaction
+Some providers can compact the conversation on their own servers. The model then keeps more of the old turns than a marker gives. It costs one compaction call.
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `maxTokens` | `number` | - | **Required.** Compact when the estimated tokens across `messages` pass this. |
-| `strategy` | `CompactionStrategy` | `evictOldest()` | How to shrink the messages. |
-| `estimateTokens` | `(message: ModelMessage) => number` | characters / 4 | Per-message token estimate. Pass a real tokenizer if you need exact counts. |
-| `strategyKey` | `string` | built-in strategy identity | Stable checkpoint identity. Set it for custom strategies, custom estimators, or a custom eviction marker. Change it when your `summarize` function can change. |
-| `onCompact` | `(info: CompactionInfo) => void` | - | Runs after each compaction. `info` is `{ before, after, messagesBefore, messagesAfter }` (token and message counts). |
+Pass the adapter of the `chat()` call as `native`. When the count passes `maxTokens`, the `compact` method of the adapter runs in place of `strategy`:
 
-### Strategy options
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { withCompaction } from "@tanstack/ai-compaction";
 
-| Strategy | Options |
-|----------|---------|
-| `evictOldest` | `keepRecentTokens` (default `maxTokens / 2`), `marker` |
-| `summarizeOldest` | `summarize` (**required**), `keepRecentTokens`, `summaryRole` (default `assistant`) |
-| `clearToolResults` | `keepRecentToolResults` (default `3`), `stub` |
+// Create the adapter once, outside the request handler.
+const adapter = openaiText("gpt-6.1-sol");
 
-The token count is a rough `characters / 4` estimate. It is good enough to trigger on, not exact. Pass `estimateTokens` for provider-accurate counts.
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
 
-## What it keeps safe
+  const stream = chat({
+    adapter,
+    messages,
+    threadId,
+    runId,
+    middleware: [withCompaction({ maxTokens: 100_000, native: adapter })],
+  });
 
-- **The system prompt is never dropped.** `chat()` keeps it separate from `messages`, so compaction only touches the conversation.
-- **Tool calls stay paired with their results.** The built-in strategies never leave an orphaned tool result, so the request stays valid.
-- **It runs before every model call.** Compaction skips `init`. It runs on `beforeModel` and `structuredOutput`. Each later call can compact again.
-- **The canonical transcript stays complete.** Compaction writes provider-only context. Persistence and other middleware still read `ctx.messages`.
+  return toServerSentEventsResponse(stream);
+}
+```
 
-## DevTools
+- An adapter with no `compact` method uses `strategy`.
+- When `compact` fails, `strategy` runs in its place.
 
-After a compaction, the chat stream includes three CUSTOM events in order:
-`compaction:started`, `compaction:state`, then `compaction:ended`.
-`compaction:started` is sent before the strategy runs. Durability flushes each
-event as soon as it is emitted, so a slow `summarizeOldest` call still shows
-as started on the client while it runs. The state and ended events follow when
-the strategy returns.
-TanStack AI DevTools has a Compaction tab on the hook. Each compact shows:
+The OpenAI Responses adapters have `compact`. See [Native compaction](../adapters/openai-advanced#native-compaction). For what happens on each kind of failure, see [Native compaction failures](./compaction-advanced#native-compaction-failures).
 
-- started, state, and ended rows
-- when it ran, with token and message counts
-- the `maxTokens` budget
-- dropped messages
-- the transcript sent to the model
+## When the chat is still too long
 
-The conversation timeline also keeps `onCompactStart`, `onCompact`, and
-`onCompactEnd` steps.
+The token count is an estimate. So sometimes a call is still too long for the model, and the provider rejects it.
 
-Open the AI plugin in the DevTools panel (the `ts-react-chat` example mounts it). Select the Compaction hook, then open the Compaction tab.
+You do not have to catch that error. When a call fails with `CONTEXT_OVERFLOW_CODE`, `withCompaction` compacts and calls the model again, in the same run. Your code only sees the answer. This also works with `auto: false`.
 
-The `/compaction` route in `examples/ts-react-chat` uses a small `maxTokens` so this fires after a few turns. It also uses `withPersistence` (SQLite). Reload after a compact: the chat still shows every message. The banner is example UI, not part of `useChat`.
+It retries once for each model call. If the compacted call is still too long, the run ends with a `RUN_ERROR`:
+
+- `code` is `CONTEXT_OVERFLOW_CODE` (`'context_overflow'`).
+- `message` is the text from the provider.
+
+These adapters set this code:
+
+- OpenAI, Anthropic, Gemini, and Bedrock.
+- OpenRouter, Grok, Cloudflare, and BytePlus.
+- Other OpenAI-compatible adapters, when the provider sends `context_length_exceeded`.
+
+To make sure that the retry always has something to drop, see [Give the retry something to cut](./compaction-advanced#give-the-retry-something-to-cut).
 
 ## Compaction and persistence
 
-Compaction and server-side [`withPersistence`](../persistence/chat-persistence)
-use two message views:
+Compaction and server-side [`withPersistence`](../persistence/chat-persistence) use two views of the messages:
 
-- `messages` is the complete canonical transcript. Persistence saves this view.
-- `providerMessages` is temporary model context. Compaction rewrites this view.
+- `messages` is the full transcript. Persistence saves this view.
+- `providerMessages` is the context for the model. Compaction rewrites this view.
 
-Middleware order does not change this split. Dropped, summarized, and stubbed
-content remains in the message store.
+The order of the middleware does not change this split. Dropped, summarized, and stubbed content stays in the message store.
 
-If the persistence adapter has a `metadata` store, compaction also saves a small
-checkpoint. The next request validates the canonical prefix, restores the last
-compacted result, and adds only new messages. A changed prefix or strategy key
-invalidates the checkpoint.
+If the persistence adapter has a `metadata` store, compaction also saves a small checkpoint. The next request then starts from the last compacted result. See [Checkpoints](./compaction-advanced#checkpoints) for the details.
 
-When a checkpoint is reused, a later `summarizeOldest` pass sees the previous
-summary plus new messages. Then it folds the old summary into the new one.
-Folding needs a metadata store and a strategy key.
+## Advanced
 
-The default strategy, standard `evictOldest`, `summarizeOldest`,
-`clearToolResults`, and safe compositions get a strategy key automatically.
-Set `strategyKey` for custom strategies, custom estimators, or custom marker
-functions. Change `strategyKey` when your `summarize` function can change.
-Without a metadata store or safe key, compaction stays stateless.
+[Compaction: Advanced](./compaction-advanced) has the deep details:
 
-## Next steps
-
-- [Middleware](./middleware): the full hook reference and how middleware composes
-- [Built-in Middleware](./built-in-middleware): ready-made middleware that ships in `@tanstack/ai`
+- Every option of `withCompaction` and of each strategy.
+- Your own strategy, and compaction on your own schedule.
+- Counts from the real usage of the provider, and summaries that run in the background.
+- DevTools events, checkpoints, and session logs.

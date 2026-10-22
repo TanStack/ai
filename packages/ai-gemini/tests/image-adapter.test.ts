@@ -1,77 +1,63 @@
 import { describe, it, expect, vi } from 'vitest'
-import {
-  HarmBlockThreshold,
-  HarmCategory,
-  ImagePromptLanguage,
-  PersonGeneration,
-  SafetyFilterLevel,
-} from '@google/genai'
+import { HarmBlockThreshold, HarmCategory, ThinkingLevel } from '@google/genai'
 import { generateImage } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { GeminiImageAdapter, createGeminiImage } from '../src/adapters/image'
-import { GEMINI_NATIVE_IMAGE_MODELS, isGeminiNativeImageModel } from '../src'
 import {
   parseNativeImageSize,
-  sizeToAspectRatio,
-  validateImageSize,
-  validateNumberOfImages,
   validatePrompt,
 } from '../src/image/image-provider-options'
 
-const mockImageResponse = {
-  candidates: [
-    {
-      content: {
-        parts: [{ inlineData: { mimeType: 'image/png', data: 'out' } }],
-      },
-    },
-  ],
+function interactionWithImages(
+  data: string | Array<string>,
+  extra: Record<string, unknown> = {},
+) {
+  const images = (Array.isArray(data) ? data : [data]).map((value) => ({
+    type: 'image' as const,
+    data: value,
+    mime_type: 'image/png',
+  }))
+  return {
+    id: 'int_test',
+    status: 'completed',
+    output_image: images.at(-1),
+    steps: [{ type: 'model_output', content: images }],
+    ...extra,
+  }
 }
 
 /**
- * A native-path adapter whose `client.models.generateContent` is stubbed, so
- * tests can assert the exact config object handed to the SDK.
+ * A native-path adapter whose `client.interactions.create` is stubbed, so
+ * tests can assert the exact request handed to the SDK.
  */
 function mockedNativeAdapter() {
-  const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockImageResponse)
-  const adapter = createGeminiImage(
-    'gemini-3.1-flash-image-preview',
-    'test-api-key',
-  )
+  const mockCreate = vi.fn().mockResolvedValueOnce(interactionWithImages('out'))
+  const adapter = createGeminiImage('gemini-3.1-flash-image', 'test-api-key')
   ;(
     adapter as unknown as {
-      client: { models: { generateContent: unknown } }
+      client: { interactions: { create: unknown } }
     }
   ).client = {
-    models: { generateContent: mockGenerateContent },
+    interactions: { create: mockCreate },
   }
-  return { adapter, mockGenerateContent }
+  return { adapter, mockCreate }
 }
 
-/**
- * An Imagen-path adapter whose `client.models.generateImages` is stubbed, so
- * tests can assert the exact GenerateImagesConfig handed to the SDK.
- */
-function mockedImagenAdapter() {
-  const mockGenerateImages = vi.fn().mockResolvedValueOnce({
-    generatedImages: [{ image: { imageBytes: 'imagen-b64' } }],
-  })
-  const adapter = createGeminiImage('imagen-4.0-generate-001', 'test-api-key')
+function stubCreate(adapter: object, mockCreate: ReturnType<typeof vi.fn>) {
   ;(
     adapter as unknown as {
-      client: { models: { generateImages: unknown } }
+      client: { interactions: { create: unknown } }
     }
   ).client = {
-    models: { generateImages: mockGenerateImages },
+    interactions: { create: mockCreate },
   }
-  return { adapter, mockGenerateImages }
 }
 
 describe('Gemini Image Adapter', () => {
   describe('createGeminiImage', () => {
     it('creates an adapter with the provided API key', () => {
       const adapter = createGeminiImage(
-        'imagen-4.0-generate-001',
+        'gemini-3.1-flash-image',
         'test-api-key',
       )
       expect(adapter).toBeInstanceOf(GeminiImageAdapter)
@@ -81,114 +67,26 @@ describe('Gemini Image Adapter', () => {
 
     it('has the correct model', () => {
       const adapter = createGeminiImage(
-        'imagen-4.0-generate-001',
+        'gemini-3.1-flash-image',
         'test-api-key',
       )
-      expect(adapter.model).toBe('imagen-4.0-generate-001')
-    })
-  })
-
-  describe('sizeToAspectRatio', () => {
-    it('maps common sizes to aspect ratios', () => {
-      expect(sizeToAspectRatio('1024x1024')).toBe('1:1')
-      expect(sizeToAspectRatio('512x512')).toBe('1:1')
-      expect(sizeToAspectRatio('1920x1080')).toBe('16:9')
-      expect(sizeToAspectRatio('1080x1920')).toBe('9:16')
-    })
-
-    it('returns undefined for unknown sizes', () => {
-      expect(sizeToAspectRatio('999x999')).toBeUndefined()
-      expect(sizeToAspectRatio('invalid')).toBeUndefined()
-    })
-
-    it('returns undefined for undefined input', () => {
-      expect(sizeToAspectRatio(undefined)).toBeUndefined()
-    })
-  })
-
-  describe('validateImageSize', () => {
-    it('accepts valid sizes that map to aspect ratios', () => {
-      expect(() =>
-        validateImageSize('imagen-4.0-generate-001', '1024x1024'),
-      ).not.toThrow()
-      expect(() =>
-        validateImageSize('imagen-4.0-generate-001', '1920x1080'),
-      ).not.toThrow()
-    })
-
-    it('rejects invalid sizes', () => {
-      expect(() =>
-        validateImageSize('imagen-4.0-generate-001', '999x999'),
-      ).toThrow()
-    })
-
-    it('accepts undefined size', () => {
-      expect(() =>
-        validateImageSize('imagen-4.0-generate-001', undefined),
-      ).not.toThrow()
-    })
-  })
-
-  describe('validateNumberOfImages', () => {
-    it('accepts 1-4 images', () => {
-      expect(() =>
-        validateNumberOfImages('imagen-4.0-generate-001', 1),
-      ).not.toThrow()
-      expect(() =>
-        validateNumberOfImages('imagen-4.0-generate-001', 4),
-      ).not.toThrow()
-    })
-
-    it('rejects more than 4 images', () => {
-      expect(() =>
-        validateNumberOfImages('imagen-4.0-generate-001', 5),
-      ).toThrow()
-    })
-
-    it('uses the per-model cap for Imagen 4 models', () => {
-      // Per-model cap lookup: each Imagen family model has its own max
-      // rather than relying on a misleading comment about "up to 8".
-      expect(() =>
-        validateNumberOfImages('imagen-4.0-generate-001', 4),
-      ).not.toThrow()
-      expect(() =>
-        validateNumberOfImages('imagen-4.0-generate-001', 5),
-      ).toThrow(/Must be between 1 and 4/)
-    })
-
-    it('falls back to the default cap for unknown models', () => {
-      expect(() => validateNumberOfImages('unknown-model', 4)).not.toThrow()
-      expect(() => validateNumberOfImages('unknown-model', 5)).toThrow(
-        /Must be between 1 and 4/,
-      )
-    })
-
-    it('rejects 0 images', () => {
-      expect(() =>
-        validateNumberOfImages('imagen-4.0-generate-001', 0),
-      ).toThrow()
-    })
-
-    it('accepts undefined', () => {
-      expect(() =>
-        validateNumberOfImages('imagen-4.0-generate-001', undefined),
-      ).not.toThrow()
+      expect(adapter.model).toBe('gemini-3.1-flash-image')
     })
   })
 
   describe('validatePrompt', () => {
     it('rejects empty prompts', () => {
       expect(() =>
-        validatePrompt({ prompt: '', model: 'imagen-4.0-generate-001' }),
+        validatePrompt({ prompt: '', model: 'gemini-3.1-flash-image' }),
       ).toThrow()
       expect(() =>
-        validatePrompt({ prompt: '   ', model: 'imagen-4.0-generate-001' }),
+        validatePrompt({ prompt: '   ', model: 'gemini-3.1-flash-image' }),
       ).toThrow()
     })
 
     it('accepts non-empty prompts', () => {
       expect(() =>
-        validatePrompt({ prompt: 'A cat', model: 'imagen-4.0-generate-001' }),
+        validatePrompt({ prompt: 'A cat', model: 'gemini-3.1-flash-image' }),
       ).not.toThrow()
     })
   })
@@ -225,8 +123,7 @@ describe('Gemini Image Adapter', () => {
         aspectRatio: '1:8',
         resolution: '512',
       })
-      // gemini-2.5-flash-image has no documented image_size, so its sizes are
-      // bare ratios: the resolution is absent, not defaulted.
+      // A bare ratio has no resolution: it is absent, not defaulted.
       expect(parseNativeImageSize('16:9')).toEqual({ aspectRatio: '16:9' })
       expect(parseNativeImageSize('16:9')?.resolution).toBeUndefined()
     })
@@ -241,198 +138,66 @@ describe('Gemini Image Adapter', () => {
   })
 
   describe('generateImages', () => {
-    it('calls the Gemini models.generateImages API for Imagen models', async () => {
-      const mockResponse = {
-        generatedImages: [
-          {
-            image: {
-              imageBytes: 'base64encodedimage',
-            },
-          },
-        ],
-      }
-
-      const mockGenerateImages = vi.fn().mockResolvedValueOnce(mockResponse)
-
+    it('calls the Interactions API for Gemini image models', async () => {
+      const mockCreate = vi
+        .fn()
+        .mockResolvedValueOnce(interactionWithImages('gemini-base64-image'))
       const adapter = createGeminiImage(
-        'imagen-4.0-generate-001',
+        'gemini-3.1-flash-image',
         'test-api-key',
       )
-      // Replace the internal Gemini SDK client with our mock
-      ;(
-        adapter as unknown as {
-          client: { models: { generateImages: unknown } }
-        }
-      ).client = {
-        models: {
-          generateImages: mockGenerateImages,
-        },
-      }
+      stubCreate(adapter, mockCreate)
 
       const result = await generateImage({
-        adapter,
-        prompt: 'A cat wearing a hat',
-        numberOfImages: 1,
-        size: '1024x1024',
-      })
-
-      expect(mockGenerateImages).toHaveBeenCalledWith({
-        model: 'imagen-4.0-generate-001',
-        prompt: 'A cat wearing a hat',
-        config: {
-          numberOfImages: 1,
-          aspectRatio: '1:1',
-        },
-      })
-
-      expect(result.model).toBe('imagen-4.0-generate-001')
-      expect(result.images).toHaveLength(1)
-      expect(result.images[0]!.b64Json).toBe('base64encodedimage')
-    })
-
-    it('generates a unique ID for each response', async () => {
-      const mockResponse = {
-        generatedImages: [{ image: { imageBytes: 'base64' } }],
-      }
-
-      const mockGenerateImages = vi.fn().mockResolvedValue(mockResponse)
-
-      const adapter = createGeminiImage(
-        'imagen-4.0-generate-001',
-        'test-api-key',
-      )
-      ;(
-        adapter as unknown as {
-          client: { models: { generateImages: unknown } }
-        }
-      ).client = {
-        models: {
-          generateImages: mockGenerateImages,
-        },
-      }
-
-      const result1 = await generateImage({
-        adapter,
-        prompt: 'Test prompt',
-      })
-
-      const result2 = await generateImage({
-        adapter,
-        prompt: 'Test prompt',
-      })
-
-      expect(result1.id).not.toBe(result2.id)
-      expect(result1.id).toMatch(/^gemini-/)
-      expect(result2.id).toMatch(/^gemini-/)
-    })
-
-    it('calls generateContent API for Gemini image models', async () => {
-      const mockResponse = {
-        candidates: [
-          {
-            content: {
-              parts: [
-                {
-                  inlineData: {
-                    mimeType: 'image/png',
-                    data: 'gemini-base64-image',
-                  },
-                },
-              ],
-            },
-          },
-        ],
-      }
-
-      const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockResponse)
-
-      const adapter = createGeminiImage(
-        'gemini-3.1-flash-image-preview',
-        'test-api-key',
-      )
-      ;(
-        adapter as unknown as {
-          client: { models: { generateContent: unknown } }
-        }
-      ).client = {
-        models: {
-          generateContent: mockGenerateContent,
-        },
-      }
-
-      const result = await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A futuristic city',
         size: '16:9_4K',
       })
 
-      expect(mockGenerateContent).toHaveBeenCalledWith({
-        model: 'gemini-3.1-flash-image-preview',
-        contents: 'A futuristic city',
-        config: {
-          responseModalities: ['TEXT', 'IMAGE'],
-          imageConfig: {
-            aspectRatio: '16:9',
-            imageSize: '4K',
-          },
+      expect(mockCreate).toHaveBeenCalledWith({
+        model: 'gemini-3.1-flash-image',
+        input: 'A futuristic city',
+        stream: false,
+        response_format: {
+          type: 'image',
+          aspect_ratio: '16:9',
+          image_size: '4K',
         },
       })
 
-      expect(result.model).toBe('gemini-3.1-flash-image-preview')
+      expect(result.id).toBe('int_test')
+      expect(result.model).toBe('gemini-3.1-flash-image')
       expect(result.images).toHaveLength(1)
       expect(result.images[0]!.b64Json).toBe('gemini-base64-image')
     })
 
-    it('routes Nano Banana 2 Lite (gemini-3.1-flash-lite-image) through the native generateContent path', async () => {
-      const mockResponse = {
-        candidates: [
-          {
-            content: {
-              parts: [
-                {
-                  inlineData: {
-                    mimeType: 'image/jpeg',
-                    data: 'lite-base64-image',
-                  },
-                },
-              ],
-            },
-          },
-        ],
-      }
-
-      const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockResponse)
-
+    it('routes Nano Banana 2 Lite (gemini-3.1-flash-lite-image) through the Interactions API', async () => {
+      const mockCreate = vi
+        .fn()
+        .mockResolvedValueOnce(interactionWithImages('lite-base64-image'))
       const adapter = createGeminiImage(
         'gemini-3.1-flash-lite-image',
         'test-api-key',
       )
-      ;(
-        adapter as unknown as {
-          client: { models: { generateContent: unknown } }
-        }
-      ).client = {
-        models: {
-          generateContent: mockGenerateContent,
-        },
-      }
+      stubCreate(adapter, mockCreate)
 
       const result = await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A red circle',
         // Flash Lite is 1K-only; 2K/4K are rejected at compile time.
         size: '1:1_1K',
       })
 
-      expect(mockGenerateContent).toHaveBeenCalledWith({
+      expect(mockCreate).toHaveBeenCalledWith({
         model: 'gemini-3.1-flash-lite-image',
-        contents: 'A red circle',
-        config: {
-          responseModalities: ['TEXT', 'IMAGE'],
-          imageConfig: {
-            aspectRatio: '1:1',
-            imageSize: '1K',
-          },
+        input: 'A red circle',
+        stream: false,
+        response_format: {
+          type: 'image',
+          aspect_ratio: '1:1',
+          image_size: '1K',
         },
       })
 
@@ -441,208 +206,113 @@ describe('Gemini Image Adapter', () => {
       expect(result.images[0]!.b64Json).toBe('lite-base64-image')
     })
 
-    it('routes the GA id gemini-3.1-flash-image through generateContent and sends the 512 tier', async () => {
-      const mockResponse = {
-        candidates: [
-          {
-            content: {
-              parts: [
-                {
-                  inlineData: {
-                    mimeType: 'image/png',
-                    data: 'ga-flash-image',
-                  },
-                },
-              ],
-            },
-          },
-        ],
-      }
+    it('routes Nano Banana 2.1 (gemini-nano-banana-2.1) through the Interactions API', async () => {
+      const mockCreate = vi
+        .fn()
+        .mockResolvedValueOnce(interactionWithImages('nb21-base64-image'))
+      const adapter = createGeminiImage(
+        'gemini-nano-banana-2.1',
+        'test-api-key',
+      )
+      stubCreate(adapter, mockCreate)
 
-      const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockResponse)
-      const mockGenerateImages = vi.fn()
+      const result = await generateImage({
+        threadId: 'thread-1',
+        adapter,
+        prompt: 'A red circle',
+        size: '8:1_4K',
+      })
 
+      expect(mockCreate).toHaveBeenCalledWith({
+        model: 'gemini-nano-banana-2.1',
+        input: 'A red circle',
+        stream: false,
+        response_format: {
+          type: 'image',
+          aspect_ratio: '8:1',
+          image_size: '4K',
+        },
+      })
+
+      expect(result.model).toBe('gemini-nano-banana-2.1')
+      expect(result.images[0]!.b64Json).toBe('nb21-base64-image')
+    })
+
+    it('routes the GA id gemini-3.1-flash-image through Interactions and sends the 512 tier', async () => {
+      const mockCreate = vi
+        .fn()
+        .mockResolvedValueOnce(interactionWithImages('ga-flash-image'))
       const adapter = createGeminiImage(
         'gemini-3.1-flash-image',
         'test-api-key',
       )
-      ;(
-        adapter as unknown as {
-          client: {
-            models: { generateContent: unknown; generateImages: unknown }
-          }
-        }
-      ).client = {
-        models: {
-          generateContent: mockGenerateContent,
-          generateImages: mockGenerateImages,
-        },
-      }
+      stubCreate(adapter, mockCreate)
 
       const result = await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A tall banner',
         size: '1:8_512',
       })
 
-      expect(mockGenerateContent).toHaveBeenCalledWith({
+      expect(mockCreate).toHaveBeenCalledWith({
         model: 'gemini-3.1-flash-image',
-        contents: 'A tall banner',
-        config: {
-          responseModalities: ['TEXT', 'IMAGE'],
-          imageConfig: {
-            aspectRatio: '1:8',
-            imageSize: '512',
-          },
+        input: 'A tall banner',
+        stream: false,
+        response_format: {
+          type: 'image',
+          aspect_ratio: '1:8',
+          image_size: '512',
         },
       })
-      // Native models must never take the Imagen generateImages path.
-      expect(mockGenerateImages).not.toHaveBeenCalled()
       expect(result.images[0]!.b64Json).toBe('ga-flash-image')
     })
 
-    it('routes the GA id gemini-3-pro-image through generateContent', async () => {
-      const mockResponse = {
-        candidates: [
-          {
-            content: {
-              parts: [
-                {
-                  inlineData: { mimeType: 'image/png', data: 'ga-pro-image' },
-                },
-              ],
-            },
-          },
-        ],
-      }
-
-      const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockResponse)
-      const mockGenerateImages = vi.fn()
-
+    it('routes the GA id gemini-3-pro-image through the Interactions API', async () => {
+      const mockCreate = vi
+        .fn()
+        .mockResolvedValueOnce(interactionWithImages('ga-pro-image'))
       const adapter = createGeminiImage('gemini-3-pro-image', 'test-api-key')
-      ;(
-        adapter as unknown as {
-          client: {
-            models: { generateContent: unknown; generateImages: unknown }
-          }
-        }
-      ).client = {
-        models: {
-          generateContent: mockGenerateContent,
-          generateImages: mockGenerateImages,
-        },
-      }
+      stubCreate(adapter, mockCreate)
 
       const result = await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A portrait',
         size: '4:5_2K',
       })
 
-      expect(mockGenerateContent).toHaveBeenCalledWith({
+      expect(mockCreate).toHaveBeenCalledWith({
         model: 'gemini-3-pro-image',
-        contents: 'A portrait',
-        config: {
-          responseModalities: ['TEXT', 'IMAGE'],
-          imageConfig: {
-            aspectRatio: '4:5',
-            imageSize: '2K',
-          },
+        input: 'A portrait',
+        stream: false,
+        response_format: {
+          type: 'image',
+          aspect_ratio: '4:5',
+          image_size: '2K',
         },
       })
-      expect(mockGenerateImages).not.toHaveBeenCalled()
       expect(result.images[0]!.b64Json).toBe('ga-pro-image')
     })
 
-    it('sends aspectRatio but no imageSize for gemini-2.5-flash-image', async () => {
-      // Google documents no image_size for this model, so the adapter must
-      // send the ratio alone rather than inventing a resolution tier.
-      const mockResponse = {
-        candidates: [
-          {
-            content: {
-              parts: [
-                {
-                  inlineData: { mimeType: 'image/png', data: 'legacy-image' },
-                },
-              ],
-            },
+    it('surfaces token usage from the interaction (#330)', async () => {
+      const mockCreate = vi.fn().mockResolvedValueOnce(
+        interactionWithImages('img', {
+          usage: {
+            total_input_tokens: 12,
+            total_output_tokens: 34,
+            total_tokens: 46,
           },
-        ],
-      }
-
-      const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockResponse)
-
+        }),
+      )
       const adapter = createGeminiImage(
-        'gemini-2.5-flash-image',
+        'gemini-3.1-flash-image',
         'test-api-key',
       )
-      ;(
-        adapter as unknown as {
-          client: { models: { generateContent: unknown } }
-        }
-      ).client = {
-        models: {
-          generateContent: mockGenerateContent,
-        },
-      }
-
-      await generateImage({
-        adapter,
-        prompt: 'A wide landscape',
-        size: '16:9',
-      })
-
-      expect(mockGenerateContent).toHaveBeenCalledWith({
-        model: 'gemini-2.5-flash-image',
-        contents: 'A wide landscape',
-        config: {
-          responseModalities: ['TEXT', 'IMAGE'],
-          imageConfig: {
-            aspectRatio: '16:9',
-          },
-        },
-      })
-
-      const config = mockGenerateContent.mock.calls[0]![0].config
-      expect('imageSize' in config.imageConfig).toBe(false)
-    })
-
-    it('surfaces token usage from usageMetadata (#330)', async () => {
-      const mockResponse = {
-        candidates: [
-          {
-            content: {
-              parts: [
-                {
-                  inlineData: { mimeType: 'image/png', data: 'img' },
-                },
-              ],
-            },
-          },
-        ],
-        usageMetadata: {
-          promptTokenCount: 12,
-          candidatesTokenCount: 34,
-          totalTokenCount: 46,
-        },
-      }
-
-      const adapter = createGeminiImage(
-        'gemini-3.1-flash-image-preview',
-        'test-api-key',
-      )
-      ;(
-        adapter as unknown as {
-          client: { models: { generateContent: unknown } }
-        }
-      ).client = {
-        models: {
-          generateContent: vi.fn().mockResolvedValueOnce(mockResponse),
-        },
-      }
+      stubCreate(adapter, mockCreate)
 
       const result = await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A futuristic city',
       })
@@ -654,88 +324,47 @@ describe('Gemini Image Adapter', () => {
       })
     })
 
-    it('calls generateContent without imageConfig when no size provided', async () => {
-      const mockResponse = {
-        candidates: [
-          {
-            content: {
-              parts: [
-                {
-                  inlineData: {
-                    mimeType: 'image/png',
-                    data: 'gemini-base64-image',
-                  },
-                },
-              ],
-            },
-          },
-        ],
-      }
-
-      const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockResponse)
-
+    it('calls interactions.create with image output and no size when none is provided', async () => {
+      const mockCreate = vi
+        .fn()
+        .mockResolvedValueOnce(interactionWithImages('gemini-base64-image'))
       const adapter = createGeminiImage(
-        'gemini-3.1-flash-image-preview',
+        'gemini-3.1-flash-image',
         'test-api-key',
       )
-      ;(
-        adapter as unknown as {
-          client: { models: { generateContent: unknown } }
-        }
-      ).client = {
-        models: {
-          generateContent: mockGenerateContent,
-        },
-      }
+      stubCreate(adapter, mockCreate)
 
       const result = await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A simple sketch',
       })
 
-      expect(mockGenerateContent).toHaveBeenCalledWith({
-        model: 'gemini-3.1-flash-image-preview',
-        contents: 'A simple sketch',
-        config: {
-          responseModalities: ['TEXT', 'IMAGE'],
-        },
+      expect(mockCreate).toHaveBeenCalledWith({
+        model: 'gemini-3.1-flash-image',
+        input: 'A simple sketch',
+        stream: false,
+        response_format: { type: 'image' },
       })
 
       expect(result.images).toHaveLength(1)
     })
 
     it('throws when Gemini returns no image parts at all', async () => {
-      // Regression: previously returned an empty images array silently,
-      // which meant callers couldn't distinguish "safety refusal" from
-      // "successful empty response".
-      const mockResponse = {
-        candidates: [
-          {
-            content: {
-              parts: [],
-            },
-          },
-        ],
-      }
-
-      const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockResponse)
-
+      const mockCreate = vi.fn().mockResolvedValueOnce({
+        id: 'int_empty',
+        status: 'completed',
+        steps: [{ type: 'model_output', content: [] }],
+      })
       const adapter = createGeminiImage(
-        'gemini-3.1-flash-image-preview',
+        'gemini-3.1-flash-image',
         'test-api-key',
       )
-      ;(
-        adapter as unknown as {
-          client: { models: { generateContent: unknown } }
-        }
-      ).client = {
-        models: {
-          generateContent: mockGenerateContent,
-        },
-      }
+      stubCreate(adapter, mockCreate)
 
       await expect(
         generateImage({
+          threadId: 'thread-1',
           adapter,
           prompt: 'A test prompt',
         }),
@@ -743,237 +372,127 @@ describe('Gemini Image Adapter', () => {
     })
 
     it('throws with the refusal text when Gemini returns only text parts', async () => {
-      const mockResponse = {
-        candidates: [
+      const mockCreate = vi.fn().mockResolvedValueOnce({
+        id: 'int_text',
+        status: 'completed',
+        steps: [
           {
-            content: {
-              parts: [{ text: 'I cannot generate that image.' }],
-            },
+            type: 'model_output',
+            content: [{ type: 'text', text: 'I cannot generate that image.' }],
           },
         ],
-      }
-
-      const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockResponse)
-
+      })
       const adapter = createGeminiImage(
-        'gemini-3.1-flash-image-preview',
+        'gemini-3.1-flash-image',
         'test-api-key',
       )
-      ;(
-        adapter as unknown as {
-          client: { models: { generateContent: unknown } }
-        }
-      ).client = {
-        models: {
-          generateContent: mockGenerateContent,
-        },
-      }
+      stubCreate(adapter, mockCreate)
 
       await expect(
         generateImage({
+          threadId: 'thread-1',
           adapter,
           prompt: 'A test prompt',
         }),
       ).rejects.toThrow(/I cannot generate that image/)
     })
 
-    it('does not let modelOptions override responseModalities', async () => {
-      // Regression: modelOptions was spread after responseModalities, so a
-      // user could silently break image generation by passing
-      // { responseModalities: ['TEXT'] }.
-      const mockResponse = {
-        candidates: [
-          {
-            content: {
-              parts: [{ inlineData: { mimeType: 'image/png', data: 'img1' } }],
-            },
-          },
-        ],
-      }
-
-      const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockResponse)
-
-      const adapter = createGeminiImage(
-        'gemini-3.1-flash-image-preview',
-        'test-api-key',
-      )
-      ;(
-        adapter as unknown as {
-          client: { models: { generateContent: unknown } }
-        }
-      ).client = {
-        models: {
-          generateContent: mockGenerateContent,
-        },
-      }
+    it('does not let modelOptions disable image output', async () => {
+      // Regression: a wholesale modelOptions spread let a caller set
+      // responseModalities to text only and silently disable images.
+      const { adapter, mockCreate } = mockedNativeAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A simple sketch',
         modelOptions: {
-          // User tries to strip IMAGE from modalities — must be ignored.
           responseModalities: ['TEXT'],
         } as unknown as never,
       })
 
-      const args = mockGenerateContent.mock.calls[0]![0]
-      expect(args.config.responseModalities).toEqual(['TEXT', 'IMAGE'])
+      const args = mockCreate.mock.calls[0]![0]
+      expect(args.response_format).toEqual({ type: 'image' })
+      expect(args).not.toHaveProperty('response_modalities')
     })
 
     it('augments prompt when numberOfImages > 1 for Gemini models', async () => {
-      const mockResponse = {
-        candidates: [
+      const mockCreate = vi.fn().mockResolvedValueOnce({
+        id: 'int_many',
+        status: 'completed',
+        steps: [
           {
-            content: {
-              parts: [
-                {
-                  inlineData: { mimeType: 'image/png', data: 'img1' },
-                },
-                {
-                  text: 'Here is the second image:',
-                },
-                {
-                  inlineData: { mimeType: 'image/png', data: 'img2' },
-                },
-              ],
-            },
+            type: 'model_output',
+            content: [
+              { type: 'image', data: 'img1' },
+              { type: 'text', text: 'Here is the second image:' },
+              { type: 'image', data: 'img2' },
+            ],
           },
         ],
-      }
-
-      const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockResponse)
-
+      })
       const adapter = createGeminiImage(
-        'gemini-3.1-flash-image-preview',
+        'gemini-3.1-flash-image',
         'test-api-key',
       )
-      ;(
-        adapter as unknown as {
-          client: { models: { generateContent: unknown } }
-        }
-      ).client = {
-        models: {
-          generateContent: mockGenerateContent,
-        },
-      }
+      stubCreate(adapter, mockCreate)
 
       const result = await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A futuristic city',
         numberOfImages: 3,
       })
 
-      expect(mockGenerateContent).toHaveBeenCalledWith({
-        model: 'gemini-3.1-flash-image-preview',
-        contents: 'A futuristic city Generate 3 distinct images.',
-        config: {
-          responseModalities: ['TEXT', 'IMAGE'],
-        },
+      expect(mockCreate).toHaveBeenCalledWith({
+        model: 'gemini-3.1-flash-image',
+        input: 'A futuristic city Generate 3 distinct images.',
+        stream: false,
+        response_format: { type: 'image' },
       })
 
-      // Collects all inlineData parts, skipping text parts
       expect(result.images).toHaveLength(2)
       expect(result.images[0]!.b64Json).toBe('img1')
       expect(result.images[1]!.b64Json).toBe('img2')
     })
 
     it('does not augment prompt when numberOfImages is 1', async () => {
-      const mockResponse = {
-        candidates: [
-          {
-            content: {
-              parts: [
-                {
-                  inlineData: { mimeType: 'image/png', data: 'img1' },
-                },
-              ],
-            },
-          },
-        ],
-      }
-
-      const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockResponse)
-
-      const adapter = createGeminiImage(
-        'gemini-3.1-flash-image-preview',
-        'test-api-key',
-      )
-      ;(
-        adapter as unknown as {
-          client: { models: { generateContent: unknown } }
-        }
-      ).client = {
-        models: {
-          generateContent: mockGenerateContent,
-        },
-      }
+      const { adapter, mockCreate } = mockedNativeAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A simple sketch',
         numberOfImages: 1,
       })
 
-      expect(mockGenerateContent).toHaveBeenCalledWith({
-        model: 'gemini-3.1-flash-image-preview',
-        contents: 'A simple sketch',
-        config: {
-          responseModalities: ['TEXT', 'IMAGE'],
-        },
+      expect(mockCreate).toHaveBeenCalledWith({
+        model: 'gemini-3.1-flash-image',
+        input: 'A simple sketch',
+        stream: false,
+        response_format: { type: 'image' },
       })
     })
 
     it('does not augment prompt when numberOfImages is undefined', async () => {
-      const mockResponse = {
-        candidates: [
-          {
-            content: {
-              parts: [
-                {
-                  inlineData: { mimeType: 'image/png', data: 'img1' },
-                },
-              ],
-            },
-          },
-        ],
-      }
-
-      const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockResponse)
-
-      const adapter = createGeminiImage(
-        'gemini-3.1-flash-image-preview',
-        'test-api-key',
-      )
-      ;(
-        adapter as unknown as {
-          client: { models: { generateContent: unknown } }
-        }
-      ).client = {
-        models: {
-          generateContent: mockGenerateContent,
-        },
-      }
+      const { adapter, mockCreate } = mockedNativeAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A simple sketch',
       })
 
-      expect(mockGenerateContent).toHaveBeenCalledWith({
-        model: 'gemini-3.1-flash-image-preview',
-        contents: 'A simple sketch',
-        config: {
-          responseModalities: ['TEXT', 'IMAGE'],
-        },
+      expect(mockCreate).toHaveBeenCalledWith({
+        model: 'gemini-3.1-flash-image',
+        input: 'A simple sketch',
+        stream: false,
+        response_format: { type: 'image' },
       })
     })
   })
 
-  describe('native modelOptions (GenerateContentConfig)', () => {
-    // Regression: GeminiImageModelProviderOptionsByName used to map every
-    // image model — native ones included — to the Imagen-shaped
-    // GeminiImageProviderOptions, so these fields were a compile error and the
-    // adapter whitelisted only `seed`.
+  describe('native modelOptions (Interactions API)', () => {
     const safetySettings = [
       {
         category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
@@ -981,192 +500,165 @@ describe('Gemini Image Adapter', () => {
       },
     ]
 
-    it('forwards safetySettings to generateContent', async () => {
-      const { adapter, mockGenerateContent } = mockedNativeAdapter()
+    it('translates safetySettings to Interactions snake_case', async () => {
+      const { adapter, mockCreate } = mockedNativeAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A quiet harbour',
         modelOptions: { safetySettings },
       })
 
-      const args = mockGenerateContent.mock.calls[0]![0]
-      expect(args.config.safetySettings).toEqual(safetySettings)
+      const args = mockCreate.mock.calls[0]![0]
+      expect(args.safety_settings).toEqual([
+        { type: 'hate_speech', threshold: 'block_only_high' },
+      ])
     })
 
-    it('forwards thinkingConfig to generateContent', async () => {
-      const { adapter, mockGenerateContent } = mockedNativeAdapter()
+    it('rejects thinkingBudget', async () => {
+      const { adapter } = mockedNativeAdapter()
+
+      await expect(
+        generateImage({
+          threadId: 'thread-1',
+          adapter,
+          prompt: 'A quiet harbour',
+          modelOptions: { thinkingConfig: { thinkingBudget: 512 } },
+        }),
+      ).rejects.toThrow(/thinkingBudget/)
+    })
+
+    it('maps thinkingLevel and includeThoughts onto generation_config', async () => {
+      const { adapter, mockCreate } = mockedNativeAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A quiet harbour',
-        modelOptions: { thinkingConfig: { thinkingBudget: 512 } },
+        modelOptions: {
+          seed: 7,
+          thinkingConfig: {
+            thinkingLevel: ThinkingLevel.HIGH,
+            includeThoughts: false,
+          },
+        },
       })
 
-      const args = mockGenerateContent.mock.calls[0]![0]
-      expect(args.config.thinkingConfig).toEqual({ thinkingBudget: 512 })
+      const args = mockCreate.mock.calls[0]![0]
+      expect(args.generation_config).toEqual({
+        seed: 7,
+        thinking_level: 'high',
+        thinking_summaries: 'none',
+      })
     })
 
-    it('forwards systemInstruction to generateContent', async () => {
-      const { adapter, mockGenerateContent } = mockedNativeAdapter()
+    it('forwards systemInstruction as a string', async () => {
+      const { adapter, mockCreate } = mockedNativeAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A quiet harbour',
         modelOptions: { systemInstruction: 'Always render in watercolor.' },
       })
 
-      const args = mockGenerateContent.mock.calls[0]![0]
-      expect(args.config.systemInstruction).toBe('Always render in watercolor.')
+      const args = mockCreate.mock.calls[0]![0]
+      expect(args.system_instruction).toBe('Always render in watercolor.')
     })
 
-    it('merges modelOptions.imageConfig over the size-derived imageConfig', async () => {
-      // `size` is the portable API, `imageConfig` the provider escape hatch:
-      // the overriding field wins, the untouched one survives.
-      const { adapter, mockGenerateContent } = mockedNativeAdapter()
+    it('merges modelOptions.imageConfig over the size-derived format', async () => {
+      const { adapter, mockCreate } = mockedNativeAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A quiet harbour',
         size: '16:9_4K',
         modelOptions: { imageConfig: { imageSize: '2K' } },
       })
 
-      const args = mockGenerateContent.mock.calls[0]![0]
-      expect(args.config.imageConfig).toEqual({
-        aspectRatio: '16:9',
-        imageSize: '2K',
+      const args = mockCreate.mock.calls[0]![0]
+      expect(args.response_format).toEqual({
+        type: 'image',
+        aspect_ratio: '16:9',
+        image_size: '2K',
       })
     })
 
     it('applies modelOptions.imageConfig when no size is given', async () => {
-      const { adapter, mockGenerateContent } = mockedNativeAdapter()
+      const { adapter, mockCreate } = mockedNativeAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A quiet harbour',
         modelOptions: { imageConfig: { aspectRatio: '21:9' } },
       })
 
-      const args = mockGenerateContent.mock.calls[0]![0]
-      expect(args.config.imageConfig).toEqual({ aspectRatio: '21:9' })
+      const args = mockCreate.mock.calls[0]![0]
+      expect(args.response_format).toEqual({
+        type: 'image',
+        aspect_ratio: '21:9',
+      })
     })
 
-    it('keeps Imagen models on GenerateImagesConfig with no native fields', async () => {
-      const { adapter, mockGenerateImages } = mockedImagenAdapter()
+    it('forwards previous_interaction_id and store, and returns the server id', async () => {
+      const { adapter, mockCreate } = mockedNativeAdapter()
 
-      await generateImage({
+      const result = await generateImage({
+        threadId: 'thread-1',
         adapter,
-        prompt: 'A quiet harbour',
-        size: '1920x1080',
+        prompt: 'Make the water greener',
         modelOptions: {
-          personGeneration: PersonGeneration.ALLOW_ADULT,
-          negativePrompt: 'blurry',
-          // Native-only fields. The per-model type rejects them (hence the
-          // cast, as in the responseModalities regression test above), but an
-          // adapter inferred from a union of model names widens modelOptions
-          // to both shapes, so they can still arrive here at runtime — and
-          // generateImages answers a GenerateContentConfig field with
-          // 400 INVALID_ARGUMENT. The named picks must drop them.
-          safetySettings: [
-            {
-              category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-              threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-            },
-          ],
-          thinkingConfig: { thinkingBudget: 512 },
-          imageConfig: { imageSize: '2K' },
-          systemInstruction: 'Always render in watercolor.',
-        } as unknown as never,
-      })
-
-      // Exact match: the Imagen path gets its own GenerateImagesConfig fields
-      // and nothing else.
-      expect(mockGenerateImages).toHaveBeenCalledWith({
-        model: 'imagen-4.0-generate-001',
-        prompt: 'A quiet harbour',
-        config: {
-          numberOfImages: 1,
-          aspectRatio: '16:9',
-          personGeneration: PersonGeneration.ALLOW_ADULT,
-          negativePrompt: 'blurry',
+          previous_interaction_id: 'int_prev',
+          store: false,
         },
       })
+
+      expect(mockCreate).toHaveBeenCalledWith({
+        model: 'gemini-3.1-flash-image',
+        input: 'Make the water greener',
+        stream: false,
+        response_format: { type: 'image' },
+        previous_interaction_id: 'int_prev',
+        store: false,
+      })
+      expect(result.id).toBe('int_test')
     })
 
-    it('forwards the whole Imagen option set to generateImages', async () => {
-      // The Imagen path picks fields by name, so this guards against a field
-      // being forgotten in that list.
-      const { adapter, mockGenerateImages } = mockedImagenAdapter()
+    it('passes abortSignal only when one is set', async () => {
+      const { adapter, mockCreate } = mockedNativeAdapter()
+      const controller = new AbortController()
+      const logger = resolveDebugOption(false)
 
-      await generateImage({
-        adapter,
+      await adapter.generateImages({
+        model: 'gemini-3.1-flash-image',
         prompt: 'A quiet harbour',
-        modelOptions: {
-          aspectRatio: '21:9',
-          personGeneration: PersonGeneration.ALLOW_ADULT,
-          safetyFilterLevel: SafetyFilterLevel.BLOCK_ONLY_HIGH,
-          seed: 42,
-          addWatermark: false,
-          language: ImagePromptLanguage.en,
-          negativePrompt: 'blurry',
-          outputMimeType: 'image/jpeg',
-          outputCompressionQuality: 80,
-          guidanceScale: 12,
-          enhancePrompt: true,
-          includeSafetyAttributes: true,
-          includeRaiReason: true,
-          outputGcsUri: 'gs://bucket/out',
-          labels: { team: 'design' },
+        logger,
+        abortSignal: controller.signal,
+      })
+
+      expect(mockCreate).toHaveBeenCalledWith(
+        {
+          model: 'gemini-3.1-flash-image',
+          input: 'A quiet harbour',
+          stream: false,
+          response_format: { type: 'image' },
         },
-      })
-
-      expect(mockGenerateImages).toHaveBeenCalledWith({
-        model: 'imagen-4.0-generate-001',
-        prompt: 'A quiet harbour',
-        config: {
-          numberOfImages: 1,
-          aspectRatio: '21:9',
-          personGeneration: PersonGeneration.ALLOW_ADULT,
-          safetyFilterLevel: SafetyFilterLevel.BLOCK_ONLY_HIGH,
-          seed: 42,
-          addWatermark: false,
-          language: ImagePromptLanguage.en,
-          negativePrompt: 'blurry',
-          outputMimeType: 'image/jpeg',
-          outputCompressionQuality: 80,
-          guidanceScale: 12,
-          enhancePrompt: true,
-          includeSafetyAttributes: true,
-          includeRaiReason: true,
-          outputGcsUri: 'gs://bucket/out',
-          labels: { team: 'design' },
-        },
-      })
-    })
-
-    it('lets modelOptions.aspectRatio override the size-derived one', async () => {
-      const { adapter, mockGenerateImages } = mockedImagenAdapter()
-
-      await generateImage({
-        adapter,
-        prompt: 'A quiet harbour',
-        size: '1920x1080',
-        modelOptions: { aspectRatio: '9:16' },
-      })
-
-      const args = mockGenerateImages.mock.calls[0]![0]
-      expect(args.config.aspectRatio).toBe('9:16')
+        { signal: controller.signal },
+      )
     })
   })
 
   describe('multimodal prompt (image-conditioned generation)', () => {
     const testLogger = resolveDebugOption(false)
 
-    it('maps interleaved prompt parts onto multimodal contents in order', async () => {
-      const { adapter, mockGenerateContent } = mockedNativeAdapter()
+    it('maps interleaved prompt parts onto interaction content in order', async () => {
+      const { adapter, mockCreate } = mockedNativeAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: [
           { type: 'text', content: 'Not like this' },
@@ -1177,7 +669,7 @@ describe('Gemini Image Adapter', () => {
           { type: 'text', content: 'more like this' },
           {
             type: 'image',
-            // Google Files API URIs pass through as fileData (no fetch).
+            // Google Files API URIs pass through as uri (no fetch).
             source: {
               type: 'url',
               value:
@@ -1188,36 +680,28 @@ describe('Gemini Image Adapter', () => {
         ],
       })
 
-      expect(mockGenerateContent).toHaveBeenCalledWith({
-        model: 'gemini-3.1-flash-image-preview',
-        contents: [
+      expect(mockCreate).toHaveBeenCalledWith({
+        model: 'gemini-3.1-flash-image',
+        input: [
+          { type: 'text', text: 'Not like this' },
+          { type: 'image', data: 'YmFk', mime_type: 'image/jpeg' },
+          { type: 'text', text: 'more like this' },
           {
-            role: 'user',
-            parts: [
-              { text: 'Not like this' },
-              { inlineData: { mimeType: 'image/jpeg', data: 'YmFk' } },
-              { text: 'more like this' },
-              {
-                fileData: {
-                  fileUri:
-                    'https://generativelanguage.googleapis.com/v1beta/files/abc',
-                  mimeType: 'image/png',
-                },
-              },
-            ],
+            type: 'image',
+            uri: 'https://generativelanguage.googleapis.com/v1beta/files/abc',
+            mime_type: 'image/png',
           },
         ],
-        config: { responseModalities: ['TEXT', 'IMAGE'] },
+        stream: false,
+        response_format: { type: 'image' },
       })
     })
 
-    it('passes arbitrary HTTPS URL sources through as fileData without fetching (#907)', async () => {
-      // Matches the chat adapter: Gemini fetches URL inputs server-side.
-      // Fetching locally and inlining as base64 OOMs on memory-constrained
-      // runtimes (e.g. Cloudflare Workers).
-      const { adapter, mockGenerateContent } = mockedNativeAdapter()
+    it('passes arbitrary HTTPS URL sources through as uri without fetching (#907)', async () => {
+      const { adapter, mockCreate } = mockedNativeAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: [
           { type: 'text', content: 'Edit this' },
@@ -1228,28 +712,22 @@ describe('Gemini Image Adapter', () => {
         ],
       })
 
-      const args = mockGenerateContent.mock.calls[0]![0]
-      expect(args.contents).toEqual([
+      const args = mockCreate.mock.calls[0]![0]
+      expect(args.input).toEqual([
+        { type: 'text', text: 'Edit this' },
         {
-          role: 'user',
-          parts: [
-            { text: 'Edit this' },
-            {
-              fileData: {
-                fileUri: 'https://example.com/photo.jpg',
-                // No source mimeType → same image/jpeg default as chat.
-                mimeType: 'image/jpeg',
-              },
-            },
-          ],
+          type: 'image',
+          uri: 'https://example.com/photo.jpg',
+          mime_type: 'image/jpeg',
         },
       ])
     })
 
     it('uses the provided mimeType for URL sources', async () => {
-      const { adapter, mockGenerateContent } = mockedNativeAdapter()
+      const { adapter, mockCreate } = mockedNativeAdapter()
 
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: [
           { type: 'text', content: 'Edit this' },
@@ -1264,45 +742,107 @@ describe('Gemini Image Adapter', () => {
         ],
       })
 
-      const args = mockGenerateContent.mock.calls[0]![0]
-      expect(args.contents[0].parts[1]).toEqual({
-        fileData: {
-          fileUri: 'https://example.com/photo.png',
-          mimeType: 'image/png',
-        },
+      const args = mockCreate.mock.calls[0]![0]
+      expect(args.input[1]).toEqual({
+        type: 'image',
+        uri: 'https://example.com/photo.png',
+        mime_type: 'image/png',
       })
     })
 
-    it('rejects image prompt parts for Imagen models', async () => {
+    it('ignores thought-step images and keeps model_output images', async () => {
+      const mockCreate = vi.fn().mockResolvedValueOnce({
+        id: 'int_thought',
+        status: 'completed',
+        output_image: { type: 'image', data: 'final' },
+        steps: [
+          {
+            type: 'thought',
+            content: [{ type: 'image', data: 'scratch' }],
+          },
+          {
+            type: 'model_output',
+            content: [{ type: 'image', data: 'final' }],
+          },
+        ],
+      })
       const adapter = createGeminiImage(
-        'imagen-4.0-generate-001',
+        'gemini-3.1-flash-image',
         'test-api-key',
       )
+      stubCreate(adapter, mockCreate)
+
+      const result = await generateImage({
+        threadId: 'thread-1',
+        adapter,
+        prompt: 'A red circle',
+      })
+
+      expect(result.images).toEqual([{ b64Json: 'final' }])
+    })
+
+    it('maps an image uri when no inline data is present', async () => {
+      const mockCreate = vi.fn().mockResolvedValueOnce({
+        id: 'int_uri',
+        status: 'completed',
+        steps: [
+          {
+            type: 'model_output',
+            content: [
+              {
+                type: 'image',
+                uri: 'https://example.com/out.png',
+                mime_type: 'image/png',
+              },
+            ],
+          },
+        ],
+      })
+      const adapter = createGeminiImage(
+        'gemini-3.1-flash-image',
+        'test-api-key',
+      )
+      stubCreate(adapter, mockCreate)
+
+      const result = await generateImage({
+        threadId: 'thread-1',
+        adapter,
+        prompt: 'A red circle',
+      })
+
+      expect(result.images).toEqual([{ url: 'https://example.com/out.png' }])
+    })
+
+    it('throws when the interaction does not complete', async () => {
+      const mockCreate = vi.fn().mockResolvedValueOnce({
+        id: 'int_fail',
+        status: 'failed',
+        steps: [],
+      })
+      const adapter = createGeminiImage(
+        'gemini-3.1-flash-image',
+        'test-api-key',
+      )
+      stubCreate(adapter, mockCreate)
 
       await expect(
-        adapter.generateImages({
-          model: 'imagen-4.0-generate-001',
-          prompt: [
-            { type: 'text', content: 'Edit this' },
-            {
-              type: 'image',
-              source: { type: 'data', value: 'aGk=', mimeType: 'image/png' },
-            },
-          ],
-          logger: testLogger,
+        generateImage({
+          threadId: 'thread-1',
+          adapter,
+          prompt: 'A red circle',
         }),
-      ).rejects.toThrow(/does not support image prompt parts/)
+      ).rejects.toThrow(/failed/)
     })
 
     it('rejects video and audio prompt parts', async () => {
       const adapter = createGeminiImage(
-        'gemini-3.1-flash-image-preview',
+        'gemini-3.1-flash-image',
         'test-api-key',
       )
 
       await expect(
         adapter.generateImages({
-          model: 'gemini-3.1-flash-image-preview',
+          model: 'gemini-3.1-flash-image',
           prompt: [
             { type: 'text', content: 'x' },
             {
@@ -1316,7 +856,7 @@ describe('Gemini Image Adapter', () => {
 
       await expect(
         adapter.generateImages({
-          model: 'gemini-3.1-flash-image-preview',
+          model: 'gemini-3.1-flash-image',
           prompt: [
             { type: 'text', content: 'x' },
             {
@@ -1328,16 +868,5 @@ describe('Gemini Image Adapter', () => {
         }),
       ).rejects.toThrow(/audio prompt parts/)
     })
-  })
-})
-
-describe('GEMINI_NATIVE_IMAGE_MODELS public routing list', () => {
-  it('exports the same membership the adapter uses', () => {
-    expect(isGeminiNativeImageModel('gemini-3.1-flash-image')).toBe(true)
-    expect(isGeminiNativeImageModel('gemini-3-pro-image')).toBe(true)
-    expect(isGeminiNativeImageModel('gemini-2.5-flash-image')).toBe(true)
-    expect(isGeminiNativeImageModel('imagen-4.0-generate-001')).toBe(false)
-    expect(isGeminiNativeImageModel('gemini-9-pro-image')).toBe(false)
-    expect(GEMINI_NATIVE_IMAGE_MODELS).toContain('gemini-3.1-flash-image')
   })
 })

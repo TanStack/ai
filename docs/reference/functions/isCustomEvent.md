@@ -7,7 +7,7 @@ title: isCustomEvent
 function isCustomEvent<TName>(chunk, name): chunk is WellKnownCustomEvent<TName>;
 ```
 
-Defined in: [packages/ai/src/custom-events.ts:102](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L102)
+Defined in: packages/ai/src/custom-events.ts:102
 
 Type guard: is `chunk` a CUSTOM event with the given well-known `name`?
 Narrows the payload type when true, so consumers read `chunk.value` typed.

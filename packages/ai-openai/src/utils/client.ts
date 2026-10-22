@@ -17,3 +17,11 @@ export interface OpenAIClientConfig extends Omit<ClientOptions, 'apiKey'> {
 export function getOpenAIApiKeyFromEnv(): string {
   return getApiKeyFromEnv('OPENAI_API_KEY')
 }
+
+/**
+ * Gets the Azure OpenAI API key from environment variables
+ * @throws Error if AZURE_OPENAI_API_KEY is not found
+ */
+export function getAzureOpenAIApiKeyFromEnv(): string {
+  return getApiKeyFromEnv('AZURE_OPENAI_API_KEY')
+}

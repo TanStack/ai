@@ -19,6 +19,7 @@ describe('ChatClient — fetcher transport', () => {
 
     let finalMessages: Array<UIMessage> = []
     const client = new ChatClient({
+      threadId: 'thread-1',
       fetcher,
       onMessagesChange: (m) => {
         finalMessages = m
@@ -68,6 +69,7 @@ describe('ChatClient — fetcher transport', () => {
 
     let finalMessages: Array<UIMessage> = []
     const client = new ChatClient({
+      threadId: 'thread-1',
       fetcher,
       onMessagesChange: (m) => {
         finalMessages = m
@@ -101,7 +103,7 @@ describe('ChatClient — fetcher transport', () => {
       })
     }
 
-    const client = new ChatClient({ fetcher })
+    const client = new ChatClient({ threadId: 'thread-1', fetcher })
     const sendPromise = client.sendMessage('hi')
     await fetcherStarted
     expect(observedSignal).toBeDefined()
@@ -118,6 +120,7 @@ describe('ChatClient — fetcher transport', () => {
     }
     let observedError: Error | undefined
     const client = new ChatClient({
+      threadId: 'thread-1',
       fetcher,
       onError: (err) => {
         observedError = err
@@ -146,6 +149,7 @@ describe('ChatClient — fetcher transport', () => {
 
     let observedError: Error | undefined
     const client = new ChatClient({
+      threadId: 'thread-1',
       fetcher,
       onError: (err) => {
         observedError = err
@@ -172,8 +176,9 @@ describe('ChatClient — fetcher transport', () => {
     })
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       fetcher,
-      body: { provider: 'openai' },
+      forwardedProps: { provider: 'openai' },
     })
 
     await client.sendMessage('hello there')
@@ -197,6 +202,7 @@ describe('ChatClient — fetcher transport', () => {
     // The XOR is enforced at the type level via `ChatTransport`; the runtime
     // check is defense-in-depth for callers using `as any` / dynamic options.
     const both: any = {
+      threadId: 'thread-1',
       connection: { connect: async function* () {} },
       fetcher: async () => new Response(''),
     }
@@ -206,7 +212,7 @@ describe('ChatClient — fetcher transport', () => {
   })
 
   it('throws when neither connection nor fetcher is passed', () => {
-    expect(() => new ChatClient({} as any)).toThrow(
+    expect(() => new ChatClient({ threadId: 'thread-1' } as any)).toThrow(
       'either `connection` or `fetcher` is required',
     )
   })
@@ -220,6 +226,7 @@ describe('ChatClient — fetcher transport', () => {
 
     let observedError: Error | undefined
     const client = new ChatClient({
+      threadId: 'thread-1',
       fetcher,
       onError: (err) => {
         observedError = err
@@ -242,6 +249,7 @@ describe('ChatClient — fetcher transport', () => {
 
     let observedError: Error | undefined
     const client = new ChatClient({
+      threadId: 'thread-1',
       fetcher,
       onError: (err) => {
         observedError = err
@@ -272,6 +280,7 @@ describe('ChatClient — fetcher transport', () => {
 
     let observedError: Error | undefined
     const client = new ChatClient({
+      threadId: 'thread-1',
       fetcher,
       onError: (err) => {
         observedError = err
@@ -299,6 +308,7 @@ describe('ChatClient — fetcher transport', () => {
 
     let finalMessages: Array<UIMessage> = []
     const client = new ChatClient({
+      threadId: 'thread-1',
       fetcher,
       onMessagesChange: (m) => {
         finalMessages = m
@@ -334,6 +344,7 @@ describe('ChatClient — fetcher transport', () => {
     }
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       fetcher,
       onChunk: (c) => observedChunks.push(c),
     })
