@@ -43,6 +43,7 @@ export const Route = createFileRoute('/api/cloudflare-binding-headers-wire')({
         try {
           for await (const _ of chat({
             ...createChatOptions({ adapter }),
+            threadId: 'cloudflare-binding-headers-wire',
             messages: [
               {
                 role: 'user',

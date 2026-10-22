@@ -191,6 +191,7 @@ export default {
         defaultHeaders: { "x-session-affinity": `ses_${conversationId}` },
       }),
       messages,
+      threadId: conversationId,
     });
 
     return toServerSentEventsResponse(stream);
