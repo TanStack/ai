@@ -271,14 +271,21 @@ describe('the sender of each input', () => {
 
     const turn = session.send('Start.')
     await started.opened
-    await session.send('Also this.', { inputId: 'in-alice', mode: 'steer' })
-      .receipt
+    expect(
+      await session.send('Also this.', { inputId: 'in-alice', mode: 'steer' })
+        .receipt,
+    ).toEqual({ inputId: 'in-alice', status: 'accepted', operationId: turn.id })
     const bobs = session.send('Mine.', {
       busy: 'steer',
       inputId: 'in-bob',
       user: bob,
     })
-    await bobs.receipt
+    // Bob's steer can't join alice's turn, so it waits for a turn of its own.
+    expect(await bobs.receipt).toEqual({
+      inputId: 'in-bob',
+      status: 'queued',
+      operationId: bobs.id,
+    })
     release.open()
 
     expect(await turn).toEqual({ text: 'First.Joined.', media: [] })
@@ -286,8 +293,8 @@ describe('the sender of each input', () => {
       operationId: turn.id,
     })
     expect(await bobs).toEqual({ text: 'Bob here.', media: [] })
-    expect((await session.settled({ inputId: 'in-bob' })).operationId).not.toBe(
-      turn.id,
+    expect((await session.settled({ inputId: 'in-bob' })).operationId).toBe(
+      bobs.id,
     )
     expect(seen.map((entry) => entry.user)).toEqual(['bob'])
     await host.close()
