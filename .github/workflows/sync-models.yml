@@ -12,6 +12,7 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
+  issues: write # failure alert issue
 
 jobs:
   sync:
@@ -27,8 +28,30 @@ jobs:
       - name: Setup Tools
         uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
 
-      - name: Fetch and sync model metadata
-        run: pnpm generate:models
+      # Each sync runs as its own step so one provider failing does not block
+      # the others. Whatever succeeded is still committed, then the job fails.
+      - name: Fetch gateway models
+        id: fetch
+        continue-on-error: true
+        run: pnpm generate:models:fetch
+
+      - name: Convert gateway models
+        id: convert
+        continue-on-error: true
+        run: pnpm regenerate:models
+
+      - name: Sync ElevenLabs models
+        id: elevenlabs
+        continue-on-error: true
+        run: pnpm generate:models:elevenlabs
+
+      - name: Sync provider models
+        id: provider
+        continue-on-error: true
+        run: pnpm exec tsx scripts/sync-provider-models.ts
+
+      - name: Format
+        run: pnpm format
 
       - name: Check for package changes
         id: changes
@@ -80,4 +103,43 @@ jobs:
               --body "$BODY" \
               --base main \
               --head "$BRANCH"
+          fi
+
+      - name: Fail if any sync step failed
+        if: >-
+          steps.fetch.outcome == 'failure' ||
+          steps.convert.outcome == 'failure' ||
+          steps.elevenlabs.outcome == 'failure' ||
+          steps.provider.outcome == 'failure'
+        run: |
+          echo "::error::A model sync step failed. Passing steps were still committed."
+          exit 1
+
+      - name: Open or update failure issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          OUTCOMES: >-
+            fetch=${{ steps.fetch.outcome }},
+            convert=${{ steps.convert.outcome }},
+            elevenlabs=${{ steps.elevenlabs.outcome }},
+            provider=${{ steps.provider.outcome }}
+        shell: bash
+        run: |
+          gh label create sync-models --color B60205 --description "Daily model sync failures" --force
+          BODY=$(printf '%s\n' \
+            "🚨 Sync Model Metadata failed on $(date -u +%F)." \
+            "" \
+            "Run: $RUN_URL" \
+            "Step outcomes: $OUTCOMES" \
+            "" \
+            "Steps that passed were still committed to \`automated/sync-models\`. Close this issue when the sync is green again.")
+          ISSUE=$(gh issue list --label sync-models --state open --json number --jq '.[0].number // empty')
+          if [ -n "$ISSUE" ]; then
+            gh issue comment "$ISSUE" --body "$BODY"
+          else
+            gh issue create --label sync-models \
+              --title "🚨🚨🚨 DAILY MODEL SYNC IS FAILING 🚨🚨🚨 Model updates are NOT landing" \
+              --body "$BODY"
           fi
