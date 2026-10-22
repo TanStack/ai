@@ -339,15 +339,14 @@ a shorthand for creating a `ConnectConnectionAdapter` from an async generator:
 import { useChat, stream } from '@tanstack/ai-react'
 import type { StreamChunk } from '@tanstack/ai'
 
-// The stream() factory does not get the run context, so pass the threadId
-// you give useChat yourself. The server makes the runId.
-const threadId = 'support-42'
-
-const directAdapter = stream(async function* (messages, data) {
+// The 4th argument is the AG-UI RunAgentInput for this run: threadId, runId,
+// resume, client tools, and forwardedProps. Send it as the request body.
+const directAdapter = stream(async function* (_messages, _data, signal, input) {
   const response = await fetch('https://my-api.com/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ threadId, messages, ...data }),
+    body: JSON.stringify(input),
+    signal,
   })
 
   const reader = response.body!.getReader()
@@ -373,7 +372,7 @@ const directAdapter = stream(async function* (messages, data) {
 
 const { messages, sendMessage } = useChat({
   connection: directAdapter,
-  threadId,
+  threadId: 'support-42',
 })
 ```
 

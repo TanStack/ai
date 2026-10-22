@@ -96,40 +96,39 @@ The choice of helper depends on whether your function is sync or async. Both `st
 
 `stream()` takes a factory that returns an `AsyncIterable<StreamChunk>` synchronously. It connects that iterable straight to the client.
 
-On the server side, return the result of `chat()`:
+On the server side, read the run input with `chatParamsFromRequestBody`, then stream `chat()`:
 
 ```typescript
 // server/chat.server.ts
-import { chat } from "@tanstack/ai";
-import type { ModelMessage, UIMessage } from "@tanstack/ai";
+import { chat, chatParamsFromRequestBody } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
-export function chatServerFn(input: {
-  messages: Array<UIMessage> | Array<ModelMessage>;
-  threadId: string;
-}) {
-  return chat({
+export async function* chatServerFn(input: unknown) {
+  const { messages, threadId, runId, resume } =
+    await chatParamsFromRequestBody(input);
+
+  yield* chat({
     adapter: openaiText("gpt-6.1-sol"),
-    messages: input.messages,
-    threadId: input.threadId,
+    messages,
+    threadId,
+    runId,
+    resume,
   });
 }
 ```
 
-Then pass the factory to `stream()`:
+Then pass the factory to `stream()`. The 4th argument is the run input:
 
 ```typescript
 import { useChat, stream } from "@tanstack/ai-react";
 import { chatServerFn } from "./server/chat.server";
 
-const threadId = "support-chat";
-
 export function useInProcessChat() {
   return useChat({
-    connection: stream((messages, data) =>
-      chatServerFn({ messages, ...data, threadId }),
+    connection: stream((_messages, _data, _signal, input) =>
+      chatServerFn(input),
     ),
-    threadId,
+    threadId: "support-chat",
   });
 }
 ```
@@ -138,6 +137,8 @@ The factory gets these arguments:
 
 - `messages`: the conversation messages.
 - `data`: the per-request data that you passed to `sendMessage`.
+- `signal`: fires on `stop()`.
+- `input`: the AG-UI run input, the same body the HTTP adapters send. It holds `threadId`, `runId`, `resume`, the client tools, and `forwardedProps`.
 
 Return any async iterable that yields `StreamChunk` objects: a generator, the output of `chat()`, or a transformed stream.
 
@@ -151,20 +152,18 @@ Return any async iterable that yields `StreamChunk` objects: a generator, the ou
 import { useChat, rpcStream } from "@tanstack/ai-react";
 import { api } from "./rpc-client";
 
-const threadId = "support-chat";
-
 // `api.chat.stream` is your RPC method. It must return an AsyncIterable<StreamChunk>.
 export function useRpcChat() {
   return useChat({
-    connection: rpcStream((messages, data) =>
-      api.chat.stream({ messages, ...data, threadId }),
+    connection: rpcStream((_messages, _data, _signal, input) =>
+      api.chat.stream(input),
     ),
-    threadId,
+    threadId: "support-chat",
   });
 }
 ```
 
-The factory does not get the `threadId`, so pass the same value that you give `useChat`. Your server method passes it on to `chat()`.
+On the server, read `input` with `chatParamsFromRequestBody`, the same as the `stream()` server function above.
 
 ## Advanced
 

@@ -546,10 +546,10 @@ xhrServerSentEvents('/api/chat')
 xhrHttpStream('/api/chat')
 
 // Direct async iterables (TanStack Start server functions)
-stream((messages) => chatOnServer({ messages }))
+stream((_messages, _data, _signal, input) => chatOnServer(input))
 
 // RPC-based transport
-rpcStream((messages, data) => api.streamResponse(messages, data))
+rpcStream((_messages, _data, _signal, input) => api.streamResponse(input))
 
 // Or implement your own ConnectionAdapter
 ```

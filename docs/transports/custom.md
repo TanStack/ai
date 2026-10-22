@@ -249,7 +249,7 @@ The chat client gives your adapter a `runContext` on each send:
 - `parentRunId` and `resume`: set on a child run and on a run that answers an interrupt.
 - `headers`: copy these onto the request headers, not into the body.
 
-The built-in fetch and XHR transports copy `runContext.headers`. `stream()` and `rpcStream()` do not, because they never get `runContext`.
+The built-in fetch and XHR transports copy `runContext.headers`. `stream()` and `rpcStream()` do not, because a server function call has no request headers. They pass the rest of the run as the 4th factory argument.
 
 `restoreInboundChunk` rebuilds the TanStack fields of a chunk after the wire, such as token usage. The built-in transports call it on every chunk.
 

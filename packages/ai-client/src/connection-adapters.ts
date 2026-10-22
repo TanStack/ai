@@ -13,6 +13,7 @@ import {
 import { parseSseDataLine } from './sse-utils'
 import type {
   ModelMessage,
+  RunAgentInput,
   RunAgentResumeItem,
   RunErrorEvent,
   StreamChunk,
@@ -1316,7 +1317,7 @@ function buildRunAgentInputBody(
   data: Record<string, any> | undefined,
   runContext: RunAgentInputContext | undefined,
   options: ResolvedConnectionOptions,
-) {
+): RunAgentInput {
   // Precedence (later spreads win): static adapter `body` is the base,
   // overridden by `runContext.forwardedProps`, overridden by per-message `data`.
   if (!runContext) {
@@ -2767,7 +2768,10 @@ export interface StreamConnectionHandlers {
 /**
  * Create a direct stream connection adapter (for server functions or direct streams)
  *
- * @param streamFactory - A function that returns an async iterable of StreamChunks
+ * @param streamFactory - A function that returns an async iterable of
+ *   StreamChunks. It gets `(messages, data, abortSignal, input)`, where `input`
+ *   is the AG-UI `RunAgentInput` for the run (the body the HTTP adapters send).
+ *   Read it on the server with `chatParamsFromRequestBody`.
  * @param handlers - Optional persistence handlers (`hydrate`,
  * `hydrateGeneration`, `joinRun`) that let server-driven persistence work
  * without an HTTP endpoint — each is usually a one-line server-function call
@@ -2776,13 +2780,16 @@ export interface StreamConnectionHandlers {
  * @example
  * ```typescript
  * // With TanStack Start server function
- * const connection = stream(() => serverFunction({ messages }));
+ * const connection = stream((_messages, _data, signal, input) =>
+ *   serverFunction({ data: input, signal }),
+ * );
  *
  * const client = new ChatClient({ connection, threadId });
  *
  * // With generation persistence over server functions
  * const connection = stream(
- *   () => generateImageFn({ data: input }),
+ *   // Read `input` on the server with generationParamsFromBody('image', input).
+ *   (_messages, _data, _signal, input) => generateImageFn({ data: input }),
  *   {
  *     hydrateGeneration: (threadId) => getImageHydrationFn({ data: threadId }),
  *     joinRun: (runId) => joinImageRunFn({ data: runId }),
@@ -2793,16 +2800,22 @@ export interface StreamConnectionHandlers {
 export function stream(
   streamFactory: (
     messages: Array<UIMessage> | Array<ModelMessage>,
-    data?: Record<string, any>,
-    abortSignal?: AbortSignal,
+    data: Record<string, any> | undefined,
+    abortSignal: AbortSignal | undefined,
+    input: RunAgentInput,
   ) => AsyncIterable<StreamChunk>,
   handlers?: StreamConnectionHandlers,
 ): ConnectConnectionAdapter {
   return {
-    async *connect(messages, data, abortSignal) {
+    async *connect(messages, data, abortSignal, runContext) {
       // Pass messages as-is (UIMessages with parts preserved)
       // Server-side chat() handles conversion to ModelMessages
-      yield* streamFactory(messages, data, abortSignal)
+      yield* streamFactory(
+        messages,
+        data,
+        abortSignal,
+        buildRunAgentInputBody(messages, data, runContext, {}),
+      )
     },
     ...(handlers?.hydrate ? { hydrate: handlers.hydrate } : {}),
     ...(handlers?.hydrateGeneration
@@ -2895,7 +2908,9 @@ async function* abortableIterable<T>(
 /**
  * Create an RPC stream connection adapter (for RPC-based streaming like Cap'n Web RPC)
  *
- * @param rpcCall - A function that accepts messages and returns an async iterable of StreamChunks
+ * @param rpcCall - A function that returns an async iterable of StreamChunks.
+ *   It gets the same `(messages, data, abortSignal, input)` arguments as
+ *   `stream()`.
  * @param handlers - Optional persistence handlers (`hydrate`,
  * `hydrateGeneration`, `joinRun`) that let server-driven persistence work
  * without an HTTP endpoint — each is usually a one-line RPC call
@@ -2904,15 +2919,15 @@ async function* abortableIterable<T>(
  * @example
  * ```typescript
  * // With Cap'n Web RPC
- * const connection = rpcStream((messages, data) =>
- *   api.streamMurfResponse(messages, data)
+ * const connection = rpcStream((_messages, _data, _signal, input) =>
+ *   api.streamMurfResponse(input)
  * );
  *
  * const client = new ChatClient({ connection, threadId });
  *
  * // With generation persistence over RPC
  * const connection = rpcStream(
- *   (messages, data) => api.streamMurfResponse(messages, data),
+ *   (_messages, _data, _signal, input) => api.streamMurfResponse(input),
  *   {
  *     hydrateGeneration: (threadId) => api.getGenerationHydration(threadId),
  *     joinRun: (runId) => api.replayRun(runId),
@@ -2923,16 +2938,22 @@ async function* abortableIterable<T>(
 export function rpcStream(
   rpcCall: (
     messages: Array<UIMessage> | Array<ModelMessage>,
-    data?: Record<string, any>,
-    abortSignal?: AbortSignal,
+    data: Record<string, any> | undefined,
+    abortSignal: AbortSignal | undefined,
+    input: RunAgentInput,
   ) => AsyncIterable<StreamChunk>,
   handlers?: StreamConnectionHandlers,
 ): ConnectConnectionAdapter {
   return {
-    async *connect(messages, data, abortSignal) {
+    async *connect(messages, data, abortSignal, runContext) {
       // Pass messages as-is (UIMessages with parts preserved)
       // Server-side chat() handles conversion to ModelMessages
-      yield* rpcCall(messages, data, abortSignal)
+      yield* rpcCall(
+        messages,
+        data,
+        abortSignal,
+        buildRunAgentInputBody(messages, data, runContext, {}),
+      )
     },
     ...(handlers?.hydrate ? { hydrate: handlers.hydrate } : {}),
     ...(handlers?.hydrateGeneration

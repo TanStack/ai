@@ -835,7 +835,7 @@ useChat({ connection: fetchHttpStream('/api/chat'), threadId: 'support-chat' })
 // Custom adapter: return an AsyncIterable<StreamChunk>, for example from a
 // TanStack Start server function or an RPC client
 useChat({
-  connection: stream((messages, data) => customServerFn({ messages, data })),
+  connection: stream((_messages, _data, _signal, input) => customServerFn(input)),
   threadId: 'support-chat',
 })
 ```

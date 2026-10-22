@@ -234,14 +234,14 @@ The adapter `body` merges into the AG-UI `forwardedProps`. The chat `forwardedPr
 
 ### `stream(factory)`
 
-Builds a custom adapter from a function that returns `AsyncIterable<StreamChunk>`. The function gets `(messages, data, abortSignal)`. `data` is the merged `forwardedProps`.
+Builds a custom adapter from a function that returns `AsyncIterable<StreamChunk>`. The function gets `(messages, data, abortSignal, input)`. `data` is the merged `forwardedProps`. `input` is the AG-UI `RunAgentInput` for the run, the same body the HTTP adapters send. Read it on the server with `chatParamsFromRequestBody`.
 
 ```typescript
 import { stream } from "@tanstack/ai-client";
 import { chatOnServer } from "./server";
 
-const connection = stream((messages, data, signal) =>
-  chatOnServer({ messages, forwardedProps: data, signal }),
+const connection = stream((_messages, _data, signal, input) =>
+  chatOnServer({ input, signal }),
 );
 ```
 

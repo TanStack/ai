@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { chatParamsFromRequestBody } from '@tanstack/ai'
 import { EventType } from '@tanstack/ai/client'
 import {
   fetchHttpStream,
@@ -9,7 +10,7 @@ import {
   stream,
 } from '../src/connection-adapters'
 import { UnsupportedResponseStreamError } from '../src'
-import type { StreamChunk } from '@tanstack/ai/client'
+import type { RunAgentInput, StreamChunk } from '@tanstack/ai/client'
 
 const RUN_CONTEXT = { threadId: 'thread-1', runId: 'run-1' }
 
@@ -1187,6 +1188,32 @@ describe('connection-adapters', () => {
   })
 
   describe('stream', () => {
+    it('passes a run input that chatParamsFromRequestBody reads', async () => {
+      let input: RunAgentInput | undefined
+      const adapter = stream((_messages, _data, _signal, runInput) => {
+        input = runInput
+        return (async function* () {})()
+      })
+      const resume = [{ interruptId: 'int-1', status: 'resolved' as const }]
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        { model: 'gpt-5.5' },
+        undefined,
+        { ...RUN_CONTEXT, resume },
+      )) {
+        // Consume
+      }
+
+      const params = await chatParamsFromRequestBody(input)
+      expect(params).toMatchObject({
+        threadId: 'thread-1',
+        runId: 'run-1',
+        resume,
+        forwardedProps: { model: 'gpt-5.5' },
+      })
+      expect(params.messages).toHaveLength(1)
+    })
     it('should delegate to stream factory', async () => {
       const streamFactory = vi.fn().mockImplementation(function* () {
         yield {
@@ -1243,6 +1270,7 @@ describe('connection-adapters', () => {
         expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
         data,
         undefined,
+        expect.objectContaining({ threadId: 'thread-1', runId: 'run-1' }),
       )
     })
 
@@ -1418,6 +1446,32 @@ describe('connection-adapters', () => {
   })
 
   describe('rpcStream', () => {
+    it('passes a run input that chatParamsFromRequestBody reads', async () => {
+      let input: RunAgentInput | undefined
+      const adapter = rpcStream((_messages, _data, _signal, runInput) => {
+        input = runInput
+        return (async function* () {})()
+      })
+      const resume = [{ interruptId: 'int-1', status: 'resolved' as const }]
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        { model: 'gpt-5.5' },
+        undefined,
+        { ...RUN_CONTEXT, resume },
+      )) {
+        // Consume
+      }
+
+      const params = await chatParamsFromRequestBody(input)
+      expect(params).toMatchObject({
+        threadId: 'thread-1',
+        runId: 'run-1',
+        resume,
+        forwardedProps: { model: 'gpt-5.5' },
+      })
+      expect(params.messages).toHaveLength(1)
+    })
     it('should delegate to RPC call', async () => {
       const rpcCall = vi.fn().mockImplementation(function* () {
         yield {
@@ -1478,6 +1532,7 @@ describe('connection-adapters', () => {
         expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
         data,
         undefined,
+        expect.objectContaining({ threadId: 'thread-1', runId: 'run-1' }),
       )
     })
 
