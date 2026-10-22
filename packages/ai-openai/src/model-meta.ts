@@ -2943,7 +2943,8 @@ export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number]
  * Whether a model rejects the `temperature` / `top_p` sampling knobs.
  *
  * OpenAI reasoning models return `400 Unsupported parameter: 'temperature'`
- * if either is sent. `*-chat-latest` models still accept them.
+ * if either is sent with a reasoning effort other than `none`. The caller
+ * checks the effort. `*-chat-latest` models still accept them.
  * A model in `OPENAI_MODEL_REASONING` is a reasoning model, so a future
  * family is covered when its catalog row has `reasoning`. Name checks stay
  * for o-series and GPT-5 snapshots that are not in the catalog yet, and

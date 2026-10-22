@@ -108,6 +108,7 @@ OPENAI_API_KEY
   `gpt-6*`, and `codex-mini-latest`; not `*-chat-latest`) pair each
   `function_call` with a `reasoning` item. The adapter requests
   `include: ['reasoning.encrypted_content']` for those models and replays that
-  item on the next turn. It also drops `temperature` and `top_p`. Pre-5 chat
+  item on the next turn. It also drops `temperature`, `top_p`, and
+  `top_logprobs`, unless reasoning effort is `none`. Pre-5 chat
   models are left unchanged. If you persist history by hand, keep
   `thinking[].signature`.
