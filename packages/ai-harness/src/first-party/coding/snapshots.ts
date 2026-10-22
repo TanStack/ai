@@ -89,7 +89,10 @@ const MAX_STEPS = 500
 const LOCKED_RETRY_MS = [50, 100, 200, 400]
 const BUSY = 'Wait until the turn ends, then try again.'
 const REVERTED = 'A revert stands. Run unrevert, or send a prompt, first.'
-/** The most `FileChanged` events that the plugin sends for one step. */
+/**
+ * The most `FileChanged` events that the plugin sends for one step, or for
+ * one restore.
+ */
 const MAX_STEP_EVENTS = 100
 
 /** The tools that change no file. */
@@ -525,7 +528,8 @@ export function purgeSnapshots(
  * `bash` changed. It sends at most 100 events for each step. A binary
  * file, or a patch over 256 KiB, gets no patch. `toolCallId` is set when
  * the step has one tool call that does not send `FileChanged`, like one
- * `bash` call.
+ * `bash` call. `/undo`, `/redo`, a revert, and an unrevert also send
+ * `FileChanged` for each file that they changed, with no `toolCallId`.
  *
  * The changed files of each step go to the session log as a
  * `tanstack/snapshots:step` record. A revert uses the last 500 steps. What
@@ -712,6 +716,78 @@ export function snapshots(options: SnapshotsOptions) {
       const reverted = ctx.getOptional(RevertStanding)
       const initial: SnapshotState = { steps: [] }
       const state = ctx.state(initial)
+
+      // A failed snapshot must not fail the turn. It only says so, with a
+      // `tanstack/snapshots:failed` event.
+      const guard = async <T>(fn: () => Promise<T>) => {
+        try {
+          return await fn()
+        } catch (error) {
+          ctx.emit(SnapshotFailed, {
+            message: `snapshots: ${messageOf(error)}`,
+          })
+          return undefined
+        }
+      }
+
+      /**
+       * Send `FileChanged` for each of `files`, from the diff between the
+       * trees `from` and `to`. `changed` has every file of that diff, in the
+       * order of git. With no file, it runs no git command. A failed diff
+       * sends the events without patches, and no `SnapshotFailed`.
+       */
+      const sendChanges = async (
+        { repo, root, paths }: Place,
+        {
+          from,
+          to,
+          files,
+          changed,
+          toolCallId,
+        }: {
+          from: string
+          to: string
+          files: ReadonlyArray<string>
+          changed: ReadonlyArray<string>
+          toolCallId?: string
+        },
+      ) => {
+        // ponytail: at most 100 events for each step or restore. One that
+        // changed more files sends the first 100. Send a count of the
+        // others when a client needs it.
+        const sent = files.slice(0, MAX_STEP_EVENTS)
+        if (sent.length === 0) return
+        // A diff fails also when its output is over the cap of `exec`.
+        const patch = await repo.patch(from, to).catch(() => '')
+        const sections = sectionsOf(patch, changed.length)
+        for (const file of sent) {
+          // Git quotes an odd name in a section header, so the sections
+          // pair by order with the exact names in `changed`.
+          const section = sections[changed.indexOf(file)]
+          ctx.emit(FileChanged, {
+            ...changeOf(paths.join(root, file), section),
+            ...(toolCallId === undefined ? {} : { toolCallId }),
+          })
+        }
+      }
+
+      /**
+       * After `/undo`, `/redo`, a revert, or an unrevert: send `FileChanged`
+       * for each file that changed since `before`, the tree of the files
+       * before it. A failure sends `SnapshotFailed`, and the restore stays.
+       */
+      const reportRestore = (place: Place, before: string) =>
+        guard(async () => {
+          const after = await place.repo.track()
+          const changed = await place.repo.changed(before, after)
+          await sendChanges(place, {
+            from: before,
+            to: after,
+            files: changed,
+            changed,
+          })
+        })
+
       ctx.provide(RevertFiles, {
         revert: async (hidden, records, run) => {
           const calls = new Set(
@@ -733,22 +809,21 @@ export function snapshots(options: SnapshotsOptions) {
           // before the first of them. The edits of the user in other files
           // stay. `now` keeps all files for `unrevert`.
           const files = [...new Set(later.flatMap((step) => step.files))]
-          const { repo } = await revertPlaceFor(run)
-          const now = await repo.track()
+          const place = await revertPlaceFor(run)
+          const now = await place.repo.track()
           const groups = firstTrees(later)
           for (const [tree, group] of groups) {
-            await repo.restore(tree, now, group)
+            await place.repo.restore(tree, now, group)
           }
+          await reportRestore(place, now)
           return { now, files }
         },
         unrevert: async (saved, run) => {
           if (!isReverted(saved)) return
-          const { repo } = await revertPlaceFor(run)
-          await repo.restore(
-            saved.now,
-            await repo.track(),
-            new Set(saved.files),
-          )
+          const place = await revertPlaceFor(run)
+          const before = await place.repo.track()
+          await place.repo.restore(saved.now, before, new Set(saved.files))
+          await reportRestore(place, before)
         },
       })
       /**
@@ -772,19 +847,6 @@ export function snapshots(options: SnapshotsOptions) {
         await state.update((saved) => ({ ...saved, undo }))
       }
 
-      // A failed snapshot must not fail the turn. It only says so, with a
-      // `tanstack/snapshots:failed` event.
-      const guard = async <T>(fn: () => Promise<T>) => {
-        try {
-          return await fn()
-        } catch (error) {
-          ctx.emit(SnapshotFailed, {
-            message: `snapshots: ${messageOf(error)}`,
-          })
-          return undefined
-        }
-      }
-
       /**
        * Add `full`, a file that the workspace tool call that runs now
        * changed, to the `key` files of the step of its run.
@@ -806,12 +868,10 @@ export function snapshots(options: SnapshotsOptions) {
       /**
        * Send `FileChanged` for the files of `step` that no workspace tool
        * reported in it, like the files that `bash` changed. `changed` has
-       * every file of the diff of the step, in the order of git. With no
-       * such file, it runs no git command. A failed diff sends the events
-       * without patches, and no `SnapshotFailed`.
+       * every file of the diff of the step, in the order of git.
        */
-      const reportOthers = async (
-        { repo, root, paths }: Place,
+      const reportOthers = (
+        place: Place,
         {
           step,
           changed,
@@ -824,29 +884,16 @@ export function snapshots(options: SnapshotsOptions) {
           toolCalls: ReadonlyArray<ToolCall>
         },
       ) => {
-        // ponytail: at most 100 events for each step. A step that changed
-        // more files sends the first 100. Send a count of the others when a
-        // client needs it.
-        const files = step.files
-          .filter((file) => !reported.has(file))
-          .slice(0, MAX_STEP_EVENTS)
-        if (files.length === 0) return
-        // A diff fails also when its output is over the cap of `exec`.
-        const patch = await repo.patch(step.from, step.to).catch(() => '')
-        const sections = sectionsOf(patch, changed.length)
         // The events name the tool call only when the step has one call
         // that does not send `FileChanged`, like one `bash` call.
         const silent = toolCalls.filter((call) => !sendsChanges(call))
-        const toolCallId = silent.length === 1 ? silent[0]?.id : undefined
-        for (const file of files) {
-          // Git quotes an odd name in a section header, so the sections
-          // pair by order with the exact names in `changed`.
-          const section = sections[changed.indexOf(file)]
-          ctx.emit(FileChanged, {
-            ...changeOf(paths.join(root, file), section),
-            ...(toolCallId === undefined ? {} : { toolCallId }),
-          })
-        }
+        return sendChanges(place, {
+          from: step.from,
+          to: step.to,
+          files: step.files.filter((file) => !reported.has(file)),
+          changed,
+          toolCallId: silent.length === 1 ? silent[0]?.id : undefined,
+        })
       }
 
       /**
@@ -858,13 +905,15 @@ export function snapshots(options: SnapshotsOptions) {
         undone: ReadonlyArray<SnapshotStep>,
         target: (start: string) => { tree: string; from: string },
       ) => {
-        const { repo } = await placeFor(run)
+        const place = await placeFor(run)
+        const before = await place.repo.track()
         let count = 0
         const groups = firstTrees(undone)
         for (const [start, files] of groups) {
           const { tree, from } = target(start)
-          count += await repo.restore(tree, from, files)
+          count += await place.repo.restore(tree, from, files)
         }
+        await reportRestore(place, before)
         return count
       }
 

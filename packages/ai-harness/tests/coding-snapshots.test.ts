@@ -938,6 +938,97 @@ describe.skipIf(!hasGit)('snapshots FileChanged', () => {
     expect(failures).toEqual([])
     await host.close()
   })
+
+  it('/undo and /redo send FileChanged for each file that they put back', async () => {
+    await put('a.txt', 'one\n')
+    await put('.env', 'SECRET=1\n')
+    const { host, session, fileChanges } = await open({
+      workspace: true,
+      replies: twoCallsTurn(
+        toolCall('write_file', { path: 'a.txt', content: 'two\n' }, 'w-1'),
+        toolCall('change', {}, 'c-1'),
+      ),
+      changes: [
+        async () => {
+          await put('new/c.txt', 'added\n')
+          await put('.env', 'SECRET=2\n')
+        },
+      ],
+    })
+    await session.send('Change the files')
+    // The user edits a file that the turn did not change.
+    await put('b.txt', 'mine\n')
+    const turnEnd = fileChanges.length
+
+    await session.runCommand({ name: 'undo' })
+    const undoEnd = fileChanges.length
+    await session.runCommand({ name: 'redo' })
+
+    // Only the files that the restore changed, in the order of git, with no
+    // tool call. b.txt and .env do not change.
+    expect(withoutIndex(fileChanges.slice(turnEnd, undoEnd))).toEqual([
+      {
+        path: join(root, 'a.txt'),
+        change: 'updated',
+        patch: lines(
+          'diff --git a/a.txt b/a.txt',
+          '--- a/a.txt',
+          '+++ b/a.txt',
+          '@@ -1 +1 @@',
+          '-two',
+          '+one',
+        ),
+        additions: 1,
+        deletions: 1,
+      },
+      {
+        path: join(root, 'new', 'c.txt'),
+        change: 'deleted',
+        patch: lines(
+          'diff --git a/new/c.txt b/new/c.txt',
+          'deleted file mode 100644',
+          '--- a/new/c.txt',
+          '+++ /dev/null',
+          '@@ -1 +0,0 @@',
+          '-added',
+        ),
+        additions: 0,
+        deletions: 1,
+      },
+    ])
+    expect(withoutIndex(fileChanges.slice(undoEnd))).toEqual([
+      {
+        path: join(root, 'a.txt'),
+        change: 'updated',
+        patch: lines(
+          'diff --git a/a.txt b/a.txt',
+          '--- a/a.txt',
+          '+++ b/a.txt',
+          '@@ -1 +1 @@',
+          '-one',
+          '+two',
+        ),
+        additions: 1,
+        deletions: 1,
+      },
+      {
+        path: join(root, 'new', 'c.txt'),
+        change: 'created',
+        patch: lines(
+          'diff --git a/new/c.txt b/new/c.txt',
+          'new file mode 100644',
+          '--- /dev/null',
+          '+++ b/new/c.txt',
+          '@@ -0,0 +1 @@',
+          '+added',
+        ),
+        additions: 1,
+        deletions: 0,
+      },
+    ])
+    expect(await read('.env')).toBe('SECRET=2\n')
+    await host.close()
+  })
 })
 
 /** Three turns. Each one changes the files once, with its own tool call. */
@@ -1070,6 +1161,30 @@ describe.skipIf(!hasGit)('session.revert', () => {
     expect(await read('b.txt')).toBe('new')
     expect(await second.session.transcript()).toEqual(transcript)
     await second.host.close()
+  })
+
+  it('revert and unrevert send FileChanged for each file that they put back', async () => {
+    await put('a.txt', 'one')
+    const { host, session, fileChanges } = await open(threeTurns())
+    const { firstId } = await runThreeTurns(session)
+    const turnsEnd = fileChanges.length
+
+    await session.revert({ messageId: firstId })
+    const revertEnd = fileChanges.length
+    await session.unrevert()
+
+    // a.txt goes from `three` to `two`, and b.txt goes away. Then back.
+    const a = join(root, 'a.txt')
+    const b = join(root, 'b.txt')
+    expect(fileChanges.slice(turnsEnd, revertEnd)).toMatchObject([
+      { path: a, change: 'updated', additions: 1, deletions: 1 },
+      { path: b, change: 'deleted', additions: 0, deletions: 1 },
+    ])
+    expect(fileChanges.slice(revertEnd)).toMatchObject([
+      { path: a, change: 'updated', additions: 1, deletions: 1 },
+      { path: b, change: 'created', additions: 1, deletions: 0 },
+    ])
+    await host.close()
   })
 })
 

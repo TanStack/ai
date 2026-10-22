@@ -48,7 +48,8 @@ export const SnapshotFailed = createPluginEvent<{ message: string }>(
 
 /**
  * One changed file: from `write_file`, `edit_file`, or `patch`, or from
- * `snapshots()` for a file that another tool, like `bash`, changed.
+ * `snapshots()` for a file that another tool, like `bash`, changed, or that
+ * `/undo`, `/redo`, a revert, or `unrevert()` put back.
  */
 export interface FileChange {
   /** The absolute path of the file, as the tools use it. */
@@ -69,7 +70,10 @@ export interface FileChange {
   additions: number
   /** The deleted lines of `patch`. 0 without a patch. */
   deletions: number
-  /** The tool call that changed the file. Not set for a call from code mode. */
+  /**
+   * The tool call that changed the file. Not set for a call from code mode,
+   * or for a file that `snapshots()` reports.
+   */
   toolCallId?: string
 }
 
@@ -79,8 +83,9 @@ export interface FileChange {
  * `patch` call sends one event for each file, and one `'moved'` event for a
  * move. A write that leaves the text as it was sends none. `snapshots()`
  * sends it at the end of each model step for the files that the tools did
- * not report, like the files of `bash` (at most 100 for each step, and
- * never `'moved'`).
+ * not report, like the files of `bash`. It also sends it for each file that
+ * `/undo`, `/redo`, a revert, or `unrevert()` puts back. `snapshots()` sends
+ * at most 100 for each step or restore, and never `'moved'`.
  */
 export const FileChanged = createPluginEvent<FileChange>(
   'tanstack/workspace-tools:file-changed',

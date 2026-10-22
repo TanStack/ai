@@ -105,6 +105,8 @@ view.on(FileChanged, (file) => console.log(`${file.change} ${file.path}`))
 
 When the model runs `pnpm format` with `bash`, the handler prints one line for each file that the command changed, for example `updated /work/repo/src/app.ts`. A tool like `bash` does not report the files that it changes. If the step has one call of such a tool, each event has the `toolCallId` of that call. See also the [known limits](#known-limits) of these events.
 
+`/undo`, `/redo`, a revert, and `unrevert()` also send `FileChanged` for each file that they change, with no `toolCallId`. So a diff pane, or a copy of the files that uses these events, stays correct.
+
 ## Go back to an earlier message
 
 `/undo` goes back one turn. To go back more turns, revert the session to a message of the transcript:
@@ -186,7 +188,7 @@ await purgeSnapshots({ root, dataDir }, { tenantId: 'acme', threadId: 'fix-login
 
 For the `FileChanged` events of the plugin:
 
-- At most 100 events for each model step. For a step that changed more files, the plugin sends the first 100.
+- At most 100 events for each model step, and for each `/undo`, `/redo`, revert, or `unrevert()`. When more files changed, the plugin sends the first 100.
 - No `'moved'` event. A file that `bash` moves gives a `'deleted'` event for the old path and a `'created'` event for the new path.
 - The plugin does not check the permission rules. So a file that `read_file` asks about or denies can get a `patch`.
 - No event for `.env` files and for the files that `.gitignore` names. The snapshots skip these files.
@@ -196,5 +198,5 @@ For the `FileChanged` events of the plugin:
 - `/undo` and `/redo` for the file changes of the last turn, also the changes of shell commands.
 - A revert to any earlier message, with its files, and `unrevert()` to bring them back.
 - A list of changed files and a unified diff for each model step.
-- A live `FileChanged` diff for each file that a `bash` command changes.
+- A live `FileChanged` diff for each file that a `bash` command, `/undo`, `/redo`, or a revert changes.
 - Snapshots that never touch the git repository of your project.

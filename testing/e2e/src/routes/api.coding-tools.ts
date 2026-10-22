@@ -151,7 +151,8 @@ async function* sandboxTurn(root: string, adapter: AnyTextAdapter) {
  * The `coding-diffs` scenario: one turn with `snapshots()`. The model
  * writes a.txt with `write_file`, then b.txt with `bash`. The chunks of a
  * turn have no plugin events, so a plugin keeps the `FileChanged` events,
- * and a last `e2e.file-changes` chunk gives them.
+ * and an `e2e.file-changes` chunk gives them. Then `/undo` puts the files
+ * back, and a last `e2e.undo-changes` chunk gives the events of the undo.
  */
 async function* diffsTurn(root: string, adapter: AnyTextAdapter) {
   const dataDir = await mkdtemp(join(tmpdir(), 'e2e-snapshots-'))
@@ -182,6 +183,14 @@ async function* diffsTurn(root: string, adapter: AnyTextAdapter) {
       type: 'CUSTOM',
       name: 'e2e.file-changes',
       value: changes,
+      timestamp: Date.now(),
+    } satisfies StreamChunk
+    const turnEnd = changes.length
+    await session.runCommand({ name: 'undo' })
+    yield {
+      type: 'CUSTOM',
+      name: 'e2e.undo-changes',
+      value: changes.slice(turnEnd),
       timestamp: Date.now(),
     } satisfies StreamChunk
   } finally {

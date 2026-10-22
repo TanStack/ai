@@ -528,6 +528,7 @@ When the events come:
 - A `patch` call sends one event for each file. A move is one `'moved'` event.
 - A write that leaves the text as it was sends no event.
 - `bash` sends none. With [`snapshots()`](./snapshots#see-what-a-step-changed), the session also gets `FileChanged` for the files of `bash`, at the end of each model step.
+- `snapshots()` also sends one event for each file that `/undo`, `/redo`, a revert, or `unrevert()` changes. These events have no `toolCallId`.
 
 An event has no `patch`, and 0 for both counts, in these cases:
 

@@ -1219,7 +1219,7 @@
           "label": "Undo a turn",
           "to": "harness/snapshots",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-21"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Build a coding agent",
@@ -1261,7 +1261,7 @@
           "label": "Build your own UI",
           "to": "harness/custom-ui",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-21"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Code mode in a harness",
