@@ -611,6 +611,15 @@ export interface RunContext {
    * ```
    */
   handoff: (options: HandoffOptions) => Promise<void>
+  /**
+   * Who made the model call of this context: `'turn'` for a call of a chat
+   * turn, and for `ctx.model.chat` its source, as `harness.usage` names it
+   * (`plugin:<name>`, `router`, `transfer`). `undefined` outside a model call
+   * that the harness makes, for example in an agent run.
+   */
+  source?: string
+  /** The `label` of a `ctx.model.chat` call, when it has one. */
+  label?: string
 }
 
 /**

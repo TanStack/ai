@@ -375,6 +375,7 @@ The run has these fields:
 | `epoch` | The ownership epoch of the log when the run started. See [Fence your own side effects](./durable-sessions#fence-your-own-side-effects). |
 | `idempotencyKey(step, scope?)` | A key for one side effect of the run. A run again on any host gets the same key. |
 | `signal` | Aborts when the run stops. |
+| `source`, `label` | Who made the model call: `'turn'`, or the source and the label of a `ctx.model.chat` call. See [Tell plugin calls from turn calls in middleware](#tell-plugin-calls-from-turn-calls-in-middleware). |
 | `credentials`, `keys` | The credentials and the model provider keys of the user of the run. The session replaces their values with `[redacted]` in what it keeps and sends. To refresh an OAuth token, use `credentials.refresh`. See [Auth and connectors](./auth#refresh-a-token). |
 
 ## Call a model from a plugin
@@ -414,6 +415,39 @@ The options:
 - `timeoutMs`: the time limit of the call. The default is 2 minutes.
 
 The call stops when its run stops, for example on a cancel, and when the time limit ends. Then it rejects. Its usage counts in the session under `plugin:<name>`, here `plugin:acme/recap`. See [Usage of plugins](./usage#usage-of-plugins). The call runs the harness `middleware`, as a turn call does, so your cost ledger and traces see it. The middleware gets the run in `ctx.context.run`. The `goal()`, `title()`, and `compact()` plugins call their models this way.
+
+### Tell plugin calls from turn calls in middleware
+
+Your cost ledger in the harness `middleware` sees the model calls of each turn and of each plugin. Read `ctx.context.run.source` to know who made the call:
+
+```ts group=harness-plugins
+const costs = new Map<string, number>()
+
+const ledger: ChatMiddleware<HarnessRunContext> = {
+  name: 'acme/ledger',
+  onUsage: (ctx, usage) => {
+    const { source, label } = ctx.context.run
+    const key = label ? `${source}:${label}` : String(source)
+    costs.set(key, (costs.get(key) ?? 0) + usage.totalTokens)
+  },
+}
+
+export const ledgered = defineHarness({
+  name: 'acme/ledgered',
+  adapter: anthropicText('claude-sonnet-5-5'),
+  middleware: [ledger],
+  plugins: () => [recap],
+})
+```
+
+`source` has one of these values:
+
+- `'turn'`: a model call of a chat turn.
+- `'plugin:<name>'`: a `ctx.model.chat` call of a plugin, here `'plugin:acme/recap'`. `label` is the `label` of the call, here `'recap'`.
+- `'router'`: a `model.chat` call of `routing.router`.
+- `'transfer'`: the summary call of `host.transfer`. Its `label` is `'summary'`.
+
+`source` and `label` are the same names that the usage records use. See [Usage of plugins](./usage#usage-of-plugins).
 
 ## Write warnings to the host logger
 

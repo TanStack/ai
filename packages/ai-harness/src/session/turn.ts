@@ -913,11 +913,12 @@ export abstract class SessionTurn<
       const reasoning =
         overrides?.reasoning ?? stored.reasoning ?? this.harness.reasoning
       const modelOptions = overrides?.modelOptions ?? this.harness.modelOptions
-      // The server's run wins over a `run` key of the client's context.
-      const context = withRun(
-        turnContext(this.harness.context, turn.context),
-        run,
-      )
+      // The server's run wins over a `run` key of the client's context. Its
+      // `source` tells the middleware that a turn makes the call.
+      const context = withRun(turnContext(this.harness.context, turn.context), {
+        ...run,
+        source: 'turn',
+      })
       // The turn value wins over the session value, field by field.
       const turnCache = cacheObject(overrides?.promptCache)
       const promptCache = {

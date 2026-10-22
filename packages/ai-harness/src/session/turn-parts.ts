@@ -796,8 +796,13 @@ export abstract class SessionTurnParts<
         // Only the errors of the call, to the host logger. A `debug` in
         // `options` wins.
         debug: errorsOnlyDebug(this.logger),
-        // The harness middleware gets the context of a turn call.
-        context: withRun(this.harness.context, run),
+        // The harness middleware gets the context of a turn call, with the
+        // source and the label of this call, not of the call that made it.
+        context: withRun(this.harness.context, {
+          ...run,
+          source: call.source,
+          label: call.label,
+        }),
         ...options,
         adapter: await run.keys.adapter(model),
         stream: false,
