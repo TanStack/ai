@@ -32,6 +32,7 @@ export type {
 export { LogVersionError, logIdOf, logMessageStore } from './log'
 export { LogOwnedElsewhereError } from './ownership'
 export type {
+  HarnessRecord,
   LogRecordRetention,
   ProjectOptions,
   ProjectRecord,

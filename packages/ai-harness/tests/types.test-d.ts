@@ -11,7 +11,12 @@ import {
 } from '../src'
 import { createHarnessHandler } from '../src/server'
 import { mockAdapter } from './helpers'
-import type { AnyTextAdapter, KeyedAdapter, Logger } from '@tanstack/ai'
+import type {
+  AnyTextAdapter,
+  KeyedAdapter,
+  Logger,
+  ModelMessage,
+} from '@tanstack/ai'
 import type { SessionIndexEntry } from '@tanstack/ai-persistence'
 import type {
   AgentActions,
@@ -23,6 +28,7 @@ import type {
   HarnessEventValues,
   HarnessHost,
   HarnessInput,
+  HarnessRecord,
   HarnessSession,
   Operation,
   PluginLifetime,
@@ -373,4 +379,11 @@ it('exports HarnessErrorCode from each entry, as the type of the error code', ()
   expectTypeOf<ClientErrorCode>().toEqualTypeOf<HarnessErrorCode>()
   expectTypeOf<ServerErrorCode>().toEqualTypeOf<HarnessErrorCode>()
   expectTypeOf<'slow_consumer'>().toExtend<HarnessErrorCode>()
+})
+
+it('exports HarnessRecord, the union of the records that the harness logs', () => {
+  type Transcript = Extract<HarnessRecord, { type: 'harness.transcript' }>
+  expectTypeOf<Transcript['add']>().toEqualTypeOf<Array<ModelMessage>>()
+  expectTypeOf<'harness.tool.result'>().toExtend<HarnessRecord['type']>()
+  expectTypeOf<'harness.erase'>().toExtend<HarnessRecord['type']>()
 })
