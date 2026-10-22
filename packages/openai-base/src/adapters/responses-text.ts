@@ -6,7 +6,6 @@ import {
   normalizeSystemPrompts,
   unsupportedFileSourceError,
 } from '@tanstack/ai'
-import type { TokenUsage } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   hashToolCallId,
@@ -77,6 +76,7 @@ import type {
   TanStackMessageMetadata,
   TextCompactOptions,
   TextOptions,
+  TokenUsage,
   AnyTool,
   NormalizedSystemPrompt,
 } from '@tanstack/ai'

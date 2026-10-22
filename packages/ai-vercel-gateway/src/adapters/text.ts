@@ -1,13 +1,12 @@
 import OpenAI from 'openai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import { withGatewayCost } from '../utils/gateway-cost'
-import type { TokenUsage } from '@tanstack/ai'
 import { withVercelGatewayDefaults } from '../utils/client'
 import { mapGatewayModelOptions } from '../utils/map-gateway-options'
 import { VERCEL_GATEWAY_MODEL_REASONING } from '../model-meta'
 import { resolveReasoning } from '@tanstack/ai/adapter-internals'
 import type { ResolvedReasoning } from '@tanstack/ai/adapter-internals'
-import type { Modality, TextOptions } from '@tanstack/ai'
+import type { Modality, TextOptions, TokenUsage } from '@tanstack/ai'
 import type {
   ResolveInputModalities,
   ResolveProviderOptions,

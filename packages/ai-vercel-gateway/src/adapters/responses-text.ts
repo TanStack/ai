@@ -6,9 +6,8 @@ import {
 import { withGatewayCost } from '../utils/gateway-cost'
 import { mapGatewayModelOptions } from '../utils/map-gateway-options'
 import OpenAI from 'openai'
-import type { TokenUsage } from '@tanstack/ai'
 import { VERCEL_GATEWAY_MODEL_REASONING } from '../model-meta'
-import type { Modality, TextOptions } from '@tanstack/ai'
+import type { Modality, TextOptions, TokenUsage } from '@tanstack/ai'
 import type { ResponseCreateParams } from 'openai/resources/responses/responses'
 import type {
   ResolveInputModalities,

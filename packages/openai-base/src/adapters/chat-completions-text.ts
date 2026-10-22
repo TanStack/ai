@@ -5,7 +5,6 @@ import {
   normalizeSystemPrompts,
   unsupportedFileSourceError,
 } from '@tanstack/ai'
-import type { TokenUsage } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   getComputerUseToolMetadata,
@@ -55,6 +54,7 @@ import type {
   ModelReasoning,
   ReasoningCapability,
   TextOptions,
+  TokenUsage,
 } from '@tanstack/ai'
 
 type ChatStreamState = {
