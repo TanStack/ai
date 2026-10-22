@@ -176,6 +176,10 @@ class FakeXhr {
     this.requestHeaders[name] = value
   }
 
+  getResponseHeader(_name: string): string | null {
+    return null
+  }
+
   progress(text: string): void {
     this.responseText += text
     this.onprogress?.({ type: 'progress' } as ProgressEvent)
@@ -302,6 +306,44 @@ describe('resumable XHR transports', () => {
     expect(deltasOf(chunks)).toEqual(['1', '2'])
     expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
     expect(queue.xhrs).toHaveLength(2)
+  })
+
+  it('xhrHttpStream retries a reconnect answered 503', async () => {
+    const queue = createXhrQueue()
+    const adapter = xhrHttpStream('/api/chat', {
+      xhrFactory: queue.xhrFactory,
+      reconnect: { delayMs: 0 },
+    })
+
+    const chunks: Array<StreamChunk> = []
+    const done = (async () => {
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'hi' }],
+        undefined,
+        undefined,
+        { threadId: 't', runId: 'r' },
+      )) {
+        chunks.push(chunk)
+      }
+    })()
+
+    await flush()
+    queue.xhrs[0]!.progress(envelopeLine('run@1', contentChunk('1')))
+    queue.xhrs[0]!.error()
+
+    await flush()
+    queue.xhrs[1]!.status = 503
+    queue.xhrs[1]!.statusText = 'Service Unavailable'
+    queue.xhrs[1]!.end()
+
+    await flush()
+    expect(queue.xhrs[2]!.requestHeaders['Last-Event-ID']).toBe('run@1')
+    queue.xhrs[2]!.progress(envelopeLine('run@2', finishedChunk()))
+    queue.xhrs[2]!.end()
+
+    await done
+    expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+    expect(queue.xhrs).toHaveLength(3)
   })
 
   it('xhrServerSentEvents is resumable too (durable SSE over XHR)', async () => {
