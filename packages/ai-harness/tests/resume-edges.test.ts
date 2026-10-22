@@ -143,6 +143,7 @@ describe('harnessText edges', () => {
     const chunks: Array<StreamChunk> = []
     for await (const chunk of harnessText(studio, { host }).chatStream({
       model: 'test/inner-fail',
+      threadId: 'outer',
       messages: [{ role: 'assistant', content: 'no user message here' }],
     } as never)) {
       chunks.push(chunk)
