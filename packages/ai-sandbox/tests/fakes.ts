@@ -262,6 +262,7 @@ export function makeMiddlewareCtx(input: {
     phase: 'init',
     iteration: 0,
     chunkIndex: 0,
+    callMetadata: {},
     signal: controller.signal,
     abort: (reason) => controller.abort(reason),
     retry: () => {},

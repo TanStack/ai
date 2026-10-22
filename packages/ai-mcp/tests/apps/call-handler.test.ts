@@ -75,6 +75,8 @@ function fakeClient(info: ServerInfo): MCPClient {
     prompts: unreached('prompts'),
     getPrompt: unreached('getPrompt'),
     callTool: unreached('callTool'),
+    request: unreached('request'),
+    getDiscoverResult: unreached('getDiscoverResult'),
     getInfo: () => info,
     close: unreached('close'),
     [Symbol.asyncDispose]: unreached('asyncDispose'),

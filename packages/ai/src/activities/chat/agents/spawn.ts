@@ -1210,12 +1210,25 @@ export function createSyntheticSubagentTools(
         turnChild.parentToolCallId !== undefined &&
         turnChild.parentToolCallId === toolCallId,
     )
+    // A store that knows the child is the source of its messages. The card
+    // came from the client, which could change a tool call before it answers
+    // the interrupt of that call.
+    const load = parent.childLoader?.()
+    const pending =
+      suspended && load
+        ? (await load(suspended.subagentRunId))?.pending
+        : undefined
+    if (suspended && load && !pending) {
+      throw new Error(
+        `Subagent run "${suspended.subagentRunId}" is not waiting in this thread.`,
+      )
+    }
     const entry: SpawnEntry = {
       ...child,
       ...(suspended && {
         resume: {
           subagentRunId: suspended.subagentRunId,
-          messages: suspended.messages,
+          messages: pending ?? suspended.messages,
           entries: suspended.resume,
           text: suspended.text,
         },

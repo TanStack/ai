@@ -8,6 +8,7 @@ import {
 import { createMCPClient } from '@tanstack/ai-mcp'
 import type { StreamChunk } from '@tanstack/ai'
 import type { DescriptorFromServer, MCPClient } from '@tanstack/ai-mcp'
+import { z } from 'zod'
 import { createTextAdapter } from '@/lib/providers'
 import type { typedServer } from '@/lib/mcp-typed-server'
 
@@ -43,6 +44,8 @@ async function* closeMcpOnDrain(
  *
  * - GET returns the discovered tools, so a test can read `outputSchema`.
  *   It also calls `forecast` with the typed `callTool`.
+ * - GET `?extension` calls the `notes/count` extension method of the
+ *   stateless server with `request`.
  * - GET `?prior` connects to the stateless server twice. The second client
  *   gets the first one's discover result as `prior`.
  * - POST runs chat() with those tools.
@@ -52,20 +55,43 @@ export const Route = createFileRoute('/api/mcp-typed-test')({
     handlers: {
       GET: async ({ request }) => {
         const url = new URL(request.url)
+        if (url.searchParams.has('extension')) {
+          const notes = await createMCPClient({
+            transport: {
+              type: 'http',
+              url: `${url.origin}/api/mcp-typed-server?stateless`,
+            },
+          })
+          try {
+            const counted = await notes.request(
+              { method: 'notes/count', params: {} },
+              z.object({ count: z.number() }),
+            )
+            return Response.json({
+              extensions: notes.capabilities.extensions ?? null,
+              counted,
+            })
+          } finally {
+            await notes.close()
+          }
+        }
         if (url.searchParams.has('prior')) {
+          let discovers = 0
           const transport = {
             type: 'http' as const,
             url: `${url.origin}/api/mcp-typed-server?stateless`,
+            fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+              const request = new Request(input, init)
+              const body = await request.clone().text()
+              if (body.includes('"server/discover"')) discovers++
+              return fetch(request)
+            },
           }
           const first = await createMCPClient({ transport })
-          const discover = first.getDiscoverResult?.()
+          const discover = first.getDiscoverResult()
           await first.close()
-          if (discover === undefined) {
-            return Response.json(
-              { error: 'no discover result' },
-              { status: 500 },
-            )
-          }
+          if (!discover) throw new Error('no discover result')
+          const firstDiscovers = discovers
           const next = await createMCPClient({
             transport,
             prior: { kind: 'modern', discover },
@@ -73,9 +99,8 @@ export const Route = createFileRoute('/api/mcp-typed-test')({
           try {
             const called = await next.callTool('show_note', {})
             return Response.json({
-              supportedVersions: discover.supportedVersions,
-              adopted: next.getDiscoverResult?.() ?? null,
-              discover,
+              firstDiscovers,
+              nextDiscovers: discovers - firstDiscovers,
               content: called.content,
             })
           } finally {

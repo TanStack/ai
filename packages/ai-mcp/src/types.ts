@@ -155,20 +155,13 @@ export interface MCPClientOptions {
     resetTimeoutOnProgress?: boolean
   }
   /**
-   * A saved `server/discover` result for the SDK `Client.connect`. With
-   * `{ kind: 'modern', discover }` the client skips the `server/discover`
-   * request. Save it from `MCPClient.getDiscoverResult()`. Reuse it only
-   * for the same authorization context, and only while its `ttlMs` and
-   * `cacheScope` allow it.
-   *
-   * ```ts
-   * const first = await createMCPClient({ transport })
-   * const discover = first.getDiscoverResult?.()
-   * const next = await createMCPClient({
-   *   transport,
-   *   prior: discover ? { kind: 'modern', discover } : undefined,
-   * })
-   * ```
+   * A saved era verdict for the SDK `Client.connect`. Save the discover
+   * result from `MCPClient.getDiscoverResult()` and pass
+   * `{ kind: 'modern', discover }` to skip the `server/discover` request.
+   * Reuse it only for the same authorization context, and expire it
+   * yourself. With `prior`, connect sends no request, so a dead server or
+   * a revoked token fails on the first call. A prior with no shared
+   * protocol version throws `MCPConnectionError`.
    */
   prior?: PriorDiscovery
   /**

@@ -94,7 +94,7 @@ describe('createMCPClient', () => {
     }
 
     const first = await createMCPClient({ transport })
-    const discover = first.getDiscoverResult?.()
+    const discover = first.getDiscoverResult()
     await first.close()
     expect(methods).toContain('server/discover')
     expect(discover?.supportedVersions).toContain('2026-07-28')
@@ -105,11 +105,64 @@ describe('createMCPClient', () => {
       transport,
       prior: { kind: 'modern', discover },
     })
-    expect(next.getDiscoverResult?.()).toEqual(discover)
+    expect(next.getDiscoverResult()).toEqual(discover)
     const called = await next.callTool('get_weather', { city: 'Paris' })
     expect(called.content).toEqual([{ type: 'text', text: 'Sunny in Paris' }])
     expect(methods).not.toContain('server/discover')
     expect(methods).toContain('tools/call')
+
+    // A prior with no shared protocol version fails connect before any request.
+    methods.length = 0
+    await expect(
+      createMCPClient({
+        transport,
+        prior: {
+          kind: 'modern',
+          discover: { ...discover, supportedVersions: ['2025-11-25'] },
+        },
+      }),
+    ).rejects.toThrow(MCPConnectionError)
+    expect(methods).toEqual([])
+  })
+
+  it('has no discover result on a spec 2025 server', async () => {
+    const { clientTransport } = await makeSilentServer()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    expect(client.getDiscoverResult()).toBeUndefined()
+  })
+
+  it('sends an extension method with request and refuses it after close', async () => {
+    const server = createMCPServer({
+      name: 'greeter',
+      version: '1.0.0',
+      setup: (built) => {
+        built.server.registerCapabilities({
+          extensions: { 'com.example/greetings': {} },
+        })
+        built.server.setRequestHandler(
+          'greetings/get',
+          { params: z.object({ name: z.string() }) },
+          ({ name }) => ({ text: `Hello, ${name}` }),
+        )
+      },
+    })
+    const client = await createMCPClient({
+      transport: {
+        type: 'http',
+        url: 'https://mcp.example.com/mcp',
+        fetch: async (input, init) => server.fetch(new Request(input, init)),
+      },
+    })
+
+    const greet = () =>
+      client.request(
+        { method: 'greetings/get', params: { name: 'Ada' } },
+        z.object({ text: z.string() }),
+      )
+    expect(await greet()).toEqual({ text: 'Hello, Ada' })
+
+    await client.close()
+    await expect(greet()).rejects.toThrow(MCPConnectionError)
   })
 
   it('binds passed toolDefinitions to the server, typed + validated', async () => {
@@ -750,6 +803,13 @@ describe('requestOptions', () => {
     )
     await expect(client.prompts()).rejects.toThrow('Request timed out')
     await expect(client.getPrompt('brief')).rejects.toThrow('Request timed out')
+    // Both request shapes: no schema, and a result schema.
+    await expect(client.request({ method: 'resources/list' })).rejects.toThrow(
+      'Request timed out',
+    )
+    await expect(
+      client.request({ method: 'prompts/list' }, z.object({})),
+    ).rejects.toThrow('Request timed out')
   }, 5000)
 
   it('sends the timeout with the spec 2025 listTools cache fill', async () => {

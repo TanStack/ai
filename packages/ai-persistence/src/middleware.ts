@@ -24,11 +24,7 @@ import type {
   InterruptDefinition,
 } from '@tanstack/ai/adapter-internals'
 import { base64ToUint8Array } from '@tanstack/ai-utils'
-import {
-  mergeMetadata,
-  tanstackMetadata,
-  withTanstackMetadata,
-} from '@tanstack/ai/client'
+import { mergeMetadata, withTanstackMetadata } from '@tanstack/ai/client'
 import {
   InterruptsCapability,
   PersistenceCapability,
@@ -452,6 +448,43 @@ function rejectMixedRunPending(
       retryable: false,
     },
   ])
+}
+
+/**
+ * The pending records this run answers itself. A record that a child raised
+ * names that child in `subagentRunId`. The engine splits the resume with the
+ * subagent cards that the client sent (`ctx.childResumeIds`). That split must
+ * match the stored records, or a forged card could move an interrupt between
+ * the parent and a child.
+ */
+function rejectForgedChildSplit(
+  pending: Array<InterruptRecord>,
+  ctx: Pick<ChatMiddlewareContext, 'threadId' | 'runId' | 'childResumeIds'>,
+): Array<InterruptRecord> {
+  const childIds = pending
+    .filter((interrupt) => stringField(interrupt.payload, 'subagentRunId'))
+    .map((interrupt) => interrupt.interruptId)
+  const claimed = ctx.childResumeIds ?? new Set<string>()
+  if (
+    claimed.size !== childIds.length ||
+    childIds.some((id) => !claimed.has(id))
+  ) {
+    throw new InterruptResumeValidationError([
+      {
+        scope: 'batch',
+        threadId: ctx.threadId,
+        interruptedRunId: pending[0]?.runId ?? ctx.runId,
+        generation: 0,
+        interruptIds: pending.map((interrupt) => interrupt.interruptId),
+        code: 'conflict',
+        message:
+          'The subagent cards in the messages do not match the stored subagent interrupts.',
+        source: 'client',
+        retryable: false,
+      },
+    ])
+  }
+  return pending.filter((interrupt) => !claimed.has(interrupt.interruptId))
 }
 
 function validatePendingResumes(
@@ -2256,13 +2289,16 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         // (which needs a parentRunId and the client message history the
         // persistence flow deliberately omits).
         if ((config.resume?.length ?? 0) > 0) {
+          // A subagent tool call answers its own interrupts against its own
+          // tools. They are still committed below with the rest of the batch.
+          const runPending = rejectForgedChildSplit(ownedPending, ctx)
           const resumeToolState = resumeToolStateFromPending(
-            ownedPending,
+            runPending,
             resumeByInterruptId,
           )
           const genericResumeState = await durableGenericResumeState(
             ctx,
-            ownedPending,
+            runPending,
             config.resume ?? [],
             config.tools,
           )
@@ -2346,30 +2382,9 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         !('subagentRunId' in chunk) || chunk.subagentRunId === undefined
       if (snapshotStreaming && isParentChunk && current) {
         if (chunk.type === 'RUN_STARTED') resetStreaming(current)
-        // Keep the call metadata (source, response id) for the snapshot rows.
-        const tanstack = tanstackMetadata(chunk)
-        const metadata =
-          chunk.type === 'TOOL_CALL_START'
-            ? tanstack === undefined
-              ? undefined
-              : { tanstack }
-            : chunk.metadata
-        current.streamingMetadata = mergeMetadata(
-          current.streamingMetadata,
-          metadata,
-        )
-        if (chunk.type === 'RUN_FINISHED') {
-          current.streamingMetadata = withTanstackMetadata(
-            { metadata: current.streamingMetadata },
-            {
-              ...(chunk.responseId !== undefined
-                ? { responseId: chunk.responseId }
-                : {}),
-              ...(chunk.model !== undefined ? { model: chunk.model } : {}),
-            },
-          ).metadata
-          await updateStreamingRows(ctx)
-        }
+        // The same call metadata that a finished assistant message gets.
+        current.streamingMetadata = { tanstack: { ...ctx.callMetadata } }
+        if (chunk.type === 'RUN_FINISHED') await updateStreamingRows(ctx)
       }
       // Capture the current assistant turn's identity for optional in-progress
       // snapshots. Completed messages already live in `ctx.messages`.

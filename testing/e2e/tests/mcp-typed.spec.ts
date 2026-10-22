@@ -224,21 +224,29 @@ test.describe('mcp: createMCPServer with auth, output schema, and a task', () =>
     expect(other.status()).toBe(404)
   })
 
-  test('a client reuses a saved discover result as prior', async ({
+  test('a client calls an extension method that setup serves', async ({
+    request,
+  }) => {
+    const res = await request.get('/api/mcp-typed-test?extension')
+    const body = await res.text()
+    expect(res.ok(), body).toBe(true)
+    expect(JSON.parse(body)).toEqual({
+      extensions: { 'com.example/notes': {} },
+      counted: { count: 1 },
+    })
+  })
+
+  test('a client with a saved discover result as prior skips server/discover', async ({
     request,
   }) => {
     const res = await request.get('/api/mcp-typed-test?prior')
     const body = await res.text()
     expect(res.ok(), body).toBe(true)
-    const result = JSON.parse(body) as {
-      supportedVersions: Array<string>
-      adopted: unknown
-      discover: unknown
-      content: unknown
-    }
-    expect(result.supportedVersions).toContain('2026-07-28')
-    expect(result.adopted).toEqual(result.discover)
-    expect(result.content).toEqual([{ type: 'text', text: 'shown' }])
+    expect(JSON.parse(body)).toEqual({
+      firstDiscovers: 1,
+      nextDiscovers: 0,
+      content: [{ type: 'text', text: 'shown' }],
+    })
   })
 
   test('a stateless server serves spec 2025 with resource context and tool _meta', async ({
