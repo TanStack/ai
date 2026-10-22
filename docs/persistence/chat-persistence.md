@@ -248,6 +248,11 @@ Streaming snapshots default off (finish is the authoritative save); enable
 them to trade extra writes for partial-output durability. Tune the interval
 with `snapshotIntervalMs` (default `1000`).
 
+Snapshot rows keep the same call metadata as a finished message, such as
+`source` and `responseId`, and no other chunk metadata. If a run fails or is
+aborted after a snapshot, that snapshot stays as its assistant message with
+`metadata.tanstack.stopReason` set to `'error'` or `'aborted'`.
+
 The chat engine completes the canonical transcript before `onFinish` runs, and
 `withPersistence` saves that transcript directly.
 

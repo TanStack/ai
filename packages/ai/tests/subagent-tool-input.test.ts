@@ -434,7 +434,10 @@ describe('agent tool input', () => {
         interruptedRunId: 'run-1',
         turn,
         sink: createSubagentSink(),
-        childLoader: () => async () => ({ messages: stored }),
+        childLoader: () => async () => ({
+          messages: stored,
+          pending: [waiting],
+        }),
         canContinue: true,
       },
     )

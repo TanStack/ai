@@ -54,7 +54,7 @@ export async function POST(request: Request) {
 ## Hooks Reference
 
 Every hook receives a `ChatMiddlewareContext` as its first argument, which provides
-`requestId`, `streamId`, `phase`, `iteration`, `chunkIndex`, `model`, `provider`,
+`requestId`, `streamId`, `phase`, `iteration`, `chunkIndex`, `callMetadata`, `model`, `provider`,
 `signal`, `abort()`, `defer()`, and more. `parentRunId` names the run this one continues. `subagentRunId` is set only inside a subagent and names its card.
 
 | Hook                       | When                                                                                                     | Second Argument                                     |
