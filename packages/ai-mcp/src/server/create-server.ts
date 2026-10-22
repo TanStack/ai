@@ -506,10 +506,7 @@ function buildMcpServer(input: {
   if (input.era === '2025') {
     registerLegacyTaskMethods(server, input.taskStore, input.owner)
   }
-  const setupResult: unknown = input.options.setup?.(
-    server,
-    input.appContext(),
-  )
+  const setupResult: unknown = input.options.setup?.(server, input.appContext())
   if (setupResult instanceof Promise) {
     throw new TypeError('createMCPServer: setup must be synchronous')
   }
