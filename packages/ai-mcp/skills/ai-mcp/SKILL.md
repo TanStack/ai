@@ -236,7 +236,7 @@ Use the MCP names: `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWor
 A host skips its confirmation for a tool with `readOnlyHint: true`.
 Set `metadata._meta` to send the MCP tool `_meta`, for example `{ ui: { resourceUri: 'ui://view' } }` for an MCP Apps view.
 Pass `onerror` to `createMCPServer` to log transport and protocol errors from the SDK. `serveMCPStdio` also sends its transport errors there.
-Pass `setup: (server) => {}` to `createMCPServer` to change each SDK `McpServer` before it connects. It must be synchronous. Serve an MCP extension there: `server.server.registerCapabilities({ extensions: { [id]: {} } })`, then `server.server.setRequestHandler(method, { params }, handler)` for each method.
+Pass `setup: (server, context) => {}` to `createMCPServer` to change each SDK `McpServer` before it connects. It must be synchronous. `context` is the `handle` context of the request that builds the server. A spec 2025 session with `sessions: 'memory'` keeps the context of the request that opened the session. Serve an MCP extension there: `server.server.registerCapabilities({ extensions: { [id]: {} } })`, then `server.server.setRequestHandler(method, { params }, handler)` for each method.
 
 A tool with no `outputSchema` can return an MCP `CallToolResult`.
 The server sends it as is: its content blocks, its `structuredContent`, and its `isError`.
@@ -299,6 +299,7 @@ The client keeps negotiation mode `auto`.
 `client.instructions` holds the server's instructions from the handshake, or `undefined` when the server sends none.
 Put them in the system prompt: `systemPrompts: client.instructions ? [client.instructions] : []`.
 `client.request` takes the same arguments as the SDK `Client.request`, with the client's `requestOptions`. Use it for an MCP extension method: check `client.capabilities.extensions`, then pass the request and a result schema.
+`client.getDiscoverResult()` returns the protocol `2026-07-28` `server/discover` result. Pass it back as `prior: { kind: 'modern', discover }` to `createMCPClient` to skip that request. Key the saved result by user or token, and expire it yourself. With `prior`, connect sends no request, so auth and reachability errors show up on the first call.
 
 Two more client options:
 

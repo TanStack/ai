@@ -1,6 +1,7 @@
 import type { ServerTool, ToolDefinition } from '@tanstack/ai'
 import type {
   ClientOptions,
+  PriorDiscovery,
   Tool as McpToolDef,
   ToolAnnotations,
 } from '@modelcontextprotocol/client'
@@ -153,6 +154,16 @@ export interface MCPClientOptions {
     /** Restart the timeout when the server sends a progress notification. */
     resetTimeoutOnProgress?: boolean
   }
+  /**
+   * A saved era verdict for the SDK `Client.connect`. Save the discover
+   * result from `MCPClient.getDiscoverResult()` and pass
+   * `{ kind: 'modern', discover }` to skip the `server/discover` request.
+   * Reuse it only for the same authorization context, and expire it
+   * yourself. With `prior`, connect sends no request, so a dead server or
+   * a revoked token fails on the first call. A prior with no shared
+   * protocol version throws `MCPConnectionError`.
+   */
+  prior?: PriorDiscovery
   /**
    * Choose the server tools the model gets. Default: every tool.
    *

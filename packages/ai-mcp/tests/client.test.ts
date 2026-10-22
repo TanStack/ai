@@ -64,6 +64,73 @@ describe('createMCPClient', () => {
     expect(client.instructions).toBeUndefined()
   })
 
+  it('skips server/discover when it gets a saved discover result as prior', async () => {
+    const server = createMCPServer({
+      name: 'weather',
+      version: '1.0.0',
+      tools: [
+        toolDefinition({
+          name: 'get_weather',
+          description: 'Weather for a city',
+          inputSchema: z.object({ city: z.string() }),
+        }).server(async ({ city }) => `Sunny in ${city}`),
+      ],
+    })
+    const methods: Array<string> = []
+    const transport = {
+      type: 'http' as const,
+      url: 'https://mcp.example.com/mcp',
+      fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init)
+        const body: unknown = await request
+          .clone()
+          .json()
+          .catch(() => undefined)
+        if (typeof body === 'object' && body !== null && 'method' in body) {
+          methods.push(String(body.method))
+        }
+        return server.fetch(request)
+      },
+    }
+
+    const first = await createMCPClient({ transport })
+    const discover = first.getDiscoverResult()
+    await first.close()
+    expect(methods).toContain('server/discover')
+    expect(discover?.supportedVersions).toContain('2026-07-28')
+    if (discover === undefined) throw new Error('No discover result')
+
+    methods.length = 0
+    await using next = await createMCPClient({
+      transport,
+      prior: { kind: 'modern', discover },
+    })
+    expect(next.getDiscoverResult()).toEqual(discover)
+    const called = await next.callTool('get_weather', { city: 'Paris' })
+    expect(called.content).toEqual([{ type: 'text', text: 'Sunny in Paris' }])
+    expect(methods).not.toContain('server/discover')
+    expect(methods).toContain('tools/call')
+
+    // A prior with no shared protocol version fails connect before any request.
+    methods.length = 0
+    await expect(
+      createMCPClient({
+        transport,
+        prior: {
+          kind: 'modern',
+          discover: { ...discover, supportedVersions: ['2025-11-25'] },
+        },
+      }),
+    ).rejects.toThrow(MCPConnectionError)
+    expect(methods).toEqual([])
+  })
+
+  it('has no discover result on a spec 2025 server', async () => {
+    const { clientTransport } = await makeSilentServer()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    expect(client.getDiscoverResult()).toBeUndefined()
+  })
+
   it('sends an extension method with request and refuses it after close', async () => {
     const server = createMCPServer({
       name: 'greeter',

@@ -143,6 +143,42 @@ if (
 
 To serve an extension, see [Serve an MCP extension](../mcp/server#serve-an-mcp-extension).
 
+## Skip the discover request
+
+On protocol `2026-07-28`, the client sends `server/discover` when it connects. Some hosts open a new connection for each request. They pay for that round trip each time.
+
+Save the result per user or token, then pass it back as `prior`:
+
+```ts
+import { createMCPClient } from '@tanstack/ai-mcp'
+import type { DiscoverResult } from '@tanstack/ai-mcp'
+
+const MAX_AGE_MS = 5 * 60_000
+const saved = new Map<string, { discover: DiscoverResult; savedAt: number }>()
+
+export async function connect(token: string) {
+  const hit = saved.get(token)
+  const fresh = hit !== undefined && Date.now() - hit.savedAt < MAX_AGE_MS
+  const mcp = await createMCPClient({
+    transport: {
+      type: 'http',
+      url: process.env.MCP_URL!,
+      headers: { Authorization: `Bearer ${token}` },
+    },
+    prior: fresh ? { kind: 'modern', discover: hit.discover } : undefined,
+  })
+  const discover = mcp.getDiscoverResult()
+  if (!fresh && discover) saved.set(token, { discover, savedAt: Date.now() })
+  return mcp
+}
+```
+
+- `getDiscoverResult()` returns the `server/discover` result of the connection. It is `undefined` when the server speaks protocol `2025-11-25`.
+- The result is plain JSON, so you can keep it in a cache or a database.
+- Do not share a saved result between users. The spec treats it as private to one authorization context. See [Caching](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching).
+- You decide how long to keep it. A stale result fails on the first request after connect, not on connect.
+- With `prior`, connect sends no request. A server that is down, or a token that is no longer valid, fails on the first call.
+
 ## Resources
 
 MCP resources are documents that the server exposes: files, database records, web pages. Read one and add it to a message as content parts:
