@@ -3174,6 +3174,7 @@ export function runPersistenceConformance(
           createdAt: 1,
           updatedAt: 2,
           pinned: true,
+          archived: true,
           usage: {
             turns: 2,
             promptTokens: 10,
@@ -3450,6 +3451,41 @@ export function runPersistenceConformance(
             }),
           ),
         ).toEqual(['match'])
+      })
+
+      it('hides archived entries unless withArchived is true', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const { tenantId, entry, key } = newTenant()
+        await store.upsert(entry('active', 10))
+        await store.upsert(entry('archived', 20, { archived: true }))
+        await store.upsert(entry('unarchived', 30, { archived: false }))
+
+        expect(threadIds(await store.list({ tenantId }))).toEqual([
+          'unarchived',
+          'active',
+        ])
+        expect(
+          threadIds(await store.list({ tenantId, withArchived: true })),
+        ).toEqual(['unarchived', 'archived', 'active'])
+        // `get` still reads an archived entry.
+        expect(await store.get(key('archived'))).toEqual(
+          entry('archived', 20, { archived: true }),
+        )
+      })
+
+      it('pages past archived entries without an empty page', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const { tenantId, entry } = newTenant()
+        await store.upsert(entry('a', 50))
+        await store.upsert(entry('hidden-1', 40, { archived: true }))
+        await store.upsert(entry('hidden-2', 30, { archived: true }))
+        await store.upsert(entry('b', 20))
+
+        const first = await store.list({ tenantId, limit: 2 })
+        expect(threadIds(first)).toEqual(['a', 'b'])
+        expect(first.truncated).toBeFalsy()
       })
 
       it('pages the filtered list with a cursor', async (ctx) => {

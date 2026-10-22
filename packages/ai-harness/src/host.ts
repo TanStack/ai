@@ -410,15 +410,17 @@ export interface OpenSessionOptions<U extends HarnessUser = HarnessUser> {
  * `tenantId` picks the tenant (without it, the default tenant), as in
  * `host.open`. A method never reads or changes the entries of another
  * tenant. With host `access`, each method asks `isAllowed` first: `get` reads, `list`
- * lists, `rename` and `update` configure, `delete` deletes, `fork` forks, and
+ * lists, `rename`, `archive`, `unarchive`, and `update` configure, `delete`
+ * deletes, `fork` forks, and
  * `share` and `unshare` share. A refused action throws `AccessDeniedError`.
  * A child thread is checked through its root thread.
  */
 export interface HostSessions<U extends HarnessUser = HarnessUser> {
   /**
    * The entries of the tenant of `user`, newest `updatedAt` first.
-   * Default: only top-level sessions (`parentThreadId: null`). Pass a thread
-   * id to get its child sessions. With access, only the entries that
+   * Default: only top-level sessions (`parentThreadId: null`), and no
+   * archived sessions (pass `withArchived: true` to get them too). Pass a
+   * thread id to get its child sessions. With access, only the entries that
    * `isAllowed` lets the user list.
    *
    * @example
@@ -450,6 +452,30 @@ export interface HostSessions<U extends HarnessUser = HarnessUser> {
   rename: (change: {
     threadId: string
     title: string
+    user?: U
+  }) => Promise<SessionIndexEntry | undefined>
+  /**
+   * Archive a thread: set `archived: true` on its entry. `list` leaves it
+   * out unless you pass `withArchived: true`. The thread keeps its data, and
+   * it still opens and runs. Resolves to the changed entry, or `undefined`
+   * for a thread that has no entry.
+   *
+   * @example
+   * ```ts
+   * await host.sessions.archive({ threadId: 't-1', user })
+   * ```
+   */
+  archive: (options: {
+    threadId: string
+    user?: U
+  }) => Promise<SessionIndexEntry | undefined>
+  /**
+   * Undo `archive`: remove `archived` from the entry of a thread, so `list`
+   * shows it again. Resolves to the changed entry, or `undefined` for a
+   * thread that has no entry.
+   */
+  unarchive: (options: {
+    threadId: string
     user?: U
   }) => Promise<SessionIndexEntry | undefined>
   /**
@@ -2619,6 +2645,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
       const page = await sessionStore.list({
         tenantId,
         parentThreadId: threadId,
+        withArchived: true,
         ...(cursor !== undefined ? { cursor } : {}),
       })
       children.push(...page.entries.map((entry) => entry.threadId))
@@ -3377,6 +3404,28 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
           { tenantId: user?.tenantId, threadId },
           (entry) => entry && { ...entry, title, updatedAt: Date.now() },
         )
+      },
+      async archive({ threadId, user }) {
+        await checkEntry('host.sessions.archive', 'configure', {
+          threadId,
+          user,
+        })
+        return index.update(
+          { tenantId: user?.tenantId, threadId },
+          (entry) =>
+            entry && { ...entry, archived: true, updatedAt: Date.now() },
+        )
+      },
+      async unarchive({ threadId, user }) {
+        await checkEntry('host.sessions.unarchive', 'configure', {
+          threadId,
+          user,
+        })
+        return index.update({ tenantId: user?.tenantId, threadId }, (entry) => {
+          if (!entry) return undefined
+          const { archived: _archived, ...rest } = entry
+          return { ...rest, updatedAt: Date.now() }
+        })
       },
       async update({ harness, threadId, update, user }) {
         const call = 'host.sessions.update'
