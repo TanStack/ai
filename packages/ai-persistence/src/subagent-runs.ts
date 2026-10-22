@@ -626,7 +626,13 @@ export function createSubagentRunRecorder(stores: {
       messages: [...taskOf(subagentRunId, marker.prompt), ...transcript],
       ...(info !== undefined && { agent: info.name }),
       // A resume reads the waiting call from here, not from the client card.
-      ...(waits && { pending: messages.slice(marker.base ?? 0) }),
+      ...(waits && {
+        pending: messages.slice(marker.base ?? 0),
+        interruptIds: info.interruptIds ?? [],
+      }),
+      ...(info?.parentToolCallId !== undefined && {
+        parentToolCallId: info.parentToolCallId,
+      }),
     }
   }
 

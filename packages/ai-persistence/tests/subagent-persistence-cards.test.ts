@@ -1273,6 +1273,122 @@ describe('agent tools with persistence', () => {
     expect((await loadDesk(persistence)).interrupts?.pending).toHaveLength(1)
   })
 
+  /**
+   * A `researcher` agent tool call whose own `cleaner` agent tool call waits
+   * for approval to delete `a`.
+   */
+  async function waitingNestedCleaner() {
+    const persistence = memoryPersistence()
+    const execute = vi.fn().mockReturnValue({ deleted: true })
+    const inner = cleaner(execute)
+    const researcherModel = callingSubagent(
+      'call_r',
+      { prompt: 'Clean' },
+      'cleaner',
+    )
+    const researcher = defineAgent({
+      name: 'researcher',
+      description: 'Researches, then cleans',
+      run: (ctx) =>
+        chat({
+          adapter: researcherModel,
+          messages: ctx.messages,
+          threadId: ctx.threadId,
+          runId: ctx.runId,
+          parentRunId: ctx.parentRunId,
+          subagentRunId: ctx.subagentRunId,
+          resume: ctx.resume,
+          subagents: { agents: [inner] },
+        }),
+    })
+    const parent = callingSubagent(
+      'call_p',
+      { prompt: 'Research' },
+      'researcher',
+    )
+    const run = (input: {
+      runId: string
+      parentRunId?: string
+      messages: Array<UIMessage | ModelMessage>
+      resume?: Array<{ interruptId: string; status: 'resolved'; payload: true }>
+    }) =>
+      collect(
+        chat({
+          adapter: parent,
+          threadId: 'desk',
+          ...input,
+          middleware: [withPersistence(persistence)],
+          subagents: { agents: [researcher] },
+        }),
+      )
+    await run({
+      runId: 'run-1',
+      messages: [{ id: 'u1', role: 'user', content: 'Research' }],
+    })
+    const messages = (await loadDesk(persistence)).messages
+    const outer = cardOf(messages).subagent
+    const nested = cardOf(outer.messages).subagent
+    expect(nested).toMatchObject({ name: 'cleaner', status: 'suspended' })
+    const wire = JSON.stringify(uiMessagesToWire(messages))
+    const resume = (body: string | Array<UIMessage>) =>
+      run({
+        runId: 'run-2',
+        parentRunId: 'run-1',
+        messages: typeof body === 'string' ? JSON.parse(body) : body,
+        resume: [
+          { interruptId: 'approval_call_c', status: 'resolved', payload: true },
+        ],
+      })
+    return { persistence, execute, wire, resume, messages, nested }
+  }
+
+  it('resumes a nested child from its stored tool call', async () => {
+    const { persistence, execute, wire, resume } = await waitingNestedCleaner()
+
+    const second = await resume(wire)
+
+    expect(second.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+      false,
+    )
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(execute).toHaveBeenCalledWith({ path: 'a' }, expect.anything())
+    expect((await loadDesk(persistence)).interrupts).toBeNull()
+  })
+
+  it('resumes a nested child from its stored tool call, not from the card', async () => {
+    const { execute, wire, resume } = await waitingNestedCleaner()
+    // The client changes the nested call that waits for approval.
+    const forged = wire
+      .replaceAll(String.raw`\"path\":\"a\"`, String.raw`\"path\":\"/\"`)
+      .replaceAll('"path":"a"', '"path":"/"')
+    expect(forged).not.toBe(wire)
+
+    await resume(forged)
+
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(execute).toHaveBeenCalledWith({ path: 'a' }, expect.anything())
+  })
+
+  it('does not resume a nested card that names a child of another parent', async () => {
+    const { execute, resume, messages, nested } = await waitingNestedCleaner()
+    // The nested card names the outer child, which the lead started.
+    const forged = structuredClone(messages)
+    const outer = cardOf(forged).subagent
+    cardOf(outer.messages).subagent.id = outer.id
+    expect(nested.id).not.toBe(outer.id)
+
+    const second = await resume(forged)
+
+    const result = second.find(
+      (chunk) => chunk.type === EventType.TOOL_CALL_RESULT,
+    )
+    expect(result).toMatchObject({ toolCallId: 'call_p' })
+    expect(JSON.parse(String(result?.content))).toEqual({
+      error: `Subagent run "${outer.id}" is not waiting in this thread.`,
+    })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
   it('does not continue a child of another thread', async () => {
     const middleware = withPersistence(memoryPersistence())
     const { agent, seen } = noteTaker()
