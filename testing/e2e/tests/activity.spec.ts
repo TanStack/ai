@@ -150,3 +150,27 @@ test.describe('AG-UI activity reconstruct', () => {
     ])
   })
 })
+
+test.describe('AG-UI activity on a failed run', () => {
+  test('reconstructChat restores activity from a run that failed', async ({
+    request,
+  }) => {
+    const threadId = `activity-${crypto.randomUUID()}`
+    const run = await request.post('/api/activity-test?mode=persist-error', {
+      data: { threadId, runId: crypto.randomUUID() },
+    })
+    expect(run.ok()).toBe(true)
+
+    const hydration = await request.get(
+      `/api/activity-test?threadId=${threadId}`,
+    )
+    expect(hydration.ok()).toBe(true)
+    const body = (await hydration.json()) as {
+      messages: Array<{ role: string }>
+    }
+    expect(body.messages.map((message) => message.role)).toEqual([
+      'user',
+      'activity',
+    ])
+  })
+})
