@@ -558,7 +558,7 @@ export interface RunContext {
    */
   tenantId?: string
   /** The user who started this run. `undefined` in a session with no user. */
-  user: { id: string; tenantId?: string } | undefined
+  user: { id: string; name?: string; tenantId?: string } | undefined
   /**
    * The id of the log of the session in the `LogStore`: the tenant and the
    * root thread of the session tree, from `logIdOf`.
@@ -774,7 +774,7 @@ export interface RunNode {
   /** The agent name, for `kind: 'agent'`. */
   agent?: string
   /** Who the run runs for. */
-  user?: { id: string; tenantId?: string }
+  user?: { id: string; name?: string; tenantId?: string }
   /** The durable name of the run in its parent (`AgentStartOptions.key`). */
   key?: string
   /** The limits of the run (`AgentStartOptions.limits`). */

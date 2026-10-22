@@ -1148,7 +1148,7 @@
           "label": "Build on the session log",
           "to": "harness/session-log",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-19"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Control how a turn ends",

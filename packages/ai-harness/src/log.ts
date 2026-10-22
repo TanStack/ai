@@ -78,7 +78,7 @@ export type HarnessRecord =
       type: 'harness.input'
       inputId: string
       input: HarnessInput
-      user?: { id: string; tenantId?: string }
+      user?: { id: string; name?: string; tenantId?: string }
       at: number
       /** The W3C `traceparent` of the caller. */
       traceparent?: string
@@ -136,7 +136,7 @@ export type HarnessRecord =
   | {
       type: 'harness.revert'
       revert: RevertState | null
-      user?: { id: string; tenantId?: string }
+      user?: { id: string; name?: string; tenantId?: string }
     }
   /**
    * A background job started, or it ended. `backendId` is the id of its
@@ -150,7 +150,7 @@ export type HarnessRecord =
       jobId: string
       ended: boolean
       backendId?: string
-      user?: { id: string; tenantId?: string }
+      user?: { id: string; name?: string; tenantId?: string }
       at?: number
       label?: string
     }
@@ -275,7 +275,7 @@ export interface ProjectOptions {
 export interface InputState {
   inputId: string
   input: HarnessInput
-  user?: { id: string; tenantId?: string }
+  user?: { id: string; name?: string; tenantId?: string }
   at: number
   /** The position of the input record. The events of its run come after it. */
   seq: number
@@ -304,7 +304,7 @@ export interface InputState {
  */
 export interface JobState {
   backendId?: string
-  user?: { id: string; tenantId?: string }
+  user?: { id: string; name?: string; tenantId?: string }
   at?: number
   label?: string
 }

@@ -573,7 +573,7 @@ export interface InterruptedTurn {
    * Who sent the input of the stopped turn. Only this user's saved
    * credential answers its sign-ins.
    */
-  user?: { id: string; tenantId?: string }
+  user?: { id: string; name?: string; tenantId?: string }
   /** The `context` of the stopped turn's input, so the resume sees it too. */
   context?: unknown
 }

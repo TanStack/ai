@@ -476,6 +476,29 @@ describe('the sender of each input', () => {
   })
 })
 
+describe('the name of a sender', () => {
+  it('keeps the name in the log, so a host that recovers the turn has it', async () => {
+    const log = memoryLogStore()
+    const { adapter } = mockAdapter([() => text('ok')])
+    const host = createHarnessHost({ persistence: { stores: { log } } })
+    const session = await host.open(
+      defineHarness({ name: 'test/sender-name', adapter }),
+      { threadId: THREAD },
+    )
+    const ann = { id: 'ann', name: 'Ann', tenantId: 'org' }
+
+    await session.send('Hi.', { inputId: 'in-1', user: ann })
+
+    const records = (await log.read({ logId: LOG })).map(
+      (entry) => entry.record,
+    )
+    expect(records).toContainEqual(
+      expect.objectContaining({ type: 'harness.input', user: ann }),
+    )
+    await host.close()
+  })
+})
+
 describe('the sender of a resolve', () => {
   it('runs the turn as the user of the stopped turn, and names who resolved', async () => {
     const turns: Array<TurnInfo | undefined> = []

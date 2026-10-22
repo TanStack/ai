@@ -42,7 +42,7 @@ export interface SessionUsage {
 /** One model call, as the log keeps it. A type, so it is a log record field set. */
 export type UsageCall = {
   model: string
-  user?: { id: string; tenantId?: string }
+  user?: { id: string; name?: string; tenantId?: string }
   /**
    * The run that made the call: a turn, or an agent run. Its usage also
    * counts for each run above it in the run tree.

@@ -41,7 +41,7 @@ export interface Wait {
   /** The run that waits. */
   runId: string
   /** Who started the run. That user (or the owner of the session) may answer. */
-  user?: { id: string; tenantId?: string }
+  user?: { id: string; name?: string; tenantId?: string }
   /** The shape of the answer, as JSON Schema. */
   schema?: unknown
   /** When the wait expires with no answer, in epoch milliseconds. */
