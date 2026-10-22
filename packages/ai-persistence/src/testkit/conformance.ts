@@ -1916,8 +1916,9 @@ export function runPersistenceConformance(
     })
 
     // Expiry uses real time, so that every backend can run these cases: a
-    // short ttl or wake is due after `waitPastShort()`. The window is long
-    // enough for a store with network round trips to check "not due yet".
+    // short ttl or wake is due after `waitPastShort()`. A "not due yet" check
+    // uses a LIVE_MS log, not the short one, so a slow store on a loaded
+    // runner does not see the short window end first.
     describe('log ownership', () => {
       const LIVE_MS = 10_000
       const SHORT_MS = 400
@@ -2115,19 +2116,18 @@ export function runPersistenceConformance(
       it('lists an expired log as orphaned', async (ctx) => {
         const store = persistence.stores.log
         if (!store) return ctx.skip('log store not provided')
+        const live = newLog()
         const logId = newLog()
         const harness = newHarness()
+        await store.acquireOwnership({ ...claimOf(live, 'a'), harness })
         await store.acquireOwnership({
           ...claimOf(logId, 'a'),
           harness,
           ttlMs: SHORT_MS,
         })
-
-        // A live owner holds the log, so the log is not orphaned yet.
-        expect(
-          await store.listLogsWithoutOwner({ limit: 10, harnesses: [harness] }),
-        ).toEqual([])
         await waitPastShort()
+
+        // A live owner still holds the other log, so it is not orphaned.
         expect(
           await store.listLogsWithoutOwner({ limit: 10, harnesses: [harness] }),
         ).toEqual([{ logId, harness, reason: 'expired' }])
@@ -2136,20 +2136,24 @@ export function runPersistenceConformance(
       it('lists a released log with a due wake', async (ctx) => {
         const store = persistence.stores.log
         if (!store) return ctx.skip('log store not provided')
+        const later = newLog()
         const logId = newLog()
         const harness = newHarness()
-        await store.acquireOwnership({ ...claimOf(logId, 'a'), harness })
-        await store.releaseOwnership({
-          logId,
-          ownerId: 'a',
-          epoch: 1,
-          wakeInMs: SHORT_MS,
-        })
-
-        expect(
-          await store.listLogsWithoutOwner({ limit: 10, harnesses: [harness] }),
-        ).toEqual([])
+        for (const [id, wakeInMs] of [
+          [later, LIVE_MS],
+          [logId, SHORT_MS],
+        ] as const) {
+          await store.acquireOwnership({ ...claimOf(id, 'a'), harness })
+          await store.releaseOwnership({
+            logId: id,
+            ownerId: 'a',
+            epoch: 1,
+            wakeInMs,
+          })
+        }
         await waitPastShort()
+
+        // The other wake is not due yet.
         expect(
           await store.listLogsWithoutOwner({ limit: 10, harnesses: [harness] }),
         ).toEqual([{ logId, harness, reason: 'wake' }])
@@ -2257,35 +2261,40 @@ export function runPersistenceConformance(
       it('lets other hosts take a pinned log when the heartbeat of its host expired', async (ctx) => {
         const store = persistence.stores.log
         if (!store) return ctx.skip('log store not provided')
-        const logId = newLog()
         const harness = newHarness()
-        const host = `host-${logId}`
-        await store.markHostAlive({ hostId: host, ttlMs: SHORT_MS })
-        await store.acquireOwnership({
-          ...claimOf(logId, 'a'),
-          harness,
-          affinity: host,
-        })
-        await store.pinToWorkers({ logId, epoch: 1, affinity: host })
-        await store.releaseOwnership({
-          logId,
-          ownerId: 'a',
-          epoch: 1,
-          wakeInMs: 0,
-        })
-        const other = { ...claimOf(logId, 'b'), harness }
-
-        // The host is alive: its idle log stays with it.
-        expect(
-          await store.listLogsWithoutOwner({ limit: 10, harnesses: [harness] }),
-        ).toEqual([])
-        expect(await store.acquireOwnership(other)).toBeNull()
-
+        // One idle log pinned to a host with the heartbeat `ttlMs`.
+        const pinnedLog = async (ttlMs: number) => {
+          const logId = newLog()
+          const host = `host-${logId}`
+          await store.markHostAlive({ hostId: host, ttlMs })
+          await store.acquireOwnership({
+            ...claimOf(logId, 'a'),
+            harness,
+            affinity: host,
+          })
+          await store.pinToWorkers({ logId, epoch: 1, affinity: host })
+          await store.releaseOwnership({
+            logId,
+            ownerId: 'a',
+            epoch: 1,
+            wakeInMs: 0,
+          })
+          return logId
+        }
+        const kept = await pinnedLog(LIVE_MS)
+        const logId = await pinnedLog(SHORT_MS)
         await waitPastShort()
+
+        // The live host keeps its idle log. The other host's heartbeat expired.
         expect(
           await store.listLogsWithoutOwner({ limit: 10, harnesses: [harness] }),
         ).toEqual([{ logId, harness, reason: 'wake' }])
-        expect(await store.acquireOwnership(other)).toEqual({ epoch: 2 })
+        expect(
+          await store.acquireOwnership({ ...claimOf(kept, 'b'), harness }),
+        ).toBeNull()
+        expect(
+          await store.acquireOwnership({ ...claimOf(logId, 'b'), harness }),
+        ).toEqual({ epoch: 2 })
       })
 
       it('fences pinToWorkers', async (ctx) => {
