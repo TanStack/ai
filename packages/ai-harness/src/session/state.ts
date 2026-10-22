@@ -592,10 +592,11 @@ export abstract class SessionState<
     user?: HarnessUser
     controlId?: string
   }): Promise<Receipt> {
+    const sender = this.actor(user)
     const admission = await this.accept(
       inputId,
       { op: 'config', key, value },
-      user,
+      sender,
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const entry = this.sessionPlugins?.config.get(key)
@@ -615,7 +616,7 @@ export abstract class SessionState<
         key,
         value: checked,
         inputId,
-        ...storedUser(user ?? this.user),
+        ...storedUser(sender),
       },
     ])
     this.feed.publish(
@@ -652,7 +653,7 @@ export abstract class SessionState<
   ): Promise<Receipt> {
     const { settings } = options
     const inputId = options.inputId ?? createInputId()
-    const user = options.user ?? this.user
+    const user = this.actor(options.user)
     const admission = await this.accept(
       inputId,
       { op: 'configure', settings },
@@ -1072,13 +1073,13 @@ export abstract class SessionState<
     const isSecret = asked?.secret ?? (!logged || logged.secret === true)
     const isHidden = ref !== undefined || isSecret
     if (asked?.secret) this.redactor.add(value)
-    const sender = user ?? this.user
+    const sender = this.actor(user)
     let admission
     try {
       admission = await this.accept(
         inputId,
         { op: 'answer', questionId, value: isHidden ? SECRET_ANSWER : value },
-        user,
+        sender,
         isHidden && ref === undefined
           ? {
               offer: () =>

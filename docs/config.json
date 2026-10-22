@@ -1249,7 +1249,7 @@
           "label": "Share a thread between people",
           "to": "harness/shared-threads",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-20"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Connect model providers",

@@ -146,7 +146,7 @@ await bobSession.send('Summarize the open issues.')
 
 Each message, command, and agent runs as the person who started it:
 
-- The log keeps the sender of each input, also of a cancel, an answer, and a change of settings. After a restart, a message runs again as its sender.
+- The log keeps the sender of each input, also of a cancel, an answer, and a change of settings. After a restart, a message runs again as its sender. An input with no sender runs with no user, so it does not use the credentials of the session that owns the thread. A host with access refuses that input.
 - Tools and middleware read the run as `ctx.context.run`. It has the user, the credentials, and the provider keys of the sender.
 - The model call uses the provider key of the sender. So the sender pays for the call.
 - An answer does not change the sender. When the owner approves a tool in the turn of Bob, the rest of that turn still runs as Bob.

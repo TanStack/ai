@@ -113,7 +113,7 @@ export abstract class SessionTurn<
       (target) => this.cancel({ operationId: target.id }),
     )
     this.track(operation)
-    const user = options.user ?? this.user
+    const user = this.actor(options.user)
     // A store write that throws (the log) still ends the command.
     const inputId = options.inputId ?? createInputId()
     this.executeCommand(operation, name, input, user, inputId).catch(
@@ -445,7 +445,7 @@ export abstract class SessionTurn<
         }
       } else if (!isAdded && sent !== undefined) {
         const messages = isOperator
-          ? await this.operatorMessages(id, sent, turn.user ?? this.user)
+          ? await this.operatorMessages(id, sent, turn.user)
           : [{ ...(await this.userMessage(sent, turn.wake)), id }]
         await this.addToTurn({ messages })
         // A view shows the reply live, as the text of a model, with its
@@ -629,7 +629,7 @@ export abstract class SessionTurn<
     // What plugins and the router see of this turn. A turn that recovery
     // runs again gets the message its input sent.
     const sentMessage = turn.message ?? turn.sentMessage
-    const sender = turn.user ?? this.user
+    const sender = turn.user
     const runParent = turn.answers?.runId ?? turn.parentRunId
     /** `run.handoff`: the handoff of this turn, once it has `routing`. */
     let turnHandoff: RunContext['handoff'] = NO_SESSION_CONTEXT.handoff

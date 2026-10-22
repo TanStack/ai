@@ -296,7 +296,7 @@ export abstract class SessionInputs<
     const admission = await this.accept(
       inputId,
       { op: 'append', records: [...records] },
-      user ?? this.user,
+      this.actor(user),
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     // In the append of the applied record: a crash keeps both or neither.
@@ -619,7 +619,7 @@ export abstract class SessionInputs<
   protected async accept(
     inputId: string,
     input: HarnessInput,
-    user = this.user,
+    user: HarnessUser | undefined,
     options: AcceptOptions = {},
   ): Promise<Admission> {
     // Before the first `await`, as the check: only this call takes it.
@@ -900,156 +900,173 @@ export abstract class SessionInputs<
         () => {},
       )
     }
-    switch (input.op) {
-      case 'prompt':
-        ignore(
-          this.sendForRun(input.message, {
-            ...sent,
-            ...turn,
-            ...(input.busy ? { busy: input.busy } : {}),
-            ...(input.as ? { as: input.as } : {}),
-            ...run,
-            ...traced,
-          }),
-        )
-        return
-      case 'continue':
-        ignore(session.continueWithoutMessage({ ...sent, ...turn }))
-        return
-      case 'steer':
-        ignore(
-          session.send(input.message, {
-            ...sent,
-            ...turn,
-            ...traced,
-            mode: 'steer',
-          }),
-        )
-        return
-      case 'followUp':
-        ignore(
-          this.startTurn(input, {
-            ...sent,
-            ...turn,
-            ...traced,
-            mode: 'followUp',
-            ...(input.wake ? { wake: true } : {}),
-          }),
-        )
-        return
-      case 'resolve':
-        ignore(this.resolveForRun({ resume: input.resume, ...sent, ...run }))
-        return
-      case 'reset':
-        ignore(session.reset({ note: input.note, ...sent }))
-        return
-      case 'configure':
-        ignore(
-          session.updateThreadSettings({ settings: input.settings, ...sent }),
-        )
-        return
-      case 'agentMessage':
-        ignore(
-          session.send(input.message, {
-            ...sent,
-            to: input.operationId,
-            mode: input.mode,
-          }),
-        )
-        return
-      case 'agent':
-        ignore(
-          this.runAgent(input.agent, input.input, {
-            ...asUser,
-            ...(input.detached ? { startTurnWhenDone: true } : {}),
-            ...(input.runAgainAfterCrash ? { runAgainAfterCrash: true } : {}),
-            ...(input.addResultNote === false ? { addResultNote: false } : {}),
-            offered: { inputId, ...run },
-          }),
-        )
-        return
-      case 'cancel':
-        ignore(
-          session.cancel({
-            operationId: input.operationId,
-            inputId,
-            ...asUser,
-          }),
-        )
-        return
-      case 'cancelInput':
-        ignore(
-          this.applyCancelInput({
-            inputId: input.inputId,
-            controlId: inputId,
-            ...asUser,
-          }),
-        )
-        return
-      case 'setDelivery':
-        ignore(
-          this.applySetDelivery({
-            inputId: input.inputId,
-            delivery: input.delivery,
-            controlId: inputId,
-            ...asUser,
-          }),
-        )
-        return
-      case 'command':
-        ignore(
-          session.runCommand({
-            name: input.name,
-            input: input.input,
-            inputId,
-            ...asUser,
-          }),
-        )
-        return
-      case 'answer':
-        ignore(
-          this.applyAnswer({
-            questionId: input.questionId,
-            value: input.value,
-            ...(input.ref !== undefined ? { ref: input.ref } : {}),
-            controlId: inputId,
-            ...asUser,
-          }),
-        )
-        return
-      case 'config':
-        ignore(
-          this.applyConfig({
-            key: input.key,
-            value: input.value,
-            controlId: inputId,
-            ...asUser,
-          }),
-        )
-        return
-      case 'tool':
-        ignore(
-          session.runTool({
-            name: input.name,
-            // Wire args are unknown here. The tool's input schema checks them.
-            args: input.args as never,
-            inputId,
-            ...asUser,
-            ...(input.meta ? { meta: input.meta } : {}),
-          }),
-        )
-        return
-      case 'append':
-        // Only an append with an input id is an input that a host offers.
-        ignore(
-          session.appendRecords({ records: input.records, inputId, ...asUser }),
-        )
-        return
-      case 'revert':
-      case 'unrevert':
-      case 'background':
-        // These run only where they are called. No host offers them.
-        return
+    // A host with access does not run an input that names no user.
+    if (!user && this.hasAccess) {
+      ignore(this.refuseOffer(inputId, 'no_user'))
+      return
+    }
+    // Set before the switch: each call reads `actor` before its first await.
+    this.anonymousOffer = !user
+    try {
+      switch (input.op) {
+        case 'prompt':
+          ignore(
+            this.sendForRun(input.message, {
+              ...sent,
+              ...turn,
+              ...(input.busy ? { busy: input.busy } : {}),
+              ...(input.as ? { as: input.as } : {}),
+              ...run,
+              ...traced,
+            }),
+          )
+          return
+        case 'continue':
+          ignore(session.continueWithoutMessage({ ...sent, ...turn }))
+          return
+        case 'steer':
+          ignore(
+            session.send(input.message, {
+              ...sent,
+              ...turn,
+              ...traced,
+              mode: 'steer',
+            }),
+          )
+          return
+        case 'followUp':
+          ignore(
+            this.startTurn(input, {
+              ...sent,
+              ...turn,
+              ...traced,
+              mode: 'followUp',
+              ...(input.wake ? { wake: true } : {}),
+            }),
+          )
+          return
+        case 'resolve':
+          ignore(this.resolveForRun({ resume: input.resume, ...sent, ...run }))
+          return
+        case 'reset':
+          ignore(session.reset({ note: input.note, ...sent }))
+          return
+        case 'configure':
+          ignore(
+            session.updateThreadSettings({ settings: input.settings, ...sent }),
+          )
+          return
+        case 'agentMessage':
+          ignore(
+            session.send(input.message, {
+              ...sent,
+              to: input.operationId,
+              mode: input.mode,
+            }),
+          )
+          return
+        case 'agent':
+          ignore(
+            this.runAgent(input.agent, input.input, {
+              ...asUser,
+              ...(input.detached ? { startTurnWhenDone: true } : {}),
+              ...(input.runAgainAfterCrash ? { runAgainAfterCrash: true } : {}),
+              ...(input.addResultNote === false
+                ? { addResultNote: false }
+                : {}),
+              offered: { inputId, ...run },
+            }),
+          )
+          return
+        case 'cancel':
+          ignore(
+            session.cancel({
+              operationId: input.operationId,
+              inputId,
+              ...asUser,
+            }),
+          )
+          return
+        case 'cancelInput':
+          ignore(
+            this.applyCancelInput({
+              inputId: input.inputId,
+              controlId: inputId,
+              ...asUser,
+            }),
+          )
+          return
+        case 'setDelivery':
+          ignore(
+            this.applySetDelivery({
+              inputId: input.inputId,
+              delivery: input.delivery,
+              controlId: inputId,
+              ...asUser,
+            }),
+          )
+          return
+        case 'command':
+          ignore(
+            session.runCommand({
+              name: input.name,
+              input: input.input,
+              inputId,
+              ...asUser,
+            }),
+          )
+          return
+        case 'answer':
+          ignore(
+            this.applyAnswer({
+              questionId: input.questionId,
+              value: input.value,
+              ...(input.ref !== undefined ? { ref: input.ref } : {}),
+              controlId: inputId,
+              ...asUser,
+            }),
+          )
+          return
+        case 'config':
+          ignore(
+            this.applyConfig({
+              key: input.key,
+              value: input.value,
+              controlId: inputId,
+              ...asUser,
+            }),
+          )
+          return
+        case 'tool':
+          ignore(
+            session.runTool({
+              name: input.name,
+              // Wire args are unknown here. The tool's input schema checks them.
+              args: input.args as never,
+              inputId,
+              ...asUser,
+              ...(input.meta ? { meta: input.meta } : {}),
+            }),
+          )
+          return
+        case 'append':
+          // Only an append with an input id is an input that a host offers.
+          ignore(
+            session.appendRecords({
+              records: input.records,
+              inputId,
+              ...asUser,
+            }),
+          )
+          return
+        case 'revert':
+        case 'unrevert':
+        case 'background':
+          // These run only where they are called. No host offers them.
+          return
+      }
+    } finally {
+      this.anonymousOffer = false
     }
   }
 
@@ -1129,8 +1146,7 @@ export abstract class SessionInputs<
    * change: the event has `offered`, so only the host that offered the
    * input ends its wait with the refusal.
    */
-  private async refuseOffer(inputId: string) {
-    const reason = 'conflict'
+  private async refuseOffer(inputId: string, reason = 'conflict') {
     await this.writer.append(
       [{ type: 'harness.offer.rejected', inputId, reason }],
       { consumes: [inputId] },
