@@ -98,6 +98,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter — tool call deltas without an i
       'test-model',
     ).chatStream({
       logger: testLogger,
+      threadId: 'thread-1',
       model: 'test-model',
       messages: [{ role: 'user', content: 'Weather and time in Berlin?' }],
       tools: [weatherTool],
@@ -106,7 +107,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter — tool call deltas without an i
     }
     return chunks.flatMap((c) =>
       c.type === EventType.TOOL_CALL_END
-        ? [[c.toolCallId, c.toolName, c.args]]
+        ? [[c.toolCallId, c.toolCallName, c.args]]
         : [],
     )
   }
