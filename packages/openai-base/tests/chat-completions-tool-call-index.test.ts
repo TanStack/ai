@@ -166,8 +166,24 @@ describe('OpenAIBaseChatCompletionsTextAdapter — tool call deltas without an i
           id: 'call_b',
           function: { name: 'get_time', arguments: '{"tz":"CET"}' },
         },
+        {
+          id: 'call_a',
+          function: { name: 'get_weather', arguments: '{"location":"Berlin"}' },
+        },
       ]),
-    ).resolves.toEqual([['call_b', 'get_time', '{"tz":"CET"}']])
+    ).resolves.toEqual([
+      ['call_b', 'get_time', '{"tz":"CET"}'],
+      ['call_a', 'get_weather', '{"location":"Berlin"}'],
+    ])
+  })
+
+  it('keeps an id and name on the latest call when that call still has no name', async () => {
+    await expect(
+      endedToolCalls('chatcmpl-args-then-id', [
+        { function: { arguments: '{"location":"Berlin"}' } },
+        { id: 'call_a', function: { name: 'get_weather' } },
+      ]),
+    ).resolves.toEqual([['call_a', 'get_weather', '{"location":"Berlin"}']])
   })
 
   it('does not reuse an index that is still in progress', async () => {

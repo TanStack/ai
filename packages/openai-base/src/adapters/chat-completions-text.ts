@@ -1079,6 +1079,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
                 (!!toolCallDelta.id &&
                   !latestToolCall.id &&
                   !!deltaName &&
+                  !!latestToolCall.name &&
                   deltaName !== latestToolCall.name) ||
                 (!toolCallDelta.id &&
                   !!deltaName &&
