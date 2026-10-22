@@ -57,7 +57,6 @@ export async function POST(req: Request) {
     'image',
     req,
   )
-  if (!threadId) return new Response('Send a threadId.', { status: 400 })
   if (typeof input.prompt !== 'string') {
     return new Response('Send a text prompt.', { status: 400 })
   }
@@ -642,7 +641,6 @@ export async function POST(request: Request) {
     'transcription',
     request,
   )
-  if (!threadId) return new Response('Send a threadId.', { status: 400 })
 
   const stream = generateTranscription({
     adapter: openaiTranscription('whisper-1'),
@@ -757,7 +755,6 @@ export async function POST(request: Request) {
     'video',
     request,
   )
-  if (!threadId) return new Response('Send a threadId.', { status: 400 })
   if (typeof input.prompt !== 'string') {
     return new Response('Send a text prompt.', { status: 400 })
   }
@@ -971,7 +968,6 @@ export async function POST(req: Request) {
     'image',
     req,
   )
-  if (!threadId) return new Response('Send a threadId.', { status: 400 })
   if (typeof input.prompt !== 'string') {
     return new Response('Send a text prompt.', { status: 400 })
   }

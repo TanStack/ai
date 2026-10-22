@@ -84,9 +84,6 @@ export async function POST(request: Request) {
     "image",
     request,
   );
-  if (!threadId) {
-    return new Response("Send a threadId.", { status: 400 });
-  }
 
   const stream = generateImage({
     adapter: mynthImage("auto"),

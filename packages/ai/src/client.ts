@@ -33,8 +33,8 @@ type GenerationInputByKind = {
 export interface GenerationParams<TKind extends GenerationKind> {
   input: GenerationInputByKind[TKind]
   forwardedProps: Record<string, unknown>
-  threadId?: string
-  runId?: string
+  threadId: string
+  runId: string
 }
 
 const generationKinds = [
@@ -54,14 +54,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function hasOwnKey(value: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key)
-}
-
-/**
- * An AG-UI `RunAgentInput` envelope. The generation client sends its input
- * in `forwardedProps`.
- */
-function isGenerationEnvelope(body: unknown): body is Record<string, unknown> {
-  return isRecord(body) && hasOwnKey(body, 'forwardedProps')
 }
 
 function assertGenerationKind(kind: unknown): asserts kind is GenerationKind {
@@ -116,77 +108,38 @@ function assertInputForKind(
   }
 }
 
-function isInputForKind(kind: GenerationKind, input: unknown): boolean {
-  if (!isRecord(input)) return false
-
-  return requiredKeysForKind(kind).some((key) => hasOwnKey(input, key))
-}
-
-function optionalStringField(
-  envelope: Record<string, unknown>,
-  key: 'threadId' | 'runId',
-): string | undefined {
-  if (!hasOwnKey(envelope, key)) {
-    return undefined
-  }
-
-  const value = envelope[key]
-  if (typeof value !== 'string') {
-    throw new Error(`Generation envelope ${key} must be a string.`)
-  }
-
-  return value
-}
-
-function generationIdentityFields(envelope: Record<string, unknown>): {
-  threadId?: string
-  runId?: string
-} {
-  const identity: {
-    threadId?: string
-    runId?: string
-  } = {}
-  const threadId = optionalStringField(envelope, 'threadId')
-  const runId = optionalStringField(envelope, 'runId')
-
-  if (threadId !== undefined) identity.threadId = threadId
-  if (runId !== undefined) identity.runId = runId
-
-  return identity
-}
-
+/**
+ * Read a generation request: the AG-UI `RunAgentInput` body that the
+ * generation hooks send. The input is in `forwardedProps`.
+ *
+ * @throws When the body has no `threadId` or `runId`, or its input does not fit
+ *   the kind.
+ */
 export function generationParamsFromBody<TKind extends GenerationKind>(
   kind: TKind,
   body: unknown,
 ): GenerationParams<TKind> {
   assertGenerationKind(kind)
-
-  if (isInputForKind(kind, body)) {
-    assertInputForKind(kind, body)
-    return {
-      input: body as GenerationInputByKind[TKind],
-      forwardedProps: {},
-    }
+  if (!isRecord(body)) {
+    throw new Error('Generation request body must be a JSON object.')
   }
-
-  if (!isGenerationEnvelope(body)) {
-    assertInputForKind(kind, body)
-    return {
-      input: body as GenerationInputByKind[TKind],
-      forwardedProps: {},
-    }
+  const { threadId, runId, forwardedProps } = body
+  if (typeof threadId !== 'string' || !threadId) {
+    throw new Error('Generation request needs a threadId.')
   }
-
-  const forwardedProps = body.forwardedProps
+  if (typeof runId !== 'string' || !runId) {
+    throw new Error('Generation request needs a runId.')
+  }
   if (!isRecord(forwardedProps)) {
-    throw new Error('Generation envelope forwardedProps must be an object.')
+    throw new Error('Generation request forwardedProps must be an object.')
   }
   assertInputForKind(kind, forwardedProps)
 
   return {
     input: forwardedProps as GenerationInputByKind[TKind],
     forwardedProps,
-    ...generationIdentityFields(body),
+    threadId,
+    runId,
   }
 }
 
@@ -199,10 +152,6 @@ export async function generationParamsFromRequest<TKind extends GenerationKind>(
     body = await request.json()
   } catch (error) {
     throw new Error('Invalid JSON request body.', { cause: error })
-  }
-
-  if (!isRecord(body)) {
-    throw new Error('Generation request body must be a JSON object.')
   }
 
   return generationParamsFromBody(kind, body)

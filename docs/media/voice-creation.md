@@ -45,9 +45,6 @@ import { elevenlabsVoiceDesign } from '@tanstack/ai-elevenlabs'
 
 export async function POST(request: Request) {
   const { input, threadId } = await generationParamsFromRequest('voice', request)
-  if (!threadId) {
-    return new Response('Send a threadId.', { status: 400 })
-  }
   if (typeof input.prompt !== 'string') {
     return new Response('Describe the voice in `prompt`.', { status: 400 })
   }

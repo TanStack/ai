@@ -258,13 +258,23 @@ describe('voice generation request parsing', () => {
     { referenceAudio: 'QUJD' },
     { prompt: 'A warm narrator', referenceAudio: 'QUJD' },
   ])('accepts %o', (body) => {
-    expect(generationParamsFromBody('voice', body).input).toEqual(body)
+    expect(
+      generationParamsFromBody('voice', {
+        threadId: 't1',
+        runId: 'r1',
+        forwardedProps: body,
+      }).input,
+    ).toEqual(body)
   })
 
   it('rejects a body with neither key', () => {
-    expect(() => generationParamsFromBody('voice', { name: 'Guide' })).toThrow(
-      /must include prompt or referenceAudio/i,
-    )
+    expect(() =>
+      generationParamsFromBody('voice', {
+        threadId: 't1',
+        runId: 'r1',
+        forwardedProps: { name: 'Guide' },
+      }),
+    ).toThrow(/must include prompt or referenceAudio/i)
   })
 })
 

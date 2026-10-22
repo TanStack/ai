@@ -83,8 +83,8 @@ export const Route = createFileRoute('/api/transcribe')({
 
         // The AG-UI envelope also carries the generation's identity. Persistence
         // files the run under it, so a reload hydrates the same slot.
-        let threadId: string | undefined
-        let runId: string | undefined
+        let threadId: string
+        let runId: string
         try {
           ;({ threadId, runId } = generationParamsFromBody(
             'transcription',
@@ -95,17 +95,6 @@ export const Route = createFileRoute('/api/transcribe')({
             error: 'invalid_envelope',
             message:
               err instanceof Error ? err.message : 'Invalid request envelope',
-          })
-        }
-
-        // Persistence needs the scope named. It is a type error to wire the
-        // middleware without one, so reject the request rather than inventing
-        // an id the client could never hydrate by.
-        if (!threadId) {
-          return jsonError(400, {
-            error: 'missing_thread_id',
-            message:
-              '`threadId` is required — it is the scope this generation is filed under.',
           })
         }
 
@@ -127,7 +116,7 @@ export const Route = createFileRoute('/api/transcribe')({
             modelOptions,
             stream: true,
             threadId,
-            ...(runId ? { runId } : {}),
+            runId,
             // Transcription produces text, not media — what gets persisted here
             // is the run record plus the INPUT audio as an artifact, so a
             // restored run still shows what was transcribed.

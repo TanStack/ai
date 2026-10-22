@@ -58,9 +58,6 @@ import { openaiVideo } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
   const { input, threadId } = await generationParamsFromRequest('video', request)
-  if (!threadId) {
-    return new Response('Send a threadId.', { status: 400 })
-  }
   if (typeof input.prompt !== 'string') {
     return new Response('Send a text prompt.', { status: 400 })
   }
@@ -302,9 +299,6 @@ const persistence = memoryPersistence()
 
 export async function POST(request: Request) {
   const { input, threadId } = await generationParamsFromRequest('video', request)
-  if (!threadId) {
-    return new Response('Send a threadId.', { status: 400 })
-  }
   if (typeof input.prompt !== 'string') {
     return new Response('Send a text prompt.', { status: 400 })
   }

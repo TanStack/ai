@@ -42,7 +42,7 @@ export const Route = createFileRoute('/api/transcribe')({
           ...params.input,
           stream: true,
           threadId: params.threadId,
-          ...(params.runId ? { runId: params.runId } : {}),
+          runId: params.runId,
         })
 
         return toServerSentEventsResponse(stream)

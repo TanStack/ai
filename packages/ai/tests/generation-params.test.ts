@@ -37,8 +37,34 @@ describe('generationParamsFromBody', () => {
 
   it('rejects an envelope whose forwardedProps is not an object', () => {
     expect(() =>
-      generationParamsFromBody('image', { forwardedProps: 'A red fox' }),
-    ).toThrow('Generation envelope forwardedProps must be an object.')
+      generationParamsFromBody('image', {
+        threadId: 'thread-1',
+        runId: 'run-1',
+        forwardedProps: 'A red fox',
+      }),
+    ).toThrow('Generation request forwardedProps must be an object.')
+  })
+
+  it.each([
+    ['no threadId', { forwardedProps: { prompt: 'A red fox' } }],
+    [
+      'an empty threadId',
+      { threadId: '', forwardedProps: { prompt: 'A red fox' } },
+    ],
+    ['a bare input body', { prompt: 'A red fox' }],
+  ])('rejects %s', (_case, body) => {
+    expect(() => generationParamsFromBody('image', body)).toThrow(
+      'Generation request needs a threadId.',
+    )
+  })
+
+  it('rejects a body with no runId', () => {
+    expect(() =>
+      generationParamsFromBody('image', {
+        threadId: 'thread-1',
+        forwardedProps: { prompt: 'A red fox' },
+      }),
+    ).toThrow('Generation request needs a runId.')
   })
 })
 

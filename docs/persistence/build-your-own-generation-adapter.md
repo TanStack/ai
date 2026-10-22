@@ -588,10 +588,6 @@ export async function POST(request: Request) {
   if (typeof input.prompt !== 'string') {
     throw new Error('This endpoint accepts text image prompts only.')
   }
-  // Persistence files each run under a thread (the slot). It is required.
-  if (threadId === undefined) {
-    return new Response('`threadId` is required', { status: 400 })
-  }
 
   const stream = generateImage({
     adapter: openaiImage('gpt-image-2.5-flare'),

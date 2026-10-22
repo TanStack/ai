@@ -45,9 +45,6 @@ import { openaiSpeech } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
   const { input, threadId } = await generationParamsFromRequest('tts', request)
-  if (!threadId) {
-    return new Response('Send a threadId.', { status: 400 })
-  }
 
   const stream = generateSpeech({
     adapter: openaiSpeech('tts-1-hd'),

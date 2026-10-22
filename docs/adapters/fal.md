@@ -64,9 +64,6 @@ import { falImage } from "@tanstack/ai-fal";
 
 export async function POST(request: Request) {
   const { input, threadId } = await generationParamsFromRequest("image", request);
-  if (!threadId) {
-    return new Response("Send a threadId.", { status: 400 });
-  }
   if (typeof input.prompt !== "string") {
     return new Response("Send a text prompt.", { status: 400 });
   }

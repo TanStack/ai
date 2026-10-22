@@ -195,11 +195,6 @@ const persistence = memoryPersistence()
 export async function POST(request: Request) {
   const { input, threadId } = await generationParamsFromRequest('image', request)
 
-  // No scope means no place to file the job, so nothing can hydrate it.
-  // Reject the request. Do not invent an id.
-  if (threadId === undefined) {
-    return new Response('`threadId` is required', { status: 400 })
-  }
   if (typeof input.prompt !== 'string') {
     throw new Error('This endpoint accepts text image prompts only.')
   }

@@ -47,9 +47,6 @@ import { openaiTranscription } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
   const { input, threadId } = await generationParamsFromRequest('transcription', request)
-  if (!threadId) {
-    return new Response('Send a threadId.', { status: 400 })
-  }
   if (typeof input.audio !== 'string') {
     return new Response('Send the audio as a data URL.', { status: 400 })
   }

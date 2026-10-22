@@ -81,8 +81,8 @@ export const Route = createFileRoute('/api/generate/audio')({
 
         // The AG-UI envelope also carries the generation's identity. Persistence
         // files the run under it, so a reload hydrates the same slot.
-        let threadId: string | undefined
-        let runId: string | undefined
+        let threadId: string
+        let runId: string
         try {
           ;({ threadId, runId } = generationParamsFromBody('audio', body))
         } catch (err) {
@@ -90,17 +90,6 @@ export const Route = createFileRoute('/api/generate/audio')({
             error: 'invalid_envelope',
             message:
               err instanceof Error ? err.message : 'Invalid request envelope',
-          })
-        }
-
-        // Persistence needs the scope named. It is a type error to wire the
-        // middleware without one, so reject the request rather than inventing
-        // an id the client could never hydrate by.
-        if (!threadId) {
-          return jsonError(400, {
-            error: 'missing_thread_id',
-            message:
-              '`threadId` is required — it is the scope this generation is filed under.',
           })
         }
 
@@ -113,7 +102,7 @@ export const Route = createFileRoute('/api/generate/audio')({
             duration,
             stream: true,
             threadId,
-            ...(runId ? { runId } : {}),
+            runId,
             // Copies the generated audio into our blob store and rewrites the
             // result to the shared `/api/artifacts` serve URL, so a restored
             // run still plays after the provider's link expires.
