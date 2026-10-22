@@ -1283,7 +1283,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
                 record.status !== 'pending',
             ))
         if (
-          consumed ||
+          (consumed && this.interrupted) ||
           newPhase ||
           (!this.interrupted && run?.status === 'completed')
         ) {
@@ -1292,34 +1292,40 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
           })
           continue
         }
-        if (!this.interrupted) {
-          await ended({
-            outcome: 'failed',
-            error: { message: 'The interrupted turn is no longer available.' },
+        // A used-up resume with no answer: the host stopped in its
+        // continuation. That runs again below, like a stopped chat turn.
+        if (!consumed) {
+          if (!this.interrupted) {
+            await ended({
+              outcome: 'failed',
+              error: {
+                message: 'The interrupted turn is no longer available.',
+              },
+            })
+            continue
+          }
+          const operation = this.createTurnOperation()
+          this.bindTurn(input.inputId, operation)
+          this.feed.publish(
+            operation.id,
+            customEvent(HARNESS_EVENTS.operationResumed, {
+              operationId: operation.id,
+              ...(operationId ? { resumedFrom: operationId } : {}),
+            }),
+          )
+          // The same turn as a live `resolve()`: it answers the stopped turn,
+          // as the sender of the stopped turn, with its context.
+          this.enqueueTurn({
+            operation,
+            inputId: input.inputId,
+            resume: input.input.resume,
+            answers: this.interrupted,
+            user: this.interrupted.user ?? input.user,
+            context: this.interrupted.context,
+            ...this.recoveredExtras(input.inputId, decision.overrides),
           })
           continue
         }
-        const operation = this.createTurnOperation()
-        this.bindTurn(input.inputId, operation)
-        this.feed.publish(
-          operation.id,
-          customEvent(HARNESS_EVENTS.operationResumed, {
-            operationId: operation.id,
-            ...(operationId ? { resumedFrom: operationId } : {}),
-          }),
-        )
-        // The same turn as a live `resolve()`: it answers the stopped turn,
-        // as the sender of the stopped turn, with its context.
-        this.enqueueTurn({
-          operation,
-          inputId: input.inputId,
-          resume: input.input.resume,
-          answers: this.interrupted,
-          user: this.interrupted.user ?? input.user,
-          context: this.interrupted.context,
-          ...this.recoveredExtras(input.inputId, decision.overrides),
-        })
-        continue
       }
       // Before the repair, which can write a transcript record.
       const cutOff = this.harness.durability?.continueCutOff
