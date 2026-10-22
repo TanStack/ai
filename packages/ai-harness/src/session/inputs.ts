@@ -708,7 +708,12 @@ export abstract class SessionInputs<
     if (!WORK_OPS.has(input.op)) this.inputRecords.end(inputId)
     this.feed.publish(
       'session',
-      customEvent(HARNESS_EVENTS.inputAccepted, { inputId, op: input.op }),
+      // The feed scrubs the session's secrets from the message.
+      customEvent(HARNESS_EVENTS.inputAccepted, {
+        inputId,
+        op: input.op,
+        ...('message' in input ? { message: input.message } : {}),
+      }),
     )
     return 'new'
   }

@@ -427,7 +427,7 @@ In TypeScript, `HarnessEventValues` from `@tanstack/ai-harness` maps each name t
 
 | `name` | `value` |
 | --- | --- |
-| `harness.input.accepted` | `{ inputId, op }` |
+| `harness.input.accepted` | `{ inputId, op, message? }`. `message` is the user message of a `prompt`, `steer`, or `followUp`, without the secrets of the session. |
 | `harness.input.queued` | `{ inputId, delivery }`. The owner of the log stored the input, and it waits behind the running turn or the turns before it. `delivery` is `steer` or `queue`. |
 | `harness.input.applied` | `{ inputId, operationId }` |
 | `harness.input.rejected` | `{ inputId, reason }` |

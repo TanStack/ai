@@ -967,7 +967,12 @@ export interface HarnessEventValues {
   'harness.question.answered': { questionId: string }
   'harness.plugin.event': { plugin: string; name: string; value: unknown }
   'harness.auth_required': AuthRequest
-  'harness.input.accepted': { inputId: string; op: HarnessInput['op'] }
+  /** `message`: the user message of a `prompt`, `steer`, or `followUp`. */
+  'harness.input.accepted': {
+    inputId: string
+    op: HarnessInput['op']
+    message?: UserInput
+  }
   'harness.input.applied': { inputId: string; operationId: string }
   /**
    * `offered` is true when the owner refused an offer from another host, and
