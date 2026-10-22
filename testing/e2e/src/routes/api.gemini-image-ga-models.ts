@@ -26,9 +26,9 @@ async function runStage(
 /**
  * Regression coverage for #1104 (GA image model ids + per-model sizes).
  *
- * Runs the two model calls as independent stages (each with its own
- * try/catch) so a regression in one doesn't mask the other — the two specs
- * each assert on only their own stage's result.
+ * Runs each model call as an independent stage (each with its own
+ * try/catch) so a regression in one doesn't mask another — each spec
+ * asserts on only its own stage's result.
  *
  * 1. `gaModel`: `gemini-3.1-flash-image` — the GA id for "Nano Banana 2" —
  *    must be listed in the package's exported `GeminiImageModels` runtime
@@ -41,17 +41,8 @@ async function runStage(
  *    coverage independent of any TypeScript compile step — nothing in the
  *    adapter's routing logic gates on this array at runtime, so it's the
  *    only way to observe the id addition without a type-checker.
- * 2. `legacyModel`: `gemini-2.5-flash-image` must send
- *    `response_format` with only `aspect_ratio` set — no `image_size` —
- *    because Google documents no `image_size` value for this model.
- *    `parseNativeImageSize`'s regex used to require an `_<resolution>`
- *    suffix on every size string, so a bare ratio like `"16:9"` failed to
- *    match at all pre-fix and no aspect ratio reached the wire. The
- *    `geminiNativeImageMount` in `global-setup.ts` 400s unless
- *    `aspect_ratio` is present and `image_size` is absent, so this is
- *    genuine runtime proof of the parser change, not just a type check.
  *
- * Both models are proxied through `geminiNativeImageMount` (global-setup.ts)
+ * All models are proxied through `geminiNativeImageMount` (global-setup.ts)
  * on the `/gemini-image` prefix. aimock's own `/v1beta/interactions` handler
  * streams text and has no image branch (see that mount's doc comment).
  */
@@ -65,6 +56,7 @@ export const Route = createFileRoute('/api/gemini-image-ga-models')({
 
         const gaModel = await runStage(() =>
           generateImage({
+            threadId: 'gemini-image-ga-models',
             adapter: createGeminiImage('gemini-3.1-flash-image', DUMMY_KEY, {
               httpOptions: { baseUrl: IMAGE_BASE },
             }),
@@ -78,6 +70,7 @@ export const Route = createFileRoute('/api/gemini-image-ga-models')({
         // to the Imagen endpoint, which the mock does not serve.
         const nanoBanana21 = await runStage(() =>
           generateImage({
+            threadId: 'gemini-image-ga-models',
             adapter: createGeminiImage('gemini-nano-banana-2.1', DUMMY_KEY, {
               httpOptions: { baseUrl: IMAGE_BASE },
             }),
@@ -86,20 +79,8 @@ export const Route = createFileRoute('/api/gemini-image-ga-models')({
           }),
         )
 
-        const legacyModel = await runStage(() =>
-          generateImage({
-            adapter: createGeminiImage('gemini-2.5-flash-image', DUMMY_KEY, {
-              httpOptions: { baseUrl: IMAGE_BASE },
-            }),
-            prompt: 'a guitar in a music store',
-            // Bare aspect ratio, no `_<resolution>` suffix — the shape
-            // `gemini-2.5-flash-image` requires post-#1104.
-            size: '16:9',
-          }),
-        )
-
         return new Response(
-          JSON.stringify({ gaModelListed, gaModel, nanoBanana21, legacyModel }),
+          JSON.stringify({ gaModelListed, gaModel, nanoBanana21 }),
           {
             status: 200,
             headers: { 'Content-Type': 'application/json' },

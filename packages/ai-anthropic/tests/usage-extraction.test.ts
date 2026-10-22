@@ -112,6 +112,7 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
     })) {
@@ -174,6 +175,7 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
     })) {
@@ -222,6 +224,7 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
     })) {
@@ -284,6 +287,7 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
     })) {
@@ -343,6 +347,7 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
     })) {
@@ -401,6 +406,7 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
     })) {
@@ -460,6 +466,7 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Say hello in five words.' }],
       modelOptions: { max_tokens: 3 },
@@ -521,6 +528,7 @@ describe('Anthropic usage extraction', () => {
 
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of createAdapter().chatStream({
+        threadId: 'thread-1',
         model: 'claude-opus-4-1',
         messages: [{ role: 'user', content: 'Hello' }],
         logger: createSilentLogger(),
@@ -578,6 +586,7 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of createAdapter().chatStream({
+      threadId: 'thread-1',
       model: 'claude-opus-4-1',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: createSilentLogger(),
@@ -616,6 +625,7 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of createAdapter().chatStream({
+      threadId: 'thread-1',
       model: 'claude-opus-4-1',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: createSilentLogger(),

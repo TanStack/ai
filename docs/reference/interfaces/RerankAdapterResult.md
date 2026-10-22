@@ -3,7 +3,7 @@ id: RerankAdapterResult
 title: RerankAdapterResult
 ---
 
-Defined in: [packages/ai/src/types.ts:2297](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2297)
+Defined in: packages/ai/src/types.ts:2215
 
 Provider-level rerank result. Adapters return scored indices into the
 (serialized) `documents` array plus usage — never the documents themselves.
@@ -17,7 +17,7 @@ The activity attaches the original documents.
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2298](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2298)
+Defined in: packages/ai/src/types.ts:2216
 
 ***
 
@@ -27,7 +27,7 @@ Defined in: [packages/ai/src/types.ts:2298](https://github.com/TanStack/ai/blob/
 ranking: object[];
 ```
 
-Defined in: [packages/ai/src/types.ts:2300](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2300)
+Defined in: packages/ai/src/types.ts:2218
 
 Scored results, highest relevance first, as indices into `documents`.
 
@@ -51,4 +51,4 @@ score: number;
 usage: TokenUsage;
 ```
 
-Defined in: [packages/ai/src/types.ts:2301](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2301)
+Defined in: packages/ai/src/types.ts:2219

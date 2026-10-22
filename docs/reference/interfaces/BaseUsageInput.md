@@ -3,7 +3,7 @@ id: BaseUsageInput
 title: BaseUsageInput
 ---
 
-Defined in: [packages/ai/src/utilities/usage.ts:7](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/usage.ts#L7)
+Defined in: packages/ai/src/utilities/usage.ts:7
 
 Input parameters for building base TokenUsage.
 Provider functions should extract these from their SDK's response.
@@ -16,7 +16,7 @@ Provider functions should extract these from their SDK's response.
 completionTokens: number;
 ```
 
-Defined in: [packages/ai/src/utilities/usage.ts:11](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/usage.ts#L11)
+Defined in: packages/ai/src/utilities/usage.ts:11
 
 Total output/completion tokens
 
@@ -28,7 +28,7 @@ Total output/completion tokens
 promptTokens: number;
 ```
 
-Defined in: [packages/ai/src/utilities/usage.ts:9](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/usage.ts#L9)
+Defined in: packages/ai/src/utilities/usage.ts:9
 
 Total input/prompt tokens
 
@@ -40,6 +40,6 @@ Total input/prompt tokens
 totalTokens: number;
 ```
 
-Defined in: [packages/ai/src/utilities/usage.ts:13](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/usage.ts#L13)
+Defined in: packages/ai/src/utilities/usage.ts:13
 
 Total tokens (prompt + completion)

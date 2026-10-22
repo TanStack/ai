@@ -121,6 +121,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       const chunks = await collect(
         adapter.structuredOutputStream!({
           chatOptions: {
+            threadId: 'thread-1',
             model: 'test-model',
             messages: [{ role: 'user', content: 'extract' }],
             logger: testLogger,
@@ -161,6 +162,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       const chunks = await collect(
         adapter.structuredOutputStream!({
           chatOptions: {
+            threadId: 'thread-1',
             model: 'test-model',
             messages: [{ role: 'user', content: 'extract' }],
             logger: testLogger,
@@ -191,6 +193,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
 
         for await (const chunk of adapter.structuredOutputStream!({
           chatOptions: {
+            threadId: 'thread-1',
             model: 'test-model',
             messages: [{ role: 'user', content: 'extract' }],
             logger: testLogger,
@@ -228,6 +231,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       const chunks = await collect(
         adapter.structuredOutputStream!({
           chatOptions: {
+            threadId: 'thread-1',
             model: 'test-model',
             messages: [{ role: 'user', content: 'extract' }],
             logger: testLogger,
@@ -259,6 +263,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       await collect(
         adapter.structuredOutputStream!({
           chatOptions: {
+            threadId: 'thread-1',
             model: 'test-model',
             messages: [{ role: 'user', content: 'extract' }],
             logger: testLogger,
@@ -291,6 +296,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       await collect(
         adapter.structuredOutputStream!({
           chatOptions: {
+            threadId: 'thread-1',
             model: 'test-model',
             messages: [{ role: 'user', content: 'extract' }],
             logger: testLogger,
@@ -326,6 +332,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       const chunks = await collect(
         adapter.structuredOutputStream!({
           chatOptions: {
+            threadId: 'thread-1',
             model: 'test-model',
             messages: [{ role: 'user', content: 'extract' }],
             logger: testLogger,
@@ -360,6 +367,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
         const chunks = await collect(
           adapter.structuredOutputStream!({
             chatOptions: {
+              threadId: 'thread-1',
               model: 'test-model',
               messages: [{ role: 'user', content: 'extract' }],
               logger: testLogger,
@@ -386,6 +394,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       const chunks = await collect(
         adapter.structuredOutputStream!({
           chatOptions: {
+            threadId: 'thread-1',
             model: 'test-model',
             messages: [{ role: 'user', content: 'extract' }],
             logger: testLogger,
@@ -416,6 +425,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       const chunks = await collect(
         adapter.structuredOutputStream!({
           chatOptions: {
+            threadId: 'thread-1',
             model: 'test-model',
             messages: [{ role: 'user', content: 'extract' }],
             logger: testLogger,
@@ -457,6 +467,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       await collect(
         adapter.structuredOutputStream!({
           chatOptions: {
+            threadId: 'thread-1',
             model: 'test-model',
             messages: [{ role: 'user', content: 'extract' }],
             logger: verboseLogger,

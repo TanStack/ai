@@ -3,7 +3,7 @@ id: StructuredOutputCompleteEvent
 title: StructuredOutputCompleteEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1810](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1810)
+Defined in: packages/ai/src/types.ts:1777
 
 Final event of a streaming structured-output run. Carries the validated
 `object` (typed as `T` after the orchestrator runs Standard Schema parsing),
@@ -40,7 +40,7 @@ if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1789](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1789)
+Defined in: packages/ai/src/types.ts:1756
 
 Extra information attached to this event.
 
@@ -56,7 +56,7 @@ Extra information attached to this event.
 name: "structured-output.complete";
 ```
 
-Defined in: [packages/ai/src/types.ts:1813](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1813)
+Defined in: packages/ai/src/types.ts:1780
 
 What this custom event is. Required: without it a consumer cannot route
 the value.
@@ -75,7 +75,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1788](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1788)
+Defined in: packages/ai/src/types.ts:1755
 
 #### Inherited from
 
@@ -89,7 +89,7 @@ Defined in: [packages/ai/src/types.ts:1788](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1814](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1814)
+Defined in: packages/ai/src/types.ts:1781
 
 The payload. Any JSON value, and required.
 

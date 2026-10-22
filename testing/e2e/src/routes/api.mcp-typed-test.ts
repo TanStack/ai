@@ -46,6 +46,8 @@ async function* closeMcpOnDrain(
  *   It also calls `forecast` with the typed `callTool`.
  * - GET `?extension` calls the `notes/count` extension method of the
  *   stateless server with `request`.
+ * - GET `?prior` connects to the stateless server twice. The second client
+ *   gets the first one's discover result as `prior`.
  * - POST runs chat() with those tools.
  */
 export const Route = createFileRoute('/api/mcp-typed-test')({
@@ -71,6 +73,38 @@ export const Route = createFileRoute('/api/mcp-typed-test')({
             })
           } finally {
             await notes.close()
+          }
+        }
+        if (url.searchParams.has('prior')) {
+          let discovers = 0
+          const transport = {
+            type: 'http' as const,
+            url: `${url.origin}/api/mcp-typed-server?stateless`,
+            fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+              const request = new Request(input, init)
+              const body = await request.clone().text()
+              if (body.includes('"server/discover"')) discovers++
+              return fetch(request)
+            },
+          }
+          const first = await createMCPClient({ transport })
+          const discover = first.getDiscoverResult()
+          await first.close()
+          if (!discover) throw new Error('no discover result')
+          const firstDiscovers = discovers
+          const next = await createMCPClient({
+            transport,
+            prior: { kind: 'modern', discover },
+          })
+          try {
+            const called = await next.callTool('show_note', {})
+            return Response.json({
+              firstDiscovers,
+              nextDiscovers: discovers - firstDiscovers,
+              content: called.content,
+            })
+          } finally {
+            await next.close()
           }
         }
         const mcp = await connect(request, 'alice')

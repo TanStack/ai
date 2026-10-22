@@ -15,35 +15,10 @@
  * implements the same {@link RunEventLog} interface — see
  * {@link DurableObjectRunEventLog} in `./run-log-do`.
  *
- * ---
- *
- * CONVERGED VOCABULARY (v1) + LIVE-DATA MIGRATION:
- *
- * This module used to keep a legacy vocabulary distinct from core's
- * (`TerminalRunStatus = 'done' | 'error' | 'aborted'`, a `RunRecord` with
- * `lastSeq`/`createdAt`/`updatedAt` and an optional `threadId`), deferred
- * because adopting core's shape meant migrating the Durable Object's persisted
- * record layout. That migration is now done: run statuses, `RunError`, and the
- * record's lifecycle fields come from `@tanstack/ai` (`'completed' | 'failed'
- * | 'aborted'` terminal set, `startedAt`/`finishedAt`, required `threadId`),
- * and {@link RunLogRecord} is core's {@link RunRecord} plus the two fields only
- * an event log needs: the `lastSeq` cursor and the `updatedAt` activity clock.
- *
- * Records persisted under the legacy layout are migrated **in place, on first
- * read**, by {@link migrateStoredRunRecord}:
- *
- * - `status` `'done'` → `'completed'`, `'error'` → `'failed'`
- *   (`'running'`/`'aborted'` are unchanged);
- * - `createdAt` → `startedAt`; a terminal record gains
- *   `finishedAt = updatedAt` (the closest stored approximation);
- * - a record persisted without `threadId` gets `threadId = runId`. The log
- *   performs no thread-scoped queries, so this self-reference can never leak
- *   into thread history; it exists only to satisfy the converged shape.
- *
- * `DurableObjectRunEventLog` writes the migrated record back on the read that
- * migrated it, so each record pays the conversion exactly once. The migration
- * is client-visible where the record is: `GET /runs/:id` and the WebSocket
- * terminal `status` frame now carry core's status strings and field names.
+ * Run statuses, `RunError`, and the record's lifecycle fields come from
+ * `@tanstack/ai`. {@link RunLogRecord} is core's {@link RunRecord} plus the two
+ * fields only an event log needs: the `lastSeq` cursor and the `updatedAt`
+ * activity clock.
  */
 import { isTerminalRunStatus } from '@tanstack/ai'
 import type {
@@ -140,66 +115,6 @@ export interface RunEventLog {
     runId: string,
     options?: RunEventLogReadOptions,
   ) => AsyncIterable<RunEvent>
-}
-
-/**
- * The record layout this log persisted before converging on core's run
- * vocabulary. Never constructed by current code — it exists so
- * {@link migrateStoredRunRecord} can name what it reads out of old storage.
- */
-interface LegacyStoredRunRecord {
-  runId: string
-  threadId?: string
-  status: 'running' | 'done' | 'error' | 'aborted'
-  lastSeq: number
-  error?: RunError
-  createdAt: number
-  updatedAt: number
-}
-
-const LEGACY_STATUS_MAP = {
-  done: 'completed',
-  error: 'failed',
-} as const
-
-function isLegacyStoredRunRecord(
-  value: RunLogRecord | LegacyStoredRunRecord,
-): value is LegacyStoredRunRecord {
-  // `createdAt` is the discriminant: it exists on every legacy record and on no
-  // converged one. Status alone would miss legacy `running`/`aborted` records.
-  return 'createdAt' in value
-}
-
-/**
- * Convert a stored record to the converged {@link RunLogRecord} layout.
- *
- * Total over both layouts: a converged record passes through unchanged
- * (`migrated: false`), a legacy one is mapped as documented in the module
- * header (`migrated: true`) so a durable backend can write the result back and
- * pay the conversion exactly once.
- */
-export function migrateStoredRunRecord(
-  stored: RunLogRecord | LegacyStoredRunRecord,
-): { record: RunLogRecord; migrated: boolean } {
-  if (!isLegacyStoredRunRecord(stored))
-    return { record: stored, migrated: false }
-  const status =
-    stored.status === 'done' || stored.status === 'error'
-      ? LEGACY_STATUS_MAP[stored.status]
-      : stored.status
-  const record: RunLogRecord = {
-    runId: stored.runId,
-    // See the module header: the log runs no thread-scoped queries, so a
-    // legacy record without a thread gets a self-reference, never a fake one.
-    threadId: stored.threadId ?? stored.runId,
-    status,
-    lastSeq: stored.lastSeq,
-    startedAt: stored.createdAt,
-    updatedAt: stored.updatedAt,
-    ...(isTerminalRunStatus(status) ? { finishedAt: stored.updatedAt } : {}),
-    ...(stored.error !== undefined ? { error: stored.error } : {}),
-  }
-  return { record, migrated: true }
 }
 
 /** Per-run state for the in-memory log. */

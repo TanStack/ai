@@ -3,7 +3,7 @@ id: RealtimeConnection
 title: RealtimeConnection
 ---
 
-Defined in: [packages/ai/src/realtime/types.ts:339](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L339)
+Defined in: packages/ai/src/realtime/types.ts:339
 
 Connection interface representing an active realtime session.
 Handles audio I/O, events, and session management.
@@ -16,7 +16,7 @@ Handles audio I/O, events, and session management.
 disconnect: () => Promise<void>;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:342](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L342)
+Defined in: packages/ai/src/realtime/types.ts:342
 
 Disconnect from the realtime session
 
@@ -32,7 +32,7 @@ Disconnect from the realtime session
 getAudioVisualization: () => AudioVisualization;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:379](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L379)
+Defined in: packages/ai/src/realtime/types.ts:379
 
 Get audio visualization data
 
@@ -48,7 +48,7 @@ Get audio visualization data
 interrupt: () => void;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:368](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L368)
+Defined in: packages/ai/src/realtime/types.ts:368
 
 Interrupt the current response
 
@@ -64,7 +64,7 @@ Interrupt the current response
 on: <TEvent>(event, handler) => () => void;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:372](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L372)
+Defined in: packages/ai/src/realtime/types.ts:372
 
 Subscribe to connection events
 
@@ -96,7 +96,7 @@ Subscribe to connection events
 sendImage: (imageData, mimeType) => void;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:356](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L356)
+Defined in: packages/ai/src/realtime/types.ts:356
 
 Send an image to the conversation
 
@@ -122,7 +122,7 @@ Send an image to the conversation
 sendText: (text) => void;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:352](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L352)
+Defined in: packages/ai/src/realtime/types.ts:352
 
 Send a text message (fallback for when voice isn't available)
 
@@ -144,7 +144,7 @@ Send a text message (fallback for when voice isn't available)
 sendToolResult: (callId, result) => void;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:360](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L360)
+Defined in: packages/ai/src/realtime/types.ts:360
 
 Send a tool execution result back to the provider
 
@@ -170,7 +170,7 @@ Send a tool execution result back to the provider
 startAudioCapture: () => Promise<void>;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:346](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L346)
+Defined in: packages/ai/src/realtime/types.ts:346
 
 Start capturing audio from the microphone
 
@@ -186,7 +186,7 @@ Start capturing audio from the microphone
 stopAudioCapture: () => void;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:348](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L348)
+Defined in: packages/ai/src/realtime/types.ts:348
 
 Stop capturing audio
 
@@ -202,7 +202,7 @@ Stop capturing audio
 updateSession: (config) => void;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:364](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L364)
+Defined in: packages/ai/src/realtime/types.ts:364
 
 Update session configuration
 
@@ -224,7 +224,7 @@ Update session configuration
 optional updateToken?: (token) => void;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:366](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L366)
+Defined in: packages/ai/src/realtime/types.ts:366
 
 Update the ephemeral token (e.g. on refresh); provider may reconnect
 

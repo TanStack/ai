@@ -97,7 +97,6 @@ TEXT_MESSAGE_START
 TEXT_MESSAGE_CONTENT (streamed)
 TEXT_MESSAGE_END
 RUN_FINISHED
-data: [DONE]
 ```
 
 ## Project layout

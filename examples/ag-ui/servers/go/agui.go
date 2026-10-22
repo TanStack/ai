@@ -120,11 +120,6 @@ func (s *sseStream) writeEvent(payload map[string]any) error {
 	return nil
 }
 
-func (s *sseStream) writeDone() {
-	_, _ = fmt.Fprint(s.w, "data: [DONE]\n\n")
-	s.flusher.Flush()
-}
-
 func (s *sseStream) startRun() error {
 	if s.started {
 		return nil
@@ -203,9 +198,5 @@ func (s *sseStream) streamText(stream func(emit func(string) error) error) error
 	if err := stream(s.writeDelta); err != nil {
 		return err
 	}
-	if err := s.finishSuccess(); err != nil {
-		return err
-	}
-	s.writeDone()
-	return nil
+	return s.finishSuccess()
 }

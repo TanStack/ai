@@ -7,7 +7,7 @@ title: toSpecTokenUsage
 function toSpecTokenUsage(usage, options?): object;
 ```
 
-Defined in: [packages/ai/src/utilities/ag-ui-usage.ts:40](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/ag-ui-usage.ts#L40)
+Defined in: packages/ai/src/utilities/ag-ui-usage.ts:40
 
 ## Parameters
 

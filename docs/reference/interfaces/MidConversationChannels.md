@@ -3,7 +3,7 @@ id: MidConversationChannels
 title: MidConversationChannels
 ---
 
-Defined in: [packages/ai/src/types.ts:412](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L412)
+Defined in: packages/ai/src/types.ts:412
 
 The mid-conversation channels of a model.
 
@@ -15,7 +15,7 @@ The mid-conversation channels of a model.
 systemPrompts: boolean;
 ```
 
-Defined in: [packages/ai/src/types.ts:416](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L416)
+Defined in: packages/ai/src/types.ts:416
 
 Added system prompts can go out as a message at their place.
 
@@ -27,6 +27,6 @@ Added system prompts can go out as a message at their place.
 tools: boolean;
 ```
 
-Defined in: [packages/ai/src/types.ts:414](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L414)
+Defined in: packages/ai/src/types.ts:414
 
 Added tools can go out without a change to the tools of the start point.

@@ -10,7 +10,6 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   InferGenerationOutputFromReturn,
   SummarizeGenerateInput,
 } from '@tanstack/ai-client'
@@ -84,6 +83,7 @@ export interface CreateSummarizeReturn<
  *   import { createSummarize, fetchServerSentEvents } from '@tanstack/ai-svelte'
  *
  *   const summarizer = createSummarize({
+ *     threadId: 'article-summary',
  *     connection: fetchServerSentEvents('/api/summarize'),
  *   })
  * </script>
@@ -106,12 +106,9 @@ export interface CreateSummarizeReturn<
  * ```
  */
 export function createSummarize<TTransformed = void>(
-  options: Omit<
-    CreateSummarizeOptions,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<CreateSummarizeOptions, 'onResult'> & {
     onResult?: (result: SummarizationResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ): CreateSummarizeReturn<
   InferGenerationOutputFromReturn<SummarizationResult, TTransformed>
 > {

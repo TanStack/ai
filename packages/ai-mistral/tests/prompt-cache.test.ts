@@ -51,6 +51,7 @@ async function stream(options: {
   const adapter = createMistralText(model, 'test-key', options.config)
   let usage: unknown
   for await (const event of adapter.chatStream({
+    threadId: 'thread-1',
     logger,
     model,
     messages,
@@ -165,6 +166,7 @@ describe('Mistral cache-read usage', () => {
     const adapter = createMistralText(model, 'test-key')
     const result = await adapter.structuredOutput({
       chatOptions: {
+        threadId: 'thread-1',
         logger,
         model,
         messages,
@@ -204,6 +206,7 @@ describe('Mistral cache-read usage', () => {
     })
     await adapter.structuredOutput({
       chatOptions: {
+        threadId: 'thread-1',
         logger,
         model,
         messages,

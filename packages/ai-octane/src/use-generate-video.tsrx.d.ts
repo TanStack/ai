@@ -18,8 +18,8 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function that returns a completed video result */
   fetcher?: GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
-  /** Unique identifier for this generation instance */
-  id?: string
+  /** Stable scope for this generation. Also the wire and DevTools identity. */
+  threadId: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
@@ -81,6 +81,7 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
  *
  * function VideoGenerator() {
  *   const { generate, result, videoStatus, isLoading } = useGenerateVideo({
+ *     threadId: 'intro-video',
  *     connection: fetchServerSentEvents('/api/generate/video'),
  *     onStatusUpdate: (status) => console.log(`Progress: ${status.progress}%`),
  *   })

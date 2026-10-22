@@ -14,7 +14,7 @@ function DevtoolsMemoryRoute() {
   const chat = useChat({
     threadId: 'devtools-memory:primary',
     connection: fetchServerSentEvents('/api/devtools-memory'),
-    body: { feature: 'chat', testId, aimockPort },
+    forwardedProps: { feature: 'chat', testId, aimockPort },
     devtools: { name: 'Memory Chat' },
   })
 

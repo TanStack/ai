@@ -33,7 +33,7 @@ function artifactsFromResult(result: unknown): Array<unknown> | undefined {
  * to be sent over the same streaming transport as chat.
  *
  * @param generator - An async function that performs the generation and returns the result
- * @param options - Optional configuration (runId, threadId)
+ * @param options - The caller's threadId, plus an optional runId
  * @returns An AsyncIterable of StreamChunks with RUN_STARTED, CUSTOM(generation:result), and RUN_FINISHED events on success, or RUN_STARTED and RUN_ERROR on failure
  */
 export async function* streamGenerationResult<TResult>(
@@ -41,10 +41,10 @@ export async function* streamGenerationResult<TResult>(
     runId: string
     threadId: string
   }) => Promise<TResult>,
-  options?: { runId?: string; threadId?: string },
+  options: { runId?: string; threadId: string },
 ): AsyncIterable<StreamChunk> {
-  const runId = options?.runId ?? createId('run')
-  const threadId = options?.threadId ?? createId('thread')
+  const runId = options.runId ?? createId('run')
+  const threadId = options.threadId
 
   yield {
     type: EventType.RUN_STARTED,

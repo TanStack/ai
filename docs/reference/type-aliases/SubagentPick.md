@@ -12,7 +12,7 @@ type SubagentPick =
 };
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:69](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L69)
+Defined in: packages/ai/src/activities/chat/agents/spawn.ts:69
 
 One agent in a router pick: its name, or its name and its input. An agent
 with `inputSchema` needs `{ name, input }`, and no other agent takes an

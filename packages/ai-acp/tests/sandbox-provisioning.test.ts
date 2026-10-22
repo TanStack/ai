@@ -192,6 +192,7 @@ describe('sandbox provisioning observed by a fake ACP agent', () => {
     // The agent, spawned into the provisioned sandbox, sees all of it.
     const chunks = await collect(
       probe().chatStream({
+        threadId: 'thread-1',
         model: 'probe',
         messages: [{ role: 'user', content: 'report' }],
         logger: noopLogger,
@@ -223,6 +224,7 @@ describe('permission modes (the acpCompatible guardrail surface)', () => {
     })
     const chunks = await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: 'probe',
         messages: [{ role: 'user', content: 'go' }],
         logger: noopLogger,
@@ -285,6 +287,7 @@ describe('workspace skill projection', () => {
 
     await collect(
       probe().chatStream({
+        threadId: 'thread-1',
         model: 'probe',
         messages: [{ role: 'user', content: 'report' }],
         logger: noopLogger,

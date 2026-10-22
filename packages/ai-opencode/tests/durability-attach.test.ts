@@ -183,6 +183,7 @@ describe('opencode durability on a never-journaling adapter', () => {
 
     const chunks = await collectWithin(
       opencodeText(MODEL).chatStream({
+        threadId: 'thread-1',
         model: MODEL,
         runId: 'r-attach-refused',
         messages: [{ role: 'user', content: 'hi' }],
@@ -222,6 +223,7 @@ describe('opencode durability on a never-journaling adapter', () => {
 
     const chunks = await collectWithin(
       opencodeText(MODEL).chatStream({
+        threadId: 'thread-1',
         model: MODEL,
         runId: 'r-fresh-durable',
         messages: [{ role: 'user', content: 'hi' }],
@@ -252,6 +254,7 @@ describe('opencode durability on a never-journaling adapter', () => {
 
     const chunks = await collectWithin(
       opencodeText(MODEL).chatStream({
+        threadId: 'thread-1',
         model: MODEL,
         runId: 'r-no-durability',
         messages: [{ role: 'user', content: 'hi' }],

@@ -75,6 +75,7 @@ async function send(
     },
   })
   for await (const chunk of adapter.chatStream({
+    threadId: 'thread-1',
     logger,
     model,
     ...options,

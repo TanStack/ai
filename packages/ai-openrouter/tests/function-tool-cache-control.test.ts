@@ -71,6 +71,7 @@ async function captureSerializedTool(tool: Tool): Promise<any> {
   const adapter = createOpenRouterText('openai/gpt-4o-mini', 'test-key')
   const chunks: Array<AdapterYieldChunk> = []
   for await (const c of chat({
+    threadId: 'thread-1',
     adapter,
     messages: [{ role: 'user', content: 'hi' }],
     tools: [tool as never],

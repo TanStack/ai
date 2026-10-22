@@ -26,26 +26,14 @@ redirect_from:
   - /getting-started/quick-start-octane
 ---
 
-You want a streaming chat in your app. TanStack AI streams from a server route. The hook for your framework renders the tokens.
+This guide adds a chat that renders tokens while the model writes them. You add a server route, an API key, and a UI.
 
-For a React + Start app with BYOK, open [Basic Chat](../tutorials/basic-chat).
+TanStack AI gives you each piece. `chat()` streams from your server route. A hook for your framework renders the tokens. This takes about 5 minutes.
 
-For an MCP server with a tool, a resource, and a prompt, open [Build an MCP Server](../tutorials/mcp-server).
+Not on the web?
 
-For an image from a prompt, open [Generate Image](../tutorials/generate-image).
-
-For a table that fills as JSON streams, open [Streaming Structured Table](../tutorials/streaming-structured-table).
-
-For a blog desk where a researcher and an SEO agent run together and a writer uses their notes, open [Subagents](../tutorials/subagents).
-
-For a model that clicks through a web page from screenshots, open [Computer Use](../tutorials/computer-use).
-
-> [!TIP]
-> If you do not want a key per provider, [OpenRouter](../adapters/openrouter) gives you 300+ models with one API key.
-
-React Native or Expo needs an absolute server URL and an XHR transport. See [Quick Start: React Native](./quick-start-react-native).
-
-No UI: see [Quick Start: Server Only](./quick-start-server).
+- **React Native or Expo:** go to [Quick Start: React Native](./quick-start-react-native).
+- **No UI, only a backend:** go to [Quick Start: Server Only](./quick-start-server).
 
 ## 1. Install
 
@@ -63,9 +51,20 @@ remix: @tanstack/ai @tanstack/ai-remix @tanstack/ai-openai remix
 
 <!-- ::end:tabs -->
 
+Pick your framework at the top of the page. The install command and the UI code follow your pick.
+
+> [!TIP]
+> If you do not want a key for each provider, use [OpenRouter](../adapters/openrouter). It gives you 300+ models with one API key.
+
 ## 2. Stream from the server
 
-Call `chat()`. Then wrap the result with `toServerSentEventsResponse`.
+Put your API key in the server environment, for example in `.env`:
+
+```bash
+OPENAI_API_KEY=your-openai-api-key
+```
+
+Create a route at `/api/chat`. In Next.js, that is `app/api/chat/route.ts`. Call `chat()`, then return the stream with `toServerSentEventsResponse`:
 
 ```typescript
 import {
@@ -79,7 +78,7 @@ export async function POST(request: Request) {
   const { messages, threadId, runId } = await chatParamsFromRequest(request);
 
   const stream = chat({
-    adapter: openaiText("gpt-5.6"),
+    adapter: openaiText("gpt-6.1-sol"),
     messages,
     threadId,
     runId,
@@ -89,21 +88,7 @@ export async function POST(request: Request) {
 }
 ```
 
-This works with TanStack Start, Next.js, SvelteKit, Hono, and any host that returns a Web `Response`.
-
-A Remix controller action can return this same `Response`.
-
-If your server is Node streams (Express), see [Quick Start: Server Only](./quick-start-server).
-
-Put the API key on the server:
-
-```bash
-OPENAI_API_KEY=your-openai-api-key
-```
-
 The adapter reads `OPENAI_API_KEY` at runtime. Do not send this key to the browser.
-
-If you do not want a server key, see [Bring Your Own Key](../advanced/byok).
 
 ## 3. Render the chat
 
@@ -121,6 +106,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage, isLoading, stop } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -176,6 +162,7 @@ const input = ref('')
 
 const { messages, sendMessage, isLoading, stop } = useChat({
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: "support-chat",
 })
 
 function handleSubmit() {
@@ -218,6 +205,7 @@ export function Chat() {
   const [input, setInput] = createSignal("");
   const { messages, sendMessage, isLoading, stop } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -274,9 +262,11 @@ let input = $state('')
 
 const chat = createChat({
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'support-chat',
 })
 
-function handleSubmit() {
+function handleSubmit(event: SubmitEvent) {
+  event.preventDefault()
   if (input.trim() && !chat.isLoading) {
     chat.sendMessage(input)
     input = ''
@@ -322,6 +312,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage, isLoading, stop } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -400,6 +391,7 @@ import { injectChat, fetchServerSentEvents } from "@tanstack/ai-angular";
 export class ChatComponent {
   chat = injectChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   draft = "";
@@ -435,6 +427,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage, isLoading, stop } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
@@ -496,6 +489,7 @@ export const Chat = clientEntry(
   function Chat(handle: Handle) {
     const chat = createChat(handle, {
       connection: fetchServerSentEvents("/api/chat"),
+      threadId: "support-chat",
     });
 
     return () => (
@@ -542,10 +536,55 @@ See the [Remix API](../api/ai-remix). For a typed headless chat UI, see [Remix C
 
 <!-- ::end:framework -->
 
-Send a message. Tokens show up in the UI.
+No framework? Use `ChatClient` from `@tanstack/ai-client`. See the [client API](../api/ai-client).
 
-## Later
+## 4. Try it
 
-- [Tools](../tools/tools) for function calling
-- [Streaming](../chat/streaming) for cancel, callbacks, and transports
-- [Adapters](../adapters/openai) for other providers
+Start your app and send a message. The answer appears word by word while the model writes it. Click **Stop** to cancel a run.
+
+You now have a streaming chat.
+
+## How it works
+
+1. `sendMessage` posts the messages to `/api/chat`.
+2. `chatParamsFromRequest` reads the messages and the run ids from the request.
+3. `chat()` calls the model through the adapter and returns a stream of events.
+4. `toServerSentEventsResponse` sends those events back as Server-Sent Events.
+5. `fetchServerSentEvents` reads the events, and the hook adds each chunk to `messages`.
+
+Each message has `parts`. This page renders only the `text` parts. Tool calls and other content arrive as other part types.
+
+## Next
+
+Add one feature at a time:
+
+- [Tools](../tools/tools): let the model call your functions.
+- [Streaming](../chat/streaming): cancel, callbacks, and transports.
+- [Adapters](../adapters/openai): switch to another provider.
+
+Or build a full app in a tutorial, such as [Basic Chat](../tutorials/basic-chat) or [Generate Image](../tutorials/generate-image).
+
+## Advanced
+
+### Hosts
+
+The server route returns a Web `Response`. It works with any host that can return one:
+
+- TanStack Start
+- Next.js
+- SvelteKit
+- Hono
+- A Remix controller action
+
+If your server uses Node streams (Express), see [Quick Start: Server Only](./quick-start-server).
+
+### Bad request bodies
+
+If the request body is not valid, `chatParamsFromRequest` throws a `Response` with status 400.
+
+- TanStack Start, SolidStart, Remix, and React Router 7 return a thrown `Response` to the client for you.
+- Next.js Route Handlers, SvelteKit, Hono, and raw Node do not. Wrap the call in `try`/`catch` and return the caught `Response`.
+
+### Keys in the browser
+
+If you do not want a key on the server, users can paste their own provider key. See [Bring Your Own Key](../advanced/byok).

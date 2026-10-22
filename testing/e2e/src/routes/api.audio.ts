@@ -9,7 +9,7 @@ export const Route = createFileRoute('/api/audio')({
       POST: async ({ request }) => {
         await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
         const body = await request.json()
-        const data = body.data ?? body
+        const data = body.forwardedProps ?? body
         const { prompt, duration, provider, testId, aimockPort, feature } =
           data as {
             prompt: string
@@ -28,7 +28,12 @@ export const Route = createFileRoute('/api/audio')({
         )
 
         try {
-          const result = await generateAudio({ adapter, prompt, duration })
+          const result = await generateAudio({
+            threadId: 'audio',
+            adapter,
+            prompt,
+            duration,
+          })
           return new Response(JSON.stringify({ result }), {
             headers: { 'Content-Type': 'application/json' },
           })

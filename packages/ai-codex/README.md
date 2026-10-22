@@ -32,6 +32,7 @@ const stream = chat({
     sandboxMode: 'workspace-write',
   }),
   messages: [{ role: 'user', content: 'Fix the failing test.' }],
+  threadId: 'thread-1',
 })
 ```
 

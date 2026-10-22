@@ -46,6 +46,7 @@ export const Route = createFileRoute('/api/chat')({
         const stream = chat({
           adapter: openaiText('gpt-5.5'),
           messages,
+          threadId: body.threadId,
           systemPrompts: ['You are a helpful assistant.'],
           abortController,
         })
@@ -70,6 +71,7 @@ function ChatPage() {
 
   const { messages, sendMessage, isLoading, error, stop } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-42',
   })
 
   const handleSubmit = () => {
@@ -138,12 +140,13 @@ import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
   const abortController = new AbortController()
 
   const stream = chat({
     adapter: anthropicText('claude-opus-5'),
     messages,
+    threadId,
     modelOptions: {
       temperature: 0.7,
       max_tokens: 2000, // Anthropic-native key
@@ -173,7 +176,8 @@ import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 
 const { messages, sendMessage, isLoading, error, stop, status } = useChat({
   connection: fetchServerSentEvents('/api/chat'),
-  body: { provider: 'anthropic', model: 'claude-opus-5' },
+  threadId: 'support-42',
+  forwardedProps: { provider: 'anthropic', model: 'claude-opus-5' },
   onFinish: (message) => {
     console.log('Response complete:', message.id)
   },
@@ -183,8 +187,9 @@ const { messages, sendMessage, isLoading, error, stop, status } = useChat({
 })
 ```
 
-The `body` field is merged into the POST request body alongside `messages`,
-letting the server read `data.provider`, `data.model`, etc.
+The `forwardedProps` field goes to the server as AG-UI `forwardedProps`.
+The server reads `params.forwardedProps.provider`, `params.forwardedProps.model`,
+and so on. (`body` on `useChat` was removed in 1.0.)
 
 The `status` field tracks the chat lifecycle: `'ready'` | `'submitted'` | `'streaming'` | `'error'`.
 
@@ -239,11 +244,12 @@ import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { geminiText } from '@tanstack/ai-gemini'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
 
   const stream = chat({
     adapter: geminiText('gemini-3.8-flash'),
     messages,
+    threadId,
     reasoning: 'high', // Gemini 3.x: thinkingLevel; Gemini 2.x: thinkingBudget
   })
 
@@ -261,6 +267,7 @@ import type { ContentPart } from '@tanstack/ai'
 
 const { sendMessage } = useChat({
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'support-42',
 })
 
 function sendImageMessage(text: string, imageBase64: string, mimeType: string) {
@@ -331,6 +338,7 @@ import {
 const { isRecording, isSupported, start, stop } = useAudioRecorder()
 const { sendMessage } = useChat({
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'support-42',
 })
 
 async function toggle() {
@@ -356,12 +364,13 @@ import { chat, toHttpResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
   const abortController = new AbortController()
 
   const stream = chat({
     adapter: openaiText('gpt-5.6'),
     messages,
+    threadId,
     abortController,
   })
 
@@ -376,6 +385,7 @@ import { useChat, fetchHttpStream } from '@tanstack/ai-react'
 
 const { messages, sendMessage } = useChat({
   connection: fetchHttpStream('/api/chat'),
+  threadId: 'support-42',
 })
 ```
 
@@ -436,7 +446,7 @@ import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
 
   const mcpClient = await createMCPClient({
     transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
@@ -445,6 +455,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: openaiText('gpt-5.6'),
     messages,
+    threadId,
     mcp: {
       clients: [mcpClient],
       connection: 'keep-alive', // chat() won't close it — reuse across requests
@@ -537,6 +548,7 @@ try {
   const stream = chat({
     adapter: openaiText('gpt-5.6'),
     messages: [{ role: 'user', content: 'Weather in Paris?' }],
+    threadId: 'thread-1',
     tools: await client.tools(),
   })
 
@@ -586,6 +598,7 @@ import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 
 const { messages, queue, sendMessage, cancelQueued, isLoading } = useChat({
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'support-42',
   queue: { whenBusy: 'queue', drain: 'fifo', maxSize: 5, onOverflow: 'reject' },
 })
 ```
@@ -622,6 +635,7 @@ import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 function QueuedMessages() {
   const { queue, cancelQueued } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-42',
   })
 
   return (
@@ -645,6 +659,7 @@ import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 
 const { sendMessage } = useChat({
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'support-42',
 })
 
 sendMessage('Never mind, do this instead', { whenBusy: 'interrupt' })
@@ -736,7 +751,11 @@ import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const messages = [{ role: 'user' as const, content: 'Hello' }]
-const stream = chat({ adapter: openaiText('gpt-5.6'), messages })
+const stream = chat({
+  adapter: openaiText('gpt-5.6'),
+  messages,
+  threadId: 'thread-1',
+})
 ```
 
 ### b. CRITICAL: Using Vercel createOpenAI() provider pattern
@@ -757,7 +776,7 @@ import { openaiText } from '@tanstack/ai-openai'
 import { chat } from '@tanstack/ai'
 
 const messages = [{ role: 'user' as const, content: 'Hello' }]
-chat({ adapter: openaiText('gpt-5.6'), messages })
+chat({ adapter: openaiText('gpt-5.6'), messages, threadId: 'thread-1' })
 ```
 
 ### c. CRITICAL: Using monolithic openai() instead of openaiText()
@@ -765,7 +784,7 @@ chat({ adapter: openaiText('gpt-5.6'), messages })
 ```typescript ignore
 // WRONG — `openai()` is no longer exported from @tanstack/ai-openai
 import { openai } from '@tanstack/ai-openai'
-chat({ adapter: openai(), model: 'gpt-5.6', messages })
+chat({ adapter: openai(), model: 'gpt-5.6', messages, threadId: 'thread-1' })
 ```
 
 ```typescript
@@ -774,7 +793,7 @@ import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const messages = [{ role: 'user' as const, content: 'Hello' }]
-chat({ adapter: openaiText('gpt-5.6'), messages })
+chat({ adapter: openaiText('gpt-5.6'), messages, threadId: 'thread-1' })
 ```
 
 The monolithic `openai()` adapter no longer exists. Use tree-shakeable adapters:
@@ -794,11 +813,12 @@ import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
   const abortController = new AbortController()
   const stream = chat({
     adapter: openaiText('gpt-5.6'),
     messages,
+    threadId,
     abortController,
   })
   return toServerSentEventsResponse(stream, { abortController })
@@ -809,7 +829,12 @@ export async function POST(request: Request) {
 
 ```typescript ignore
 // WRONG
-chat({ adapter: openaiText(), model: 'gpt-5.6', messages })
+chat({
+  adapter: openaiText(),
+  model: 'gpt-5.6',
+  messages,
+  threadId: 'thread-1',
+})
 ```
 
 ```typescript
@@ -818,7 +843,7 @@ import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const messages = [{ role: 'user' as const, content: 'Hello' }]
-chat({ adapter: openaiText('gpt-5.6'), messages })
+chat({ adapter: openaiText('gpt-5.6'), messages, threadId: 'thread-1' })
 ```
 
 The model is passed to the adapter factory, not to `chat()`.
@@ -831,10 +856,21 @@ provider's native key.
 
 ```typescript ignore
 // WRONG — temperature/maxTokens are not root options
-chat({ adapter, messages, temperature: 0.7, maxTokens: 1000 })
+chat({
+  adapter,
+  messages,
+  threadId: 'thread-1',
+  temperature: 0.7,
+  maxTokens: 1000,
+})
 
 // WRONG — there is no `options` field either
-chat({ adapter, messages, options: { temperature: 0.7, maxTokens: 1000 } })
+chat({
+  adapter,
+  messages,
+  threadId: 'thread-1',
+  options: { temperature: 0.7, maxTokens: 1000 },
+})
 ```
 
 ```typescript
@@ -847,6 +883,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: openaiText('gpt-5.6'),
   messages,
+  threadId: 'thread-1',
   modelOptions: { temperature: 0.7, max_output_tokens: 1000 },
 })
 ```
@@ -865,6 +902,7 @@ keys (`max_output_tokens` for OpenAI, `max_tokens` for Anthropic/Grok,
 chat({
   adapter,
   messages,
+  threadId: 'thread-1',
   providerOptions: { text: { format: { type: 'json_object' } } },
 })
 ```
@@ -879,6 +917,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: openaiText('gpt-5.6'),
   messages,
+  threadId: 'thread-1',
   modelOptions: { text: { format: { type: 'json_object' } } },
 })
 ```
@@ -891,8 +930,8 @@ import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
-  const stream = chat({ adapter: openaiText('gpt-5.6'), messages })
+  const { messages, threadId } = await request.json()
+  const stream = chat({ adapter: openaiText('gpt-5.6'), messages, threadId })
 
   const readable = new ReadableStream({
     async start(controller) {
@@ -916,11 +955,12 @@ import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
   const abortController = new AbortController()
   const stream = chat({
     adapter: openaiText('gpt-5.6'),
     messages,
+    threadId,
     abortController,
   })
   return toServerSentEventsResponse(stream, { abortController })
@@ -928,7 +968,9 @@ export async function POST(request: Request) {
 ```
 
 `toServerSentEventsResponse` handles SSE formatting, abort signals,
-error events (RUN_ERROR), and correct headers automatically.
+error events (RUN_ERROR), and correct headers automatically. The hand-written
+stream above also sends `data: [DONE]`, which a 1.0 client cannot parse:
+`RUN_FINISHED` ends the stream.
 
 ### i. HIGH: Implementing custom onEnd/onFinish callbacks instead of middleware
 
@@ -937,6 +979,7 @@ error events (RUN_ERROR), and correct headers automatically.
 chat({
   adapter,
   messages,
+  threadId: 'thread-1',
   onEnd: (result) => {
     trackAnalytics(result)
   },
@@ -961,7 +1004,12 @@ const analytics: ChatMiddleware = {
 }
 
 const messages = [{ role: 'user' as const, content: 'Hello' }]
-chat({ adapter: openaiText('gpt-5.6'), messages, middleware: [analytics] })
+chat({
+  adapter: openaiText('gpt-5.6'),
+  messages,
+  threadId: 'thread-1',
+  middleware: [analytics],
+})
 ```
 
 `chat()` has no `onEnd`/`onFinish` option. Use `middleware` for lifecycle events.
@@ -995,7 +1043,11 @@ import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const messages = [{ role: 'user' as const, content: 'Hello' }]
-const stream = chat({ adapter: openaiText('gpt-5.6'), messages })
+const stream = chat({
+  adapter: openaiText('gpt-5.6'),
+  messages,
+  threadId: 'thread-1',
+})
 
 for await (const chunk of stream) {
   if (chunk.type === 'RUN_ERROR') {

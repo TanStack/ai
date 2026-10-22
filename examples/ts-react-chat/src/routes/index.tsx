@@ -516,6 +516,7 @@ function ChatPage() {
     interrupts,
     stop,
   } = useChat({
+    threadId: 'guitar-chat',
     connection: fetchServerSentEvents('/api/tanchat'),
     tools,
     byok,
@@ -548,6 +549,7 @@ function ChatPage() {
   const [recordError, setRecordError] = useState<string | null>(null)
 
   const { generate: transcribe, isLoading: isTranscribing } = useTranscription({
+    threadId: 'voice-input',
     connection: fetchServerSentEvents('/api/transcribe'),
     onResult: (r) => setInput((prev) => (prev ? `${prev} ${r.text}` : r.text)),
     // A failed transcription (network/provider) is just as silent as a mic

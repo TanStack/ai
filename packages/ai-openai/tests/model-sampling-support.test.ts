@@ -23,6 +23,11 @@ describe('openAIModelRejectsSamplingParams', () => {
       'gpt-5.6-luna',
       'gpt-5.1-codex-mini',
       'codex-mini-latest',
+      'gpt-6-astra',
+      'gpt-6-luna',
+      'gpt-6-sol',
+      'gpt-6.1-sol',
+      'gpt-6.1-sol-pro',
     ]) {
       expect(openAIModelRejectsSamplingParams(model), model).toBe(true)
     }

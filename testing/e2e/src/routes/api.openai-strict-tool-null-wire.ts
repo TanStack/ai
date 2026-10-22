@@ -192,6 +192,7 @@ export const Route = createFileRoute('/api/openai-strict-tool-null-wire')({
 
         try {
           for await (const chunk of chat({
+            threadId: 'openai-strict-tool-null-wire',
             ...createChatOptions({ adapter }),
             messages: [{ role: 'user', content: 'Ask me a question' }],
             tools: [askUser],

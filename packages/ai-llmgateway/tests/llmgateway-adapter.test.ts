@@ -194,6 +194,7 @@ describe('LLM Gateway adapters', () => {
       }
 
       for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
         model: 'gpt-5.6-terra',
         messages: [{ role: 'user', content: 'Hello' }],
         modelOptions,
@@ -243,6 +244,7 @@ describe('LLM Gateway adapters', () => {
       )
 
       await adapter.summarize({
+        threadId: 'thread-1',
         model: 'gpt-5.6-terra',
         text: 'Some long article text that needs summarizing.',
         maxLength: 100,
@@ -299,6 +301,7 @@ describe('LLM Gateway AG-UI event emission', () => {
     const chunks: Array<StreamChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'gpt-5.6-terra',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
@@ -348,6 +351,7 @@ describe('LLM Gateway AG-UI event emission', () => {
     const chunks: Array<StreamChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'gpt-5.6-terra',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
@@ -422,6 +426,7 @@ describe('LLM Gateway AG-UI event emission', () => {
     const chunks: Array<StreamChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'kimi-k3',
       messages: [{ role: 'user', content: 'What is 2+2?' }],
       logger: testLogger,
@@ -511,6 +516,7 @@ describe('LLM Gateway AG-UI event emission', () => {
     const chunks: Array<StreamChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'gpt-5.6-terra',
       messages: [{ role: 'user', content: 'Weather in Paris?' }],
       logger: testLogger,

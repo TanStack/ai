@@ -236,6 +236,19 @@ test.describe('mcp: createMCPServer with auth, output schema, and a task', () =>
     })
   })
 
+  test('a client with a saved discover result as prior skips server/discover', async ({
+    request,
+  }) => {
+    const res = await request.get('/api/mcp-typed-test?prior')
+    const body = await res.text()
+    expect(res.ok(), body).toBe(true)
+    expect(JSON.parse(body)).toEqual({
+      firstDiscovers: 1,
+      nextDiscovers: 0,
+      content: [{ type: 'text', text: 'shown' }],
+    })
+  })
+
   test('a stateless server serves spec 2025 with resource context and tool _meta', async ({
     request,
   }) => {

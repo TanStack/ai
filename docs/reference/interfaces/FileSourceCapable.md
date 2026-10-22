@@ -3,7 +3,7 @@ id: FileSourceCapable
 title: FileSourceCapable
 ---
 
-Defined in: [packages/ai/src/utilities/content-source.ts:74](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/content-source.ts#L74)
+Defined in: packages/ai/src/utilities/content-source.ts:74
 
 The slice of an adapter the file-source preflight reads. Adapters that can
 consume `{ type: 'file' }` sources declare `supportsFileSources: true`;
@@ -19,7 +19,7 @@ URL/data branch and silently mis-mapping the reference.
 name: string;
 ```
 
-Defined in: [packages/ai/src/utilities/content-source.ts:75](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/content-source.ts#L75)
+Defined in: packages/ai/src/utilities/content-source.ts:75
 
 ***
 
@@ -29,4 +29,4 @@ Defined in: [packages/ai/src/utilities/content-source.ts:75](https://github.com/
 optional supportsFileSources?: boolean;
 ```
 
-Defined in: [packages/ai/src/utilities/content-source.ts:76](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/content-source.ts#L76)
+Defined in: packages/ai/src/utilities/content-source.ts:76

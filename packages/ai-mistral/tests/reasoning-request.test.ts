@@ -24,6 +24,7 @@ async function send(
   vi.stubGlobal('fetch', fetchMock)
   const adapter = createMistralText(model, 'test-key')
   for await (const _chunk of adapter.chatStream({
+    threadId: 'thread-1',
     logger,
     model,
     messages: [{ role: 'user', content: 'hi' }],

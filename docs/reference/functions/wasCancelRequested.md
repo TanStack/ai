@@ -7,7 +7,7 @@ title: wasCancelRequested
 function wasCancelRequested(runs, runId): Promise<boolean>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/cancel.ts:71](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/cancel.ts#L71)
+Defined in: packages/ai/src/activities/chat/cancel.ts:71
 
 Whether an explicit cancel has been recorded for `runId`.
 

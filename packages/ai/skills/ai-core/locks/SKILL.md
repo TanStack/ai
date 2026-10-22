@@ -44,6 +44,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: openaiText('gpt-5.6'),
   messages,
+  threadId: 'thread-1',
   middleware: [
     withLocks(new InMemoryLockStore()), // single process
   ],
@@ -64,6 +65,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: openaiText('gpt-5.6'),
   messages,
+  threadId: 'thread-1',
   middleware: [
     withPersistence(persistence),
     withLocks(new InMemoryLockStore()),
@@ -114,6 +116,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: openaiText('gpt-5.6'),
   messages,
+  threadId: 'thread-1',
   middleware: [withLocks(locks)],
 })
 ```

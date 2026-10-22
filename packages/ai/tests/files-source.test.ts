@@ -175,6 +175,7 @@ describe('file source activity preflight', () => {
     await expect(
       collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: [fileImagePart] }],
           outputSchema: z.object({ name: z.string() }),
@@ -210,6 +211,7 @@ describe('file source activity preflight', () => {
 
     expect(() =>
       generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: [fileImagePart],
         middleware: [

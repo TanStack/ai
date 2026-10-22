@@ -10,7 +10,6 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   InferGenerationOutputFromReturn,
   SpeechGenerateInput,
 } from '@tanstack/ai-client'
@@ -83,6 +82,7 @@ export interface CreateGenerateSpeechReturn<TOutput = TTSResult> extends Omit<
  *   import { createGenerateSpeech, fetchServerSentEvents } from '@tanstack/ai-svelte'
  *
  *   const speech = createGenerateSpeech({
+ *     threadId: 'welcome-speech',
  *     connection: fetchServerSentEvents('/api/generate/speech'),
  *   })
  * </script>
@@ -101,12 +101,9 @@ export interface CreateGenerateSpeechReturn<TOutput = TTSResult> extends Omit<
  * ```
  */
 export function createGenerateSpeech<TTransformed = void>(
-  options: Omit<
-    CreateGenerateSpeechOptions,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<CreateGenerateSpeechOptions, 'onResult'> & {
     onResult?: (result: TTSResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ): CreateGenerateSpeechReturn<
   InferGenerationOutputFromReturn<TTSResult, TTransformed>
 > {

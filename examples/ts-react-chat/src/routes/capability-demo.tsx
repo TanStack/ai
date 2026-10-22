@@ -74,7 +74,7 @@ function ChatSurface({ config }: { config: SessionConfig }) {
     // Forwarded to the route as `forwardedProps`: the provider middleware
     // provides `capabilityValue`; `provideCapability=false` omits the provider
     // so chat() throws the capability validation error.
-    body: {
+    forwardedProps: {
       capabilityValue: config.persona,
       provideCapability: config.provideCapability,
     },

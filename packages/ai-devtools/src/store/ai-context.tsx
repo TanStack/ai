@@ -1738,65 +1738,6 @@ export const AIProvider: ParentComponent = (props) => {
     )
 
     cleanupFns.push(
-      aiEventClient.on('tools:approval:responded', (e) => {
-        const {
-          clientId,
-          threadId,
-          streamId,
-          toolCallId,
-          approvalId,
-          approved,
-          timestamp,
-        } = e.payload
-
-        const conversationIds = getToolEventConversationIds({
-          clientId,
-          threadId,
-          streamId,
-          toolCallId,
-          approvalId,
-        })
-
-        for (const conversationId of conversationIds) {
-          const conv = state.conversations[conversationId]
-          if (!conv) continue
-
-          const location = findToolCallLocation(conversationId, {
-            toolCallId,
-            approvalId,
-          })
-          if (!location) continue
-
-          updateToolCall(
-            conversationId,
-            location.messageIndex,
-            location.toolCallIndex,
-            {
-              state: approved ? 'approved' : 'denied',
-              approvalRequired: false,
-              approvalId,
-              approvalApproved: approved,
-            },
-          )
-
-          const message = conv.messages[location.messageIndex]
-          const chunk: Chunk = {
-            id: `chunk-${Date.now()}-${Math.random()}`,
-            type: 'approval',
-            ...(message?.id ? { messageId: message.id } : {}),
-            toolCallId,
-            approvalId,
-            approved,
-            timestamp,
-            chunkCount: 1,
-          }
-
-          addChunkToMessage(conversationId, chunk)
-        }
-      }),
-    )
-
-    cleanupFns.push(
       aiEventClient.on('tools:call:updated', (e) => {
         const {
           clientId,

@@ -7,7 +7,7 @@ title: keyedAdapter
 function keyedAdapter<TAdapter>(provider, create): KeyedAdapter<TAdapter>;
 ```
 
-Defined in: [packages/ai/src/byok/keyed.ts:63](https://github.com/TanStack/ai/blob/main/packages/ai/src/byok/keyed.ts#L63)
+Defined in: packages/ai/src/byok/keyed.ts:63
 
 Wrap an adapter factory that needs a provider key. The host finds the key
 and calls `create` just before each call, so the key is not in your code

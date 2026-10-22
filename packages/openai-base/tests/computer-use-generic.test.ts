@@ -87,6 +87,7 @@ async function runLoop(model: string, call: Record<string, unknown>) {
   } as unknown as OpenAI
   const tool = genericComputerTool()
   for await (const _ of chat({
+    threadId: 'thread-1',
     adapter: new TestAdapter(model, 'openai', client),
     messages: [{ role: 'user', content: 'Click the button.' }],
     tools: [tool],
@@ -193,6 +194,7 @@ describe('portable computer tool on the Chat Completions API', () => {
     } as unknown as OpenAI
     const chunks: Array<StreamChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: new TestChatCompletionsAdapter('gpt-6.1-sol', 'openai', client),
       messages: [{ role: 'user', content: 'Click the button.' }],
       tools: [genericComputerTool()],

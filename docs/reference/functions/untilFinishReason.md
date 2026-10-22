@@ -7,7 +7,7 @@ title: untilFinishReason
 function untilFinishReason(stopReasons): AgentLoopStrategy;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agent-loop-strategies.ts:47](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agent-loop-strategies.ts#L47)
+Defined in: packages/ai/src/activities/chat/agent-loop-strategies.ts:47
 
 Creates a strategy that continues until a specific finish reason is encountered
 
@@ -29,8 +29,8 @@ AgentLoopStrategy that stops on specific finish reasons
 
 ```typescript
 const stream = chat({
-  adapter: openaiText(),
-  model: "gpt-4o",
+  adapter: openaiText("gpt-6.1-sol"),
+  threadId: "thread-1",
   messages: [...],
   tools: [weatherTool],
   agentLoopStrategy: untilFinishReason(["stop", "length"]),

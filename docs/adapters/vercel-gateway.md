@@ -1,7 +1,7 @@
 ---
 title: Vercel AI Gateway
 id: vercel-gateway-adapter
-description: "Use one API key to reach many providers through Vercel AI Gateway. Route, fall back, and generate chat, embeddings, and images with @tanstack/ai-vercel-gateway."
+description: "Reach many providers with one API key through Vercel AI Gateway and @tanstack/ai-vercel-gateway: chat, provider fallback, embeddings, images, summaries, and evaluate."
 keywords:
   - tanstack ai
   - vercel
@@ -15,11 +15,9 @@ keywords:
   - jev
 ---
 
-You want one API key and one URL, and you still want to pick the provider per request. Vercel AI Gateway sits in front of many model providers. This package talks to that public OpenAI-compatible API.
+`vercelGatewayText` calls many providers through one API key and one URL. You pick the provider per request, and you can set a fallback order.
 
-Install `@tanstack/ai-vercel-gateway`. Then call `vercelGatewayText`, `vercelGatewayEmbedding`, `vercelGatewayImage`, or `vercelGatewayDecider`.
-
-## Installation
+## 1. Install
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
@@ -34,209 +32,180 @@ octane: @tanstack/ai-vercel-gateway
 
 <!-- ::end:tabs -->
 
-## Auth
+## 2. Set the API key
 
-Set `AI_GATEWAY_API_KEY`. If that key is not set, the adapter uses `VERCEL_OIDC_TOKEN`.
+Put the key in the environment of your server:
 
 ```bash
-export AI_GATEWAY_API_KEY="..."
+AI_GATEWAY_API_KEY=vck_...
 ```
 
-You can also pass the key to a `create*` factory:
+The adapters read `AI_GATEWAY_API_KEY`. If it is not set, they read `VERCEL_OIDC_TOKEN`. To pass the key in code, use the `create*` factory of the same adapter:
 
 ```typescript
-import { createVercelGatewayText } from "@tanstack/ai-vercel-gateway"
+import { createVercelGatewayText } from "@tanstack/ai-vercel-gateway";
 
 const adapter = createVercelGatewayText(
-  "anthropic/claude-opus-5",
+  "anthropic/claude-sonnet-5.5",
   process.env.AI_GATEWAY_API_KEY!,
-)
+);
 ```
 
-## Chat
+## 3. Stream a chat from the server
 
-The default adapter uses the OpenAI Responses API at `https://ai-gateway.vercel.sh/v1`. Model ids use the `creator/model` form.
-
-**Server.** An endpoint that streams the reply over SSE:
+Model ids use the `creator/model` form:
 
 ```typescript
-import { chat, toServerSentEventsResponse } from "@tanstack/ai"
-import { vercelGatewayText } from "@tanstack/ai-vercel-gateway"
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { vercelGatewayText } from "@tanstack/ai-vercel-gateway";
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
 
   const stream = chat({
-    adapter: vercelGatewayText("anthropic/claude-opus-5"),
+    adapter: vercelGatewayText("anthropic/claude-sonnet-5.5"),
     messages,
-  })
+    threadId,
+    runId,
+  });
 
-  return toServerSentEventsResponse(stream)
+  return toServerSentEventsResponse(stream);
 }
 ```
 
-**Client.** The same `useChat` hook as every other provider:
+## 4. Render the chat
+
+The client is the same for every provider. Point `useChat` at your route:
 
 ```tsx
-import { useState } from "react"
-import { fetchServerSentEvents, useChat } from "@tanstack/ai-react"
+import { useState } from "react";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
 export function Chat() {
-  const [input, setInput] = useState("")
-
-  const { messages, sendMessage, isLoading } = useChat({
+  const [input, setInput] = useState("");
+  const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
-  })
+    threadId: "support-chat",
+  });
 
   return (
-    <div>
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        sendMessage(input);
+        setInput("");
+      }}
+    >
       {messages.map((message) => (
-        <div key={message.id}>
-          <strong>{message.role}</strong>
-          {message.parts.map((part, index) =>
-            part.type === "text" ? <p key={index}>{part.content}</p> : null,
-          )}
-        </div>
+        <p key={message.id}>
+          {message.parts
+            .map((part) => (part.type === "text" ? part.content : ""))
+            .join("")}
+        </p>
       ))}
-
-      <form
-        onSubmit={(event) => {
-          event.preventDefault()
-          if (!input.trim() || isLoading) return
-          sendMessage(input)
-          setInput("")
-        }}
-      >
-        <input value={input} onChange={(event) => setInput(event.target.value)} />
-        <button type="submit" disabled={isLoading}>
-          Send
-        </button>
-      </form>
-    </div>
-  )
+      <input value={input} onChange={(event) => setInput(event.target.value)} />
+    </form>
+  );
 }
 ```
 
-## Reasoning
+For Vue, Solid, Svelte, Angular, and the other frameworks, see [Quick Start](../getting-started/quick-start#3-render-the-chat).
 
-Set `reasoning` on `chat()`. The types take the levels of each model:
+You now have a streaming chat through the gateway. To change the provider, change the model id, for example to `openai/gpt-6.1-sol`.
 
-```typescript
-import { chat } from "@tanstack/ai"
-import { vercelGatewayText } from "@tanstack/ai-vercel-gateway"
+## Fallback and routing
 
-const stream = chat({
-  adapter: vercelGatewayText("anthropic/claude-opus-5", { api: "chat" }),
-  messages: [{ role: "user", content: "Plan a database migration." }],
-  reasoning: { level: "high", budgetTokens: 8000 },
-})
-```
-
-What goes on the wire:
-
-- Chat Completions (`api: "chat"`): the gateway `reasoning` object. A level sends `{ effort }`, `budgetTokens` sends `{ enabled: true, max_tokens }`, and `off` sends `{ enabled: false }`. `summary: false` adds `exclude: true`.
-- Responses (the default): `reasoning.effort`. It takes no `budgetTokens`.
-
-## Chat Completions
-
-Pass `{ api: "chat" }` when the model must talk to Chat Completions. The default is Responses.
+Put the routing options in `modelOptions.gateway`:
 
 ```typescript
-import { chat } from "@tanstack/ai"
-import { vercelGatewayText } from "@tanstack/ai-vercel-gateway"
+import { chat } from "@tanstack/ai";
+import { vercelGatewayText } from "@tanstack/ai-vercel-gateway";
 
 const stream = chat({
-  adapter: vercelGatewayText("openai/gpt-5.5", { api: "chat" }),
+  adapter: vercelGatewayText("anthropic/claude-sonnet-5.5"),
   messages: [{ role: "user", content: "Hello" }],
-})
-```
-
-`api: "responses"` is the same as the default. `api: "chat-completions"` is the same as `api: "chat"`.
-
-Need a header on each request, or a log of each model call? The chat adapters on this page support [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
-
-## Gateway routing
-
-Put Gateway routing on `modelOptions.gateway`. The adapter sends those fields as `providerOptions.gateway`. Do not put `gateway` at the top level of the request body.
-
-```typescript
-import { chat } from "@tanstack/ai"
-import { vercelGatewayText } from "@tanstack/ai-vercel-gateway"
-
-const stream = chat({
-  adapter: vercelGatewayText("anthropic/claude-opus-5"),
-  messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
   modelOptions: {
     gateway: {
       order: ["anthropic", "openai"],
-      only: ["anthropic"],
+      models: ["anthropic/claude-sonnet-5.5", "openai/gpt-6.1-sol"],
       sort: "cost",
-      models: ["anthropic/claude-opus-5", "openai/gpt-5.5"],
-      caching: "auto",
-      disallowPromptTraining: true,
     },
   },
-})
+});
 ```
 
-`order` is the provider try list. `only` limits which providers can run. `sort` picks cost, time to first token, or tokens per second. `models` is the fallback model list.
+- `order`: the providers to try, in this order.
+- `only`: the only providers that can run the request.
+- `sort`: sort by cost, time to first token, or tokens per second.
+- `models`: the fallback models.
+- `caching`, `disallowPromptTraining`, `zeroDataRetention`, and more: the other fields of the `VercelGatewayRoutingOptions` type.
 
-`order` and `only` accept catalog provider ids such as `"anthropic"`. `models` accepts catalog chat model ids. Each chat model also has its own `modelOptions` keys and input types from the catalog. A text-only model does not accept image parts. A model without `temperature` in the catalog does not accept `temperature`.
+`order` and `only` take catalog provider ids, such as `"anthropic"`. `models` takes catalog chat model ids. See [How routing goes out](#how-routing-goes-out).
 
 ## Embeddings
 
 ```typescript
-import { embed } from "@tanstack/ai"
-import { vercelGatewayEmbedding } from "@tanstack/ai-vercel-gateway"
+import { embed } from "@tanstack/ai";
+import { vercelGatewayEmbedding } from "@tanstack/ai-vercel-gateway";
 
 const result = await embed({
   adapter: vercelGatewayEmbedding("openai/text-embedding-3-small"),
   input: "a red guitar",
-})
+});
 
-console.log(result.embeddings[0]?.vector)
+console.log(result.embeddings[0]?.vector);
 ```
 
-## Image
+See the [Embeddings guide](../embeddings.md).
 
-Image generation is text-to-image only. The adapter calls `POST /v1/images/generations`. Image edits are not in this package yet.
+## Images
+
+The image adapter makes images from text. It calls `POST /v1/images/generations`. It does not edit images.
 
 ```typescript
-import { generateImage } from "@tanstack/ai"
-import { vercelGatewayImage } from "@tanstack/ai-vercel-gateway"
+import { generateImage } from "@tanstack/ai";
+import { vercelGatewayImage } from "@tanstack/ai-vercel-gateway";
 
 const result = await generateImage({
-  adapter: vercelGatewayImage("openai/gpt-image-1"),
+  adapter: vercelGatewayImage("openai/gpt-image-2.5-flare"),
   prompt: "a red guitar",
-})
+  threadId: "thread-1",
+});
 ```
 
-## Summarize
+See [Image Generation](../media/image-generation).
+
+## Summarization
 
 ```typescript
-import { summarize } from "@tanstack/ai"
-import { vercelGatewaySummarize } from "@tanstack/ai-vercel-gateway"
+import { summarize } from "@tanstack/ai";
+import { vercelGatewaySummarize } from "@tanstack/ai-vercel-gateway";
 
 const result = await summarize({
-  adapter: vercelGatewaySummarize("anthropic/claude-opus-5"),
+  adapter: vercelGatewaySummarize("anthropic/claude-sonnet-5.5"),
   text: "The Fender Stratocaster is a versatile electric guitar.",
+  threadId: "thread-1",
   stream: false,
-})
+});
 ```
 
 ## Evaluate
 
-Use `vercelGatewayDecider` with `decide()`. The request goes to
-`POST https://ai-gateway.vercel.sh/v4/ai/evaluation-model`.
+Sometimes you need an answer that your code can branch on, not chat text: a queue name, an urgency level, or a yes or no. Use `vercelGatewayDecider` with `decide()` to ask Jev typed questions:
 
 ```typescript
-import { decide, choice, score, boolean } from "@tanstack/ai"
-import { vercelGatewayDecider } from "@tanstack/ai-vercel-gateway"
+import { decide, choice, score, boolean } from "@tanstack/ai";
+import { vercelGatewayDecider } from "@tanstack/ai-vercel-gateway";
 
 const ticket = {
   subject: "Charged twice for the same invoice",
   body: "Please refund the extra payment.",
-}
+};
 
 const result = await decide({
   adapter: vercelGatewayDecider("typesafe-ai/jev"),
@@ -258,24 +227,107 @@ const result = await decide({
       instructions: "Is the customer asking for a refund?",
     }),
   },
-})
+});
 
-console.log(result.queue.value)
-console.log(result.queue.probability)
-console.log(result.queue.confidence)
-console.log(result.meta.usage)
+console.log(result.queue.value); // "billing"
+console.log(result.urgency.value); // "medium"
+console.log(result.refund.value); // true
 ```
 
-`vercelGatewayDecider` reads `AI_GATEWAY_API_KEY`, then `VERCEL_OIDC_TOKEN`.
-Pass a key yourself with `createVercelGatewayDecider("typesafe-ai/jev", "vck_...")`.
+- The request goes to `POST https://ai-gateway.vercel.sh/v4/ai/evaluation-model`.
+- `vercelGatewayDecider` reads the same keys as chat. To pass a key yourself, use `createVercelGatewayDecider("typesafe-ai/jev", "vck_...")`.
+- Gateway routing goes in `modelOptions.gateway`, the same as for chat.
 
-Put Gateway routing on `modelOptions.gateway`, the same as chat.
+See the [Evaluate guide](../evaluate/evaluate) for the question helpers, the result shape, abort, and middleware.
 
-See the [Evaluate guide](../evaluate/evaluate) for question helpers, the result
-shape, abort, and middleware.
+## Not in this package
 
-## What this package does not do
+This package does not do video, speech, transcription, or rerank. Use a dedicated adapter for these.
 
-This package does not generate video. It does not do speech, transcription, or rerank. Use a dedicated adapter for those activities.
+## Models and options
 
-The catalog is a closed list from `GET /v1/models`. Daily CI updates that list.
+### Model options
+
+Each chat model has its own `modelOptions` keys and input types from the catalog. For example:
+
+- A text-only model does not accept image parts.
+- A model without `temperature` in the catalog does not accept `temperature`.
+
+### Reasoning
+
+Set `reasoning` on `chat()`. The types take the levels of each model:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { vercelGatewayText } from "@tanstack/ai-vercel-gateway";
+
+const stream = chat({
+  adapter: vercelGatewayText("anthropic/claude-opus-5", { api: "chat" }),
+  messages: [{ role: "user", content: "Plan a database migration." }],
+  threadId: "thread-1",
+  reasoning: { level: "high", budgetTokens: 8000 },
+});
+```
+
+What goes to the gateway:
+
+- Chat Completions (`api: "chat"`): the gateway `reasoning` object. A level sends `{ effort }`. `budgetTokens` sends `{ enabled: true, max_tokens }`. `off` sends `{ enabled: false }`. `summary: false` adds `exclude: true`.
+- Responses (the default): `reasoning.effort`. It takes no `budgetTokens`.
+
+See [Reasoning](../chat/reasoning).
+
+### Models
+
+The catalog is a closed list from `GET /v1/models`. A daily CI job updates it. The package exports the lists:
+
+| Constant | Holds |
+| --- | --- |
+| `VERCEL_GATEWAY_CHAT_MODELS` | Chat models, for example `anthropic/claude-sonnet-5.5` and `openai/gpt-6.1-sol` |
+| `VERCEL_GATEWAY_EMBEDDING_MODELS` | Embedding models, for example `openai/text-embedding-3-small` and `voyage/voyage-4` |
+| `VERCEL_GATEWAY_IMAGE_MODELS` | Image models, for example `openai/gpt-image-2.5-flare` and `bfl/flux-3-image` |
+| `VERCEL_GATEWAY_PROVIDERS` | Provider ids for `order` and `only` |
+
+The evaluate model is `typesafe-ai/jev`.
+
+## Advanced
+
+### Chat Completions
+
+The default text adapter uses the OpenAI Responses API at `https://ai-gateway.vercel.sh/v1`. If a model must use Chat Completions, pass `{ api: "chat" }`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { vercelGatewayText } from "@tanstack/ai-vercel-gateway";
+
+const stream = chat({
+  adapter: vercelGatewayText("openai/gpt-5.5", { api: "chat" }),
+  messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
+});
+```
+
+- `api: "responses"` is the same as the default.
+- `api: "chat-completions"` is the same as `api: "chat"`.
+
+Need a header on each request, or a log of each model call? The chat adapters on this page support [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
+
+### How routing goes out
+
+The adapter sends `modelOptions.gateway` as `providerOptions.gateway`. Do not put `gateway` at the top level of the request body.
+
+### Bring your own key
+
+`vercelGatewayByok` from `@tanstack/ai-vercel-gateway/byok` declares the gateway for the BYOK store, with `AI_GATEWAY_API_KEY` and `VERCEL_OIDC_TOKEN` as its env vars. See [Bring Your Own Key](../advanced/byok).
+
+### API reference
+
+Each short factory reads `AI_GATEWAY_API_KEY`, then `VERCEL_OIDC_TOKEN`. Each `create*` factory takes an explicit API key. Both take `model` as the first argument.
+
+| Factories | Creates |
+| --- | --- |
+| `vercelGatewayText` / `createVercelGatewayText` | Chat adapter (Responses by default, Chat Completions with `api: "chat"`) |
+| `vercelGatewayResponsesText` / `createVercelGatewayResponsesText` | Chat adapter for the Responses API |
+| `vercelGatewaySummarize` / `createVercelGatewaySummarize` | Summarization adapter |
+| `vercelGatewayEmbedding` / `createVercelGatewayEmbedding` | Embedding adapter |
+| `vercelGatewayImage` / `createVercelGatewayImage` | Image adapter |
+| `vercelGatewayDecider` / `createVercelGatewayDecider` | Evaluate adapter |

@@ -138,6 +138,7 @@ describe('snippetToTool', () => {
     await tool.execute!(
       { value: 1 },
       {
+        threadId: 'thread-1',
         emitCustomEvent: vi.fn(),
         abortSignal: controller.signal,
         context: { userId: 'u1' },

@@ -119,6 +119,7 @@ describe('createChatHook', () => {
 
     function Screen() {
       const chat = useAppChat({
+        threadId: 'thread-1',
         initialMessages: [messageWithToolResults] as Array<
           ChatUIHost<typeof chatOptions>['messages'][number]
         >,

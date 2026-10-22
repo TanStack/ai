@@ -12,6 +12,7 @@ Choose an example based on your use case:
 - **Want typed ticket routing?** → [Evaluate](#evaluate)
 - **Want a blog desk with three agents?** → [Subagents](#subagents)
 - **Want your own MCP server?** → [MCP server](#mcp-server)
+- **Want a signed MCP webhook?** → [MCP Events](#mcp-events)
 - **Want the model to use a web page?** → [Computer Use](#computer-use)
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
 - **Need a live world stream?** → [World generation (ts-react-media)](#world-generation-ts-react-media)
@@ -144,6 +145,24 @@ pnpm --filter mcp-server dev
 Open http://localhost:3100. Click Call the server.
 
 📖 [Full Documentation](react/mcp-server/README.md)
+
+---
+
+### MCP Events
+
+A slim TanStack Start app. Subscribe to `incident.created`, then receive a signed webhook.
+
+**Path:** `examples/react/mcp-events`
+
+**Getting Started:**
+
+```bash
+pnpm --filter mcp-events dev
+```
+
+Open http://127.0.0.1:3101. Click Subscribe, then Emit incident.
+
+📖 [Full Documentation](react/mcp-events/README.md)
 
 ---
 

@@ -52,6 +52,7 @@ async function run(stream: Array<unknown>) {
   })
   const chunks: Array<AdapterYieldChunk> = []
   for await (const chunk of new Responses(model, 'openai', client).chatStream({
+    threadId: 'thread-1',
     logger,
     model,
     messages: [{ role: 'user', content: 'Weather in Paris?' }],

@@ -90,6 +90,7 @@ Please complete all three steps: execute the code, register the snippet, and tel
     // Get tools and system prompt with snippets integration
     const { tools: tools1, systemPrompt: systemPrompt1 } =
       await codeModeWithSnippets({
+        threadId: 'test-cli',
         config: {
           driver,
           tools: [addNumbersTool],
@@ -115,6 +116,7 @@ Please complete all three steps: execute the code, register the snippet, and tel
     logStep(2, 'Executing chat with LLM')
 
     const stream1 = chat({
+      threadId: 'test-cli',
       adapter,
       messages: messages1,
       tools: tools1 as any,
@@ -237,6 +239,7 @@ If you have a snippet called "add_two_numbers" available, please use it directly
         systemPrompt: systemPrompt2,
         selectedSnippets,
       } = await codeModeWithSnippets({
+        threadId: 'test-cli',
         config: {
           driver,
           tools: [addNumbersTool],
@@ -274,6 +277,7 @@ If you have a snippet called "add_two_numbers" available, please use it directly
       logStep(2, 'Executing chat with LLM')
 
       const stream2 = chat({
+        threadId: 'test-cli',
         adapter,
         messages: messages2,
         tools: tools2 as any,

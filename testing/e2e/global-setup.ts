@@ -6,6 +6,11 @@ import { fileURLToPath } from 'url'
 import { EventStreamCodec } from '@smithy/eventstream-codec'
 import type { Mountable } from '@copilotkit/aimock'
 
+declare global {
+  // Read back by global-teardown.ts, which Playwright runs in the same process.
+  var __aimock: LLMock | undefined
+}
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
@@ -206,7 +211,7 @@ export default async function globalSetup() {
 
   await mock.start()
   console.log(`[aimock] started on port 4010`)
-  ;(globalThis as any).__aimock = mock
+  globalThis.__aimock = mock
 }
 
 function registerMediaFixtures(mock: LLMock) {
@@ -228,7 +233,6 @@ function registerMediaFixtures(mock: LLMock) {
   mock.onVideo('a guitar being played in a store', {
     video: {
       url: 'https://example.com/guitar-store.mp4',
-      duration: 10,
       id: 'video-job-e2e',
       status: 'completed',
     },
@@ -241,7 +245,6 @@ function registerMediaFixtures(mock: LLMock) {
   mock.onVideo('animate this product photo', {
     video: {
       url: 'https://example.com/product-animated.mp4',
-      duration: 5,
       id: 'video-job-i2v-e2e',
       status: 'completed',
     },
@@ -737,8 +740,7 @@ function rejectGeminiImageRequest(
 
 /**
  * Mounts Gemini native image calls on the Interactions API for
- * `gemini-3.1-flash-image`, `gemini-nano-banana-2.1` and
- * `gemini-2.5-flash-image`.
+ * `gemini-3.1-flash-image` and `gemini-nano-banana-2.1`.
  *
  * The adapter posts `POST /v1beta/interactions` with `response_format.type`
  * `image`. This mount reads that body so two specs can assert on the wire:
@@ -752,7 +754,6 @@ function geminiNativeImageMount(): Mountable {
   const NATIVE_IMAGE_MODELS = new Set([
     'gemini-3.1-flash-image',
     'gemini-nano-banana-2.1',
-    'gemini-2.5-flash-image',
   ])
 
   // Coupled to the `size` values in api.gemini-image-ga-models.ts.
@@ -883,15 +884,6 @@ function geminiNativeImageMount(): Mountable {
             'generation_config.thinking_level must be "low".',
           )
         }
-        if (
-          model === 'gemini-2.5-flash-image' &&
-          format.image_size !== undefined
-        ) {
-          return rejectGeminiImageRequest(
-            res,
-            `${model}: response_format.image_size must be absent.`,
-          )
-        }
       } else {
         const aspectRatio = format.aspect_ratio
         const imageSize = format.image_size
@@ -901,17 +893,10 @@ function geminiNativeImageMount(): Mountable {
             `${model}: response_format.aspect_ratio must be "${EXPECTED_ASPECT_RATIO}", got ${JSON.stringify(aspectRatio)}.`,
           )
         }
-        if (model !== 'gemini-2.5-flash-image') {
-          if (imageSize !== EXPECTED_FLASH_IMAGE_SIZE) {
-            return rejectGeminiImageRequest(
-              res,
-              `${model}: response_format.image_size must be "${EXPECTED_FLASH_IMAGE_SIZE}", got ${JSON.stringify(imageSize)}.`,
-            )
-          }
-        } else if (imageSize !== undefined) {
+        if (imageSize !== EXPECTED_FLASH_IMAGE_SIZE) {
           return rejectGeminiImageRequest(
             res,
-            `${model}: response_format.image_size must be absent.`,
+            `${model}: response_format.image_size must be "${EXPECTED_FLASH_IMAGE_SIZE}", got ${JSON.stringify(imageSize)}.`,
           )
         }
       }

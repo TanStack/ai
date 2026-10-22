@@ -36,6 +36,7 @@ import { worldlabsWorld } from '@tanstack/ai-worldlabs'
 
 const world = await generateWorld({
   adapter: worldlabsWorld('marble-1.1'),
+  threadId: 'thread-1',
   prompt: 'A mystical forest with glowing mushrooms',
 })
 

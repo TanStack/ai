@@ -129,6 +129,7 @@ function ChatPage() {
   const { messages, sendMessage, isLoading, error, stop, interrupts } = useChat(
     {
       connection: fetchServerSentEvents('/api/chat'),
+      threadId: 'computer-use',
       interrupts: [computerSafetyCheck],
     },
   )

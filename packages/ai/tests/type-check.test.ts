@@ -92,6 +92,7 @@ type ChatStreamChunk = ChatStream extends AsyncIterable<infer C> ? C : never
 describe('TextActivityOptions type checking', () => {
   it('should allow valid options', () => {
     const options = createChatOptions({
+      threadId: 'thread-1',
       adapter: mockAdapter,
       messages: [{ role: 'user', content: 'Hello' }],
       modelOptions: {
@@ -101,6 +102,16 @@ describe('TextActivityOptions type checking', () => {
     })
 
     expectTypeOf(options.adapter).toExtend<MockAdapter>()
+  })
+
+  it('leaves threadId optional on createChatOptions but required on chat()', () => {
+    const options = createChatOptions({ adapter: mockAdapter })
+    const run = () => {
+      // @ts-expect-error chat() needs a threadId
+      chat({ ...options, messages: [] })
+      chat({ ...options, messages: [], threadId: 'thread-1' })
+    }
+    void run
   })
 
   it('should reject invalid properties on createChatOptions', () => {
@@ -141,6 +152,7 @@ describe('TextActivityOptions type checking', () => {
     }
 
     createChatOptions({
+      threadId: 'thread-1',
       adapter: mockAdapter,
       messages: [{ role: 'user', content: 'Hello' }],
       context: { userId: 'u-1', db: { name: 'primary' } },
@@ -177,6 +189,7 @@ describe('TextActivityOptions type checking', () => {
     tool.execute?.(
       {},
       {
+        threadId: 'thread-1',
         toolCallId: 'call-1',
         context: { userId: 'u-1', db: { name: 'primary' } },
         emitCustomEvent: () => {},
@@ -195,6 +208,7 @@ describe('TextActivityOptions type checking', () => {
     })
 
     createChatOptions({
+      threadId: 'thread-1',
       adapter: mockAdapter,
       messages: [{ role: 'user', content: 'Hello' }],
       tools: [tool],
@@ -217,6 +231,7 @@ describe('TextActivityOptions type checking', () => {
     }
 
     const options = createChatOptions({
+      threadId: 'thread-1',
       adapter: mockAdapter,
       messages: [{ role: 'user', content: 'Hello' }],
       tools: [tool],
@@ -232,7 +247,11 @@ describe('TextActivityOptions type checking', () => {
 
     // The regression this guards: the documented pattern of spreading the pre-built
     // options into chat(), which requires a defined context for these typed consumers.
-    chat({ ...options, messages: [{ role: 'user', content: 'Hello' }] })
+    chat({
+      ...options,
+      threadId: 'thread-1',
+      messages: [{ role: 'user', content: 'Hello' }],
+    })
 
     createChatOptions({
       adapter: mockAdapter,
@@ -269,6 +288,7 @@ describe('TextActivityOptions type checking', () => {
     ]
 
     createChatOptions({
+      threadId: 'thread-1',
       adapter: mockAdapter,
       messages: [{ role: 'user', content: 'Hello' }],
       tools,
@@ -314,6 +334,7 @@ describe('TextActivityOptions type checking', () => {
     > = [requiredMiddleware, optionalMiddleware]
 
     createChatOptions({
+      threadId: 'thread-1',
       adapter: mockAdapter,
       messages: [{ role: 'user', content: 'Hello' }],
       tools: mixedTools,
@@ -344,6 +365,7 @@ describe('TextActivityOptions type checking', () => {
     ]
 
     createChatOptions({
+      threadId: 'thread-1',
       adapter: mockAdapter,
       messages: [{ role: 'user', content: 'Hello' }],
       tools: optionalTools,
@@ -351,6 +373,7 @@ describe('TextActivityOptions type checking', () => {
     })
 
     createChatOptions({
+      threadId: 'thread-1',
       adapter: mockAdapter,
       messages: [{ role: 'user', content: 'Hello' }],
       tools: optionalTools,
@@ -395,6 +418,7 @@ describe('TextActivityOptions type checking', () => {
     )
 
     createChatOptions({
+      threadId: 'thread-1',
       adapter: mockAdapter,
       messages: [{ role: 'user', content: 'Hello' }],
       tools: mergedTools,
@@ -467,6 +491,7 @@ describe('TextActivityOptions type checking', () => {
     expectTypeOf(registeredTool).toExtend<typeof tool | undefined>()
 
     createChatOptions({
+      threadId: 'thread-1',
       adapter: mockAdapter,
       messages: [{ role: 'user', content: 'Hello' }],
       tools: registry.getTools(),
@@ -514,6 +539,7 @@ describe('chat() return type', () => {
 
   it('stream: true without outputSchema is ChatStream', () => {
     const stream = chat({
+      threadId: 'thread-1',
       adapter: mockAdapter,
       messages: [],
       tools: [weatherTool, searchTool],
@@ -529,6 +555,7 @@ describe('chat() return type', () => {
 describe('createChatOptions() tool type preservation', () => {
   it('should preserve specific tool types through options helper', () => {
     const opts = createChatOptions({
+      threadId: 'thread-1',
       adapter: mockAdapter,
       tools: [weatherTool, searchTool],
     })
@@ -547,35 +574,6 @@ describe('createChatOptions() tool type preservation', () => {
 // ===========================
 
 describe('ChatStream tagged custom event narrowing', () => {
-  it('should narrow approval-requested CUSTOM event payload', () => {
-    type Chunk = ChatStreamChunk
-    type Approval = Extract<
-      Chunk,
-      { type: 'CUSTOM'; name: 'approval-requested' }
-    >
-
-    expectTypeOf<Approval['value']>().toEqualTypeOf<{
-      toolCallId: string
-      toolName: string
-      input: unknown
-      approval: { id: string; needsApproval: true }
-    }>()
-  })
-
-  it('should narrow tool-input-available CUSTOM event payload', () => {
-    type Chunk = ChatStreamChunk
-    type ToolInput = Extract<
-      Chunk,
-      { type: 'CUSTOM'; name: 'tool-input-available' }
-    >
-
-    expectTypeOf<ToolInput['value']>().toEqualTypeOf<{
-      toolCallId: string
-      toolName: string
-      input: unknown
-    }>()
-  })
-
   it('should narrow structured-output.start CUSTOM event payload', () => {
     type Chunk = ChatStreamChunk
     type Start = Extract<
@@ -604,18 +602,18 @@ describe('ChatStream tagged custom event narrowing', () => {
     type Chunk = ChatStreamChunk
     type Custom = Extract<Chunk, { type: 'CUSTOM' }>
     expectTypeOf<Custom['name']>().toEqualTypeOf<KnownCustomEvent['name']>()
-    type Approval = Extract<Custom, { name: 'approval-requested' }>
-    expectTypeOf<Approval['value']['toolCallId']>().toEqualTypeOf<string>()
+    type Start = Extract<Custom, { name: 'structured-output.start' }>
+    expectTypeOf<Start['value']['messageId']>().toEqualTypeOf<string>()
   })
 
   it('should not poison `value` to any across the CUSTOM union', () => {
     type Chunk = ChatStreamChunk
-    type Approval = Extract<
+    type Start = Extract<
       Chunk,
-      { type: 'CUSTOM'; name: 'approval-requested' }
+      { type: 'CUSTOM'; name: 'structured-output.start' }
     >
 
-    expectTypeOf<Approval['value']>().not.toBeAny()
+    expectTypeOf<Start['value']>().not.toBeAny()
   })
 })
 

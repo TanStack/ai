@@ -316,8 +316,7 @@ export function mapRecognizeResponse(
 
   // Seed ASR is duration-billed and reports no token counts, so `usage`
   // carries only the audio length — the same shape the Grok and OpenAI
-  // whisper paths use. `durationSeconds` is deprecated but still populated
-  // alongside the self-describing `billed` pair.
+  // whisper paths use.
   const usage: TokenUsage | undefined =
     duration !== undefined
       ? {
@@ -325,7 +324,6 @@ export function mapRecognizeResponse(
           completionTokens: 0,
           totalTokens: 0,
           billed: { quantity: duration, unit: 'seconds' },
-          durationSeconds: duration,
         }
       : undefined
 

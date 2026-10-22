@@ -69,6 +69,7 @@ async function sentBody(
     },
   })
   for await (const _ of adapter(client).chatStream({
+    threadId: 'thread-1',
     logger,
     model,
     messages: [{ role: 'user', content: 'Weather in Paris?' }],

@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test'
+import type { UIMessage } from '@tanstack/ai-client'
 
 /**
  * Shared helpers for tools-test spec files.
@@ -243,7 +244,7 @@ export async function waitForApproval(
  * Read all data-* attributes from #test-metadata.
  */
 export async function getMetadata(page: Page): Promise<Record<string, string>> {
-  return page.evaluate(() => {
+  return page.evaluate((): Record<string, string> => {
     const el = document.getElementById('test-metadata')
     if (!el) return {}
     return {
@@ -305,7 +306,7 @@ export async function getToolCalls(
 /**
  * Parse the full UIMessage array from #messages-json-content.
  */
-export async function getMessages(page: Page): Promise<Array<any>> {
+export async function getMessages(page: Page): Promise<Array<UIMessage>> {
   return page.evaluate(() => {
     const el = document.getElementById('messages-json-content')
     if (!el) return []

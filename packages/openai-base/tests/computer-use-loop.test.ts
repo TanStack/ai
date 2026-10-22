@@ -103,6 +103,7 @@ async function runLoop(
   const tool = { ...computer, execute: vi.fn(execute) }
   const chunks: Array<StreamChunk> = []
   for await (const chunk of chat({
+    threadId: 'thread-1',
     adapter,
     messages: [{ role: 'user', content: 'Click the button.' }],
     tools: [tool],
@@ -203,6 +204,7 @@ describe('computer use loop', () => {
     // screenshot read of this result would throw.
     const adapter = new FileAdapter('gpt-5.5', 'openai', client)
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {

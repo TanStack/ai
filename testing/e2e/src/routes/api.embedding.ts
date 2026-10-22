@@ -87,7 +87,7 @@ export const Route = createFileRoute('/api/embedding')({
       POST: async ({ request }) => {
         await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
         const body = await request.json()
-        const data = body.forwardedProps ?? body.data ?? body
+        const data = body.forwardedProps ?? body
         const { texts, provider, testId, aimockPort } = data as {
           texts: Array<string>
           provider: Provider

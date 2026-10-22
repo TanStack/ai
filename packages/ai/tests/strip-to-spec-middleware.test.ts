@@ -28,7 +28,6 @@ describe('stripToSpec', () => {
       type: EventType.TOOL_CALL_START,
       toolCallId: 'tc-1',
       toolCallName: 'getTodos',
-      toolName: 'getTodos',
       index: 0,
       metadata: { foo: 'bar' },
       model: 'gpt-5.5',
@@ -39,7 +38,6 @@ describe('stripToSpec', () => {
       toolCallName: 'getTodos',
       metadata: { foo: 'bar' },
     })
-    expect(result).not.toHaveProperty('toolName')
     expect(result).not.toHaveProperty('index')
     expect(result).not.toHaveProperty('model')
   })

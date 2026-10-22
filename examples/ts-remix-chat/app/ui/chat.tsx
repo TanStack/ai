@@ -7,6 +7,7 @@ import { routes } from '../routes.ts'
 export const Chat = clientEntry(import.meta.url, function Chat(handle: Handle) {
   const chat = createChat(handle, {
     connection: fetchServerSentEvents(routes.chat.stream.href()),
+    threadId: 'remix-chat',
     tools: clientTools,
   })
 

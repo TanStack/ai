@@ -18,13 +18,15 @@ import type { ModelMessage, StreamChunk, Tool } from '../src/types'
 
 /** One signed thinking block, the way Anthropic streams it. */
 function reasoning(stepName: string, content: string, signature: string) {
+  const messageId = `${stepName}-reasoning`
   return [
-    ev.stepStarted(stepName),
-    chunk(EventType.REASONING_MESSAGE_CONTENT, {
-      messageId: `${stepName}-reasoning`,
-      delta: content,
+    chunk(EventType.REASONING_MESSAGE_START, { messageId, role: 'reasoning' }),
+    chunk(EventType.REASONING_MESSAGE_CONTENT, { messageId, delta: content }),
+    chunk(EventType.REASONING_ENCRYPTED_VALUE, {
+      subtype: 'message',
+      entityId: messageId,
+      encryptedValue: signature,
     }),
-    { ...ev.stepFinished('', stepName), signature },
   ]
 }
 
@@ -52,6 +54,7 @@ async function historyAfter(
   })
   await collectChunks(
     chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Go' }],
       tools: [serverTool('lookup', () => ({ found: true }))],
@@ -76,6 +79,7 @@ async function messagesAtFinish(
   const { adapter } = createMockAdapter({ iterations: [turn] })
   await collectChunks(
     chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Go' }],
       tools,
@@ -218,6 +222,7 @@ describe('chat() block order', () => {
     })
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Pick two' }],
         tools: [clientTool('pick')],

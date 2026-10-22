@@ -21,7 +21,6 @@ import { test, expect } from './fixtures'
 
 type StreamEvent = {
   type: string
-  toolName?: string
   toolCallName?: string
   toolCallId?: string
   result?: unknown
@@ -90,9 +89,7 @@ test.describe('mcp — server tool discovery + execution in chat()', () => {
     // The agentic loop must have invoked the MCP tool.
     const toolStart = events.find(
       (e) =>
-        e.type === 'TOOL_CALL_START' &&
-        (e.toolName === 'get_guitar_price' ||
-          e.toolCallName === 'get_guitar_price'),
+        e.type === 'TOOL_CALL_START' && e.toolCallName === 'get_guitar_price',
     )
     expect(
       toolStart,

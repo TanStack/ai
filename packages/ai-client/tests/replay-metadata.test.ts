@@ -84,6 +84,7 @@ describe('saved replay metadata', () => {
 
   it('does not invent a server abort when the client stops', () => {
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: createMockConnectionAdapter(),
       initialMessages: [
         {

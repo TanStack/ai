@@ -3,7 +3,7 @@ id: VADConfig
 title: VADConfig
 ---
 
-Defined in: [packages/ai/src/realtime/types.ts:12](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L12)
+Defined in: packages/ai/src/realtime/types.ts:12
 
 Voice activity detection configuration
 
@@ -15,7 +15,7 @@ Voice activity detection configuration
 optional prefixPaddingMs?: number;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:16](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L16)
+Defined in: packages/ai/src/realtime/types.ts:16
 
 Audio to include before speech detection (ms)
 
@@ -27,7 +27,7 @@ Audio to include before speech detection (ms)
 optional silenceDurationMs?: number;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:18](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L18)
+Defined in: packages/ai/src/realtime/types.ts:18
 
 Silence duration to end turn (ms)
 
@@ -39,6 +39,6 @@ Silence duration to end turn (ms)
 optional threshold?: number;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:14](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L14)
+Defined in: packages/ai/src/realtime/types.ts:14
 
 Sensitivity threshold (0.0-1.0)

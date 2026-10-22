@@ -7,7 +7,7 @@ title: resumeJsonResponse
 function resumeJsonResponse<TOffset>(options): Promise<Response>;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:1815](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1815)
+Defined in: packages/ai/src/stream-to-response.ts:1815
 
 Serve a resumable run from its durability log as one JSON body, without
 re-running the model. The JSON counterpart of

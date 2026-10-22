@@ -27,6 +27,7 @@ function customTool(name: string): Tool {
 async function runChat(tools: Array<Tool>) {
   const { adapter } = createMockAdapter({ iterations: [] })
   const stream = chat({
+    threadId: 'thread-1',
     adapter,
     messages: [{ role: 'user', content: 'hi' }],
     tools,
@@ -71,6 +72,7 @@ describe('duplicate tool names', () => {
     })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       tools: [nativeTool('web_search'), customTool('search_docs')],

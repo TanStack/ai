@@ -2,208 +2,160 @@
 title: Observability (Advanced)
 id: observability
 order: 10
-description: "Run server-side hooks on every file the agent touches, log sandbox internals, and watch a workspace outside a chat() run."
+description: "Run server-side code on every file the agent creates, changes, or deletes, read the diff, log sandbox internals, and watch a workspace outside a chat() run."
 ---
 
-The [events stream](./events) is what a *client* reads. This page is the
-*server-side* half: hooks that fire on every file the agent touches, sandbox
-debug logging, and the low-level watcher you can drive outside a `chat()` run.
+Observe sandbox file changes on the server. Log each edit, store an audit trail, or post the diff.
 
-## File-event hooks
+File hooks do that. Declare them on the sandbox, and they run on the server for every file the agent touches.
 
-Listen to files being created, changed or deleted inside a sandbox, for
-example to watch what the agent edits as it works. The watcher is
-provider-agnostic: it uses native OS watching where the provider supports it
-(local-process) and falls back to a portable `find` poll everywhere else (Docker
-and other exec-only providers), with no extra dependencies or image changes.
+## Log every change the agent makes
 
-There are two places to declare these hooks, with different scopes.
-
-### Sandbox-scoped hooks
-
-Declared directly on `defineSandbox({ hooks })`. They fire **once per file
-event**, regardless of how many runs share the sandbox, alongside the sandbox's
-own lifecycle callbacks:
+1. Add `hooks` to `defineSandbox`.
+2. Read `e.path` and `e.type`, and call `e.diff()` when you want the patch.
 
 ```ts
 import { defineSandbox } from '@tanstack/ai-sandbox'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 
-const repoSandbox = defineSandbox({
+export const repoSandbox = defineSandbox({
   id: 'repo-agent',
   provider: dockerSandbox({ image: 'node:22' }),
   hooks: {
-    // catch-all: fires for every event
+    // Every event.
     onFile: (e) => console.log(`[${e.type}] ${e.path}`),
-    // type-specific variants
-    onFileCreate: (e) => console.log('created', e.path),
-    onFileChange: (e) => console.log('changed', e.path),
-    onFileDelete: (e) => console.log('deleted', e.path),
-    // lifecycle
-    onReady: (handle) => console.log('sandbox ready', handle.id),
-    onError: (err) => console.error('sandbox error', err),
-    onDestroy: () => console.log('sandbox destroyed'),
+    // Changes only, with the patch.
+    onFileChange: async (e) => {
+      const patch = await e.diff()
+      console.log(`${e.path} changed:\n${patch}`)
+    },
   },
 })
 ```
 
+Run the agent with this sandbox. Each edit prints its path, and each change prints its unified diff.
+
+## How it works
+
+- **A watcher starts with the sandbox.** On local-process it uses native OS file watching. On Docker and other exec-only providers, it polls with a portable `find`. No extra dependencies, no image changes.
+- **Sandbox hooks fire once per file event**, however many runs share the sandbox.
+- **Content is lazy.** `before()`, `after()`, and `diff()` are methods. They read the file or call `git` only when you call them. A hook that reads only `e.path` and `e.type` costs nothing.
+- **The client gets events too.** The engine emits one `CUSTOM` [`sandbox.file`](./events#custom-events) event per change, with or without hooks.
+
+## Advanced
+
+### Sandbox-scoped hooks
+
+All hooks on `defineSandbox({ hooks })`:
+
+| Hook | Fires |
+| --- | --- |
+| `onFile` | For every file event. |
+| `onFileCreate`, `onFileChange`, `onFileDelete` | For one event type. |
+| `onReady(handle)` | When the sandbox is ready. |
+| `onError(err)` | When the sandbox fails. |
+| `onDestroy()` | When the sandbox is destroyed. |
+
+A hook that throws is logged under the `errors` category. It does not break the run.
+
 ### Run-scoped hooks
 
-To handle file events inside a middleware (for example per-request audit
-logging), use the `sandbox` hook group on `defineChatMiddleware`. These fire
-**per-run**, and each handler receives the current run's `ChatMiddlewareContext`:
+For per-request work, such as an audit log keyed by run, use the `sandbox` hook group on `defineChatMiddleware`. These hooks fire **per run**, and each one gets the run's `ChatMiddlewareContext` first:
 
 ```ts
 import { defineChatMiddleware } from '@tanstack/ai'
 import { db } from './db'
 
-const auditMiddleware = defineChatMiddleware({
+export const auditMiddleware = defineChatMiddleware({
   name: 'audit',
-  // ctx is the ChatMiddlewareContext for the current run
   sandbox: {
     onFile: (ctx, e) => console.log(ctx.runId, e.type, e.path),
-    onFileCreate: (ctx, e) => db.log({ run: ctx.runId, event: e }),
+    onFileChange: async (ctx, e) => {
+      const [before, after] = await Promise.all([e.before(), e.after()])
+      db.log({ run: ctx.runId, path: e.path, before, after })
+    },
   },
 })
 ```
 
-Both hook groups fire **server-side** and are independent of the stream: the
-engine automatically emits one `CUSTOM` [`sandbox.file`](./events#custom-events)
-event per change regardless of whether you register any hooks, so the client
-can react to the same edits without extra middleware.
+Both hook groups run on the server, separate from the stream.
 
-## Reading content and diffs in hooks
+### What `before`, `after`, and `diff` return
 
-The event every hook receives is more than `{ type, path, timestamp }`. It also
-carries lazy, git-backed accessors for the file's content:
+The event every hook gets:
 
 ```ts
 interface SandboxFileHookEvent {
-  type: "create" | "change" | "delete";
-  path: string;
-  timestamp: number;
-  before(): Promise<string>; // content at the session baseline ('' if new / non-git)
-  after(): Promise<string>; // current content ('' if deleted)
-  diff(): Promise<string>; // unified patch vs the baseline
+  type: 'create' | 'change' | 'delete'
+  path: string
+  timestamp: number
+  before(): Promise<string> // content at the session baseline
+  after(): Promise<string> // current content
+  diff(): Promise<string> // unified patch against the baseline
 }
 ```
 
-Reach for `diff()` to show what the agent changed. There is no need to hand-roll a
-`git diff` yourself:
+At `onReady`, the sandbox runs `git rev-parse HEAD` once and keeps that commit as the session baseline. If the workspace is not a git repo, or has no commits, the baseline is empty. Every `before()` and `diff()` in the session compares to that same baseline. So `onFileChange` reports the **total** change since the run started, not the change since the last poll. `after()` always reads the file as it is on disk now.
 
-```ts
-import { defineSandbox } from "@tanstack/ai-sandbox";
-import { dockerSandbox } from "@tanstack/ai-sandbox-docker";
+| Case | `before()` | `after()` | `diff()` |
+| --- | --- | --- | --- |
+| Tracked file, changed | Baseline content | Current content | Patch against the baseline |
+| Tracked file, same as baseline | Baseline content | Current content | `''` |
+| New untracked file, on create and on every later edit | `''` | Current content | A synthesized add-patch from `after()` |
+| Deleted file | Baseline content | `''` | Delete patch |
+| Non-git workspace | `''` | `''` | A synthesized add-patch from `after()`. `''` for a delete. |
+| Untracked, git-ignored file (a `.env`, a credentials file) | `''` | Current content | `''`, so its content never reaches the diff feed. The event still fires. |
 
-const repoSandbox = defineSandbox({
-  id: "repo-agent",
-  provider: dockerSandbox({ image: "node:22" }),
-  hooks: {
-    onFileChange: async (e) => {
-      const patch = await e.diff();
-      console.log(`${e.path} changed:\n${patch}`);
-    },
-  },
-});
-```
+`git diff` ignores untracked files. That is why a file the agent creates gets the synthesized add-patch on every later edit too: it never streams an empty diff.
 
-The same accessors are available on run-scoped hooks, where `e` is the
-second argument:
+The accessors never throw. A failed `git`, `exec`, or file read falls back to `''` (the watcher keeps its last snapshot). Each failure is logged first:
 
-```ts
-import { defineChatMiddleware } from "@tanstack/ai";
-import { db } from "./db";
+- **Real faults** go to the `errors` category, which is on by default: a failed `git diff`, an unreadable file, a `find` poll that exits non-zero, a lost git baseline.
+- **Expected empty values** go to the `sandbox` debug category: for example, `before()` of a new file. Turn it on with [`debug`](#debugging).
 
-const auditMiddleware = defineChatMiddleware({
-  name: "audit",
-  sandbox: {
-    onFileChange: async (ctx, e) => {
-      const [before, after] = await Promise.all([e.before(), e.after()]);
-      db.log({ run: ctx.runId, path: e.path, before, after });
-    },
-  },
-});
-```
+### Turn off file watching
 
-**Lazy, path-only hooks pay nothing.** `before()`, `after()`, and `diff()`
-are methods, not fields: each one only reads the file or shells out to `git`
-when you call it. A hook that only reads `e.path` / `e.type` (like the
-catch-all logger in [Sandbox-scoped hooks](#sandbox-scoped-hooks) above)
-never touches the filesystem or spawns a process.
-
-**Git session baseline.** At `onReady`, the sandbox snapshots
-`git rev-parse HEAD` once, as the session's baseline commit (empty if the
-workspace isn't a git repo, or has no commits yet). Every `before()` and
-`diff()` call for the rest of the session diffs against that same fixed
-baseline, so `onFileChange` always reports the file's **cumulative** change
-since the run started, not just the delta since the watcher's last poll.
-`after()` always reads the file's current on-disk content, independent of
-the baseline. None of the three accessors throw: a deleted file resolves
-`after()` to `''` (it still has `before()`); a new file resolves `before()`
-to `''` (it still has `after()`); a non-git workspace resolves **both**
-`before()` and `after()` to `''` and makes `diff()` fall back to a
-synthesized add-patch built from `after()`, except for a `delete` event in
-a non-git workspace, where there's nothing to synthesize and `diff()`
-resolves to `''`. In a git workspace, a file git **is not tracking yet** (one the
-agent just created) and every later edit to it diff empty because
-`git diff` ignores untracked files, so `diff()` falls back to that same
-synthesized add-patch whenever the file is absent at the baseline. A file the
-agent creates (and keeps editing) therefore never streams an empty diff, while
-a **tracked** file that's identical to the baseline correctly stays empty.
-A **git-ignored** file (e.g. a `.env` or a credentials file) is the exception:
-the file event still fires so you're notified it changed, but `diff()` returns
-`''` so its contents are never surfaced in the diff feed.
-
-Every git, exec and fs failure behind these accessors, and behind the `find`-poll
-watcher, still falls back to `''` (or preserves the last snapshot), but is
-**logged first** so a failure is observable rather than a silent empty value:
-real anomalies (a failed `git diff`, an unreadable file, a `find` poll that
-exits non-zero, a lost git baseline) under the `errors` category (on by
-default), and expected-empty conditions (a new file's `before()`) under the
-`sandbox` debug category. Enable `debug: { sandbox: true }` (see
-[Debugging](#debugging)) to see the latter.
-
-## Disabling file watching
-
-To stop the watcher and suppress `sandbox.file` events for a sandbox entirely,
-set `fileEvents: false`:
+Set `fileEvents: false`. The watcher does not start, and no `sandbox.file` events are sent:
 
 ```ts
 import { defineSandbox } from '@tanstack/ai-sandbox'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 
-const sandbox = defineSandbox({
+export const quietSandbox = defineSandbox({
   id: 'quiet-agent',
   provider: dockerSandbox({ image: 'node:22' }),
-  fileEvents: false, // watcher not started; no sandbox.file events emitted
+  fileEvents: false,
 })
 ```
 
-## Debugging
+To also send a `sandbox.file.diff` event per change to the client, set `fileEvents: { diff: true }`. See [Events](./events).
 
-To log sandbox internals (watcher start and stop, event dispatch, lifecycle
-transitions) pass the `sandbox` debug category to `chat()`:
+### Debugging
+
+To log sandbox internals (watcher start and stop, event dispatch, lifecycle steps), pass the `sandbox` debug category to `chat()`:
 
 ```ts
-import { chat } from '@tanstack/ai'
+import { chat, chatParamsFromRequest, toServerSentEventsResponse } from '@tanstack/ai'
 import { grokBuildText } from '@tanstack/ai-grok-build'
 import { withSandbox } from '@tanstack/ai-sandbox'
 import { repoSandbox } from './sandbox'
-import { messages } from './chat-context'
 
-chat({
-  threadId: 'thread-1',
-  adapter: grokBuildText('grok-build'),
-  messages,
-  middleware: [withSandbox(repoSandbox)],
-  debug: { sandbox: true }, // or `debug: true` for all categories
-})
+export async function POST(request: Request) {
+  const { messages, threadId } = await chatParamsFromRequest(request)
+  const stream = chat({
+    adapter: grokBuildText('grok-build'),
+    messages,
+    threadId,
+    middleware: [withSandbox(repoSandbox)],
+    debug: { sandbox: true }, // or `debug: true` for every category
+  })
+  return toServerSentEventsResponse(stream)
+}
 ```
 
-## Low-level: `watchWorkspace()`
+### Watch a workspace outside a run
 
-`watchWorkspace()` is the building block the hooks are built on. Reach for it
-when you want the watcher **outside** a `chat()` run:
+The hooks are built on `watchWorkspace()`. Use it directly when you want the watcher outside a `chat()` run:
 
 ```ts
 import { watchWorkspace } from '@tanstack/ai-sandbox'
@@ -215,14 +167,16 @@ const watcher = await watchWorkspace(handle, {
     // event.type is 'create' | 'change' | 'delete'
     console.log(`${event.type} ${event.path}`)
   },
-  ignore: ['.git', 'node_modules'], // default
 })
-// …do work outside a chat run…
+
+// Do your work here, then stop the watcher.
 await watcher.stop()
 ```
 
-## Related
-
-- [Events](./events): the `CUSTOM` event stream the client reads.
-- [Lifecycle & Snapshots](./lifecycle): when sandboxes are created and torn down.
-- [Tools](./tools): bridged host tools that surface as tool-call chunks.
+| Option | Default | What it does |
+| --- | --- | --- |
+| `onEvent` | required | Called for each file event. |
+| `root` | `/workspace` | The directory to watch. |
+| `intervalMs` | `700` | Poll interval, for the `find` fallback only. |
+| `ignore` | `['.git', 'node_modules']` | Skip any path that contains `/<entry>/`. |
+| `signal` | none | Stop watching when it aborts. |

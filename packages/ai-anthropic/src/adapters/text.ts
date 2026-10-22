@@ -236,7 +236,8 @@ const COMPUTER_USE_BETAS = {
  *   computer toolset needs none),
  * - `context-management-2025-06-27` when `context_management` is set,
  * - `files-api-2025-04-14` when a message references an uploaded file handle,
- * - `mid-conversation-tool-changes-2026-07-01` in mid-conversation tool mode.
+ * - `mid-conversation-tool-changes-2026-07-01` in mid-conversation tool mode,
+ * - `server-side-fallback-2026-07-01` when `modelOptions.fallbacks` is set.
  * Returns `undefined` when none apply (so the call site omits `betas`).
  */
 export function computeAnthropicBetas(
@@ -248,6 +249,7 @@ export function computeAnthropicBetas(
           budget_tokens?: number
         }
         context_management?: unknown | null
+        fallbacks?: unknown
         mcp_servers?: ReadonlyArray<unknown>
       }
     | undefined,
@@ -271,6 +273,11 @@ export function computeAnthropicBetas(
   // enough (issue #1074). `null` is a typed "unset" — do not enable the beta.
   if (modelOptions?.context_management != null) {
     betas.add('context-management-2025-06-27')
+  }
+
+  // Server-side refusal fallback: the API rejects `fallbacks` without it.
+  if (modelOptions?.fallbacks != null) {
+    betas.add('server-side-fallback-2026-07-01')
   }
 
   // The MCP connector needs its beta header as well (same shape as #1074);
@@ -850,6 +857,7 @@ export class AnthropicTextAdapter<
         'cache_control',
         'container',
         'context_management',
+        'fallbacks',
         'mcp_servers',
         'service_tier',
         'stop_sequences',
@@ -986,8 +994,7 @@ export class AnthropicTextAdapter<
 
     // Lift skills attached to a `code_execution` tool into the top-level
     // `container.skills` request param (Anthropic's required shape). Preserve any
-    // `container.id` supplied via modelOptions for container reuse. This is the
-    // canonical path for skills; `modelOptions.container.skills` is deprecated.
+    // `container.id` supplied via modelOptions for container reuse.
     const toolSkills = options.tools
       ?.map((tool) =>
         getAnthropicProviderToolKind(tool) === 'code_execution'
@@ -1572,7 +1579,6 @@ export class AnthropicTextAdapter<
       model: options.model,
     }
     let accumulatedContent = ''
-    let accumulatedThinking = ''
     let accumulatedSignature = ''
     const toolCallsMap = new Map<
       number,
@@ -1603,9 +1609,8 @@ export class AnthropicTextAdapter<
 
     // AG-UI lifecycle tracking
     const runId = options.runId ?? genId()
-    const threadId = options.threadId ?? genId()
+    const threadId = options.threadId
     const messageId = genId()
-    let stepId: string | null = null
     let reasoningMessageId: string | null = null
     let hasClosedReasoning = false
     let hasEmittedRunStarted = false
@@ -1644,7 +1649,25 @@ export class AnthropicTextAdapter<
           messageStartUsage = event.message.usage
         } else if (event.type === 'content_block_start') {
           currentBlockType = event.content_block.type
-          if (event.content_block.type === 'tool_use') {
+          if (currentBlockType === 'fallback') {
+            // Server-side fallback handoff. The rest of the stream comes from
+            // `to.model`. message_start names the declining model only after
+            // output has started. Before any output, message_start already
+            // names the fallback model.
+            const block: unknown = event.content_block
+            const to =
+              block && typeof block === 'object' && 'to' in block
+                ? block.to
+                : undefined
+            if (
+              to &&
+              typeof to === 'object' &&
+              'model' in to &&
+              typeof to.model === 'string'
+            ) {
+              model = to.model
+            }
+          } else if (event.content_block.type === 'tool_use') {
             currentToolIndex++
             // A computer toolset call names its action. It runs as one
             // `computer` call with the action in `input.action`.
@@ -1730,7 +1753,6 @@ export class AnthropicTextAdapter<
                 type: EventType.TOOL_CALL_START,
                 toolCallId: serverTool.id,
                 toolCallName: serverTool.name,
-                toolName: serverTool.name,
                 parentMessageId: messageId,
                 model,
                 timestamp: Date.now(),
@@ -1741,7 +1763,6 @@ export class AnthropicTextAdapter<
                 type: EventType.TOOL_CALL_END,
                 toolCallId: serverTool.id,
                 toolCallName: serverTool.name,
-                toolName: serverTool.name,
                 model,
                 timestamp: Date.now(),
                 input: parsedInput,
@@ -1751,11 +1772,9 @@ export class AnthropicTextAdapter<
               hasEmittedTextMessageStart = false
             }
           } else if (event.content_block.type === 'thinking') {
-            accumulatedThinking = ''
             accumulatedSignature = ''
             hasClosedReasoning = false
-            // Emit REASONING and STEP_STARTED for thinking
-            stepId = genId()
+            // Emit REASONING events for thinking
             reasoningMessageId = genId()
 
             // Spec REASONING events
@@ -1772,22 +1791,11 @@ export class AnthropicTextAdapter<
               model,
               timestamp: Date.now(),
             }
-
-            // Legacy STEP events (kept during transition)
-            yield {
-              type: EventType.STEP_STARTED,
-              stepName: stepId,
-              stepId,
-              model,
-              timestamp: Date.now(),
-              stepType: 'thinking',
-            }
           } else if (event.content_block.type === 'redacted_thinking') {
             // Encrypted thinking: no text, and its data must go back to
             // Anthropic unchanged. It gets its own reasoning message, and the
             // encrypted value names that message. The id prefix marks the
-            // data as a redacted block, not a signature. The step reuses the
-            // id so the stream processor sees the prefix too.
+            // data as a redacted block, not a signature.
             const redactedId = `${REDACTED_THINKING_ID_PREFIX}${genId()}`
             yield {
               type: EventType.REASONING_START,
@@ -1801,23 +1809,6 @@ export class AnthropicTextAdapter<
               role: 'reasoning' as const,
               model,
               timestamp: Date.now(),
-            }
-            yield {
-              type: EventType.STEP_STARTED,
-              stepName: redactedId,
-              stepId: redactedId,
-              model,
-              timestamp: Date.now(),
-              stepType: 'thinking',
-            }
-            yield {
-              type: EventType.STEP_FINISHED,
-              stepName: redactedId,
-              stepId: redactedId,
-              model,
-              timestamp: Date.now(),
-              delta: '',
-              content: '',
             }
             yield {
               type: EventType.REASONING_ENCRYPTED_VALUE,
@@ -1886,7 +1877,6 @@ export class AnthropicTextAdapter<
             reasoningMessageId
           ) {
             const delta = event.delta.thinking
-            accumulatedThinking += delta
 
             // Spec REASONING content event
             yield {
@@ -1895,17 +1885,6 @@ export class AnthropicTextAdapter<
               delta,
               model,
               timestamp: Date.now(),
-            }
-
-            // Legacy STEP event
-            yield {
-              type: EventType.STEP_FINISHED,
-              stepName: stepId || genId(),
-              stepId: stepId || genId(),
-              model,
-              timestamp: Date.now(),
-              delta,
-              content: accumulatedThinking,
             }
           } else if (
             (event.delta as { type: string }).type === 'signature_delta'
@@ -1932,7 +1911,6 @@ export class AnthropicTextAdapter<
                     type: EventType.TOOL_CALL_START,
                     toolCallId: existing.id,
                     toolCallName: existing.name,
-                    toolName: existing.name,
                     parentMessageId: messageId,
                     model,
                     timestamp: Date.now(),
@@ -1969,18 +1947,9 @@ export class AnthropicTextAdapter<
         } else if (event.type === 'content_block_stop') {
           if (currentBlockType === 'thinking') {
             // Emit signature so it can be replayed in multi-turn context.
-            // It belongs to the reasoning message, not the step, so an AG-UI
-            // client finds that message by `entityId`.
-            if (accumulatedSignature && stepId && reasoningMessageId) {
-              yield {
-                type: EventType.STEP_FINISHED,
-                stepName: stepId,
-                stepId,
-                model,
-                timestamp: Date.now(),
-                delta: '',
-                content: accumulatedThinking,
-              }
+            // It belongs to the reasoning message, so an AG-UI client finds that
+            // message by `entityId`.
+            if (accumulatedSignature && reasoningMessageId) {
               yield {
                 type: EventType.REASONING_ENCRYPTED_VALUE,
                 subtype: 'message' as const,
@@ -2017,7 +1986,6 @@ export class AnthropicTextAdapter<
                   type: EventType.TOOL_CALL_START,
                   toolCallId: existing.id,
                   toolCallName: existing.name,
-                  toolName: existing.name,
                   parentMessageId: messageId,
                   model,
                   timestamp: Date.now(),
@@ -2059,7 +2027,6 @@ export class AnthropicTextAdapter<
                 type: EventType.TOOL_CALL_END,
                 toolCallId: existing.id,
                 toolCallName: existing.name,
-                toolName: existing.name,
                 model,
                 timestamp: Date.now(),
                 args: existing.input,
@@ -2092,6 +2059,10 @@ export class AnthropicTextAdapter<
           ) {
             // The model already consumed the result; error variants were
             // already surfaced at content_block_start.
+          } else if (currentBlockType === 'fallback') {
+            // Server-side fallback handoff: the declining model's text block
+            // already closed. The fallback model's text starts a fresh segment.
+            hasEmittedTextMessageStart = false
           } else {
             // Emit TEXT_MESSAGE_END only for text blocks (not tool_use blocks)
             if (hasEmittedTextMessageStart && accumulatedContent) {
@@ -2224,10 +2195,28 @@ export class AnthropicTextAdapter<
                 }
                 break
               }
+              case 'refusal': {
+                // A safety classifier declined and no server-side fallback
+                // served the request. Not an error: the run ends like a
+                // filtered completion, and `rawEvent` says why.
+                yield {
+                  type: EventType.RUN_FINISHED,
+                  ...(responseId !== undefined && { responseId }),
+                  runId,
+                  threadId,
+                  model,
+                  timestamp: Date.now(),
+                  finishReason: 'content_filter',
+                  ...(event.delta.stop_details && {
+                    rawEvent: event.delta.stop_details,
+                  }),
+                  usage,
+                }
+                break
+              }
               case 'stop_sequence':
               case 'end_turn':
               case 'pause_turn':
-              case 'refusal':
               case 'compaction':
               default: {
                 // All remaining Anthropic stop_reason variants map to the

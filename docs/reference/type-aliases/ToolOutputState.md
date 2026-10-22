@@ -7,4 +7,4 @@ title: ToolOutputState
 type ToolOutputState = "output-available" | "output-error";
 ```
 
-Defined in: [packages/ai/src/types.ts:108](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L108)
+Defined in: packages/ai/src/types.ts:108

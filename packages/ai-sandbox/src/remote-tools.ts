@@ -159,20 +159,29 @@ export function httpRemoteToolExecutor(
 /**
  * Run a host tool by name with the given args, returning its raw result
  * (orchestrator side of {@link httpRemoteToolExecutor}). Throws for an unknown
- * tool or one with no `execute` — the orchestrator surfaces that as a 4xx/5xx.
+ * tool, one with no `execute`, or one with `needsApproval` (harness adapters
+ * cannot pause for approval) — the orchestrator surfaces that as a 4xx/5xx.
  */
 export function executeHostTool(
   tools: Array<AnyTool>,
   name: string,
   args: unknown,
-  options: { context?: unknown; signal?: AbortSignal } = {},
+  options: { threadId: string; context?: unknown; signal?: AbortSignal },
 ): Promise<unknown> {
   const tool = tools.find((candidate) => candidate.name === name)
   if (!tool?.execute) {
     return Promise.reject(new Error(`Unknown tool: ${name}`))
   }
+  if (tool.needsApproval) {
+    return Promise.reject(
+      new Error(
+        `Tool "${name}" has needsApproval, which harness adapters do not support.`,
+      ),
+    )
+  }
   return Promise.resolve(
     tool.execute(args ?? {}, {
+      threadId: options.threadId,
       context: options.context,
       abortSignal: options.signal,
     }),

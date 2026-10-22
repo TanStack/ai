@@ -2942,16 +2942,19 @@ export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number]
 /**
  * Whether a model rejects the `temperature` / `top_p` sampling knobs.
  *
- * OpenAI's reasoning models — the o-series (`o1`, `o3`, `o4`, …) and the GPT-5
- * reasoning family — return `400 Unsupported parameter: 'temperature'` if either
- * is sent. Their `*-chat-latest` counterparts are ordinary chat models that
- * still accept them, so those are excluded. Matching by name (rather than a
- * per-model flag) keeps future `gpt-5.x` reasoning models covered automatically.
- * See the note in `text/text-provider-options.ts`.
+ * OpenAI reasoning models return `400 Unsupported parameter: 'temperature'`
+ * if either is sent with a reasoning effort other than `none`. The caller
+ * checks the effort. `*-chat-latest` models still accept them.
+ * A model in `OPENAI_MODEL_REASONING` is a reasoning model, so a future
+ * family is covered when its catalog row has `reasoning`. Name checks stay
+ * for o-series and GPT-5 snapshots that are not in the catalog yet, and
+ * for `codex-mini-latest` (no `reasoning` field).
  */
 export function openAIModelRejectsSamplingParams(model: string): boolean {
+  if (model.endsWith('-chat-latest')) return false
+  if (Object.hasOwn(OPENAI_MODEL_REASONING, model)) return true
   if (/^o\d/.test(model)) return true
-  if (model.startsWith('gpt-5') && !model.endsWith('-chat-latest')) return true
+  if (model.startsWith('gpt-5')) return true
   if (model === 'codex-mini-latest') return true
   return false
 }

@@ -53,6 +53,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: openaiText('gpt-5.5'),
   messages,
+  threadId: 'thread-1',
   // Reasoning: goes out as reasoning.effort, with a summary
   reasoning: { level: 'high', summary: true },
   modelOptions: {
@@ -103,8 +104,11 @@ OPENAI_API_KEY
 - `chat({ reasoning })` takes only the levels of the selected model. A level
   that the model does not have moves to the nearest one.
 - `conversation` and `previous_response_id` cannot be used together.
-- Reasoning models (`o*`, `gpt-5*` except `*-chat-latest`, `codex-mini-latest`)
-  pair each `function_call` with a `reasoning` item. The adapter requests
+- Reasoning models (a catalog row with `reasoning`, plus `o*`, `gpt-5*`,
+  `gpt-6*`, and `codex-mini-latest`; not `*-chat-latest`) pair each
+  `function_call` with a `reasoning` item. The adapter requests
   `include: ['reasoning.encrypted_content']` for those models and replays that
-  item on the next turn. Pre-5 chat models are left unchanged. If you persist
-  history by hand, keep `thinking[].signature`.
+  item on the next turn. It also drops `temperature`, `top_p`, and
+  `top_logprobs`, unless reasoning effort is `none`. Pre-5 chat
+  models are left unchanged. If you persist history by hand, keep
+  `thinking[].signature`.

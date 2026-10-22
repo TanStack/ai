@@ -46,6 +46,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: groqText('llama-3.3-70b-versatile'),
   messages,
+  threadId: 'thread-1',
   modelOptions: {
     // Reasoning
     reasoning_format: 'parsed', // 'hidden' | 'raw' | 'parsed' (mutually exclusive with include_reasoning)

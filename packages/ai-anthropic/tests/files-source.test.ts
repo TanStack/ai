@@ -44,6 +44,7 @@ describe('anthropic file content source', () => {
 
     await drain(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           {
@@ -80,6 +81,7 @@ describe('anthropic file content source', () => {
 
     const chunks: Array<StreamChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {

@@ -37,6 +37,7 @@ export const Route = createFileRoute('/api/openrouter-retry-codes')({
         let text = ''
         let error: string | undefined
         for await (const chunk of chat({
+          threadId: 'openrouter-retry-codes',
           ...createChatOptions({ adapter }),
           messages: [
             { role: 'user', content: '[openrouter-retry-codes] say hello' },

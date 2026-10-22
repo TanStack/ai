@@ -29,6 +29,7 @@ describe('generateLiveVideo', () => {
   it('returns the adapter session payload', async () => {
     const adapter = mockLiveVideoAdapter()
     const result = await generateLiveVideo({
+      threadId: 'thread-1',
       adapter,
       prompt: 'A red sports car',
       debug: false,
@@ -53,6 +54,7 @@ describe('generateLiveVideo', () => {
     const abort = new AbortController()
 
     await generateLiveVideo({
+      threadId: 'thread-1',
       adapter,
       prompt: 'a chef tosses noodles in a steel wok',
       abortSignal: abort.signal,
@@ -75,6 +77,7 @@ describe('generateLiveVideo', () => {
 
     await expect(
       generateLiveVideo({
+        threadId: 'thread-1',
         adapter,
         prompt: 'x',
         debug: false,

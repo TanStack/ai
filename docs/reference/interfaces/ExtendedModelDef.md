@@ -3,7 +3,7 @@ id: ExtendedModelDef
 title: ExtendedModelDef
 ---
 
-Defined in: [packages/ai/src/extend-adapter.ts:21](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L21)
+Defined in: packages/ai/src/extend-adapter.ts:21
 
 Definition for a custom model to add to an adapter.
 
@@ -51,7 +51,7 @@ Provider options type for this model
 optional features?: TFeatures;
 ```
 
-Defined in: [packages/ai/src/extend-adapter.ts:35](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L35)
+Defined in: packages/ai/src/extend-adapter.ts:35
 
 Optional declared features (e.g. 'reasoning', 'structured_outputs')
 
@@ -63,7 +63,7 @@ Optional declared features (e.g. 'reasoning', 'structured_outputs')
 input: TInput;
 ```
 
-Defined in: [packages/ai/src/extend-adapter.ts:31](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L31)
+Defined in: packages/ai/src/extend-adapter.ts:31
 
 Supported input modalities for this model
 
@@ -75,7 +75,7 @@ Supported input modalities for this model
 modelOptions: TOptions;
 ```
 
-Defined in: [packages/ai/src/extend-adapter.ts:33](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L33)
+Defined in: packages/ai/src/extend-adapter.ts:33
 
 Type brand for provider options - use `{} as YourOptionsType`
 
@@ -87,7 +87,7 @@ Type brand for provider options - use `{} as YourOptionsType`
 name: TName;
 ```
 
-Defined in: [packages/ai/src/extend-adapter.ts:29](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L29)
+Defined in: packages/ai/src/extend-adapter.ts:29
 
 The model name identifier
 
@@ -99,6 +99,6 @@ The model name identifier
 optional tools?: TTools;
 ```
 
-Defined in: [packages/ai/src/extend-adapter.ts:37](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L37)
+Defined in: packages/ai/src/extend-adapter.ts:37
 
 Optional declared provider tools (e.g. 'web_search')

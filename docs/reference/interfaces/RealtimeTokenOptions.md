@@ -3,7 +3,7 @@ id: RealtimeTokenOptions
 title: RealtimeTokenOptions
 ---
 
-Defined in: [packages/ai/src/realtime/types.ts:87](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L87)
+Defined in: packages/ai/src/realtime/types.ts:87
 
 Options for the realtimeToken function
 
@@ -15,6 +15,6 @@ Options for the realtimeToken function
 adapter: RealtimeTokenAdapter;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:89](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L89)
+Defined in: packages/ai/src/realtime/types.ts:89
 
 The token adapter to use

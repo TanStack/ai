@@ -69,29 +69,30 @@ export type TTSProviderOptions<TAdapter> = TAdapter extends {
 export type TTSActivityOptions<
   TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
   TStream extends boolean = false,
-> = TTSActivityOptionsBase<TAdapter, TStream> &
-  (
-    | {
-        /** The text to convert to speech */
-        text: string
-        turns?: undefined
-      }
-    | {
-        text?: undefined
-        /**
-         * Multi-voice dialogue turns, one per line of the script. Mutually
-         * exclusive with `text`.
-         *
-         * Only adapters that declare `capabilities.maxSpeakers` accept these
-         * (ElevenLabs 10 voices, Gemini 2); anything else throws before the
-         * request leaves the process.
-         */
-        turns: Array<TTSTurn>
-      }
-  )
+> = TTSActivityOptionsBase<TAdapter, TStream> & TTSTextOrTurns
+
+/** The text of a speech request: `text` or `turns`, never both. */
+export type TTSTextOrTurns =
+  | {
+      /** The text to convert to speech */
+      text: string
+      turns?: undefined
+    }
+  | {
+      text?: undefined
+      /**
+       * Multi-voice dialogue turns, one per line of the script. Mutually
+       * exclusive with `text`.
+       *
+       * Only adapters that declare `capabilities.maxSpeakers` accept these
+       * (ElevenLabs 10 voices, Gemini 2); anything else throws before the
+       * request leaves the process.
+       */
+      turns: Array<TTSTurn>
+    }
 
 /** Shared half of {@link TTSActivityOptions} — everything except text/turns. */
-interface TTSActivityOptionsBase<
+export interface TTSActivityOptionsBase<
   TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
   TStream extends boolean = false,
 > {
@@ -132,8 +133,8 @@ interface TTSActivityOptionsBase<
    * `GenerationMiddleware` contract for a custom backend.
    */
   middleware?: Array<GenerationMiddleware>
-  /** Stable conversation/thread id for correlating this run when persisted. */
-  threadId?: string
+  /** Stable conversation/thread id. It is the AG-UI thread id and the persistence key. */
+  threadId: string
   /** Stable run id for correlating this run when persisted. */
   runId?: string
   /**
@@ -234,7 +235,8 @@ function resolveSpeechText(
  * const result = await generateSpeech({
  *   adapter: openaiSpeech('tts-1-hd'),
  *   text: 'Hello, welcome to TanStack AI!',
- *   voice: 'nova'
+ *   voice: 'nova',
+ *   threadId,
  * })
  *
  * console.log(result.audio) // base64-encoded audio
@@ -246,6 +248,7 @@ function resolveSpeechText(
  *   adapter: openaiSpeech('tts-1'),
  *   text: 'This is slower speech.',
  *   voice: 'alloy',
+ *   threadId,
  *   format: 'wav',
  *   speed: 0.8
  * })
@@ -257,11 +260,8 @@ export function generateSpeech<
 >(options: TTSActivityOptions<TAdapter, TStream>): TTSActivityResult<TStream> {
   if (options.stream) {
     return streamGenerationResult(
-      // Only `runId` is taken from the resolved wire identity. `threadId` stays
-      // the CALLER's: `streamGenerationResult` mints one for the RUN_* chunks
-      // when none was passed, and spreading that over the options would hand
-      // middleware a thread id known to nobody, which persistence would then
-      // file the run under. Matches `generateVideo`.
+      // Only `runId` comes from the resolved wire identity. `threadId` is
+      // the caller's own id.
       (resolved) => runGenerateSpeech({ ...options, runId: resolved.runId }),
       options,
     ) as TTSActivityResult<TStream>

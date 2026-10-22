@@ -53,6 +53,7 @@ async function runWithToolAndCapture(
   })
 
   const stream = chat({
+    threadId: 'thread-1',
     adapter,
     messages: [{ role: 'user', content: 'Take a screenshot' }],
     tools: [serverTool('screenshotTool', executeFn)],
@@ -138,6 +139,7 @@ describe('multimodal tool-result support (#363)', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Take a screenshot' }],
         tools: [serverTool('screenshotTool', () => MULTIMODAL_RESULT)],

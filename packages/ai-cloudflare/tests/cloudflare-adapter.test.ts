@@ -125,6 +125,7 @@ describe('text adapter (binding)', () => {
 
     const chunks = await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: '@cf/test',
         messages: [{ role: 'user', content: 'Hi' }],
         modelOptions: { temperature: 0.2 },
@@ -168,6 +169,7 @@ describe('text adapter (binding)', () => {
     const adapter = createCloudflareText('@cf/test', { binding })
     const chunks = await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: '@cf/test',
         messages: [{ role: 'user', content: '2+2?' }],
         logger,
@@ -195,6 +197,7 @@ describe('text adapter (binding)', () => {
         required: ['age'],
       },
       chatOptions: {
+        threadId: 'thread-1',
         model: '@cf/test',
         messages: [{ role: 'user', content: 'age?' }],
         logger,
@@ -213,6 +216,7 @@ describe('text adapter (binding) message shapes', () => {
     const adapter = createCloudflareText('@cf/test', { binding })
     await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: '@cf/test',
         messages: [
           { role: 'user', content: 'Weather?' },
@@ -259,6 +263,7 @@ describe('text adapter (binding) message shapes', () => {
     const adapter = createCloudflareText('@cf/test', { binding })
     const chunks = await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: '@cf/test',
         messages: [{ role: 'user', content: 'Hi' }],
         logger,
@@ -290,6 +295,7 @@ describe('text adapter (REST)', () => {
     })
     await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: '@cf/test',
         messages: [{ role: 'user', content: 'Hi' }],
         logger,

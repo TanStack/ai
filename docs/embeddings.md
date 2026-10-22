@@ -2,7 +2,7 @@
 title: Embeddings
 id: embeddings
 order: 1
-description: "Generate text and multimodal embedding vectors with OpenAI, Cohere, Gemini, Mistral, Amazon Bedrock, Ollama, and Vercel AI Gateway via TanStack AI's embed() API."
+description: "Turn text and images into vectors with embed(). Use them for semantic search, RAG, and clustering with OpenAI, Cohere, Gemini, Mistral, Amazon Bedrock, Ollama, or Vercel AI Gateway."
 keywords:
   - tanstack ai
   - embeddings
@@ -20,21 +20,34 @@ keywords:
   - vercel ai gateway
 ---
 
-TanStack AI provides embedding generation through dedicated embedding adapters that follow the same tree-shakeable, per-model-typed architecture as every other activity. The `embed()` function turns text — and, for multimodal models, images — into vectors for semantic search, RAG, clustering, and classification.
+`embed()` turns text into a vector. Search, RAG, and clustering then compare those vectors.
 
-## Overview
+Multimodal models also embed images.
 
-Currently supported:
+## Quick setup
 
-- **OpenAI**: text-embedding-3-small, text-embedding-3-large (text)
-- **Cohere**: embed-v4.0 (text + image, fused multimodal)
-- **Google Gemini**: gemini-embedding-001 (text)
-- **Mistral**: mistral-embed, codestral-embed (text)
-- **Amazon Bedrock**: Titan Text Embeddings V2 (text), Titan Multimodal Embeddings G1 (text + image), Cohere Embed v3 on Bedrock (text)
-- **Ollama**: nomic-embed-text, mxbai-embed-large, and any local embedding model (text)
-- **Vercel AI Gateway**: OpenAI-compatible embedding models such as openai/text-embedding-3-small (text)
+1. Install the core package and an adapter:
 
-## Basic Usage
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai @tanstack/ai-openai
+vue: @tanstack/ai @tanstack/ai-openai
+solid: @tanstack/ai @tanstack/ai-openai
+svelte: @tanstack/ai @tanstack/ai-openai
+preact: @tanstack/ai @tanstack/ai-openai
+angular: @tanstack/ai @tanstack/ai-openai
+vanilla: @tanstack/ai @tanstack/ai-openai
+octane: @tanstack/ai @tanstack/ai-openai
+
+<!-- ::end:tabs -->
+
+2. Put your key on the server. The adapter reads it at runtime:
+
+```bash
+OPENAI_API_KEY=your-openai-api-key
+```
+
+3. Call `embed()` on the server:
 
 ```typescript
 import { embed } from "@tanstack/ai";
@@ -42,13 +55,36 @@ import { openaiEmbedding } from "@tanstack/ai-openai";
 
 const result = await embed({
   adapter: openaiEmbedding("text-embedding-3-small"),
-  input: "a red guitar",
+  input: ["a red guitar", "a blue drum kit", "a vintage synthesizer"],
 });
 
-console.log(result.embeddings[0]?.vector); // number[]
+for (const embedding of result.embeddings) {
+  console.log(embedding.index, embedding.vector.length);
+}
 ```
 
-Vercel AI Gateway uses the same `embed()` call. Pass a `creator/model` id such as `openai/text-embedding-3-small`:
+You now have one `number[]` vector per input string. Store them in your vector database.
+
+## How it works
+
+- `input` is one item or an array of items.
+- Each item gives exactly one vector.
+- `result.embeddings` keeps the input order. Each entry has an `index` and a `vector`.
+- Every provider uses the same `embed()` call. To change provider, change the adapter.
+
+## Providers
+
+| Provider          | Adapter                                   | Models                                                                                                  | Input        |
+| ----------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------ |
+| OpenAI            | `openaiEmbedding` (`@tanstack/ai-openai`) | `text-embedding-3-small`, `text-embedding-3-large`                                                      | text         |
+| Cohere            | `cohereEmbedding` (`@tanstack/ai-cohere`) | `embed-v4.0`                                                                                            | text + image |
+| Google Gemini     | `geminiEmbedding` (`@tanstack/ai-gemini`) | `gemini-embedding-001`                                                                                  | text         |
+| Mistral           | `mistralEmbedding` (`@tanstack/ai-mistral`) | `mistral-embed`, `codestral-embed`                                                                    | text         |
+| Amazon Bedrock    | `bedrockEmbedding` (`@tanstack/ai-bedrock`) | Titan Text Embeddings V2 (text), Titan Multimodal Embeddings G1 (text + image), Cohere Embed v3 (text) | text, or text + image |
+| Ollama            | `ollamaEmbedding` (`@tanstack/ai-ollama`) | `nomic-embed-text`, `mxbai-embed-large`, and any local embedding model                                  | text         |
+| Vercel AI Gateway | `vercelGatewayEmbedding` (`@tanstack/ai-vercel-gateway`) | OpenAI-compatible models such as `openai/text-embedding-3-small`                         | text         |
+
+Vercel AI Gateway takes a `creator/model` id:
 
 ```typescript
 import { embed } from "@tanstack/ai";
@@ -60,25 +96,9 @@ const result = await embed({
 });
 ```
 
-`input` accepts a single item or an array of items; the result always carries an `embeddings` array with one vector per input item, in input order:
+## Pick the vector size
 
-```typescript
-import { embed } from "@tanstack/ai";
-import { openaiEmbedding } from "@tanstack/ai-openai";
-
-const result = await embed({
-  adapter: openaiEmbedding("text-embedding-3-large"),
-  input: ["a red guitar", "a blue drum kit", "a vintage synthesizer"],
-});
-
-for (const embedding of result.embeddings) {
-  console.log(embedding.index, embedding.vector.length);
-}
-```
-
-## Requesting Dimensions
-
-Models with configurable (Matryoshka) dimensions accept a top-level `dimensions` option:
+Some models (Matryoshka models) let you choose the number of dimensions. Pass `dimensions`:
 
 ```typescript
 import { embed } from "@tanstack/ai";
@@ -91,19 +111,59 @@ const result = await embed({
 });
 ```
 
-Adapters for fixed-dimension models (for example `mistral-embed` or Ollama models) throw a clear runtime error when `dimensions` is set.
+Fixed-size models (for example `mistral-embed` or Ollama models) throw a runtime error when you set `dimensions`.
 
-## Multimodal Embeddings
+## Embed documents and queries differently
 
-Multimodal models embed images — alone, or fused with text into a single vector. Image inputs reuse the same content-part shapes as chat messages, and the accepted item types are narrowed per model at compile time: passing an image to a text-only model is a type error.
+Retrieval models give better results when they know if the text is a document or a query.
 
-The top-level `input` array is always the list of items, and **each item produces exactly one vector**:
+Cohere requires an `inputType`. The types make `modelOptions` required for this model:
 
-- a string or text part embeds that text
-- an image part embeds that image
-- a **nested array of parts** (`[textPart, imagePart]`) fuses those parts into one vector — the same `Array<ContentPart>` shape a chat message's `content` uses
+```typescript
+import { embed } from "@tanstack/ai";
+import { cohereEmbedding } from "@tanstack/ai-cohere";
 
-Because a top-level array is the item list, fuse by nesting: `[textPart, imagePart]` is two vectors, while `[[textPart, imagePart]]` is one fused vector.
+// Index time: embed the documents
+const docs = await embed({
+  adapter: cohereEmbedding("embed-v4.0"),
+  input: ["doc one", "doc two"],
+  modelOptions: { inputType: "search_document" },
+});
+
+// Query time: embed the query
+const query = await embed({
+  adapter: cohereEmbedding("embed-v4.0"),
+  input: "which doc mentions one?",
+  modelOptions: { inputType: "search_query" },
+});
+```
+
+Gemini has an optional `taskType` for the same purpose:
+
+```typescript
+import { embed } from "@tanstack/ai";
+import { geminiEmbedding } from "@tanstack/ai-gemini";
+
+const result = await embed({
+  adapter: geminiEmbedding("gemini-embedding-001"),
+  input: "a red guitar",
+  modelOptions: { taskType: "RETRIEVAL_DOCUMENT" },
+});
+```
+
+## Embed images
+
+Multimodal models embed images, or an image and text together as one vector. Image items use the same content-part shape as chat messages.
+
+The types narrow the accepted items per model. An image sent to a text-only model is a type error.
+
+Each item in the top-level `input` array gives one vector:
+
+- A string or a text part embeds that text.
+- An image part embeds that image.
+- A nested array of parts (`[textPart, imagePart]`) fuses the parts into one vector.
+
+So `[textPart, imagePart]` gives two vectors, and `[[textPart, imagePart]]` gives one fused vector.
 
 ```typescript
 import { embed } from "@tanstack/ai";
@@ -123,7 +183,7 @@ const result = await embed({
         mimeType: "image/png",
       },
     },
-    // A nested array fuses its parts into a single vector.
+    // A nested array fuses its parts into one vector.
     [
       { type: "text", content: "Fender Stratocaster, sunburst finish" },
       {
@@ -139,10 +199,10 @@ const result = await embed({
   modelOptions: { inputType: "search_document" },
 });
 
-console.log(result.embeddings.length); // 3 — one vector per input item
+console.log(result.embeddings.length); // 3, one vector per input item
 ```
 
-Amazon Titan Multimodal works the same way — nest the parts to fuse them into one vector:
+Amazon Titan Multimodal works the same way. Nest the parts to fuse them:
 
 ```typescript
 import { embed } from "@tanstack/ai";
@@ -169,47 +229,19 @@ const result = await embed({
 });
 ```
 
-Adapters do not fetch remote image URLs by default — pass base64 data (or a `data:` URI). The Cohere adapter accepts an `allowUrlFetch` config option to opt into downloading `http(s)` image URLs on your behalf.
+Pass images as base64 data or as a `data:` URI. Adapters do not download remote image URLs by default.
 
-## Search Documents vs. Queries
+Need to rank the results after a vector search? See [Reranking](./rerank/rerank).
 
-Retrieval-tuned models embed documents and queries differently. Cohere requires an `inputType`, which TanStack AI enforces at the type level — `modelOptions` is required for models with required options:
+## Advanced
 
-```typescript
-import { embed } from "@tanstack/ai";
-import { cohereEmbedding } from "@tanstack/ai-cohere";
+### Remote image URLs
 
-// Index time: embed documents
-const docs = await embed({
-  adapter: cohereEmbedding("embed-v4.0"),
-  input: ["doc one", "doc two"],
-  modelOptions: { inputType: "search_document" },
-});
+The Cohere adapter has an `allowUrlFetch` config option. When you turn it on, the adapter downloads `http(s)` image URLs for you.
 
-// Query time: embed the query
-const query = await embed({
-  adapter: cohereEmbedding("embed-v4.0"),
-  input: "which doc mentions one?",
-  modelOptions: { inputType: "search_query" },
-});
-```
+### Token usage and middleware
 
-Gemini expresses the same idea through an optional `taskType`:
-
-```typescript
-import { embed } from "@tanstack/ai";
-import { geminiEmbedding } from "@tanstack/ai-gemini";
-
-const result = await embed({
-  adapter: geminiEmbedding("gemini-embedding-001"),
-  input: "a red guitar",
-  modelOptions: { taskType: "RETRIEVAL_DOCUMENT" },
-});
-```
-
-## Usage and Observability
-
-Adapters report token usage when the provider does, and `embed()` supports the same observe-only generation middleware as the media activities (see [Generation Hooks](./media/generation-hooks.md)):
+Adapters report token usage when the provider does. `embed()` accepts the same observe-only generation middleware as the media activities. See [Generation Hooks](./media/generation-hooks.md).
 
 ```typescript
 import { embed } from "@tanstack/ai";
@@ -231,9 +263,9 @@ const result = await embed({
 console.log(result.usage?.promptTokens);
 ```
 
-## Error Handling
+### Errors
 
-`embed()` rejects with the provider error; middleware `onError` hooks run before the rejection propagates:
+`embed()` rejects with the provider error. Middleware `onError` hooks run before the rejection reaches your code.
 
 ```typescript
 import { embed } from "@tanstack/ai";

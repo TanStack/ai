@@ -2,7 +2,7 @@
 title: Groq
 id: groq-adapter
 order: 6
-description: "Use Groq's fast inference API with TanStack AI for low-latency LLM responses and Whisper transcription — Llama and other open-weight models via @tanstack/ai-groq."
+description: "Use the fast Groq inference API in TanStack AI with @tanstack/ai-groq: low-latency chat with Llama, gpt-oss, Qwen, and Kimi, plus Whisper transcription and Orpheus speech."
 keywords:
   - tanstack ai
   - groq
@@ -15,9 +15,9 @@ keywords:
   - transcription
 ---
 
-The Groq adapter provides access to Groq's fast inference API, featuring the world's fastest LLM inference and Whisper-based audio transcription.
+The Groq adapter calls Llama, gpt-oss, Qwen, and Kimi with low latency. It also calls Whisper for transcription and Orpheus for speech.
 
-## Installation
+## 1. Install
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
@@ -32,100 +32,89 @@ octane: @tanstack/ai-groq
 
 <!-- ::end:tabs -->
 
-## Basic Usage
+## 2. Set the API key
 
-```typescript
-import { chat } from "@tanstack/ai";
-import { groqText } from "@tanstack/ai-groq";
+Put the key in the environment of your server:
 
-const stream = chat({
-  adapter: groqText("llama-3.3-70b-versatile"),
-  messages: [{ role: "user", content: "Hello!" }],
-});
+```bash
+GROQ_API_KEY=gsk_...
 ```
 
-## Basic Usage - Custom API Key
+`groqText` and the other short factories read `GROQ_API_KEY`. To pass the key in code, use the `create*` factory of the same adapter:
 
 ```typescript
-import { chat } from "@tanstack/ai";
 import { createGroqText } from "@tanstack/ai-groq";
 
-const adapter = createGroqText("llama-3.3-70b-versatile", process.env.GROQ_API_KEY!, {
-  // ... your config options
-});
-
-const stream = chat({
-  adapter,
-  messages: [{ role: "user", content: "Hello!" }],
-});
+const adapter = createGroqText("openai/gpt-oss-120b", process.env.GROQ_API_KEY!);
 ```
 
-## Configuration
+## 3. Stream a chat from the server
 
 ```typescript
-import { createGroqText, type GroqTextConfig } from "@tanstack/ai-groq";
-
-const config: Omit<GroqTextConfig, 'apiKey'> = {
-  baseURL: "https://api.groq.com/openai/v1", // Optional, for custom endpoints
-};
-
-const adapter = createGroqText("llama-3.3-70b-versatile", process.env.GROQ_API_KEY!, config);
-```
-
-Need a header on each request, or a log of each model call? This adapter supports [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
-
-## Example: Chat Completion
-
-```typescript
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
 import { groqText } from "@tanstack/ai-groq";
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
 
   const stream = chat({
-    adapter: groqText("llama-3.3-70b-versatile"),
+    adapter: groqText("openai/gpt-oss-120b"),
     messages,
+    threadId,
+    runId,
   });
 
   return toServerSentEventsResponse(stream);
 }
 ```
 
-## Example: With Tools
+## 4. Render the chat
 
-```typescript
-import { chat, toolDefinition, type ModelMessage } from "@tanstack/ai";
-import { groqText } from "@tanstack/ai-groq";
-import { z } from "zod";
+The client is the same for every provider. Point `useChat` at your route:
 
-const searchDatabaseDef = toolDefinition({
-  name: "search_database",
-  description: "Search the database",
-  inputSchema: z.object({
-    query: z.string(),
-  }),
-});
+```tsx
+import { useState } from "react";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
-const searchDatabase = searchDatabaseDef.server(async ({ query }) => {
-  // Search database
-  return { results: [] };
-});
+export function Chat() {
+  const [input, setInput] = useState("");
+  const { messages, sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
+  });
 
-const messages: Array<ModelMessage> = [{ role: "user", content: "Search for something" }];
-
-const stream = chat({
-  adapter: groqText("llama-3.3-70b-versatile"),
-  messages,
-  tools: [searchDatabase],
-});
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        sendMessage(input);
+        setInput("");
+      }}
+    >
+      {messages.map((message) => (
+        <p key={message.id}>
+          {message.parts
+            .map((part) => (part.type === "text" ? part.content : ""))
+            .join("")}
+        </p>
+      ))}
+      <input value={input} onChange={(event) => setInput(event.target.value)} />
+    </form>
+  );
+}
 ```
 
-If Groq rejects a generated tool call with `tool_use_failed` and includes a reconstructable tool call in `failed_generation`, the adapter returns the provider error as that tool's result without executing the call. The agent loop can then repair the call on its next iteration. Other provider errors remain terminal run errors.
+For Vue, Solid, Svelte, Angular, and the other frameworks, see [Quick Start](../getting-started/quick-start#3-render-the-chat).
+
+You now have a streaming chat on Groq. [Tools](../tools/tools) and [Structured Outputs](../structured-outputs/overview) work the same as with every adapter. For the Groq details of both, see [Tool calls that Groq rejects](#tool-calls-that-groq-rejects) and [Structured output](#structured-output).
 
 ## Transcription
 
-Groq exposes Whisper-based speech-to-text via `groqTranscription()` and the `generateTranscription()` activity. The `audio` input accepts a `File`, `Blob`, `ArrayBuffer`, base64 string, data URL, or an `https://` URL (forwarded directly to Groq without re-uploading).
+`groqTranscription` turns speech into text with Whisper:
 
 ```typescript
 import { generateTranscription } from "@tanstack/ai";
@@ -135,23 +124,75 @@ const result = await generateTranscription({
   adapter: groqTranscription("whisper-large-v3-turbo"),
   audio: "https://example.com/recording.mp3",
   language: "en",
+  threadId: "thread-1",
 });
 
 console.log(result.text);
 
-// verbose_json (the default) populates language, duration, and timestamped segments
+// verbose_json (the default) fills language, duration, and timestamped segments
 for (const segment of result.segments ?? []) {
-  console.log(`[${segment.start}s → ${segment.end}s] ${segment.text}`);
+  console.log(`[${segment.start}s to ${segment.end}s] ${segment.text}`);
 }
 ```
 
-Supported models: `whisper-large-v3-turbo`, `whisper-large-v3`. Supported `responseFormat` values: `json`, `text`, `verbose_json` (default). `srt` and `vtt` are not supported by Groq.
+- `audio` takes a `File`, a `Blob`, an `ArrayBuffer`, a base64 string, a data URL, or an `https://` URL. The adapter sends a URL to Groq as it is, with no new upload.
+- Models: `whisper-large-v3-turbo`, `whisper-large-v3`.
+- `responseFormat` takes `json`, `text`, or `verbose_json` (the default). Groq does not support `srt` or `vtt`.
 
-See [Transcription](../media/transcription) for the full API.
+See [Transcription](../media/transcription).
 
-## Model Options
+## Speech
 
-Groq supports various provider-specific options. Sampling parameters live here too — `temperature`, `top_p`, and `max_completion_tokens` (Groq's token-limit key) — rather than as root-level props on `chat()`:
+`groqSpeech` turns text into speech with the Orpheus models:
+
+```typescript
+import { generateSpeech } from "@tanstack/ai";
+import { groqSpeech } from "@tanstack/ai-groq";
+
+const result = await generateSpeech({
+  adapter: groqSpeech("canopylabs/orpheus-v1-english"),
+  text: "Hello from Groq!",
+  threadId: "thread-1",
+  voice: "autumn",
+  format: "wav",
+});
+
+console.log(result.audio); // Base64-encoded audio
+```
+
+- Models: `canopylabs/orpheus-v1-english` and `canopylabs/orpheus-arabic-saudi`.
+- English voices: `autumn` (the default), `diana`, `hannah`, `austin`, `daniel`, `troy`.
+- Arabic voices: `fahad`, `sultan`, `lulwa`, `noura`.
+- Formats: `flac`, `mp3`, `mulaw`, `ogg`, and `wav` (the default). `modelOptions.sample_rate` sets the sample rate.
+
+See [Text-to-Speech](../media/text-to-speech).
+
+## Summarization
+
+```typescript
+import { summarize } from "@tanstack/ai";
+import { groqSummarize } from "@tanstack/ai-groq";
+
+const result = await summarize({
+  adapter: groqSummarize("llama-3.3-70b-versatile"),
+  text: "Your long text to summarize...",
+  threadId: "thread-1",
+  maxLength: 100,
+  style: "concise", // "concise" | "bullet-points" | "paragraph"
+});
+
+console.log(result.summary);
+```
+
+## No image generation
+
+Groq does not make images. For images, use [OpenAI](./openai) or [Gemini](./gemini). Groq has no provider tools of its own. Define your tools with `toolDefinition()`.
+
+## Models and options
+
+### Model options
+
+Provider options go in `modelOptions`. This includes the sampling options `temperature`, `top_p`, and `max_completion_tokens` (the token limit of Groq):
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -160,6 +201,7 @@ import { groqText } from "@tanstack/ai-groq";
 const stream = chat({
   adapter: groqText("llama-3.3-70b-versatile"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   modelOptions: {
     temperature: 0.7,
     max_completion_tokens: 1024,
@@ -168,7 +210,7 @@ const stream = chat({
 });
 ```
 
-> If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
+Sampling options do not go at the root of `chat()`. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 
 ### Reasoning
 
@@ -181,6 +223,7 @@ import { groqText } from "@tanstack/ai-groq";
 const stream = chat({
   adapter: groqText("openai/gpt-oss-120b"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
   reasoning: "medium",
 });
 ```
@@ -192,125 +235,52 @@ It goes out as `reasoning_effort`:
 
 To pick how the thinking text comes back, set `reasoning_format` in `modelOptions`.
 
-## Summarization
+### Models
 
-Summarize long text content:
+The package exports the full lists as `GROQ_CHAT_MODELS`, `GROQ_TRANSCRIPTION_MODELS`, and `GROQ_TTS_MODELS`.
+
+| Group | Models |
+| --- | --- |
+| OpenAI gpt-oss | `openai/gpt-oss-120b` (reasoning), `openai/gpt-oss-20b`, `openai/gpt-oss-safeguard-20b` (safety-tuned) |
+| Meta Llama | `meta-llama/llama-4-maverick-17b-128e-instruct` (vision), `meta-llama/llama-4-scout-17b-16e-instruct`, `llama-3.3-70b-versatile` (128K context), `llama-3.1-8b-instant` |
+| Other | `qwen/qwen3-32b` (reasoning), `moonshotai/kimi-k2-instruct-0905` (256K context) |
+| Safety | `meta-llama/llama-guard-4-12b` (content moderation), `meta-llama/llama-prompt-guard-2-86m` and `meta-llama/llama-prompt-guard-2-22m` (prompt injection detection) |
+
+`adapter.inputModalities` lists the input kinds of the selected model. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
+
+## Advanced
+
+### Configuration
 
 ```typescript
-import { summarize } from "@tanstack/ai";
-import { groqSummarize } from "@tanstack/ai-groq";
+import { createGroqText, type GroqTextConfig } from "@tanstack/ai-groq";
 
-const result = await summarize({
-  adapter: groqSummarize("llama-3.3-70b-versatile"),
-  text: "Your long text to summarize...",
-  maxLength: 100,
-  style: "concise", // "concise" | "bullet-points" | "paragraph"
-});
+const config: Omit<GroqTextConfig, "apiKey"> = {
+  baseURL: "https://api.groq.com/openai/v1", // Optional, for custom endpoints
+};
 
-console.log(result.summary);
+const adapter = createGroqText("openai/gpt-oss-120b", process.env.GROQ_API_KEY!, config);
 ```
 
-## Supported Models
+Need a header on each request, or a log of each model call? This adapter supports [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
 
-Groq offers a diverse selection of models from multiple providers:
+### Tool calls that Groq rejects
 
-### Meta Llama
+Groq can reject a tool call from the model with `tool_use_failed`. If the error has a tool call in `failed_generation` that the adapter can rebuild, the adapter does not run the call. It returns the provider error as the result of that tool. The agent loop can then repair the call on its next step. Other provider errors still end the run.
 
-- `llama-3.3-70b-versatile` - Fast, capable model with 128K context
-- `llama-3.1-8b-instant` - Fast, cost-effective model
-- `meta-llama/llama-4-maverick-17b-128e-instruct` - Latest Llama 4 with vision support
-- `meta-llama/llama-4-scout-17b-16e-instruct` - Efficient Llama 4 model
-
-### Security Models
-
-- `meta-llama/llama-guard-4-12b` - Content moderation
-- `meta-llama/llama-prompt-guard-2-86m` - Prompt injection detection
-- `meta-llama/llama-prompt-guard-2-22m` - Lightweight prompt guard
-
-### OpenAI GPT-OSS Models
-
-- `openai/gpt-oss-120b` - Large OSS model with reasoning support
-- `openai/gpt-oss-20b` - Efficient OSS model
-- `openai/gpt-oss-safeguard-20b` - Safety-tuned OSS model
-
-### Other Providers
-
-- `moonshotai/kimi-k2-instruct-0905` - Kimi K2 with 256K context
-- `qwen/qwen3-32b` - Qwen 3 with reasoning support
-
-## Environment Variables
-
-Set your API key in environment variables:
-
-```bash
-GROQ_API_KEY=gsk_...
-```
-
-## API Reference
-
-### `groqText(model, config?)`
-
-Creates a Groq chat adapter using environment variables.
-
-`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
-
-**Parameters:**
-
-- `model` - The model name (e.g., `llama-3.3-70b-versatile`)
-- `config` (optional) - Optional configuration object. Supports the same options as `createGroqText` except `apiKey`, which is auto-detected from `GROQ_API_KEY` environment variable. Common options:
-  - `baseURL` - Custom base URL for API requests (optional)
-
-**Returns:** A Groq chat adapter instance.
-
-### `createGroqText(model, apiKey, config?)`
-
-Creates a Groq chat adapter with an explicit API key.
-
-**Parameters:**
-
-- `model` - The model name (e.g., `llama-3.3-70b-versatile`)
-- `apiKey` - Your Groq API key
-- `config` (optional) - Optional configuration object:
-  - `baseURL` - Custom base URL for API requests (optional)
-
-**Returns:** A Groq chat adapter instance.
-
-### `groqSummarize(model, config?)`
-
-Creates a Groq summarization adapter using environment variables.
-
-**Returns:** A Groq summarize adapter instance.
-
-### `createGroqSummarize(model, apiKey, config?)`
-
-Creates a Groq summarization adapter with an explicit API key.
-
-**Returns:** A Groq summarize adapter instance.
-
-### `groqTranscription(model, config?)` / `createGroqTranscription(model, apiKey, config?)`
-
-Creates a Groq transcription (speech-to-text) adapter. The short form reads `GROQ_API_KEY` from the environment; the `create*` form takes an explicit API key. Supported models: `whisper-large-v3-turbo`, `whisper-large-v3`.
-
-## Structured output
+### Structured output
 
 Some Groq models, for example `llama-3.3-70b-versatile`, reject strict JSON schema. For these models, `chat({ outputSchema })` sends `json_object` and adds your schema to the system prompt. Read [When strict JSON schema is rejected](../structured-outputs/overview.md#when-strict-json-schema-is-rejected).
 
-## Limitations
+### API reference
 
-- **Text-to-Speech**: Groq does not currently expose a TTS adapter. Use OpenAI, Gemini, ElevenLabs, or fal for speech generation.
-- **Image Generation**: Groq does not support image generation. Use OpenAI, Gemini, or fal for image generation.
+Each factory pair has the same shape. The short factory reads `GROQ_API_KEY` from the environment. The `create*` factory takes an explicit API key. Both take `model` as the first argument.
 
-## Next Steps
+| Factories | Creates |
+| --- | --- |
+| `groqText(model, config?)` / `createGroqText(model, apiKey, config?)` | Chat adapter |
+| `groqSummarize(model, config?)` / `createGroqSummarize(model, apiKey, config?)` | Summarization adapter |
+| `groqTranscription(model, config?)` / `createGroqTranscription(model, apiKey, config?)` | Speech-to-text adapter |
+| `groqSpeech(model, config?)` / `createGroqSpeech(model, apiKey, config?)` | Text-to-speech adapter |
 
-- [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../tools/tools) - Learn about tools
-- [Other Adapters](./openai) - Explore other providers
-
-## Provider Tools
-
-Groq does not currently expose provider-specific tool factories.
-Define your own tools with `toolDefinition()` from `@tanstack/ai`.
-
-See [Tools](../tools/tools.md) for the general tool-definition flow, or
-[Provider Tools](../tools/provider-tools.md) for other providers'
-native-tool offerings.
+`config.baseURL` sets a custom base URL for the API requests. `adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know.

@@ -106,6 +106,7 @@ describe('useChat() return type (vue)', () => {
       const tools = clientTools(tool)
 
       const options: UseChatOptions<typeof tools> = {
+        threadId: 'thread-1',
         connection: {
           connect: async function* () {},
         },
@@ -136,6 +137,7 @@ describe('useChat() return type (vue)', () => {
 
       const checkUseChatCall = () => {
         useChat({
+          threadId: 'thread-1',
           connection: {
             connect: async function* () {},
           },
@@ -314,6 +316,7 @@ describe('useChat() registered generic interrupt types', () => {
 
     const check = () => {
       const chat = useChat({
+        threadId: 'thread-1',
         connection: { connect: async function* () {} },
         interrupts: [reviewPlan, acknowledge],
       })
@@ -363,6 +366,7 @@ describe('useChat() registered generic interrupt types', () => {
         needsApproval: true,
       }).client()
       const withoutRegistry = useChat({
+        threadId: 'thread-1',
         connection: { connect: async function* () {} },
         tools: clientTools(existingTool),
       })

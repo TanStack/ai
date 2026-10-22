@@ -14,7 +14,7 @@ type LoadChild = (subagentRunId) => Promise<
 | undefined>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/load-child.ts:12](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/load-child.ts#L12)
+Defined in: packages/ai/src/activities/chat/middleware/load-child.ts:12
 
 Loads the stored transcript of a finished subagent run by its
 `subagentRunId`. Returns `undefined` for an unknown id. A persistence

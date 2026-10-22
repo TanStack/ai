@@ -97,66 +97,19 @@ describe('DurableObjectRunEventLog', () => {
     expect(seen).toEqual([0, 1])
   })
 
-  it('migrates a legacy terminal record on read and writes it back', async () => {
+  it('rejects a 0.x record and leaves it out of list()', async () => {
     const storage = fakeStorage()
-    await storage.put('rec:legacy', {
-      runId: 'legacy',
+    const log = new DurableObjectRunEventLog(storage)
+    await log.open({ runId: 'live', threadId: 't1' })
+    await storage.put('rec:old', {
+      runId: 'old',
       status: 'done',
       lastSeq: 0,
-      error: undefined,
-      createdAt: 100,
-      updatedAt: 200,
+      createdAt: 1,
+      updatedAt: 1,
     })
-    await storage.put(`evt:legacy:${'0'.padStart(8, '0')}`, chunk(0))
-
-    const log = new DurableObjectRunEventLog(storage)
-    const record = await log.get('legacy')
-    expect(record?.status).toBe('completed')
-    expect(record?.startedAt).toBe(100)
-    expect(record?.finishedAt).toBe(200)
-    expect(record?.updatedAt).toBe(200)
-    expect(record?.threadId).toBe('legacy')
-
-    const stored = await storage.get<{ status: string; startedAt?: number }>(
-      'rec:legacy',
-    )
-    expect(stored?.status).toBe('completed')
-    expect(stored?.startedAt).toBe(100)
-
-    const seen: Array<number> = []
-    for await (const event of log.read('legacy')) seen.push(event.seq)
-    expect(seen).toEqual([0])
-  })
-
-  it('a migrated legacy running record stays appendable with a continuous seq', async () => {
-    const storage = fakeStorage()
-    await storage.put('rec:legacy', {
-      runId: 'legacy',
-      threadId: 't1',
-      status: 'error',
-      lastSeq: 1,
-      createdAt: 100,
-      updatedAt: 200,
-    })
-    await storage.put('rec:live', {
-      runId: 'live',
-      threadId: 't2',
-      status: 'running',
-      lastSeq: 2,
-      createdAt: 100,
-      updatedAt: 200,
-    })
-
-    const log = new DurableObjectRunEventLog(storage)
-    await expect(log.append('legacy', chunk(9))).rejects.toThrow(/terminal/)
-    expect((await log.get('legacy'))?.status).toBe('failed')
-
-    const live = await log.get('live')
-    expect(live?.status).toBe('running')
-    expect(live?.finishedAt).toBeUndefined()
-    expect(await log.append('live', chunk(3))).toBe(3)
-
-    const statuses = (await log.list()).map((r) => r.status).sort()
-    expect(statuses).toEqual(['failed', 'running'])
+    await expect(log.get('old')).rejects.toThrow(/0\.x record layout/)
+    await expect(log.touch('old')).rejects.toThrow(/0\.x record layout/)
+    expect((await log.list()).map((r) => r.runId)).toEqual(['live'])
   })
 })

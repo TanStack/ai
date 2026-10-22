@@ -17,6 +17,7 @@ export const Route = createFileRoute('/foreign-chunk-events')({
 function ForeignChunkEventsPage() {
   const search = Route.useSearch()
   const { messages, sendMessage } = useChat({
+    threadId: 'foreign-chunk-events',
     connection: fetchServerSentEvents(
       `/api/foreign-chunk-events?case=${search.case}`,
     ),

@@ -103,6 +103,7 @@ export const Route = createFileRoute('/api/tool-choice-wire')({
 
         try {
           for await (const _ of chat({
+            threadId: 'tool-choice-wire',
             adapter: createAnthropicChat(model, DUMMY_KEY, {
               fetch: capturingFetch,
             }),

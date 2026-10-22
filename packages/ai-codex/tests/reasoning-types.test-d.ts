@@ -4,6 +4,7 @@ import { codexText } from '../src'
 const messages = [{ role: 'user' as const, content: 'hi' }]
 
 chat({
+  threadId: 'thread-1',
   adapter: codexText('gpt-5.1-codex'),
   messages,
   reasoning: 'high',

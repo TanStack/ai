@@ -52,6 +52,7 @@ describe('strict fallback warning (#1213)', () => {
 
     for (let i = 0; i < 2; i++) {
       for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
         logger,
         model: 'gpt-4o-mini',
         messages: [{ role: 'user', content: 'hi' }],
@@ -91,6 +92,7 @@ describe('strict fallback warning (#1213)', () => {
     }
 
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       logger,
       model: 'gpt-4o-mini',
       messages: [{ role: 'user', content: 'hi' }],
@@ -163,6 +165,7 @@ describe('OpenAI adapter option mapping', () => {
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       systemPrompts: ['Stay concise'],
       messages: [
@@ -241,6 +244,7 @@ describe('OpenAI adapter option mapping', () => {
     }
 
     for await (const _chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
     })) {
@@ -280,6 +284,7 @@ describe('OpenAI adapter option mapping', () => {
     }
 
     for await (const _chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Search the web.' }],
       tools: [webSearchTool({ type: 'web_search' })],
@@ -325,6 +330,7 @@ describe('OpenAI adapter option mapping', () => {
     }
 
     for await (const _chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       modelOptions: { include: [] },
@@ -362,6 +368,7 @@ describe('OpenAI adapter option mapping', () => {
     ;(adapter as any).client = { responses: { create: responsesCreate } }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       systemPrompts: [
         'Plain string.',
@@ -411,6 +418,7 @@ describe('OpenAI adapter option mapping', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       modelOptions,
@@ -423,4 +431,61 @@ describe('OpenAI adapter option mapping', () => {
     expect(payload.top_p).toBe(0.9)
     expect(payload.max_output_tokens).toBe(256)
   })
+
+  it.each([
+    { reasoning: undefined, keepsSampling: false },
+    { reasoning: 'low', keepsSampling: false },
+    // OpenAI accepts sampling on gpt-6-sol / gpt-6-luna when effort is `none`.
+    { reasoning: 'off', keepsSampling: true },
+  ] as const)(
+    'sampling on gpt-6-sol with reasoning $reasoning: kept=$keepsSampling',
+    async ({ reasoning, keepsSampling }) => {
+      const model = 'gpt-6-sol'
+      const mockStream = createMockChatCompletionsStream([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-gpt6-sampling',
+            model,
+            status: 'in_progress',
+            created_at: 1234567890,
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-gpt6-sampling',
+            status: 'completed',
+            usage: { input_tokens: 1, output_tokens: 0 },
+          },
+        },
+      ])
+
+      const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
+      const adapter = new OpenAITextAdapter({ apiKey: 'test-key' }, model)
+      ;(adapter as any).client = { responses: { create: responsesCreate } }
+
+      for await (const _ of chat({
+        adapter,
+        messages: [{ role: 'user', content: 'hi' }],
+        threadId: 'thread-1',
+        reasoning,
+        modelOptions: {
+          temperature: 0.7,
+          top_p: 0.9,
+          top_logprobs: 2,
+          max_output_tokens: 256,
+        },
+      })) {
+        // consume stream
+      }
+
+      const [payload] = responsesCreate.mock.calls[0]!
+      expect(payload.temperature).toBe(keepsSampling ? 0.7 : undefined)
+      expect(payload.top_p).toBe(keepsSampling ? 0.9 : undefined)
+      expect(payload.top_logprobs).toBe(keepsSampling ? 2 : undefined)
+      expect(payload.max_output_tokens).toBe(256)
+      expect(payload.include).toEqual(['reasoning.encrypted_content'])
+    },
+  )
 })
