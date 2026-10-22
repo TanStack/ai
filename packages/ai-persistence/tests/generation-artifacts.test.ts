@@ -266,6 +266,28 @@ describe('withGenerationPersistence generation artifacts', () => {
     expect(await retrieveBlob(persistence, 'missing')).toBeNull()
   })
 
+  it('retrieveBlob throws a clear error for a 0.x record with no blobKey', async () => {
+    const persistence = memoryPersistence()
+    const legacy = {
+      artifactId: 'art-legacy',
+      runId: 'run-legacy',
+      threadId: 'thread-legacy',
+      name: 'old.png',
+      mimeType: 'image/png',
+      size: 1,
+      createdAt: 0,
+    }
+    await persistence.stores.artifacts!.save(
+      legacy as unknown as Parameters<
+        NonNullable<AIPersistence['stores']['artifacts']>['save']
+      >[0],
+    )
+
+    await expect(retrieveBlob(persistence, 'art-legacy')).rejects.toThrow(
+      'Artifact art-legacy has no blobKey. Records written by 0.x need blob_key backfilled',
+    )
+  })
+
   it('writes bytes under a custom storageKey and reads them back via blobKey', async () => {
     const persistence = memoryPersistence()
 

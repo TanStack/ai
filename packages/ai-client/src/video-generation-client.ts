@@ -178,7 +178,13 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       GenerationPersistenceOptions &
       GenerationTransport<VideoGenerateInput, VideoGenerateResult>,
   ) {
-    // `threadId` is the only identity.
+    // `threadId` is the only identity. Checked at runtime too, because JS
+    // callers are not held to the type.
+    if (typeof options.threadId !== 'string' || options.threadId === '') {
+      throw new Error(
+        'VideoGenerationClient: threadId is required (a non-empty string).',
+      )
+    }
     this.threadId = options.threadId
     this.connection = options.connection
     this.fetcher = options.fetcher

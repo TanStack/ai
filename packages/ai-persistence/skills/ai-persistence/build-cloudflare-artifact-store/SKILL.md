@@ -519,7 +519,7 @@ Omitting `source_url` from the record when the column is `NULL` keeps records
 comparing cleanly against the reference in-memory store. Persist `blob_key`
 verbatim: a `storageKey` mapper can put the bytes anywhere, so a reader cannot
 recompute the path. `blobKey` is required. 0.x records without it are not
-supported, and nothing checks for them; backfill `blob_key` before upgrading.
+supported: `retrieveBlob` throws for them. Backfill `blob_key` before upgrading.
 Cloudflare KV is not an equivalent ArtifactStore backend. The required ordering
 and indexed reads need a transactional indexed database. Use D1 or another
 transactional indexed database for artifact metadata. Store the bytes in R2.

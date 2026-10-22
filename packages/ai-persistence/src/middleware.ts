@@ -628,6 +628,22 @@ function isChatOwnedPendingInterrupt(interrupt: InterruptRecord): boolean {
   )
 }
 
+/**
+ * A 0.x approval or client-tool record has no TanStack binding, so the filter
+ * above treats it as foreign and it stays pending forever. Say so.
+ */
+function warnIfUnboundToolInterrupt(interrupt: InterruptRecord): void {
+  const kind = objectValue(interrupt.payload.metadata)?.kind
+  if (
+    (kind === 'approval' || kind === 'client_tool') &&
+    typeof interrupt.payload.toolCallId === 'string'
+  ) {
+    console.warn(
+      `[ai-persistence] Interrupt '${interrupt.interruptId}' is a 0.x ${kind} record with no 'tanstack:interruptBinding'. This chat cannot resume it, so it stays pending. Resolve or cancel it in the interrupt store.`,
+    )
+  }
+}
+
 function durableGenericFailure(
   ctx: Pick<ChatMiddlewareContext, 'threadId' | 'runId'>,
   persisted: InterruptRecord,
@@ -2117,7 +2133,11 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         // Gate only records that this chat owns. A foreign AG-UI interrupt can
         // share the durable thread, but its owner resolves it outside this
         // resume protocol. Including it would deadlock this chat resume.
-        const ownedPending = pending.filter(isChatOwnedPendingInterrupt)
+        const ownedPending = pending.filter((record) => {
+          if (isChatOwnedPendingInterrupt(record)) return true
+          warnIfUnboundToolInterrupt(record)
+          return false
+        })
         rejectMixedRunPending(ownedPending, ctx)
         const resumeByInterruptId = validatePendingResumes(
           ownedPending,

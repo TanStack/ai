@@ -474,6 +474,7 @@ export class InterruptManager<
   private activeSubmissionOperation: SubmissionOperation | undefined
   private retrySubmission: InterruptManagerSubmission | undefined
   private resuming = false
+  private readonly warnedSchemaMismatches = new Set<string>()
   private tools: TTools | undefined
   private readonly interruptDefinitions: ReadonlyMap<
     string,
@@ -706,6 +707,24 @@ export class InterruptManager<
     this.maybeSubmit()
   }
 
+  /**
+   * The local tool exists, but its schemas differ from the hashes the server
+   * put in the binding, so the interrupt falls back to generic. Warn once per
+   * interrupt so the fallback is not silent.
+   */
+  private warnSchemaMismatch(
+    interruptId: string,
+    toolName: string,
+    error?: unknown,
+  ): void {
+    if (this.warnedSchemaMismatches.has(interruptId)) return
+    this.warnedSchemaMismatches.add(interruptId)
+    console.warn(
+      `[TanStack AI] Interrupt "${interruptId}" for tool "${toolName}": the server and client tool schemas differ, so it is handled as a generic interrupt. Use the same tool definition on the server and the client.`,
+      ...(error === undefined ? [] : [error]),
+    )
+  }
+
   private hydrateInterrupt(
     descriptor: Interrupt,
     hydration: InterruptManagerHydration,
@@ -823,8 +842,10 @@ export class InterruptManager<
               validationGeneration: 0,
             }
           }
-        } catch {
+          this.warnSchemaMismatch(interrupt.id, candidate.toolName)
+        } catch (error) {
           // Invalid configured schemas cannot safely grant typed hydration.
+          this.warnSchemaMismatch(interrupt.id, candidate.toolName, error)
         }
       }
     }
@@ -834,21 +855,20 @@ export class InterruptManager<
         (configured) => configured.name === candidate.toolName,
       )
       // Binding-gated, for the same reason as tool approvals above.
-      if (
-        tool !== undefined &&
-        interrupt.toolCallId === candidate.toolCallId &&
-        hashSchemaInput(tool.outputSchema) === candidate.outputSchemaHash
-      ) {
-        return {
-          descriptor: interrupt,
-          binding: cloneAndDeepFreezeJson(candidate),
-          kind: 'client-tool-execution',
-          status: 'pending',
-          canResolve: true,
-          resumable: true,
-          tool,
-          validationGeneration: 0,
+      if (tool !== undefined && interrupt.toolCallId === candidate.toolCallId) {
+        if (hashSchemaInput(tool.outputSchema) === candidate.outputSchemaHash) {
+          return {
+            descriptor: interrupt,
+            binding: cloneAndDeepFreezeJson(candidate),
+            kind: 'client-tool-execution',
+            status: 'pending',
+            canResolve: true,
+            resumable: true,
+            tool,
+            validationGeneration: 0,
+          }
         }
+        this.warnSchemaMismatch(interrupt.id, candidate.toolName)
       }
     }
 

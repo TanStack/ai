@@ -659,7 +659,11 @@ export class ChatClient<
 
   constructor(options: ChatClientOptions<TTools, TContext, TInterrupts>) {
     assertUniqueInterruptDefinitions(options.interrupts)
-    // `threadId` is the wire, DevTools, and persistence identity.
+    // `threadId` is the wire, DevTools, and persistence identity. Checked at
+    // runtime too, because JS callers are not held to the type.
+    if (typeof options.threadId !== 'string' || options.threadId === '') {
+      throw new Error('ChatClient: threadId is required (a non-empty string).')
+    }
     this.threadId = options.threadId
     // `persistence` is `false`/omitted (ephemeral, in-memory), `true`
     // (server-authoritative: cache nothing client-side, hydrate the thread from
@@ -669,22 +673,12 @@ export class ChatClient<
     // the mount hydration and keeps a client record from shadowing server history.
     let cachesMessages = true
     if (options.persistence === true) {
-      if (!options.threadId) {
-        throw new Error(
-          '[TanStack AI] persistence needs a stable `threadId` to key on. Pass a threadId from your app (for example support-42).',
-        )
-      }
       cachesMessages = false
       this.historyPageSize = options.history?.pageSize
     } else if (options.persistence) {
       // A storage adapter: keep the combined record (transcript + resume pointer)
       // in the browser. Persistence keys on `threadId` (the conversation
       // identity) so a reload with the same `threadId` finds the same record.
-      if (!options.threadId) {
-        throw new Error(
-          '[TanStack AI] persistence needs a stable `threadId` to key on. Pass a threadId from your app (for example support-42).',
-        )
-      }
       this.persistor = new ChatPersistor(
         options.persistence,
         options.threadId,

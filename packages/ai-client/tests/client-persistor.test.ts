@@ -134,6 +134,29 @@ describe('ChatPersistor', () => {
       expect(persistor.readInitial()).toBeInstanceOf(Promise)
     })
 
+    it('logs a 0.x bare-array record and does not overwrite it until a clear', () => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const adapter = createMockPersistence()
+      adapter.getItem = vi.fn(() => [createUIMessage('old-1')] as never)
+      const { persistor } = createPersistor(adapter)
+
+      expect(persistor.readInitial()).toBeUndefined()
+      expect(error).toHaveBeenCalledWith(
+        expect.stringContaining(`threadId "${CHAT_ID}" is in the 0.x format`),
+      )
+
+      persistor.notifyMessagesChanged([createUIMessage('new-1')])
+      persistor.persistResumeSnapshot(null)
+      expect(adapter.setItem).not.toHaveBeenCalled()
+      expect(adapter.removeItem).not.toHaveBeenCalled()
+
+      persistor.remove()
+      persistor.notifyMessagesChanged([createUIMessage('new-2')])
+      expect(adapter.removeItem).toHaveBeenCalledWith(CHAT_ID)
+      expect(adapter.setItem).toHaveBeenCalledTimes(1)
+      error.mockRestore()
+    })
+
     it('swallows a throwing getItem and returns undefined', () => {
       const adapter = createMockPersistence()
       adapter.getItem = vi.fn(() => {

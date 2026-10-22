@@ -399,7 +399,8 @@ describe('InterruptManager hydration', () => {
     // A correctly-correlated client-tool item is internal only â€” not public.
     expect(manager.getInterrupts()).toHaveLength(0)
 
-    manager.hydrate({
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const drifted = {
       threadId: 'core-thread',
       interruptedRunId: 'core-run',
       generation: 0,
@@ -415,8 +416,16 @@ describe('InterruptManager hydration', () => {
           },
         },
       ],
-    })
+    }
+    manager.hydrate(drifted)
+    manager.hydrate(drifted)
     expect(manager.getInterrupts()[0]?.kind).toBe('generic')
+    // Warned once per interrupt, naming the tool.
+    expect(warn).toHaveBeenCalledOnce()
+    expect(warn.mock.calls[0]?.[0]).toContain(
+      `for tool "${lookupDefinition.name}": the server and client tool schemas differ`,
+    )
+    warn.mockRestore()
   })
 
   it('gives the 0.x approval and client-tool reasons no special meaning', () => {

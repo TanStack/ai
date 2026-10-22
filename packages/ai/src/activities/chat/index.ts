@@ -5890,6 +5890,13 @@ export function chat<
     TAgents
   >,
 ): TextActivityResult<TSchema, TStream, TTools> {
+  // The type requires it, but JS callers and spreads of optional fields can
+  // still pass nothing. Persistence and resume key on it.
+  if (typeof options.threadId !== 'string' || options.threadId === '') {
+    throw new Error(
+      'chat() needs a threadId. Pass a non-empty string, for example the id of the conversation.',
+    )
+  }
   validateInterruptDefinitions(options.interrupts)
   validateCapabilities(
     readRuntimeMiddleware(options.middleware) ?? [],

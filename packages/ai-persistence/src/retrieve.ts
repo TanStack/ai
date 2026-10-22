@@ -56,6 +56,12 @@ export async function retrieveBlob(
       ? await retrieveArtifact(persistence, artifact)
       : artifact
   if (!record) return null
+  // A 0.x record has no `blobKey`. Fail loudly instead of a misleading 404.
+  if (!record.blobKey) {
+    throw new Error(
+      `Artifact ${record.artifactId} has no blobKey. Records written by 0.x need blob_key backfilled before their bytes can be read.`,
+    )
+  }
 
   const blob = await persistence.stores.blobs?.get(record.blobKey, options)
   return blob ?? null

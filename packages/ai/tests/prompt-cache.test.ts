@@ -40,16 +40,10 @@ describe('chat({ promptCache })', () => {
       { threadId: 't1' },
       { retention: 'short', key: 't1' },
     ],
-    ['an empty threadId is no key', { threadId: '' }, { retention: 'short' }],
     [
       "'none' keeps the key",
       { promptCache: 'none', threadId: 't1' },
       { retention: 'none', key: 't1' },
-    ],
-    [
-      "'long' with an empty threadId",
-      { promptCache: 'long', threadId: '' },
-      { retention: 'long' },
     ],
     [
       'an object key wins over the threadId',

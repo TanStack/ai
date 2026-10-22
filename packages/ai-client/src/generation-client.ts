@@ -171,7 +171,13 @@ export class GenerationClient<
       GenerationPersistenceOptions &
       GenerationTransport<TInput, TResult>,
   ) {
-    // `threadId` is the only identity.
+    // `threadId` is the only identity. Checked at runtime too, because JS
+    // callers are not held to the type.
+    if (typeof options.threadId !== 'string' || options.threadId === '') {
+      throw new Error(
+        'GenerationClient: threadId is required (a non-empty string).',
+      )
+    }
     this.threadId = options.threadId
     this.connection = options.connection
     this.fetcher = options.fetcher

@@ -1240,6 +1240,47 @@ describe('interrupt persistence', () => {
     ).toBe('pending')
   })
 
+  it('warns about a 0.x unbound tool interrupt it leaves pending', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.interrupts!.create({
+      interruptId: 'legacy-approval',
+      runId: 'r0',
+      threadId: 't1',
+      requestedAt: 0,
+      payload: {
+        id: 'legacy-approval',
+        reason: 'approval',
+        message: 'Approve?',
+        toolCallId: 'tc-1',
+        metadata: { kind: 'approval', toolName: 'search', input: {} },
+      },
+    })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const { adapter } = mockAdapter([
+        [runStarted(), text('ok'), runFinished('r1')],
+      ])
+      await collect(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'hi' }],
+          runId: 'r1',
+          threadId: 't1',
+          middleware: [withPersistence(persistence)],
+        }) as AsyncIterable<StreamChunk>,
+      )
+      const messages = warn.mock.calls.map((call) => String(call[0]))
+      expect(
+        messages.filter((message) => message.includes("'legacy-approval'")),
+      ).toHaveLength(1)
+    } finally {
+      warn.mockRestore()
+    }
+    expect(
+      (await persistence.stores.interrupts!.get('legacy-approval'))?.status,
+    ).toBe('pending')
+  })
+
   it('resumes a registered generic record without blocking on a foreign persisted interrupt', async () => {
     const persistence = memoryPersistence()
     const review = defineInterrupt({

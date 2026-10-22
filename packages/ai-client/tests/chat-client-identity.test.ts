@@ -65,23 +65,26 @@ describe('ChatClient identity', () => {
     expect(runContexts[0]?.threadId).toBe('support-42')
   })
 
-  it('throws when persistence is set with an empty threadId', () => {
+  it.each([
+    ['empty', ''],
+    ['missing', undefined],
+    ['non-string', 42],
+  ])('throws when threadId is %s', (_label, threadId) => {
+    expect(() => {
+      new ChatClient({
+        connection: createCapturingAdapter().adapter,
+        threadId: threadId as never,
+      })
+    }).toThrow('ChatClient: threadId is required (a non-empty string).')
+  })
+
+  it('throws for an empty threadId even with persistence', () => {
     expect(() => {
       new ChatClient({
         connection: createCapturingAdapter().adapter,
         persistence: createMockPersistence(),
         threadId: '',
       })
-    }).toThrow(/persistence needs a stable `threadId`/)
-  })
-
-  it('throws when persistence: true is set with an empty threadId', () => {
-    expect(() => {
-      new ChatClient({
-        connection: createCapturingAdapter().adapter,
-        persistence: true,
-        threadId: '',
-      })
-    }).toThrow(/persistence needs a stable `threadId`/)
+    }).toThrow('ChatClient: threadId is required (a non-empty string).')
   })
 })

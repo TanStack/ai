@@ -97,6 +97,16 @@ async function waitForCondition(assertion: () => void): Promise<void> {
 }
 
 describe('GenerationClient', () => {
+  it.each(['', undefined])('throws when threadId is %j', (threadId) => {
+    expect(
+      () =>
+        new GenerationClient({
+          threadId: threadId as never,
+          fetcher: async () => ({}),
+        }),
+    ).toThrow('GenerationClient: threadId is required (a non-empty string).')
+  })
+
   describe('fetcher mode', () => {
     it('should generate a result using fetcher', async () => {
       const mockResult = { id: '1', images: [] }
@@ -902,6 +912,7 @@ describe('GenerationClient', () => {
 
       // @ts-expect-error verifying the runtime guard for JavaScript callers
       const client = new GenerationClient({
+        threadId: 'thread-1',
         onError,
       })
 

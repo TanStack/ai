@@ -19,6 +19,22 @@ function createMockConnection(
 }
 
 describe('VideoGenerationClient', () => {
+  it.each(['', undefined])('throws when threadId is %j', (threadId) => {
+    expect(
+      () =>
+        new VideoGenerationClient({
+          threadId: threadId as never,
+          fetcher: async () => ({
+            jobId: 'job-1',
+            status: 'completed',
+            url: 'https://example.com/video.mp4',
+          }),
+        }),
+    ).toThrow(
+      'VideoGenerationClient: threadId is required (a non-empty string).',
+    )
+  })
+
   describe('fetcher mode', () => {
     it('should generate a result using fetcher', async () => {
       const mockResult = {
@@ -703,6 +719,7 @@ describe('VideoGenerationClient', () => {
 
       // @ts-expect-error verifying the runtime guard for JavaScript callers
       const client = new VideoGenerationClient({
+        threadId: 'thread-1',
         onError,
       })
 

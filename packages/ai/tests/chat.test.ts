@@ -5995,6 +5995,7 @@ describe('chat()', () => {
         Reflect.apply(chat, undefined, [
           {
             adapter,
+            threadId: 'thread-1',
             interrupts: [first, second],
             messages: [{ role: 'user', content: 'Hello' }],
           },
@@ -6087,5 +6088,18 @@ describe('chat()', () => {
         adapterMessages.every((message) => message.role !== 'activity'),
       ).toBe(true)
     })
+  })
+})
+
+describe('chat() threadId', () => {
+  it.each([undefined, ''])('throws when threadId is %j', (threadId) => {
+    const { adapter } = createMockAdapter({ iterations: [] })
+    expect(() =>
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'hi' }],
+        threadId: threadId as unknown as string,
+      }),
+    ).toThrow('chat() needs a threadId')
   })
 })
