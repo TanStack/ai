@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai/client'
 import {
   StreamReconnectLimitError,
+  createReconnectTracker,
   fetchServerSentEvents,
 } from '../src/connection-adapters'
 import type { ReconnectOptions } from '../src/connection-adapters'
@@ -142,6 +143,21 @@ describe('reconnect backoff', () => {
     )
     expect(error).toBeUndefined()
     expect(chunks).toEqual([EventType.RUN_STARTED, EventType.RUN_FINISHED])
+  })
+
+  it('stops at the budget with initialDelayMs 0, after many tries', async () => {
+    const tracker = createReconnectTracker({
+      initialDelayMs: 0,
+      budgetMs: 1000,
+    })
+    // Past 1024 tries, where `0 * 2 ** 1024` would make the delay NaN.
+    for (let attempt = 0; attempt < 1100; attempt++) {
+      await tracker.waitBeforeReconnect(false)
+    }
+    vi.setSystemTime(1001)
+    await expect(tracker.waitBeforeReconnect(false)).rejects.toBeInstanceOf(
+      StreamReconnectLimitError,
+    )
   })
 
   it('rejects invalid backoff options', async () => {

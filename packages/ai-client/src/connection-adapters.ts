@@ -299,10 +299,16 @@ export function createReconnectTracker(
       }
       // Exponential backoff with jitter: a delay from half of the backoff up
       // to the full backoff, so a jittered delay is never longer.
-      const backoff = Math.min(
-        reconnect.maxDelayMs,
-        reconnect.initialDelayMs * 2 ** Math.max(0, reconnectAttempts - 1),
-      )
+      // A 0 start stays 0: after 1024 tries `0 * 2 ** 1024` is NaN, and a NaN
+      // delay never reaches the budget.
+      const backoff =
+        reconnect.initialDelayMs === 0
+          ? 0
+          : Math.min(
+              reconnect.maxDelayMs,
+              reconnect.initialDelayMs *
+                2 ** Math.max(0, reconnectAttempts - 1),
+            )
       const delayMs =
         retryAfterMs === undefined
           ? backoff * (0.5 + Math.random() / 2)
