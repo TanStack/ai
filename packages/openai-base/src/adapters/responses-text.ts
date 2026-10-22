@@ -2481,11 +2481,18 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           const responseItems = answers.some((item) => item.phase)
             ? answers
             : []
+          const reasoningItem = responseOutput.some(
+            (item) => item.type === 'reasoning',
+          )
+          const tanstack = {
+            ...(responseItems.length > 0 ? { responseItems } : {}),
+            ...(reasoningItem ? { reasoningItem } : {}),
+          }
           yield {
             type: EventType.RUN_FINISHED,
             ...(responseId ? { responseId } : {}),
-            ...(responseItems.length > 0
-              ? { metadata: { tanstack: { responseItems } } }
+            ...(Object.keys(tanstack).length > 0
+              ? { metadata: { tanstack } }
               : {}),
             runId: aguiState.runId,
             threadId: aguiState.threadId,
@@ -2997,12 +3004,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         // Sending the calls without their item id makes them fresh items that
         // the API does not try to pair, which replays correctly. `call_id` is
         // untouched, so the matching `function_call_output` still resolves.
-        // One reasoning item (or none at all) always lands adjacent to its
-        // calls, so those keep their ids and their prompt-cache hits. If any
-        // reasoning was dropped as a duplicate, a call may belong to it, so
-        // the ids go too.
+        // One reasoning item always lands adjacent to its calls, so those keep
+        // their ids and their prompt-cache hits. If any reasoning was dropped
+        // as a duplicate, a call may belong to it, so the ids go too. A message
+        // with no reasoning item keeps its ids only when its model call sent
+        // none: a reasoning model refuses a msg_/fc_ item without the
+        // reasoning item that made it, and a stored transcript can lose it.
         const canPairReasoning =
-          reasoningCandidates === 0 ||
+          (reasoningCandidates === 0 &&
+            message.metadata?.tanstack?.reasoningItem !== true) ||
           (reasoningCandidates === 1 && emittedReasoning === 1)
         const firstCall = result.length
 

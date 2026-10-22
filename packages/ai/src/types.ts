@@ -716,6 +716,13 @@ export interface TanStackMessageMetadata {
    * message item's `id` and `phase` (`commentary` or `final_answer`).
    */
   responseItems?: Array<{ id: string; phase?: string }>
+  /**
+   * The model call of this assistant message sent a reasoning item. The
+   * OpenAI Responses adapter sets it. A replay that lost that reasoning item
+   * sends the message without its item ids, because the API refuses a
+   * `msg_`/`fc_` item without the reasoning item that made it.
+   */
+  reasoningItem?: boolean
   /** Parent chat run that produced this assistant message. */
   runId?: string
   /**
@@ -763,6 +770,8 @@ export interface TanStackRunMetadata {
   responseId?: string
   /** The answer items of this model call. See `TanStackMessageMetadata.responseItems`. */
   responseItems?: TanStackMessageMetadata['responseItems']
+  /** See `TanStackMessageMetadata.reasoningItem`. */
+  reasoningItem?: boolean
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   /** TokenUsage fields that have no AG-UI `usage[]` equivalent. */
   usage?: TokenUsageLeftover
