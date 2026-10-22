@@ -765,6 +765,19 @@ export async function readText(backend: WorkspaceBackend, path: string) {
 }
 
 /**
+ * Run the `beforeWrite` hooks for each of `paths`, one after another. The
+ * first refusal throws, so the tool writes nothing and fails with it.
+ */
+export async function beforeWrite(env: ToolEnv, paths: ReadonlyArray<string>) {
+  for (const path of paths) {
+    for (const hook of env.hooks()) {
+      const answer = await hook.beforeWrite?.(path)
+      if (answer) throw new Error(answer.refuse)
+    }
+  }
+}
+
+/**
  * Run the `afterWrite` hooks for `path`, one after another. Resolves to the
  * texts that the hooks return, for the tool result.
  */

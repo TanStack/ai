@@ -988,7 +988,8 @@ function withEditStyle(
  * outside it is refused, or with `outside: 'ask'` it needs an approval. A
  * link that leads out of the root counts as outside, the rules see the real
  * path of a link, and the working folder must be in the root. Other plugins
- * add {@link WorkspaceHooks} to run code after a read or a write.
+ * add {@link WorkspaceHooks} to run code before a write, or after a read or
+ * a write.
  *
  * The tools use `backend` for files and commands. The default,
  * `hostBackend`, runs on this machine with the host's authority. Its
