@@ -24,6 +24,7 @@ export const Route = createFileRoute('/api/anthropic-refusal')({
         try {
           for await (const chunk of chat({
             adapter,
+            threadId: 'anthropic-refusal',
             modelOptions: { fallbacks: 'default' },
             messages: [
               {
