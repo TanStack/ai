@@ -156,12 +156,6 @@
           "to": "comparison/vercel-ai-sdk",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-10-22"
-        },
-        {
-          "label": "TanStack AI vs Vercel AI SDK: Details",
-          "to": "comparison/vercel-ai-sdk-advanced",
-          "addedAt": "2026-10-21",
-          "updatedAt": "2026-10-22"
         }
       ],
       "tab": "get-started"

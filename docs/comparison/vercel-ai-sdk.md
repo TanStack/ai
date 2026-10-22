@@ -2,49 +2,53 @@
 title: TanStack AI vs Vercel AI SDK
 id: vercel-ai-sdk
 order: 1
-description: "Pick between TanStack AI and the Vercel AI SDK in a few minutes: when to use each, how the core APIs map, and a feature table."
+description: "Pick between TanStack AI and the Vercel AI SDK: when each one fits, how the core APIs map, and a feature table."
 keywords:
   - tanstack ai
   - vercel ai sdk
   - comparison
   - ai sdk
   - alternatives
+  - ag-ui
   - typescript ai sdk
   - tool calling
-  - llm
   - persistence
   - resumable streams
-  - durable runs
   - code mode
   - sandbox
+  - vercel ai gateway
 ---
 
-This page compares TanStack AI with the Vercel AI SDK: a short answer, an API map, then the feature table.
+Pick TanStack AI for a new app. Stay on the Vercel AI SDK if your app already speaks its UI Message Stream protocol.
 
-Both are open-source TypeScript toolkits. Both stream chat, call tools, talk to many providers, and run on any host. The difference is in the approach:
-
-- **TanStack AI** is a library that you compose. You import small pieces (adapters, tools, transports, hooks) and you wire them yourself. It has no platform layer.
-- **Vercel AI SDK** is a broad toolkit with optional Vercel platform parts, such as AI Gateway and observability.
-
-This page compares the two from the TanStack AI side. It also says where the Vercel AI SDK is stronger.
+Both are open-source TypeScript toolkits. Both stream chat, call tools, talk to many providers, and run on any host. TanStack AI streams the open [AG-UI](https://docs.ag-ui.com/) protocol. The Vercel AI SDK streams its own protocol.
 
 ## Pick TanStack AI when
 
-- You want TypeScript to narrow options and inputs per model, not per provider.
-- You want to define a tool once, then add a server or a client implementation.
-- You want persistence, resumable streams, and tool approvals as built-in parts that you turn on.
-- You use Solid, Preact, Angular, Octane, Remix, or React Native and want an official package.
-- You want an AI layer with no link to a hosting platform.
+- **You want an open protocol.** The server and the client talk AG-UI, in both directions. Any AG-UI agent or client can sit on the other side of the wire.
+- **You want typed models.** Pick a model and TypeScript narrows the options and input types to what that model supports. See [Per-Model Type Safety](../advanced/per-model-type-safety).
+- **You want to define a tool once.** One schema gives the input and output types on the server and on the client. Add `.server()` or `.client()` to run it on either side. See [Tools](../tools/tools).
+- **You want to own the UI.** Text, thinking, tool calls, and tool results arrive as typed message parts, each with its own state. Render them however you like. See [UI](../ui/react).
+- **You want to own your data.** Persistence writes to your database, in your schema. A reload in the middle of a reply loses nothing, because each chunk goes to a log before delivery. See [Persistence](../persistence/overview) and [Resumable Streams](../resumable-streams/overview).
 
-There are more reasons (AG-UI on the wire, Code Mode, coding-agent sandboxes, stable media APIs). See [the feature-by-feature details](./vercel-ai-sdk-advanced).
+TanStack AI also does the hard parts. Each one is its own package, so you load only what the task needs:
 
-## Pick Vercel AI SDK when
+- **Code Mode.** The model chains your tools in one script and runs it in an isolate. See [Code Mode](../code-mode/code-mode).
+- **Coding-agent harnesses.** Run Claude Code, Codex, OpenCode, Grok Build, or any ACP agent as a chat backend, in a local process or a sandbox. See [Sandboxes](../sandbox/overview).
+- **MCP and MCP Apps.** A typed MCP client, a CLI that generates the types, and interactive widgets from tool results. See [MCP Apps](../mcp/apps).
+- **Memory and compaction.** Recall across sessions through Redis, mem0, Honcho, or Hindsight. Compaction keeps long threads inside the context window. See [Memory](../memory/overview) and [Compaction](../advanced/compaction).
+- **Media beyond chat.** Images, video, speech, transcription, music, realtime voice, and live worlds use the same adapters and persistence as chat. See [Generations](../media/generations).
 
-- You need a first-party package for a provider that TanStack AI does not cover.
-- You want one reusable `Agent` class (`ToolLoopAgent`) that holds the model, tools, and loop settings.
-- You deploy on Vercel and want AI Gateway, observability, and deployment tuning.
-- You build with React Server Components through `@ai-sdk/rsc` (experimental).
-- Your long harness runs already use the Workflow SDK on Vercel.
+Devtools show each tool call, interrupt, memory recall, and finish reason, on the server and in the client, in one timeline. See [Devtools](../getting-started/devtools).
+
+## Stay on the Vercel AI SDK when
+
+- **Your app already speaks the AI SDK stream protocol.** For example, your UI uses `@ai-sdk/react` or AI Elements, or a backend that you do not control emits the UI Message Stream. TanStack AI does not read or write that protocol.
+- **You need a first-party package for a provider that TanStack AI does not cover.** Many providers are also available through [OpenRouter](../adapters/openrouter), [Vercel AI Gateway](../adapters/vercel-gateway), or [`openaiCompatible`](../adapters/openai-compatible).
+- **You want one reusable agent object.** The AI SDK `ToolLoopAgent` class holds the model, tools, instructions, and loop settings. TanStack AI sets these per `chat()` call.
+- **You build with React Server Components** through `@ai-sdk/rsc` (experimental).
+
+Vercel AI Gateway is not a reason to stay. TanStack AI has a native [Vercel AI Gateway adapter](../adapters/vercel-gateway) for chat, embeddings, and images.
 
 ## Try TanStack AI in 5 minutes
 
@@ -147,55 +151,43 @@ Send a message. The reply streams into the page. Other frameworks are in the [Qu
 
 Every option, result member, and hook difference is in [Migration from Vercel AI SDK](../migration/migration-from-vercel-ai).
 
-## How they differ
-
-- **Adapters.** TanStack AI has one adapter per activity (`openaiText`, `openaiImage`, `openaiSpeech`). Your bundle holds only the activities you import. AI SDK provider packages hold all model types.
-- **Types.** TanStack AI types options and input modalities per model. AI SDK types them per provider.
-- **Wire format.** TanStack AI streams [AG-UI](https://docs.ag-ui.com/) events end to end. AI SDK streams its own UI Message Stream.
-- **Middleware.** TanStack AI middleware hooks into the whole `chat()` run (config, chunks, tool calls, usage, errors). AI SDK middleware wraps the model.
-- **State.** TanStack AI ships middleware for persistence, resumable streams, and durable sandbox runs. With the AI SDK you write the store and the wiring.
-
 ## Feature comparison
 
-Versions: TanStack AI at the time of writing, and Vercel AI SDK `ai@7.x`.
+Versions: TanStack AI 1.0 and Vercel AI SDK `ai@7.x`.
 
 | Feature | TanStack AI | Vercel AI SDK |
-|---------|------------|---------------|
+| --- | --- | --- |
 | License | MIT | Apache 2.0 |
-| Hosting | Works anywhere | Works anywhere |
-| Providers | 20+ official provider packages (OpenAI, Anthropic, Gemini, Vertex, Grok, Groq, OpenRouter, Ollama, Bedrock, Mistral, Cohere, ElevenLabs, fal, Vercel Gateway, and more), any OpenAI-compatible endpoint through `openaiCompatible`, 5 harness adapters, and community adapters | About 38 first-party provider packages (plus community), and 100+ models through AI Gateway |
-| Framework Hooks | React, Solid, Svelte, Vue, Preact, Angular, Octane, Remix (+ React Native) | React, Vue, Svelte, Angular (Solid is community-maintained) |
-| Generation UI Hooks | One hook per activity: chat, structured output, image, audio, speech, transcription, summarize, video, realtime | `useChat`, `useCompletion`, `useObject` |
-| Wire Protocol | Native AG-UI events end to end | Proprietary UI Message Stream. AG-UI through an external translation layer |
-| Streaming | Built-in, with chunk strategies you can configure | Built-in, with progressive delivery |
-| Chat Persistence | `withPersistence` middleware + `reconstructChat`. Server store or browser stores (`localStorage`, `sessionStorage`, IndexedDB) | Guide: you own `saveChat` / `loadChat` / `validateUIMessages` |
-| Generation Persistence | `withGenerationPersistence` restores long media runs into the same hook fields | - |
-| Resumable Streams | `StreamDurability` in core, with `memoryStream` or `durableStream`. `useChat` reconnects on its own | Redis + `resumable-stream` + `activeStreamId`. You wire POST and GET |
-| Durable Sandbox Runs | Detach, journal, takeover, reaper. The agent keeps working after the tab closes | `HarnessAgent` + Workflow SDK (experimental), centered on Vercel Sandbox |
-| Tool Calling | Isomorphic `.server()` / `.client()` system | `tool()` objects. Client execution through `onToolCall` |
-| Agent Loop Control | Composable strategy functions `(state) => boolean` | `stopWhen` conditions + `Agent` (`ToolLoopAgent`) class |
-| Tool Approval | Per-tool `needsApproval` with a batched approval flow | Per-tool `needsApproval` (human-in-the-loop) |
-| Type Safety | Per-model type narrowing | Per-provider types |
-| Tree-Shaking | Separate adapter per activity (text, image, speech, and more) | Monolithic provider packages |
-| Lazy Tool Discovery | Built-in, works with every provider | Anthropic-only tool search with `deferLoading` (provider-hosted) |
-| Connection Adapters | SSE, HTTP stream, XHR (SSE/stream), RPC, WebSocket, direct async iterables, `fetcher`, custom | SSE-based data stream protocol (`ChatTransport`) |
-| Middleware | App-level lifecycle hooks (config, iterations, chunks, tool calls, usage, errors) | Model-level wrapping through `wrapLanguageModel()` |
-| Extend Adapter | Add custom or fine-tuned models with per-model type narrowing | `customProvider()` / `createProviderRegistry()` (string model ids) |
-| Structured Outputs | Typed `StructuredOutputPart`, streamed next to tools and kept per turn in message history | `generateObject()` / `streamObject()` / `Output` API (per call, no structured-output message part) |
-| Image Generation | Stable API with per-model type safety (OpenAI, Gemini, Grok, OpenRouter, fal.ai) | `generateImage()` (stable) |
-| Video Generation | Stable API with the async job lifecycle (OpenAI, fal.ai) | `experimental_generateVideo()` |
-| Text-to-Speech | Stable API, 6 output formats, speed control (OpenAI, Gemini, Grok, ElevenLabs, fal.ai) | `generateSpeech()` (experimental) |
-| Transcription | Stable API with word timestamps and diarization (OpenAI, Grok, ElevenLabs, fal.ai) | `transcribe()` (experimental) |
-| Audio / Music Generation | `generateAudio()` for music and sound effects (Gemini, ElevenLabs, fal.ai) | - |
-| Summarization | Dedicated `summarize()` with streaming and style options | - |
-| Code Mode | 6 isolate drivers that you run yourself: Node `isolated-vm`, QuickJS WASM, QuickJS Bun, Cloudflare, Daytona, E2B | Experimental `@ai-sdk/code-mode` (QuickJS only, Node 22+, not browser or edge), plus provider-hosted code-execution tools |
-| Code Mode Skills | Persistent skill library that the LLM writes | Static skill uploads, no library that the model builds |
-| Coding Agent Sandboxes | First-party Grok Build, Claude Code, Codex, OpenCode, and any ACP agent through `acpCompatible`. Runs on local-process, Docker, Docker Sandboxes (`sbx`), Daytona, Vercel, Sprites, Cloudflare | `HarnessAgent` (experimental): Claude Code, Codex, Grok Build, OpenCode, Deep Agents, Pi. Centered on Vercel Sandbox |
-| Realtime Voice | Stable: OpenAI, Grok, and ElevenLabs with VAD modes and tool support | Experimental `experimental_useRealtime` (OpenAI, Google, xAI + Gateway) |
-| DevTools | Isomorphic in-app panel through TanStack DevTools (all frameworks, media previews) | `devToolsMiddleware` + local inspector (server-side, dev only) |
-| Debug Logging | One flag, per-category toggles, pluggable logger | Warning logs + experimental telemetry hooks |
-| MCP Client | Standalone host-side client (`@tanstack/ai-mcp`) + provider-routed `mcpTool()` | Built-in (`@ai-sdk/mcp`, stable) |
-| MCP Apps (Interactive Widgets) | `ui://` widgets through `@mcp-ui/client`. React + Preact + a framework-agnostic bridge. Multi-server routing, pluggable session store, link-scheme hardening | `experimental_MCPAppRenderer` (React only). Model-vs-app tool split. Iframe sandbox + allowlist |
-| Platform Association | None, pure library | Optional Vercel integration |
+| Hosting | Works anywhere. No platform layer | Works anywhere. Optional Vercel platform parts |
+| Wire protocol | Native AG-UI, in both directions | Own UI Message Stream. AG-UI only through the external `@ag-ui/vercel-ai-sdk` bridge |
+| Providers | OpenAI, Anthropic, Gemini, Vertex, Bedrock, Grok, Groq, Mistral, Cohere, Ollama, OpenRouter, BytePlus, ElevenLabs, fal, Cloudflare Workers AI, and more. Any OpenAI-compatible endpoint through `openaiCompatible` | About 38 first-party provider packages, plus community packages |
+| Gateways | Vercel AI Gateway, Cloudflare AI Gateway, OpenRouter, LLM Gateway, Lovable AI Gateway | Vercel AI Gateway (the default provider) |
+| Framework packages | React, Solid, Vue, Svelte, Preact, Angular, Octane, Remix, React Native | React, Vue, Svelte, Angular. Solid is community-maintained |
+| UI hooks | One hook per activity: chat, structured output, image, video, audio, speech, transcription, summarize, realtime | `useChat`, `useCompletion`, `useObject` |
+| Type safety | Per model | Per provider |
+| Bundle | One adapter per activity, so you bundle only what you import | One package per provider |
+| Tools | One `toolDefinition()`, with `.server()` and `.client()` | `tool()` on the server. Client tools through `onToolCall` |
+| Tool approval | Per-tool `needsApproval`, with batched approvals and interrupts | Per-tool `needsApproval` |
+| Lazy tool discovery | Any provider, in your own agent loop | Anthropic tool search only (`deferLoading`) |
+| Agent loop | Strategy functions `(state) => boolean` | `stopWhen` conditions and the `ToolLoopAgent` class |
+| Middleware | Named hooks across the whole run: config, chunks, tool calls, usage, finish | `wrapLanguageModel()` around the model |
+| Structured output | Typed message part, streamed with tools and kept in the history | Per call (`Output`, `generateObject()`, `streamObject()`) |
+| Chat persistence | `withPersistence` middleware, server or browser stores | A pattern: you write `saveChat` and `loadChat` |
+| Resumable streams | Built in. `useChat` reconnects by itself | Redis, the `resumable-stream` package, and routes you write |
+| Memory | `memoryMiddleware` with Redis, mem0, Honcho, Hindsight, or your own | Third-party memory providers or a custom tool |
+| Compaction | `@tanstack/ai-compaction` middleware | - |
+| MCP client | `@tanstack/ai-mcp`: multi-server pools, generated types, lazy tools, managed lifecycle | `@ai-sdk/mcp` (stable) |
+| MCP Apps | React, Preact, and a framework-agnostic bridge | `experimental_MCPAppRenderer` (React only) |
+| Code Mode | 6 isolate drivers: Node, QuickJS WASM, QuickJS Bun, Cloudflare, Daytona, E2B | Experimental `@ai-sdk/code-mode` (QuickJS, Node 22+) |
+| Coding agents | Claude Code, Codex, OpenCode, Grok Build, and any ACP agent, on local process, Docker, Daytona, E2B, Vercel, Cloudflare, Sprites, and more | Experimental `HarnessAgent`, centered on Vercel Sandbox |
+| Durable agent runs | Detach, journal, takeover, and reaper on any sandbox provider | Workflow SDK on Vercel |
+| Computer use | Provider-agnostic, with local, Playwright, and sandbox drivers | Provider-hosted computer-use tools |
+| Image | Stable, typed per model | `generateImage()` (stable) |
+| Video | Stable, with the async job lifecycle streamed to the client | `experimental_generateVideo()` |
+| Speech and transcription | Stable. Word timestamps and diarization | Marked experimental |
+| Music and sound effects | `generateAudio()` | - |
+| Live worlds and live video | Reactor and World Labs adapters | - |
+| Realtime voice | Stable: OpenAI, Grok, ElevenLabs | Experimental `experimental_useRealtime` |
+| Devtools | In-app panel for the server and the client | `devToolsMiddleware` and a local inspector (server, dev only) |
 
-Each row, with code and the trade-offs, is in [TanStack AI vs Vercel AI SDK: Details](./vercel-ai-sdk-advanced).
+To move an app, start with [Migration from Vercel AI SDK](../migration/migration-from-vercel-ai).
