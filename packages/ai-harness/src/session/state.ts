@@ -248,8 +248,10 @@ export abstract class SessionState<
   }
 
   snapshot(): SessionSnapshot {
+    // A joined steer ends a tick after its turn. Its turn ended: so did it.
     const active = [...this.operations.values()].filter(
-      (operation) => !operation.isSettled(),
+      (operation) =>
+        !operation.isSettled() && !this.joinedTo.get(operation)?.isSettled(),
     )
     const stopped = this.stoppedTurn()
     const pendingInterrupts =

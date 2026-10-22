@@ -103,6 +103,12 @@ export abstract class SessionInputs<
    */
   protected readonly offeredInputs = new Set<string>()
 
+  /** The running turn that each joined steer operation ends with. */
+  protected readonly joinedTo = new WeakMap<
+    object,
+    OperationImpl<ChatTurnResult>
+  >()
+
   /** The check that the next `accept` runs. See `checked`. */
   private pendingCheck: InputCheck | undefined
   /** The offer that the next `accept` applies. See `applyOffer`. */
@@ -490,6 +496,7 @@ export abstract class SessionInputs<
     // it. It ends as the running turn ends.
     if (steer.operation && running) {
       const follower = steer.operation
+      this.joinedTo.set(follower, running)
       running.then(
         (result) =>
           follower.finish(

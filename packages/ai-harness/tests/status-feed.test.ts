@@ -14,6 +14,8 @@ import {
 } from '../src'
 import {
   CRASHING_OWNERSHIP,
+  after,
+  gate,
   mockAdapter,
   ownershipExpired,
   questionsOf,
@@ -109,6 +111,36 @@ describe('host.events', () => {
       ]),
     )
     expect(statusesOf(feed.seen, 'b')).toEqual(['idle', 'running', 'idle'])
+    await feed.stop()
+    await host.close()
+  })
+
+  it('shows idle after a turn that a steer joined', async () => {
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const feed = watch((signal) => host.events({ signal }))
+    const first = gate()
+    const { adapter, calls } = mockAdapter([
+      after(first.opened, 'one'),
+      () => text('two'),
+    ])
+    const session = await host.open(
+      defineHarness({ name: 'test/status-steer', adapter }),
+      { threadId: 'a' },
+    )
+
+    const turn = session.send('first')
+    await waitFor(() => expect(calls).toHaveLength(1))
+    const joined = session.send('and this', { busy: 'steer' })
+    first.open()
+    await turn
+    await joined
+
+    expect(session.snapshot().status).toBe('idle')
+    await waitFor(
+      () =>
+        expect(statusesOf(feed.seen, 'a')).toEqual(['idle', 'running', 'idle']),
+      { timeout: 1_000 },
+    )
     await feed.stop()
     await host.close()
   })
