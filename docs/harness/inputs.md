@@ -332,7 +332,6 @@ On the server, a tool reads it from its tool context:
 
 ```ts group=harness-inputs
 import { toolDefinition } from '@tanstack/ai'
-import { z } from 'zod'
 
 const openRecord = toolDefinition({
   name: 'openRecord',

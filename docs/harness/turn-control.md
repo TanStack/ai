@@ -306,7 +306,6 @@ Most prompts are fine with the harness settings. One job can need more: a strong
 
 ```ts group=harness-turn-control
 import { toolDefinition } from '@tanstack/ai'
-import { anthropicText } from '@tanstack/ai-anthropic'
 import { createHarnessHost } from '@tanstack/ai-harness'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 
