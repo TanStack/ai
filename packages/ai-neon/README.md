@@ -48,6 +48,7 @@ import { neonText } from '@tanstack/ai-neon'
 const stream = chat({
   adapter: neonText('claude-opus-5-5'),
   messages: [{ role: 'user', content: 'Hello' }],
+  threadId: 'thread-1',
 })
 ```
 

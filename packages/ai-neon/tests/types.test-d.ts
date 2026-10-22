@@ -53,6 +53,7 @@ expectTypeOf(
 chat({
   adapter: createNeonText('gpt-5-3-codex', 'k'),
   messages,
+  threadId: 'thread-1',
   // @ts-expect-error the Responses API uses max_output_tokens
   modelOptions: { max_tokens: 10 },
 })
@@ -60,12 +61,14 @@ chat({
 chat({
   adapter: createNeonText('gemini-3-8-flash', 'k'),
   messages,
+  threadId: 'thread-1',
   reasoning: 'high',
 })
 
 chat({
   adapter: createNeonText('gemini-3-8-flash', 'k'),
   messages,
+  threadId: 'thread-1',
   // @ts-expect-error gemini-3-8-flash has no max level
   reasoning: 'max',
 })
@@ -73,6 +76,7 @@ chat({
 chat({
   adapter: createNeonText('gpt-5-4', 'k'),
   messages,
+  threadId: 'thread-1',
   // @ts-expect-error the gateway's OpenAI routes take no token budget
   reasoning: { level: 'high', budgetTokens: 4000 },
 })
@@ -80,6 +84,7 @@ chat({
 chat({
   adapter: createNeonText('meta-llama-3-3-70b-instruct', 'k'),
   messages,
+  threadId: 'thread-1',
   // @ts-expect-error the model does not reason
   reasoning: 'low',
 })
@@ -88,6 +93,7 @@ chat({
 chat({
   adapter: createNeonText('claude-sonnet-4-5', 'k'),
   messages,
+  threadId: 'thread-1',
   reasoning: { level: 'high', budgetTokens: 4000 },
 })
 
@@ -104,8 +110,8 @@ void summarize({
 
 // A runtime selection from the full catalog keeps automatic routing.
 for (const model of NEON_CHAT_MODELS) {
-  chat({ adapter: createNeonText(model, 'k'), messages })
-  chat({ adapter: neonText(model), messages })
+  chat({ adapter: createNeonText(model, 'k'), messages, threadId: 'thread-1' })
+  chat({ adapter: neonText(model), messages, threadId: 'thread-1' })
   void summarize({ adapter: neonSummarize(model), text: 'A long text.' })
   // @ts-expect-error not every member of the model union supports Chat Completions
   createNeonText(model, 'k', { api: 'chat' })

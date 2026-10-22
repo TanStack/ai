@@ -63,15 +63,21 @@ Model ids are the catalog ids, with no provider prefix.
 **Server.** An endpoint that streams the reply over SSE:
 
 ```typescript
-import { chat, toServerSentEventsResponse } from "@tanstack/ai"
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai"
 import { neonText } from "@tanstack/ai-neon"
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
 
   const stream = chat({
     adapter: neonText("claude-opus-5-5"),
     messages,
+    threadId,
+    runId,
   })
 
   return toServerSentEventsResponse(stream)
@@ -89,6 +95,7 @@ export function Chat() {
 
   const { messages, sendMessage, isLoading } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   })
 
   return (
@@ -145,6 +152,7 @@ import { neonText } from "@tanstack/ai-neon"
 const stream = chat({
   adapter: neonText("gpt-6-1-sol", { api: "responses" }),
   messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
 })
 ```
 
@@ -163,6 +171,7 @@ import { neonText } from "@tanstack/ai-neon"
 const stream = chat({
   adapter: neonText("gemini-3-8-flash"),
   messages: [{ role: "user", content: "Plan a database migration." }],
+  threadId: "thread-1",
   reasoning: "high",
 })
 ```

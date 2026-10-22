@@ -84,6 +84,7 @@ export const Route = createFileRoute('/api/neon-wire')({
           chat({
             adapter,
             messages: [{ role: 'user', content: 'Hello' }],
+            threadId: 'neon-wire',
           }),
         )
       },
