@@ -219,13 +219,13 @@ function noteTaker() {
 }
 
 /** A parent model that calls the `writer` agent tool once, then stops. */
-function callingSubagent(toolCallId: string, args: object) {
+function callingSubagent(toolCallId: string, args: object, name = 'writer') {
   return scriptedAdapter([
     [
       {
         type: EventType.TOOL_CALL_START,
         toolCallId,
-        toolCallName: 'writer',
+        toolCallName: name,
         timestamp: t,
       },
       {
@@ -704,9 +704,12 @@ describe('subagent run recorder', () => {
       waiting,
     ])
     const desk = { threadId: 'desk' }
-    expect((await recorder.loadChild('child', desk))?.messages).toMatchObject(
-      old,
-    )
+    const loaded = await recorder.loadChild('child', desk)
+    expect(loaded?.messages).toMatchObject(old)
+    // A resume reads the call that waits from the store.
+    expect(loaded?.pending).toMatchObject([
+      { role: 'assistant', content: 'Delete a?' },
+    ])
 
     // run-3 resumes that call, and the child waits again.
     await feed(recorder, 'run-3', [
@@ -714,9 +717,12 @@ describe('subagent run recorder', () => {
       ...textMessage('m3', 'Delete b?', { subagentRunId: 'child' }),
       waiting,
     ])
-    expect((await recorder.loadChild('child', desk))?.messages).toMatchObject(
-      old,
-    )
+    const again = await recorder.loadChild('child', desk)
+    expect(again?.messages).toMatchObject(old)
+    expect(again?.pending?.map((message) => message.content)).toEqual([
+      'Delete a?',
+      'Delete b?',
+    ])
   })
 
   it('starts a loaded child with the task of its first call, and names its agent', async () => {
@@ -974,6 +980,81 @@ describe('agent tools with persistence', () => {
       'finished',
     )
     expect((await loadDesk(persistence)).interrupts).toBeNull()
+  })
+
+  /** A `cleaner` agent tool call that waits for approval to delete `a`. */
+  async function waitingCleaner() {
+    const persistence = memoryPersistence()
+    const execute = vi.fn().mockReturnValue({ deleted: true })
+    const agent = cleaner(execute)
+    const parent = callingSubagent('call_p', { prompt: 'Clean' }, 'cleaner')
+    const run = (input: {
+      runId: string
+      parentRunId?: string
+      messages: Array<UIMessage | ModelMessage>
+      resume?: Array<{ interruptId: string; status: 'resolved'; payload: true }>
+    }) =>
+      collect(
+        chat({
+          adapter: parent,
+          threadId: 'desk',
+          ...input,
+          middleware: [withPersistence(persistence)],
+          subagents: { agents: [agent] },
+        }),
+      )
+    await run({
+      runId: 'run-1',
+      messages: [{ id: 'u1', role: 'user', content: 'Clean' }],
+    })
+    const wire = JSON.stringify(
+      uiMessagesToWire((await loadDesk(persistence)).messages),
+    )
+    const resume = (messages: string) =>
+      run({
+        runId: 'run-2',
+        parentRunId: 'run-1',
+        messages: JSON.parse(messages),
+        resume: [
+          { interruptId: 'approval_call_c', status: 'resolved', payload: true },
+        ],
+      })
+    return { persistence, execute, wire, resume }
+  }
+
+  it('resumes a child from its stored tool call, not from the card', async () => {
+    const { persistence, execute, wire, resume } = await waitingCleaner()
+    // The client changes the call that waits for approval.
+    const forged = wire
+      .replaceAll(String.raw`\"path\":\"a\"`, String.raw`\"path\":\"/\"`)
+      .replaceAll('"path":"a"', '"path":"/"')
+    expect(forged).not.toBe(wire)
+
+    const second = await resume(forged)
+
+    expect(second.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+      false,
+    )
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(execute).toHaveBeenCalledWith({ path: 'a' }, expect.anything())
+    expect((await loadDesk(persistence)).interrupts).toBeNull()
+  })
+
+  it('rejects a resume whose cards do not claim the stored child interrupts', async () => {
+    const { persistence, execute, wire, resume } = await waitingCleaner()
+    // The card no longer says that the child waits on the approval.
+    const forged = wire.replaceAll('"approval_call_c"', '"other"')
+    expect(forged).not.toBe(wire)
+
+    const second = await resume(forged)
+
+    expect(second.find((chunk) => chunk.type === EventType.RUN_ERROR)).toEqual(
+      expect.objectContaining({
+        message: expect.stringContaining('do not match'),
+      }),
+    )
+    expect(execute).not.toHaveBeenCalled()
+    expect((await loadDesk(persistence)).interrupts?.pending).toHaveLength(1)
   })
 
   it('does not continue a child of another thread', async () => {

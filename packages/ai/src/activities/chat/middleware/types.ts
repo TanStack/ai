@@ -210,7 +210,9 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   parentSubagentRunId?: string
   /**
    * Interrupt ids in `resume` that a subagent tool call of this run answers.
-   * This run does not answer them itself.
+   * This run does not answer them itself. They come from the subagent cards in
+   * the messages the client sent. `undefined` when no child is resumed, and
+   * for a router turn.
    */
   childResumeIds?: ReadonlySet<string>
   /**
