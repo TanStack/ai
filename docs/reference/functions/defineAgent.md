@@ -61,7 +61,7 @@ const researcher = defineAgent({
   description: 'Looks up facts',
   run: (ctx) =>
     chat({
-      adapter: openaiText('gpt-5.6'),
+      adapter: openaiText('gpt-6.1-sol'),
       messages: ctx.messages,
       threadId: ctx.threadId,
       runId: ctx.runId,

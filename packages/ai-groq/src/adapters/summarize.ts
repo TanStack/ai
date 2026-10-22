@@ -17,14 +17,14 @@ export type GroqSummarizeModel = (typeof GROQ_CHAT_MODELS)[number]
  * Creates a Groq summarize adapter with explicit API key.
  * Type resolution happens here at the call site.
  *
- * @param model - The model name (e.g., 'llama-3.3-70b-versatile')
+ * @param model - The model name (e.g., 'openai/gpt-oss-120b')
  * @param apiKey - Your Groq API key
  * @param config - Optional additional configuration
  * @returns Configured Groq summarize adapter instance with resolved types
  *
  * @example
  * ```typescript
- * const adapter = createGroqSummarize('llama-3.3-70b-versatile', "gsk_...");
+ * const adapter = createGroqSummarize('openai/gpt-oss-120b', "gsk_...");
  * ```
  */
 export function createGroqSummarize<TModel extends GroqSummarizeModel>(
@@ -50,7 +50,7 @@ export function createGroqSummarize<TModel extends GroqSummarizeModel>(
  * - `process.env` (Node.js)
  * - `window.env` (Browser with injected env)
  *
- * @param model - The model name (e.g., 'llama-3.3-70b-versatile')
+ * @param model - The model name (e.g., 'openai/gpt-oss-120b')
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
  * @returns Configured Groq summarize adapter instance with resolved types
  * @throws Error if GROQ_API_KEY is not found in environment
@@ -58,7 +58,7 @@ export function createGroqSummarize<TModel extends GroqSummarizeModel>(
  * @example
  * ```typescript
  * // Automatically uses GROQ_API_KEY from environment
- * const adapter = groqSummarize('llama-3.3-70b-versatile');
+ * const adapter = groqSummarize('openai/gpt-oss-120b');
  *
  * await summarize({
  *   adapter,

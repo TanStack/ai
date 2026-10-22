@@ -4,7 +4,7 @@ import { createGroqText } from '../src/adapters/text'
 import type { ModelMessage, Tool, ToolChoice } from '@tanstack/ai'
 
 const logger = resolveDebugOption(false)
-const model = 'llama-3.3-70b-versatile'
+const model = 'openai/gpt-oss-120b'
 const messages: Array<ModelMessage> = [
   { role: 'user', content: 'Weather in Paris?' },
 ]

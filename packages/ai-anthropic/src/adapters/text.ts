@@ -1117,9 +1117,10 @@ export class AnthropicTextAdapter<
 
   /**
    * Anthropic supports `output_config.format` + `tools` in a single streaming
-   * Messages request only for Claude 4.5+ (GA 2026-01-29). For 4.4 and
-   * earlier we keep the forced-tool-use workaround in
-   * {@link structuredOutput} via the engine's finalization path.
+   * Messages request only for Claude 4.5+ (GA 2026-01-29). Every registered
+   * model is 4.5+; an id outside the set (e.g. an untyped one) keeps the
+   * forced-tool-use workaround in {@link structuredOutput} via the engine's
+   * finalization path.
    */
   supportsCombinedToolsAndSchema(): boolean {
     return ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(this.model)

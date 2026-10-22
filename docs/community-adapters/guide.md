@@ -254,8 +254,6 @@ export const OPENAI_CHAT_MODELS = [
 export const OPENAI_IMAGE_MODELS = [
   GPT_IMAGE_1.name,
   GPT_IMAGE_1_MINI.name,
-  DALL_E_3.name,
-  DALL_E_2.name,
 ] as const
 
 export const OPENAI_VIDEO_MODELS = [SORA2.name, SORA2_PRO.name] as const

@@ -5,7 +5,7 @@ const messages = [{ role: 'user' as const, content: 'hi' }]
 
 chat({
   threadId: 'thread-1',
-  adapter: createGroqText('qwen/qwen3-32b', 'k'),
+  adapter: createGroqText('qwen/qwen3.8-27b', 'k'),
   messages,
   reasoning: 'off',
 })

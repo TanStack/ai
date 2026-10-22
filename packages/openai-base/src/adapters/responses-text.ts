@@ -521,14 +521,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   async *chatStream(
     chatOptions: TextOptions<TProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
-    // A portable computer tool becomes the native computer tool of the model.
+    // A portable computer tool becomes the native computer tool.
     // The request and the stream both read the native tool.
     const options = chatOptions.tools
       ? {
           ...chatOptions,
-          tools: chatOptions.tools.map((tool) =>
-            resolveComputerUseTool(tool, chatOptions.model),
-          ),
+          tools: chatOptions.tools.map((tool) => resolveComputerUseTool(tool)),
         }
       : chatOptions
     // Key streamed state by output item ID because argument deltas reference
@@ -1381,14 +1379,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       hasEmittedRunStarted: boolean
     },
   ): AsyncIterable<AdapterYieldChunk> {
-    // A `computer_call` is a call to the computer tool of this request.
-    const computerTool = options.tools?.some(
-      (tool) =>
-        tool.name === 'computer' &&
-        getOpenAIProviderToolKind(tool) === 'computer_use',
-    )
-      ? 'computer'
-      : 'computer_use_preview'
     const normalizeToolInput = createToolInputNormalizer(
       options.tools,
       (schema, required) =>
@@ -1592,7 +1582,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       outputIndex: number,
       bareShell: boolean,
     ): Array<AdapterYieldChunk> => {
-      const call = readUserExecutedCall(item, { bareShell, computerTool })
+      const call = readUserExecutedCall(item, { bareShell })
       if (!call || toolCallMetadata.get(call.callId)?.ended) return []
       const tracked = toolCallMetadata.get(call.callId) ?? {
         callId: call.callId,

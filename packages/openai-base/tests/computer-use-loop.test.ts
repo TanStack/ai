@@ -18,7 +18,7 @@ async function* completed(output: Array<Record<string, unknown>>) {
       type: 'response.created',
       response: {
         id: 'resp_1',
-        model: 'computer-use-preview',
+        model: 'gpt-6.1-sol',
         status: 'in_progress',
       },
     },
@@ -26,7 +26,7 @@ async function* completed(output: Array<Record<string, unknown>>) {
       type: 'response.completed',
       response: {
         id: 'resp_1',
-        model: 'computer-use-preview',
+        model: 'gpt-6.1-sol',
         status: 'completed',
         output,
         usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
@@ -63,12 +63,7 @@ class FileAdapter extends TestAdapter {
   override readonly supportsFileSources = true
 }
 
-const previewTool = computerUseTool({
-  type: 'computer_use_preview',
-  display_width: 1024,
-  display_height: 768,
-  environment: 'browser',
-})
+const computerTool = computerUseTool({ type: 'computer' })
 
 const screenshot = [
   {
@@ -89,7 +84,7 @@ function failureMessage(text: string) {
 async function runLoop(
   execute: (input: unknown) => Promise<unknown>,
   {
-    computer = previewTool,
+    computer = computerTool,
     calls = [clickCall],
   }: { computer?: Tool; calls?: Array<Record<string, unknown>> } = {},
 ) {
@@ -99,7 +94,7 @@ async function runLoop(
   const client = {
     responses: { create: (params: unknown) => create(params) },
   } as unknown as OpenAI
-  const adapter = new TestAdapter('computer-use-preview', 'openai', client)
+  const adapter = new TestAdapter('gpt-6.1-sol', 'openai', client)
   const tool = { ...computer, execute: vi.fn(execute) }
   const chunks: Array<StreamChunk> = []
   for await (const chunk of chat({
@@ -153,7 +148,6 @@ describe('computer use loop', () => {
       { type: 'type', text: 'hello' },
     ]
     const { create, execute } = await runLoop(async () => screenshot, {
-      computer: computerUseTool({ type: 'computer' }),
       calls: [
         {
           type: 'computer_call',

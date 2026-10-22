@@ -65,7 +65,6 @@ type BudgetThinkingModel =
   | 'claude-opus-4-5'
   | 'claude-sonnet-4-5'
   | 'claude-haiku-4-5'
-  | 'claude-opus-4-1'
 
 type AdaptiveEraModel =
   | 'claude-opus-4-7'
@@ -157,7 +156,6 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
       expectTypeOf<'claude-sonnet-4-6'>().toExtend<Keys>()
       expectTypeOf<'claude-sonnet-4-5'>().toExtend<Keys>()
       expectTypeOf<'claude-haiku-4-5'>().toExtend<Keys>()
-      expectTypeOf<'claude-opus-4-1'>().toExtend<Keys>()
       expectTypeOf<'claude-opus-4-7'>().toExtend<Keys>()
       expectTypeOf<'claude-opus-4-8'>().toExtend<Keys>()
       expectTypeOf<'claude-fable-5'>().toExtend<Keys>()
@@ -381,26 +379,11 @@ describe('ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS', () => {
   // tools in one call. It is not the same axis as the `output_config` provider
   // option, which arrived with Claude 4.7 — Opus 4.5, Opus 4.6, Sonnet 4.5,
   // Sonnet 4.6 and Haiku 4.5 are in the set and do not accept that option.
-  const MODELS_WITHOUT_COMBINED_OUTPUT = [
-    'claude-opus-4-1',
-    'claude-opus-5-fast',
-  ] as const
-
-  it('covers every registered model that accepts output_config.format', () => {
+  it('covers every registered model (all are Claude 4.5+)', () => {
     const missing = ANTHROPIC_MODELS.filter(
-      (model) =>
-        !ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(model) &&
-        !MODELS_WITHOUT_COMBINED_OUTPUT.includes(
-          model as (typeof MODELS_WITHOUT_COMBINED_OUTPUT)[number],
-        ),
+      (model) => !ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(model),
     )
 
     expect(missing).toEqual([])
-  })
-
-  it('leaves out the models that fall back to forced tool use', () => {
-    for (const model of MODELS_WITHOUT_COMBINED_OUTPUT) {
-      expect(ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(model)).toBe(false)
-    }
   })
 })

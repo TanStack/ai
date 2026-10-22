@@ -8,7 +8,7 @@ import { createImageAdapter } from '@/lib/media-providers'
  * `geminiNativeImageMount` reads the Interactions request and 400s unless
  * `safety_settings` is `[{ type: "dangerous_content", threshold:
  * "block_only_high" }]`, `generation_config.thinking_level` is `"low"`, and
- * no Imagen or generateContent field is present. A second call chains
+ * no camelCase field of an older request shape is present. A second call chains
  * `previous_interaction_id` from the first result and must not resend an
  * image. The mount answers `int_e2e_create` then `int_e2e_edit`.
  *

@@ -237,10 +237,9 @@ The levels of each model:
 | --- | --- | --- |
 | `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-fable-5-1`, `claude-fable-5`, `claude-opus-5`, `claude-opus-4-8`, `claude-opus-4-7` | `low` to `max` | no |
 | `claude-haiku-5-5`, `claude-sonnet-5` | `off`, `low` to `max` | no |
-| `claude-opus-5-fast` | `off`, `low` to `max` | yes |
 | `claude-opus-4-6`, `claude-sonnet-4-6` | `low`, `medium`, `high`, `max` | yes |
 | `claude-opus-4-5` | `low`, `medium`, `high` | yes |
-| `claude-haiku-4-5`, `claude-sonnet-4-5`, `claude-opus-4-1` | `off` to `high` | yes |
+| `claude-haiku-4-5`, `claude-sonnet-4-5` | `off` to `high` | yes |
 
 A budget model with `budgetTokens`:
 
@@ -256,7 +255,7 @@ const stream = chat({
 });
 ```
 
-Structured output forces a tool, and Claude cannot think while a tool is forced. So the structured output call sends no thinking. See [Reasoning](../chat/reasoning) for the levels and the nearest-level rule.
+With an `outputSchema`, every model in `ANTHROPIC_MODELS` uses native structured output, so thinking stays on. A direct `structuredOutput()` call, or a model id that is not in that list, forces a tool. Claude cannot think while a tool is forced, so that call sends no thinking. See [Reasoning](../chat/reasoning) for the levels and the nearest-level rule.
 
 ### Models
 
@@ -265,8 +264,8 @@ Newest first. The package exports the full list as `ANTHROPIC_MODELS`.
 | Family | Models |
 | --- | --- |
 | Claude 5.5 | `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5` |
-| Claude 5 | `claude-fable-5-1`, `claude-fable-5`, `claude-opus-5`, `claude-opus-5-fast`, `claude-sonnet-5` |
-| Claude 4 | `claude-opus-4-8`, `claude-opus-4-7`, `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-opus-4-5`, `claude-sonnet-4-5`, `claude-haiku-4-5`, `claude-opus-4-1` |
+| Claude 5 | `claude-fable-5-1`, `claude-fable-5`, `claude-opus-5`, `claude-sonnet-5` |
+| Claude 4 | `claude-opus-4-8`, `claude-opus-4-7`, `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-opus-4-5`, `claude-sonnet-4-5`, `claude-haiku-4-5` |
 
 `adapter.inputModalities` lists the input kinds of the selected model. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 

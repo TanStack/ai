@@ -107,7 +107,7 @@ Swap the adapter to change the provider. The rest of the route stays the same.
 
 | Provider | Adapter | Models | API key |
 | --- | --- | --- | --- |
-| OpenAI | `openaiSpeech` from `@tanstack/ai-openai` | `tts-1-hd`, `tts-1`, `gpt-4o-audio-preview` | `OPENAI_API_KEY` |
+| OpenAI | `openaiSpeech` from `@tanstack/ai-openai` | `tts-1-hd`, `tts-1`, `gpt-4o-mini-tts` | `OPENAI_API_KEY` |
 | Gemini (experimental) | `geminiSpeech` from `@tanstack/ai-gemini` | `gemini-3.1-flash-tts-preview`, `gemini-2.5-flash-preview-tts`, `gemini-2.5-pro-preview-tts` | `GOOGLE_API_KEY` or `GEMINI_API_KEY` |
 | ElevenLabs | `elevenlabsSpeech` from `@tanstack/ai-elevenlabs` | `eleven_v4`, `eleven_v4_turbo`, `eleven_v3`, and more | `ELEVENLABS_API_KEY` |
 | BytePlus | `byteplusSpeech` from `@tanstack/ai-byteplus` | `seed-audio-1.0` | `BYTEPLUS_VOICE_API_KEY` |
@@ -341,18 +341,18 @@ OpenAI models:
 | --- | --- | --- | --- |
 | `tts-1` | Standard | Fast | Realtime apps |
 | `tts-1-hd` | High | Slower | Production audio |
-| `gpt-4o-audio-preview` | Highest | Changes | Voice style control |
+| `gpt-4o-mini-tts` | Highest | Changes | Voice style control |
 
 `voice`, `format`, and `speed` are top-level options of `generateSpeech()`. They are not `modelOptions` keys. `speed` goes from 0.25 to 4.0.
 
-`modelOptions.instructions` sets the speaking style. Only `gpt-4o-audio-preview` accepts it. On `tts-1` and `tts-1-hd`, the call throws.
+`modelOptions.instructions` sets the speaking style. Only `gpt-4o-mini-tts` accepts it. On `tts-1` and `tts-1-hd`, the call throws.
 
 ```typescript
 import { generateSpeech } from '@tanstack/ai'
 import { openaiSpeech } from '@tanstack/ai-openai'
 
 const result = await generateSpeech({
-  adapter: openaiSpeech('gpt-4o-audio-preview'),
+  adapter: openaiSpeech('gpt-4o-mini-tts'),
   text: 'High quality speech synthesis',
   threadId: 'thread-1',
   voice: 'nova',

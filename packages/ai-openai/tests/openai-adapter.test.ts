@@ -220,7 +220,7 @@ describe('OpenAI adapter option mapping', () => {
         type: 'response.created',
         response: {
           id: 'resp-reasoning-include',
-          model: 'gpt-5.6',
+          model: 'gpt-5.6-sol',
           status: 'in_progress',
           created_at: 1234567890,
         },
@@ -236,7 +236,7 @@ describe('OpenAI adapter option mapping', () => {
     ])
 
     const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
-    const adapter = new OpenAITextAdapter({ apiKey: 'test-key' }, 'gpt-5.6')
+    const adapter = new OpenAITextAdapter({ apiKey: 'test-key' }, 'gpt-5.6-sol')
     ;(adapter as any).client = {
       responses: {
         create: responsesCreate,
@@ -306,7 +306,7 @@ describe('OpenAI adapter option mapping', () => {
         type: 'response.created',
         response: {
           id: 'resp-include',
-          model: 'gpt-5.6',
+          model: 'gpt-5.6-sol',
           status: 'in_progress',
           created_at: 1234567890,
         },
@@ -322,7 +322,7 @@ describe('OpenAI adapter option mapping', () => {
     ])
 
     const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
-    const adapter = new OpenAITextAdapter({ apiKey: 'test-key' }, 'gpt-5.6')
+    const adapter = new OpenAITextAdapter({ apiKey: 'test-key' }, 'gpt-5.6-sol')
     ;(adapter as any).client = {
       responses: {
         create: responsesCreate,

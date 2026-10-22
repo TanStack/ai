@@ -8,7 +8,7 @@ export interface ModelOption {
 
 export const MODEL_OPTIONS: Array<ModelOption> = [
   // OpenAI
-  { provider: 'openai', model: 'gpt-5.6', label: 'OpenAI - GPT-5.6' },
+  { provider: 'openai', model: 'gpt-6.1-sol', label: 'OpenAI - GPT-6.1 Sol' },
   { provider: 'openai', model: 'gpt-5.6-sol', label: 'OpenAI - GPT-5.6 Sol' },
   {
     provider: 'openai',

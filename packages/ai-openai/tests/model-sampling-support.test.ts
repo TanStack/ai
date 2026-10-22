@@ -17,12 +17,10 @@ describe('openAIModelRejectsSamplingParams', () => {
       'gpt-5.2-pro',
       'gpt-5.5',
       'gpt-5.5-pro',
-      'gpt-5.6',
       'gpt-5.6-sol',
       'gpt-5.6-terra',
       'gpt-5.6-luna',
       'gpt-5.1-codex-mini',
-      'codex-mini-latest',
     ]) {
       expect(openAIModelRejectsSamplingParams(model), model).toBe(true)
     }
@@ -34,7 +32,6 @@ describe('openAIModelRejectsSamplingParams', () => {
       'gpt-5.1-chat-latest',
       'gpt-5.2-chat-latest',
       'gpt-chat-latest',
-      'chatgpt-4o-latest',
       'gpt-4.1',
       'gpt-4o',
       'gpt-4o-mini',

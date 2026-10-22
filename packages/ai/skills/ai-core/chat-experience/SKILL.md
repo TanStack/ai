@@ -368,7 +368,7 @@ export async function POST(request: Request) {
   const abortController = new AbortController()
 
   const stream = chat({
-    adapter: openaiText('gpt-5.6'),
+    adapter: openaiText('gpt-6.1-sol'),
     messages,
     threadId,
     abortController,
@@ -453,7 +453,7 @@ export async function POST(request: Request) {
   })
 
   const stream = chat({
-    adapter: openaiText('gpt-5.6'),
+    adapter: openaiText('gpt-6.1-sol'),
     messages,
     threadId,
     mcp: {
@@ -546,7 +546,7 @@ const client = await createMCPClient({
 
 try {
   const stream = chat({
-    adapter: openaiText('gpt-5.6'),
+    adapter: openaiText('gpt-6.1-sol'),
     messages: [{ role: 'user', content: 'Weather in Paris?' }],
     threadId: 'thread-1',
     tools: await client.tools(),
@@ -742,7 +742,7 @@ import { streamText } from 'ai'
 import { openai } from '@ai-sdk/openai'
 
 const messages = [{ role: 'user' as const, content: 'Hello' }]
-const result = streamText({ model: openai('gpt-5.6'), messages })
+const result = streamText({ model: openai('gpt-6.1-sol'), messages })
 ```
 
 ```typescript
@@ -752,7 +752,7 @@ import { openaiText } from '@tanstack/ai-openai'
 
 const messages = [{ role: 'user' as const, content: 'Hello' }]
 const stream = chat({
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
   messages,
   threadId: 'thread-1',
 })
@@ -767,7 +767,7 @@ import { createOpenAI } from '@ai-sdk/openai'
 
 const messages = [{ role: 'user' as const, content: 'Hello' }]
 const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY })
-streamText({ model: openai('gpt-5.6'), messages })
+streamText({ model: openai('gpt-6.1-sol'), messages })
 ```
 
 ```typescript
@@ -776,7 +776,7 @@ import { openaiText } from '@tanstack/ai-openai'
 import { chat } from '@tanstack/ai'
 
 const messages = [{ role: 'user' as const, content: 'Hello' }]
-chat({ adapter: openaiText('gpt-5.6'), messages, threadId: 'thread-1' })
+chat({ adapter: openaiText('gpt-6.1-sol'), messages, threadId: 'thread-1' })
 ```
 
 ### c. CRITICAL: Using monolithic openai() instead of openaiText()
@@ -784,7 +784,7 @@ chat({ adapter: openaiText('gpt-5.6'), messages, threadId: 'thread-1' })
 ```typescript ignore
 // WRONG — `openai()` is no longer exported from @tanstack/ai-openai
 import { openai } from '@tanstack/ai-openai'
-chat({ adapter: openai(), model: 'gpt-5.6', messages, threadId: 'thread-1' })
+chat({ adapter: openai(), model: 'gpt-6.1-sol', messages, threadId: 'thread-1' })
 ```
 
 ```typescript
@@ -793,7 +793,7 @@ import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const messages = [{ role: 'user' as const, content: 'Hello' }]
-chat({ adapter: openaiText('gpt-5.6'), messages, threadId: 'thread-1' })
+chat({ adapter: openaiText('gpt-6.1-sol'), messages, threadId: 'thread-1' })
 ```
 
 The monolithic `openai()` adapter no longer exists. Use tree-shakeable adapters:
@@ -816,7 +816,7 @@ export async function POST(request: Request) {
   const { messages, threadId } = await request.json()
   const abortController = new AbortController()
   const stream = chat({
-    adapter: openaiText('gpt-5.6'),
+    adapter: openaiText('gpt-6.1-sol'),
     messages,
     threadId,
     abortController,
@@ -831,7 +831,7 @@ export async function POST(request: Request) {
 // WRONG
 chat({
   adapter: openaiText(),
-  model: 'gpt-5.6',
+  model: 'gpt-6.1-sol',
   messages,
   threadId: 'thread-1',
 })
@@ -843,7 +843,7 @@ import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const messages = [{ role: 'user' as const, content: 'Hello' }]
-chat({ adapter: openaiText('gpt-5.6'), messages, threadId: 'thread-1' })
+chat({ adapter: openaiText('gpt-6.1-sol'), messages, threadId: 'thread-1' })
 ```
 
 The model is passed to the adapter factory, not to `chat()`.
@@ -881,7 +881,7 @@ import { openaiText } from '@tanstack/ai-openai'
 const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 chat({
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
   messages,
   threadId: 'thread-1',
   modelOptions: { temperature: 0.7, max_output_tokens: 1000 },
@@ -915,7 +915,7 @@ import { openaiText } from '@tanstack/ai-openai'
 const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 chat({
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
   messages,
   threadId: 'thread-1',
   modelOptions: { text: { format: { type: 'json_object' } } },
@@ -931,7 +931,7 @@ import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
   const { messages, threadId } = await request.json()
-  const stream = chat({ adapter: openaiText('gpt-5.6'), messages, threadId })
+  const stream = chat({ adapter: openaiText('gpt-6.1-sol'), messages, threadId })
 
   const readable = new ReadableStream({
     async start(controller) {
@@ -958,7 +958,7 @@ export async function POST(request: Request) {
   const { messages, threadId } = await request.json()
   const abortController = new AbortController()
   const stream = chat({
-    adapter: openaiText('gpt-5.6'),
+    adapter: openaiText('gpt-6.1-sol'),
     messages,
     threadId,
     abortController,
@@ -1005,7 +1005,7 @@ const analytics: ChatMiddleware = {
 
 const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
   messages,
   threadId: 'thread-1',
   middleware: [analytics],
@@ -1044,7 +1044,7 @@ import { openaiText } from '@tanstack/ai-openai'
 
 const messages = [{ role: 'user' as const, content: 'Hello' }]
 const stream = chat({
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
   messages,
   threadId: 'thread-1',
 })

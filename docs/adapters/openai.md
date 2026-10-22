@@ -8,7 +8,7 @@ keywords:
   - openai
   - gpt-4o
   - gpt-5
-  - dall-e
+  - gpt-image
   - whisper
   - openai tts
   - adapter
@@ -346,7 +346,6 @@ const stream = chat({
 - OpenAI rejects `temperature` and `top_p` on the reasoning models. `openaiText` drops the two options for these model ids:
   - The `o` models (`o1`, `o3`, `o4-mini`, and so on).
   - Every id that starts with `gpt-5`, except ids that end in `-chat-latest`.
-  - `codex-mini-latest`.
 - With `openaiChatCompletions`, the token limit is `max_tokens`.
 - Sampling options do not go at the root of `chat()`. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 
@@ -394,9 +393,9 @@ Newest first. The package exports the full lists, for example `OPENAI_CHAT_MODEL
 
 | Activity | Factory | Models |
 | --- | --- | --- |
-| Chat | `openaiText` | `gpt-6.1-sol`, `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`, `gpt-5.6`, `gpt-5.5`, `gpt-4.1`, `gpt-4o`, the `o` models, and more |
-| Images | `openaiImage` | `gpt-image-2.5-flare`, `gpt-image-2.5-sunburst`, `gpt-image-2`, `gpt-image-1`, `gpt-image-1-mini`, `dall-e-3`, `dall-e-2` |
-| Speech | `openaiSpeech` | `tts-1`, `tts-1-hd`, `gpt-4o-audio-preview` |
+| Chat | `openaiText` | `gpt-6.1-sol`, `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`, the `gpt-5.6` models, `gpt-5.5`, `gpt-4.1`, `gpt-4o`, the `o` models, and more |
+| Images | `openaiImage` | `gpt-image-2.5-flare`, `gpt-image-2.5-sunburst`, `gpt-image-2`, `gpt-image-1`, `gpt-image-1-mini` |
+| Speech | `openaiSpeech` | `tts-1`, `tts-1-hd`, `gpt-4o-mini-tts` |
 | Transcription | `openaiTranscription` | `whisper-1`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `gpt-4o-transcribe-diarize` |
 | Embeddings | `openaiEmbedding` | `text-embedding-3-small`, `text-embedding-3-large` |
 | Video | `openaiVideo` | `sora-2`, `sora-2-pro` |

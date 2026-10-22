@@ -232,7 +232,7 @@ async function* promoteGroqUsage(
  *
  * @example
  * ```typescript
- * const adapter = createGroqText('llama-3.3-70b-versatile', "gsk_...");
+ * const adapter = createGroqText('openai/gpt-oss-120b', "gsk_...");
  * ```
  */
 export function createGroqText<
@@ -250,7 +250,7 @@ export function createGroqText<
  *
  * @example
  * ```typescript
- * const adapter = groqText('llama-3.3-70b-versatile');
+ * const adapter = groqText('openai/gpt-oss-120b');
  * ```
  */
 export function groqText<TModel extends (typeof GROQ_CHAT_MODELS)[number]>(
