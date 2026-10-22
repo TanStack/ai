@@ -168,7 +168,6 @@ function collectWebSearchSources(
 function answerItems(
   message: ModelMessage,
   text: string,
-  withIds: boolean,
 ): ResponseInput | undefined {
   const items: TanStackMessageMetadata['responseItems'] =
     message.metadata?.tanstack?.responseItems
@@ -176,31 +175,18 @@ function answerItems(
     block.type === 'text' ? [block.text] : [],
   ) ?? [text]
   if (!items || items.length !== texts.length) return undefined
-  return items.map((item, index) => {
-    const phase: { phase?: 'commentary' | 'final_answer' } =
-      item.phase === 'commentary' || item.phase === 'final_answer'
-        ? { phase: item.phase }
-        : {}
-    // Without its id the item is new, so it goes as plain text. The phase
-    // stays: OpenAI asks to resend it on every assistant message.
-    if (!withIds)
-      return {
-        type: 'message',
-        role: 'assistant',
-        content: texts[index] ?? '',
-        ...phase,
-      }
-    return {
-      type: 'message',
-      role: 'assistant',
-      id: item.id,
-      status: 'completed',
-      content: [
-        { type: 'output_text', text: texts[index] ?? '', annotations: [] },
-      ],
-      ...phase,
-    }
-  })
+  return items.map((item, index) => ({
+    type: 'message',
+    role: 'assistant',
+    id: item.id,
+    status: 'completed',
+    content: [
+      { type: 'output_text', text: texts[index] ?? '', annotations: [] },
+    ],
+    ...(item.phase === 'commentary' || item.phase === 'final_answer'
+      ? { phase: item.phase }
+      : {}),
+  }))
 }
 
 function packResponsesReasoningSignature(
@@ -3011,14 +2997,13 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         // Sending the calls without their item id makes them fresh items that
         // the API does not try to pair, which replays correctly. `call_id` is
         // untouched, so the matching `function_call_output` still resolves.
-        // One reasoning item always lands adjacent to its calls, so those
-        // keep their ids and their prompt-cache hits. If any reasoning was
-        // dropped as a duplicate, a call may belong to it, so the ids go too.
-        // A message with no reasoning item drops its ids as well: a reasoning
-        // model refuses a msg_/fc_ item without the reasoning item that
-        // produced it, and a stored transcript often has none.
+        // One reasoning item (or none at all) always lands adjacent to its
+        // calls, so those keep their ids and their prompt-cache hits. If any
+        // reasoning was dropped as a duplicate, a call may belong to it, so
+        // the ids go too.
         const canPairReasoning =
-          reasoningCandidates === 1 && emittedReasoning === 1
+          reasoningCandidates === 0 ||
+          (reasoningCandidates === 1 && emittedReasoning === 1)
         const firstCall = result.length
 
         // If the assistant message has tool calls, add them as FunctionToolCall objects
@@ -3087,9 +3072,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         } else if (message.content) {
           // Add the assistant's text message if there is content
           const contentStr = this.extractTextContent(message.content)
-          const items = contentStr
-            ? answerItems(message, contentStr, canPairReasoning)
-            : undefined
+          const items =
+            contentStr && canPairReasoning
+              ? answerItems(message, contentStr)
+              : undefined
           // The model writes an answer item before its calls, so it goes
           // back right after this message's reasoning.
           if (items) result.splice(firstCall, 0, ...items)
