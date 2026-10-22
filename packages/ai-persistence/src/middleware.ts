@@ -78,6 +78,9 @@ import type {
   RunStore,
 } from './types'
 
+/** The durable resume check that chat() runs after its onConfig chain. */
+const DURABLE_RESUME = Symbol.for('tanstack.ai.durableResume')
+
 /**
  * How generated media is turned into durable artifacts: which pieces of a
  * result become artifacts, what they are named, where their bytes land, and how
@@ -2440,15 +2443,21 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           // A subagent tool call answers its own interrupts against its own
           // tools. They are still committed below with the rest of the batch.
           const runPending = rejectForgedChildSplit(ownedPending, ctx)
-          const resumeToolState = await durableGenericResumeState(
-            ctx,
-            runPending,
-            config.resume,
-            config.tools,
-            persistence.stores.interrupts,
-          )
+          const resume = config.resume
+          const interrupts = persistence.stores.interrupts
           patch.resume = []
-          if (resumeToolState) patch.resumeToolState = resumeToolState
+          // chat() runs this after the whole onConfig chain, so a tool that a
+          // later middleware adds can be resumed too.
+          Object.assign(patch, {
+            [DURABLE_RESUME]: (tools: ChatMiddlewareConfig['tools']) =>
+              durableGenericResumeState(
+                ctx,
+                runPending,
+                resume,
+                tools,
+                interrupts,
+              ),
+          })
         }
         // Defer marking these interrupts resolved/cancelled until the run
         // succeeds (see commitPendingResumes). Committing here would consume the

@@ -51,6 +51,53 @@ function persistenceFor() {
 }
 
 describe('resolve', () => {
+  it('resolves the approval of a tool that harness middleware adds in onConfig', async () => {
+    const deploy = toolDefinition({
+      name: 'deploy',
+      description: 'Deploy. Needs approval.',
+      needsApproval: true,
+      inputSchema: z.object({ env: z.string() }),
+    })
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('deploy', { env: 'prod' }),
+      () => text('Deployed.'),
+    ])
+    const host = createHarnessHost({
+      persistence: { stores: memoryPersistence().stores },
+    })
+    const session = await host.open(
+      defineHarness({
+        name: 'middleware-tool-approval',
+        adapter,
+        middleware: [
+          {
+            name: 'adds-deploy',
+            onConfig: () => ({
+              tools: [deploy.server(async () => ({ ok: true }))],
+            }),
+          },
+        ],
+      }),
+      { threadId: 't-1' },
+    )
+    const paused = await session.send('Ship it.', { inputId: 'ship' })
+    await session.resolve({
+      resume: [
+        {
+          interruptId: paused.interrupts?.[0]?.id ?? '',
+          status: 'resolved',
+          payload: { approved: true },
+        },
+      ],
+      inputId: 'approve',
+    })
+    expect(await session.settled({ inputId: 'approve' })).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(calls).toHaveLength(2)
+    await host.close()
+  })
+
   it('keeps the interrupt when the resume fails validation, so a correct resolve continues the turn', async () => {
     const { adapter, calls } = mockAdapter([
       () => toolCall('openScreen', { route: '/settings' }),

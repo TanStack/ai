@@ -273,6 +273,13 @@ const MAX_MODEL_ERROR_RETRIES = 2
 /** Resume entries a subagent tool call owns. The parent run skips them. */
 const CHILD_RESUME_IDS = Symbol('tanstack.ai.childResumeIds')
 
+/**
+ * A durable resume check that `withPersistence` leaves on the init config.
+ * The run calls it after the whole `onConfig` chain, so it checks the resume
+ * against the tools that a later middleware added too.
+ */
+const DURABLE_RESUME = Symbol.for('tanstack.ai.durableResume')
+
 interface StructuralInterruptFailure {
   error: Error
   errors: ReadonlyArray<InterruptSubmissionError>
@@ -1514,6 +1521,16 @@ class TextEngine<
         this.middlewareRunner.runOnConfig(this.middlewareCtx, initialConfig),
       )
       this.applyMiddlewareConfig(transformedConfig)
+      const durableResume = (
+        transformedConfig as {
+          [DURABLE_RESUME]?: (
+            tools: ChatMiddlewareConfig['tools'],
+          ) => Promise<ChatResumeToolState | undefined>
+        }
+      )[DURABLE_RESUME]
+      if (durableResume) {
+        this.applyResumeToolState(await durableResume(this.tools))
+      }
       await this.applyEphemeralInterruptResume(transformedConfig)
       await this.applyDurableGenericInterruptResolution()
 
