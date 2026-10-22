@@ -313,18 +313,25 @@ export class BoxdHandle implements SandboxHandle {
       spawn: (command, opts) => this.spawnProcess(command, opts),
     }
 
+    // The native file calls take no abort signal, so each call checks it first.
     this.fs = {
-      read: async (p) =>
-        new TextDecoder().decode(
+      read: async (p, o) => {
+        o?.signal?.throwIfAborted()
+        return new TextDecoder().decode(
           await this.client.machines.files.download(this.id, this.abs(p)),
-        ),
-      readBytes: (p) =>
-        this.client.machines.files.download(this.id, this.abs(p)),
+        )
+      },
+      readBytes: async (p, o) => {
+        o?.signal?.throwIfAborted()
+        return this.client.machines.files.download(this.id, this.abs(p))
+      },
       // `upload` creates missing parent directories (measured), so no mkdir.
-      write: async (p, data) => {
+      write: async (p, data, o) => {
+        o?.signal?.throwIfAborted()
         await this.client.machines.files.upload(this.id, this.abs(p), data)
       },
-      list: async (p) => {
+      list: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const r = await this.exec(`ls -1Ap -- ${q(this.abs(p))}`)
         if (r.exitCode !== 0) throw new Error(`list failed: ${errText(r)}`)
         const base = p.replace(/\/$/, '')
@@ -341,22 +348,29 @@ export class BoxdHandle implements SandboxHandle {
             }
           })
       },
-      lstat: async (p) => this.lstat(this.abs(p)),
-      mkdir: async (p) => {
+      lstat: async (p, o) => {
+        o?.signal?.throwIfAborted()
+        return this.lstat(this.abs(p))
+      },
+      mkdir: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const r = await this.exec(`mkdir -p -- ${q(this.abs(p))}`)
         if (r.exitCode !== 0) throw new Error(`mkdir failed: ${errText(r)}`)
       },
-      remove: async (p) => {
+      remove: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const r = await this.exec(`rm -rf -- ${q(this.abs(p))}`)
         if (r.exitCode !== 0) throw new Error(`remove failed: ${errText(r)}`)
       },
-      rename: async (from, to) => {
+      rename: async (from, to, o) => {
+        o?.signal?.throwIfAborted()
         const r = await this.exec(
           `mv -- ${q(this.abs(from))} ${q(this.abs(to))}`,
         )
         if (r.exitCode !== 0) throw new Error(`rename failed: ${errText(r)}`)
       },
-      exists: async (p) => {
+      exists: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const r = await this.exec(`test -e ${q(this.abs(p))}`)
         return r.exitCode === 0
       },

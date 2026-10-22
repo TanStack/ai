@@ -96,6 +96,29 @@ describe('local-process fs', () => {
     await sbx.destroy()
   })
 
+  it('rejects each fs call on an aborted signal, and writes nothing', async () => {
+    const sbx = await fresh()
+    await sbx.fs.write('/workspace/a.txt', 'hello')
+    const signal = AbortSignal.abort()
+    const calls = [
+      () => sbx.fs.read('/workspace/a.txt', { signal }),
+      () => sbx.fs.readBytes('/workspace/a.txt', { signal }),
+      () => sbx.fs.write('/workspace/a.txt', 'changed', { signal }),
+      () => sbx.fs.list('/workspace', { signal }),
+      () => sbx.fs.lstat!('/workspace/a.txt', { signal }),
+      () => sbx.fs.mkdir('/workspace/dir', { signal }),
+      () => sbx.fs.remove('/workspace/a.txt', { signal }),
+      () => sbx.fs.rename('/workspace/a.txt', '/workspace/b.txt', { signal }),
+      () => sbx.fs.exists('/workspace/a.txt', { signal }),
+    ]
+    for (const call of calls) {
+      await expect(call()).rejects.toMatchObject({ name: 'AbortError' })
+    }
+    expect(await sbx.fs.read('/workspace/a.txt')).toBe('hello')
+    expect(await sbx.fs.exists('/workspace/dir')).toBe(false)
+    await sbx.destroy()
+  })
+
   it('contains paths within the sandbox root', async () => {
     const sbx = await fresh()
     await expect(sbx.fs.read('/workspace/../../../etc/hosts')).rejects.toThrow(

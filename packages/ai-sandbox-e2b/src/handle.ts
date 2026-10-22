@@ -239,25 +239,27 @@ export class E2BHandle implements SandboxHandle {
       spawn: (command, opts) => this.spawnProcess(command, opts),
     }
 
+    // The SDK takes the signal of each file call (`o`).
     this.fs = {
-      read: (p) => this.sandbox.files.read(this.abs(p), { format: 'text' }),
-      readBytes: (p) =>
-        this.sandbox.files.read(this.abs(p), { format: 'bytes' }),
-      write: async (p, data) => {
+      read: (p, o) =>
+        this.sandbox.files.read(this.abs(p), { format: 'text', ...o }),
+      readBytes: (p, o) =>
+        this.sandbox.files.read(this.abs(p), { format: 'bytes', ...o }),
+      write: async (p, data, o) => {
         const abs = this.abs(p)
         // envd creates missing parents on write; a Blob carries bytes verbatim.
         if (typeof data === 'string') {
-          await this.sandbox.files.write(abs, data)
+          await this.sandbox.files.write(abs, data, o)
         } else {
           // `Blob` wants an ArrayBuffer-backed view; a caller's Uint8Array may
           // sit on a SharedArrayBuffer, so copy into a fresh one.
           const bytes = new Uint8Array(data.byteLength)
           bytes.set(data)
-          await this.sandbox.files.write(abs, new Blob([bytes]))
+          await this.sandbox.files.write(abs, new Blob([bytes]), o)
         }
       },
-      list: async (p) => {
-        const entries = await this.sandbox.files.list(this.abs(p))
+      list: async (p, o) => {
+        const entries = await this.sandbox.files.list(this.abs(p), o)
         const base = p.replace(/\/$/, '')
         return entries.map((entry) => ({
           name: entry.name,
@@ -265,16 +267,19 @@ export class E2BHandle implements SandboxHandle {
           type: entry.type === 'dir' ? ('dir' as const) : ('file' as const),
         }))
       },
-      lstat: (p) => this.lstat(this.abs(p)),
-      mkdir: async (p) => {
+      lstat: async (p, o) => {
+        o?.signal?.throwIfAborted()
+        return this.lstat(this.abs(p))
+      },
+      mkdir: async (p, o) => {
         // Resolves false when the directory already exists; both are success.
-        await this.sandbox.files.makeDir(this.abs(p))
+        await this.sandbox.files.makeDir(this.abs(p), o)
       },
-      remove: (p) => this.sandbox.files.remove(this.abs(p)),
-      rename: async (from, to) => {
-        await this.sandbox.files.rename(this.abs(from), this.abs(to))
+      remove: (p, o) => this.sandbox.files.remove(this.abs(p), o),
+      rename: async (from, to, o) => {
+        await this.sandbox.files.rename(this.abs(from), this.abs(to), o)
       },
-      exists: (p) => this.sandbox.files.exists(this.abs(p)),
+      exists: (p, o) => this.sandbox.files.exists(this.abs(p), o),
     }
 
     this.git = createExecBackedGit(this.process, this.workspaceRoot)
