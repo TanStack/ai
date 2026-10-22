@@ -34,13 +34,14 @@ export async function detectPackageManager(
   handle: SandboxHandle,
   workspace: WorkspaceDefinition,
   root: string,
+  options: { signal?: AbortSignal } = {},
 ): Promise<Exclude<PackageManager, 'auto'> | undefined> {
   const pm = workspace.packageManager ?? 'auto'
   if (pm !== 'auto') return pm
   for (const [manager, lockfile] of Object.entries(LOCKFILES) as Array<
     [Exclude<PackageManager, 'auto'>, string]
   >) {
-    if (await handle.fs.exists(`${root}/${lockfile}`)) return manager
+    if (await handle.fs.exists(`${root}/${lockfile}`, options)) return manager
   }
   return undefined
 }
@@ -75,7 +76,7 @@ export async function bootstrapWorkspace(
   // rather than passing a virtual `dir` that can't be remapped inside a shell
   // command string.
   if (workspace.source.type === 'git') {
-    const alreadyCloned = await handle.fs.exists(`${root}/.git`)
+    const alreadyCloned = await handle.fs.exists(`${root}/.git`, options)
     if (!alreadyCloned) {
       await handle.git.clone({
         url: workspace.source.url,
@@ -136,17 +137,22 @@ export async function bootstrapWorkspace(
   }
   agentsContent = mergeAgentsContent(agentsContent, workspace.scripts)
   if (agentsContent !== undefined) {
-    await writeAgentsFile(handle, root, agentsContent)
+    await writeAgentsFile(handle, root, agentsContent, options)
   }
 
   // Write all other fileSkills directly into the workspace root.
   for (const skill of skills) {
     if (skill.kind === 'file' && skill.path !== 'AGENTS.md') {
-      await handle.fs.write(`${root}/${skill.path}`, skill.content)
+      await handle.fs.write(`${root}/${skill.path}`, skill.content, options)
     }
   }
 
-  const packageManager = await detectPackageManager(handle, workspace, root)
+  const packageManager = await detectPackageManager(
+    handle,
+    workspace,
+    root,
+    options,
+  )
 
   // Run setup over a single persistent shell so `cd`/exports persist across
   // serial steps. Parallel groups fork the shell's current cwd+env into

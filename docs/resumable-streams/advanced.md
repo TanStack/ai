@@ -197,10 +197,30 @@ import { fetchServerSentEvents } from '@tanstack/ai-client'
 
 function makeConnection() {
   return fetchServerSentEvents('/api/chat', {
-    reconnect: { maxAttempts: 5, delayMs: 250 }, // defaults shown
+    reconnect: { maxAttempts: 5, initialDelayMs: 250, maxDelayMs: 5000 }, // defaults shown
   })
 }
 ```
+
+The wait doubles after each reconnect that delivers nothing: 250 ms, 500 ms, 1 s, and up to `maxDelayMs`. Jitter takes each wait from half of that value up to the full value, so many clients do not reconnect at the same moment.
+
+A reconnect also retries a response with a temporary status: 408, 429, 502, 503, or 504. A proxy sends these while the server behind it restarts. If the response has a `Retry-After` header, the client waits that long, up to `maxDelayMs`. Any other non-2xx status, for example 401 or 404, fails at once.
+
+#### Ride out a server restart
+
+A restart or a rolling deploy can take tens of seconds. With the defaults, the client gives up after about 8 seconds. To keep open chats alive through a deploy, set `budgetMs`:
+
+```ts
+import { fetchServerSentEvents } from '@tanstack/ai-client'
+
+function makeConnection() {
+  return fetchServerSentEvents('/api/chat', {
+    reconnect: { budgetMs: 120_000 },
+  })
+}
+```
+
+With `budgetMs`, the client reconnects with no attempt limit until the time is used. The budget starts at the first failed reconnect, and any new event resets it. If the next wait would go past the budget, the run fails with `StreamReconnectLimitError`. To also limit the attempts, set `maxAttempts` too.
 
 `durableStream` limits its own read loop the same way. After a body read fails in the middle of a window, it retries from the last valid position, and it limits consecutive failures (`reconnect: { maxReadFailures: 10, delayMs: 250 }`). Normal long-poll progress is never throttled.
 

@@ -7,11 +7,13 @@
  * store the persistence exposes and is the authoritative compatibility gate for
  * the store interfaces in `../types.ts`.
  *
- * Covers all eight stores: the five chat state stores (`messages`,
- * `activities`, `runs`, `interrupts`, `metadata`) and the three generation
- * stores (`generationRuns`, `artifacts`, `blobs`). Locks are not part of this
- * suite — they are a separate coordination concern (`LockStore` + `withLocks`),
- * not a store.
+ * Covers the five chat state stores (`messages`, `activities`, `runs`,
+ * `interrupts`, `metadata`), the three generation stores (`generationRuns`,
+ * `artifacts`, `blobs`), and the opt-in session stores (`log`,
+ * `sessions`). The session store cases run only
+ * when the store is present, so they need no `skip` entry. Locks are not part of
+ * this suite — they are a separate coordination concern (`LockStore` +
+ * `withLocks`), not a store.
  *
  * SKIPPING (declare or fail): a backend that deliberately omits a store must
  * declare it in `options.skip`, and one that omits an OPTIONAL store method
@@ -38,13 +40,22 @@
  * exact-set assertion. A new case in `describe('runs')` must NOT seed a run id
  * starting with `rc-`, or it silently changes that expected set.
  */
-import { beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
+import {
+  LogConflictError,
+  LogTruncatedError,
+  OwnershipLostError,
+  NO_OWNER_EPOCH,
+} from '../types'
 import type { ModelMessage } from '@tanstack/ai'
 import type {
   AIPersistence,
   AIPersistenceStores,
   ArtifactRecord,
+  LogStore,
   RunStore,
+  SessionIndexEntry,
+  SessionIndexPage,
 } from '../types'
 
 type MakePersistence = () => Promise<AIPersistence> | AIPersistence
@@ -137,6 +148,20 @@ export interface PersistenceConformanceOptions {
    * {@link PersistenceConformanceCheck}.
    */
   checks?: Array<PersistenceConformanceCheck>
+  /**
+   * Make a second store set on the same backend as `persistence`, as a second
+   * machine sees it. The `log across instances` cases use its `log` store.
+   * A backend that provides `log` must pass `twin`, or those cases fail.
+   *
+   * @example
+   * ```ts
+   * twin: (persistence) =>
+   *   defineAIPersistence({
+   *     stores: { ...persistence.stores, log: myLogStore(sameDatabase) },
+   *   })
+   * ```
+   */
+  twin?: (persistence: AIPersistence) => AIPersistence | Promise<AIPersistence>
 }
 
 /**
@@ -177,6 +202,21 @@ export function runPersistenceConformance(
         `AIPersistence conformance: store '${key}' is missing. ` +
           `Provide it, or pass { skip: ['${key}'] } if the omission is intentional.`,
       )
+    }
+
+    /**
+     * Return the second store set from `options.twin`. Throws (failing the
+     * test) when the option is missing, mirroring `resolveStore`: a case
+     * that cannot run must never be reported as a pass.
+     */
+    async function resolveTwin() {
+      const twin = options?.twin
+      if (twin === undefined) {
+        throw new Error(
+          'AIPersistence conformance: Provide `twin`: a second store set on the same backend.',
+        )
+      }
+      return twin(persistence)
     }
 
     /**
@@ -1571,6 +1611,2007 @@ export function runPersistenceConformance(
         const exact = await store.list({ prefix: 'page/', limit: 5 })
         expect(exact.objects.map((o) => o.key)).toEqual(seen)
         expect(exact.truncated).toBeFalsy()
+      })
+    })
+
+    // The session stores below are opt-in. A backend without one skips its
+    // cases and needs no `skip` entry.
+    // Each case uses its own log, because the suite shares one persistence.
+    const newLog = () => `log-${crypto.randomUUID()}`
+    // The suite shares one store. A case that lists orphans filters by its
+    // own harness, so the orphans of other cases cannot fill the limit.
+    const newHarness = () => `harness-${crypto.randomUUID()}`
+    // Subscribe a listener that counts its calls.
+    const countCalls = (store: LogStore, logId: string) => {
+      let calls = 0
+      const stop = store.subscribe({
+        logId,
+        listener: () => {
+          calls += 1
+        },
+      })
+      return { calls: () => calls, stop }
+    }
+    // Give a store that notifies later (a poller) the time to call again.
+    const waitForLateCalls = () =>
+      new Promise((resolve) => setTimeout(resolve, 50))
+
+    describe('log', () => {
+      const types = async (store: LogStore, logId: string) =>
+        (await store.read({ logId })).map((entry) => [
+          entry.seq,
+          entry.record.type,
+        ])
+
+      it('writes a batch at consecutive positions and reads it in order', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: NO_OWNER_EPOCH,
+          records: [
+            { type: 'a', n: 1 },
+            { type: 'b', n: 2 },
+          ],
+        })
+        await store.append({
+          logId,
+          seq: 3,
+          epoch: NO_OWNER_EPOCH,
+          records: [{ type: 'c', nested: { deep: [1] } }],
+        })
+
+        expect(await store.read({ logId })).toEqual([
+          { seq: 1, record: { type: 'a', n: 1 } },
+          { seq: 2, record: { type: 'b', n: 2 } },
+          { seq: 3, record: { type: 'c', nested: { deep: [1] } } },
+        ])
+      })
+
+      it('rejects a taken position or a gap with LogConflictError and writes nothing', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: NO_OWNER_EPOCH,
+          records: [{ type: 'first' }],
+        })
+
+        await expect(
+          store.append({
+            logId,
+            seq: 1,
+            epoch: NO_OWNER_EPOCH,
+            records: [{ type: 'late-1' }, { type: 'late-2' }],
+          }),
+        ).rejects.toBeInstanceOf(LogConflictError)
+
+        // A gap (position 3 while 2 is free) is a conflict too.
+        await expect(
+          store.append({
+            logId,
+            seq: 3,
+            epoch: NO_OWNER_EPOCH,
+            records: [{ type: 'gap' }],
+          }),
+        ).rejects.toBeInstanceOf(LogConflictError)
+
+        expect(await types(store, logId)).toEqual([[1, 'first']])
+      })
+
+      it('names the log in a LogConflictError', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: NO_OWNER_EPOCH,
+          records: [{ type: 'first' }],
+        })
+
+        await expect(
+          store.append({
+            logId,
+            seq: 1,
+            epoch: NO_OWNER_EPOCH,
+            records: [{ type: 'late' }],
+          }),
+        ).rejects.toMatchObject({ name: 'LogConflictError', logId, seq: 1 })
+      })
+
+      it('rejects an epoch other than NO_OWNER_EPOCH on a log that no host acquired', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+
+        const write = store.append({
+          logId,
+          seq: 1,
+          epoch: 1,
+          records: [{ type: 'fenced' }],
+        })
+        await expect(write).rejects.toBeInstanceOf(OwnershipLostError)
+        await expect(write).rejects.toMatchObject({ logId, epoch: 1 })
+
+        expect(await store.read({ logId })).toEqual([])
+      })
+
+      it('lets one of two concurrent appends at one position win', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+
+        const results = await Promise.allSettled([
+          store.append({
+            logId,
+            seq: 1,
+            epoch: NO_OWNER_EPOCH,
+            records: [{ type: 'left' }],
+          }),
+          store.append({
+            logId,
+            seq: 1,
+            epoch: NO_OWNER_EPOCH,
+            records: [{ type: 'right-1' }, { type: 'right-2' }],
+          }),
+        ])
+
+        const won = results.filter((result) => result.status === 'fulfilled')
+        const lost = results.flatMap((result) =>
+          result.status === 'rejected' ? [result.reason] : [],
+        )
+        expect(won).toHaveLength(1)
+        expect(lost).toHaveLength(1)
+        expect(lost[0]).toBeInstanceOf(LogConflictError)
+        // Only the winner's batch is in the log, whole.
+        const winner = results[0].status === 'fulfilled' ? 'left' : 'right'
+        expect(await types(store, logId)).toEqual(
+          winner === 'left'
+            ? [[1, 'left']]
+            : [
+                [1, 'right-1'],
+                [2, 'right-2'],
+              ],
+        )
+      })
+
+      it('writes nothing for an empty batch', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: NO_OWNER_EPOCH,
+          records: [],
+        })
+
+        expect(await store.read({ logId })).toEqual([])
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: NO_OWNER_EPOCH,
+          records: [{ type: 'still-first' }],
+        })
+        expect(await types(store, logId)).toEqual([[1, 'still-first']])
+      })
+
+      it('reads after a position, with a limit', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: NO_OWNER_EPOCH,
+          records: [
+            { type: 'r1' },
+            { type: 'r2' },
+            { type: 'r3' },
+            { type: 'r4' },
+          ],
+        })
+
+        const page = await store.read({ logId, after: 1, limit: 2 })
+        expect(page.map((entry) => entry.seq)).toEqual([2, 3])
+        expect(
+          (await store.read({ logId, after: 3 })).map((entry) => entry.seq),
+        ).toEqual([4])
+        expect(await store.read({ logId, after: 4 })).toEqual([])
+        expect(await store.read({ logId: newLog() })).toEqual([])
+      })
+
+      it('reads nothing with limit 0', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: NO_OWNER_EPOCH,
+          records: [{ type: 'r1' }, { type: 'r2' }],
+        })
+
+        // The log has records, so the empty page comes from the limit.
+        expect(await types(store, logId)).toHaveLength(2)
+        expect(await store.read({ logId, limit: 0 })).toEqual([])
+      })
+
+      it('keeps logs apart', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const left = newLog()
+        const right = newLog()
+
+        await store.append({
+          logId: left,
+          seq: 1,
+          epoch: NO_OWNER_EPOCH,
+          records: [{ type: 'left' }],
+        })
+        // Position 1 is free on the other log.
+        await store.append({
+          logId: right,
+          seq: 1,
+          epoch: NO_OWNER_EPOCH,
+          records: [{ type: 'right' }],
+        })
+
+        expect(await types(store, left)).toEqual([[1, 'left']])
+        expect(await types(store, right)).toEqual([[1, 'right']])
+      })
+
+      it('calls a listener after each append until it unsubscribes', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        const counter = countCalls(store, logId)
+
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: NO_OWNER_EPOCH,
+          records: [{ type: 'one' }],
+        })
+        await expect.poll(counter.calls).toBe(1)
+        counter.stop()
+        await store.append({
+          logId,
+          seq: 2,
+          epoch: NO_OWNER_EPOCH,
+          records: [{ type: 'two' }],
+        })
+
+        await waitForLateCalls()
+        expect(counter.calls()).toBe(1)
+      })
+
+      it('does not share record objects with the caller', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        const written = { type: 'shared', list: [1] }
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: NO_OWNER_EPOCH,
+          records: [written],
+        })
+        written.list.push(2)
+
+        const [first] = await store.read({ logId })
+        required(first, 'the first log entry').record.type = 'changed'
+
+        expect(await store.read({ logId })).toEqual([
+          { seq: 1, record: { type: 'shared', list: [1] } },
+        ])
+      })
+    })
+
+    // Expiry uses real time, so that every backend can run these cases: a
+    // short ttl or wake is due after `waitPastShort()`. A "not due yet" check
+    // uses a LIVE_MS log, not the short one, so a slow store on a loaded
+    // runner does not see the short window end first.
+    describe('log ownership', () => {
+      const LIVE_MS = 10_000
+      const SHORT_MS = 400
+      const waitPastShort = () =>
+        new Promise((resolve) => setTimeout(resolve, 500))
+      const claimOf = (logId: string, ownerId: string) => ({
+        logId,
+        harness: 'h',
+        ownerId,
+        ttlMs: LIVE_MS,
+      })
+      // Owner `a` lets the log expire. Then owner `b` acquires it.
+      const handOver = async (store: LogStore) => {
+        const logId = newLog()
+        await store.acquireOwnership({
+          ...claimOf(logId, 'a'),
+          ttlMs: SHORT_MS,
+        })
+        await waitPastShort()
+        const taken = await store.acquireOwnership(claimOf(logId, 'b'))
+        return { logId, taken }
+      }
+
+      it('gives the first acquire epoch 1 and refuses a second owner', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+
+        expect(await store.acquireOwnership(claimOf(logId, 'a'))).toEqual({
+          epoch: 1,
+        })
+        expect(await store.acquireOwnership(claimOf(logId, 'b'))).toBeNull()
+      })
+
+      it('returns the same epoch when the owner acquires again', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+
+        expect(await store.acquireOwnership(claimOf(logId, 'a'))).toEqual({
+          epoch: 1,
+        })
+        expect(await store.acquireOwnership(claimOf(logId, 'a'))).toEqual({
+          epoch: 1,
+        })
+      })
+
+      it('hands a log to a new owner after expiry with a higher epoch', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+
+        const { taken } = await handOver(store)
+
+        expect(taken).toEqual({ epoch: 2, expired: true })
+      })
+
+      it('fences a write from the previous owner', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const { logId } = await handOver(store)
+
+        await expect(
+          store.append({ logId, seq: 1, epoch: 1, records: [{ type: 'old' }] }),
+        ).rejects.toBeInstanceOf(OwnershipLostError)
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: 2,
+          records: [{ type: 'new' }],
+        })
+        // The fence comes before the position check: a stale write at a
+        // taken position is an OwnershipLostError, not a LogConflictError.
+        await expect(
+          store.append({ logId, seq: 1, epoch: 1, records: [{ type: 'old' }] }),
+        ).rejects.toBeInstanceOf(OwnershipLostError)
+
+        expect(await store.read({ logId })).toEqual([
+          { seq: 1, record: { type: 'new' } },
+        ])
+      })
+
+      it('refuses NO_OWNER_EPOCH once a log was acquired', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.acquireOwnership(claimOf(logId, 'a'))
+        await store.releaseOwnership({ logId, ownerId: 'a', epoch: 1 })
+
+        await expect(
+          store.append({
+            logId,
+            seq: 1,
+            epoch: NO_OWNER_EPOCH,
+            records: [{ type: 'unowned' }],
+          }),
+        ).rejects.toBeInstanceOf(OwnershipLostError)
+        // The owner released the log, so its own epoch cannot write either.
+        await expect(
+          store.append({
+            logId,
+            seq: 1,
+            epoch: 1,
+            records: [{ type: 'released' }],
+          }),
+        ).rejects.toBeInstanceOf(OwnershipLostError)
+        expect(await store.read({ logId })).toEqual([])
+      })
+
+      it('renews only with the current epoch and owner', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const { logId } = await handOver(store)
+
+        expect(
+          await store.renewOwnership({
+            logId,
+            ownerId: 'a',
+            epoch: 1,
+            ttlMs: LIVE_MS,
+          }),
+        ).toBe(false)
+        expect(
+          await store.renewOwnership({
+            logId,
+            ownerId: 'a',
+            epoch: 2,
+            ttlMs: LIVE_MS,
+          }),
+        ).toBe(false)
+        expect(
+          await store.renewOwnership({
+            logId,
+            ownerId: 'b',
+            epoch: 2,
+            ttlMs: LIVE_MS,
+          }),
+        ).toBe(true)
+      })
+
+      it('renews after expiry when nobody took the log', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.acquireOwnership({
+          ...claimOf(logId, 'a'),
+          ttlMs: SHORT_MS,
+        })
+        await waitPastShort()
+
+        expect(
+          await store.renewOwnership({
+            logId,
+            ownerId: 'a',
+            epoch: 1,
+            ttlMs: LIVE_MS,
+          }),
+        ).toBe(true)
+        expect(await store.acquireOwnership(claimOf(logId, 'b'))).toBeNull()
+      })
+
+      it('releases and lets anyone acquire with the next epoch', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.acquireOwnership(claimOf(logId, 'a'))
+
+        await store.releaseOwnership({ logId, ownerId: 'a', epoch: 1 })
+
+        // A released log is not held, so the old owner cannot renew it.
+        expect(
+          await store.renewOwnership({
+            logId,
+            ownerId: 'a',
+            epoch: 1,
+            ttlMs: LIVE_MS,
+          }),
+        ).toBe(false)
+        expect(await store.acquireOwnership(claimOf(logId, 'b'))).toEqual({
+          epoch: 2,
+        })
+      })
+
+      it('ignores a release with a stale epoch', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const { logId } = await handOver(store)
+
+        await store.releaseOwnership({ logId, ownerId: 'a', epoch: 1 })
+        // The current epoch with another owner is ignored too.
+        await store.releaseOwnership({ logId, ownerId: 'a', epoch: 2 })
+
+        expect(await store.acquireOwnership(claimOf(logId, 'c'))).toBeNull()
+      })
+
+      it('lists an expired log as orphaned', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const live = newLog()
+        const logId = newLog()
+        const harness = newHarness()
+        await store.acquireOwnership({ ...claimOf(live, 'a'), harness })
+        await store.acquireOwnership({
+          ...claimOf(logId, 'a'),
+          harness,
+          ttlMs: SHORT_MS,
+        })
+        await waitPastShort()
+
+        // A live owner still holds the other log, so it is not orphaned.
+        expect(
+          await store.listLogsWithoutOwner({ limit: 10, harnesses: [harness] }),
+        ).toEqual([{ logId, harness, reason: 'expired' }])
+      })
+
+      it('lists a released log with a due wake', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const later = newLog()
+        const logId = newLog()
+        const harness = newHarness()
+        for (const [id, wakeInMs] of [
+          [later, LIVE_MS],
+          [logId, SHORT_MS],
+        ] as const) {
+          await store.acquireOwnership({ ...claimOf(id, 'a'), harness })
+          await store.releaseOwnership({
+            logId: id,
+            ownerId: 'a',
+            epoch: 1,
+            wakeInMs,
+          })
+        }
+        await waitPastShort()
+
+        // The other wake is not due yet.
+        expect(
+          await store.listLogsWithoutOwner({ limit: 10, harnesses: [harness] }),
+        ).toEqual([{ logId, harness, reason: 'wake' }])
+      })
+
+      it('clears the wake time on acquire', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        const harness = newHarness()
+        await store.acquireOwnership({ ...claimOf(logId, 'a'), harness })
+        await store.releaseOwnership({
+          logId,
+          ownerId: 'a',
+          epoch: 1,
+          wakeInMs: 0,
+        })
+
+        // Owner `b` runs the woken log, then gives it back with no wake.
+        await store.acquireOwnership({ ...claimOf(logId, 'b'), harness })
+        await store.releaseOwnership({ logId, ownerId: 'b', epoch: 2 })
+
+        expect(
+          await store.listLogsWithoutOwner({ limit: 10, harnesses: [harness] }),
+        ).toEqual([])
+      })
+
+      it('filters orphaned logs by harness', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const first = newLog()
+        const second = newLog()
+        const h1 = newHarness()
+        const h2 = newHarness()
+        await store.acquireOwnership({
+          ...claimOf(first, 'a'),
+          harness: h1,
+          ttlMs: SHORT_MS,
+        })
+        // This log is due later, so the order below is fixed.
+        await store.acquireOwnership({
+          ...claimOf(second, 'a'),
+          harness: h2,
+          ttlMs: SHORT_MS + 10,
+        })
+        await waitPastShort()
+
+        expect(
+          await store.listLogsWithoutOwner({ limit: 10, harnesses: [h1] }),
+        ).toEqual([{ logId: first, harness: h1, reason: 'expired' }])
+        // The log that is due first comes first, in any order of `harnesses`.
+        expect(
+          await store.listLogsWithoutOwner({ limit: 10, harnesses: [h2, h1] }),
+        ).toEqual([
+          { logId: first, harness: h1, reason: 'expired' },
+          { logId: second, harness: h2, reason: 'expired' },
+        ])
+      })
+
+      it('keeps a pinned log away from other affinities', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        const harness = newHarness()
+        const claim = { ...claimOf(logId, 'a'), harness }
+        // A pin counts while its host is alive.
+        await store.markHostAlive({ hostId: 'host-1', ttlMs: LIVE_MS })
+        await store.acquireOwnership(claim)
+        await store.pinToWorkers({ logId, epoch: 1, affinity: 'host-1' })
+        await store.releaseOwnership({
+          logId,
+          ownerId: 'a',
+          epoch: 1,
+          wakeInMs: 0,
+        })
+
+        // List before the acquires below, because a new owner makes the log
+        // live again.
+        expect(
+          await store.listLogsWithoutOwner({ limit: 10, harnesses: [harness] }),
+        ).toEqual([])
+        expect(
+          await store.listLogsWithoutOwner({
+            limit: 10,
+            harnesses: [harness],
+            affinity: 'host-1',
+          }),
+        ).toEqual([{ logId, harness, reason: 'wake' }])
+        expect(
+          await store.acquireOwnership({
+            ...claim,
+            ownerId: 'b',
+            affinity: 'host-2',
+          }),
+        ).toBeNull()
+        expect(
+          await store.acquireOwnership({
+            ...claim,
+            ownerId: 'b',
+            affinity: 'host-1',
+          }),
+        ).toEqual({ epoch: 2 })
+      })
+
+      it('lets other hosts take a pinned log when the heartbeat of its host expired', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const harness = newHarness()
+        // One idle log pinned to a host with the heartbeat `ttlMs`.
+        const pinnedLog = async (ttlMs: number) => {
+          const logId = newLog()
+          const host = `host-${logId}`
+          await store.markHostAlive({ hostId: host, ttlMs })
+          await store.acquireOwnership({
+            ...claimOf(logId, 'a'),
+            harness,
+            affinity: host,
+          })
+          await store.pinToWorkers({ logId, epoch: 1, affinity: host })
+          await store.releaseOwnership({
+            logId,
+            ownerId: 'a',
+            epoch: 1,
+            wakeInMs: 0,
+          })
+          return logId
+        }
+        const kept = await pinnedLog(LIVE_MS)
+        const logId = await pinnedLog(SHORT_MS)
+        await waitPastShort()
+
+        // The live host keeps its idle log. The other host's heartbeat expired.
+        expect(
+          await store.listLogsWithoutOwner({ limit: 10, harnesses: [harness] }),
+        ).toEqual([{ logId, harness, reason: 'wake' }])
+        expect(
+          await store.acquireOwnership({ ...claimOf(kept, 'b'), harness }),
+        ).toBeNull()
+        expect(
+          await store.acquireOwnership({ ...claimOf(logId, 'b'), harness }),
+        ).toEqual({ epoch: 2 })
+      })
+
+      it('fences pinToWorkers', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.acquireOwnership(claimOf(logId, 'a'))
+        await store.releaseOwnership({ logId, ownerId: 'a', epoch: 1 })
+        await store.acquireOwnership(claimOf(logId, 'b'))
+
+        await expect(
+          store.pinToWorkers({ logId, epoch: 1, affinity: 'host-1' }),
+        ).rejects.toBeInstanceOf(OwnershipLostError)
+
+        // The refused pin wrote nothing, so a host with no affinity can
+        // acquire the log.
+        await store.releaseOwnership({ logId, ownerId: 'b', epoch: 2 })
+        expect(await store.acquireOwnership(claimOf(logId, 'c'))).toEqual({
+          epoch: 3,
+        })
+
+        // Only an owner pins, so a log that no host acquired refuses a pin.
+        const unowned = newLog()
+        await store.markHostAlive({ hostId: 'host-1', ttlMs: LIVE_MS })
+        await expect(
+          store.pinToWorkers({
+            logId: unowned,
+            epoch: NO_OWNER_EPOCH,
+            affinity: 'host-1',
+          }),
+        ).rejects.toBeInstanceOf(OwnershipLostError)
+        expect(await store.acquireOwnership(claimOf(unowned, 'a'))).toEqual({
+          epoch: 1,
+        })
+      })
+
+      it('rejects a ttlMs that is not positive, or a negative wakeInMs', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+
+        await expect(
+          store.acquireOwnership({ ...claimOf(logId, 'a'), ttlMs: 0 }),
+        ).rejects.toBeInstanceOf(RangeError)
+        // The refused acquire took no epoch.
+        expect(await store.acquireOwnership(claimOf(logId, 'a'))).toEqual({
+          epoch: 1,
+        })
+        await expect(
+          store.renewOwnership({ logId, ownerId: 'a', epoch: 1, ttlMs: -1 }),
+        ).rejects.toBeInstanceOf(RangeError)
+        await expect(
+          store.releaseOwnership({
+            logId,
+            ownerId: 'a',
+            epoch: 1,
+            wakeInMs: -1,
+          }),
+        ).rejects.toBeInstanceOf(RangeError)
+        await expect(
+          store.markHostAlive({ hostId: 'host-1', ttlMs: 0 }),
+        ).rejects.toBeInstanceOf(RangeError)
+        // The refused release did not release the log.
+        expect(await store.acquireOwnership(claimOf(logId, 'b'))).toBeNull()
+      })
+
+      it('lists nothing with limit 0', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.acquireOwnership({
+          ...claimOf(logId, 'a'),
+          harness: newHarness(),
+        })
+        await store.releaseOwnership({
+          logId,
+          ownerId: 'a',
+          epoch: 1,
+          wakeInMs: 0,
+        })
+
+        // The store has an orphan, so the empty list comes from the limit.
+        expect(await store.listLogsWithoutOwner({ limit: 1 })).toHaveLength(1)
+        expect(await store.listLogsWithoutOwner({ limit: 0 })).toEqual([])
+      })
+    })
+
+    describe('log input lane', () => {
+      const inputOf = (text: string) => ({ type: 'input', text })
+      const offerOf = (logId: string, inputId: string, text = 'hi') => ({
+        logId,
+        harness: 'h',
+        inputId,
+        record: inputOf(text),
+      })
+      const pendingIds = async (store: LogStore, logId: string) =>
+        (await store.listOfferedInputs({ logId })).map((input) => input.inputId)
+
+      it('offers an input once and reports a duplicate with the same record', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+
+        expect(await store.offerInput(offerOf(logId, 'i1'))).toBe('offered')
+        expect(await store.offerInput(offerOf(logId, 'i1'))).toBe('duplicate')
+        // The duplicate added no second offer.
+        expect(await pendingIds(store, logId)).toEqual(['i1'])
+      })
+
+      it('reports a conflict for the same id with another record', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.offerInput(offerOf(logId, 'i1', 'first'))
+
+        expect(await store.offerInput(offerOf(logId, 'i1', 'second'))).toBe(
+          'conflict',
+        )
+        // The first record stays.
+        expect(await store.listOfferedInputs({ logId })).toEqual([
+          {
+            inputId: 'i1',
+            record: inputOf('first'),
+            offeredAt: expect.any(Number),
+          },
+        ])
+      })
+
+      it('keeps offers apart per log', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+
+        expect(await store.offerInput(offerOf(newLog(), 'i1'))).toBe('offered')
+        expect(await store.offerInput(offerOf(newLog(), 'i1'))).toBe('offered')
+      })
+
+      it('lists pending offers in offer order', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        // The offer order is not the order of the ids, so a store that sorts
+        // by id fails.
+        await store.offerInput(offerOf(logId, 'i2', 'first'))
+        await store.offerInput(offerOf(logId, 'i3', 'second'))
+        await store.offerInput(offerOf(logId, 'i1', 'third'))
+
+        expect(await store.listOfferedInputs({ logId })).toEqual([
+          {
+            inputId: 'i2',
+            record: inputOf('first'),
+            offeredAt: expect.any(Number),
+          },
+          {
+            inputId: 'i3',
+            record: inputOf('second'),
+            offeredAt: expect.any(Number),
+          },
+          {
+            inputId: 'i1',
+            record: inputOf('third'),
+            offeredAt: expect.any(Number),
+          },
+        ])
+      })
+
+      it('consumes offers in the same write as the records', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.offerInput(offerOf(logId, 'i1', 'one'))
+        await store.offerInput(offerOf(logId, 'i2', 'two'))
+
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: NO_OWNER_EPOCH,
+          records: [inputOf('one')],
+          consumes: ['i1'],
+        })
+
+        expect(await pendingIds(store, logId)).toEqual(['i2'])
+        expect(await store.read({ logId })).toEqual([
+          { seq: 1, record: inputOf('one') },
+        ])
+        // The store keeps the consumed id, so a retry of the offer is a
+        // duplicate, and a second consume of it is refused.
+        expect(await store.offerInput(offerOf(logId, 'i1', 'one'))).toBe(
+          'duplicate',
+        )
+        await expect(
+          store.append({
+            logId,
+            seq: 2,
+            epoch: NO_OWNER_EPOCH,
+            records: [inputOf('one again')],
+            consumes: ['i1'],
+          }),
+        ).rejects.toBeInstanceOf(TypeError)
+        expect(await store.read({ logId, after: 1 })).toEqual([])
+      })
+
+      it('rejects consumes of an id that is not pending and writes nothing', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.offerInput(offerOf(logId, 'i1'))
+
+        // The position check comes before the consumes check. A writer that
+        // lost a race gets LogConflictError, also when the winner consumed
+        // the same offers.
+        await expect(
+          store.append({
+            logId,
+            seq: 2,
+            epoch: NO_OWNER_EPOCH,
+            records: [inputOf('hi')],
+            consumes: ['missing'],
+          }),
+        ).rejects.toBeInstanceOf(LogConflictError)
+        await expect(
+          store.append({
+            logId,
+            seq: 1,
+            epoch: NO_OWNER_EPOCH,
+            records: [inputOf('hi')],
+            consumes: ['i1', 'missing'],
+          }),
+        ).rejects.toBeInstanceOf(TypeError)
+
+        expect(await store.read({ logId })).toEqual([])
+        // The batch also named a pending id. That offer is still pending.
+        expect(await pendingIds(store, logId)).toEqual(['i1'])
+      })
+
+      it('writes nothing when a consuming batch cannot become JSON', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.offerInput(offerOf(logId, 'i1'))
+
+        await expect(
+          store.append({
+            logId,
+            seq: 1,
+            epoch: NO_OWNER_EPOCH,
+            records: [{ type: 'input', count: BigInt(1) }],
+            consumes: ['i1'],
+          }),
+        ).rejects.toThrow()
+
+        expect(await store.read({ logId })).toEqual([])
+        expect(await pendingIds(store, logId)).toEqual(['i1'])
+        // Position 1 and the offer are still free for a valid batch.
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: NO_OWNER_EPOCH,
+          records: [{ type: 'input', count: '1' }],
+          consumes: ['i1'],
+        })
+        expect(await pendingIds(store, logId)).toEqual([])
+      })
+
+      it('rejects an offer that cannot become JSON and stores nothing', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+
+        await expect(
+          store.offerInput({
+            ...offerOf(logId, 'i1'),
+            record: { type: 'input', count: BigInt(1) },
+          }),
+        ).rejects.toThrow()
+
+        expect(await store.listOfferedInputs({ logId })).toEqual([])
+        // The refused offer did not take the id.
+        expect(await store.offerInput(offerOf(logId, 'i1'))).toBe('offered')
+      })
+
+      it('lists a log with pending offers and no live owner as orphaned', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        const harness = newHarness()
+        const orphans = () =>
+          store.listLogsWithoutOwner({ limit: 10, harnesses: [harness] })
+        // No host ever acquired the log.
+        await store.offerInput({ ...offerOf(logId, 'i1'), harness })
+
+        expect(await orphans()).toEqual([{ logId, harness, reason: 'offered' }])
+        await store.acquireOwnership({
+          logId,
+          harness,
+          ownerId: 'a',
+          ttlMs: 10_000,
+        })
+        expect(await orphans()).toEqual([])
+        // The owner leaves, and the offer is still pending. The wake is due
+        // too, and 'offered' comes first.
+        await store.releaseOwnership({
+          logId,
+          ownerId: 'a',
+          epoch: 1,
+          wakeInMs: 0,
+        })
+        expect(await orphans()).toEqual([{ logId, harness, reason: 'offered' }])
+
+        // A pin stays after the owner releases the log.
+        const pinned = newLog()
+        const pinnedHarness = newHarness()
+        await store.markHostAlive({ hostId: 'host-1', ttlMs: 10_000 })
+        await store.acquireOwnership({
+          logId: pinned,
+          harness: pinnedHarness,
+          ownerId: 'a',
+          ttlMs: 10_000,
+        })
+        await store.pinToWorkers({
+          logId: pinned,
+          epoch: 1,
+          affinity: 'host-1',
+        })
+        await store.releaseOwnership({ logId: pinned, ownerId: 'a', epoch: 1 })
+        await store.offerInput({
+          ...offerOf(pinned, 'i1'),
+          harness: pinnedHarness,
+        })
+        expect(
+          await store.listLogsWithoutOwner({
+            limit: 10,
+            harnesses: [pinnedHarness],
+          }),
+        ).toEqual([])
+        expect(
+          await store.listLogsWithoutOwner({
+            limit: 10,
+            harnesses: [pinnedHarness],
+            affinity: 'host-1',
+          }),
+        ).toEqual([
+          { logId: pinned, harness: pinnedHarness, reason: 'offered' },
+        ])
+      })
+
+      it('keeps the harness of the owner or the first offer for a log', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const first = newHarness()
+        const other = newHarness()
+        const orphans = (harness: string) =>
+          store.listLogsWithoutOwner({ limit: 10, harnesses: [harness] })
+        // A later offer that names another harness does not move the log.
+        const offeredLog = newLog()
+        await store.offerInput({ ...offerOf(offeredLog, 'i1'), harness: first })
+        await store.offerInput({ ...offerOf(offeredLog, 'i2'), harness: other })
+        expect(await orphans(first)).toEqual([
+          { logId: offeredLog, harness: first, reason: 'offered' },
+        ])
+        expect(await orphans(other)).toEqual([])
+        // The owner names the harness of a log that it released.
+        const ownedLog = newLog()
+        await store.acquireOwnership({
+          logId: ownedLog,
+          harness: first,
+          ownerId: 'a',
+          ttlMs: 10_000,
+        })
+        await store.releaseOwnership({
+          logId: ownedLog,
+          ownerId: 'a',
+          epoch: 1,
+        })
+        await store.offerInput({ ...offerOf(ownedLog, 'i1'), harness: other })
+        expect(await orphans(other)).toEqual([])
+        expect(await orphans(first)).toContainEqual({
+          logId: ownedLog,
+          harness: first,
+          reason: 'offered',
+        })
+      })
+
+      it('notifies subscribers of a new offer', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        const counter = countCalls(store, logId)
+
+        await store.offerInput(offerOf(logId, 'i1'))
+        await expect.poll(counter.calls).toBe(1)
+        // A duplicate and a conflict change nothing, so they do not notify.
+        await store.offerInput(offerOf(logId, 'i1'))
+        await store.offerInput(offerOf(logId, 'i1', 'other'))
+
+        await waitForLateCalls()
+        expect(counter.calls()).toBe(1)
+        counter.stop()
+      })
+    })
+
+    describe('log snapshots and lifecycle', () => {
+      const LIVE_MS = 10_000
+      // The records r1, r2, and so on, for the positions 1 to `count`.
+      const recordsOf = (count: number) =>
+        Array.from({ length: count }, (_, index) => ({ type: `r${index + 1}` }))
+      // Only an owner writes a snapshot or truncates. The first acquire of a
+      // new log gives epoch 1.
+      const EPOCH = 1
+      // A new log that owner `a` acquired, with `count` records.
+      const logWith = async (store: LogStore, count: number) => {
+        const logId = newLog()
+        await store.acquireOwnership({
+          logId,
+          harness: 'h',
+          ownerId: 'a',
+          ttlMs: LIVE_MS,
+        })
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: EPOCH,
+          records: recordsOf(count),
+        })
+        return logId
+      }
+      const snapshotAt = (logId: string, seq: number) => ({
+        logId,
+        epoch: EPOCH,
+        seq,
+        version: 'v1',
+        state: { upTo: seq, nested: { list: [seq] } },
+      })
+      // A log with 4 records and a snapshot at position 3.
+      const logWithSnapshot = async (store: LogStore) => {
+        const logId = await logWith(store, 4)
+        await store.putSnapshot(snapshotAt(logId, 3))
+        return logId
+      }
+      const seqsAfter = async (store: LogStore, logId: string, after: number) =>
+        (await store.read({ logId, after })).map((entry) => entry.seq)
+
+      it('stores the latest snapshot', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = await logWith(store, 2)
+
+        expect(await store.getSnapshot({ logId })).toBeNull()
+        await store.putSnapshot(snapshotAt(logId, 1))
+        const latest = snapshotAt(logId, 2)
+        await store.putSnapshot(latest)
+        // The store keeps copies, so these changes do not change the snapshot.
+        latest.state.nested.list.push(99)
+        required(await store.getSnapshot({ logId }), 'the snapshot').seq = 7
+
+        expect(await store.getSnapshot({ logId })).toEqual({
+          seq: 2,
+          version: 'v1',
+          state: { upTo: 2, nested: { list: [2] } },
+        })
+      })
+
+      it('fences putSnapshot and truncate', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        const claim = { logId, harness: 'h', ttlMs: LIVE_MS }
+        await store.acquireOwnership({ ...claim, ownerId: 'a' })
+        await store.releaseOwnership({ logId, ownerId: 'a', epoch: 1 })
+        await store.acquireOwnership({ ...claim, ownerId: 'b' })
+        await store.append({ logId, seq: 1, epoch: 2, records: recordsOf(2) })
+        await store.putSnapshot({ ...snapshotAt(logId, 1), epoch: 2 })
+
+        // Owner `b` holds the log at epoch 2, so epoch 1 is stale.
+        await expect(
+          store.putSnapshot({ ...snapshotAt(logId, 2), epoch: 1 }),
+        ).rejects.toBeInstanceOf(OwnershipLostError)
+        await expect(
+          store.truncate({ logId, epoch: 1, beforeSeq: 2 }),
+        ).rejects.toBeInstanceOf(OwnershipLostError)
+
+        // The refused calls changed nothing.
+        expect(await store.getSnapshot({ logId })).toMatchObject({ seq: 1 })
+        expect(await seqsAfter(store, logId, 0)).toEqual([1, 2])
+      })
+
+      it('refuses putSnapshot and truncate on a log that no host acquired', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: NO_OWNER_EPOCH,
+          records: recordsOf(2),
+        })
+
+        await expect(
+          store.putSnapshot({ ...snapshotAt(logId, 1), epoch: NO_OWNER_EPOCH }),
+        ).rejects.toBeInstanceOf(OwnershipLostError)
+        await expect(
+          store.truncate({ logId, epoch: NO_OWNER_EPOCH, beforeSeq: 1 }),
+        ).rejects.toBeInstanceOf(OwnershipLostError)
+        expect(await store.getSnapshot({ logId })).toBeNull()
+      })
+
+      it('refuses a snapshot past the head', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = await logWith(store, 2)
+
+        await expect(
+          store.putSnapshot(snapshotAt(logId, 5)),
+        ).rejects.toBeInstanceOf(RangeError)
+        // Position 3 is the next free position, so it has no record yet.
+        await expect(
+          store.putSnapshot(snapshotAt(logId, 3)),
+        ).rejects.toBeInstanceOf(RangeError)
+
+        expect(await store.getSnapshot({ logId })).toBeNull()
+      })
+
+      it('refuses a snapshot before the truncation point', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = await logWithSnapshot(store)
+        await store.truncate({ logId, epoch: EPOCH, beforeSeq: 4 })
+
+        // The cut dropped positions 1 to 3, so a reader cannot replay from 1.
+        await expect(
+          store.putSnapshot(snapshotAt(logId, 1)),
+        ).rejects.toBeInstanceOf(RangeError)
+        expect(await store.getSnapshot({ logId })).toMatchObject({ seq: 3 })
+        // Position 3 is the last dropped one, so the reader needs no dropped
+        // record and the snapshot is accepted.
+        await store.putSnapshot({ ...snapshotAt(logId, 3), version: 'v2' })
+        expect(await store.getSnapshot({ logId })).toMatchObject({
+          seq: 3,
+          version: 'v2',
+        })
+      })
+
+      it('truncates before a snapshot and keeps counting positions', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = await logWithSnapshot(store)
+
+        await store.truncate({ logId, epoch: EPOCH, beforeSeq: 4 })
+
+        expect(await store.read({ logId, after: 3 })).toEqual([
+          { seq: 4, record: { type: 'r4' } },
+        ])
+        // The log keeps 1 record, and the next free position is still 5.
+        await store.append({
+          logId,
+          seq: 5,
+          epoch: EPOCH,
+          records: [{ type: 'r5' }],
+        })
+        expect(await seqsAfter(store, logId, 3)).toEqual([4, 5])
+      })
+
+      it('signals a read before the truncation point', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = await logWithSnapshot(store)
+        await store.truncate({ logId, epoch: EPOCH, beforeSeq: 4 })
+
+        const read = store.read({ logId, after: 0 })
+        await expect(read).rejects.toBeInstanceOf(LogTruncatedError)
+        await expect(read).rejects.toMatchObject({ logId, firstSeq: 4 })
+        // The truncate dropped position 3 too, so a read after 2 fails.
+        await expect(store.read({ logId, after: 2 })).rejects.toBeInstanceOf(
+          LogTruncatedError,
+        )
+      })
+
+      it('refuses to truncate past the snapshot', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = await logWithSnapshot(store)
+        // A log with no snapshot cannot drop records either.
+        const bare = await logWith(store, 2)
+
+        await expect(
+          store.truncate({ logId, epoch: EPOCH, beforeSeq: 5 }),
+        ).rejects.toBeInstanceOf(RangeError)
+        await expect(
+          store.truncate({ logId: bare, epoch: EPOCH, beforeSeq: 2 }),
+        ).rejects.toBeInstanceOf(RangeError)
+
+        // The refused cuts dropped nothing.
+        expect(await seqsAfter(store, logId, 0)).toEqual([1, 2, 3, 4])
+        expect(await seqsAfter(store, bare, 0)).toEqual([1, 2])
+      })
+
+      it('deletes a log and keeps its epoch counter', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        const harness = newHarness()
+        const claim = { logId, harness, ttlMs: LIVE_MS }
+        const input = { logId, harness, inputId: 'i1', record: { type: 'in' } }
+        await store.markHostAlive({ hostId: 'host-1', ttlMs: LIVE_MS })
+        await store.acquireOwnership({ ...claim, ownerId: 'a' })
+        await store.pinToWorkers({ logId, epoch: 1, affinity: 'host-1' })
+        await store.append({ logId, seq: 1, epoch: 1, records: recordsOf(2) })
+        await store.putSnapshot({ ...snapshotAt(logId, 1), epoch: 1 })
+        await store.truncate({ logId, epoch: 1, beforeSeq: 2 })
+        await store.offerInput(input)
+
+        await store.deleteLog({ logId })
+
+        // The truncation point is gone too, so a read from the start works.
+        expect(await store.read({ logId })).toEqual([])
+        expect(await store.listOfferedInputs({ logId })).toEqual([])
+        expect(await store.getSnapshot({ logId })).toBeNull()
+        // The log has no owner now. The old epoch and NO_OWNER_EPOCH stay
+        // fenced.
+        await expect(
+          store.append({ logId, seq: 1, epoch: 1, records: recordsOf(1) }),
+        ).rejects.toBeInstanceOf(OwnershipLostError)
+        await expect(
+          store.append({
+            logId,
+            seq: 1,
+            epoch: NO_OWNER_EPOCH,
+            records: recordsOf(1),
+          }),
+        ).rejects.toBeInstanceOf(OwnershipLostError)
+        // The pin is gone, so a host with no affinity gets the next epoch.
+        expect(
+          await store.acquireOwnership({ ...claim, ownerId: 'b' }),
+        ).toEqual({
+          epoch: 2,
+        })
+        // The positions start at 1 again, and the input id is free again.
+        await store.append({ logId, seq: 1, epoch: 2, records: recordsOf(1) })
+        expect(await seqsAfter(store, logId, 0)).toEqual([1])
+        expect(await store.offerInput(input)).toBe('offered')
+
+        // The delete clears a due wake, so the log is not orphaned.
+        const woken = newLog()
+        const orphans = () =>
+          store.listLogsWithoutOwner({ limit: 10, harnesses: [harness] })
+        await store.acquireOwnership({ ...claim, logId: woken, ownerId: 'a' })
+        await store.releaseOwnership({
+          logId: woken,
+          ownerId: 'a',
+          epoch: 1,
+          wakeInMs: 0,
+        })
+        expect(await orphans()).toEqual([
+          { logId: woken, harness, reason: 'wake' },
+        ])
+        await store.deleteLog({ logId: woken })
+        expect(await orphans()).toEqual([])
+      })
+
+      it('notifies subscribers of a delete', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = await logWith(store, 1)
+        const counter = countCalls(store, logId)
+
+        await store.deleteLog({ logId })
+
+        await expect.poll(counter.calls).toBe(1)
+        counter.stop()
+      })
+
+      it('refuses a late offer to a deleted log until an acquire', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = await logWith(store, 1)
+        const harness = newHarness()
+        const input = {
+          logId,
+          harness,
+          inputId: 'late',
+          record: { type: 'in' },
+        }
+        await store.deleteLog({ logId })
+
+        expect(await store.offerInput(input)).toBe('deleted')
+        // The refused offer stored nothing, so no worker wakes for it.
+        expect(await store.listOfferedInputs({ logId })).toEqual([])
+        expect(
+          await store.listLogsWithoutOwner({ limit: 10, harnesses: [harness] }),
+        ).toEqual([])
+        // An acquire opens the log again.
+        await store.acquireOwnership({
+          logId,
+          harness,
+          ownerId: 'b',
+          ttlMs: LIVE_MS,
+        })
+        expect(await store.offerInput(input)).toBe('offered')
+      })
+
+      it('refuses a late NO_OWNER_EPOCH write to a deleted log until an acquire', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        const writeAgain = (epoch: number) =>
+          store.append({ logId, seq: 1, epoch, records: [{ type: 'again' }] })
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: NO_OWNER_EPOCH,
+          records: recordsOf(2),
+        })
+
+        await store.deleteLog({ logId })
+
+        // A late writer must not bring the deleted log back.
+        await expect(writeAgain(NO_OWNER_EPOCH)).rejects.toBeInstanceOf(
+          OwnershipLostError,
+        )
+        expect(await store.read({ logId })).toEqual([])
+        // An acquire opens the log again. The delete took no epoch, so the
+        // first acquire still gets epoch 1.
+        expect(
+          await store.acquireOwnership({
+            logId,
+            harness: 'h',
+            ownerId: 'a',
+            ttlMs: LIVE_MS,
+          }),
+        ).toEqual({ epoch: 1 })
+        await writeAgain(1)
+        expect(await store.read({ logId })).toEqual([
+          { seq: 1, record: { type: 'again' } },
+        ])
+      })
+    })
+
+    // Store A is `persistence.stores.log`. Store B is the log store of the
+    // twin, on the same backend, as a second machine sees it.
+    describe('log across instances', () => {
+      const twinLog = async () => {
+        const other = required(
+          (await resolveTwin()).stores.log,
+          'the log store of the twin',
+        )
+        // One instance passes every case here on its own.
+        expect(other, 'the twin must have a new log store instance').not.toBe(
+          persistence.stores.log,
+        )
+        return other
+      }
+
+      it('notifies a subscriber on the other instance', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const other = await twinLog()
+        const logId = newLog()
+        const counter = countCalls(other, logId)
+
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: NO_OWNER_EPOCH,
+          records: [{ type: 'from-a' }],
+        })
+
+        await expect.poll(counter.calls).toBe(1)
+        counter.stop()
+        // The listener on B can read the record that A wrote.
+        expect(await other.read({ logId })).toEqual([
+          { seq: 1, record: { type: 'from-a' } },
+        ])
+      })
+
+      it('gives one owner across instances', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const other = await twinLog()
+        const claim = { logId: newLog(), harness: 'h', ttlMs: 10_000 }
+
+        expect(
+          await store.acquireOwnership({ ...claim, ownerId: 'a' }),
+        ).toEqual({
+          epoch: 1,
+        })
+        expect(
+          await other.acquireOwnership({ ...claim, ownerId: 'b' }),
+        ).toBeNull()
+      })
+
+      it('deduplicates offers across instances', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const other = await twinLog()
+        const input = {
+          logId: newLog(),
+          harness: 'h',
+          inputId: 'i1',
+          record: { type: 'input', text: 'hi' },
+        }
+
+        expect(await store.offerInput(input)).toBe('offered')
+        expect(await other.offerInput(input)).toBe('duplicate')
+      })
+
+      it('keeps notifying after a listener throws', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const other = await twinLog()
+        const logId = newLog()
+        const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+        ctx.onTestFinished(() => errors.mockRestore())
+        const stopThrower = store.subscribe({
+          logId,
+          listener: () => {
+            throw new Error('listener failed')
+          },
+        })
+        const counter = countCalls(other, logId)
+
+        await expect(
+          store.append({
+            logId,
+            seq: 1,
+            epoch: NO_OWNER_EPOCH,
+            records: [{ type: 'one' }],
+          }),
+        ).resolves.toBeUndefined()
+
+        await expect.poll(counter.calls).toBe(1)
+        await expect.poll(() => errors.mock.calls.length).toBeGreaterThan(0)
+        stopThrower()
+        counter.stop()
+      })
+    })
+
+    // The suite shares one persistence. Most cases write in a tenant of their
+    // own, so a list has only the entries of the case. The cases about the
+    // default tenant use new thread ids.
+    describe('sessions', () => {
+      const newId = () => `sessions-${crypto.randomUUID()}`
+      const sessionEntry = (
+        threadId: string,
+        updatedAt: number,
+        extra: Partial<SessionIndexEntry> = {},
+      ) => ({ threadId, members: [], createdAt: 1, updatedAt, ...extra })
+      /** A new tenant, with an entry and a key factory for it. */
+      const newTenant = () => {
+        const tenantId = newId()
+        return {
+          tenantId,
+          entry: (
+            threadId: string,
+            updatedAt: number,
+            extra: Partial<SessionIndexEntry> = {},
+          ) => sessionEntry(threadId, updatedAt, { tenantId, ...extra }),
+          key: (threadId: string) => ({ tenantId, threadId }),
+        }
+      }
+      const threadIds = (page: SessionIndexPage) =>
+        page.entries.map((entry) => entry.threadId)
+
+      it('gets every field of an upserted entry, and undefined for an unknown thread', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const { tenantId, key } = newTenant()
+        const written: SessionIndexEntry = {
+          tenantId,
+          threadId: 'thread',
+          members: [
+            { userId: 'user-1', role: 'owner' },
+            { userId: 'user-2', role: 'viewer' },
+          ],
+          harness: 'coder',
+          title: 'Fix the build',
+          parentThreadId: 'parent',
+          parentToolCallId: 'call-1',
+          createdAt: 1,
+          updatedAt: 2,
+          pinned: true,
+          archived: true,
+          usage: {
+            turns: 2,
+            promptTokens: 10,
+            completionTokens: 5,
+            totalTokens: 15,
+            cachedTokens: 4,
+            cacheWriteTokens: 1,
+            cost: 0.25,
+          },
+          metadata: { model: 'm-1' },
+        }
+
+        await store.upsert(written)
+
+        expect(await store.get(key('thread'))).toEqual(written)
+        expect(await store.get(key('unknown'))).toBeUndefined()
+      })
+
+      it('keeps the owner and the members in getVersioned and list', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const { tenantId, entry, key } = newTenant()
+        const shared = entry('shared', 1, {
+          members: [
+            { userId: 'alice', role: 'owner' },
+            { userId: 'bob', role: 'member' },
+            { userId: 'carol', role: 'viewer' },
+          ],
+        })
+
+        await store.upsert(shared)
+
+        expect((await store.getVersioned(key('shared')))?.entry).toEqual(shared)
+        expect((await store.list({ tenantId })).entries).toEqual([shared])
+      })
+
+      it('keeps one thread id in two tenants as two entries', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const threadId = newId()
+        const tenantId = newId()
+        const inTenant = sessionEntry(threadId, 10, { tenantId, title: 'a' })
+        const inDefault = sessionEntry(threadId, 20, { title: 'b' })
+
+        await store.upsert(inTenant)
+        await store.upsert(inDefault)
+
+        expect(await store.get({ tenantId, threadId })).toEqual(inTenant)
+        expect(await store.get({ threadId })).toEqual(inDefault)
+        expect((await store.list({ tenantId })).entries).toEqual([inTenant])
+
+        await store.delete({ tenantId, threadId })
+
+        expect(await store.get({ tenantId, threadId })).toBeUndefined()
+        expect(await store.get({ threadId })).toEqual(inDefault)
+      })
+
+      it('lists only the default tenant without tenantId', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const id = newId()
+        await store.upsert(sessionEntry(`${id}-tenant`, 10, { tenantId: id }))
+        await store.upsert(sessionEntry(`${id}-default`, 10))
+
+        const page = await store.list()
+
+        expect(threadIds(page)).toContain(`${id}-default`)
+        // `''` is the default tenant too.
+        const otherTenants = page.entries.filter(
+          (entry) => (entry.tenantId ?? '') !== '',
+        )
+        expect(otherTenants).toEqual([])
+      })
+
+      it('replaces the whole entry on a second upsert', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const { tenantId, entry, key } = newTenant()
+        await store.upsert(entry('thread', 2, { title: 'old', pinned: true }))
+
+        await store.upsert(entry('thread', 3, { title: 'new' }))
+
+        // `pinned` is gone: upsert does not merge.
+        expect(await store.get(key('thread'))).toEqual({
+          tenantId,
+          threadId: 'thread',
+          members: [],
+          createdAt: 1,
+          updatedAt: 3,
+          title: 'new',
+        })
+      })
+
+      it('lists newest first and pages with a cursor', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const { tenantId, entry } = newTenant()
+        await store.upsert(entry('c', 20))
+        await store.upsert(entry('a', 30))
+        await store.upsert(entry('b', 20))
+
+        // Newest first. The same `updatedAt` goes in `threadId` order.
+        expect(threadIds(await store.list({ tenantId }))).toEqual([
+          'a',
+          'b',
+          'c',
+        ])
+
+        const first = await store.list({ tenantId, limit: 2 })
+        expect(threadIds(first)).toEqual(['a', 'b'])
+        expect(first.truncated).toBe(true)
+
+        const second = await store.list({
+          tenantId,
+          limit: 2,
+          cursor: required(first.cursor, 'the cursor of a truncated page'),
+        })
+        expect(threadIds(second)).toEqual(['c'])
+        expect(second.truncated).toBeFalsy()
+        expect(second.cursor).toBeUndefined()
+      })
+
+      it('filters by parent thread', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const { tenantId, entry } = newTenant()
+        await store.upsert(entry('parent', 10))
+        await store.upsert(
+          entry('child', 20, {
+            parentThreadId: 'parent',
+            parentToolCallId: 'call-1',
+          }),
+        )
+        await store.upsert(entry('sibling', 30, { parentThreadId: 'parent' }))
+        await store.upsert(entry('other', 40, { parentThreadId: 'other' }))
+
+        expect(
+          threadIds(await store.list({ tenantId, parentThreadId: 'parent' })),
+        ).toEqual(['sibling', 'child'])
+      })
+
+      it('lists only the entries with no parent for parentThreadId null', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const { tenantId, entry } = newTenant()
+        await store.upsert(entry('parent', 10))
+        await store.upsert(entry('child', 20, { parentThreadId: 'parent' }))
+
+        expect(
+          threadIds(await store.list({ tenantId, parentThreadId: null })),
+        ).toEqual(['parent'])
+      })
+
+      it('filters by member id, with any role', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const { tenantId, entry } = newTenant()
+        const bob = { userId: 'bob', role: 'owner' } as const
+        await store.upsert(
+          entry('owned', 10, {
+            members: [{ userId: 'alice', role: 'owner' }],
+          }),
+        )
+        await store.upsert(
+          entry('member', 20, {
+            members: [bob, { userId: 'alice', role: 'member' }],
+          }),
+        )
+        await store.upsert(
+          entry('viewer', 30, {
+            members: [bob, { userId: 'alice', role: 'viewer' }],
+          }),
+        )
+        await store.upsert(entry('other', 40, { members: [bob] }))
+        // A subagent child has no members.
+        await store.upsert(entry('child', 50, { parentThreadId: 'owned' }))
+
+        expect(
+          threadIds(await store.list({ tenantId, memberId: 'alice' })),
+        ).toEqual(['viewer', 'member', 'owned'])
+      })
+
+      it('filters by title search, without case', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const { tenantId, entry } = newTenant()
+        await store.upsert(entry('build', 10, { title: 'Fix the Build' }))
+        await store.upsert(entry('docs', 20, { title: 'Write docs' }))
+        await store.upsert(entry('untitled', 30))
+
+        expect(
+          threadIds(await store.list({ tenantId, search: 'BUILD' })),
+        ).toEqual(['build'])
+        // An entry with no title never matches.
+        expect(threadIds(await store.list({ tenantId, search: '' }))).toEqual([
+          'docs',
+          'build',
+        ])
+      })
+
+      it('filters by harness name', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const { tenantId, entry } = newTenant()
+        await store.upsert(entry('coder', 10, { harness: 'coder' }))
+        await store.upsert(entry('writer', 20, { harness: 'writer' }))
+        await store.upsert(entry('none', 30))
+
+        expect(
+          threadIds(await store.list({ tenantId, harness: 'coder' })),
+        ).toEqual(['coder'])
+      })
+
+      it('filters by exact metadata values', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const { tenantId, entry } = newTenant()
+        await store.upsert(
+          entry('both', 10, { metadata: { project: 'p-1', branch: 'main' } }),
+        )
+        await store.upsert(
+          entry('project-only', 20, { metadata: { project: 'p-1' } }),
+        )
+        await store.upsert(
+          entry('other', 30, { metadata: { project: 'p-2', branch: 'main' } }),
+        )
+        await store.upsert(entry('none', 40))
+
+        expect(
+          threadIds(
+            await store.list({ tenantId, metadata: { project: 'p-1' } }),
+          ),
+        ).toEqual(['project-only', 'both'])
+        expect(
+          threadIds(
+            await store.list({
+              tenantId,
+              metadata: { project: 'p-1', branch: 'main' },
+            }),
+          ),
+        ).toEqual(['both'])
+      })
+
+      it('combines search, harness, and metadata with AND', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const { tenantId, entry } = newTenant()
+        const base = {
+          title: 'Fix the build',
+          harness: 'coder',
+          metadata: { project: 'p-1' },
+        }
+        await store.upsert(entry('match', 10, base))
+        await store.upsert(
+          entry('wrong-title', 20, { ...base, title: 'Write docs' }),
+        )
+        await store.upsert(
+          entry('wrong-harness', 30, { ...base, harness: 'writer' }),
+        )
+        await store.upsert(
+          entry('wrong-project', 40, {
+            ...base,
+            metadata: { project: 'p-2' },
+          }),
+        )
+
+        expect(
+          threadIds(
+            await store.list({
+              tenantId,
+              search: 'build',
+              harness: 'coder',
+              metadata: { project: 'p-1' },
+            }),
+          ),
+        ).toEqual(['match'])
+      })
+
+      it('hides archived entries unless withArchived is true', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const { tenantId, entry, key } = newTenant()
+        await store.upsert(entry('active', 10))
+        await store.upsert(entry('archived', 20, { archived: true }))
+        await store.upsert(entry('unarchived', 30, { archived: false }))
+
+        expect(threadIds(await store.list({ tenantId }))).toEqual([
+          'unarchived',
+          'active',
+        ])
+        expect(
+          threadIds(await store.list({ tenantId, withArchived: true })),
+        ).toEqual(['unarchived', 'archived', 'active'])
+        // `get` still reads an archived entry.
+        expect(await store.get(key('archived'))).toEqual(
+          entry('archived', 20, { archived: true }),
+        )
+      })
+
+      it('pages past archived entries without an empty page', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const { tenantId, entry } = newTenant()
+        await store.upsert(entry('a', 50))
+        await store.upsert(entry('hidden-1', 40, { archived: true }))
+        await store.upsert(entry('hidden-2', 30, { archived: true }))
+        await store.upsert(entry('b', 20))
+
+        const first = await store.list({ tenantId, limit: 2 })
+        expect(threadIds(first)).toEqual(['a', 'b'])
+        expect(first.truncated).toBeFalsy()
+      })
+
+      it('pages the filtered list with a cursor', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const { tenantId, entry } = newTenant()
+        await store.upsert(entry('a', 50, { title: 'build a' }))
+        await store.upsert(entry('skip', 40, { title: 'docs' }))
+        await store.upsert(entry('b', 30, { title: 'build b' }))
+        await store.upsert(entry('c', 20, { title: 'build c' }))
+
+        const first = await store.list({ tenantId, search: 'build', limit: 2 })
+        expect(threadIds(first)).toEqual(['a', 'b'])
+        expect(first.truncated).toBe(true)
+
+        const second = await store.list({
+          tenantId,
+          search: 'build',
+          limit: 2,
+          cursor: required(first.cursor, 'the cursor of a truncated page'),
+        })
+        expect(threadIds(second)).toEqual(['c'])
+        expect(second.truncated).toBeFalsy()
+      })
+
+      it('deletes an entry for good, and ignores an unknown thread', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const { tenantId, entry, key } = newTenant()
+        await store.upsert(entry('kept', 1))
+        await store.upsert(entry('removed', 2, { title: 'old' }))
+
+        await store.delete(key('removed'))
+        await store.delete(key('unknown'))
+
+        expect(await store.get(key('removed'))).toBeUndefined()
+        expect(await store.getVersioned(key('removed'))).toBeUndefined()
+        expect(threadIds(await store.list({ tenantId }))).toEqual(['kept'])
+        // Nothing of the old entry is left, so "only when absent" writes.
+        const recreated = await store.upsertIf({
+          entry: entry('removed', 3),
+          revision: null,
+        })
+        expect(recreated.ok).toBe(true)
+        expect(await store.get(key('removed'))).toEqual(entry('removed', 3))
+      })
+
+      it('writes with upsertIf only at the expected revision', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const { entry, key } = newTenant()
+        expect(await store.getVersioned(key('thread'))).toBeUndefined()
+
+        // `null`: only when absent.
+        const created = await store.upsertIf({
+          entry: entry('thread', 1),
+          revision: null,
+        })
+        if (!created.ok) throw new Error('the first upsertIf conflicted')
+        expect(
+          await store.upsertIf({ entry: entry('thread', 9), revision: null }),
+        ).toEqual({ ok: false, reason: 'conflict' })
+        expect(await store.getVersioned(key('thread'))).toEqual({
+          entry: entry('thread', 1),
+          revision: created.revision,
+        })
+
+        const changed = await store.upsertIf({
+          entry: entry('thread', 2, { title: 'new' }),
+          revision: created.revision,
+        })
+        if (!changed.ok)
+          throw new Error('upsertIf at the read revision conflicted')
+        expect(changed.revision).not.toBe(created.revision)
+
+        // A stale revision conflicts and leaves the entry as it was.
+        expect(
+          await store.upsertIf({
+            entry: entry('thread', 3),
+            revision: created.revision,
+          }),
+        ).toEqual({ ok: false, reason: 'conflict' })
+        expect(await store.get(key('thread'))).toEqual(
+          entry('thread', 2, { title: 'new' }),
+        )
+      })
+
+      it('changes the revision on a plain upsert, and never reuses one after delete', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const { entry, key } = newTenant()
+        await store.upsert(entry('thread', 1))
+        const read = required(
+          await store.getVersioned(key('thread')),
+          'the versioned entry',
+        )
+
+        await store.upsert(entry('thread', 2))
+
+        expect(
+          await store.upsertIf({
+            entry: entry('thread', 3),
+            revision: read.revision,
+          }),
+        ).toEqual({ ok: false, reason: 'conflict' })
+        expect((await store.get(key('thread')))?.updatedAt).toBe(2)
+
+        // A deleted revision does not match the entry written after it.
+        const last = required(
+          await store.getVersioned(key('thread')),
+          'the versioned entry',
+        )
+        await store.delete(key('thread'))
+        expect(
+          await store.upsertIf({
+            entry: entry('thread', 4),
+            revision: last.revision,
+          }),
+        ).toEqual({ ok: false, reason: 'conflict' })
+        expect(await store.get(key('thread'))).toBeUndefined()
+        const recreated = await store.upsertIf({
+          entry: entry('thread', 5),
+          revision: null,
+        })
+        if (!recreated.ok) throw new Error('upsertIf after delete conflicted')
+        expect(recreated.revision).not.toBe(last.revision)
       })
     })
 

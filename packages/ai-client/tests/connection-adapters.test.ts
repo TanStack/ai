@@ -354,6 +354,7 @@ describe('connection-adapters', () => {
         ok: false,
         status: 500,
         statusText: 'Internal Server Error',
+        headers: new Headers(),
       }
 
       fetchMock.mockResolvedValue(mockResponse as any)
@@ -434,6 +435,7 @@ describe('connection-adapters', () => {
         ok: false,
         status: 500,
         statusText: 'Internal Server Error',
+        headers: new Headers(),
         body: null,
       }
 
@@ -929,6 +931,7 @@ describe('connection-adapters', () => {
         ok: false,
         status: 404,
         statusText: 'Not Found',
+        headers: new Headers(),
       }
 
       fetchMock.mockResolvedValue(mockResponse as any)

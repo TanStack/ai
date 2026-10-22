@@ -76,6 +76,8 @@ export async function POST(request: Request) {
 > [!WARNING]
 > Run the browser in a network where it cannot reach private services. The browser can open every address that your server can reach. See [Keep the browser away from private addresses](#keep-the-browser-away-from-private-addresses).
 
+Does your agent run in a [harness](../harness/overview)? Use the `computerUse()` plugin with the same driver. It stores each screenshot in the media store of the session, and asks about safety checks through `permissions()`. See [Give your agent a computer](../harness/computer-use).
+
 ## 3. Register the interrupt on the client
 
 Give `computerSafetyCheck` to `useChat`. It is the same object as `computerUse.interrupt`, and it does not load the driver or Playwright on the client.

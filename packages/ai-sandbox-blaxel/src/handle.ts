@@ -259,16 +259,22 @@ export class BlaxelHandle implements SandboxHandle {
       spawn: (command, opts) => this.spawnProcess(command, opts),
     }
 
+    // The native file calls take no abort signal, so each call checks it first.
     this.fs = {
-      read: (p) => this.sandbox.fs.read(this.abs(p)),
-      readBytes: async (p) => {
+      read: async (p, o) => {
+        o?.signal?.throwIfAborted()
+        return this.sandbox.fs.read(this.abs(p))
+      },
+      readBytes: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const blob = await this.sandbox.fs.readBinary(this.abs(p))
         return new Uint8Array(await blob.arrayBuffer())
       },
       // Blaxel's PUT does not create missing parents, and callers write nested
       // paths through this seam (bootstrapWorkspace writes `<root>/<skill.path>`).
       // `mkdir` creates parents, so one extra native call keeps the contract.
-      write: async (p, data) => {
+      write: async (p, data, o) => {
+        o?.signal?.throwIfAborted()
         const abs = this.abs(p)
         const parent = abs.replace(/\/[^/]*$/, '') || '/'
         await this.sandbox.fs.mkdir(parent)
@@ -278,7 +284,8 @@ export class BlaxelHandle implements SandboxHandle {
         }
         await this.sandbox.fs.writeBinary(abs, data)
       },
-      list: async (p) => {
+      list: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const directory = await this.sandbox.fs.ls(this.abs(p))
         // Re-root native absolute paths under the caller's virtual path so
         // consumers stay provider-agnostic.
@@ -297,17 +304,20 @@ export class BlaxelHandle implements SandboxHandle {
         ]
       },
       // Blaxel's mkdir creates parents, matching the contract's recursive intent.
-      mkdir: async (p) => {
+      mkdir: async (p, o) => {
+        o?.signal?.throwIfAborted()
         await this.sandbox.fs.mkdir(this.abs(p))
       },
       // `remove` is unconditionally recursive per the contract; Blaxel's rm
       // needs that opt-in explicitly.
-      remove: async (p) => {
+      remove: async (p, o) => {
+        o?.signal?.throwIfAborted()
         await this.sandbox.fs.rm(this.abs(p), true)
       },
       // No native move call, so shell out. `mv` also gives us the
       // overwrite-destination semantics the contract expects.
-      rename: async (from, to) => {
+      rename: async (from, to, o) => {
+        o?.signal?.throwIfAborted()
         const result = await this.exec(
           `mv -- ${q(this.abs(from))} ${q(this.abs(to))}`,
         )
@@ -319,8 +329,14 @@ export class BlaxelHandle implements SandboxHandle {
       // and does not need the parent directory to be listable.
       // The framework's watcher calls this once per file event, so it bypasses
       // the capture supervisor: one process call instead of ~6 round trips.
-      exists: (p) => this.probe(`test -e ${q(this.abs(p))}`),
-      lstat: (p) => this.lstat(this.abs(p)),
+      exists: async (p, o) => {
+        o?.signal?.throwIfAborted()
+        return this.probe(`test -e ${q(this.abs(p))}`)
+      },
+      lstat: async (p, o) => {
+        o?.signal?.throwIfAborted()
+        return this.lstat(this.abs(p))
+      },
       watch: (p, onEvent) => {
         // Without `onError` the SDK discards watch failures (404, auth, stream
         // reset) and silently stops delivering events. The contract has no

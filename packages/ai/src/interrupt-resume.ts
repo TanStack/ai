@@ -636,17 +636,8 @@ export async function validateInterruptResumeBatch(
             `Approval ${record.interruptId} cannot edit arguments without an input schema.`,
           ),
         )
-      } else {
-        await pushSchemaIssues({
-          request: input,
-          errors,
-          interruptId: record.interruptId,
-          schema: tool.inputSchema,
-          value: envelope.editedArgs,
-          code: 'invalid-edited-args',
-          label: `Approval ${record.interruptId} edited arguments are invalid`,
-        })
       }
+      // Edited input stays raw until middleware and the final execution check.
     }
     const branch = approved
       ? approval.branches.approve

@@ -56,6 +56,7 @@ describe('createCodeModeSystemPrompt', () => {
     expect(prompt).toContain('When to Use')
     expect(prompt).toContain('Available External APIs')
     expect(prompt).toContain('Important Notes')
+    expect(prompt).toContain('`{ success, result, logs, error }`')
   })
 
   it('documents multiple tools', () => {

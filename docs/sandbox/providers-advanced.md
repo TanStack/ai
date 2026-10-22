@@ -7,6 +7,7 @@ keywords:
   - killableProcesses
   - writableStdin
   - scrubEnv
+  - passEnv
   - provider snapshots
 ---
 
@@ -20,19 +21,29 @@ import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 const dev = localProcessSandbox()
 ```
 
-- **Isolation:** none. The harness runs directly on your host and inherits your host env. Use it for trusted or dev work only.
-- **Auth and env:** the harness inherits the host env. Set `authMode` on the harness (`'host'` or `'api-key'`). The provider does not pick this. See [Harness Auth](./auth).
+- **Isolation:** none. The harness runs directly on your host. Use it for trusted or dev work only.
+- **Auth and env:** a command gets only a few variables of the host process (`PATH`, `HOME`, `LANG`, `LC_ALL`, `TMPDIR`, `TEMP`, `TMP`, and on Windows `SystemRoot`, `ComSpec`, `PATHEXT`, `WINDIR`, `USERPROFILE`), plus the workspace secrets and the env of the call. Set `authMode` on the harness (`'host'` or `'api-key'`). The provider does not pick this. See [Harness Auth](./auth).
 - **Snapshot and resume:** no snapshots and no resume by id. Each run creates and bootstraps again under the same identity. The snapshot step is skipped with no error.
 
-### Host login vs API key (`scrubEnv`)
+### Host login vs API key (`scrubEnv`, `passEnv`)
 
-`localProcessSandbox` inherits the host env, with any API keys exported there. If you set `authMode: 'host'`, pass `scrubEnv`. Then those keys do not override the CLI login:
+An API key that the host process exports does not reach a command. A key that a workspace secret or the call sets does. If you set `authMode: 'host'`, pass `scrubEnv`. Then those keys do not override the CLI login:
 
 ```ts
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 
 const hostLogin = localProcessSandbox({
   scrubEnv: ['XAI_API_KEY', 'GROK_API_KEY'],
+})
+```
+
+A command gets only a few variables of the host process: `PATH`, `HOME`, `LANG`, `LC_ALL`, `TMPDIR`, `TEMP`, and `TMP` (and a few more on Windows). When a CLI login or the network needs more, name them in `passEnv`:
+
+```ts
+import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
+
+const behindProxy = localProcessSandbox({
+  passEnv: ['CLAUDE_CONFIG_DIR', 'HTTPS_PROXY', 'NO_PROXY', 'NODE_EXTRA_CA_CERTS'],
 })
 ```
 
@@ -73,6 +84,7 @@ const isolated = dockerSandbox({ image: 'node:22' })
 ```
 
 - **Isolation:** a real container boundary between the agent and your host.
+- **Workspace:** when `workspace.source` is `localSource(dir)`, `create()` copies the folder into `workdir` (`/workspace` by default). The copy has every file that git does not ignore, with its uncommitted changes, and the history of the current branch. The folder must be a git repository root (not a shallow clone), and the host and the image need `git`. Fork, restore, and resume do not copy the folder again. See [Copy your project into the container](../harness/coding-tools-backends#copy-your-project-into-the-container).
 - **Auth and env:** no host login. Pass credentials as workspace secrets. They go into the container env at create and resume.
 - **Tools:** the agent reaches host tools at `host.docker.internal`. See [Tools](./tools).
 - **Snapshot and resume:** full commit-based snapshots, `fork`, and resume by id. Bootstrap takes a snapshot after `setup`, so later runs resume from it and skip setup.

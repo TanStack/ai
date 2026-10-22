@@ -17,7 +17,10 @@ interface CompiledSchema {
   lookup: Record<string, Schema | boolean>
 }
 
-const compiled = new WeakMap<JSONSchema, CompiledSchema>()
+/** A JSON Schema object: typed, or as JSON gives it. */
+type AnySchema = JSONSchema | Record<string, unknown>
+
+const compiled = new WeakMap<object, CompiledSchema>()
 
 /** Keywords whose value is data, not a schema. */
 const DATA_KEYWORDS = new Set([
@@ -144,7 +147,7 @@ function movedRef(ref: string, wrappedPath: string) {
 }
 
 /** The draft named by `$schema`, else 2020-12. */
-function draftOf(schema: JSONSchema): SchemaDraft {
+function draftOf(schema: AnySchema): SchemaDraft {
   const uri = typeof schema.$schema === 'string' ? schema.$schema : ''
   // Boolean bounds are numbers by now, and cfworker reads numeric bounds as
   // booleans in its draft-04 mode. Draft 7 checks the rest the same way.
@@ -153,7 +156,7 @@ function draftOf(schema: JSONSchema): SchemaDraft {
   return '2020-12'
 }
 
-function compile(schema: JSONSchema | boolean): CompiledSchema {
+function compile(schema: AnySchema | boolean): CompiledSchema {
   if (typeof schema === 'boolean') {
     return { schema, draft: '2020-12', lookup: dereference(schema) }
   }
@@ -409,13 +412,50 @@ const WRAPPER_KEYWORDS = new Set([
 /** More errors than this are counted, not listed. */
 const MAX_ERRORS = 10
 
+/**
+ * Check `value` against the JSON Schema `schema` with `@cfworker/json-schema`,
+ * as a tool input is checked, with no repair. Every keyword that the
+ * validator knows is checked. `format` is an annotation only. The result has
+ * the Standard Schema shape: `{ value }` when it fits, else `{ issues }`.
+ *
+ * @example
+ * ```ts
+ * const result = validateJsonSchema({ type: 'string', pattern: '^a' }, 'b')
+ * if (result.issues) console.log(result.issues.map((issue) => issue.message))
+ * ```
+ */
+export function validateJsonSchema(
+  schema: AnySchema | boolean,
+  value: unknown,
+): StandardSchemaV1.Result<unknown> {
+  const result = jsonInputIssues(schema, value, false)
+  return 'issues' in result
+    ? { issues: result.issues.map((message) => ({ message })) }
+    : result
+}
+
 function validateJsonInput(
   schema: JSONSchema | boolean,
   received: unknown,
   toolName: string,
   repair: boolean,
 ) {
-  let errors: string
+  const result = jsonInputIssues(schema, received, repair)
+  if (!('issues' in result)) return result.value
+  const { issues } = result
+  let errors = issues.slice(0, MAX_ERRORS).join(', ')
+  if (issues.length > MAX_ERRORS) {
+    errors += `, and ${issues.length - MAX_ERRORS} more`
+  }
+  throw new Error(`Input validation failed for tool ${toolName}: ${errors}`)
+}
+
+/** The input after the check (repaired when `repair`), or what is wrong with it. */
+function jsonInputIssues(
+  schema: AnySchema | boolean,
+  received: unknown,
+  repair: boolean,
+): { value: unknown } | { issues: Array<string> } {
   try {
     // Check the JSON form: a key set to `undefined` is the same as no key,
     // and an input with no JSON form (`undefined`) is `null`.
@@ -425,7 +465,7 @@ function validateJsonInput(
     const check = (candidate: unknown) =>
       validate(candidate, root.schema, root.draft, root.lookup, false)
     const result = check(value)
-    if (result.valid) return received
+    if (result.valid) return { value: received }
     // Repair only an input that fails. The error reports the input as sent.
     if (repair) {
       let converted = value
@@ -435,33 +475,32 @@ function validateJsonInput(
         // A schema that cannot be used: the first check reports it.
       }
       if (JSON.stringify(converted) !== json && check(converted).valid) {
-        return converted
+        return { value: converted }
       }
     }
     const leaves = result.errors.filter(
       (error) => !WRAPPER_KEYWORDS.has(error.keyword),
     )
     const shown = leaves.length > 0 ? leaves : result.errors
-    errors = shown
-      .slice(0, MAX_ERRORS)
-      .map((error) => `${error.instanceLocation}: ${error.error}`)
-      .join(', ')
-    if (shown.length > MAX_ERRORS) {
-      errors += `, and ${shown.length - MAX_ERRORS} more`
+    return {
+      issues: shown.map((error) => `${error.instanceLocation}: ${error.error}`),
     }
   } catch (error) {
     // A schema the validator cannot use, such as an unresolved `$ref`, or a
     // value with no JSON form. The first line is enough for the model.
     // Drop the validator base (in a browser, the page URL and its query).
     const message = error instanceof Error ? error.message : String(error)
-    errors = message
-      .split('\n', 1)
-      .join('')
-      .replaceAll(initialBaseURI.href, '')
-      .replace(/ +Absolute URI "[^"]*"\.?/, '')
-      .trim()
+    return {
+      issues: [
+        message
+          .split('\n', 1)
+          .join('')
+          .replaceAll(initialBaseURI.href, '')
+          .replace(/ +Absolute URI "[^"]*"\.?/, '')
+          .trim(),
+      ],
+    }
   }
-  throw new Error(`Input validation failed for tool ${toolName}: ${errors}`)
 }
 
 function standardInputError(

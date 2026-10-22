@@ -59,6 +59,8 @@ import type {
 import type {
   ClientOptions,
   DiscoverResult,
+  ElicitRequest,
+  ElicitResult,
   GetPromptResult,
   McpSubscription,
   PriorDiscovery,
@@ -89,6 +91,8 @@ type ToolPolicy = Pick<
   MCPClientOptions,
   'toolFilter' | 'needsApproval' | 'toolName' | 'requestOptions'
 >
+
+type ClientEvents = Pick<MCPClientOptions, 'onClose' | 'onToolListChanged'>
 
 export interface MCPClient<
   TServer extends ServerDescriptor = AutomaticDescriptor,
@@ -235,6 +239,9 @@ class MCPClientImpl<TServer extends ServerDescriptor> implements Omit<
   experimental_events?: MCPEvents | ManagedMCPEvents
   readonly #client: Client
   #closed = false
+  // Set when connect succeeds. A close before that is a failed connect.
+  #connected = false
+  readonly #events: ClientEvents
   #toolDefinitions?: Map<string, McpToolDef>
   // Open only after a spec 2026 connect when the server can report tool changes.
   #toolListSubscription?: McpSubscription
@@ -258,6 +265,8 @@ class MCPClientImpl<TServer extends ServerDescriptor> implements Omit<
     transport?: TransportConfig,
     clientOptions?: ClientOptions,
     policy: ToolPolicy = {},
+    onElicit?: OnElicit,
+    events: ClientEvents = {},
     eventsSetup?: {
       options?: MCPEventsOptions
       transport: MCPEventAdapterTransport
@@ -267,6 +276,7 @@ class MCPClientImpl<TServer extends ServerDescriptor> implements Omit<
     this.#transport = transport
     this.#clientOptions = clientOptions
     this.#policy = policy
+    this.#events = events
     this.#eventsOptions = eventsSetup?.options
     this.#eventsTransport = eventsSetup?.transport ?? { type: 'custom' }
     this.#managedOps = bindManagedOperations(
@@ -298,6 +308,12 @@ class MCPClientImpl<TServer extends ServerDescriptor> implements Omit<
         },
       },
     )
+    // A spec 2025 server asks for input with a request to the client.
+    if (onElicit) {
+      this.#client.setRequestHandler('elicitation/create', (request) =>
+        onElicit(request.params),
+      )
+    }
   }
 
   getInfo(): {
@@ -329,8 +345,15 @@ class MCPClientImpl<TServer extends ServerDescriptor> implements Omit<
         'notifications/tools/list_changed',
         () => {
           this.#toolDefinitions = undefined
+          this.#events.onToolListChanged?.()
         },
       )
+      // The SDK calls `onclose` for every close, also for our own `close()`.
+      // Only a close that this client did not start is reported.
+      this.#client.onclose = () => {
+        const isDropped = this.#connected && !this.#closed
+        if (isDropped) this.#events.onClose?.()
+      }
       // The connect handshake gets the request options too, so `timeout`
       // also limits a server that does not answer while it connects.
       // With `prior`, the SDK skips the server/discover probe and sends
@@ -345,6 +368,7 @@ class MCPClientImpl<TServer extends ServerDescriptor> implements Omit<
       // A failed listen only means that tool changes are not pushed.
       // The connection still works, so the error does not fail connect.
       await this.#listenForToolListChanges().catch(() => undefined)
+      this.#connected = true
     } catch (err) {
       await this.#toolListSubscription?.close().catch(() => undefined)
       await this.#client.close().catch(() => undefined)
@@ -749,9 +773,19 @@ export async function createMCPClient(
   return connectTransport(options)
 }
 
-async function connectTransport<
+/** Answers a spec 2025 `elicitation/create` request. */
+export type OnElicit = (
+  params: ElicitRequest['params'],
+) => Promise<ElicitResult>
+
+/**
+ * Connects a client to a transport. The harness passes `onElicit` to answer
+ * the `elicitation/create` requests of spec 2025 servers. `options.onClose`
+ * and `options.onToolListChanged` get the events of the connection.
+ */
+export async function connectTransport<
   TServer extends ServerDescriptor = AutomaticDescriptor,
->(options: MCPClientOptions) {
+>(options: MCPClientOptions, onElicit?: OnElicit) {
   const transport = await resolveTransport(options.transport, {
     events: options.experimental_events !== undefined,
   })
@@ -768,6 +802,11 @@ async function connectTransport<
       needsApproval: options.needsApproval,
       toolName: options.toolName,
       requestOptions: options.requestOptions,
+    },
+    onElicit,
+    {
+      onClose: options.onClose,
+      onToolListChanged: options.onToolListChanged,
     },
     {
       options: options.experimental_events,

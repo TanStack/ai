@@ -1,0 +1,25 @@
+{
+  "name": "harness-cli-example",
+  "private": true,
+  "type": "module",
+  "description": "A notes assistant in the terminal, built with @tanstack/ai-harness and @tanstack/ai-harness-cli",
+  "scripts": {
+    "start": "tsx src/cli.ts",
+    "test:types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-harness": "workspace:*",
+    "@tanstack/ai-harness-cli": "workspace:*",
+    "@tanstack/ai-openai": "workspace:*",
+    "@tanstack/react-store": "^0.11.1",
+    "ink": "^7.1.1",
+    "react": "^19.2.3",
+    "zod": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "tsx": "^4.23.12"
+  }
+}
