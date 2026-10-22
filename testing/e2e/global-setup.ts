@@ -181,6 +181,13 @@ export default async function globalSetup() {
   // asserts `decide()` rejects and still reports that usage.
   mock.mount('/evaluate-usage-on-failure', evaluateUsageOnFailureMount())
 
+  // Failed evaluate requests. TypeSafe takes a path prefix, but the Vercel
+  // Gateway adapter keeps only the origin of its baseURL, so that mount sits on
+  // the real evaluate path. Both answer only requests carrying the
+  // `x-evaluate-http-status` header and fall through otherwise.
+  mock.mount('/evaluate-http-status', evaluateHttpStatusMount())
+  mock.mount('/v4/ai/evaluation-model', evaluateHttpStatusMount())
+
   // aimock has no OpenAI Decisions API route, so this mount answers
   // `/v1/decisions` with a refusal plus usage for the evaluate-refusal spec.
   mock.mount('/evaluate-refusal', evaluateRefusalMount())
@@ -2225,6 +2232,29 @@ function evaluateUsageOnFailureMount(): Mountable {
           },
         }),
       )
+      return true
+    },
+  }
+}
+
+/**
+ * Answers an evaluate request with the HTTP status named in its
+ * `x-evaluate-http-status` header and a small JSON error body.
+ */
+function evaluateHttpStatusMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+    ): Promise<boolean> {
+      const status = Number(req.headers['x-evaluate-http-status'])
+      if (req.method !== 'POST' || !(status >= 400 && status <= 599)) {
+        return false
+      }
+      await drainBody(req)
+      res.statusCode = status
+      res.setHeader('Content-Type', 'application/json')
+      res.end(JSON.stringify({ error: 'rejected' }))
       return true
     },
   }

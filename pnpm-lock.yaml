@@ -4049,6 +4049,9 @@ importers:
       '@tanstack/ai-solid':
         specifier: workspace:*
         version: link:../../packages/ai-solid
+      '@tanstack/ai-typesafe':
+        specifier: workspace:*
+        version: link:../../packages/ai-typesafe
       '@tanstack/ai-vercel-gateway':
         specifier: workspace:*
         version: link:../../packages/ai-vercel-gateway

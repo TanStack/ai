@@ -237,7 +237,7 @@ describe('OpenRouterEvaluateAdapter', () => {
     })
   })
 
-  it('throws on a non-OK response', async () => {
+  it('throws with status on a non-OK response', async () => {
     fetchMock.mockResolvedValue(
       new Response('bad request', { status: 400, statusText: 'Bad Request' }),
     )
@@ -253,6 +253,11 @@ describe('OpenRouterEvaluateAdapter', () => {
           }),
         },
       }),
-    ).rejects.toThrow()
+    ).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringMatching(
+        /^OpenRouter evaluate request failed: 400 Bad Request .+ bad request$/,
+      ),
+    })
   })
 })
