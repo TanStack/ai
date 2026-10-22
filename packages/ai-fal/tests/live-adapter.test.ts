@@ -74,6 +74,7 @@ describe('fal live adapter', () => {
     )
 
     const result = await generateLiveVideo({
+      threadId: 'thread-1',
       adapter: falLiveVideo('minimax/h3-max/director', {
         apiKey: 'fal_test',
         fetch: fetchImpl,
@@ -104,6 +105,7 @@ describe('fal live adapter', () => {
     )
 
     await generateLiveVideo({
+      threadId: 'thread-1',
       adapter: falLiveVideo('minimax/h3-max/director', {
         apiKey: 'fal_test',
         fetch: fetchImpl,
@@ -123,6 +125,7 @@ describe('fal live adapter', () => {
     )
 
     await generateLiveVideo({
+      threadId: 'thread-1',
       adapter: createFalLiveVideo('minimax/h3-max/director', 'fal_explicit', {
         fetch: fetchImpl,
       }),
@@ -145,6 +148,7 @@ describe('fal live adapter', () => {
 
     await expect(
       generateLiveVideo({
+        threadId: 'thread-1',
         adapter: falLiveVideo('minimax/h3-max/director', {
           apiKey: 'fal_test',
           fetch: fetchImpl,
@@ -162,6 +166,7 @@ describe('fal live adapter', () => {
 
     await expect(
       generateLiveVideo({
+        threadId: 'thread-1',
         adapter: falLiveVideo('minimax/h3-max/director', {
           apiKey: 'fal_test',
           fetch: fetchImpl,

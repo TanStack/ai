@@ -2,7 +2,6 @@ import {
   EventType,
   getChunkRunId as getNormalizedChunkRunId,
   restoreInboundChunk,
-  tanstackMetadata,
   uiMessagesToWire,
   withTanstackMetadata,
 } from '@tanstack/ai/client'
@@ -14,6 +13,7 @@ import {
 import { parseSseDataLine } from './sse-utils'
 import type {
   ModelMessage,
+  RunAgentInput,
   RunAgentResumeItem,
   RunErrorEvent,
   StreamChunk,
@@ -87,18 +87,60 @@ export class DurableStreamIncompleteError extends Error {
  * reconnecting without end.
  */
 export class StreamReconnectLimitError extends Error {
-  constructor(attempts: number) {
+  constructor(attempts: number, budgetMs?: number) {
     super(
-      `Durable run exceeded its reconnect ceiling of ${attempts} attempts — giving up.`,
+      budgetMs === undefined
+        ? `Durable run exceeded its reconnect ceiling of ${attempts} attempts — giving up.`
+        : `Durable run did not reconnect within its budget of ${budgetMs} ms (${attempts} attempts) — giving up.`,
     )
     this.name = 'StreamReconnectLimitError'
   }
 }
 
+/** HTTP statuses that a proxy or server sends while it restarts or sheds load. */
+const TEMPORARY_HTTP_STATUSES = new Set([408, 429, 502, 503, 504])
+
 /**
- * Reconnect bounding for resumable streams. A constant throttle delay prevents a
- * hot loop against the origin, and the ceiling bounds a pathologically failing
- * run — but only counts CONSECUTIVE reconnects that made no forward progress.
+ * A non-2xx response. A reconnect retries it when the status is temporary
+ * (408, 429, 502, 503, 504), and waits for its `Retry-After` when present.
+ */
+class StreamHttpError extends Error {
+  readonly retryAfterMs: number | undefined
+  constructor(
+    message: string,
+    readonly status: number,
+    retryAfter: string | null,
+  ) {
+    super(message)
+    this.name = 'StreamHttpError'
+    this.retryAfterMs = parseRetryAfterMs(retryAfter)
+  }
+}
+
+/** `Retry-After` in seconds or as an HTTP date, in ms. */
+function parseRetryAfterMs(value: string | null): number | undefined {
+  if (!value) return undefined
+  const seconds = Number(value)
+  if (Number.isFinite(seconds)) return seconds >= 0 ? seconds * 1000 : undefined
+  const date = Date.parse(value)
+  return Number.isNaN(date) ? undefined : Math.max(0, date - Date.now())
+}
+
+function isTemporaryHttpError(error: unknown): error is StreamHttpError {
+  return (
+    error instanceof StreamHttpError &&
+    TEMPORARY_HTTP_STATUSES.has(error.status)
+  )
+}
+
+/**
+ * Reconnect bounding for resumable streams. An exponential backoff with jitter
+ * prevents a hot loop against the origin, and the ceiling (or the time budget)
+ * bounds a pathologically failing run — but only counts CONSECUTIVE reconnects
+ * that made no forward progress.
+ *
+ * A reconnect retries a dropped connection and a response with a temporary
+ * status: 408, 429, 502, 503 or 504. Any other non-2xx status fails at once.
  */
 export interface ReconnectOptions {
   /**
@@ -107,37 +149,72 @@ export interface ReconnectOptions {
    * zero whenever a reconnect makes forward progress, so a healthy long run —
    * even one behind a proxy that rolls the socket after every event — never
    * approaches it; the ceiling only fires when the run is genuinely stuck
-   * (reconnecting repeatedly without receiving anything new). Default 5.
+   * (reconnecting repeatedly without receiving anything new). Default 5, or no
+   * ceiling when `budgetMs` is set.
    */
   maxAttempts?: number
-  /** Delay between reconnect attempts, in ms, to avoid hammering. Default 250. */
+  /**
+   * Delay before the first reconnect, in ms. Each consecutive reconnect that
+   * delivers nothing doubles it, up to `maxDelayMs`. Jitter takes each delay
+   * from half of this value up to the full value. Default 250.
+   */
+  initialDelayMs?: number
+  /**
+   * Longest delay between reconnects, in ms. Also caps a `Retry-After` wait.
+   * Default 5000.
+   */
+  maxDelayMs?: number
+  /**
+   * Total time, in ms, to keep reconnecting without new events, counted from
+   * the first failed reconnect. When the next wait would go past it, the run
+   * fails with {@link StreamReconnectLimitError}. Default: no budget.
+   */
+  budgetMs?: number
+  /** @deprecated Use `initialDelayMs`. */
   delayMs?: number
 }
 
 interface ResolvedReconnectOptions {
   maxAttempts: number
-  delayMs: number
+  initialDelayMs: number
+  maxDelayMs: number
+  budgetMs: number | undefined
 }
 
 function resolveReconnectOptions(
   options: ReconnectOptions | undefined,
 ): ResolvedReconnectOptions {
-  const maxAttempts = options?.maxAttempts ?? 5
-  const delayMs = options?.delayMs ?? 250
+  const budgetMs = options?.budgetMs
+  const maxAttempts =
+    options?.maxAttempts ?? (budgetMs === undefined ? 5 : Infinity)
+  const initialDelayMs = options?.initialDelayMs ?? options?.delayMs ?? 250
+  const maxDelayMs = options?.maxDelayMs ?? Math.max(5000, initialDelayMs)
   // Reject non-finite / negative bounds up front: a NaN or Infinity maxAttempts
   // would make the ceiling ineffective (unbounded reconnects), and a non-finite
-  // delayMs would remove throttling. Fail loudly on misconfiguration.
-  if (!Number.isInteger(maxAttempts) || maxAttempts < 0) {
+  // delay would remove throttling. Fail loudly on misconfiguration.
+  if (options?.maxAttempts !== undefined) {
+    if (!Number.isInteger(maxAttempts) || maxAttempts < 0) {
+      throw new Error(
+        `Invalid reconnect.maxAttempts: ${maxAttempts}. Must be a non-negative integer.`,
+      )
+    }
+  }
+  for (const [name, value] of [
+    ['initialDelayMs', initialDelayMs],
+    ['maxDelayMs', maxDelayMs],
+  ] as const) {
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error(
+        `Invalid reconnect.${name}: ${value}. Must be a non-negative finite number.`,
+      )
+    }
+  }
+  if (budgetMs !== undefined && (!Number.isFinite(budgetMs) || budgetMs <= 0)) {
     throw new Error(
-      `Invalid reconnect.maxAttempts: ${maxAttempts}. Must be a non-negative integer.`,
+      `Invalid reconnect.budgetMs: ${budgetMs}. Must be a positive finite number.`,
     )
   }
-  if (!Number.isFinite(delayMs) || delayMs < 0) {
-    throw new Error(
-      `Invalid reconnect.delayMs: ${delayMs}. Must be a non-negative finite number.`,
-    )
-  }
-  return { maxAttempts, delayMs }
+  return { maxAttempts, initialDelayMs, maxDelayMs, budgetMs }
 }
 
 /**
@@ -160,11 +237,14 @@ export interface ReconnectTracker {
   /**
    * Throttle before a reconnect attempt. Resets the no-progress counter when
    * `madeProgress` is true; otherwise increments it and throws
-   * {@link StreamReconnectLimitError} once it exceeds the configured ceiling.
+   * {@link StreamReconnectLimitError} once it exceeds the configured ceiling
+   * or the next wait would go past the budget. `retryAfterMs` (from a
+   * `Retry-After` header) replaces the backoff delay, capped at `maxDelayMs`.
    */
   waitBeforeReconnect: (
     madeProgress: boolean,
     signal?: AbortSignal,
+    retryAfterMs?: number,
   ) => Promise<void>
 }
 
@@ -181,6 +261,8 @@ export function createReconnectTracker(
   const seen = new Set<string>()
   let lastEventId: string | undefined
   let reconnectAttempts = 0
+  // When the current run of no-progress reconnects started, for `budgetMs`.
+  let failingSince: number | undefined
   return {
     get lastEventId() {
       return lastEventId
@@ -204,16 +286,44 @@ export function createReconnectTracker(
     // whose socket rolls after every event) never approaches the ceiling; it
     // fires only when the run is genuinely stuck — reconnecting repeatedly
     // with nothing new.
-    async waitBeforeReconnect(madeProgress, signal) {
+    async waitBeforeReconnect(madeProgress, signal, retryAfterMs) {
       if (madeProgress) {
         reconnectAttempts = 0
+        failingSince = undefined
       } else {
         reconnectAttempts += 1
+        failingSince ??= Date.now()
         if (reconnectAttempts > reconnect.maxAttempts) {
           throw new StreamReconnectLimitError(reconnect.maxAttempts)
         }
       }
-      await abortableDelay(reconnect.delayMs, signal)
+      // Exponential backoff with jitter: a delay from half of the backoff up
+      // to the full backoff, so a jittered delay is never longer.
+      // A 0 start stays 0: after 1024 tries `0 * 2 ** 1024` is NaN, and a NaN
+      // delay never reaches the budget.
+      const backoff =
+        reconnect.initialDelayMs === 0
+          ? 0
+          : Math.min(
+              reconnect.maxDelayMs,
+              reconnect.initialDelayMs *
+                2 ** Math.max(0, reconnectAttempts - 1),
+            )
+      const delayMs =
+        retryAfterMs === undefined
+          ? backoff * (0.5 + Math.random() / 2)
+          : Math.min(retryAfterMs, reconnect.maxDelayMs)
+      if (
+        reconnect.budgetMs !== undefined &&
+        failingSince !== undefined &&
+        Date.now() - failingSince + delayMs > reconnect.budgetMs
+      ) {
+        throw new StreamReconnectLimitError(
+          reconnectAttempts - 1,
+          reconnect.budgetMs,
+        )
+      }
+      await abortableDelay(delayMs, signal)
     },
   }
 }
@@ -232,28 +342,6 @@ function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
     }, ms)
     signal?.addEventListener('abort', onAbort, { once: true })
   })
-}
-
-function generateRunId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-}
-
-/**
- * Asserts an id is present when synthesizing a terminal event. The chat
- * client always supplies `runContext.threadId` / `runContext.runId`, so an
- * absent id at this layer indicates the adapter was wired up by a caller
- * that bypassed that contract — surface it rather than fabricating one.
- */
-function requireSyntheticId(
-  value: string | undefined,
-  field: 'threadId' | 'runId',
-): string {
-  if (!value) {
-    throw new Error(
-      `Cannot synthesize terminal event: ${field} not supplied via runContext and not observed in the upstream stream.`,
-    )
-  }
-  return value
 }
 
 /**
@@ -286,8 +374,8 @@ function mergeHeaders(
  */
 const RUN_ID_HEADER = 'X-Run-Id'
 
-function runIdHeader(runId: string | undefined): Record<string, string> {
-  return runId === undefined ? {} : { [RUN_ID_HEADER]: runId }
+function runIdHeader(runId: string): Record<string, string> {
+  return { [RUN_ID_HEADER]: runId }
 }
 
 function withSearchParams(url: string, values: Record<string, string>): string {
@@ -335,8 +423,7 @@ async function* readStreamLines(
 
       for (const line of lines) {
         // Strip a trailing CR so a CRLF stream matches the LF path (and the
-        // XHR reader). Without this an exact-equality check like the `[DONE]`
-        // sentinel in linesToSSEEvents would miss `data: [DONE]\r`.
+        // XHR reader).
         const normalized = line.endsWith('\r') ? line.slice(0, -1) : line
         if (normalized.trim()) {
           yield normalized
@@ -428,22 +515,6 @@ function isJsonRunBody(value: unknown): value is JsonRunBody {
   return hasChunks && hasDone && hasValidOffset
 }
 
-/** Rebuild pre-wire extras after SSE/NDJSON ingest. */
-function restoreInboundUsage(chunk: StreamChunk): StreamChunk {
-  return restoreInboundChunk(chunk)
-}
-
-function sseChunkModel(chunk: StreamChunk): string | undefined {
-  const tanstackModel = tanstackMetadata(chunk)?.model
-  if (typeof tanstackModel === 'string') return tanstackModel
-  const usage = 'usage' in chunk ? chunk.usage : undefined
-  if (Array.isArray(usage)) {
-    const model = (usage[0] as { model?: unknown } | undefined)?.model
-    if (typeof model === 'string') return model
-  }
-  return undefined
-}
-
 /**
  * Parse SSE-format lines into stream events, pairing each chunk with the `id:`
  * offset of the event it arrived on. Shared by the fetch- and XHR-backed SSE
@@ -451,20 +522,13 @@ function sseChunkModel(chunk: StreamChunk): string | undefined {
  *
  * Accepts either `data: {...}` lines or bare JSON lines. Skips comments
  * starting with `:` (proxies and CDNs inject these as keepalives) and the
- * `event:` / `retry:` SSE control fields. A `[DONE]` sentinel is treated as a
- * terminal event: a synthesized RUN_FINISHED is yielded using the most recent
- * upstream `threadId` / `runId` (falling back to `fallbackIds`), so the
- * consumer sees a clean terminal event with real correlation ids.
+ * `event:` / `retry:` SSE control fields.
  *
  * A JSON parse failure throws — the consumer surfaces it as an error.
  */
 async function* linesToSSEEvents(
   lines: AsyncIterable<string>,
-  fallbackIds?: { threadId?: string; runId?: string },
 ): AsyncGenerator<StreamEvent> {
-  let lastThreadId: string | undefined
-  let lastRunId: string | undefined
-  let lastModel: string | undefined
   let pendingId: string | undefined
   for await (const line of lines) {
     if (line === 'id' || line.startsWith('id:')) {
@@ -489,32 +553,7 @@ async function* linesToSSEEvents(
       continue
     }
     const data = parseSseDataLine(line)
-    if (data === '[DONE]') {
-      yield {
-        chunk: withTanstackMetadata(
-          {
-            type: EventType.RUN_FINISHED,
-            threadId: lastThreadId ?? fallbackIds?.threadId ?? '',
-            runId: lastRunId ?? fallbackIds?.runId ?? '',
-            timestamp: Date.now(),
-          },
-          {
-            finishReason: 'stop',
-            ...(lastModel !== undefined ? { model: lastModel } : {}),
-          },
-        ) as StreamChunk,
-      }
-      return
-    }
-    const chunk = restoreInboundUsage(JSON.parse(data) as StreamChunk)
-    if ('threadId' in chunk && typeof chunk.threadId === 'string') {
-      lastThreadId = chunk.threadId
-    }
-    if ('runId' in chunk && typeof chunk.runId === 'string') {
-      lastRunId = chunk.runId
-    }
-    const model = sseChunkModel(chunk)
-    if (model !== undefined) lastModel = model
+    const chunk = restoreInboundChunk(JSON.parse(data) as StreamChunk)
     const id = pendingId
     pendingId = undefined
     yield { chunk, ...(id !== undefined ? { id } : {}) }
@@ -533,9 +572,9 @@ async function* linesToNdjsonEvents(
   for await (const line of lines) {
     const parsed = JSON.parse(line) as unknown
     if (isNdjsonEnvelope(parsed)) {
-      yield { chunk: restoreInboundUsage(parsed.chunk), id: parsed.id }
+      yield { chunk: restoreInboundChunk(parsed.chunk), id: parsed.id }
     } else {
-      yield { chunk: restoreInboundUsage(parsed as StreamChunk) }
+      yield { chunk: restoreInboundChunk(parsed as StreamChunk) }
     }
   }
 }
@@ -551,8 +590,10 @@ async function assertResponseOk(response: Response): Promise<void> {
       throw new ByokMissingError(body.error.provider)
     }
   }
-  throw new Error(
+  throw new StreamHttpError(
     `HTTP error! status: ${response.status} ${response.statusText}`,
+    response.status,
+    response.headers.get('retry-after'),
   )
 }
 
@@ -568,7 +609,11 @@ function errorFromXhrStatus(xhr: XMLHttpRequest): Error {
       return new ByokMissingError(parsed.error.provider)
     }
   }
-  return new Error(`XHR error! status: ${xhr.status} ${xhr.statusText}`)
+  return new StreamHttpError(
+    `XHR error! status: ${xhr.status} ${xhr.statusText}`,
+    xhr.status,
+    xhr.getResponseHeader('retry-after'),
+  )
 }
 
 function chatHydrationSearchParams(
@@ -716,11 +761,10 @@ async function fetchGenerationHydration(
 async function* responseToSSEEvents(
   response: Response,
   abortSignal?: AbortSignal,
-  fallbackIds?: { threadId?: string; runId?: string },
 ): AsyncGenerator<StreamEvent> {
   await assertResponseOk(response)
   const reader = getResponseStreamReader(response)
-  yield* linesToSSEEvents(readStreamLines(reader, abortSignal), fallbackIds)
+  yield* linesToSSEEvents(readStreamLines(reader, abortSignal))
 }
 
 /** Yield NDJSON stream events (chunk + offset) from a fetch Response body. */
@@ -848,13 +892,19 @@ async function* resumableStream(
       // ceiling in waitBeforeReconnect already bounds a genuinely stuck flapper,
       // so a per-attempt progress requirement here would only convert
       // recoverable drops into hard failures on flaky (mobile/edge) networks.
-      // Without an offset (a non-durable stream), surface the failure.
+      // Without an offset (a non-durable stream), surface the failure. A
+      // temporary status (a proxy while the server restarts) is a drop too.
       if (
         (error instanceof StreamTruncatedError ||
-          error instanceof StreamReadError) &&
+          error instanceof StreamReadError ||
+          isTemporaryHttpError(error)) &&
         tracker.lastEventId !== undefined
       ) {
-        await tracker.waitBeforeReconnect(progressed, abortSignal)
+        await tracker.waitBeforeReconnect(
+          progressed,
+          abortSignal,
+          isTemporaryHttpError(error) ? error.retryAfterMs : undefined,
+        )
         continue
       }
       throw error
@@ -928,9 +978,9 @@ export interface ConnectConnectionAdapter {
    */
   connect: (
     messages: Array<UIMessage> | Array<ModelMessage>,
-    data?: Record<string, any>,
-    abortSignal?: AbortSignal,
-    runContext?: RunAgentInputContext,
+    data: Record<string, any> | undefined,
+    abortSignal: AbortSignal | undefined,
+    runContext: RunAgentInputContext,
   ) => AsyncIterable<StreamChunk>
   /**
    * Fetch server-driven hydration for a generation `threadId`: the last
@@ -1027,6 +1077,12 @@ export interface ChatHydrationResult {
     pending: Array<ChatPendingInterrupt>
   } | null
   /**
+   * Every wait of the thread, also one with no interrupt, for example a
+   * question that a tool asks. A harness server sends the `pendingWaits` of
+   * its snapshot. Old servers omit it.
+   */
+  pendingWaits?: Array<unknown>
+  /**
    * Whether this window is a slice of a longer thread.
    * `cursor` is set when `truncated` is true and is sent back as `before`.
    */
@@ -1070,9 +1126,9 @@ export interface SubscribeConnectionAdapter {
    */
   send: (
     messages: Array<UIMessage> | Array<ModelMessage>,
-    data?: Record<string, any>,
-    abortSignal?: AbortSignal,
-    runContext?: RunAgentInputContext,
+    data: Record<string, any> | undefined,
+    abortSignal: AbortSignal | undefined,
+    runContext: RunAgentInputContext,
   ) => Promise<void>
   /**
    * Re-attach to an existing run by id, replaying its stream from the start off
@@ -1147,7 +1203,7 @@ export function normalizeConnectionAdapter(
     )
   }
 
-  // Legacy connect() wrapper
+  // connect() wrapper
   let activeBuffer: Array<StreamChunk> = []
   let activeWaiters: Array<(chunk: StreamChunk | null) => void> = []
   let activeSubscriber: typeof activeWaiters | undefined
@@ -1239,7 +1295,7 @@ export function normalizeConnectionAdapter(
           if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
             hasTerminalEvent = true
           }
-          push(chunk, runContext?.runId)
+          push(chunk, runContext.runId)
         }
 
         // If the connect stream ended cleanly without a terminal event,
@@ -1252,47 +1308,27 @@ export function normalizeConnectionAdapter(
             withTanstackMetadata(
               {
                 type: EventType.RUN_FINISHED,
-                threadId: requireSyntheticId(
-                  upstreamThreadId ?? runContext?.threadId,
-                  'threadId',
-                ),
-                runId: requireSyntheticId(
-                  upstreamRunId ?? runContext?.runId,
-                  'runId',
-                ),
+                threadId: upstreamThreadId ?? runContext.threadId,
+                runId: upstreamRunId ?? runContext.runId,
                 timestamp: Date.now(),
               },
               { finishReason: 'stop', model: 'connect-wrapper' },
             ) as StreamChunk,
-            runContext?.runId,
+            runContext.runId,
           )
         }
       } catch (err) {
         if (!abortSignal?.aborted && !hasTerminalEvent) {
-          // Guard synthesis: requireSyntheticId throws when no id is available,
-          // and that must not replace the original `err` we are about to
-          // rethrow. If we can't synthesize a terminal, the real failure still
-          // surfaces below.
-          try {
-            const message =
-              err instanceof Error ? err.message : 'Unknown error in connect()'
-            const synthetic: RunErrorEvent = {
-              type: EventType.RUN_ERROR,
-              threadId: requireSyntheticId(
-                upstreamThreadId ?? runContext?.threadId,
-                'threadId',
-              ),
-              runId: requireSyntheticId(
-                upstreamRunId ?? runContext?.runId,
-                'runId',
-              ),
-              timestamp: Date.now(),
-              message,
-            }
-            push(synthetic, runContext?.runId)
-          } catch {
-            // fall through to rethrow the original error
+          const message =
+            err instanceof Error ? err.message : 'Unknown error in connect()'
+          const synthetic: RunErrorEvent = {
+            type: EventType.RUN_ERROR,
+            threadId: upstreamThreadId ?? runContext.threadId,
+            runId: upstreamRunId ?? runContext.runId,
+            timestamp: Date.now(),
+            message,
           }
+          push(synthetic, runContext.runId)
         }
         throw err
       }
@@ -1362,30 +1398,33 @@ function buildRunAgentInputBody(
   data: Record<string, any> | undefined,
   runContext: RunAgentInputContext | undefined,
   options: ResolvedConnectionOptions,
-) {
+): RunAgentInput {
   // Precedence (later spreads win): static adapter `body` is the base,
   // overridden by `runContext.forwardedProps`, overridden by per-message `data`.
+  if (!runContext) {
+    throw new Error(
+      'Connection adapter: connect() and send() need a run context with a threadId. ChatClient and the generation clients pass one. Pass it when you call the adapter yourself.',
+    )
+  }
   const wireMessages = uiMessagesToWire(messages)
   const forwardedProps = {
     ...options.body,
-    ...(runContext?.forwardedProps ?? {}),
+    ...runContext.forwardedProps,
     ...data,
   }
 
   return {
-    threadId: runContext?.threadId ?? generateRunId('thread'),
-    runId: runContext?.runId ?? generateRunId('run'),
-    ...(runContext?.parentRunId !== undefined && {
+    threadId: runContext.threadId,
+    runId: runContext.runId,
+    ...(runContext.parentRunId !== undefined && {
       parentRunId: runContext.parentRunId,
     }),
-    ...(runContext?.resume !== undefined && { resume: runContext.resume }),
+    ...(runContext.resume !== undefined && { resume: runContext.resume }),
     state: {},
     messages: wireMessages,
-    tools: runContext?.clientTools ?? [],
+    tools: runContext.clientTools ?? [],
     context: [],
     forwardedProps,
-    // Backward-compat mirror of `forwardedProps` under the legacy field name.
-    data: { ...forwardedProps },
   }
 }
 
@@ -1439,15 +1478,15 @@ export function fetchServerSentEvents(
       const requestHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
         ...mergeHeaders(resolvedOptions.headers),
-        ...mergeHeaders(runContext?.headers),
-        ...runIdHeader(runContext?.runId),
+        ...mergeHeaders(runContext.headers),
+        ...runIdHeader(runContext.runId),
       }
 
       // Build AG-UI RunAgentInput payload.
       //
       // Precedence (later spreads win): static adapter `body` is the base,
-      // overridden by `runContext.forwardedProps` (constructor body /
-      // forwardedProps options), overridden by per-message `data` passed
+      // overridden by `runContext.forwardedProps` (the
+      // forwardedProps option), overridden by per-message `data` passed
       // to `connection.send`. Runtime values win over static config —
       // this matches the documented "forwardedProps wins" semantic.
       const requestBody = buildRunAgentInputBody(
@@ -1481,18 +1520,7 @@ export function fetchServerSentEvents(
             body: JSON.stringify(requestBody),
             credentials: resolvedOptions.credentials || 'same-origin',
           },
-          // Thread the run's ids so a `[DONE]`-terminating server that doesn't
-          // stamp them onto events still yields a correlated terminal (parity
-          // with the XHR adapter's xhrSSEParser).
-          (response, sseSignal) =>
-            responseToSSEEvents(response, sseSignal, {
-              ...(runContext?.threadId !== undefined
-                ? { threadId: runContext.threadId }
-                : {}),
-              ...(runContext?.runId !== undefined
-                ? { runId: runContext.runId }
-                : {}),
-            }),
+          responseToSSEEvents,
         ),
         signal,
         resolvedOptions.reconnect,
@@ -1526,9 +1554,7 @@ export function fetchServerSentEvents(
             headers: requestHeaders,
             credentials: resolvedOptions.credentials || 'same-origin',
           },
-          // A `[DONE]` during a join correlates to the joined run id.
-          (response, sseSignal) =>
-            responseToSSEEvents(response, sseSignal, { runId }),
+          responseToSSEEvents,
         ),
         signal,
         resolvedOptions.reconnect,
@@ -1612,15 +1638,15 @@ export function fetchHttpStream(
       const requestHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
         ...mergeHeaders(resolvedOptions.headers),
-        ...mergeHeaders(runContext?.headers),
-        ...runIdHeader(runContext?.runId),
+        ...mergeHeaders(runContext.headers),
+        ...runIdHeader(runContext.runId),
       }
 
       // Build AG-UI RunAgentInput payload.
       //
       // Precedence (later spreads win): static adapter `body` is the base,
-      // overridden by `runContext.forwardedProps` (constructor body /
-      // forwardedProps options), overridden by per-message `data` passed
+      // overridden by `runContext.forwardedProps` (the
+      // forwardedProps option), overridden by per-message `data` passed
       // to `connection.send`. Runtime values win over static config —
       // this matches the documented "forwardedProps wins" semantic.
       const requestBody = buildRunAgentInputBody(
@@ -1790,9 +1816,14 @@ async function getJsonRunBody(options: JsonRunPollOptions, offset: string) {
       return await requestJsonRunBody(options.fetchClient, url, options.getInit)
     } catch (error) {
       const isTransportDrop =
-        error instanceof StreamReadError && !options.signal?.aborted
+        (error instanceof StreamReadError || isTemporaryHttpError(error)) &&
+        !options.signal?.aborted
       if (!isTransportDrop) throw error
-      await tracker.waitBeforeReconnect(false, options.signal)
+      await tracker.waitBeforeReconnect(
+        false,
+        options.signal,
+        isTemporaryHttpError(error) ? error.retryAfterMs : undefined,
+      )
       if (options.signal?.aborted) throw error
     }
   }
@@ -1818,7 +1849,7 @@ async function* pollJsonRun(
       if (signal?.aborted) return
       throw error
     }
-    for (const chunk of body.chunks) yield restoreInboundUsage(chunk)
+    for (const chunk of body.chunks) yield restoreInboundChunk(chunk)
     if (body.done) return
     const offset = body.offset
     if (offset === undefined) {
@@ -1920,8 +1951,8 @@ export function fetchJson(
           'Content-Type': 'application/json',
           Accept: 'application/json',
           ...mergeHeaders(resolvedOptions.headers),
-          ...mergeHeaders(runContext?.headers),
-          ...runIdHeader(runContext?.runId),
+          ...mergeHeaders(runContext.headers),
+          ...runIdHeader(runContext.runId),
         },
         body: JSON.stringify(requestBody),
       }
@@ -2118,7 +2149,7 @@ function readXhrLines(
 
 interface ConfiguredXhrRequest {
   xhr: XMLHttpRequest
-  body: string
+  body: string | null
 }
 
 function createConfiguredXhrRequest(
@@ -2139,10 +2170,10 @@ function createConfiguredXhrRequest(
   const requestHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
     ...mergeHeaders(options.headers),
-    ...mergeHeaders(method === 'POST' ? runContext?.headers : undefined),
+    ...mergeHeaders(runContext?.headers),
     // Client-chosen run id for durability (POST only; the GET join carries it
     // in the query instead).
-    ...(method === 'POST' ? runIdHeader(runContext?.runId) : {}),
+    ...(runContext ? runIdHeader(runContext.runId) : {}),
     // Reconnect offset (`Last-Event-ID`) wins over static headers.
     ...extraHeaders,
   }
@@ -2151,14 +2182,15 @@ function createConfiguredXhrRequest(
     xhr.setRequestHeader(name, value)
   }
 
-  const requestBody = buildRunAgentInputBody(
-    messages,
-    data,
-    runContext,
-    options,
-  )
+  // A read-only join is a bodyless GET; a run POSTs the RunAgentInput payload.
+  const body =
+    method === 'GET'
+      ? null
+      : JSON.stringify(
+          buildRunAgentInputBody(messages, data, runContext, options),
+        )
 
-  return { xhr, body: JSON.stringify(requestBody) }
+  return { xhr, body }
 }
 
 async function resolveXhrConnectionOptions(
@@ -2197,8 +2229,7 @@ function xhrEventSource(
       await lines.next()
       return
     }
-    // A read-only join is a bodyless GET; a run POSTs the RunAgentInput payload.
-    request.xhr.send(method === 'GET' ? null : request.body)
+    request.xhr.send(request.body)
     try {
       yield* parseLines(lines)
     } finally {
@@ -2208,17 +2239,6 @@ function xhrEventSource(
       if (!abortSignal?.aborted) request.xhr.abort()
     }
   }
-}
-
-/** SSE line parser bound to the run's ids for a `[DONE]` fallback. */
-function xhrSSEParser(runContext: RunAgentInputContext | undefined) {
-  const fallbackIds: { threadId?: string; runId?: string } = {
-    ...(runContext?.threadId !== undefined
-      ? { threadId: runContext.threadId }
-      : {}),
-    ...(runContext?.runId !== undefined ? { runId: runContext.runId } : {}),
-  }
-  return (lines: AsyncIterable<string>) => linesToSSEEvents(lines, fallbackIds)
 }
 
 /**
@@ -2250,7 +2270,7 @@ export function xhrServerSentEvents(
           messages,
           data,
           runContext,
-          xhrSSEParser(runContext),
+          linesToSSEEvents,
         ),
         signal,
         resolvedOptions.reconnect,
@@ -2269,9 +2289,7 @@ export function xhrServerSentEvents(
           [],
           undefined,
           undefined,
-          // A `[DONE]` during a join correlates to the joined run id (parity
-          // with fetchServerSentEvents.joinRun).
-          (lines) => linesToSSEEvents(lines, { runId }),
+          linesToSSEEvents,
         ),
         signal,
         resolvedOptions.reconnect,
@@ -2399,8 +2417,8 @@ export interface WebSocketConnectionOptions {
   WebSocketImpl?: typeof WebSocket
 }
 
-function runIdQuery(url: string, runId: string | undefined): string {
-  return runId ? withSearchParams(url, { runId }) : url
+function runIdQuery(url: string, runId: string): string {
+  return withSearchParams(url, { runId })
 }
 
 function isPingFrame(parsed: unknown): boolean {
@@ -2588,7 +2606,7 @@ export function webSocket(
       }
       if (isPingFrame(parsed)) return
       const envelopeId = isNdjsonEnvelope(parsed) ? parsed.id : undefined
-      const chunk = restoreInboundUsage(
+      const chunk = restoreInboundChunk(
         isNdjsonEnvelope(parsed) ? parsed.chunk : (parsed as StreamChunk),
       )
 
@@ -2689,16 +2707,16 @@ export function webSocket(
     },
     async send(messages, data, abortSignal, runContext) {
       const target = typeof url === 'function' ? url() : url
-      const ws = openOnce(runIdQuery(target, runContext?.runId), 'run')
+      const ws = openOnce(runIdQuery(target, runContext.runId), 'run')
       await waitOpen(ws)
       // Establish (or continue) the run session this socket is driving, so
       // an unterminated drop can auto-resume it. A distinct runId starts a
       // fresh tracker (a new run's offsets are unrelated to the last one's);
       // the same runId reuses the tracker so a repeat send() on an
       // already-tracked run doesn't lose its de-dupe/offset state.
-      if (!currentSession || currentSession.runId !== runContext?.runId) {
+      if (!currentSession || currentSession.runId !== runContext.runId) {
         currentSession = {
-          runId: runContext?.runId,
+          runId: runContext.runId,
           tracker: createReconnectTracker(options.reconnect),
           sawTerminal: false,
           progressed: false,
@@ -2770,7 +2788,7 @@ export function webSocket(
         }
         if (isPingFrame(parsed)) return
         pipe.push(
-          restoreInboundUsage(
+          restoreInboundChunk(
             isNdjsonEnvelope(parsed) ? parsed.chunk : (parsed as StreamChunk),
           ),
         )
@@ -2836,7 +2854,10 @@ export interface StreamConnectionHandlers {
 /**
  * Create a direct stream connection adapter (for server functions or direct streams)
  *
- * @param streamFactory - A function that returns an async iterable of StreamChunks
+ * @param streamFactory - A function that returns an async iterable of
+ *   StreamChunks. It gets `(messages, data, abortSignal, input)`, where `input`
+ *   is the AG-UI `RunAgentInput` for the run (the body the HTTP adapters send).
+ *   Read it on the server with `chatParamsFromRequestBody`.
  * @param handlers - Optional persistence handlers (`hydrate`,
  * `hydrateGeneration`, `joinRun`) that let server-driven persistence work
  * without an HTTP endpoint — each is usually a one-line server-function call
@@ -2845,13 +2866,16 @@ export interface StreamConnectionHandlers {
  * @example
  * ```typescript
  * // With TanStack Start server function
- * const connection = stream(() => serverFunction({ messages }));
+ * const connection = stream((_messages, _data, signal, input) =>
+ *   serverFunction({ data: input, signal }),
+ * );
  *
- * const client = new ChatClient({ connection });
+ * const client = new ChatClient({ connection, threadId });
  *
  * // With generation persistence over server functions
  * const connection = stream(
- *   () => generateImageFn({ data: input }),
+ *   // Read `input` on the server with generationParamsFromBody('image', input).
+ *   (_messages, _data, _signal, input) => generateImageFn({ data: input }),
  *   {
  *     hydrateGeneration: (threadId) => getImageHydrationFn({ data: threadId }),
  *     joinRun: (runId) => joinImageRunFn({ data: runId }),
@@ -2862,16 +2886,22 @@ export interface StreamConnectionHandlers {
 export function stream(
   streamFactory: (
     messages: Array<UIMessage> | Array<ModelMessage>,
-    data?: Record<string, any>,
-    abortSignal?: AbortSignal,
+    data: Record<string, any> | undefined,
+    abortSignal: AbortSignal | undefined,
+    input: RunAgentInput,
   ) => AsyncIterable<StreamChunk>,
   handlers?: StreamConnectionHandlers,
 ): ConnectConnectionAdapter {
   return {
-    async *connect(messages, data, abortSignal) {
+    async *connect(messages, data, abortSignal, runContext) {
       // Pass messages as-is (UIMessages with parts preserved)
       // Server-side chat() handles conversion to ModelMessages
-      yield* streamFactory(messages, data, abortSignal)
+      yield* streamFactory(
+        messages,
+        data,
+        abortSignal,
+        buildRunAgentInputBody(messages, data, runContext, {}),
+      )
     },
     ...(handlers?.hydrate ? { hydrate: handlers.hydrate } : {}),
     ...(handlers?.hydrateGeneration
@@ -2964,7 +2994,9 @@ async function* abortableIterable<T>(
 /**
  * Create an RPC stream connection adapter (for RPC-based streaming like Cap'n Web RPC)
  *
- * @param rpcCall - A function that accepts messages and returns an async iterable of StreamChunks
+ * @param rpcCall - A function that returns an async iterable of StreamChunks.
+ *   It gets the same `(messages, data, abortSignal, input)` arguments as
+ *   `stream()`.
  * @param handlers - Optional persistence handlers (`hydrate`,
  * `hydrateGeneration`, `joinRun`) that let server-driven persistence work
  * without an HTTP endpoint — each is usually a one-line RPC call
@@ -2973,15 +3005,15 @@ async function* abortableIterable<T>(
  * @example
  * ```typescript
  * // With Cap'n Web RPC
- * const connection = rpcStream((messages, data) =>
- *   api.streamMurfResponse(messages, data)
+ * const connection = rpcStream((_messages, _data, _signal, input) =>
+ *   api.streamMurfResponse(input)
  * );
  *
- * const client = new ChatClient({ connection });
+ * const client = new ChatClient({ connection, threadId });
  *
  * // With generation persistence over RPC
  * const connection = rpcStream(
- *   (messages, data) => api.streamMurfResponse(messages, data),
+ *   (_messages, _data, _signal, input) => api.streamMurfResponse(input),
  *   {
  *     hydrateGeneration: (threadId) => api.getGenerationHydration(threadId),
  *     joinRun: (runId) => api.replayRun(runId),
@@ -2992,16 +3024,22 @@ async function* abortableIterable<T>(
 export function rpcStream(
   rpcCall: (
     messages: Array<UIMessage> | Array<ModelMessage>,
-    data?: Record<string, any>,
-    abortSignal?: AbortSignal,
+    data: Record<string, any> | undefined,
+    abortSignal: AbortSignal | undefined,
+    input: RunAgentInput,
   ) => AsyncIterable<StreamChunk>,
   handlers?: StreamConnectionHandlers,
 ): ConnectConnectionAdapter {
   return {
-    async *connect(messages, data, abortSignal) {
+    async *connect(messages, data, abortSignal, runContext) {
       // Pass messages as-is (UIMessages with parts preserved)
       // Server-side chat() handles conversion to ModelMessages
-      yield* rpcCall(messages, data, abortSignal)
+      yield* rpcCall(
+        messages,
+        data,
+        abortSignal,
+        buildRunAgentInputBody(messages, data, runContext, {}),
+      )
     },
     ...(handlers?.hydrate ? { hydrate: handlers.hydrate } : {}),
     ...(handlers?.hydrateGeneration

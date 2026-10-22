@@ -395,7 +395,7 @@ export class AcpCompatibleTextAdapter<
         adapter: 'acp',
         fallback: () => this.generateId(),
       })
-      const threadId = options.threadId ?? this.generateId()
+      const threadId = options.threadId
 
       // Durability wired onto a path that cannot deliver it. Two outcomes, split
       // by whether a first attempt has already run.
@@ -457,6 +457,7 @@ export class AcpCompatibleTextAdapter<
             : undefined) ?? nodeHttpBridgeProvisioner
         bridge = await provisioner.provision(tools, {
           provider: sandbox.provider,
+          threadId,
           context: options.context,
           emitCustomEvent: channel.emitCustomEvent,
           ...(externalSignal ? { signal: externalSignal } : {}),

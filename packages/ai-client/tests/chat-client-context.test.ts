@@ -47,7 +47,7 @@ function findToolResultPart(client: ChatClient, toolCallId: string) {
 }
 
 describe('ChatClient runtime context', () => {
-  it('passes client-local context to client tool execution without serializing it', async () => {
+  it('passes client-local context and the thread id to client tool execution without serializing the context', async () => {
     const firstChunks = createToolCallChunks([
       { id: 'tc-client-context', name: 'read_client_context', arguments: '{}' },
     ])
@@ -79,11 +79,13 @@ describe('ChatClient runtime context', () => {
       outputs.push({
         localUserId: ctx.context.localUserId,
         tokenLength: ctx.context.secretToken.length,
+        threadId: ctx.threadId,
       })
       return { ok: true }
     })
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: adapter,
       context: { localUserId: 'local-1', secretToken: 'secret-value' },
       tools: [tool],
@@ -91,7 +93,9 @@ describe('ChatClient runtime context', () => {
 
     await client.sendMessage('use client context')
 
-    expect(outputs).toEqual([{ localUserId: 'local-1', tokenLength: 12 }])
+    expect(outputs).toEqual([
+      { localUserId: 'local-1', tokenLength: 12, threadId: 'thread-1' },
+    ])
     expect(JSON.stringify(sentPayloads)).not.toContain('secret-value')
     expect(JSON.stringify(runContexts)).not.toContain('secret-value')
     expect(runContexts).toEqual([
@@ -107,20 +111,23 @@ describe('ChatClient runtime context', () => {
   it('clears client-local context when updateOptions receives undefined', async () => {
     type ClientContext = { localUserId: string }
 
-    const toolChunks = createToolCallChunks([
-      {
-        id: 'tc-update-context',
-        name: 'read_optional_context',
-        arguments: '{}',
-      },
-    ])
     const textChunks = createTextChunks('done', 'msg-update-context')
     const outputs: Array<string | null> = []
     let callIndex = 0
 
     const adapter: ConnectConnectionAdapter = {
       async *connect(_messages, _data, abortSignal) {
-        const chunks = callIndex % 2 === 0 ? toolChunks : textChunks
+        // A new call id per turn: an answered call does not run again.
+        const chunks =
+          callIndex % 2 === 0
+            ? createToolCallChunks([
+                {
+                  id: `tc-update-context-${callIndex}`,
+                  name: 'read_optional_context',
+                  arguments: '{}',
+                },
+              ])
+            : textChunks
         callIndex++
         for (const chunk of chunks) {
           if (abortSignal?.aborted) {
@@ -140,6 +147,7 @@ describe('ChatClient runtime context', () => {
     })
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: adapter,
       context: { localUserId: 'local-1' },
       tools: [tool],
@@ -187,6 +195,7 @@ describe('ChatClient runtime context', () => {
     })
 
     client = new ChatClient({
+      threadId: 'thread-1',
       connection: adapter,
       context: { localUserId: 'initial-user' },
       tools: [tool],
@@ -255,6 +264,7 @@ describe('ChatClient runtime context', () => {
     let client: ChatClient<SnapshotTools, ClientContext>
 
     client = new ChatClient<SnapshotTools, ClientContext>({
+      threadId: 'thread-1',
       connection: adapter,
       context: { localUserId: 'snapshot-user' },
       tools: initialTools,
@@ -304,6 +314,7 @@ describe('ChatClient runtime context', () => {
     }).client(() => JSON.parse('null'))
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: adapter,
       tools: [tool],
     })
@@ -353,7 +364,11 @@ describe('ChatClient runtime context', () => {
       outputSchema: asyncCountSchema,
     }).client(() => ({ count: 1 }))
 
-    const client = new ChatClient({ connection: adapter, tools: [tool] })
+    const client = new ChatClient({
+      threadId: 'thread-1',
+      connection: adapter,
+      tools: [tool],
+    })
     await client.sendMessage('call async output tool')
 
     expect(
@@ -397,6 +412,7 @@ describe('ChatClient runtime context', () => {
     }).client(() => ({ ok: true, note: undefined }))
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: adapter,
       tools: [plainTool, schemaTool],
     })
@@ -447,6 +463,7 @@ describe('ChatClient runtime context', () => {
     })
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: adapter,
       tools: [tool],
     })
@@ -469,6 +486,7 @@ describe('ChatClient runtime context', () => {
     }).client(() => ({ count: 1 }))
 
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: {
         async *connect() {},
       },

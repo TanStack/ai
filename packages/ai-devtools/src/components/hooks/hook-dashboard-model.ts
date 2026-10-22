@@ -64,11 +64,10 @@ export function getHookDisplayName(hook: HookRecord): string {
 /**
  * Stable identity string shown under the hook title.
  *
- * Prefer `threadId` when present — for generation hooks that is the single
- * app-chosen scope (and, after the client prefers `threadId` over deprecated
- * `id`, often equals the registry key too). Fall back to the registry `id`
- * (devtools hook id / legacy client id) for ephemeral hooks that never named
- * a thread.
+ * Prefer `threadId` when present. For generation hooks it is the single
+ * scope that the app chooses, and it is often the registry key too. Fall back
+ * to the registry `id` (the devtools hook id) for short-lived hooks that do
+ * not name a thread.
  */
 export function getHookIdentityLabel(hook: HookRecord): string {
   return hook.threadId ?? hook.id

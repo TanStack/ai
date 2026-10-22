@@ -77,13 +77,6 @@ export async function* parseSSEResponse(
   for await (const line of readStreamLines(reader, abortSignal)) {
     const data = parseSseDataLine(line)
 
-    if (data === '[DONE]') {
-      console.warn(
-        '[@tanstack/ai-client] Received [DONE] sentinel. This is deprecated — upgrade your @tanstack/ai server package. RUN_FINISHED is the stream terminator.',
-      )
-      continue
-    }
-
     try {
       const parsed: StreamChunk = JSON.parse(data)
       yield parsed

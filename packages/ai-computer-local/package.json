@@ -1,0 +1,56 @@
+{
+  "name": "@tanstack/ai-computer-local",
+  "version": "0.1.0",
+  "description": "Local computer driver for TanStack AI computer use. The model controls the mouse, keyboard, and screen of the machine that runs the server.",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-computer-local"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:build": "publint --strict",
+    "test:oxlint": "oxlint src --type-aware",
+    "test:coverage": "vitest run --passWithNoTests --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
+    "test:lib": "vitest --passWithNoTests",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "tanstack",
+    "computer-use",
+    "desktop",
+    "robotjs"
+  ],
+  "peerDependencies": {
+    "@jitsi/robotjs": "^0.6.0",
+    "@tanstack/ai-computer-use": "workspace:^"
+  },
+  "devDependencies": {
+    "@jitsi/robotjs": "^0.6.24",
+    "@tanstack/ai-computer-use": "workspace:*",
+    "@vitest/coverage-v8": "4.1.10"
+  }
+}

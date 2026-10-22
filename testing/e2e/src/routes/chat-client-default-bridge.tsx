@@ -24,6 +24,7 @@ function ChatClientDefaultBridgePage() {
   const [client] = useState(
     () =>
       new ChatClient({
+        threadId: 'thread-default-bridge',
         fetcher: () =>
           new Response(SSE_BODY, {
             headers: { 'Content-Type': 'text/event-stream' },

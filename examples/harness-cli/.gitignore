@@ -1,0 +1,4 @@
+# The notes the assistant saves.
+notes/
+# Media the CLI saves (the default --media-dir).
+*-media/

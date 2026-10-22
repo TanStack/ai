@@ -3,16 +3,8 @@
  * hooks. These assertions are pure types — they never invoke the hooks at
  * runtime (which would require a React renderer).
  *
- * Turning `persistence` on requires a `threadId`: the stable scope runs are
- * filed under. Without it the client keys on a generated wire id that changes
- * every reload, so nothing restores while orphaned records accumulate — a
- * silent failure the compiler should catch instead.
- *
- * The pairing is expressed as a union (`GenerationPersistenceOptions`)
- * intersected onto each hook's parameter. That makes it FRAGILE in one specific
- * way: applying a plain `Omit` to a union collapses it to a single object type
- * and the requirement silently disappears. These tests exist so that regression
- * fails the build rather than shipping.
+ * Every hook requires a `threadId`: the stable scope runs are filed under.
+ * These tests fail the build if a hook makes it optional again.
  */
 
 import { describe, it } from 'vitest'
@@ -38,19 +30,19 @@ describe('generation persistence requires a threadId', () => {
   it('rejects `persistence: true` without a threadId', () => {
     // Type-level only: never invoked, so no renderer is needed.
     const _typeCheck = () => {
-      // @ts-expect-error threadId is required whenever persistence is set
+      // @ts-expect-error threadId is required
       useGenerateImage({ connection, persistence: true })
-      // @ts-expect-error threadId is required whenever persistence is set
+      // @ts-expect-error threadId is required
       useGenerateVideo({ connection, persistence: true })
-      // @ts-expect-error threadId is required whenever persistence is set
+      // @ts-expect-error threadId is required
       useGeneration({ connection, persistence: true })
-      // @ts-expect-error threadId is required whenever persistence is set
+      // @ts-expect-error threadId is required
       useSummarize({ connection, persistence: true })
-      // @ts-expect-error threadId is required whenever persistence is set
+      // @ts-expect-error threadId is required
       useTranscription({ connection, persistence: true })
-      // @ts-expect-error threadId is required whenever persistence is set
+      // @ts-expect-error threadId is required
       useGenerateAudio({ connection, persistence: true })
-      // @ts-expect-error threadId is required whenever persistence is set
+      // @ts-expect-error threadId is required
       useGenerateSpeech({ connection, persistence: true })
     }
     void _typeCheck
@@ -70,22 +62,26 @@ describe('generation persistence requires a threadId', () => {
     void _typeCheck
   })
 
-  it('leaves threadId optional for ephemeral generations', () => {
+  it('requires threadId for ephemeral generations too', () => {
     // Type-level only: never invoked, so no renderer is needed.
     const _typeCheck = () => {
-      // The published no-persistence signature must keep compiling untouched.
-      // Adding a required option would break every existing call site.
+      // @ts-expect-error threadId is required
       useGenerateImage({ connection })
+      // @ts-expect-error threadId is required
       useGenerateImage({ connection, persistence: false })
-      useGenerateImage({ connection, threadId: 'hero' })
+      // @ts-expect-error threadId is required
       useGenerateVideo({ connection })
-      useGenerateVideo({ connection, persistence: false })
+      // @ts-expect-error threadId is required
       useGeneration({ connection })
-      useGeneration({ connection, persistence: false })
+      // @ts-expect-error threadId is required
       useSummarize({ connection })
+      // @ts-expect-error threadId is required
       useTranscription({ connection })
+      // @ts-expect-error threadId is required
       useGenerateAudio({ connection })
+      // @ts-expect-error threadId is required
       useGenerateSpeech({ connection })
+      useGenerateImage({ connection, threadId: 'hero', persistence: false })
     }
     void _typeCheck
   })

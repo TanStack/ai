@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 import { chat } from '../src/activities/chat/index'
 import { EventType } from '../src/types'
 import { fakeText } from '../src/testing'
@@ -23,7 +24,9 @@ const logger = resolveDebugOption(false)
 
 function request(
   messages: Array<ModelMessage>,
-  extra: Omit<TextOptions, 'model' | 'messages' | 'logger'> = {},
+  extra: Omit<TextOptions, 'model' | 'messages' | 'logger'> = {
+    threadId: 'thread-1',
+  },
 ) {
   const options: TextOptions = {
     model: 'fake-model',
@@ -55,7 +58,9 @@ describe('fakeText', () => {
     const fake = fakeText()
     fake.setResponses([{ text: 'Hello there' }])
 
-    const chunks = await collectChunks(chat({ adapter: fake, messages: hi }))
+    const chunks = await collectChunks(
+      chat({ threadId: 'thread-1', adapter: fake, messages: hi }),
+    )
 
     expect(textOf(chunks)).toBe('Hello there')
     expect(fake.state.callCount).toBe(1)
@@ -70,7 +75,9 @@ describe('fakeText', () => {
       }),
     ])
 
-    const chunks = await collectChunks(chat({ adapter: fake, messages: hi }))
+    const chunks = await collectChunks(
+      chat({ threadId: 'thread-1', adapter: fake, messages: hi }),
+    )
 
     expect(textOf(chunks)).toBe('1 messages, call 1')
   })
@@ -88,7 +95,12 @@ describe('fakeText', () => {
     ])
 
     const chunks = await collectChunks(
-      chat({ adapter: fake, messages: hi, tools: [weather] }),
+      chat({
+        threadId: 'thread-1',
+        adapter: fake,
+        messages: hi,
+        tools: [weather],
+      }),
     )
 
     expect(seen).toEqual({ city: 'Oslo' })
@@ -102,10 +114,10 @@ describe('fakeText', () => {
     failing.setResponses([{ error: 'prompt is too long' }])
 
     const emptyChunks = await collectChunks(
-      chat({ adapter: empty, messages: hi }),
+      chat({ threadId: 'thread-1', adapter: empty, messages: hi }),
     )
     const failingChunks = await collectChunks(
-      chat({ adapter: failing, messages: hi }),
+      chat({ threadId: 'thread-1', adapter: failing, messages: hi }),
     )
 
     expect(runError(emptyChunks)).toMatchObject({
@@ -132,6 +144,7 @@ describe('fakeText', () => {
     const events = await adapterEvents(
       fake,
       request([{ role: 'user', content: 'abcd' }], {
+        threadId: 'thread-1',
         systemPrompts: ['Be brief.'],
       }),
     )
@@ -231,7 +244,7 @@ describe('fakeText', () => {
 
     const deltas: Array<string> = []
     for await (const event of fake.chatStream(
-      request(hi, { abortController }),
+      request(hi, { threadId: 'thread-1', abortController }),
     )) {
       if (event.type === EventType.TEXT_MESSAGE_CONTENT) {
         deltas.push(event.delta)
@@ -249,7 +262,10 @@ describe('fakeText', () => {
 
     const deltas: Array<string> = []
     for await (const event of fake.chatStream(
-      request(hi, { request: { signal: abortController.signal } }),
+      request(hi, {
+        threadId: 'thread-1',
+        request: { signal: abortController.signal },
+      }),
     )) {
       if (event.type === EventType.TEXT_MESSAGE_CONTENT) {
         deltas.push(event.delta)
@@ -272,15 +288,48 @@ describe('fakeText', () => {
     expect(result.data).toEqual({ city: 'Oslo' })
   })
 
+  describe('chat({ outputSchema }) failures', () => {
+    const failure = async (text: string) => {
+      const fake = fakeText()
+      fake.setResponses([{ text }])
+      return chat({
+        threadId: 'thread-1',
+        adapter: fake,
+        messages: hi,
+        outputSchema: z.object({ answer: z.string() }),
+      }).catch((error: unknown) => error)
+    }
+
+    it('puts the model text on a schema failure', async () => {
+      expect(await failure('{"answer": 1}')).toMatchObject({
+        code: 'structured-output-validation-failed',
+        rawText: '{"answer": 1}',
+      })
+    })
+
+    it('gives an answer that is not JSON the parse-failed code', async () => {
+      const error = await failure('Sure! {"answer": "yes"}')
+      expect(error).toMatchObject({ code: 'structured-output-parse-failed' })
+      expect((error as Error).cause).toBeInstanceOf(SyntaxError)
+    })
+  })
+
   it('stamps parentRunId on RUN_STARTED when the call has one', async () => {
     const fake = fakeText()
     fake.setResponses([{ text: 'One' }, { text: 'Two' }])
 
     const child = await adapterEvents(
       fake,
-      request(hi, { runId: 'run-2', parentRunId: 'run-1' }),
+      request(hi, {
+        threadId: 'thread-1',
+        runId: 'run-2',
+        parentRunId: 'run-1',
+      }),
     )
-    const top = await adapterEvents(fake, request(hi, { runId: 'run-3' }))
+    const top = await adapterEvents(
+      fake,
+      request(hi, { threadId: 'thread-1', runId: 'run-3' }),
+    )
 
     expect(child[0]).toMatchObject({
       type: EventType.RUN_STARTED,

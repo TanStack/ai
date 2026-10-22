@@ -122,6 +122,7 @@ export const Route = createFileRoute('/api/openrouter-responses-stream-fields')(
           const toolNames: Array<string> = []
           const usages: Array<TokenUsage> = []
           for await (const event of chat({
+            threadId: 'openrouter-responses-stream-fields',
             adapter,
             messages: [{ role: 'user', content: 'Search the docs.' }],
             debug: false,

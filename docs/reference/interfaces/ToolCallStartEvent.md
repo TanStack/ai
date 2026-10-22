@@ -3,7 +3,7 @@ id: ToolCallStartEvent
 title: ToolCallStartEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1446](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1446)
+Defined in: packages/ai/src/types.ts:1673
 
 Emitted when a tool call starts.
 
@@ -22,7 +22,7 @@ Emitted when a tool call starts.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1454](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1454)
+Defined in: packages/ai/src/types.ts:1679
 
 Provider-specific metadata to carry into the ToolCall.
 
@@ -34,22 +34,10 @@ Omit.metadata
 
 ***
 
-### toolName?
-
-```ts
-optional toolName?: string;
-```
-
-Defined in: [packages/ai/src/types.ts:1452](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1452)
-
-Alias of `toolCallName`. Kept so existing stream readers still compile.
-
-***
-
 ### type
 
 ```ts
 type: "TOOL_CALL_START";
 ```
 
-Defined in: [packages/ai/src/types.ts:1450](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1450)
+Defined in: packages/ai/src/types.ts:1677

@@ -12,7 +12,9 @@ import type {
   ResolvedPromptCache,
   UIMessage,
   RunAgentResumeItem,
+  RunErrorEvent,
   StreamChunk,
+  TanStackMessageMetadata,
   TokenUsage,
   Tool,
   ToolCall,
@@ -203,29 +205,44 @@ export interface ChatMiddlewareContext<TContext = unknown> {
    * and on every chunk it streams. Absent on a top-level run.
    */
   subagentRunId?: string
+  /** The agent name when this run is a subagent. */
+  subagentName?: string
+  /** The subagentRunId of the child that started this one, for a nested child. */
+  parentSubagentRunId?: string
+  /**
+   * Interrupt ids in `resume` that a subagent tool call of this run answers.
+   * This run does not answer them itself. They come from the subagent cards in
+   * the messages the client sent. `undefined` when no child is resumed, and
+   * for a router turn.
+   */
+  childResumeIds?: ReadonlySet<string>
   /**
    * AG-UI thread identifier — a stable per-conversation ID used to
-   * correlate client and server devtools events. Resolves to the
-   * caller-provided `threadId` (or legacy `conversationId`), or an
-   * auto-generated value when neither is supplied.
+   * correlate client and server devtools events. It is the caller's
+   * `threadId`.
    */
   threadId: string
-  /**
-   * @deprecated Use `threadId` instead. Retained as an alias of
-   * `threadId` so middleware written before the AG-UI rename keeps
-   * working unchanged. Will be removed in a future major release.
-   */
-  conversationId?: string
   /** Current lifecycle phase */
   phase: ChatMiddlewarePhase
   /** Current agent loop iteration (0-indexed) */
   iteration: number
   /** Running count of chunks yielded so far */
   chunkIndex: number
+  /**
+   * The `metadata.tanstack` of the current model call: source, stop reason,
+   * response id, and so on. It changes as chunks arrive. Each assistant
+   * message of the call gets a copy of it.
+   */
+  callMetadata: Readonly<TanStackMessageMetadata>
   /** Abort signal from the chat request */
   signal?: AbortSignal
   /** Abort the chat run with a reason */
   abort: (reason?: string) => void
+  /**
+   * Call the model again. Works only in `onModelError`, and throws in any
+   * other hook. `onConfig` runs again before the new call.
+   */
+  retry: () => void
   /**
    * Push a `CUSTOM` chunk onto the chat stream immediately.
    * The engine yields it as soon as it can (including while `onConfig`
@@ -422,14 +439,19 @@ export interface StructuredOutputMiddlewareConfig extends Omit<
 // ===========================
 
 /**
- * Context provided to tool call hooks (onBeforeToolCall / onAfterToolCall).
+ * Context provided to tool call hooks (onBeforeToolCall / onGuardToolCall /
+ * onAfterToolCall).
  */
 export interface ToolCallHookContext {
   /** The tool call being executed */
   toolCall: ToolCall
   /** The resolved tool definition, if found */
   tool: Tool | undefined
-  /** Parsed arguments for the tool call */
+  /**
+   * Parsed arguments for the tool call, before the `inputSchema` check: no
+   * schema defaults or transforms yet, and possibly invalid. In
+   * `onGuardToolCall`, these are the final checked arguments.
+   */
   args: unknown
   /** Name of the tool */
   toolName: string
@@ -449,6 +471,20 @@ export type BeforeToolCallDecision =
   | undefined
   | null
   | { type: 'transformArgs'; args: unknown }
+  | { type: 'skip'; result: unknown }
+  | { type: 'abort'; reason?: string }
+
+/**
+ * Decision returned from onGuardToolCall. A guard cannot change the args.
+ * - undefined/void: allow the call. The next guard runs.
+ * - { type: 'skip', result }: deny the call. The tool does not run, and the
+ *   model gets `result`, as for an `onBeforeToolCall` skip.
+ * - { type: 'abort', reason }: abort the entire chat run
+ */
+export type GuardToolCallDecision =
+  | void
+  | undefined
+  | null
   | { type: 'skip'; result: unknown }
   | { type: 'abort'; reason?: string }
 
@@ -803,6 +839,22 @@ export interface ChatMiddleware<
   ) => boolean | void | Promise<boolean | void>
 
   /**
+   * Called when the adapter sends a `RUN_ERROR` before any output of the
+   * model call. The error does not reach `onChunk` or the caller yet. An
+   * exception that the adapter throws goes to `onError`, not here.
+   *
+   * Call `ctx.retry()` to call the model again. Then `onConfig` runs again
+   * (phase `beforeModel`), so the middleware can change the request first,
+   * and the failed call is dropped from the stream. Without `ctx.retry()`,
+   * the error goes on as usual. A model call retries at most 2 times this
+   * way. The structured-output call is not retried.
+   */
+  onModelError?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    error: RunErrorEvent,
+  ) => void | Promise<void>
+
+  /**
    * Called for every chunk yielded by chat().
    * Can observe, transform, expand, or drop chunks.
    *
@@ -819,8 +871,10 @@ export interface ChatMiddleware<
     | Promise<void | StreamChunk | Array<StreamChunk> | null>
 
   /**
-   * Called before a tool is executed.
+   * Called before a server tool runs and before a client tool is sent to the
+   * client. Not called while the call waits for approval.
    * Can observe, transform args, skip execution, or abort the run.
+   * The tool's `inputSchema` checks the args after this hook.
    */
   onBeforeToolCall?: (
     ctx: ChatMiddlewareContext<TContext>,
@@ -828,10 +882,32 @@ export interface ChatMiddleware<
   ) => BeforeToolCallDecision | Promise<BeforeToolCallDecision>
 
   /**
+   * The guard tier. Called for every tool call, just before a server tool
+   * runs and before a client tool is sent to the client. Not called while
+   * the call waits for approval.
+   *
+   * It runs after all `onBeforeToolCall` hooks and after the `inputSchema`
+   * check, so `hookCtx.args` holds the final checked args that the tool gets.
+   * It also runs for calls that `onBeforeToolCall` let through unchanged.
+   *
+   * It is not first-win. The guard of each middleware runs in order, until
+   * one returns a decision. Use it for checks that must not be skipped, such
+   * as permissions.
+   */
+  onGuardToolCall?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    hookCtx: ToolCallHookContext,
+  ) => GuardToolCallDecision | Promise<GuardToolCallDecision>
+
+  /**
    * Called after a tool execution completes (success or failure).
    * Return `{ type: 'replaceResult', result }` to change the result that the
    * model and the stream see. Middleware run in order. Each one sees the
    * result of the one before it.
+   *
+   * Also called for a tool call that did not run because the output limit
+   * cut its answer. Then `ok` is false, and `error` is an `Error` with the
+   * code `'max_tokens'`.
    */
   onAfterToolCall?: (
     ctx: ChatMiddlewareContext<TContext>,

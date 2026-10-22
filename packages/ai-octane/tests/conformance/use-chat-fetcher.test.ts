@@ -14,7 +14,9 @@ describe('useChat — fetcher transport', () => {
       }
     }
 
-    const { result } = renderHook(() => useChat({ fetcher }))
+    const { result } = renderHook(() =>
+      useChat({ threadId: 'thread-1', fetcher }),
+    )
 
     await result.current.sendMessage('hi')
 
@@ -37,7 +39,8 @@ describe('useChat — fetcher transport', () => {
     })
 
     const { result, rerender } = renderHook(
-      ({ fetcher }: { fetcher: ChatFetcher }) => useChat({ fetcher }),
+      ({ fetcher }: { fetcher: ChatFetcher }) =>
+        useChat({ threadId: 'thread-1', fetcher }),
       { initialProps: { fetcher: firstFetcher } },
     )
 
@@ -91,7 +94,9 @@ describe('useChat — fetcher transport', () => {
         headers: { 'content-type': 'text/event-stream' },
       })
 
-    const { result } = renderHook(() => useChat({ fetcher }))
+    const { result } = renderHook(() =>
+      useChat({ threadId: 'thread-1', fetcher }),
+    )
 
     await result.current.sendMessage('hi')
 
@@ -108,7 +113,9 @@ describe('useChat — fetcher transport', () => {
       throw new Error('boom')
     }
 
-    const { result } = renderHook(() => useChat({ fetcher }))
+    const { result } = renderHook(() =>
+      useChat({ threadId: 'thread-1', fetcher }),
+    )
 
     await result.current.sendMessage('hi')
 
@@ -132,7 +139,11 @@ describe('useChat — fetcher transport', () => {
     })
 
     const { result } = renderHook(() =>
-      useChat({ fetcher, body: { provider: 'openai' } }),
+      useChat({
+        threadId: 'thread-1',
+        fetcher,
+        forwardedProps: { provider: 'openai' },
+      }),
     )
 
     await result.current.sendMessage('hello')

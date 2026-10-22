@@ -7,7 +7,7 @@ title: readGenericInterruptContinuation
 function readGenericInterruptContinuation(metadata): GenericInterruptContinuationReadResult;
 ```
 
-Defined in: [packages/ai/src/generic-interrupt-continuation.ts:50](https://github.com/TanStack/ai/blob/main/packages/ai/src/generic-interrupt-continuation.ts#L50)
+Defined in: packages/ai/src/generic-interrupt-continuation.ts:50
 
 Read one generic request from `resume[].metadata`.
 

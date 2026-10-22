@@ -6,34 +6,6 @@ import type {
 } from './types'
 
 /**
- * The DEFAULT blob-store key a generation artifact's bytes are stored under,
- * used when `withGenerationPersistence` is given no `storageKey` mapper.
- *
- * Reads go through {@link resolveArtifactBlobKey} instead: a record written with
- * a custom `storageKey` carries its real key in `blobKey`, and recomputing the
- * default would look in the wrong place.
- *
- * @internal
- */
-export function artifactBlobKey(
-  ref: Pick<ArtifactRecord, 'runId' | 'artifactId'>,
-): string {
-  return `artifacts/${ref.runId}/${ref.artifactId}`
-}
-
-/**
- * The blob-store key to read an artifact's bytes from: the key recorded when it
- * was written, falling back to the default convention for records written
- * before `blobKey` existed.
- *
- * The fallback is what makes `blobKey` a non-breaking addition — and why the
- * default convention can never be changed retroactively without one.
- */
-export function resolveArtifactBlobKey(record: ArtifactRecord): string {
-  return record.blobKey ?? artifactBlobKey(record)
-}
-
-/**
  * Look up a persisted generation artifact's metadata by id. Returns `null` when
  * the persistence has no `artifacts` store or no record matches — so a serve
  * handler can map that straight to a 404.
@@ -68,10 +40,13 @@ export async function retrieveBlob(
       ? await retrieveArtifact(persistence, artifact)
       : artifact
   if (!record) return null
+  // A 0.x record has no `blobKey`. Fail loudly instead of a misleading 404.
+  if (!record.blobKey) {
+    throw new Error(
+      `Artifact ${record.artifactId} has no blobKey. Records written by 0.x need blob_key backfilled before their bytes can be read.`,
+    )
+  }
 
-  const blob = await persistence.stores.blobs?.get(
-    resolveArtifactBlobKey(record),
-    options,
-  )
+  const blob = await persistence.stores.blobs?.get(record.blobKey, options)
   return blob ?? null
 }

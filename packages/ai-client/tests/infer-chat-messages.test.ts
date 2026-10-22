@@ -58,6 +58,7 @@ const stubConnection = {
 describe('InferChatMessages — round-trip identity', () => {
   it('resolves to Array<UIMessage<TTools>> for a populated tools tuple', () => {
     const options = createChatClientOptions({
+      threadId: 'thread-1',
       connection: stubConnection,
       tools: [guitarTool, cartTool] as const,
     })
@@ -71,6 +72,7 @@ describe('InferChatMessages — round-trip identity', () => {
 
   it('resolves to Array<UIMessage<readonly []>> when no tools are present', () => {
     const options = createChatClientOptions({
+      threadId: 'thread-1',
       connection: stubConnection,
       tools: [] as const,
     })
@@ -104,6 +106,7 @@ describe('InferChatMessages — round-trip identity', () => {
 describe('InferChatMessages — tool input types propagate to tool-call parts', () => {
   it('narrows tool-call `name` to the literal tool names', () => {
     const options = createChatClientOptions({
+      threadId: 'thread-1',
       connection: stubConnection,
       tools: [guitarTool, cartTool] as const,
     })
@@ -123,6 +126,7 @@ describe('InferChatMessages — tool input types propagate to tool-call parts', 
 
   it('narrows tool-call `input` based on `name` discriminator', () => {
     const options = createChatClientOptions({
+      threadId: 'thread-1',
       connection: stubConnection,
       tools: [guitarTool, cartTool] as const,
     })
@@ -158,6 +162,7 @@ describe('InferChatMessages — tool input types propagate to tool-call parts', 
 describe('InferChatMessages — tool output types propagate to tool-call parts', () => {
   it('narrows tool-call `output` based on `name` discriminator', () => {
     const options = createChatClientOptions({
+      threadId: 'thread-1',
       connection: stubConnection,
       tools: [guitarTool, cartTool] as const,
     })
@@ -189,6 +194,7 @@ describe('InferChatMessages — tool output types propagate to tool-call parts',
 
   it('output is `undefined | TOutput` until the tool resolves', () => {
     const options = createChatClientOptions({
+      threadId: 'thread-1',
       connection: stubConnection,
       tools: [guitarTool] as const,
     })
@@ -248,6 +254,7 @@ const approvalTool = toolDefinition({
 describe('InferChatMessages — approval gating', () => {
   it('exposes `approval` only on tools declared with `needsApproval: true`', () => {
     const options = createChatClientOptions({
+      threadId: 'thread-1',
       connection: stubConnection,
       tools: [guitarTool, approvalTool] as const,
     })
@@ -284,6 +291,7 @@ describe('InferChatMessages — approval gating', () => {
   // `'approval' in part` guard narrows to the approval-bearing members.
   it('supports a generic handler via `in` narrowing on the typed union', () => {
     const options = createChatClientOptions({
+      threadId: 'thread-1',
       connection: stubConnection,
       tools: [guitarTool, approvalTool] as const,
     })

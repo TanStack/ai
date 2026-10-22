@@ -72,6 +72,7 @@ export type {
   ChatRequestBody,
   InferChatMessages,
   InferredClientContext,
+  ChatClientSnapshot,
   ChatClientState,
   ConnectionStatus,
   ChatFetcher,
@@ -92,7 +93,9 @@ export type {
 export type {
   InferGenerationOutput,
   InferGenerationOutputFromReturn,
+  GenerationClientSnapshot,
   GenerationClientState,
+  VideoGenerationClientSnapshot,
   GenerationPersistenceOptions,
   GenerationClientOptions,
   GenerationFetcher,
@@ -156,8 +159,6 @@ export type {
   RunFinishedOutcome,
 } from '@tanstack/ai/client'
 export type {
-  RealtimeAdapter,
-  RealtimeConnection,
   RealtimeClientOptions,
   RealtimeClientState,
   RealtimeStateChangeCallback,
@@ -175,6 +176,8 @@ export {
   DurableStreamIncompleteError,
   StreamReconnectLimitError,
   type ConnectConnectionAdapter,
+  type ChatHydrateOptions,
+  type ChatHydrationResult,
   type ConnectionAdapter,
   type GenerationHydrationResult,
   type FetchConnectionOptions,

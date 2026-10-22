@@ -1,12 +1,12 @@
 /**
  * jscodeshift transform: AG-UI client compliance migration
  *
- * Renames the deprecated client-side fields introduced by the AG-UI
- * compliance release of `@tanstack/ai`. Each rename is gated by an
+ * Renames the client-side fields that the AG-UI compliance release of
+ * `@tanstack/ai` replaced, and that 1.0 removed. Each rename is gated by an
  * import-source check so we don't touch unrelated code that happens
  * to share a property name.
  *
- * Transforms (all opt-in — the deprecated names keep working):
+ * Transforms (the old names are removed in 1.0):
  *
  *   1. `useChat({ body })` → `useChat({ forwardedProps })`
  *   2. `new ChatClient({ body })` → `new ChatClient({ forwardedProps })`

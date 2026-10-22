@@ -13,7 +13,7 @@ export const Route = createFileRoute('/api/openrouter-structured-usage')({
         const reasoning = params.get('reasoning')
         const envelope = {
           id: 'gen-usage',
-          model: 'anthropic/claude-sonnet-4',
+          model: 'anthropic/claude-opus-4.1',
           object: 'chat.completion.chunk',
           created: 1,
         }
@@ -51,7 +51,7 @@ export const Route = createFileRoute('/api/openrouter-structured-usage')({
         const usageReports: Array<unknown> = []
         // This model uses structuredOutputStream instead of the combined tools/schema path.
         const adapter = createOpenRouterText(
-          'anthropic/claude-sonnet-4',
+          'anthropic/claude-opus-4.1',
           'test-key',
           {
             httpClient: new HTTPClient({
@@ -70,6 +70,7 @@ export const Route = createFileRoute('/api/openrouter-structured-usage')({
         // Exercise the public promise API: middleware must observe the failed call's usage.
         const result = await chat({
           adapter,
+          threadId: 'openrouter-structured-usage',
           messages: [{ role: 'user', content: 'Return an answer.' }],
           outputSchema: z.object({ answer: z.string() }),
           middleware: [

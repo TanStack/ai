@@ -46,14 +46,6 @@ import type { TokenUsage } from '../types'
 export type OtelSpanScope = 'chat' | 'iteration' | 'tool' | 'generation'
 
 /**
- * Alias retained for backwards compatibility. Prefer {@link OtelSpanScope}.
- *
- * @deprecated Use `OtelSpanScope` instead — the name shadows OTel's built-in
- * `SpanKind` which is also imported by integrations of this middleware.
- */
-export type OtelSpanKind = OtelSpanScope
-
-/**
  * Span metadata passed to `spanNameFormatter`, `attributeEnricher`,
  * `onBeforeSpanStart`, and `onSpanEnd`. Discriminated by `kind` so that
  * tool-only fields narrow automatically inside callback bodies.
@@ -899,6 +891,9 @@ export function otelMiddleware(
 
     onBeforeToolCall(ctx, hookCtx) {
       safeCall('otel.onBeforeToolCall', () => {
+        // A client tool runs in the client, not here, so it gets no
+        // execute_tool span. Middleware sees its input before dispatch.
+        if (hookCtx.tool && !hookCtx.tool.execute) return
         const state = stateByCtx.get(ctx)
         if (!state) return
         const parent = state.currentIterationSpan ?? state.rootSpan

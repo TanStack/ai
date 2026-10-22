@@ -55,15 +55,29 @@ function textPart(
   id: string,
   text: string,
   delta?: string,
+  messageID = 'msg-1',
 ): OpencodeStreamEvent {
   return {
     kind: 'event',
     event: {
       type: 'message.part.updated',
       properties: {
-        part: { id, sessionID: 'sess-1', type: 'text', text },
+        part: { id, sessionID: 'sess-1', messageID, type: 'text', text },
         ...(delta !== undefined && { delta }),
       },
+    },
+  }
+}
+
+function messageUpdated(
+  id: string,
+  role: 'user' | 'assistant',
+): OpencodeStreamEvent {
+  return {
+    kind: 'event',
+    event: {
+      type: 'message.updated',
+      properties: { info: { id, sessionID: 'sess-1', role } },
     },
   }
 }
@@ -92,9 +106,47 @@ describe('translateOpencodeStream', () => {
     expect(chunks.at(-1)).toMatchObject({ finishReason: 'stop' })
   })
 
+  it('does not expose user message parts as assistant output', async () => {
+    const chunks = await collect([
+      session,
+      textPart('user-part', 'user prompt', 'user prompt', 'user-message'),
+      messageUpdated('user-message', 'user'),
+      textPart('late-user-part', 'more', 'more', 'user-message'),
+      textPart('a-part', 'assistant answer', 'assistant answer', 'a-message'),
+      messageUpdated('a-message', 'assistant'),
+      done({ id: 'a-message' }),
+    ])
+
+    expect(
+      chunks.filter((chunk) => chunk.type === 'TEXT_MESSAGE_CONTENT'),
+    ).toMatchObject([
+      { delta: 'assistant answer', content: 'assistant answer' },
+    ])
+  })
+
+  it('streams parts as they arrive once the assistant role is known', async () => {
+    const log: Array<string> = []
+    async function* source(): AsyncIterable<OpencodeStreamEvent> {
+      yield session
+      yield messageUpdated('msg-1', 'assistant')
+      yield textPart('part-1', 'hi', 'hi')
+      log.push('done-pulled')
+      yield done()
+    }
+
+    for await (const chunk of translateOpencodeStream(source(), makeCtx())) {
+      log.push(chunk.type)
+    }
+
+    expect(log.indexOf('TEXT_MESSAGE_CONTENT')).toBeLessThan(
+      log.indexOf('done-pulled'),
+    )
+  })
+
   it('accumulates incremental text deltas', async () => {
     const chunks = await collect([
       session,
+      messageUpdated('msg-1', 'assistant'),
       textPart('part-1', 'Hel', 'Hel'),
       textPart('part-1', 'Hello', 'lo'),
       done(),
@@ -113,6 +165,7 @@ describe('translateOpencodeStream', () => {
   it('derives the delta from full-text snapshots when no delta is given', async () => {
     const chunks = await collect([
       session,
+      messageUpdated('msg-1', 'assistant'),
       textPart('part-1', 'Hel'),
       textPart('part-1', 'Hello'),
       done(),
@@ -120,6 +173,23 @@ describe('translateOpencodeStream', () => {
     const contents = chunks.filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
     expect(contents[0]).toMatchObject({ delta: 'Hel' })
     expect(contents[1]).toMatchObject({ delta: 'lo', content: 'Hello' })
+  })
+
+  it('keeps only the latest update of a part while its role is unknown', async () => {
+    const chunks = await collect([
+      session,
+      textPart('part-1', 'The', 'The'),
+      textPart('part-1', 'The answer', ' answer'),
+      textPart('part-1', 'The answer is 42', ' is 42'),
+      done(),
+    ])
+    const contents = chunks.filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
+
+    expect(contents).toHaveLength(1)
+    expect(contents[0]).toMatchObject({
+      delta: 'The answer is 42',
+      content: 'The answer is 42',
+    })
   })
 
   it('reports usage with cache and reasoning details', async () => {
@@ -162,6 +232,7 @@ describe('translateOpencodeStream', () => {
             part: {
               id: 'r-1',
               sessionID: 'sess-1',
+              messageID: 'msg-1',
               type: 'reasoning',
               text: 'thinking',
             },
@@ -196,6 +267,7 @@ describe('translateOpencodeStream', () => {
           part: {
             id: `part-${callID}`,
             sessionID: 'sess-1',
+            messageID: 'msg-1',
             type: 'tool',
             callID,
             tool,
@@ -237,6 +309,27 @@ describe('translateOpencodeStream', () => {
     expect(chunks[3]).toMatchObject({ args: JSON.stringify({ command: 'ls' }) })
     expect(chunks[5]).toMatchObject({ content: 'file.txt' })
     expect((chunks[5] as { state?: string }).state).toBeUndefined()
+  })
+
+  it('waits for tool input before opening a pending tool call', async () => {
+    const chunks = await collect([
+      session,
+      toolEvent('call-pending', 'bash', { status: 'pending', input: {} }),
+      toolEvent('call-pending', 'bash', {
+        status: 'running',
+        input: { command: 'ls' },
+      }),
+      toolEvent('call-pending', 'bash', {
+        status: 'completed',
+        input: { command: 'ls' },
+        output: 'file.txt',
+      }),
+      done(),
+    ])
+
+    expect(
+      chunks.filter((chunk) => chunk.type === 'TOOL_CALL_ARGS'),
+    ).toMatchObject([{ args: JSON.stringify({ command: 'ls' }) }])
   })
 
   it('marks tool errors as output-error', async () => {
@@ -357,6 +450,7 @@ describe('translateOpencodeStream', () => {
   it('synthesizes results then rethrows when the source stream throws', async () => {
     async function* failing(): AsyncIterable<OpencodeStreamEvent> {
       yield session
+      yield messageUpdated('msg-1', 'assistant')
       yield {
         kind: 'event',
         event: {
@@ -365,6 +459,7 @@ describe('translateOpencodeStream', () => {
             part: {
               id: 'p-c',
               sessionID: 'sess-1',
+              messageID: 'msg-1',
               type: 'tool',
               callID: 'call-7',
               tool: 'bash',

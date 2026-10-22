@@ -53,6 +53,7 @@ function options(
   model = 'mistral-small-latest',
 ) {
   return {
+    threadId: 'thread-1',
     model,
     messages,
     logger: resolveDebugOption(false),
@@ -472,6 +473,7 @@ describe('Mistral native structured generation identity', () => {
     )
     const chunks = []
     for await (const event of chat({
+      threadId: 'thread-1',
       adapter,
       stream: true,
       messages: [{ role: 'user', content: 'Answer' }],

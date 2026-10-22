@@ -23,6 +23,7 @@ export const Route = createFileRoute('/api/openrouter-cost')({
         let usage: Record<string, unknown> | undefined
         try {
           for await (const chunk of chat({
+            threadId: 'openrouter-cost',
             ...createChatOptions({ adapter }),
             messages: [{ role: 'user', content: 'hi' }],
           })) {

@@ -8,9 +8,6 @@ import type { JSONSchema, Tool } from '@tanstack/ai'
 
 export type { FunctionToolConfig }
 
-/** @deprecated Renamed to `FunctionToolConfig`. Will be removed in a future release. */
-export type FunctionTool = FunctionToolConfig
-
 /**
  * Converts a standard Tool to OpenAI FunctionTool format.
  *

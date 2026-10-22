@@ -69,7 +69,6 @@ describe('ChatClient subagent interrupts', () => {
           type: EventType.TOOL_CALL_START,
           toolCallId: 'call_c',
           toolCallName: 'deleteFile',
-          toolName: 'deleteFile',
           timestamp: t,
         },
         {

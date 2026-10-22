@@ -16,8 +16,6 @@ const rich: TokenUsage = {
   cost: 0.02,
   costDetails: { upstreamInputCost: 0.01, upstreamOutputCost: 0.01 },
   providerUsageDetails: { foo: 1 },
-  durationSeconds: 2,
-  unitsBilled: 3,
 }
 
 describe('toSpecTokenUsage', () => {
@@ -42,8 +40,6 @@ describe('toSpecTokenUsage', () => {
       cost: 0.02,
       costDetails: { upstreamInputCost: 0.01, upstreamOutputCost: 0.01 },
       providerUsageDetails: { foo: 1 },
-      durationSeconds: 2,
-      unitsBilled: 3,
     })
   })
 

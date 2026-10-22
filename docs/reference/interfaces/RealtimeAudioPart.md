@@ -3,7 +3,7 @@ id: RealtimeAudioPart
 title: RealtimeAudioPart
 ---
 
-Defined in: [packages/ai/src/realtime/types.ts:107](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L107)
+Defined in: packages/ai/src/realtime/types.ts:107
 
 Audio content part in a realtime message
 
@@ -15,7 +15,7 @@ Audio content part in a realtime message
 optional audioData?: ArrayBuffer;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:112](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L112)
+Defined in: packages/ai/src/realtime/types.ts:112
 
 Raw audio data (optional, if stored)
 
@@ -27,7 +27,7 @@ Raw audio data (optional, if stored)
 optional durationMs?: number;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:114](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L114)
+Defined in: packages/ai/src/realtime/types.ts:114
 
 Duration of the audio in milliseconds
 
@@ -39,7 +39,7 @@ Duration of the audio in milliseconds
 transcript: string;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:110](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L110)
+Defined in: packages/ai/src/realtime/types.ts:110
 
 Transcription of the audio
 
@@ -51,4 +51,4 @@ Transcription of the audio
 type: "audio";
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:108](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L108)
+Defined in: packages/ai/src/realtime/types.ts:108

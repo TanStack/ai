@@ -3,6 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useChat } from '../../src/use-chat.tsrx'
 import { useGeneration } from '../../src/use-generation.tsrx'
 import { createMockConnectionAdapter } from './test-utils'
+import type { AIDevtoolsClientMetadata } from '@tanstack/ai-client'
+
+// The hooks type `devtools` as display options (`name` only), so a caller can
+// reach `framework` / `hookName` only by forwarding a wider metadata object.
+const foreignMetadata: AIDevtoolsClientMetadata = {
+  framework: 'react',
+  hookName: 'somethingElse',
+}
 
 /**
  * These hooks tag the TanStack AI Devtools bridge with `framework: 'octane'` so
@@ -41,7 +49,10 @@ describe('devtools identification', () => {
 
   it('tags useGeneration as octane', () => {
     renderHook(() =>
-      useGeneration({ connection: createMockConnectionAdapter() }),
+      useGeneration({
+        threadId: 'thread-1',
+        connection: createMockConnectionAdapter(),
+      }),
     )
 
     expect(capturedGeneration[0]?.metadata).toMatchObject({
@@ -53,8 +64,9 @@ describe('devtools identification', () => {
   it('keeps the octane identity when a caller supplies its own devtools metadata', () => {
     renderHook(() =>
       useGeneration({
+        threadId: 'thread-1',
         connection: createMockConnectionAdapter(),
-        devtools: { framework: 'react', hookName: 'somethingElse' },
+        devtools: foreignMetadata,
       }),
     )
 
@@ -68,22 +80,24 @@ describe('devtools identification', () => {
   it('preserves unrelated caller devtools metadata', () => {
     renderHook(() =>
       useGeneration({
+        threadId: 'thread-1',
         connection: createMockConnectionAdapter(),
-        devtools: { outputKind: 'image' },
+        devtools: { name: 'Custom generation' },
       }),
     )
 
     expect(capturedGeneration[0]?.metadata).toMatchObject({
       framework: 'octane',
-      outputKind: 'image',
+      name: 'Custom generation',
     })
   })
 
   it('tags useChat as octane and resists caller override', () => {
     renderHook(() =>
       useChat({
+        threadId: 'thread-1',
         connection: createMockConnectionAdapter(),
-        devtools: { framework: 'react' },
+        devtools: foreignMetadata,
       }),
     )
 

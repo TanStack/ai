@@ -1,11 +1,7 @@
 import { toolDefinition } from '@tanstack/ai/client'
 import type { Handle } from 'remix/ui'
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
-import {
-  createPageWebMCPTools,
-  createRegisterWebMCPTools,
-  createWebMCPTools,
-} from '../src/index'
+import { createPageWebMCPTools, createRegisterWebMCPTools } from '../src/index'
 import type { CreateRegisterWebMCPToolsOptions } from '../src/index'
 
 interface RegisteredWebMCPTool {
@@ -140,12 +136,6 @@ describe('createRegisterWebMCPTools (Remix)', () => {
       })
     }
     void checkTypes
-  })
-})
-
-describe('createWebMCPTools (Remix)', () => {
-  it('is a deprecated alias of createRegisterWebMCPTools', () => {
-    expect(createWebMCPTools).toBe(createRegisterWebMCPTools)
   })
 })
 

@@ -6,7 +6,6 @@ title: chatParamsFromRequestBody
 ```ts
 function chatParamsFromRequestBody(body): Promise<{
   aguiContext: Context[];
-  context: Context[];
   forwardedProps: Record<string, unknown>;
   messages: (
      | UIMessage<unknown>
@@ -23,7 +22,7 @@ function chatParamsFromRequestBody(body): Promise<{
 }>;
 ```
 
-Defined in: [packages/ai/src/utilities/chat-params.ts:204](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L204)
+Defined in: packages/ai/src/utilities/chat-params.ts:204
 
 Parse and validate an HTTP request body as an AG-UI `RunAgentInput`.
 
@@ -45,7 +44,6 @@ schema library, so this package pulls in no validation runtime of its own.
 
 `Promise`\<\{
   `aguiContext`: `Context`[];
-  `context`: `Context`[];
   `forwardedProps`: `Record`\<`string`, `unknown`\>;
   `messages`: (
      \| [`UIMessage`](../interfaces/UIMessage.md)\<`unknown`\>

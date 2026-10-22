@@ -53,6 +53,7 @@ const stream = chat({
   messages: [
     { role: 'user', content: 'Explain quantum computing in simple terms' },
   ],
+  threadId: 'thread-1',
 })
 ```
 

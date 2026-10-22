@@ -41,6 +41,7 @@ const testLogger = resolveDebugOption(false)
 /** Minimal TextOptions for the stub. */
 function textOptions(overrides: Partial<TextOptions> = {}): TextOptions {
   return {
+    threadId: 'thread-1',
     model: 'us.amazon.nova-pro-v1:0',
     messages: [{ role: 'user', content: 'hi' }],
     logger: testLogger,

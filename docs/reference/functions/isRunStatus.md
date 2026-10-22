@@ -7,7 +7,7 @@ title: isRunStatus
 function isRunStatus(value): value is RunStatus;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:69](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L69)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:69
 
 Whether `value` is a [RunStatus](../type-aliases/RunStatus.md) — the guard a backend validates a row
 with at DESERIALIZATION.

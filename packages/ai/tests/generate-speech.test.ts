@@ -37,6 +37,7 @@ describe('generateSpeech turns', () => {
     const adapter = dialogueAdapter()
 
     await generateSpeech({
+      threadId: 'thread-1',
       adapter,
       turns: [
         { text: 'Knock knock', voice: 'a' },
@@ -56,7 +57,11 @@ describe('generateSpeech turns', () => {
     const adapter = new FakeSpeechAdapter()
 
     await expect(
-      generateSpeech({ adapter, turns: [{ text: 'hi', voice: 'a' }] }),
+      generateSpeech({
+        threadId: 'thread-1',
+        adapter,
+        turns: [{ text: 'hi', voice: 'a' }],
+      }),
     ).rejects.toThrow(/fake cannot generate dialogue/)
     expect(adapter.seen).toHaveLength(0)
   })
@@ -66,6 +71,7 @@ describe('generateSpeech turns', () => {
 
     await expect(
       generateSpeech({
+        threadId: 'thread-1',
         adapter,
         turns: [
           { text: 'one', voice: 'a' },
@@ -80,6 +86,7 @@ describe('generateSpeech turns', () => {
     const adapter = dialogueAdapter()
 
     await generateSpeech({
+      threadId: 'thread-1',
       adapter,
       turns: [
         { text: 'one', voice: 'a' },
@@ -94,9 +101,9 @@ describe('generateSpeech turns', () => {
   it('rejects an empty turns array', async () => {
     const adapter = dialogueAdapter()
 
-    await expect(generateSpeech({ adapter, turns: [] })).rejects.toThrow(
-      /`turns` must not be empty/,
-    )
+    await expect(
+      generateSpeech({ threadId: 'thread-1', adapter, turns: [] }),
+    ).rejects.toThrow(/`turns` must not be empty/)
   })
 
   it('rejects a call with neither text nor turns', async () => {
@@ -105,7 +112,11 @@ describe('generateSpeech turns', () => {
     // Callers can only reach this through an untyped/JS call site; the typed
     // overloads make text and turns mutually exclusive but one is required.
     await expect(
-      generateSpeech({ adapter, ...({} as { text: string }) }),
+      generateSpeech({
+        threadId: 'thread-1',
+        adapter,
+        ...({} as { text: string }),
+      }),
     ).rejects.toThrow(/requires either `text` or `turns`/)
   })
 })
@@ -114,7 +125,12 @@ describe('generateSpeech timestamps', () => {
   it('forwards the flag to an adapter that declares support', async () => {
     const adapter = new FakeSpeechAdapter({ timestamps: true })
 
-    await generateSpeech({ adapter, text: 'hi', timestamps: true })
+    await generateSpeech({
+      threadId: 'thread-1',
+      adapter,
+      text: 'hi',
+      timestamps: true,
+    })
 
     expect(adapter.seen[0]?.timestamps).toBe(true)
   })
@@ -123,7 +139,12 @@ describe('generateSpeech timestamps', () => {
     const adapter = new FakeSpeechAdapter()
 
     await expect(
-      generateSpeech({ adapter, text: 'hi', timestamps: true }),
+      generateSpeech({
+        threadId: 'thread-1',
+        adapter,
+        text: 'hi',
+        timestamps: true,
+      }),
     ).rejects.toThrow(/fake cannot return timestamps/)
     expect(adapter.seen).toHaveLength(0)
   })
@@ -132,7 +153,12 @@ describe('generateSpeech timestamps', () => {
     const adapter = new FakeSpeechAdapter()
     const spy = vi.spyOn(adapter, 'generateSpeech')
 
-    await generateSpeech({ adapter, text: 'hi', voice: 'a' })
+    await generateSpeech({
+      threadId: 'thread-1',
+      adapter,
+      text: 'hi',
+      voice: 'a',
+    })
 
     expect(spy).toHaveBeenCalledTimes(1)
     expect(adapter.seen[0]).toMatchObject({ text: 'hi', voice: 'a' })

@@ -25,6 +25,7 @@ const adapters = [
     adapter: 'Chat Completions',
     send: (fetch, wrapFetch) =>
       new LovableTextAdapter({ apiKey: 'test-key', fetch }, model).chatStream({
+        threadId: 'thread-1',
         logger,
         model,
         messages,
@@ -35,6 +36,7 @@ const adapters = [
     adapter: 'Responses',
     send: (fetch, wrapFetch) =>
       createLovableResponsesText(model, 'test-key', { fetch }).chatStream({
+        threadId: 'thread-1',
         logger,
         model,
         messages,

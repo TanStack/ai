@@ -4,17 +4,22 @@ import path from 'node:path'
 import { execFile } from 'node:child_process'
 import type { WorkspaceDefinition } from '@tanstack/ai-sandbox'
 
-function runGit(
+/**
+ * Run git and resolve with its stdout. `maxBuffer` lifts the 1 MiB output cap
+ * of `execFile` for long lists.
+ */
+export function runGit(
   args: ReadonlyArray<string>,
-  options: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
-): Promise<string> {
-  return new Promise((resolve, reject) => {
+  options: { cwd?: string; env?: NodeJS.ProcessEnv; maxBuffer?: number } = {},
+) {
+  return new Promise<string>((resolve, reject) => {
     execFile('git', [...args], options, (error, stdout) => {
       if (error) {
         reject(error)
         return
       }
-      resolve(String(stdout ?? '').trim())
+      // trimEnd, not trim: the first path in a `-z` list can start with a space.
+      resolve(String(stdout ?? '').trimEnd())
     })
   })
 }
@@ -30,7 +35,8 @@ const MISSING_GIT =
 const MISSING_GIT_BIN =
   'git is not on PATH. Install git, or pass `workspaceDir` that already contains `.git`.'
 
-async function hasGitDir(dir: string): Promise<boolean> {
+/** True when `dir` has `.git`: a folder, or the file of a git worktree. */
+export async function hasGitDir(dir: string) {
   try {
     await access(path.join(dir, '.git'))
     return true
@@ -114,10 +120,12 @@ function isGitSha(ref: string): boolean {
   return GIT_SHA_RE.test(ref)
 }
 
-async function probeGit(
-  args: ReadonlyArray<string>,
-  cwd: string,
-): Promise<string | undefined> {
+/**
+ * Run git and resolve with its output, or with undefined when git exits with
+ * an error code (no such ref, no such config key) or prints nothing. A git
+ * that cannot start (ENOENT, ...) still rejects.
+ */
+export async function probeGit(args: ReadonlyArray<string>, cwd: string) {
   try {
     const out = await runGit(args, { cwd })
     return out === '' ? undefined : out
@@ -238,7 +246,7 @@ async function cloneGitSource(
       error &&
       typeof error === 'object' &&
       'code' in error &&
-      (error as { code?: string }).code === 'ENOENT'
+      error.code === 'ENOENT'
     ) {
       throw new Error(MISSING_GIT_BIN)
     }

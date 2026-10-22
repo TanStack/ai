@@ -44,6 +44,7 @@ export const Route = createFileRoute('/api/video-live')({
         try {
           const result = isFalLiveVideoModel(model)
             ? await generateLiveVideo({
+                threadId: 'video-live',
                 adapter: falLiveVideo(model, {
                   apiKey: 'fal_e2e',
                   fetch: fail
@@ -54,6 +55,7 @@ export const Route = createFileRoute('/api/video-live')({
                 debug: false,
               })
             : await generateLiveVideo({
+                threadId: 'video-live',
                 adapter: reactorVideo('helios', {
                   apiKey: 'rk_e2e',
                   fetch: fail

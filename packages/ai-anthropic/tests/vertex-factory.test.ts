@@ -33,7 +33,7 @@ describe('ANTHROPIC_VERTEX_CHAT_MODELS', () => {
   it('does not include Anthropic-only model ids', () => {
     expect(ANTHROPIC_VERTEX_CHAT_MODELS).toContain('claude-sonnet-5')
     expect(ANTHROPIC_VERTEX_CHAT_MODELS).toContain('claude-opus-5')
-    expect(ANTHROPIC_VERTEX_CHAT_MODELS).not.toContain('claude-opus-5-fast')
+    expect(ANTHROPIC_VERTEX_CHAT_MODELS).not.toContain('claude-fable-5-1')
   })
 })
 

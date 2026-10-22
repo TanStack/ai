@@ -74,8 +74,6 @@ export interface BoundInterruptBase {
   readonly generation: number
   readonly status: InterruptItemStatus
   readonly errors: ReadonlyArray<ItemInterruptError>
-  /** @deprecated Use `errors[0]`. */
-  readonly error?: ItemInterruptError
   /**
    * Whether the binding/schema allows resolution at hydrate time.
    * Does not flip on submit/expiry — gate UI on `status`, `resuming`, and
@@ -271,15 +269,13 @@ export interface ChatInterruptState<
     readonly [],
 > {
   readonly interrupts: BoundInterrupts<TTools, TInterrupts>
-  /** @deprecated Use `interrupts`. Same snapshot today. */
-  readonly pendingInterrupts: BoundInterrupts<TTools, TInterrupts>
   readonly interruptErrors: ReadonlyArray<BatchInterruptError>
   readonly resuming: boolean
 }
 
 /**
  * `messages` is the full UIMessage history (not a delta). `data` is the
- * merged body — `ChatClientOptions.body` plus any per-call data passed to
+ * merged body — `ChatClientOptions.forwardedProps` plus any per-call data passed to
  * `sendMessage(...)`. `threadId` / `runId` are the AG-UI correlation ids
  * the chat client uses to track this turn — forward them to your server
  * if it needs to correlate requests.
@@ -310,6 +306,7 @@ export interface ChatFetcherOptions {
  * @example
  * ```ts
  * useChat({
+ *   threadId,
  *   fetcher: ({ messages }, { signal }) =>
  *     chatFn({ data: { messages }, signal }),
  * })
@@ -367,6 +364,31 @@ export type ToolResultState =
  * ChatClient state - track the lifecycle of a chat
  */
 export type ChatClientState = 'ready' | 'submitted' | 'streaming' | 'error'
+
+/**
+ * UI snapshot published by {@link ChatClient.subscribeSnapshot} /
+ * {@link ChatClient.getSnapshot}.
+ */
+export interface ChatClientSnapshot<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+> {
+  readonly messages: ReadonlyArray<UIMessage<TTools>>
+  readonly status: ChatClientState
+  readonly isLoading: boolean
+  readonly error: Error | undefined
+  readonly isSubscribed: boolean
+  readonly connectionStatus: ConnectionStatus
+  readonly sessionGenerating: boolean
+  readonly queue: ReadonlyArray<QueuedMessage>
+  readonly runId: string | null
+  /** True when the last hydrate or older-page response said more messages exist. */
+  readonly hasOlderMessages: boolean
+  /** True while a store or server load may still repaint the transcript. */
+  readonly isHydrating: boolean
+  readonly interruptState: ChatInterruptState<TTools, TInterrupts>
+}
 
 /**
  * Connection lifecycle state for the subscription loop.
@@ -643,6 +665,11 @@ export interface SubagentHandle extends SubagentHandleData {
    * keeps going.
    */
   stop?: () => void
+  /**
+   * The checked input of an agent with `inputSchema`: what the parent model
+   * wrote when it started this child. Set by ChatClient from the card.
+   */
+  input?: unknown
 }
 
 export interface SubagentPart {
@@ -660,6 +687,8 @@ export type SubagentClientAgent = {
   description?: string
   tools?: ReadonlyArray<{ name: string }>
   interrupts?: ReadonlyArray<InterruptDefinition<any, any, any, any>>
+  /** Types `part.subagent.input`. */
+  inputSchema?: unknown
   outputSchema?: SchemaInput
 }
 
@@ -687,13 +716,28 @@ type AgentOutputData<TAgent> = TAgent extends { outputSchema?: infer TSchema }
     : unknown
   : unknown
 
+// The card holds the checked value, so a Standard Schema gives its output type.
+type AgentInputData<TAgent> = TAgent extends { inputSchema?: infer TSchema }
+  ? [Exclude<TSchema, undefined>] extends [never]
+    ? undefined
+    : Exclude<TSchema, undefined> extends {
+          '~standard': { types?: { output: infer TOutput } }
+        }
+      ? TOutput
+      : Exclude<TSchema, undefined> extends SchemaInput
+        ? InferSchemaType<Exclude<TSchema, undefined>>
+        : unknown
+  : undefined
+
 /** One child handle. `name` is the discriminant. */
 export type SubagentHandleOf<TAgent extends SubagentClientAgent> = Omit<
   SubagentHandle,
-  'name' | 'messages'
+  'name' | 'messages' | 'input'
 > & {
   name: TAgent['name']
   messages: Array<UIMessage<AgentToolList<TAgent>, AgentOutputData<TAgent>>>
+  /** Unset on a card saved before the input was kept. */
+  input?: AgentInputData<TAgent>
 }
 
 export type SubagentHandles<
@@ -801,10 +845,6 @@ export interface ChatPersistedState<
  * message transcript and the resume snapshot as one {@link ChatPersistedState}
  * record, so a full page reload restores the conversation AND can rejoin an
  * in-flight run / rehydrate pending interrupts.
- *
- * For backward compatibility `getItem` may also return a bare `UIMessage[]`
- * (the legacy messages-only format); the client normalizes it to
- * `{ messages }`. `setItem` always writes the combined record.
  */
 export interface ChatClientPersistence<
   TTools extends ReadonlyArray<AnyClientTool> = any,
@@ -813,12 +853,9 @@ export interface ChatClientPersistence<
     id: string,
   ) =>
     | ChatPersistedState<TTools>
-    | Array<UIMessage<TTools>>
     | null
     | undefined
-    | Promise<
-        ChatPersistedState<TTools> | Array<UIMessage<TTools>> | null | undefined
-      >
+    | Promise<ChatPersistedState<TTools> | null | undefined>
   setItem: (
     id: string,
     state: ChatPersistedState<TTools>,
@@ -847,15 +884,14 @@ export type ChatPersistenceOption<
 /**
  * The `persistence` / `threadId` pairing for `ChatClient` and the chat hooks.
  *
- * Persistence that is on (`true` or a storage adapter) requires a `threadId`.
- * A minted id changes every reload, so nothing would restore. The compiler
- * asks for the conversation id instead.
+ * `threadId` is always required. It is the conversation id for the wire,
+ * DevTools, and persistence. Use a stable id for each conversation, for
+ * example the id from your route or database.
  *
- * Omit `persistence`, or set it to `false`, and `threadId` stays optional.
- * The client then mints one after mount for the wire and DevTools.
+ * `history` is allowed only with `persistence: true`.
  *
  * Intersect this onto `ChatClientOptions`. Do not apply a later plain `Omit`
- * to that type: it collapses the union and the requirement disappears. Use
+ * to that type: it collapses the union and the `history` rule disappears. Use
  * {@link DistributedOmit}.
  */
 export type ChatPersistenceOptions<
@@ -873,13 +909,8 @@ export type ChatPersistenceOptions<
       }
     }
   | {
-      persistence: ChatClientPersistence<TTools>
+      persistence?: ChatClientPersistence<TTools> | false | undefined
       threadId: string
-      history?: never
-    }
-  | {
-      persistence?: false | undefined
-      threadId?: string
       history?: never
     }
 
@@ -987,20 +1018,8 @@ export interface ChatClientBaseOptions<
    * AG-UI `RunAgentInput.forwardedProps` field. Use this for per-session
    * options like provider/model selection or feature flags that the
    * server endpoint should read.
-   *
-   * Replaces the legacy `body` option. If both are provided,
-   * `forwardedProps` wins on key collision.
    */
   forwardedProps?: Record<string, any>
-
-  /**
-   * @deprecated Use `forwardedProps` instead. `body` continues to work
-   * unchanged — its values are merged into the AG-UI
-   * `RunAgentInput.forwardedProps` field on the wire and are also
-   * mirrored under the legacy `data` field for servers that have not
-   * migrated yet. Will be removed in a future major release.
-   */
-  body?: Record<string, any>
 
   /**
    * Optional BYOK keyring. On each send the client prepares the resolved
@@ -1054,7 +1073,8 @@ export interface ChatClientBaseOptions<
   onError?: (error: Error) => void
 
   /**
-   * Callback when messages change
+   * Callback when messages change. Receives the client's live array, not the
+   * frozen snapshot copy. Do not change it in place; use `setMessagesManually`.
    */
   onMessagesChange?: (messages: Array<UIMessage<TTools>>) => void
 
@@ -1112,7 +1132,7 @@ export interface ChatClientBaseOptions<
 
   /**
    * Callback when the pending send queue changes (enqueue, cancel, drain,
-   * or flush).
+   * or flush). Receives a live array, not the frozen snapshot copy.
    */
   onQueueChange?: (queue: Array<QueuedMessage>) => void
 
@@ -1192,8 +1212,8 @@ export interface ChatClientBaseOptions<
 
 /**
  * Options for `ChatClient`. Exactly one of `connection` or `fetcher` must be
- * provided — the type-level XOR is enforced via `ChatTransport`. Persistence
- * that is on requires a `threadId` via {@link ChatPersistenceOptions}.
+ * provided — the type-level XOR is enforced via `ChatTransport`. `threadId`
+ * is required. See {@link ChatPersistenceOptions}.
  */
 export type ChatClientOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
@@ -1244,6 +1264,7 @@ export function clientTools<const T extends Array<AnyClientTool>>(
  *
  * const chatOptions = createChatClientOptions({
  *   connection: fetchServerSentEvents('/api/chat'),
+ *   threadId,
  *   tools,
  * })
  *
@@ -1269,6 +1290,7 @@ export function createChatClientOptions<
  * ```ts
  * const chatOptions = createChatClientOptions({
  *   connection: fetchServerSentEvents('/api/chat'),
+ *   threadId,
  *   tools: [myTool1, myTool2],
  * })
  *

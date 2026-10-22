@@ -28,9 +28,13 @@ function DirectVideoGeneration() {
 
   const hookReturn = useGenerateVideo({
     threadId: 'video:direct',
-    fetcher: (input) =>
+    fetcher: (input, { threadId }) =>
       generateVideoFn({
-        data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
+        data: {
+          ...input,
+          prompt: resolveMediaPrompt(input.prompt).text,
+          threadId,
+        },
       }),
     persistence: true,
   })
@@ -45,9 +49,13 @@ function ServerFnVideoGeneration() {
 
   const hookReturn = useGenerateVideo({
     threadId: 'video:server-fn',
-    fetcher: (input) =>
+    fetcher: (input, { threadId }) =>
       generateVideoStreamFn({
-        data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
+        data: {
+          ...input,
+          prompt: resolveMediaPrompt(input.prompt).text,
+          threadId,
+        },
       }),
     persistence: true,
   })

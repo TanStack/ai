@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { chat } from '../src/activities/chat'
 import { defineAgent } from '../src/activities/chat/agents/define-agent'
+import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
+import { defineInterrupt } from '../src/interrupt-definition'
 import { StreamProcessor } from '../src/activities/chat/stream/processor'
 import { uiMessagesToWire } from '../src/utilities/ag-ui-wire'
 import { fromSpecTokenUsage } from '../src/utilities/ag-ui-usage'
@@ -422,6 +424,16 @@ describe('subagent interrupts', () => {
     const { agent, execute, contexts } = cleanerAgent()
     const parent = toolParent('{}')
     const subagents = { agents: [agent] }
+    // The parent middleware sees which resume entries the child answers.
+    const childResumeIds: Array<ReadonlySet<string> | undefined> = []
+    const middleware = [
+      defineChatMiddleware({
+        name: 'note',
+        onStart: (ctx) => {
+          childResumeIds.push(ctx.childResumeIds)
+        },
+      }),
+    ]
 
     const first = await collectChunks(
       chat({
@@ -429,6 +441,7 @@ describe('subagent interrupts', () => {
         threadId: 't',
         runId: 'run-1',
         messages: [user],
+        middleware,
         subagents,
       }) as AsyncIterable<StreamChunk>,
     )
@@ -474,6 +487,7 @@ describe('subagent interrupts', () => {
         resume: [
           { interruptId: 'approval_call_c', status: 'resolved', payload: true },
         ],
+        middleware,
         subagents,
       }) as AsyncIterable<StreamChunk>,
     )
@@ -481,6 +495,7 @@ describe('subagent interrupts', () => {
     expect(second.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
       false,
     )
+    expect(childResumeIds).toEqual([undefined, new Set(['approval_call_c'])])
     expect(contexts[1]).toMatchObject({ parentRunId: 'run-1' })
     expect(execute).toHaveBeenCalledTimes(1)
     const toolResult = second.find(
@@ -491,6 +506,130 @@ describe('subagent interrupts', () => {
     expect(toolResult).toBeDefined()
     expect(second.at(-1)).toMatchObject({ type: EventType.RUN_FINISHED })
     expect(second.at(-1)).not.toHaveProperty('outcome.type', 'interrupt')
+  })
+
+  it('suspends a child whose run throws an input request, then runs it again with the answer', async () => {
+    const contexts: Array<SubagentRunContext> = []
+    const agent = defineAgent({
+      name: 'cleaner',
+      description: 'Deletes files',
+      run: async (ctx) => {
+        contexts.push(ctx)
+        const answer = ctx.resume?.find(
+          (entry) => entry.interruptId === 'ask-1',
+        )
+        if (!answer) {
+          throw Object.assign(new Error('Which folder?'), {
+            name: 'MCPInputRequiredError',
+            kind: 'form',
+            request: { requestedSchema: { type: 'string' } },
+            interruptId: 'ask-1',
+          })
+        }
+        return `Cleaned ${String(answer.payload)}`
+      },
+    })
+    const parent = toolParent('{}')
+    const subagents = { agents: [agent] }
+
+    const first = await collectChunks(
+      chat({
+        adapter: parent,
+        threadId: 't',
+        runId: 'run-1',
+        messages: [user],
+        subagents,
+      }) as AsyncIterable<StreamChunk>,
+    )
+    expect(
+      first.find((chunk) => chunk.type === EventType.SUBAGENT_FINISHED),
+    ).toMatchObject({ outcome: { type: 'suspended', interruptIds: ['ask-1'] } })
+    expect(first.at(-1)).toMatchObject({
+      type: EventType.RUN_FINISHED,
+      outcome: {
+        type: 'interrupt',
+        interrupts: [
+          expect.objectContaining({
+            id: 'ask-1',
+            message: 'Which folder?',
+            metadata: expect.objectContaining({
+              [INTERRUPT_BINDING_METADATA_KEY]: expect.objectContaining({
+                kind: 'generic',
+              }),
+            }),
+          }),
+        ],
+      },
+    })
+
+    const processor = new StreamProcessor({ initialMessages: [user] })
+    replay(processor, first)
+    const second = await collectChunks(
+      chat({
+        adapter: parent,
+        threadId: 't',
+        runId: 'run-2',
+        parentRunId: 'run-1',
+        messages: requestMessages(processor.getMessages()),
+        resume: [{ interruptId: 'ask-1', status: 'resolved', payload: 'old' }],
+        subagents,
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(contexts[1]?.resume).toEqual([
+      { interruptId: 'ask-1', status: 'resolved', payload: 'old' },
+    ])
+    const toolResult = second.find(
+      (chunk) =>
+        chunk.type === EventType.TOOL_CALL_RESULT &&
+        chunk.toolCallId === 'call_p',
+    )
+    expect(JSON.stringify(toolResult)).toContain('Cleaned old')
+    expect(second.at(-1)).not.toHaveProperty('outcome.type', 'interrupt')
+  })
+
+  it('keeps the child interrupt next to an afterTools boundary interrupt', async () => {
+    const { agent } = cleanerAgent()
+    const review = defineInterrupt({
+      id: 'after-review',
+      responseSchema: z.boolean(),
+    })
+    const chunks = await collectChunks(
+      chat({
+        adapter: toolParent('{}'),
+        threadId: 't',
+        runId: 'run-1',
+        messages: [user],
+        subagents: { agents: [agent] },
+        interrupts: [review],
+        middleware: [
+          defineChatMiddleware({
+            name: 'after-review',
+            onInterruptBoundary(ctx) {
+              if (ctx.phase !== 'afterTools') return undefined
+              return {
+                interrupts: [
+                  review.interrupt({
+                    key: 'review',
+                    reason: 'review',
+                    message: 'Review',
+                  }),
+                ],
+              }
+            },
+          }),
+        ],
+      }) as AsyncIterable<StreamChunk>,
+    )
+    expect(chunks.at(-1)).toMatchObject({
+      type: EventType.RUN_FINISHED,
+      outcome: {
+        type: 'interrupt',
+        interrupts: expect.arrayContaining([
+          expect.objectContaining({ id: 'approval_call_c' }),
+        ]),
+      },
+    })
   })
 
   it('gives a resumed child the same input the model wrote', async () => {
@@ -684,7 +823,6 @@ describe('subagent cards', () => {
         type: EventType.TOOL_CALL_START,
         toolCallId: 'tc',
         toolCallName: 'search',
-        toolName: 'search',
         subagentRunId: 's1',
         timestamp: t,
       },

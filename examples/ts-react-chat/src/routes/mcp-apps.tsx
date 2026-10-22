@@ -82,7 +82,7 @@ function Messages({
   messages,
   bridge,
 }: {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   bridge: McpAppBridge
 }) {
   const visible = messages.filter((m) =>
@@ -196,7 +196,7 @@ function McpAppsPage() {
   const { messages, sendMessage, isLoading, error, stop } = useChat({
     threadId,
     connection: fetchServerSentEvents('/api/mcp-apps-chat'),
-    body: { provider },
+    forwardedProps: { provider },
   })
 
   // One stable bridge per thread: routes the widget's tool calls to the

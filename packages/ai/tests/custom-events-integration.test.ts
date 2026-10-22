@@ -72,7 +72,6 @@ describe('Custom Events Integration', () => {
         type: EventType.TOOL_CALL_START,
         toolCallId: 'tc-1',
         toolCallName: 'testTool',
-        toolName: 'testTool',
         timestamp: Date.now(),
         index: 0,
       }),
@@ -91,7 +90,7 @@ describe('Custom Events Integration', () => {
       sc({
         type: EventType.TOOL_CALL_END,
         toolCallId: 'tc-1',
-        toolName: 'testTool',
+        toolCallName: 'testTool',
         timestamp: Date.now(),
         input: { message: 'Hello World' },
       }),
@@ -184,80 +183,6 @@ describe('Custom Events Integration', () => {
     expect(onCustomEvent).toHaveBeenCalledWith(
       'system:status',
       { status: 'ready', version: '1.0.0' },
-      { toolCallId: undefined },
-    )
-  })
-
-  it('should not forward system custom events to onCustomEvent callback', async () => {
-    const onCustomEvent = vi.fn()
-    const onToolCall = vi.fn()
-    const onApprovalRequest = vi.fn()
-
-    const processor = new StreamProcessor({
-      events: {
-        onCustomEvent,
-        onToolCall,
-        onApprovalRequest,
-        onMessagesChange: vi.fn(),
-        onStreamStart: vi.fn(),
-        onStreamEnd: vi.fn(),
-        onError: vi.fn(),
-        onTextUpdate: vi.fn(),
-        onToolCallStateChange: vi.fn(),
-        onThinkingUpdate: vi.fn(),
-      },
-    })
-
-    processor.prepareAssistantMessage()
-
-    // System event: tool-input-available
-    processor.processChunk(
-      sc({
-        type: EventType.CUSTOM,
-        name: 'tool-input-available',
-        value: {
-          toolCallId: 'tc-1',
-          toolName: 'testTool',
-          input: { test: true },
-        },
-        timestamp: Date.now(),
-      }),
-    )
-
-    // System event: approval-requested
-    processor.processChunk(
-      sc({
-        type: EventType.CUSTOM,
-        name: 'approval-requested',
-        value: {
-          toolCallId: 'tc-2',
-          toolName: 'dangerousTool',
-          input: { action: 'delete' },
-          approval: { id: 'approval-1', needsApproval: true },
-        },
-        timestamp: Date.now(),
-      }),
-    )
-
-    // Custom event (should be forwarded)
-    processor.processChunk(
-      sc({
-        type: EventType.CUSTOM,
-        name: 'user:custom-event',
-        value: { message: 'This should be forwarded' },
-        timestamp: Date.now(),
-      }),
-    )
-
-    // System events should trigger their specific handlers, not onCustomEvent
-    expect(onToolCall).toHaveBeenCalledTimes(1)
-    expect(onApprovalRequest).toHaveBeenCalledTimes(1)
-
-    // Only the user custom event should be forwarded
-    expect(onCustomEvent).toHaveBeenCalledTimes(1)
-    expect(onCustomEvent).toHaveBeenCalledWith(
-      'user:custom-event',
-      { message: 'This should be forwarded' },
       { toolCallId: undefined },
     )
   })

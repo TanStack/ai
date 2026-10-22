@@ -52,6 +52,12 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
       mistral: 'magistral-medium-latest',
     },
   },
+  'multi-turn-reasoning': {
+    tools: [getGuitars],
+    modelOptions: {},
+    reasoning: { level: 'high', summary: true },
+    modelOverrides: { anthropic: 'claude-sonnet-4-5' },
+  },
   'multi-turn': {
     tools: [],
     modelOptions: {},

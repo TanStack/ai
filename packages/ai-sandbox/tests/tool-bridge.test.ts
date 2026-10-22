@@ -3,6 +3,7 @@
  * client (no `claude` needed): list tools + call a tool, asserting the host
  * `execute()` runs and the result comes back, plus bearer-token enforcement.
  */
+import { request } from 'node:http'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
@@ -31,6 +32,7 @@ describe('startHostToolBridge', () => {
     await expect(
       startHostToolBridge([], {
         hostForSandbox: '127.0.0.1',
+        threadId: 'thread-1',
         bindAddress: 'not a valid host',
       }),
     ).rejects.toMatchObject({ code: 'ENOTFOUND' })
@@ -45,7 +47,7 @@ describe('startHostToolBridge', () => {
           return 'high noon'
         }),
       ],
-      { hostForSandbox: '127.0.0.1' },
+      { hostForSandbox: '127.0.0.1', threadId: 'thread-1' },
     )
 
     const client = new Client({ name: 'test', version: '1.0.0' })
@@ -74,7 +76,7 @@ describe('startHostToolBridge', () => {
           throw new Error('kaboom')
         }),
       ],
-      { hostForSandbox: '127.0.0.1' },
+      { hostForSandbox: '127.0.0.1', threadId: 'thread-1' },
     )
     const client = new Client({ name: 'test', version: '1.0.0' })
     const transport = new StreamableHTTPClientTransport(new URL(bridge.url), {
@@ -90,11 +92,28 @@ describe('startHostToolBridge', () => {
   it('rejects requests without the bearer token', async () => {
     bridge = await startHostToolBridge([tool('noop', () => 'ok')], {
       hostForSandbox: '127.0.0.1',
+      threadId: 'thread-1',
     })
     const client = new Client({ name: 'test', version: '1.0.0' })
     const transport = new StreamableHTTPClientTransport(new URL(bridge.url))
     await expect(client.connect(transport)).rejects.toThrow()
     await client.close().catch(() => {})
+  })
+
+  it('closes while a request is still open', async () => {
+    const open = await startHostToolBridge([], {
+      hostForSandbox: '127.0.0.1',
+      threadId: 'thread-1',
+    })
+    // Send headers and part of a body, then never finish the request.
+    const req = request(open.url, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${open.token}` },
+    })
+    req.on('error', () => {})
+    req.write('{')
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    await open.close()
   })
 })
 

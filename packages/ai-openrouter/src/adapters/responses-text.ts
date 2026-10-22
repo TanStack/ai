@@ -19,6 +19,10 @@ import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
 import { clientForCall } from '../internal/wrap-fetch'
 import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
+import {
+  openRouterUsesJsonObject,
+  withJsonModePrompt,
+} from '../internal/json-object-mode'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import {
   convertFunctionToolToResponsesFormat,
@@ -196,7 +200,7 @@ export class OpenRouterResponsesTextAdapter<
     // AG-UI lifecycle tracking
     const aguiState = {
       runId: generateId(this.name),
-      threadId: options.threadId ?? generateId(this.name),
+      threadId: options.threadId,
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,
     }
@@ -280,12 +284,14 @@ export class OpenRouterResponsesTextAdapter<
     options: StructuredOutputOptions<OpenRouterResponsesTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
-    const responsesRequest = this.mapOptionsToRequest(chatOptions)
-
-    const jsonSchema = this.makeStructuredOutputCompatible(
-      outputSchema,
-      outputSchema.required,
+    const jsonMode = openRouterUsesJsonObject(
+      chatOptions.model || this.model,
+      chatOptions.modelOptions,
     )
+    const responsesRequest = this.mapOptionsToRequest(
+      jsonMode ? withJsonModePrompt(chatOptions, outputSchema) : chatOptions,
+    )
+    const textFormat = this.structuredTextFormat(jsonMode, outputSchema)
 
     try {
       chatOptions.logger.request(
@@ -303,12 +309,7 @@ export class OpenRouterResponsesTextAdapter<
             ...responsesRequest,
             stream: false,
             text: {
-              format: {
-                type: 'json_schema',
-                name: 'structured_output',
-                schema: jsonSchema,
-                strict: true,
-              },
+              format: textFormat,
             },
           },
         },
@@ -411,16 +412,18 @@ export class OpenRouterResponsesTextAdapter<
     options: StructuredOutputOptions<OpenRouterResponsesTextProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
-    const responsesRequest = this.mapOptionsToRequest(chatOptions)
-
-    const jsonSchema = this.makeStructuredOutputCompatible(
-      outputSchema,
-      outputSchema.required,
+    const jsonMode = openRouterUsesJsonObject(
+      chatOptions.model || this.model,
+      chatOptions.modelOptions,
     )
+    const responsesRequest = this.mapOptionsToRequest(
+      jsonMode ? withJsonModePrompt(chatOptions, outputSchema) : chatOptions,
+    )
+    const textFormat = this.structuredTextFormat(jsonMode, outputSchema)
 
     const aguiState = {
       runId: generateId(this.name),
-      threadId: chatOptions.threadId ?? generateId(this.name),
+      threadId: chatOptions.threadId,
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,
     }
@@ -429,7 +432,6 @@ export class OpenRouterResponsesTextAdapter<
     let accumulatedReasoning = ''
     let hasEmittedTextMessageStart = false
     let reasoningMessageId: string | undefined
-    let stepId: string | undefined
     let hasClosedReasoning = false
     let model: string = chatOptions.model
     let responseId: string | undefined
@@ -461,18 +463,7 @@ export class OpenRouterResponsesTextAdapter<
           model,
           timestamp: Date.now(),
         }
-        if (stepId) {
-          yield {
-            type: EventType.STEP_FINISHED,
-            stepName: stepId,
-            stepId,
-            model,
-            timestamp: Date.now(),
-            content: accumulatedReasoning,
-          }
-        }
         reasoningMessageId = undefined
-        stepId = undefined
         hasClosedReasoning = false
       }
     }.bind(this)
@@ -482,7 +473,6 @@ export class OpenRouterResponsesTextAdapter<
     }): Generator<AdapterYieldChunk> {
       if (reasoningMessageId) return
       reasoningMessageId = generateId(this.name)
-      stepId = generateId(this.name)
       yield {
         type: EventType.REASONING_START,
         messageId: reasoningMessageId,
@@ -495,14 +485,6 @@ export class OpenRouterResponsesTextAdapter<
         role: 'reasoning' as const,
         model,
         timestamp: Date.now(),
-      }
-      yield {
-        type: EventType.STEP_STARTED,
-        stepName: stepId,
-        stepId,
-        model,
-        timestamp: Date.now(),
-        stepType: 'thinking',
       }
     }.bind(this)
 
@@ -522,12 +504,7 @@ export class OpenRouterResponsesTextAdapter<
             ...responsesRequest,
             stream: true,
             text: {
-              format: {
-                type: 'json_schema',
-                name: 'structured_output',
-                schema: jsonSchema,
-                strict: true,
-              },
+              format: textFormat,
             },
           },
         },
@@ -955,7 +932,6 @@ export class OpenRouterResponsesTextAdapter<
       this.makeStructuredOutputCompatible.bind(this),
     )
     let accumulatedContent = ''
-    let accumulatedReasoning = ''
 
     let hasStreamedContentDeltas = false
     let hasStreamedReasoningDeltas = false
@@ -964,7 +940,6 @@ export class OpenRouterResponsesTextAdapter<
     let responseId: string | undefined
     let reportedModel: string | undefined
 
-    let stepId: string | null = null
     let hasEmittedTextMessageStart = false
     let reasoningMessageId: string | undefined
     let hasClosedReasoning = false
@@ -976,7 +951,6 @@ export class OpenRouterResponsesTextAdapter<
     const openReasoning = function* (): Generator<AdapterYieldChunk> {
       if (reasoningMessageId) return
       reasoningMessageId = generateId(adapterName)
-      stepId = generateId(adapterName)
       const timestamp = Date.now()
       const currentModel = emitModel()
       yield {
@@ -991,14 +965,6 @@ export class OpenRouterResponsesTextAdapter<
         role: 'reasoning' as const,
         model: currentModel,
         timestamp,
-      }
-      yield {
-        type: EventType.STEP_STARTED,
-        stepName: stepId,
-        stepId,
-        model: currentModel,
-        timestamp,
-        stepType: 'thinking',
       }
     }
 
@@ -1019,20 +985,8 @@ export class OpenRouterResponsesTextAdapter<
         model: currentModel,
         timestamp,
       }
-      if (stepId) {
-        yield {
-          type: EventType.STEP_FINISHED,
-          stepName: stepId,
-          stepId,
-          model: currentModel,
-          timestamp,
-          content: accumulatedReasoning,
-        }
-      }
       reasoningMessageId = undefined
-      stepId = null
       hasClosedReasoning = false
-      accumulatedReasoning = ''
     }
 
     const emitReasoningDelta = function* (
@@ -1041,7 +995,6 @@ export class OpenRouterResponsesTextAdapter<
       if (!text) return
       yield* openReasoning()
       if (!reasoningMessageId) return
-      accumulatedReasoning += text
       hasStreamedReasoningDeltas = true
       yield {
         type: EventType.REASONING_MESSAGE_CONTENT,
@@ -1138,9 +1091,7 @@ export class OpenRouterResponsesTextAdapter<
           hasEmittedTextMessageStart = false
           reasoningMessageId = undefined
           hasClosedReasoning = false
-          stepId = null
           accumulatedContent = ''
-          accumulatedReasoning = ''
         }
 
         // response.failed and response.incomplete are TERMINAL events.
@@ -1381,7 +1332,6 @@ export class OpenRouterResponsesTextAdapter<
                 type: EventType.TOOL_CALL_START,
                 toolCallId: metadata.callId,
                 toolCallName: metadata.name,
-                toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
@@ -1471,7 +1421,7 @@ export class OpenRouterResponsesTextAdapter<
                   rawArguments: chunk.arguments,
                 },
               )
-              parsedInput = {}
+              parsedInput = undefined
             }
           }
 
@@ -1479,10 +1429,10 @@ export class OpenRouterResponsesTextAdapter<
             type: EventType.TOOL_CALL_END,
             toolCallId: metadata.callId,
             toolCallName: name,
-            toolName: name,
             model: model || options.model,
             timestamp: Date.now(),
-            input: parsedInput,
+            args: chunk.arguments,
+            ...(parsedInput !== undefined && { input: parsedInput }),
           }
         }
 
@@ -1511,7 +1461,6 @@ export class OpenRouterResponsesTextAdapter<
                 type: EventType.TOOL_CALL_START,
                 toolCallId: metadata.callId,
                 toolCallName: metadata.name,
-                toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
@@ -1552,17 +1501,17 @@ export class OpenRouterResponsesTextAdapter<
                       rawArguments: rawArgs,
                     },
                   )
-                  parsedInput = {}
+                  parsedInput = undefined
                 }
               }
               yield {
                 type: EventType.TOOL_CALL_END,
                 toolCallId: metadata.callId,
                 toolCallName: name,
-                toolName: name,
                 model: model || options.model,
                 timestamp: Date.now(),
-                input: parsedInput,
+                args: rawArgs,
+                ...(parsedInput !== undefined && { input: parsedInput }),
               }
               metadata.ended = true
               metadata.pendingArguments = undefined
@@ -1638,7 +1587,6 @@ export class OpenRouterResponsesTextAdapter<
                 type: EventType.TOOL_CALL_START,
                 toolCallId: metadata.callId,
                 toolCallName: metadata.name,
-                toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
@@ -1679,17 +1627,17 @@ export class OpenRouterResponsesTextAdapter<
                       rawArguments: rawArgs,
                     },
                   )
-                  parsedInput = {}
+                  parsedInput = undefined
                 }
               }
               yield {
                 type: EventType.TOOL_CALL_END,
                 toolCallId: metadata.callId,
                 toolCallName: name,
-                toolName: name,
                 model: model || options.model,
                 timestamp: Date.now(),
-                input: parsedInput,
+                args: rawArgs,
+                ...(parsedInput !== undefined && { input: parsedInput }),
               }
               metadata.ended = true
               metadata.pendingArguments = undefined
@@ -1863,8 +1811,9 @@ export class OpenRouterResponsesTextAdapter<
         )
       : undefined
 
-    // Attach text.format json_schema only when outputSchema is set and every
-    // routed model is in the combined-capable set.
+    // Attach text.format json_schema only when outputSchema is set and the
+    // combined gate passes (every routed model is combined-capable, and not
+    // JSON mode).
     const combinedOutputSchema: JSONSchema | undefined = options.outputSchema
     const combinedSchema =
       combinedOutputSchema &&
@@ -1957,13 +1906,43 @@ export class OpenRouterResponsesTextAdapter<
 
   /**
    * Combined mode is safe only when this model and every `modelOptions.models`
-   * fallback are in `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`.
-   * `:variant` suffixes are routing directives and do not change the gate.
+   * fallback are in `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`. JSON mode
+   * is never combined: the schema goes in a system prompt on a separate
+   * structured-output request, not on the tool-calling turns.
    */
   supportsCombinedToolsAndSchema(
     modelOptions?: OpenRouterResponsesTextProviderOptions,
   ): boolean {
-    return openRouterSupportsCombinedToolsAndSchema(this.model, modelOptions)
+    return (
+      !openRouterUsesJsonObject(this.model, modelOptions) &&
+      openRouterSupportsCombinedToolsAndSchema(this.model, modelOptions)
+    )
+  }
+
+  /** `json_object` in JSON mode, else strict `json_schema` from `outputSchema`. */
+  private structuredTextFormat(
+    jsonMode: boolean,
+    outputSchema: JSONSchema,
+  ):
+    | { type: 'json_object' }
+    | {
+        type: 'json_schema'
+        name: 'structured_output'
+        schema: Record<string, any>
+        strict: true
+      } {
+    if (jsonMode) {
+      return { type: 'json_object' }
+    }
+    return {
+      type: 'json_schema',
+      name: 'structured_output',
+      schema: this.makeStructuredOutputCompatible(
+        outputSchema,
+        outputSchema.required,
+      ),
+      strict: true,
+    }
   }
 
   /**

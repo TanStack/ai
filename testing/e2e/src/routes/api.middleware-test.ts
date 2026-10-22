@@ -177,6 +177,43 @@ const toolReplaceMiddleware: ChatMiddleware = {
   },
 }
 
+// Rewrites the args to a value the tool's inputSchema rejects. The final
+// input check runs after this hook, so the tool must not run.
+const toolBadArgsMiddleware: ChatMiddleware = {
+  name: 'tool-bad-args',
+  onBeforeToolCall(_ctx, hookCtx) {
+    if (hookCtx.toolName !== 'get_weather') return undefined
+    return { type: 'transformArgs' as const, args: { city: { name: 'NYC' } } }
+  },
+}
+
+// `tool-guard` mode: the first middleware rewrites the city, so
+// onBeforeToolCall is done. The guard still runs, sees the rewritten city,
+// and denies the call.
+const toolRewriteMiddleware: ChatMiddleware = {
+  name: 'tool-rewrite',
+  onBeforeToolCall(_ctx, hookCtx) {
+    if (hookCtx.toolName !== 'get_weather') return undefined
+    return { type: 'transformArgs' as const, args: { city: 'Blocked City' } }
+  },
+}
+
+const toolGuardMiddleware: ChatMiddleware = {
+  name: 'tool-guard',
+  onGuardToolCall(_ctx, hookCtx) {
+    const args = hookCtx.args
+    const city =
+      typeof args === 'object' && args !== null && 'city' in args
+        ? args.city
+        : undefined
+    if (hookCtx.toolName !== 'get_weather' || city !== 'Blocked City') return
+    return {
+      type: 'skip' as const,
+      result: JSON.stringify({ guarded: true, city }),
+    }
+  },
+}
+
 /**
  * Capability provide/consume flow (`capability` mode).
  *
@@ -579,6 +616,10 @@ export const Route = createFileRoute('/api/middleware-test')({
             middleware.push(toolSkipMiddleware)
           if (middlewareMode === 'tool-replace')
             middleware.push(toolReplaceMiddleware)
+          if (middlewareMode === 'tool-bad-args')
+            middleware.push(toolBadArgsMiddleware)
+          if (middlewareMode === 'tool-guard')
+            middleware.push(toolRewriteMiddleware, toolGuardMiddleware)
           if (middlewareMode === 'capability') {
             // Order matters: the provider's setup() must run before the
             // consumer reads the capability. Array order is preserved.
@@ -663,7 +704,7 @@ export const Route = createFileRoute('/api/middleware-test')({
           const tools =
             genericScenario && testId
               ? genericTools(testId, genericScenario)
-              : scenario === 'with-tool'
+              : scenario === 'with-tool' || scenario === 'raw-tool-args'
                 ? [weatherTool]
                 : scenario === 'structured-client-tool-wait'
                   ? [clientContextToolDefinition]

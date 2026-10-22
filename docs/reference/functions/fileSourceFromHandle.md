@@ -7,7 +7,7 @@ title: fileSourceFromHandle
 function fileSourceFromHandle<TProvider>(handle): ContentPartFileSource<TProvider>;
 ```
 
-Defined in: [packages/ai/src/activities/files/index.ts:104](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/files/index.ts#L104)
+Defined in: packages/ai/src/activities/files/index.ts:104
 
 Build a `{ type: 'file' }` content source from an uploaded
 [FileHandle](../interfaces/FileHandle.md), for use in a chat message (image/audio/document part

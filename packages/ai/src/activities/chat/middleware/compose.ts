@@ -1,5 +1,5 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
-import type { AgentLoopState, StreamChunk } from '../../../types'
+import type { AgentLoopState, RunErrorEvent, StreamChunk } from '../../../types'
 import type { InternalLogger } from '../../../logger/internal-logger'
 import type {
   AbortInfo,
@@ -11,6 +11,7 @@ import type {
   ChatMiddlewareContext,
   ErrorInfo,
   FinishInfo,
+  GuardToolCallDecision,
   InterruptBoundaryPhase,
   InterruptResolutionCollection,
   InterruptToolResume,
@@ -95,6 +96,10 @@ export class MiddlewareRunner<
 
   get hasMiddleware(): boolean {
     return this.middlewares.length > 0
+  }
+
+  get hasModelErrorHook(): boolean {
+    return this.middlewares.some((mw) => mw.onModelError)
   }
 
   async runOnInterruptBoundary(
@@ -536,6 +541,43 @@ export class MiddlewareRunner<
   }
 
   /**
+   * Run onGuardToolCall through middleware in order. Every guard runs until
+   * one returns a decision, so an earlier `onBeforeToolCall` decision never
+   * skips a guard. Returns that decision, or undefined to allow the call.
+   */
+  async runOnGuardToolCall(
+    ctx: ChatMiddlewareContext<TContext>,
+    hookCtx: ToolCallHookContext,
+  ): Promise<GuardToolCallDecision> {
+    for (const mw of this.middlewares) {
+      if (mw.onGuardToolCall) {
+        const skip = shouldSkipInstrumentation(mw)
+        const start = Date.now()
+        const decision = await mw.onGuardToolCall(ctx, hookCtx)
+        const decided = decision !== undefined && decision !== null
+        if (!skip) {
+          this.logger.middleware(
+            `hook=onGuardToolCall middleware=${mw.name ?? 'unnamed'}`,
+            { middleware: mw.name ?? 'unnamed', hook: 'onGuardToolCall' },
+          )
+          aiEventClient.emit('middleware:hook:executed', {
+            ...instrumentCtx(ctx),
+            middlewareName: mw.name || 'unnamed',
+            hookName: 'onGuardToolCall',
+            iteration: ctx.iteration,
+            duration: Date.now() - start,
+            hasTransform: decided,
+          })
+        }
+        if (decided) {
+          return decision
+        }
+      }
+    }
+    return undefined
+  }
+
+  /**
    * Run onAfterToolCall on all middleware in order.
    * A `replaceResult` decision changes `info.result` for the next middleware.
    * Returns the last replacement, or undefined when no middleware replaced it.
@@ -897,6 +939,37 @@ export class MiddlewareRunner<
       }
     }
     return true
+  }
+
+  /**
+   * Run onModelError on all middleware in order. Each one can call
+   * `ctx.retry()`, so every middleware sees the error.
+   */
+  async runOnModelError(
+    ctx: ChatMiddlewareContext<TContext>,
+    error: RunErrorEvent,
+  ): Promise<void> {
+    for (const mw of this.middlewares) {
+      if (mw.onModelError) {
+        const skip = shouldSkipInstrumentation(mw)
+        const start = Date.now()
+        await mw.onModelError(ctx, error)
+        if (!skip) {
+          this.logger.middleware(
+            `hook=onModelError middleware=${mw.name ?? 'unnamed'}`,
+            { middleware: mw.name ?? 'unnamed', hook: 'onModelError' },
+          )
+          aiEventClient.emit('middleware:hook:executed', {
+            ...instrumentCtx(ctx),
+            middlewareName: mw.name || 'unnamed',
+            hookName: 'onModelError',
+            iteration: ctx.iteration,
+            duration: Date.now() - start,
+            hasTransform: false,
+          })
+        }
+      }
+    }
   }
 
   /**

@@ -10,7 +10,6 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   ImageGenerateInput,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
@@ -90,6 +89,7 @@ export interface UseGenerateImageReturn<
  *
  * function ImageGenerator() {
  *   const { generate, result, isLoading, error, reset } = useGenerateImage({
+ *     threadId: 'hero-image',
  *     connection: fetchServerSentEvents('/api/generate/image'),
  *   })
  *
@@ -109,12 +109,9 @@ export interface UseGenerateImageReturn<
  * ```
  */
 export function useGenerateImage<TTransformed = void>(
-  options: Omit<
-    UseGenerateImageOptions,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<UseGenerateImageOptions, 'onResult'> & {
     onResult?: (result: ImageGenerationResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ): UseGenerateImageReturn<
   InferGenerationOutputFromReturn<ImageGenerationResult, TTransformed>
 > {

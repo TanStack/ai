@@ -3,7 +3,7 @@ id: WordBoundaryStrategy
 title: WordBoundaryStrategy
 ---
 
-Defined in: [packages/ai/src/activities/chat/stream/strategies.ts:57](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/strategies.ts#L57)
+Defined in: packages/ai/src/activities/chat/stream/strategies.ts:57
 
 Word Boundary Strategy - emit at word boundaries
 Prevents cutting words in half
@@ -32,7 +32,7 @@ new WordBoundaryStrategy(): WordBoundaryStrategy;
 shouldEmit(chunk, _accumulated): boolean;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/strategies.ts:58](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/strategies.ts#L58)
+Defined in: packages/ai/src/activities/chat/stream/strategies.ts:58
 
 Called for each text chunk received
 

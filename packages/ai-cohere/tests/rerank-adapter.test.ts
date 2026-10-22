@@ -101,7 +101,6 @@ describe('CohereRerankAdapter', () => {
       { index: 0, score: 0.12, document: documents[0] },
     ])
     expect(result.usage.billed).toEqual({ quantity: 1, unit: 'units' })
-    expect(result.usage.unitsBilled).toBe(1)
     expect(result.usage.totalTokens).toBe(0)
   })
 

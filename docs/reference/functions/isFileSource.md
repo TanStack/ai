@@ -7,7 +7,7 @@ title: isFileSource
 function isFileSource(source): source is ContentPartFileSource<string>;
 ```
 
-Defined in: [packages/ai/src/utilities/content-source.ts:11](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/content-source.ts#L11)
+Defined in: packages/ai/src/utilities/content-source.ts:11
 
 Narrow a [ContentPartSource](../type-aliases/ContentPartSource.md) to the provider-file-reference arm.
 

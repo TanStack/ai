@@ -6,23 +6,14 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-import { z } from 'zod'
+import { researcher as researcherDeclaration } from '../lib/researcher-agent'
 
 /**
  * The parent model writes the researcher's brief. The researcher's only
  * message is that brief, not the parent conversation.
  */
 const researcher = defineAgent({
-  name: 'researcher',
-  description:
-    'Researches one focused question and returns short findings. It cannot see this chat, so the task must hold every detail it needs.',
-  inputSchema: z.object({
-    task: z
-      .string()
-      .describe(
-        'What to find and what to return. The researcher sees only this text.',
-      ),
-  }),
+  ...researcherDeclaration,
   run: (ctx) => {
     console.log(
       '[subagent-brief] child input:',
@@ -31,7 +22,7 @@ const researcher = defineAgent({
       ctx.messages.length,
     )
     return chat({
-      adapter: openaiText('gpt-5.6'),
+      adapter: openaiText('gpt-6.1-sol'),
       messages: [{ role: 'user', content: ctx.input.task }],
       threadId: ctx.threadId,
       runId: ctx.runId,
@@ -49,7 +40,7 @@ export const Route = createFileRoute('/api/subagent-brief')({
         const abortController = new AbortController()
         const params = await chatParamsFromRequestBody(await request.json())
         const stream = chat({
-          adapter: openaiText('gpt-5.6'),
+          adapter: openaiText('gpt-6.1-sol'),
           messages: params.messages,
           threadId: params.threadId,
           runId: params.runId,

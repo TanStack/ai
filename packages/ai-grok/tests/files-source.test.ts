@@ -83,6 +83,7 @@ describe('grok file content source', () => {
     const create = vi.fn().mockResolvedValueOnce(mockResponsesStream())
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: adapterWithMockClient(create),
         messages: fileSourceMessage('grok', 'image'),
       }),
@@ -104,6 +105,7 @@ describe('grok file content source', () => {
     const create = vi.fn().mockResolvedValueOnce(mockResponsesStream())
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: adapterWithMockClient(create),
         messages: fileSourceMessage('grok', 'document'),
       }),
@@ -128,6 +130,7 @@ describe('grok file content source', () => {
     // throw. Either way no request reaches xAI.
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: adapterWithMockClient(create),
         messages: fileSourceMessage('openai', 'image'),
       }),

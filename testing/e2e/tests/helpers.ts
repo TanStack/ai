@@ -1,4 +1,5 @@
-import { expect, type Page } from '@playwright/test'
+import { expect } from '@playwright/test'
+import type { APIRequestContext, Page } from '@playwright/test'
 
 declare global {
   interface Window {
@@ -27,6 +28,24 @@ async function markRunStart(page: Page) {
       subtree: true,
     })
   })
+}
+
+const HYDRATION_ERROR = /hydration failed|hydrated but|server rendered html/i
+
+/** Collect React hydration errors from page errors and console errors. Call
+ *  before the reload you want to check, then assert the list stays empty. */
+export function collectHydrationErrors(page: Page): Array<string> {
+  const errors: Array<string> = []
+  page.on('pageerror', (error) => {
+    if (HYDRATION_ERROR.test(error.message)) errors.push(error.message)
+  })
+  page.on('console', (message) => {
+    const text = message.text()
+    if (message.type() === 'error' && HYDRATION_ERROR.test(text)) {
+      errors.push(text)
+    }
+  })
+  return errors
 }
 
 export function featureUrl(
@@ -271,4 +290,21 @@ export async function waitForGenerationComplete(page: Page, timeout = 30_000) {
   await expect(page.getByTestId('generation-status')).toHaveText('complete', {
     timeout,
   })
+}
+
+/**
+ * Open a thread of the `/api/harness-protocol` route and start no turn. The
+ * host has access, so a read of a thread with no index entry is 404 and
+ * opens nothing. A setting change opens the thread.
+ */
+export async function openHarnessThread(
+  request: APIRequestContext,
+  headers: Record<string, string>,
+  threadId: string,
+) {
+  const response = await request.post('/api/harness-protocol/control', {
+    headers: { ...headers, 'content-type': 'application/json' },
+    data: { threadId, input: { op: 'config', key: 'tone', value: 'plain' } },
+  })
+  expect(await response.json()).toMatchObject({ status: 'accepted' })
 }

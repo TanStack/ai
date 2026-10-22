@@ -2,7 +2,7 @@
 title: Tool Architecture
 id: tool-architecture
 order: 2
-description: "The architecture behind TanStack AI's tool system — server tools, client tools, call states, approval flow, and the agentic cycle."
+description: "How a tool call moves between the browser, your server, and the model, and the states that a tool call goes through. Use it to show tool progress and to debug tools."
 keywords:
   - tanstack ai
   - tool architecture
@@ -13,24 +13,49 @@ keywords:
   - agentic cycle
 ---
 
-The TanStack AI tool system provides a powerful, flexible architecture for enabling AI agents to interact with external systems:
+A tool call moves from the model, to your server or the browser, then back as a result. This page shows that path.
 
-- [**Server Tools**](./server-tools) execute securely on the backend with automatic handling
-- [**Client Tools**](./client-tools) execute in the browser for UI updates and local operations
-- [**The Agentic Cycle**](../chat/agentic-cycle) enables multi-step reasoning and complex workflows
-- [**Tool States**](#call-states) provide real-time feedback and enable robust UIs
-- [**Approval Flow**](#approval-flow) gives users control over sensitive operations
-This architecture enables building sophisticated AI applications that can:
+Each tool call is a `tool-call` part in the assistant message. It has a `state` that changes as the call moves forward. The result arrives as a sibling `tool-result` part.
 
-- Fetch data from APIs and databases
-- Perform calculations and transformations
-- Update UIs and manage state
-- Execute multi-step workflows
-- Require user approval for sensitive actions
+## Show tool progress in your UI
 
-## Call Flow: Client to LLM Service
+Render the two part types next to your text parts:
 
-When a user sends a message that requires tool usage, the following flow occurs:
+```tsx
+import type { MessagePart } from "@tanstack/ai-client";
+
+export function ToolStatus({ part }: { part: MessagePart }) {
+  if (part.type === "tool-call") {
+    switch (part.state) {
+      case "awaiting-input":
+      case "input-streaming":
+        return <p>Preparing {part.name}...</p>;
+      case "approval-requested":
+        return <p>{part.name} waits for your approval</p>;
+      case "input-complete":
+        return <p>Running {part.name}...</p>;
+      default:
+        // The tool-result part below shows the outcome.
+        return null;
+    }
+  }
+
+  if (part.type === "tool-result") {
+    if (part.state === "error") {
+      return <p>Tool failed: {part.error}</p>;
+    }
+    return <p>Tool done</p>;
+  }
+
+  return null;
+}
+```
+
+Use it in your message list, for example `message.parts.map((part, index) => <ToolStatus key={index} part={part} />)`. While the model runs your tool, you now see "Running get_weather...", then "Tool done".
+
+To get typed `part.name`, `part.input`, and `part.output`, pass your tools to the chat hook. See [Client Tools](./client-tools#show-the-tool-call-in-your-ui).
+
+## How a tool call flows
 
 ```mermaid
 sequenceDiagram
@@ -38,105 +63,66 @@ sequenceDiagram
     participant Browser
     participant Server
     participant LLM Service
-    
+
     User->>Browser: Types message
     Browser->>Server: POST /api/chat<br/>{messages, ...}
     Server->>Server: Build tool definitions<br/>from tool array
     Server->>LLM Service: Send request with:<br/>- messages<br/>- tool definitions<br/>- model config
-    
+
     Note over LLM Service: Model analyzes tools<br/>and decides to use one
-    
+
     LLM Service-->>Server: Stream chunks:<br/>tool_call, content, done
     Server-->>Browser: Forward chunks via SSE/HTTP
     Browser->>Browser: Parse chunks &<br/>update UI
     Browser->>User: Show response
 ```
 
-### Step-by-Step Breakdown
+1. The user types a message.
+2. The browser sends a POST request to your route. It has the conversation history (`messages`) and optional extra data.
+3. Your route calls `chat()`. `chat()` turns each tool into the format of the provider and sends the request to the model.
+4. The model reads the conversation and the tools. It decides whether to call a tool, and with which arguments.
+5. The model streams back chunks:
+   - `tool_call` chunks with the tool name and arguments.
+   - `content` chunks with text.
+   - A `done` chunk at the end.
+6. Where the tool runs depends on how you defined it:
+   - A [server tool](./server-tools) runs inside `chat()`.
+   - A [client tool](./client-tools) runs in the browser, and the result comes back in a new request.
+   - A tool with `needsApproval: true` waits for the user first. See [Tool Approval Flow](./tool-approval).
+7. `chat()` sends the result to the model, and the model continues. This loop is the [agentic cycle](../chat/agentic-cycle).
+8. The browser updates the UI as each chunk arrives.
 
-1. **User Input**: The user types a message in the chat interface
-2. **Client Request**: The browser sends a POST request to the server with:
-   - Current conversation history (`messages`)
-   - Optional data payload (`body`)
-3. **Server Processing**: The server:
-   - Receives the request
-   - Extracts messages from the request body
-   - Converts tool definitions into the LLM's expected format
-   - Sends the request to the LLM service (OpenAI, Anthropic, etc.)
-4. **LLM Decision**: The LLM service:
-   - Analyzes the conversation and available tools
-   - Decides whether to call a tool based on the user's request
-   - Generates tool calls with arguments
-5. **Streaming Response**: The LLM streams back chunks:
-   - `tool_call` chunks with tool name and arguments
-   - `content` chunks with text responses
-   - `done` chunk when complete
-6. **Client Updates**: The browser receives chunks and updates the UI in real-time
+## Advanced
 
-### Code Example
+### Call states
 
-**Server (API Route):**
+The `state` of a `tool-call` part:
 
-```typescript
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-import { getWeather, sendEmail } from "./tools";
+| State | Meaning | What to show |
+|-------|---------|--------------|
+| `awaiting-input` | The call started. No arguments yet. | A loading state |
+| `input-streaming` | Partial arguments arrive. | Progress |
+| `input-complete` | All arguments are in. | The tool is about to run |
+| `approval-requested` | The call waits for the user. | The approval UI |
+| `approval-responded` | The user approved or denied. | Running, or a denied note |
+| `complete` | The result arrived. | The result |
+| `error` | The call failed or was denied. | The error |
 
-export async function POST(request: Request) {
-  const { messages } = await request.json();
+When the result arrives, the call part also gets `output`.
 
-  // Create streaming chat with tools
-  const stream = chat({
-    adapter: openaiText("gpt-5.5"),
-    messages,
-    tools: [getWeather, sendEmail], // Tool definitions passed here
-  });
+### Result states
 
-  return toServerSentEventsResponse(stream);
-}
-```
+The `state` of the sibling `tool-result` part:
 
-**Client (React Component):**
+| State | Meaning | What to show |
+|-------|---------|--------------|
+| `streaming` | Reserved for streamed results. Not used yet. | Progress |
+| `complete` | The result is complete. | The result |
+| `error` | An error occurred before or during the run. `part.error` has the message. | The error |
 
-```tsx
-import { useState } from "react";
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+A denied or cancelled result is also `error`. Read `part.outcome` to tell it apart from a failure. See [Tool Approval Flow](./tool-approval#tell-a-denial-from-a-failure).
 
-function ChatComponent() {
-  const [input, setInput] = useState("");
-  const { messages, sendMessage, isLoading } = useChat({
-    connection: fetchServerSentEvents("/api/chat"),
-  });
-
-  return (
-    <div>
-      {messages.map((message) => (
-        <div key={message.id}>{/* Render message */}</div>
-      ))}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          sendMessage(input);
-          setInput("");
-        }}
-      >
-        <input value={input} onChange={(e) => setInput(e.target.value)} />
-        <button type="submit" disabled={isLoading}>
-          Send
-        </button>
-      </form>
-    </div>
-  );
-}
-```
-
-## States and Lifecycle
-
-Tools progress through different states during their lifecycle. Understanding these states helps build robust UIs and debug tool execution.
-
-> **Two parts, two state sets — this page is the canonical reference.** Call states (`awaiting-input`, `input-streaming`, `input-complete`, `approval-requested`, `approval-responded`) live on the **`tool-call`** part as `part.state`. There is no `complete`/`error`/`executing`/`cancelled` value on the call part. The *result* lives on a separate sibling **`tool-result`** part whose own `state` is `streaming`, `complete`, or `error`; the resolved value is also mirrored onto the call part's `part.output`.
-
-The diagram below is conceptual: the nodes after `approval-responded` (executing, success, error, cancelled) are **not** `ToolCallState` values — they correspond to the sibling `tool-result` part's state (`complete` / `error`) and the call part's `output` field.
+### The full lifecycle
 
 ```mermaid
 stateDiagram-v2
@@ -161,90 +147,7 @@ stateDiagram-v2
     Denied --> [*]
 ```
 
-### Call States
-
-| State | Description | Client Action |
-|-------|-------------|---------------|
-| `awaiting-input` | Tool call received, no arguments yet | Show loading |
-| `input-streaming` | Partial arguments being received | Show progress |
-| `input-complete` | All arguments received | Ready to execute |
-| `approval-requested` | Waiting for user approval | Show approval UI |
-| `approval-responded` | User has approved/denied | Execute or cancel |
-
-### Result States
-
-| State | Description | Client Action |
-|-------|-------------|---------------|
-| `streaming` | Result being streamed (future feature) | Show progress |
-| `complete` | Result is complete | Show result |
-| `error` | Error occurred before or during execution | Show error message |
-
-### Monitoring Tool States in React
-
-```tsx
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-import { createChatClientOptions } from "@tanstack/ai-client";
-import { getWeather, sendEmail } from "./tools";
-import { ApprovalUI } from "./approval-ui";
-
-// Wiring `tools` is what lets `part.name` / `part.input` / `part.output`
-// narrow to each tool's types below.
-const chatOptions = createChatClientOptions({
-  connection: fetchServerSentEvents("/api/chat"),
-  tools: [getWeather, sendEmail],
-});
-
-function ChatComponent() {
-  const { messages } = useChat(chatOptions);
-
-  return (
-    <div>
-      {messages.map((message) => (
-        <div key={message.id}>
-          {message.parts.map((part) => {
-            if (part.type === "tool-call") {
-              return (
-                <div key={part.id} className="tool-status">
-                  {/* Show state-specific UI */}
-                  {part.state === "awaiting-input" && (
-                    <div>🔄 Calling {part.name}...</div>
-                  )}
-                  {part.state === "input-streaming" && (
-                    <div>📥 Receiving arguments...</div>
-                  )}
-                  {part.state === "input-complete" && (
-                    <div>✓ Arguments ready</div>
-                  )}
-                  {part.state === "approval-requested" && (
-                    <ApprovalUI part={part} />
-                  )}
-                </div>
-              );
-            }
-            if (part.type === "tool-result") {
-              return (
-                <div key={part.toolCallId}>
-                  {part.state === "complete" && (
-                    <div>✓ Tool completed</div>
-                  )}
-                  {part.state === "error" && (
-                    <div>❌ Error: {part.error}</div>
-                  )}
-                </div>
-              );
-            }
-            return null;
-          })}
-        </div>
-      ))}
-    </div>
-  );
-}
-```
-
-### Approval Flow
-
-For sensitive operations, tools can require user approval before execution:
+### The approval flow
 
 ```mermaid
 sequenceDiagram
@@ -253,83 +156,24 @@ sequenceDiagram
     participant Server
     participant LLM
     participant Tool
-    
+
     LLM->>Server: tool_call: send_email
     Server->>Server: Check needsApproval
-    Server->>Client: approval-requested chunk
+    Server->>Client: RUN_FINISHED with an interrupt
     Client->>Client: Show approval UI
     User->>Client: Clicks "Approve"
-    Client->>Server: POST approval response
+    Client->>Server: resolveInterrupt, new run resumes
     Server->>Tool: execute(args)
     Tool-->>Server: result
     Server->>LLM: tool_result
     LLM-->>Client: Generate response
 ```
 
-**Define tool with approval:**
+For the code, see [Tool Approval Flow](./tool-approval).
 
-```typescript
-import { toolDefinition } from "@tanstack/ai";
-import { z } from "zod";
-import { emailService } from "./email-service";
+### Server and client tools in one task
 
-const sendEmailDef = toolDefinition({
-  name: "send_email",
-  description: "Send an email",
-  inputSchema: z.object({
-    to: z.string().email(),
-    subject: z.string(),
-    body: z.string(),
-  }),
-  needsApproval: true, // Requires user approval
-});
-
-const sendEmail = sendEmailDef.server(async ({ to, subject, body }) => {
-  await emailService.send({ to, subject, body });
-  return { success: true };
-});
-```
-
-**Handle approval in client:**
-
-```tsx ignore
-const { messages, addToolApprovalResponse } = useChat({
-  connection: fetchServerSentEvents("/api/chat"),
-});
-
-// In your render (guard `type` and `approval` so `part.approval.id` is safe):
-{part.type === "tool-call" &&
-  part.state === "approval-requested" &&
-  part.approval && (
-    <div>
-      <p>Approve sending email to {part.input.to}?</p>
-      <button
-        onClick={() =>
-          addToolApprovalResponse({
-            id: part.approval.id,
-            approved: true,
-          })
-        }
-      >
-        Approve
-      </button>
-      <button
-        onClick={() =>
-          addToolApprovalResponse({
-            id: part.approval.id,
-            approved: false,
-          })
-        }
-      >
-        Deny
-      </button>
-    </div>
-  )}
-```
-
-### Hybrid Tools (Server + Client)
-
-Some tools need to execute in both environments:
+The model can chain tools that run in different places. Here, a server tool reads preferences from the database, and a client tool applies them to the page:
 
 ```typescript
 import { toolDefinition } from "@tanstack/ai";
@@ -337,7 +181,7 @@ import { z } from "zod";
 import { db } from "./db";
 import { i18n } from "./i18n";
 
-// Server: Fetch data from database
+// Server: read the preferences from the database
 const fetchUserPrefsDef = toolDefinition({
   name: "fetch_user_preferences",
   description: "Get user preferences from server",
@@ -351,7 +195,7 @@ const fetchUserPreferences = fetchUserPrefsDef.server(async ({ userId }) => {
   return prefs;
 });
 
-// Client: Apply preferences to UI
+// Client: apply the preferences to the UI
 const applyPrefsDef = toolDefinition({
   name: "apply_preferences",
   description: "Apply user preferences to the UI",
@@ -361,22 +205,21 @@ const applyPrefsDef = toolDefinition({
   }),
 });
 
-// On client, create client implementation
 const applyPreferences = applyPrefsDef.client(async ({ theme, language }) => {
-  // Update UI state with preferences
   document.body.className = theme;
   i18n.changeLanguage(language);
   return { applied: true };
 });
 
-// Usage: LLM can chain these together
-// 1. Call fetchUserPreferences (server)
-// 2. Call applyPreferences with the result (client)
+// The model can call fetch_user_preferences on the server,
+// then apply_preferences in the browser with the result.
 ```
 
-### Parallel Tool Execution
+Pass `fetchUserPreferences` and `applyPrefsDef` to `chat()` on the server, and `applyPreferences` to the chat hook.
 
-The LLM can call multiple tools in parallel for efficiency:
+### Parallel tool calls
+
+The model can call several tools in one turn:
 
 ```mermaid
 graph TD
@@ -390,52 +233,34 @@ graph TD
     F --> G[Continue with results]
 ```
 
-**Example:**
+For example, "Compare the weather in NYC, SF, and LA" can give three calls: `get_weather` for each city. All three run at the same time, then the model writes the comparison.
 
-```
-User: "Compare the weather in NYC, SF, and LA"
+The server tools of one model turn start together. The model gets their results in the order of its calls. To run them one at a time, see [Run tools one at a time](./tools#run-tools-one-at-a-time).
 
-LLM calls:
-- get_weather({city: "NYC"}) [index: 0]
-- get_weather({city: "SF"}) [index: 1]
-- get_weather({city: "LA"}) [index: 2]
+### Design tips
 
-All execute simultaneously, then LLM generates comparison.
-```
+Tool design:
 
-The server tools of one model turn start together, and the model gets their results in the order of its calls. To run them one at a time, see [Run tools one at a time](./tools#run-tools-one-at-a-time).
+- **One job per tool.** Small tools are easier for the model to pick.
+- **Clear descriptions.** The model reads them to decide when to call the tool.
+- **Schemas for input and output.** Zod schemas give you checks and types.
+- **Errors as data.** Return a clear error message instead of throwing.
+- **Safe repeats.** Make a tool safe to call more than once with the same input.
 
-## Best Practices
+Security:
 
-### Tool Design
+- **Sensitive work on the server.** Keys and private data stay in server tools.
+- **Approval for destructive actions.** Use `needsApproval`.
+- **Input checks.** Every call goes through `inputSchema`. Add your own business rules in the tool.
+- **Rate limits.** Limit expensive tools.
+- **Audit logs.** Log tool runs for debugging and security.
 
-- **Single Responsibility**: Each tool should do one thing well
-- **Clear Descriptions**: Help the LLM understand when to use the tool
-- **Type Safety**: Use Zod schemas for input/output validation
-- **Error Handling**: Return meaningful error messages, don't throw
-- **Idempotency**: Tools should be safe to call multiple times
+Performance:
 
-### Security
+- **Caching.** If the data allows it, cache tool results.
+- **Parallel calls.** Let independent tools run together.
+- **Progress events.** Stream progress for long tools. See [Server Tools: Advanced](./server-tools-advanced#stream-progress-while-a-tool-runs).
+- **Timeouts.** Set timeouts on external API calls.
+- **Lazy tools.** Make rarely used tools lazy. The model then gets them only on request. See [Lazy Tool Discovery](./lazy-tool-discovery).
 
-- **Server vs Client**: Put sensitive operations on the server
-- **Approval Flow**: Use `needsApproval` for destructive actions
-- **Input Validation**: Always validate tool inputs
-- **Rate Limiting**: Implement rate limits for expensive tools
-- **Audit Logs**: Log tool executions for debugging and security
-
-### Performance
-
-- **Caching**: Cache tool results when appropriate
-- **Parallel Execution**: Enable parallel tool calls when possible
-- **Streaming**: Use streaming for long-running operations
-- **Timeouts**: Set timeouts for external API calls
-- **Lazy Loading**: Load tools only when needed
-
-
-## Next Steps
-
-- [Tools Overview](./tools) - Basic tool concepts and examples
-- [Server Tools](./server-tools) - Deep dive into server-side tools
-- [Client Tools](./client-tools) - Deep dive into client-side tools
-- [Tool Approval Flow](./tool-approval) - Implementing approval workflows
-- [AG-UI protocol](https://docs.ag-ui.com/introduction) - Understanding the streaming protocol
+The streaming protocol under all of this is AG-UI. See the [AG-UI docs](https://docs.ag-ui.com/introduction).

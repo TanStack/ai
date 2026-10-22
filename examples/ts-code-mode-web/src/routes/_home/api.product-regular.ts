@@ -31,7 +31,7 @@ export const Route = createFileRoute('/_home/api/product-regular')({
 
         const abortController = new AbortController()
         const body = await request.json()
-        const { messages, data } = body
+        const { messages, forwardedProps: data } = body
 
         const provider: Provider = data?.provider || 'anthropic'
         const model: string | undefined = data?.model
@@ -83,6 +83,7 @@ export const Route = createFileRoute('/_home/api/product-regular')({
 
         try {
           const stream = chat({
+            threadId: body.threadId,
             adapter: instrumentedAdapter,
             messages,
             tools: [...productTools],

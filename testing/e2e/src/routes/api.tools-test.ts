@@ -65,9 +65,10 @@ function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
           : scenario === 'client-tool-input-error' ||
               scenario === 'invalid-client-tool-retry'
             ? {
-                arguments: '{"message":42,"type":"info"}',
+                // An object cannot be repaired into the string `message`.
+                arguments: '{"message":{"text":"hi"},"type":"info"}',
                 initialText: 'Showing a notification.',
-                input: { message: 42, type: 'info' },
+                input: { message: { text: 'hi' }, type: 'info' },
                 name:
                   scenario === 'invalid-client-tool-retry'
                     ? 'invalid-client-tool-retry-test'
@@ -175,7 +176,6 @@ function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
           type: EventType.TOOL_CALL_START,
           toolCallId,
           toolCallName: config.toolName,
-          toolName: config.toolName,
           model,
           timestamp: Date.now(),
         }
@@ -190,7 +190,6 @@ function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
           type: EventType.TOOL_CALL_END,
           toolCallId,
           toolCallName: config.toolName,
-          toolName: config.toolName,
           ...(toolInput === undefined ? {} : { input: toolInput }),
           ...(config.result === undefined
             ? {}
@@ -308,7 +307,6 @@ function createCanonicalToolInputAdapter(): AnyTextAdapter {
         type: EventType.TOOL_CALL_START,
         toolCallId,
         toolCallName: 'check_status',
-        toolName: 'check_status',
         model,
         timestamp,
       }
@@ -323,7 +321,6 @@ function createCanonicalToolInputAdapter(): AnyTextAdapter {
         type: EventType.TOOL_CALL_END,
         toolCallId,
         toolCallName: 'check_status',
-        toolName: 'check_status',
         input: { component: 'database' },
         model,
         timestamp,
@@ -416,7 +413,6 @@ function createInterleavedArgsAdapter(): AnyTextAdapter {
         type: EventType.TOOL_CALL_START,
         toolCallId,
         toolCallName: 'get_weather',
-        toolName: 'get_weather',
         model,
         timestamp: Date.now(),
       }
@@ -445,7 +441,6 @@ function createInterleavedArgsAdapter(): AnyTextAdapter {
         type: EventType.TOOL_CALL_END,
         toolCallId,
         toolCallName: 'get_weather',
-        toolName: 'get_weather',
         model,
         timestamp: Date.now(),
       }

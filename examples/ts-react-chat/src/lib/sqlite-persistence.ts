@@ -150,7 +150,7 @@ CREATE TABLE IF NOT EXISTS artifacts (
   artifact_id text PRIMARY KEY NOT NULL,
   run_id text NOT NULL,
   thread_id text NOT NULL,
-  blob_key text,
+  blob_key text NOT NULL,
   name text NOT NULL,
   mime_type text NOT NULL,
   size integer NOT NULL,
@@ -347,7 +347,7 @@ interface ArtifactRow {
   artifact_id: string
   run_id: string
   thread_id: string
-  blob_key: string | null
+  blob_key: string
   name: string
   mime_type: string
   size: number
@@ -901,7 +901,7 @@ function mapArtifact(row: ArtifactRow): ArtifactRecord {
     artifactId: row.artifact_id,
     runId: row.run_id,
     threadId: row.thread_id,
-    ...(row.blob_key != null ? { blobKey: row.blob_key } : {}),
+    blobKey: row.blob_key,
     name: row.name,
     mimeType: row.mime_type,
     size: row.size,
@@ -938,7 +938,7 @@ function createArtifactStore(db: DatabaseSync) {
         record.artifactId,
         record.runId,
         record.threadId,
-        record.blobKey ?? null,
+        record.blobKey,
         record.name,
         record.mimeType,
         record.size,

@@ -15,7 +15,7 @@ function typeCheck(_options: UseChatOptions) {}
 describe('useChat persistence requires a threadId', () => {
   it('rejects persistence: true without a threadId', () => {
     const _typeCheck = () => {
-      // @ts-expect-error threadId is required whenever persistence is on
+      // @ts-expect-error threadId is required
       typeCheck({ connection, persistence: true })
     }
     void _typeCheck
@@ -23,7 +23,7 @@ describe('useChat persistence requires a threadId', () => {
 
   it('rejects a storage adapter without a threadId', () => {
     const _typeCheck = () => {
-      // @ts-expect-error threadId is required whenever persistence is on
+      // @ts-expect-error threadId is required
       typeCheck({ connection, persistence })
     }
     void _typeCheck
@@ -37,9 +37,11 @@ describe('useChat persistence requires a threadId', () => {
     void _typeCheck
   })
 
-  it('leaves threadId optional for ephemeral chats', () => {
+  it('requires threadId for ephemeral chats too', () => {
     const _typeCheck = () => {
+      // @ts-expect-error threadId is required
       typeCheck({ connection })
+      // @ts-expect-error threadId is required
       typeCheck({ connection, persistence: false })
       typeCheck({ connection, threadId: 'support-42' })
     }

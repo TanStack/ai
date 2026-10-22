@@ -53,6 +53,7 @@ function ByokPage() {
   }, [])
 
   const { messages, sendMessage, isLoading, stop } = useChat({
+    threadId: 'byok-chat',
     connection: fetchServerSentEvents('/api/byok-chat'),
     byok,
     forwardedProps: {

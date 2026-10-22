@@ -7,9 +7,6 @@ import type { ProviderTool, Tool } from '@tanstack/ai'
 
 export type WebFetchToolConfig = BetaWebFetchTool20250910
 
-/** @deprecated Renamed to `WebFetchToolConfig`. Will be removed in a future release. */
-export type WebFetchTool = WebFetchToolConfig
-
 export type AnthropicWebFetchTool = ProviderTool<'anthropic', 'web_fetch'>
 
 export function convertWebFetchToolToAdapterFormat(

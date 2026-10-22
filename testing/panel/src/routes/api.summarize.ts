@@ -27,7 +27,7 @@ export const Route = createFileRoute('/api/summarize')({
           style = 'concise',
           stream = false,
         } = body
-        const data = body.data || {}
+        const data = body.forwardedProps || {}
         const provider: Provider = data.provider || body.provider || 'openai'
         // Don't set a global default - let each adapter use its own default model
         const model: string | undefined = data.model || body.model
@@ -72,6 +72,7 @@ export const Route = createFileRoute('/api/summarize')({
               async start(controller) {
                 try {
                   const streamResult = summarize({
+                    threadId: 'panel-summarize',
                     adapter,
                     text,
                     maxLength,
@@ -115,6 +116,7 @@ export const Route = createFileRoute('/api/summarize')({
 
           // Non-streaming mode
           const result = await summarize({
+            threadId: 'panel-summarize',
             adapter,
             text,
             maxLength,

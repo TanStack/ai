@@ -75,7 +75,6 @@ describe('streamToText', () => {
         type: EventType.TOOL_CALL_START,
         toolCallId: 'call-1',
         toolCallName: 'lookup',
-        toolName: 'lookup',
         timestamp: 3,
       },
       {
@@ -296,7 +295,6 @@ describe('toServerSentEventsStream', () => {
 
     expect(output).toContain('"type":"TOOL_CALL_START"')
     expect(output).toContain('"toolCallName":"getWeather"')
-    expect(output).not.toContain('"toolName"')
     expect(output).not.toContain('[DONE]')
   })
 
@@ -768,7 +766,6 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
     expect(parsedChunks[0]?.['type']).toBe('TOOL_CALL_START')
     expect((parsedChunks[0] as any)?.toolCallId).toBe('tc-1')
     expect((parsedChunks[0] as any)?.toolCallName).toBe('get_weather')
-    expect(parsedChunks[0]).not.toHaveProperty('toolName')
     expect(parsedChunks[0]).not.toHaveProperty('index')
 
     // Verify TOOL_CALL_ARGS
@@ -1135,7 +1132,6 @@ describe('toJsonResponse', () => {
         type: EventType.TOOL_CALL_START,
         toolCallId: 'call-1',
         toolCallName: 'lookup',
-        toolName: 'lookup',
         timestamp: 1,
       },
       {
@@ -1262,6 +1258,7 @@ describe('toJsonResponse with a structured-output result', () => {
 
   function extractGuitar() {
     return chat({
+      threadId: 'thread-1',
       adapter: structuredAdapter(),
       messages: [{ role: 'user', content: 'recommend a guitar' }],
       outputSchema: GuitarSchema,

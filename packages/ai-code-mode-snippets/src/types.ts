@@ -235,6 +235,11 @@ export interface CodeModeWithSnippetsOptions {
   messages: Array<ModelMessage>
 
   /**
+   * Thread id of the conversation. The snippet selection chat uses it.
+   */
+  threadId: string
+
+  /**
    * Whether to include snippets as direct tools (not just sandbox bindings).
    * When true, snippets become first-class tools the LLM can call directly.
    * @default true

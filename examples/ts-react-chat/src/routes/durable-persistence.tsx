@@ -122,7 +122,7 @@ function ChatPane({ threadId }: { threadId: string }) {
     threadId,
     connection,
     persistence: true,
-    body: { oldBatching, slowModel },
+    forwardedProps: { oldBatching, slowModel },
   })
   const [input, setInput] = useState(
     'Write a 700-word story about a lighthouse keeper.',

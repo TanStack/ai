@@ -95,12 +95,9 @@ test.describe('Server-Client Sequence E2E Tests', () => {
     )
 
     const messages = await getMessages(page)
-    const toolCalls = messages.flatMap((msg) =>
-      (msg.parts || []).filter((part: any) => part.type === 'tool-call'),
-    )
-    const toolResults = messages.flatMap((msg) =>
-      (msg.parts || []).filter((part: any) => part.type === 'tool-result'),
-    )
+    const parts = messages.flatMap((msg) => msg.parts)
+    const toolCalls = parts.filter((part) => part.type === 'tool-call')
+    const toolResults = parts.filter((part) => part.type === 'tool-result')
 
     const fetchData = toolCalls.find((part) => part.name === 'fetch_data')
     expect(fetchData).toMatchObject({
@@ -121,6 +118,7 @@ test.describe('Server-Client Sequence E2E Tests', () => {
         (part) =>
           part.toolCallId === fetchData?.id &&
           part.state === 'complete' &&
+          typeof part.content === 'string' &&
           JSON.parse(part.content).source === 'api',
       ),
     ).toBe(true)
@@ -221,17 +219,19 @@ test.describe('Server-Client Sequence E2E Tests', () => {
     await waitForTestComplete(page, 15000, 2)
 
     const messages = await getMessages(page)
-    const results: Array<{ toolCallId: string; content: string }> = messages
-      .flatMap((message) => message.parts ?? [])
-      .filter((part) => part.type === 'tool-result')
-    const calls: Array<{ id: string; name: string }> = messages
-      .flatMap((message) => message.parts ?? [])
-      .filter((part) => part.type === 'tool-call')
+    const parts = messages.flatMap((message) => message.parts)
+    const results = parts.filter((part) => part.type === 'tool-result')
+    const calls = parts.filter((part) => part.type === 'tool-call')
     const nameOf = (toolCallId: string) =>
       calls.find((call) => call.id === toolCallId)?.name
     const timing = (name: string) => {
-      const result = results.find((r) => nameOf(r.toolCallId) === name)
-      return JSON.parse(result?.content ?? '{}')
+      const content = results.find(
+        (r) => nameOf(r.toolCallId) === name,
+      )?.content
+      if (typeof content !== 'string') {
+        throw new Error(`no string tool result for ${name}`)
+      }
+      return JSON.parse(content)
     }
 
     // Each tool waits 300 ms. Run one after another, they cannot overlap.

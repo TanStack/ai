@@ -1,12 +1,6 @@
 {
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": [
-    "node_modules",
-    "src/routeTree.gen.ts",
-    "src/lib/stub-adapter.ts",
-    "src/lib/stub-llm.ts",
-    "src/utils/demo.tools.ts"
-  ],
+  "exclude": ["node_modules", "src/routeTree.gen.ts"],
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "preserve",

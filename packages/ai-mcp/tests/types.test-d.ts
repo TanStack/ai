@@ -3,6 +3,7 @@ import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import { createMCPClient } from '../src/client'
 import type { MCPClient } from '../src/client'
+import type { MCPEvents } from '../src/types'
 import type { DescriptorFromServer } from '../src/direct-client'
 import type { travelServer } from './fixtures/travel-server'
 import type { MCPClients } from '../src/pool'
@@ -92,7 +93,9 @@ async function typedRemote() {
     transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
   })
   expectTypeOf(remote).toEqualTypeOf<
-    MCPClient<DescriptorFromServer<typeof travelServer>>
+    MCPClient<DescriptorFromServer<typeof travelServer>> & {
+      readonly experimental_events: MCPEvents
+    }
   >()
   const weather = await remote.callTool('get_weather', { city: 'Paris' })
   // get_weather has `outputSchema: z.string()`.

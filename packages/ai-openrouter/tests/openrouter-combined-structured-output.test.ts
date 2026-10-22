@@ -7,6 +7,7 @@ import {
   OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS,
 } from '../src/model-meta'
 import { openRouterSupportsCombinedToolsAndSchema } from '../src/internal/combined-tools-and-schema'
+import { openRouterUsesJsonObject } from '../src/internal/json-object-mode'
 import { createOpenRouterResponsesText } from '../src/adapters/responses-text'
 import { createOpenRouterText } from '../src/adapters/text'
 import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
@@ -176,12 +177,6 @@ describe('OpenRouter combined tools + outputSchema', () => {
           'k',
         ).supportsCombinedToolsAndSchema(),
       ).toBe(false)
-      expect(
-        createOpenRouterText(
-          'anthropic/claude-sonnet-4',
-          'k',
-        ).supportsCombinedToolsAndSchema(),
-      ).toBe(false)
       const modelWithoutCombined = OPENROUTER_CHAT_MODELS.find(
         (id) => !OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(id),
       )
@@ -205,7 +200,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       ).toBe(true)
       expect(
         createOpenRouterResponsesText(
-          'anthropic/claude-sonnet-4',
+          'anthropic/claude-opus-4.1',
           'k',
         ).supportsCombinedToolsAndSchema(),
       ).toBe(false)
@@ -221,7 +216,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       ).toBe(true)
       expect(
         adapter.supportsCombinedToolsAndSchema({
-          models: ['anthropic/claude-sonnet-4'],
+          models: ['anthropic/claude-opus-4.1'],
         }),
       ).toBe(false)
     })
@@ -249,6 +244,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       const adapter = createOpenRouterText('openai/gpt-4o', 'k')
 
       for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'openai/gpt-4o',
         messages: [{ role: 'user', content: 'hi' }],
@@ -280,6 +276,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       const adapter = createOpenRouterText('anthropic/claude-opus-4.1', 'k')
 
       for await (const _ of chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'hi' }],
         tools,
@@ -300,6 +297,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       const adapter = createOpenRouterText('openai/gpt-4o', 'k')
 
       for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'openai/gpt-4o',
         messages: [{ role: 'user', content: 'hi' }],
@@ -309,14 +307,14 @@ describe('OpenRouter combined tools + outputSchema', () => {
           properties: { answer: { type: 'string' } },
           required: ['answer'],
         },
-        modelOptions: { models: ['anthropic/claude-sonnet-4'] },
+        modelOptions: { models: ['anthropic/claude-opus-4.1'] },
       })) {
         // drain
       }
 
       const params = mockChatSend.mock.calls[0]![0].chatRequest
       expect(params.responseFormat).toBeUndefined()
-      expect(params.models).toEqual(['anthropic/claude-sonnet-4'])
+      expect(params.models).toEqual(['anthropic/claude-opus-4.1'])
       expect(params.tools).toBeDefined()
     })
   })
@@ -327,6 +325,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       const adapter = createOpenRouterResponsesText('openai/gpt-4o', 'k')
 
       for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'openai/gpt-4o',
         messages: [{ role: 'user', content: 'hi' }],
@@ -358,6 +357,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       const adapter = createOpenRouterResponsesText('openai/gpt-4o', 'k')
 
       for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'openai/gpt-4o',
         messages: [{ role: 'user', content: 'hi' }],
@@ -389,6 +389,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'hi' }],
         tools,
@@ -412,6 +413,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'hi' }],
         tools,
@@ -426,6 +428,112 @@ describe('OpenRouter combined tools + outputSchema', () => {
       expect(params.tools).toBeDefined()
       expect(params.text?.format?.type).toBe('json_schema')
 
+      expect(readCompleteObject(chunks)).toEqual({ answer: 'ok' })
+    })
+  })
+
+  describe('JSON mode', () => {
+    it('finds JSON-only models by full id, variant, and fallback', () => {
+      // The catalog lists this `:free` id on its own.
+      expect(
+        openRouterUsesJsonObject('google/gemma-4-26b-a4b-it:free', undefined),
+      ).toBe(true)
+      expect(
+        openRouterUsesJsonObject('google/gemma-4-26b-a4b-it', {
+          variant: 'free',
+        }),
+      ).toBe(true)
+      expect(openRouterUsesJsonObject('google/gemma-4-26b-a4b-it', {})).toBe(
+        false,
+      )
+      expect(openRouterUsesJsonObject('qwen/qwen3.7-flash:nitro', {})).toBe(
+        true,
+      )
+      expect(
+        openRouterUsesJsonObject('openai/gpt-4o', {
+          models: ['qwen/qwen3.7-flash'],
+        }),
+      ).toBe(true)
+      expect(openRouterUsesJsonObject('openai/gpt-4o', {})).toBe(false)
+    })
+
+    it('turns combined mode off when the caller sets json_object', () => {
+      expect(
+        createOpenRouterText(
+          'openai/gpt-4o',
+          'k',
+        ).supportsCombinedToolsAndSchema({
+          responseFormat: { type: 'json_object' },
+        }),
+      ).toBe(false)
+      expect(
+        createOpenRouterResponsesText(
+          'openai/gpt-4o',
+          'k',
+        ).supportsCombinedToolsAndSchema({
+          text: { format: { type: 'json_object' } },
+        }),
+      ).toBe(false)
+    })
+
+    it('keeps the schema prompt off tool turns and sends json_object on the final call', async () => {
+      setupChatStream(jsonStopChunks)
+      const adapter = createOpenRouterText('qwen/qwen3.7-flash', 'k')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of chat({
+        threadId: 'thread-1',
+        adapter,
+        messages: [{ role: 'user', content: 'hi' }],
+        tools,
+        outputSchema: AnswerSchema,
+        stream: true,
+      })) {
+        chunks.push(chunk)
+      }
+
+      expect(mockChatSend).toHaveBeenCalledTimes(2)
+      const [toolTurn, final] = mockChatSend.mock.calls.map(
+        ([params]) => params.chatRequest,
+      )
+      expect(toolTurn.responseFormat).toBeUndefined()
+      expect(JSON.stringify(toolTurn.messages)).not.toContain('JSON Schema')
+      expect(final.responseFormat).toEqual({ type: 'json_object' })
+      expect(
+        final.messages.filter((m: { role: string }) => m.role === 'system'),
+      ).toEqual([
+        {
+          role: 'system',
+          content: expect.stringContaining('"required":["answer"]'),
+        },
+      ])
+      expect(readCompleteObject(chunks)).toEqual({ answer: 'ok' })
+    })
+
+    it('sends text.format json_object and the schema as instructions on the Responses adapter', async () => {
+      setupResponsesStream(responsesJsonChunks)
+      const adapter = createOpenRouterResponsesText('qwen/qwen3.7-flash', 'k')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of chat({
+        threadId: 'thread-1',
+        adapter,
+        messages: [{ role: 'user', content: 'hi' }],
+        tools,
+        outputSchema: AnswerSchema,
+        stream: true,
+      })) {
+        chunks.push(chunk)
+      }
+
+      expect(mockResponsesSend).toHaveBeenCalledTimes(2)
+      const [toolTurn, final] = mockResponsesSend.mock.calls.map(
+        ([params]) => params.responsesRequest,
+      )
+      expect(toolTurn.text?.format).toBeUndefined()
+      expect(toolTurn.instructions).toBeUndefined()
+      expect(final.text?.format).toEqual({ type: 'json_object' })
+      expect(final.instructions).toContain('"required":["answer"]')
       expect(readCompleteObject(chunks)).toEqual({ answer: 'ok' })
     })
   })

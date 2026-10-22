@@ -3,7 +3,7 @@ id: RunFinishedEvent
 title: RunFinishedEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1376](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1376)
+Defined in: packages/ai/src/types.ts:1601
 
 Emitted when a run completes successfully.
 
@@ -23,7 +23,7 @@ Spec `usage[]` is provider/model token counts. TanStack leftovers live in
 optional finishReason?: "length" | "stop" | "content_filter" | "tool_calls" | null;
 ```
 
-Defined in: [packages/ai/src/types.ts:1385](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1385)
+Defined in: packages/ai/src/types.ts:1612
 
 Restored on the client from `metadata.tanstack`.
 
@@ -35,7 +35,7 @@ Restored on the client from `metadata.tanstack`.
 optional metadata?: object & Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1386](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1386)
+Defined in: packages/ai/src/types.ts:1613
 
 #### Type Declaration
 
@@ -53,9 +53,21 @@ optional tanstack?: TanStackRunMetadata;
 optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1383](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1383)
+Defined in: packages/ai/src/types.ts:1608
 
 Restored on the client from `metadata.tanstack`.
+
+***
+
+### responseId?
+
+```ts
+optional responseId?: string;
+```
+
+Defined in: packages/ai/src/types.ts:1610
+
+Provider generation ID. Restored from `metadata.tanstack`.
 
 ***
 
@@ -65,7 +77,7 @@ Restored on the client from `metadata.tanstack`.
 type: RUN_FINISHED;
 ```
 
-Defined in: [packages/ai/src/types.ts:1380](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1380)
+Defined in: packages/ai/src/types.ts:1605
 
 ***
 
@@ -75,4 +87,4 @@ Defined in: [packages/ai/src/types.ts:1380](https://github.com/TanStack/ai/blob/
 optional usage?: TokenUsage<ProviderUsageDetails> | TokenUsage[];
 ```
 
-Defined in: [packages/ai/src/types.ts:1381](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1381)
+Defined in: packages/ai/src/types.ts:1606

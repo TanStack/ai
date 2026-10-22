@@ -105,6 +105,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     )
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'test' }],
       reasoning: { level: 'high', budgetTokens: 4000 },
@@ -142,6 +143,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     const adapter = createAdapter()
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       systemPrompts: ['Stay concise'],
       messages: [{ role: 'user', content: 'How is the weather?' }],
@@ -201,6 +203,7 @@ describe('OpenRouter responses adapter — request shape', () => {
 
     const adapter = createAdapter()
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {
@@ -245,6 +248,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     ])
     const adapter = createAdapter()
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       modelOptions: { variant: 'thinking' as any },
@@ -269,6 +273,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     ])
     const adapter = createAdapter()
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       // Root `metadata` is observability-only and may carry structured
@@ -299,6 +304,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     ])
     const adapter = createAdapter()
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       metadata: { observationName: 'my-call' },
@@ -314,6 +320,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     const ws = webSearchTool() as Tool
     const events: Array<AdapterYieldChunk> = []
     for await (const evt of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       tools: [ws],
@@ -338,6 +345,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     const wf = webFetchTool() as Tool
     const events: Array<AdapterYieldChunk> = []
     for await (const evt of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       tools: [wf],
@@ -372,6 +380,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     ])
     const adapter = createAdapter()
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {
@@ -412,6 +421,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     ])
     const adapter = createAdapter()
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {
@@ -457,6 +467,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     ])
     const adapter = createAdapter()
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {
@@ -495,6 +506,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     ])
     const adapter = createAdapter()
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {
@@ -535,6 +547,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     ])
     const adapter = createAdapter()
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {
@@ -579,6 +592,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     ])
     const adapter = createAdapter()
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {
@@ -620,6 +634,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     const chatAdapter = createOpenRouterText('openai/gpt-4o-mini' as any, 'k')
     const events: Array<AdapterYieldChunk> = []
     for await (const evt of chatAdapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [
         {
@@ -674,6 +689,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     ])
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'hi' }],
     })) {
@@ -717,6 +733,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const chunks: Array<AdapterYieldChunk> = []
     const run = (async () => {
       for await (const c of chat({
+        threadId: 'thread-1',
         adapter: createAdapter(),
         messages: [{ role: 'user', content: 'hi' }],
       })) {
@@ -760,6 +777,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const run = (async () => {
       for await (const c of createAdapter().structuredOutputStream({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'openai/gpt-4o-mini' as any,
           messages: [{ role: 'user', content: 'profile?' }],
           logger: testLogger,
@@ -799,6 +817,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of createAdapter().structuredOutputStream({
       chatOptions: {
+        threadId: 'thread-1',
         model: 'openai/gpt-4o-mini' as any,
         messages: [{ role: 'user', content: 'profile?' }],
         logger: testLogger,
@@ -859,6 +878,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
     })) {
@@ -921,6 +941,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'Answer carefully' }],
       logger: testLogger,
@@ -978,6 +999,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: adapter.model,
       messages: [{ role: 'user', content: 'Answer carefully' }],
       logger: testLogger,
@@ -1017,6 +1039,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: adapter.model,
       messages: [{ role: 'user', content: 'Answer carefully' }],
       logger: testLogger,
@@ -1058,6 +1081,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: adapter.model,
       messages: [{ role: 'user', content: 'Answer carefully' }],
       logger: testLogger,
@@ -1122,6 +1146,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       tools: [weatherTool],
@@ -1262,6 +1287,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
 
       const chunks: Array<AdapterYieldChunk> = []
       for await (const c of createAdapter().chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'openai/gpt-4o-mini',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -1333,6 +1359,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'hi' }],
       tools: [weatherTool],
@@ -1350,6 +1377,109 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     ).toMatchObject({
       toolCallId: 'call_abc',
       input: { location: 'Berlin' },
+    })
+  })
+
+  describe('raw tool arguments', () => {
+    type EndSite = 'arguments.done' | 'output_item.done' | 'response.completed'
+
+    // Each site emits TOOL_CALL_END from a different event. Without a name on
+    // output_item.added, args.done is deferred to a later backfill.
+    function rawArgsStream(
+      site: EndSite,
+      raw: string,
+    ): Array<Record<string, unknown>> {
+      const named = {
+        type: 'function_call',
+        id: 'item_raw',
+        callId: 'call_raw',
+        name: 'lookup_weather',
+      }
+      return [
+        {
+          type: 'response.output_item.added',
+          sequenceNumber: 0,
+          outputIndex: 0,
+          item:
+            site === 'arguments.done'
+              ? { ...named, arguments: '' }
+              : {
+                  type: 'function_call',
+                  id: 'item_raw',
+                  callId: 'call_raw',
+                  arguments: '',
+                },
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          sequenceNumber: 1,
+          itemId: 'item_raw',
+          outputIndex: 0,
+          arguments: raw,
+        },
+        ...(site === 'output_item.done'
+          ? [
+              {
+                type: 'response.output_item.done',
+                sequenceNumber: 2,
+                outputIndex: 0,
+                item: { ...named, arguments: raw },
+              },
+            ]
+          : []),
+        {
+          type: 'response.completed',
+          sequenceNumber: 3,
+          response: {
+            model: 'm',
+            output: [{ ...named, arguments: raw }],
+            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          },
+        },
+      ]
+    }
+
+    async function toolEnds(site: EndSite, raw: string) {
+      setupMockSdkClient(rawArgsStream(site, raw))
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of createAdapter().chatStream({
+        threadId: 'thread-1',
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'hi' }],
+        tools: [weatherTool],
+        logger: testLogger,
+      })) {
+        chunks.push(chunk)
+      }
+      return chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')
+    }
+
+    it.each<EndSite>([
+      'arguments.done',
+      'output_item.done',
+      'response.completed',
+    ])(
+      'sends the raw argument string as args on TOOL_CALL_END (%s)',
+      async (site) => {
+        const ends = await toolEnds(site, '{"n": 1.50}')
+        expect(ends).toHaveLength(1)
+        expect(ends[0]).toMatchObject({
+          toolCallId: 'call_raw',
+          args: '{"n": 1.50}',
+          input: { n: 1.5 },
+        })
+      },
+    )
+
+    it.each<EndSite>([
+      'arguments.done',
+      'output_item.done',
+      'response.completed',
+    ])('sends malformed arguments as args with no input (%s)', async (site) => {
+      const ends = await toolEnds(site, '{"a":')
+      expect(ends).toHaveLength(1)
+      expect(ends[0]).toMatchObject({ toolCallId: 'call_raw', args: '{"a":' })
+      expect(ends[0]).not.toHaveProperty('input')
     })
   })
 
@@ -1428,6 +1558,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const execute = vi.fn().mockReturnValue({ temperature: 72 })
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'How is the weather?' }],
       tools: [{ ...weatherTool, execute }],
@@ -1525,6 +1656,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
       tools: [weatherTool],
@@ -1565,6 +1697,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -1597,6 +1730,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -1629,6 +1763,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -1660,6 +1795,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -1696,6 +1832,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -1763,6 +1900,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -1814,6 +1952,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const c of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'think' }],
       logger: testLogger,
@@ -1866,6 +2005,7 @@ describe('OpenRouter responses adapter — structured output', () => {
     const adapter = createAdapter()
     const result = await adapter.structuredOutput({
       chatOptions: {
+        threadId: 'thread-1',
         model: 'openai/gpt-4o-mini' as any,
         messages: [{ role: 'user', content: 'profile?' }],
         logger: testLogger,
@@ -1917,6 +2057,7 @@ describe('OpenRouter responses adapter — structured output', () => {
     const adapter = createAdapter()
     const result = await adapter.structuredOutput({
       chatOptions: {
+        threadId: 'thread-1',
         model: 'openai/gpt-4o-mini' as any,
         messages: [{ role: 'user', content: 'title?' }],
         logger: testLogger,
@@ -1962,6 +2103,7 @@ describe('OpenRouter responses adapter — structured output', () => {
     const adapter = createAdapter()
     const result = await adapter.structuredOutput({
       chatOptions: {
+        threadId: 'thread-1',
         model: 'openai/gpt-4o-mini' as any,
         messages: [{ role: 'user', content: 'title?' }],
         logger: testLogger,
@@ -2016,6 +2158,7 @@ describe('OpenRouter responses adapter — SDK constructor wiring', () => {
     const adapter = createAdapter()
     const controller = new AbortController()
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -2042,6 +2185,7 @@ describe('OpenRouter responses adapter — SDK constructor wiring', () => {
     const adapter = createAdapter()
     const headers = { 'X-Trace-Id': 'trace-r1' }
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -2074,6 +2218,7 @@ describe('OpenRouter responses adapter — cost tracking', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -2157,6 +2302,7 @@ describe('OpenRouter responses adapter — cost tracking', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -2201,6 +2347,7 @@ describe('OpenRouter responses adapter — stream fields', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: adapter.model,
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -2310,6 +2457,7 @@ describe('OpenRouter responses adapter — stream fields', () => {
     const adapter = createAdapter()
     const result = await adapter.structuredOutput({
       chatOptions: {
+        threadId: 'thread-1',
         model: adapter.model,
         messages: [{ role: 'user', content: 'ok?' }],
         logger: testLogger,
@@ -2343,6 +2491,7 @@ describe('OpenRouter responses adapter — stream fields', () => {
     setupMockSdkClient([completed])
     const adapter = createAdapter()
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       model: adapter.model,
       messages: [
         {

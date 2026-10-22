@@ -22,7 +22,6 @@ function host(
     ...chat,
     messages: signal(chat.messages),
     interrupts: signal(chat.interrupts),
-    pendingInterrupts: signal(chat.pendingInterrupts),
     queue: signal(chat.queue),
     isLoading: signal(chat.isLoading),
     error: signal(chat.error),

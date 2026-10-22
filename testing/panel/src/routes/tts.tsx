@@ -14,7 +14,7 @@ type Voice =
   | 'sage'
   | 'shimmer'
   | 'verse'
-type Model = 'tts-1' | 'tts-1-hd' | 'gpt-4o-audio-preview'
+type Model = 'tts-1' | 'tts-1-hd' | 'gpt-4o-mini-tts'
 type Format = 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm'
 
 interface TTSResult {
@@ -43,7 +43,7 @@ const VOICES: Array<{ value: Voice; label: string }> = [
 const MODELS: Array<{ value: Model; label: string }> = [
   { value: 'tts-1', label: 'TTS-1 (Fast)' },
   { value: 'tts-1-hd', label: 'TTS-1-HD (High Quality)' },
-  { value: 'gpt-4o-audio-preview', label: 'GPT-4o Audio (Preview)' },
+  { value: 'gpt-4o-mini-tts', label: 'GPT-4o mini TTS' },
 ]
 
 const FORMATS: Array<{ value: Format; label: string }> = [

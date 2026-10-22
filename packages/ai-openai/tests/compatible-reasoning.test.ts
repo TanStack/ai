@@ -41,6 +41,7 @@ async function collect(streamChunks: Array<Record<string, unknown>>) {
   const adapter = makeAdapter(streamChunks)
   const chunks: Array<AdapterYieldChunk> = []
   for await (const chunk of adapter.chatStream({
+    threadId: 'thread-1',
     logger: testLogger,
     model: 'deepseek-reasoner',
     messages: [{ role: 'user', content: 'What is 2 + 2?' }],

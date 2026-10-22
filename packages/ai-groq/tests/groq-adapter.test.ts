@@ -107,44 +107,100 @@ describe('Groq adapters', () => {
 
   describe('Text adapter', () => {
     it('creates a text adapter with explicit API key', () => {
-      const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
+      const adapter = createGroqText('openai/gpt-oss-120b', 'test-api-key')
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('text')
       expect(adapter.name).toBe('groq')
-      expect(adapter.model).toBe('llama-3.3-70b-versatile')
+      expect(adapter.model).toBe('openai/gpt-oss-120b')
     })
 
     it('creates a text adapter from environment variable', () => {
       vi.stubEnv('GROQ_API_KEY', 'env-api-key')
 
-      const adapter = groqText('llama-3.1-8b-instant')
+      const adapter = groqText('openai/gpt-oss-20b')
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('text')
-      expect(adapter.model).toBe('llama-3.1-8b-instant')
+      expect(adapter.model).toBe('openai/gpt-oss-20b')
     })
 
     it('throws if GROQ_API_KEY is not set when using groqText', () => {
       vi.stubEnv('GROQ_API_KEY', '')
 
-      expect(() => groqText('llama-3.3-70b-versatile')).toThrow('GROQ_API_KEY')
+      expect(() => groqText('openai/gpt-oss-120b')).toThrow('GROQ_API_KEY')
     })
 
     it('allows custom baseURL override', () => {
-      const adapter = createGroqText(
-        'llama-3.3-70b-versatile',
-        'test-api-key',
-        {
-          baseURL: 'https://custom.api.example.com/v1',
-        },
-      )
+      const adapter = createGroqText('openai/gpt-oss-120b', 'test-api-key', {
+        baseURL: 'https://custom.api.example.com/v1',
+      })
 
       expect(adapter).toBeDefined()
     })
 
+    it('sends json_object on a json_object-only model', async () => {
+      const mockCreate = setupMockSdkClient([], {
+        choices: [{ message: { content: '{"name":"Ada"}' } }],
+      })
+      const adapter = createGroqText(
+        'meta-llama/llama-prompt-guard-2-86m',
+        'test-api-key',
+      )
+
+      await adapter.structuredOutput({
+        chatOptions: {
+          threadId: 'thread-1',
+          model: 'meta-llama/llama-prompt-guard-2-86m',
+          messages: [{ role: 'user', content: 'Return a person as json' }],
+          logger: testLogger,
+        },
+        outputSchema: {
+          type: 'object',
+          properties: { name: { type: 'string' } },
+          required: ['name'],
+        },
+      })
+
+      expect(mockCreate.mock.calls[0]?.[0]).toMatchObject({
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: expect.stringContaining('"required":["name"]'),
+          },
+          { role: 'user', content: 'Return a person as json' },
+        ],
+      })
+    })
+
+    it('keeps json_schema on a model that declares json_schema', async () => {
+      const mockCreate = setupMockSdkClient([], {
+        choices: [{ message: { content: '{"name":"Ada"}' } }],
+      })
+      const adapter = createGroqText('qwen/qwen3.8-27b', 'test-api-key')
+
+      await adapter.structuredOutput({
+        chatOptions: {
+          threadId: 'thread-1',
+          model: 'qwen/qwen3.8-27b',
+          messages: [{ role: 'user', content: 'Return a person as json' }],
+          logger: testLogger,
+        },
+        outputSchema: {
+          type: 'object',
+          properties: { name: { type: 'string' } },
+          required: ['name'],
+        },
+      })
+
+      expect(mockCreate.mock.calls[0]?.[0]).toMatchObject({
+        response_format: { type: 'json_schema' },
+      })
+    })
+
     it('opts out of native combined tools+schema mode (#605) — Groq API rejects the combination', () => {
-      const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
+      const adapter = createGroqText('openai/gpt-oss-120b', 'test-api-key')
       // The OpenAI Chat Completions base defaults to `true`; Groq must
       // override to `false` because the upstream API returns 400 on
       // `response_format` + `tools` + `stream`.
@@ -155,7 +211,7 @@ describe('Groq adapters', () => {
       const streamChunks = [
         {
           id: 'chatcmpl-sampling',
-          model: 'llama-3.3-70b-versatile',
+          model: 'openai/gpt-oss-120b',
           choices: [{ delta: {}, finish_reason: 'stop' }],
           x_groq: {
             usage: { prompt_tokens: 1, completion_tokens: 0, total_tokens: 1 },
@@ -164,7 +220,7 @@ describe('Groq adapters', () => {
       ]
 
       const mockCreate = setupMockSdkClient(streamChunks)
-      const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
+      const adapter = createGroqText('openai/gpt-oss-120b', 'test-api-key')
 
       const modelOptions: GroqTextProviderOptions = {
         temperature: 0.5,
@@ -173,7 +229,8 @@ describe('Groq adapters', () => {
       }
 
       for await (const _ of adapter.chatStream({
-        model: 'llama-3.3-70b-versatile',
+        threadId: 'thread-1',
+        model: 'openai/gpt-oss-120b',
         messages: [{ role: 'user', content: 'Hello' }],
         modelOptions,
         logger: testLogger,
@@ -192,21 +249,18 @@ describe('Groq adapters', () => {
 
   describe('Summarize adapter', () => {
     it('creates a summarize adapter with explicit API key', () => {
-      const adapter = createGroqSummarize(
-        'llama-3.3-70b-versatile',
-        'test-api-key',
-      )
+      const adapter = createGroqSummarize('openai/gpt-oss-120b', 'test-api-key')
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('summarize')
       expect(adapter.name).toBe('groq')
-      expect(adapter.model).toBe('llama-3.3-70b-versatile')
+      expect(adapter.model).toBe('openai/gpt-oss-120b')
     })
 
     it('creates a summarize adapter from environment variable', () => {
       vi.stubEnv('GROQ_API_KEY', 'env-api-key')
 
-      const adapter = groqSummarize('llama-3.3-70b-versatile')
+      const adapter = groqSummarize('openai/gpt-oss-120b')
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('summarize')
@@ -215,7 +269,7 @@ describe('Groq adapters', () => {
     it('throws if GROQ_API_KEY is not set when using groqSummarize', () => {
       vi.stubEnv('GROQ_API_KEY', '')
 
-      expect(() => groqSummarize('llama-3.3-70b-versatile')).toThrow(
+      expect(() => groqSummarize('openai/gpt-oss-120b')).toThrow(
         'GROQ_API_KEY is required',
       )
     })
@@ -235,7 +289,7 @@ describe('Groq AG-UI event emission', () => {
     const streamChunks = [
       {
         id: 'chatcmpl-123',
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         choices: [
           {
             delta: { content: 'Hello' },
@@ -245,7 +299,7 @@ describe('Groq AG-UI event emission', () => {
       },
       {
         id: 'chatcmpl-123',
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         choices: [
           {
             delta: {},
@@ -263,11 +317,12 @@ describe('Groq AG-UI event emission', () => {
     ]
 
     setupMockSdkClient(streamChunks)
-    const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
+    const adapter = createGroqText('openai/gpt-oss-120b', 'test-api-key')
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
-      model: 'llama-3.3-70b-versatile',
+      threadId: 'thread-1',
+      model: 'openai/gpt-oss-120b',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
     })) {
@@ -277,7 +332,7 @@ describe('Groq AG-UI event emission', () => {
     expect(chunks[0]?.type).toBe('RUN_STARTED')
     if (chunks[0]?.type === 'RUN_STARTED') {
       expect(chunks[0].runId).toBeDefined()
-      expect(chunks[0].model).toBe('llama-3.3-70b-versatile')
+      expect(chunks[0].model).toBe('openai/gpt-oss-120b')
     }
   })
 
@@ -285,7 +340,7 @@ describe('Groq AG-UI event emission', () => {
     const streamChunks = [
       {
         id: 'chatcmpl-123',
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         choices: [
           {
             delta: { content: 'Hello' },
@@ -295,7 +350,7 @@ describe('Groq AG-UI event emission', () => {
       },
       {
         id: 'chatcmpl-123',
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         choices: [
           {
             delta: {},
@@ -313,11 +368,12 @@ describe('Groq AG-UI event emission', () => {
     ]
 
     setupMockSdkClient(streamChunks)
-    const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
+    const adapter = createGroqText('openai/gpt-oss-120b', 'test-api-key')
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
-      model: 'llama-3.3-70b-versatile',
+      threadId: 'thread-1',
+      model: 'openai/gpt-oss-120b',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
     })) {
@@ -346,7 +402,7 @@ describe('Groq AG-UI event emission', () => {
     const streamChunks = [
       {
         id: 'chatcmpl-123',
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         choices: [
           {
             delta: { content: 'Hello' },
@@ -356,7 +412,7 @@ describe('Groq AG-UI event emission', () => {
       },
       {
         id: 'chatcmpl-123',
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         choices: [
           {
             delta: {},
@@ -374,11 +430,12 @@ describe('Groq AG-UI event emission', () => {
     ]
 
     setupMockSdkClient(streamChunks)
-    const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
+    const adapter = createGroqText('openai/gpt-oss-120b', 'test-api-key')
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
-      model: 'llama-3.3-70b-versatile',
+      threadId: 'thread-1',
+      model: 'openai/gpt-oss-120b',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
     })) {
@@ -408,7 +465,7 @@ describe('Groq AG-UI event emission', () => {
     const streamChunks = [
       {
         id: 'chatcmpl-456',
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         choices: [
           {
             delta: {
@@ -430,7 +487,7 @@ describe('Groq AG-UI event emission', () => {
       },
       {
         id: 'chatcmpl-456',
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         choices: [
           {
             delta: {
@@ -449,7 +506,7 @@ describe('Groq AG-UI event emission', () => {
       },
       {
         id: 'chatcmpl-456',
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         choices: [
           {
             delta: {},
@@ -467,11 +524,12 @@ describe('Groq AG-UI event emission', () => {
     ]
 
     setupMockSdkClient(streamChunks)
-    const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
+    const adapter = createGroqText('openai/gpt-oss-120b', 'test-api-key')
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
-      model: 'llama-3.3-70b-versatile',
+      threadId: 'thread-1',
+      model: 'openai/gpt-oss-120b',
       messages: [{ role: 'user', content: 'Weather in Berlin?' }],
       tools: [weatherTool],
       logger: testLogger,
@@ -484,7 +542,7 @@ describe('Groq AG-UI event emission', () => {
     expect(toolStartChunk).toBeDefined()
     if (toolStartChunk?.type === 'TOOL_CALL_START') {
       expect(toolStartChunk.toolCallId).toBe('call_abc123')
-      expect(toolStartChunk.toolName).toBe('lookup_weather')
+      expect(toolStartChunk.toolCallName).toBe('lookup_weather')
     }
 
     const toolArgsChunks = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
@@ -494,7 +552,7 @@ describe('Groq AG-UI event emission', () => {
     expect(toolEndChunk).toBeDefined()
     if (toolEndChunk?.type === 'TOOL_CALL_END') {
       expect(toolEndChunk.toolCallId).toBe('call_abc123')
-      expect(toolEndChunk.toolName).toBe('lookup_weather')
+      expect(toolEndChunk.toolCallName).toBe('lookup_weather')
       expect(toolEndChunk.input).toEqual({ location: 'Berlin' })
     }
 
@@ -522,10 +580,11 @@ describe('Groq AG-UI event emission', () => {
       }),
     )
 
-    const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
+    const adapter = createGroqText('openai/gpt-oss-120b', 'test-api-key')
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
-      model: 'llama-3.3-70b-versatile',
+      threadId: 'thread-1',
+      model: 'openai/gpt-oss-120b',
       messages: [{ role: 'user', content: 'Weather in Berlin?' }],
       tools: [weatherTool],
       logger: testLogger,
@@ -542,7 +601,7 @@ describe('Groq AG-UI event emission', () => {
     ])
     const toolCallEnd = chunks.find((chunk) => chunk.type === 'TOOL_CALL_END')
     if (toolCallEnd?.type === 'TOOL_CALL_END') {
-      expect(toolCallEnd.toolName).toBe('lookup_weather')
+      expect(toolCallEnd.toolCallName).toBe('lookup_weather')
       expect(toolCallEnd.input).toEqual({
         location: 'Berlin',
         units: 'celsius',
@@ -582,10 +641,11 @@ describe('Groq AG-UI event emission', () => {
     }
     pendingMockCreate = vi.fn().mockResolvedValue(errorIterable)
 
-    const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
+    const adapter = createGroqText('openai/gpt-oss-120b', 'test-api-key')
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
-      model: 'llama-3.3-70b-versatile',
+      threadId: 'thread-1',
+      model: 'openai/gpt-oss-120b',
       messages: [{ role: 'user', content: 'Weather in Berlin?' }],
       tools: [weatherTool],
       logger: testLogger,
@@ -602,7 +662,7 @@ describe('Groq AG-UI event emission', () => {
     ])
     const toolCallEnd = chunks.find((chunk) => chunk.type === 'TOOL_CALL_END')
     if (toolCallEnd?.type === 'TOOL_CALL_END') {
-      expect(toolCallEnd.toolName).toBe('lookup_weather')
+      expect(toolCallEnd.toolCallName).toBe('lookup_weather')
       expect(toolCallEnd.input).toEqual({
         location: 'Berlin',
         units: 'celsius',
@@ -632,10 +692,11 @@ describe('Groq AG-UI event emission', () => {
       }),
     )
 
-    const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
+    const adapter = createGroqText('openai/gpt-oss-120b', 'test-api-key')
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
-      model: 'llama-3.3-70b-versatile',
+      threadId: 'thread-1',
+      model: 'openai/gpt-oss-120b',
       messages: [{ role: 'user', content: 'Weather in Berlin?' }],
       tools: [weatherTool],
       logger: testLogger,
@@ -653,7 +714,7 @@ describe('Groq AG-UI event emission', () => {
     const streamChunks = [
       {
         id: 'chatcmpl-123',
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         choices: [
           {
             delta: { content: 'Hello' },
@@ -680,11 +741,12 @@ describe('Groq AG-UI event emission', () => {
 
     pendingMockCreate = vi.fn().mockResolvedValue(errorIterable)
 
-    const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
+    const adapter = createGroqText('openai/gpt-oss-120b', 'test-api-key')
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
-      model: 'llama-3.3-70b-versatile',
+      threadId: 'thread-1',
+      model: 'openai/gpt-oss-120b',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
     })) {
@@ -703,7 +765,7 @@ describe('Groq AG-UI event emission', () => {
     const streamChunks = [
       {
         id: 'chatcmpl-123',
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         choices: [
           {
             delta: { content: 'Hello world' },
@@ -713,7 +775,7 @@ describe('Groq AG-UI event emission', () => {
       },
       {
         id: 'chatcmpl-123',
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         choices: [
           {
             delta: {},
@@ -731,11 +793,12 @@ describe('Groq AG-UI event emission', () => {
     ]
 
     setupMockSdkClient(streamChunks)
-    const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
+    const adapter = createGroqText('openai/gpt-oss-120b', 'test-api-key')
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
-      model: 'llama-3.3-70b-versatile',
+      threadId: 'thread-1',
+      model: 'openai/gpt-oss-120b',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
     })) {
@@ -772,7 +835,7 @@ describe('Groq AG-UI event emission', () => {
     const streamChunks = [
       {
         id: 'chatcmpl-stream',
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         choices: [
           {
             delta: { content: 'Hello ' },
@@ -782,7 +845,7 @@ describe('Groq AG-UI event emission', () => {
       },
       {
         id: 'chatcmpl-stream',
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         choices: [
           {
             delta: { content: 'world' },
@@ -792,7 +855,7 @@ describe('Groq AG-UI event emission', () => {
       },
       {
         id: 'chatcmpl-stream',
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         choices: [
           {
             delta: {},
@@ -810,11 +873,12 @@ describe('Groq AG-UI event emission', () => {
     ]
 
     setupMockSdkClient(streamChunks)
-    const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
+    const adapter = createGroqText('openai/gpt-oss-120b', 'test-api-key')
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
-      model: 'llama-3.3-70b-versatile',
+      threadId: 'thread-1',
+      model: 'openai/gpt-oss-120b',
       messages: [{ role: 'user', content: 'Say hello' }],
       logger: testLogger,
     })) {

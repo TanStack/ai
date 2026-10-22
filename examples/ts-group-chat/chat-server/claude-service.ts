@@ -255,6 +255,7 @@ export class ClaudeService {
 
       for await (const chunk of chat({
         adapter: this.adapter,
+        threadId: 'group-chat',
         systemPrompts: [systemMessage],
         messages: [...conversationHistory] as any,
         tools: this.todoTools,

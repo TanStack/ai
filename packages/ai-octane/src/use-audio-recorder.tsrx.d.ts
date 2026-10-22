@@ -39,7 +39,7 @@ export interface UseAudioRecorderReturn<TOutput> {
  * @example
  * ```tsx
  * const { isRecording, start, stop, recording } = useAudioRecorder()
- * const { sendMessage } = useChat({ connection })
+ * const { sendMessage } = useChat({ threadId: 'support-1', connection })
  * // ...
  * const rec = await stop()
  * sendMessage({ content: [rec.part] })

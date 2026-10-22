@@ -64,6 +64,7 @@ describe('metadata capability', () => {
 
     await collect(
       chat({
+        threadId: 'thread-1',
         adapter: mockAdapter(),
         messages: [{ role: 'user', content: 'hello' }],
         middleware: [consumer, withPersistence(persistence)],
@@ -103,6 +104,7 @@ describe('metadata capability', () => {
 
     await collect(
       chat({
+        threadId: 'thread-1',
         adapter: mockAdapter(),
         messages: [{ role: 'user', content: 'hello' }],
         middleware: [withPersistence(persistence), consumer],

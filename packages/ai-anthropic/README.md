@@ -51,6 +51,7 @@ import { anthropicText } from '@tanstack/ai-anthropic'
 const stream = chat({
   adapter: anthropicText('claude-sonnet-4-6'),
   messages: [{ role: 'user', content: 'Hello!' }],
+  threadId: 'thread-1',
 })
 ```
 
@@ -84,11 +85,12 @@ const searchDatabase = toolDefinition({
 })
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
 
   const stream = chat({
     adapter: anthropicText('claude-sonnet-4-6'),
     messages,
+    threadId,
     tools: [searchDatabase],
   })
 
@@ -104,6 +106,7 @@ Set how hard Claude thinks with `reasoning` on `chat()`. The adapter sends the r
 const stream = chat({
   adapter: anthropicText('claude-sonnet-5'),
   messages: [{ role: 'user', content: 'Plan a database migration.' }],
+  threadId: 'thread-1',
   reasoning: 'xhigh',
   modelOptions: { max_tokens: 64_000 },
 })
@@ -130,6 +133,7 @@ const stream = chat({
       ],
     },
   ],
+  threadId: 'thread-1',
 })
 ```
 
@@ -141,6 +145,7 @@ import { anthropicSummarize } from '@tanstack/ai-anthropic'
 
 const result = await summarize({
   adapter: anthropicSummarize('claude-sonnet-4-6'),
+  threadId: 'thread-1',
   text: 'Your long text to summarize...',
   maxLength: 100,
   style: 'concise', // "concise" | "bullet-points" | "paragraph"
@@ -161,6 +166,7 @@ import { webSearchTool } from '@tanstack/ai-anthropic/tools'
 const stream = chat({
   adapter: anthropicText('claude-opus-4-7'),
   messages: [{ role: 'user', content: "What's new in AI this week?" }],
+  threadId: 'thread-1',
   tools: [
     webSearchTool({
       name: 'web_search',
@@ -185,6 +191,7 @@ const stream = chat({
     location: 'europe-west1',
   }),
   messages: [{ role: 'user', content: 'Hello!' }],
+  threadId: 'thread-1',
 })
 ```
 

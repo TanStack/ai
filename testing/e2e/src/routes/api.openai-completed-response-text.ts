@@ -98,6 +98,7 @@ export const Route = createFileRoute('/api/openai-completed-response-text')({
           let completed = false
           const events: Array<string> = []
           for await (const chunk of chat({
+            threadId: 'openai-completed-response-text',
             adapter,
             messages: [{ role: 'user', content: 'Extract an answer' }],
             outputSchema: z.object({ answer: z.string() }),
@@ -117,6 +118,7 @@ export const Route = createFileRoute('/api/openai-completed-response-text')({
         }
 
         const { text } = await chat({
+          threadId: 'openai-completed-response-text',
           adapter,
           messages: [
             {

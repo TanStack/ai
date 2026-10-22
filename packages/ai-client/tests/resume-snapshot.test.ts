@@ -24,9 +24,9 @@ import type {
 import type { StreamChunk } from '@tanstack/ai/client'
 
 /** An in-memory store capturing the last combined record written. */
-function memoryAdapter(initial?: ChatPersistedState | Array<UIMessage>): {
+function memoryAdapter(initial?: ChatPersistedState): {
   adapter: ChatClientPersistence
-  read: () => ChatPersistedState | Array<UIMessage> | undefined
+  read: () => ChatPersistedState | undefined
 } {
   let value = initial
   return {
@@ -88,17 +88,6 @@ describe('ChatPersistor combined record', () => {
     const stored = read() as ChatPersistedState
     expect(stored.messages).toHaveLength(1)
     expect(stored.resume).toBeUndefined()
-  })
-
-  it('normalizes a legacy bare-array record on read', () => {
-    const applied: Array<Array<UIMessage>> = []
-    const { adapter } = memoryAdapter([createUIMessage('m1', 'legacy')])
-    const persistor = new ChatPersistor(adapter, 'chat-1', (m) =>
-      applied.push(m),
-    )
-    const state = persistor.readInitial() as ChatPersistedState
-    expect(state.messages[0]?.id).toBe('m1')
-    expect(state.resume).toBeUndefined()
   })
 })
 
@@ -847,7 +836,7 @@ describe('ChatClient auto-rejoin after reload', () => {
     )
 
     const stored = read()
-    if (!stored || Array.isArray(stored)) {
+    if (!stored) {
       throw new Error('expected a persisted record with a resume pointer')
     }
     expect(stored.resume?.resumeState?.runId).toBe('quiet-run')
@@ -894,14 +883,7 @@ describe('ChatClient auto-rejoin after reload', () => {
 
     // Dead pointer must be removed so the next load does not re-pin loading.
     await vi.waitFor(() => {
-      const stored = read()
-      if (stored && !Array.isArray(stored)) {
-        expect(stored.resume).toBeUndefined()
-      } else {
-        // A bare message array (or a removed key) carries no resume pointer by
-        // construction â€” nothing further to assert on the record shape.
-        expect(stored === undefined || Array.isArray(stored)).toBe(true)
-      }
+      expect(read()?.resume).toBeUndefined()
     })
     void client
   })

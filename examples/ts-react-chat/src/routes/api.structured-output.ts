@@ -170,10 +170,7 @@ function adapterFor(provider: Provider, model?: string): AnyTextAdapter {
     case 'grok':
       return grokText((model || 'grok-build-0.1') as 'grok-build-0.1')
     case 'groq':
-      return groqText(
-        (model ||
-          'meta-llama/llama-4-maverick-17b-128e-instruct') as 'meta-llama/llama-4-maverick-17b-128e-instruct',
-      )
+      return groqText((model || 'qwen/qwen3.8-27b') as 'qwen/qwen3.8-27b')
     case 'openrouter':
       return openRouterText(
         (model || 'anthropic/claude-opus-4.6') as 'anthropic/claude-opus-4.6',

@@ -58,29 +58,54 @@ describe('remote-tools (co-located host-tool delegation)', () => {
     // Simulates the container↔orchestrator loop without HTTP: the executor
     // (would be httpRemoteToolExecutor over the wire) runs the host tool.
     const executor: RemoteToolExecutor = {
-      execute: (name, args) => executeHostTool([getTime], name, args),
+      execute: (name, args) =>
+        executeHostTool([getTime], name, args, { threadId: 'thread-1' }),
     }
     const [stub] = remoteToolStubs(toolDescriptors([getTime]), executor)
     expect(await stub!.execute!({ tz: 'mars' }, {})).toBe('now in mars')
   })
 
   it('executeHostTool throws for an unknown tool', async () => {
-    await expect(executeHostTool([getTime], 'nope', {})).rejects.toThrow(
-      /Unknown tool/,
-    )
+    await expect(
+      executeHostTool([getTime], 'nope', {}, { threadId: 'thread-1' }),
+    ).rejects.toThrow(/Unknown tool/)
   })
 
-  it('executeHostTool forwards context to the real tool', async () => {
+  it('executeHostTool refuses a tool with needsApproval', async () => {
+    let ran = false
+    const gated: AnyTool = {
+      ...getTime,
+      needsApproval: true,
+      execute: () => {
+        ran = true
+        return Promise.resolve('ran')
+      },
+    }
+    await expect(
+      executeHostTool([gated], 'getTime', {}, { threadId: 'thread-1' }),
+    ).rejects.toThrow(/needsApproval/)
+    expect(ran).toBe(false)
+  })
+
+  it('executeHostTool forwards the thread id and context to the real tool', async () => {
     let seenCtx: unknown
     const tool: AnyTool = {
       name: 't',
       description: 'd',
       execute: (_args, ctx) => {
-        seenCtx = (ctx as { context?: unknown }).context
+        seenCtx = ctx
         return Promise.resolve('ok')
       },
     }
-    await executeHostTool([tool], 't', {}, { context: { userId: 'u1' } })
-    expect(seenCtx).toEqual({ userId: 'u1' })
+    await executeHostTool(
+      [tool],
+      't',
+      {},
+      { threadId: 'thread-1', context: { userId: 'u1' } },
+    )
+    expect(seenCtx).toMatchObject({
+      threadId: 'thread-1',
+      context: { userId: 'u1' },
+    })
   })
 })

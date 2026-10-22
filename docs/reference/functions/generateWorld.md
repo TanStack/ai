@@ -7,7 +7,7 @@ title: generateWorld
 function generateWorld<TAdapter, TStream>(options): WorldActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/generateWorld/index.ts:156](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateWorld/index.ts#L156)
+Defined in: packages/ai/src/activities/generateWorld/index.ts:157
 
 **`Experimental`**
 
@@ -44,6 +44,7 @@ import { reactorWorld } from '@tanstack/ai-reactor'
 
 const world = await generateWorld({
   adapter: reactorWorld('visko-orbis-stable'),
+  threadId: 'world-1',
   prompt: 'A neon cyberpunk city at night, slow aerial drift',
 })
 

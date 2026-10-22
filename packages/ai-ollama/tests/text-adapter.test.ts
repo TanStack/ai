@@ -112,6 +112,7 @@ describe('OllamaTextAdapter.chatStream (content streaming)', () => {
     const adapter = createOllamaChat('llama3.2')
     const chunks = await collectStream(
       adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'hi' }],
@@ -165,6 +166,7 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
     const adapter = createOllamaChat('llama3.2')
     const chunks = await collectStream(
       adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'find cats' }],
@@ -178,9 +180,9 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
     expect(types).toContain('TOOL_CALL_END')
 
     const startChunk = chunks.find((c) => c.type === 'TOOL_CALL_START') as
-      | { toolName: string; toolCallId: string }
+      | { toolCallName: string; toolCallId: string }
       | undefined
-    expect(startChunk!.toolName).toBe('search')
+    expect(startChunk!.toolCallName).toBe('search')
     expect(startChunk!.toolCallId).toBe('tc-123')
   })
 
@@ -218,6 +220,7 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
     const adapter = createOllamaChat('llama3.2')
     const chunks = await collectStream(
       adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'find cats' }],
@@ -264,6 +267,7 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
     const adapter = createOllamaChat('llama3.2')
     const chunks = await collectStream(
       adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'find' }],
@@ -271,9 +275,57 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
       }),
     )
     const startChunk = chunks.find((c) => c.type === 'TOOL_CALL_START') as
-      | { toolCallId: string; toolName: string }
+      | { toolCallId: string; toolCallName: string }
       | undefined
     expect(startChunk!.toolCallId).toMatch(/^search_\d+/)
+  })
+
+  async function toolCallEnd(args: unknown) {
+    chatMock.mockResolvedValueOnce(
+      asyncIterable([
+        {
+          message: {
+            role: 'assistant',
+            content: '',
+            tool_calls: [
+              { id: 'tc-raw', function: { name: 'search', arguments: args } },
+            ],
+          },
+          done: true,
+          done_reason: 'stop',
+        },
+      ]),
+    )
+    const chunks = await collectStream(
+      createOllamaChat('llama3.2').chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'llama3.2',
+        messages: [{ role: 'user', content: 'find cats' }],
+        tools: [searchTool],
+      }),
+    )
+    return chunks.find((c) => c.type === 'TOOL_CALL_END')
+  }
+
+  it('puts the raw argument string on TOOL_CALL_END', async () => {
+    const end = await toolCallEnd('{"q": "cats", "n": 1.50}')
+    expect(end).toMatchObject({
+      toolCallId: 'tc-raw',
+      args: '{"q": "cats", "n": 1.50}',
+      input: { q: 'cats', n: 1.5 },
+    })
+  })
+
+  it('puts the serialized object arguments on TOOL_CALL_END', async () => {
+    const end = await toolCallEnd({ q: 'cats' })
+    expect(end).toMatchObject({ args: '{"q":"cats"}', input: { q: 'cats' } })
+  })
+
+  it('sends malformed raw arguments on TOOL_CALL_END without an input', async () => {
+    const end = await toolCallEnd('{"a":')
+    expect(end).toMatchObject({ toolCallId: 'tc-raw', args: '{"a":' })
+    expect(end).not.toHaveProperty('input')
   })
 
   it('forwards tools to the ollama client in provider format', async () => {
@@ -290,6 +342,7 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
     const adapter = createOllamaChat('llama3.2')
     await collectStream(
       adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'hi' }],
@@ -321,6 +374,7 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
     const adapter = createOllamaChat('llama3.2')
     await collectStream(
       adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'hi' }],
@@ -482,6 +536,7 @@ describe('OllamaTextAdapter modelOptions (nested options contract)', () => {
     const adapter = createOllamaChat('llama3.2')
     await collectStream(
       adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'hi' }],
@@ -550,6 +605,7 @@ describe('OllamaTextAdapter modelOptions (nested options contract)', () => {
       )
       await collectStream(
         createOllamaChat(model).chatStream({
+          threadId: 'thread-1',
           logger: testLogger,
           model,
           messages: [{ role: 'user', content: 'hi' }],
@@ -577,6 +633,7 @@ describe('OllamaTextAdapter system prompts', () => {
     const adapter = createOllamaChat('llama3.2')
     await collectStream(
       adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'hi' }],
@@ -624,6 +681,7 @@ describe('OllamaTextAdapter system prompts', () => {
     const adapter = createOllamaChat('llama3.2')
     await collectStream(
       adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'hi' }],
@@ -644,6 +702,7 @@ describe('Ollama adapter error handling', () => {
     const adapter = createOllamaChat('llama3.2')
     const chunks = await collectStream(
       adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'hi' }],

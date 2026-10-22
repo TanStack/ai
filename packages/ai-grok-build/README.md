@@ -37,6 +37,7 @@ import { grokBuildText } from '@tanstack/ai-grok-build'
 const stream = chat({
   adapter: grokBuildText('composer-2.5'),
   messages: [{ role: 'user', content: 'Build a small app.' }],
+  threadId: 'thread-1',
 })
 ```
 

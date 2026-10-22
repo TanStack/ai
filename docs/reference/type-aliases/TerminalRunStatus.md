@@ -7,6 +7,6 @@ title: TerminalRunStatus
 type TerminalRunStatus = "completed" | "failed" | "aborted";
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:15](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L15)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:15
 
 A terminal run status: no further events will be appended.

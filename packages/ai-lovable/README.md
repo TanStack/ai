@@ -49,6 +49,7 @@ const adapter = lovableText('google/gemini-3.7-flash')
 const stream = chat({
   adapter,
   messages: [{ role: 'user', content: 'Hello' }],
+  threadId: 'thread-1',
 })
 ```
 
