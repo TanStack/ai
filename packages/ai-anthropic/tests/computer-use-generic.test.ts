@@ -89,6 +89,7 @@ type ComputerModel = 'claude-opus-5-5' | 'claude-opus-4-6' | 'claude-sonnet-4-5'
 async function firstRequest(model: ComputerModel, capabilities: Capabilities) {
   stream(end('end_turn'))
   for await (const _ of chat({
+    threadId: 'thread-1',
     adapter: createAnthropicChat(model, 'k'),
     messages: [{ role: 'user', content: 'Open the settings.' }],
     tools: [computerTool(capabilities)],
@@ -184,6 +185,7 @@ describe('anthropic generic computer tool', () => {
     })
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter: createAnthropicChat('claude-opus-5-5', 'k'),
       messages: [{ role: 'user', content: 'Click the button.' }],
       tools: [tool],

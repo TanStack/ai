@@ -2,7 +2,7 @@
 title: "Community Adapters Guide"
 slug: /community-adapters/guide
 order: 1
-description: "Build and publish a community adapter for TanStack AI — package conventions, implementing the adapter interface, and publishing to npm."
+description: "Build, publish, and list a community adapter for TanStack AI: a minimal text adapter, then model metadata, typed options, reasoning, and BYOK."
 keywords:
   - tanstack ai
   - community adapters
@@ -13,51 +13,229 @@ keywords:
   - contribute
 ---
 
-This guide explains how to create and contribute community adapters for the TanStack AI ecosystem.
+A community adapter is an npm package that maps one AI service onto `chat()`, `generateImage()`, and the other TanStack AI functions.
 
-Community adapters extend TanStack AI by integrating external services, APIs, or custom model logic. They are authored and maintained by the community and can be reused across projects.
+You build, publish, and maintain the adapter. The TanStack AI core team does not.
 
-## What is a Community Adapter?
+## 1. Create the package
 
-A community adapter is a reusable module that connects TanStack AI to an external provider or system.
+Create an npm package, for example `@acme/tanstack-ai-adapter`. Add `@tanstack/ai` as a peer dependency, so your adapter uses the same copy as the app.
 
-Common use cases include:
-- Integrating third-party AI model providers
-- Implementing custom inference or routing logic
-- Exposing provider-specific tools or capabilities
-- Connecting to non-LLM AI services (e.g. images, embeddings, video)
+For reference, read the [adapters in the TanStack AI repository](https://github.com/tanstack/ai/tree/main/packages). The [OpenAI adapter](https://github.com/tanstack/ai/tree/main/packages/ai-openai) has the most features.
 
-Community adapters are **not maintained by the core TanStack AI team**, and can be reused across different projects.
+## 2. Write a minimal text adapter
 
-## Creating a Community Adapter
+A text adapter extends `BaseTextAdapter` and implements two methods:
 
-Follow the steps below to build a well-structured, type-safe adapter.
+- `chatStream()`: calls your service and yields AG-UI events.
+- `structuredOutput()`: returns JSON for a schema.
 
-### 1. Set up your project
+This sample calls a JSON API that returns the whole answer at once:
 
-Start by reviewing the [existing internal adapter implementations in the TanStack AI GitHub repository](https://github.com/tanstack/ai/tree/main/packages). These define the expected structure, conventions, and integration patterns.
+```typescript
+// src/index.ts
+import { EventType } from "@tanstack/ai";
+import { BaseTextAdapter } from "@tanstack/ai/adapters";
+import type {
+  AdapterYieldChunk,
+  DefaultMessageMetadataByModality,
+  ModelMessage,
+  Modality,
+  TextOptions,
+} from "@tanstack/ai";
+import type {
+  StructuredOutputOptions,
+  StructuredOutputResult,
+} from "@tanstack/ai/adapters";
 
-For a complete, detailed reference, use the [OpenAI adapter](https://github.com/tanstack/ai/tree/main/packages/ai-openai), which is the most fully featured implementation.
+export const ACME_MODELS = ["acme-small", "acme-large"] as const;
+export type AcmeModel = (typeof ACME_MODELS)[number];
 
-### 2. Define model metadata
+type AcmeOptions = Record<string, never>;
 
-Model metadata describes each model’s capabilities and constraints and is used by TanStack AI for compatibility checks and feature selection.
+async function callAcme(
+  apiKey: string,
+  body: Record<string, unknown>,
+  signal: AbortSignal | undefined,
+): Promise<string> {
+  const response = await fetch("https://api.acme.example/v1/chat", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+    signal,
+  });
+  const json: unknown = await response.json();
+  if (
+    typeof json === "object" &&
+    json !== null &&
+    "text" in json &&
+    typeof json.text === "string"
+  ) {
+    return json.text;
+  }
+  throw new Error(`Acme returned no text (status ${response.status})`);
+}
 
-Your metadata should define, at a minimum:
+function toAcmeMessages(messages: Array<ModelMessage>) {
+  return messages.map((message) => ({
+    role: message.role,
+    content: typeof message.content === "string" ? message.content : "",
+  }));
+}
 
-- Model name and identifier
-- Supported input and output modalities
-- Supported features (e.g. streaming, tools, structured output)
-- Pricing or cost information (if available)
-- Any provider-specific notes or limitations
+export class AcmeTextAdapter<TModel extends AcmeModel> extends BaseTextAdapter<
+  TModel,
+  AcmeOptions,
+  ReadonlyArray<Modality>,
+  DefaultMessageMetadataByModality
+> {
+  readonly name = "acme";
+  private readonly apiKey: string;
 
-Refer to the [OpenAI adapter’s model metadata](https://github.com/TanStack/ai/blob/main/packages/ai-openai/src/model-meta.ts) for a concrete example.
+  constructor(model: TModel, apiKey: string) {
+    super({}, model);
+    this.apiKey = apiKey;
+  }
 
-### 3. Define model capability arrays 
+  async *chatStream(
+    options: TextOptions<AcmeOptions>,
+  ): AsyncIterable<AdapterYieldChunk> {
+    const runId = options.runId ?? this.generateId();
+    const threadId = options.threadId;
+    const messageId = this.generateId();
 
-After defining metadata, group models by supported functionality using exported arrays. These arrays allow TanStack AI to automatically select compatible models for a given task.
+    yield { type: EventType.RUN_STARTED, runId, threadId, timestamp: Date.now() };
 
-Example:
+    const text = await callAcme(
+      this.apiKey,
+      { model: this.model, messages: toAcmeMessages(options.messages) },
+      options.abortController?.signal,
+    );
+
+    yield {
+      type: EventType.TEXT_MESSAGE_START,
+      messageId,
+      role: "assistant",
+      timestamp: Date.now(),
+    };
+    yield {
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId,
+      delta: text,
+      timestamp: Date.now(),
+    };
+    yield { type: EventType.TEXT_MESSAGE_END, messageId, timestamp: Date.now() };
+    yield {
+      type: EventType.RUN_FINISHED,
+      runId,
+      threadId,
+      finishReason: "stop",
+      timestamp: Date.now(),
+    };
+  }
+
+  async structuredOutput(
+    options: StructuredOutputOptions<AcmeOptions>,
+  ): Promise<StructuredOutputResult<unknown>> {
+    const rawText = await callAcme(
+      this.apiKey,
+      {
+        model: this.model,
+        messages: toAcmeMessages(options.chatOptions.messages),
+        schema: options.outputSchema,
+      },
+      options.chatOptions.abortController?.signal,
+    );
+    const data: unknown = JSON.parse(rawText);
+    return { data, rawText };
+  }
+}
+
+export function acmeText<TModel extends AcmeModel>(
+  model: TModel,
+  apiKey: string = process.env.ACME_API_KEY ?? "",
+) {
+  return new AcmeTextAdapter(model, apiKey);
+}
+```
+
+## 3. Call it with `chat()`
+
+```typescript
+// src/demo.ts
+import { chat } from "@tanstack/ai";
+import { acmeText } from "./index";
+
+const stream = chat({
+  adapter: acmeText("acme-large"),
+  messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === "TEXT_MESSAGE_CONTENT") {
+    process.stdout.write(chunk.delta);
+  }
+}
+```
+
+The answer of your service prints in the terminal. Your adapter now works with `chat()`, `useChat`, and the rest of TanStack AI.
+
+## How it works
+
+- `chat()` calls `chatStream()` with the messages, tools, and options of the call.
+- `chatStream()` yields AG-UI events in order: `RUN_STARTED`, then `TEXT_MESSAGE_START`, `TEXT_MESSAGE_CONTENT`, and `TEXT_MESSAGE_END`, then `RUN_FINISHED`.
+- If your service streams, yield one `TEXT_MESSAGE_CONTENT` for each piece. For tool calls, yield `TOOL_CALL_START`, `TOOL_CALL_ARGS`, and `TOOL_CALL_END`.
+- When a call sets `outputSchema`, `chat()` calls `structuredOutput()` with the JSON Schema.
+
+The minimal adapter skips tools, system prompts, and images. A full adapter maps them the same way. For a full example, see the [OpenAI text adapter](https://github.com/TanStack/ai/blob/main/packages/ai-openai/src/adapters/text.ts).
+
+Adapters are split by capability. Implement only what your service supports:
+
+- Text (chat)
+- Image
+- Embeddings
+- Video
+
+## Publish and list your adapter
+
+1. Publish the package to npm.
+2. Add a page for your adapter to [`docs/community-adapters`](https://github.com/TanStack/ai/tree/main/docs/community-adapters) in the TanStack AI repository.
+3. Run `pnpm run sync-docs-config` in the root of the monorepo. This puts your page in the docs navigation.
+4. Open a [pull request](https://github.com/TanStack/ai/pulls) with the page and the generated changes.
+
+## Maintain your adapter
+
+You are responsible for the adapter after you publish it:
+
+- Follow API changes of your service.
+- Stay compatible with new TanStack AI releases.
+- Answer issues and feedback from users.
+- Update your docs page when features change. Open a follow-up pull request for it.
+
+## Advanced
+
+These steps make your adapter type-safe per model, like the built-in adapters.
+
+### Model metadata
+
+Model metadata describes what each model can do. TanStack AI uses it for compatibility checks and feature selection. For each model, define at least:
+
+- The model name and id.
+- The input and output modalities.
+- The features, for example streaming, tools, and structured output.
+- The price, if you know it.
+- Notes and limits that are special to your service.
+
+For a concrete example, see the [OpenAI model metadata](https://github.com/TanStack/ai/blob/main/packages/ai-openai/src/model-meta.ts).
+
+### Model lists per capability
+
+Group the models by what they support, in exported arrays. Put a model in an array only when it fully supports that capability:
+
 ```typescript ignore
 export const OPENAI_CHAT_MODELS = [
   // Frontier models
@@ -82,13 +260,44 @@ export const OPENAI_IMAGE_MODELS = [
 
 export const OPENAI_VIDEO_MODELS = [SORA2.name, SORA2_PRO.name] as const
 ```
-Each array should only include models that fully support the associated functionality.
 
-### 4. Define model provider options
+### Option fragments
 
-Each model exposes a different set of configurable options. These options must be typed per model name so that users only see valid configuration options.
+Models take different options. Build the options from small reusable fragments, not one copy per model:
 
-Example:
+- Base options that every model takes.
+- Feature fragments that you combine for each model.
+
+Based on the [OpenAI options](https://github.com/TanStack/ai/blob/main/packages/ai-openai/src/text/text-provider-options.ts):
+
+```typescript
+export interface OpenAIBaseOptions {
+  // base options that every chat model supports
+}
+
+// Feature fragments that can be stitched per-model
+
+/**
+ * Tools options for models.
+ */
+export interface OpenAIToolsOptions {
+  //...
+}
+
+/**
+ * Structured output options for models.
+ */
+export interface OpenAIStructuredOutputOptions {
+  //...
+}
+```
+
+There is no single correct split. Match the features of your service.
+
+### Typed options per model
+
+Type the options by model name, so users see only the options of the selected model. A model gets only the fragments it supports:
+
 ```typescript ignore
 export type OpenAIChatModelProviderOptionsByName = {
   [GPT5_2.name]: OpenAIBaseOptions &
@@ -103,15 +312,12 @@ export type OpenAIChatModelProviderOptionsByName = {
     OpenAIMetadataOptions
   // ... repeat for each model
 }
-
 ```
-This ensures strict type safety and feature correctness at compile time.
 
-### 5. Define supported input modalities
+### Input modalities per model
 
-Models typically support different input modalities (e.g. text, images, audio). These must be defined per model to prevent invalid usage.
+Define the input kinds (text, images, audio) of each model, so invalid input is a type error:
 
-Example:
 ```typescript ignore
 export type OpenAIModelInputModalitiesByName = {
   [GPT5_2.name]: typeof GPT5_2.supports.input
@@ -121,9 +327,11 @@ export type OpenAIModelInputModalitiesByName = {
 }
 ```
 
-### 6. Declare reasoning levels
+To also set `inputModalities` at run time, see [Set inputModalities in your own adapter](../advanced/extend-adapter-advanced#set-inputmodalities-in-your-own-adapter).
 
-Your provider has a thinking model? Users set it with `chat({ reasoning })`, and the types take only the levels of the selected model. To make that work, put a `reasoning` field on each model's metadata, then build two maps from it:
+### Reasoning levels
+
+Does your service have a thinking model? Users set it with `chat({ reasoning })`, and the types take only the levels of the selected model. Put a `reasoning` field on the metadata of each model, then build two maps from it:
 
 ```typescript ignore
 import type { ModelReasoning } from '@tanstack/ai'
@@ -157,90 +365,25 @@ export const OPENAI_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> =
   OPENAI_REASONING
 ```
 
-- `levels` lists only the levels the model has, with the value your provider takes for each. A level that is not in the list is not supported.
+- `levels` lists only the levels that the model has, with the value your service takes for each. A level that is not in the list is not supported.
 - `budget` is `true` when the model takes a thinking token budget.
 - Many models share the same levels. Define each shape once, and point each model at it.
 - A model that does not reason gets no `reasoning` field.
 
-Step 8 passes these levels to the adapter type. See [Add reasoning to your adapter](../advanced/extend-adapter#add-reasoning-to-your-adapter) for the adapter side.
+Then send `options.reasoning` as the thinking field of your service. Pass `OpenAIModelReasoningByName[TModel]` as the last type parameter of the adapter class, so `chat({ reasoning })` is typed. See [Add reasoning to your adapter](../advanced/extend-adapter-advanced#add-reasoning-to-your-adapter).
 
-### 7. Define model option fragments
+### Prompt cache and mid-conversation changes
 
-Model options should be composed from reusable fragments rather than duplicated per model.
+`chat()` also passes two optional fields to a text adapter. Your adapter works without them, but they make repeated requests cheaper:
 
-A common pattern is:
-- Base options shared by all models
-- Feature fragments that are stitched together per model
+- `options.promptCache`: map it to the cache fields of your service. See [Send the prompt cache](../advanced/extend-adapter-advanced#send-the-prompt-cache).
+- `options.midConversationChanges`: send added tools and prompts inside the conversation. See [Send mid-conversation changes](../advanced/extend-adapter-advanced#send-mid-conversation-changes).
 
-Example (based on [OpenAI models](https://github.com/TanStack/ai/blob/main/packages/ai-openai/src/text/text-provider-options.ts)):
-```typescript
-export interface OpenAIBaseOptions {
-  // base options that every chat model supports
-}
-
-// Feature fragments that can be stitched per-model 
-
-/**
- * Tools options for models.
- */
-export interface OpenAIToolsOptions {
-   //...
-}
- 
-/**
- * Structured output options for models.
- */
-export interface OpenAIStructuredOutputOptions {
-  //...
-}
-```
-
-
-Models can then opt into only the features they support:
-
-```typescript ignore
-export type OpenAIChatModelProviderOptionsByName = {
-  [GPT5_2.name]: OpenAIBaseOptions &
-    OpenAIStructuredOutputOptions &
-    OpenAIToolsOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
-}
-```
-
-There is no single correct composition; this structure should reflect the capabilities of the provider you are integrating.
-
-### 8. Implement adapter logic
-
-Finally, implement the adapter’s runtime logic.
-
-This includes:
-- Sending requests to the external service
-- Handling streaming and non-streaming responses
-- Mapping provider responses to TanStack AI types
-- Enforcing model-specific options and constraints
-- Sending `options.reasoning` as your provider's thinking field. Pass `OpenAIModelReasoningByName[TModel]` as the last type parameter of the adapter class, so `chat({ reasoning })` is typed
-
-Adapters are implemented per capability, so only implement what your provider supports:
-
-- Text adapter
-- Chat adapter
-- Image adapter
-- Embeddings adapter
-- Video adapter
-
-Refer to the [OpenAI adapter](https://github.com/TanStack/ai/blob/main/packages/ai-openai/src/adapters/text.ts) for a complete, end-to-end implementation example.
-
-For a text adapter, `chat()` also passes two optional fields. Your adapter works without them, but they make repeated requests cheaper:
-
-- `options.promptCache`: map it to your provider's cache fields. See [Send the prompt cache](../advanced/extend-adapter#send-the-prompt-cache).
-- `options.midConversationChanges`: send added tools and prompts inside the conversation. See [Send mid-conversation changes](../advanced/extend-adapter#send-mid-conversation-changes).
-
-#### Keep history valid across models
+### Keep history valid across models
 
 A user can switch to your adapter in the middle of a thread. The history then holds signatures and tool call IDs from another provider, and your API rejects them.
 
-1. Name your text adapter's source. `chat()` records it on each answer as `metadata.tanstack.source`:
+1. Name the source of your text adapter. `chat()` records it on each answer as `metadata.tanstack.source`:
    - `name`: the adapter name.
    - `provider`: optional. Defaults to `name`.
    - `api`: optional, the wire API. Defaults to the adapter kind.
@@ -270,16 +413,9 @@ For history from another source, the helper:
 
 `chat()` already drops failed answers and adds `No result provided` for unanswered tool calls before it calls your adapter. Your saved history does not change.
 
-### 9. Publish and submit a PR
+### Export a BYOK provider
 
-Once your adapter is complete:
-1. Publish it as an npm package
-2. Open a PR to the [TanStack AI repository](https://github.com/TanStack/ai/pulls)
-3. Add your adapter to the [Community Adapters list in the documentation](https://github.com/TanStack/ai/tree/main/docs/community-adapters)
-
-### 10. Export a BYOK provider
-
-If users can paste an API key for your adapter, export a `defineByokProvider` object from a **`/byok` subpath** (`@scope/ai-acme/byok`). Do not re-export it from the package main entry — that pulls your provider SDK into the browser. `id` is the `x-byok-<id>` slug and is required. Set `env` to the env var **name** your adapter already reads. Names only — this object is imported on the client. Relays call `getByokKey(request, acmeByok)` from `@tanstack/ai/byok/server`.
+Can users paste an API key for your adapter? Then export a `defineByokProvider` object from a `/byok` subpath (`@scope/ai-acme/byok`):
 
 ```typescript
 import { defineByokProvider } from "@tanstack/ai/byok";
@@ -291,21 +427,8 @@ export const acmeByok = defineByokProvider({
 });
 ```
 
-Apps import `{ acmeByok } from "@scope/ai-acme/byok"` and pass it to `getByokKey(request, acmeByok)` on the relay to read the `x-byok-acme` header.
+- Do not export it from the main entry of the package. That pulls your provider SDK into the browser.
+- `id` is required. It is the slug in the `x-byok-<id>` header.
+- `env` is the **name** of the environment variable that your adapter already reads. Put only names here, because the client imports this object.
 
-### 11. Sync documentation configuration
-
-After adding your adapter, run the  `pnpm run sync-docs-config` in the root of the TanStack AI monorepo. This ensures your adapter appears correctly in the documentation navigation. Open a PR with the generated changes.
-
-### 12. Maintain your adapter
-
-As a community adapter author, you are responsible for ongoing maintenance.
-
-This includes:
-
-- Tracking upstream provider API changes
-- Keeping compatibility with TanStack AI releases
-- Addressing issues and feedback from users
-- Updating documentation when features change
-
-If you add new features or breaking changes, open a follow-up PR to keep the docs in sync.
+Apps import `{ acmeByok } from "@scope/ai-acme/byok"`. A relay calls `getByokKey(request, acmeByok)` from `@tanstack/ai/byok/server` to read the `x-byok-acme` header.

@@ -7,7 +7,7 @@ title: defineRunStore
 function defineRunStore<T>(store): T;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:352](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L352)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:352
 
 Type a [RunStore](../interfaces/RunStore.md) implementation inline: pass the object and get
 autocomplete plus contract checking with no separate annotation. Mirrors

@@ -3,7 +3,7 @@ id: ActivityPart
 title: ActivityPart
 ---
 
-Defined in: [packages/ai/src/types.ts:563](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L563)
+Defined in: packages/ai/src/types.ts:563
 
 Frontend-only AG-UI activity. Never converted into ModelMessage input.
 Mirrors [ActivityMessage](https://docs.ag-ui.com/concepts/messages):
@@ -21,4 +21,4 @@ Mirrors [ActivityMessage](https://docs.ag-ui.com/concepts/messages):
 type: "activity";
 ```
 
-Defined in: [packages/ai/src/types.ts:567](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L567)
+Defined in: packages/ai/src/types.ts:567

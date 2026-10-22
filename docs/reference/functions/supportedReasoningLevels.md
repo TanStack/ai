@@ -7,7 +7,7 @@ title: supportedReasoningLevels
 function supportedReasoningLevels(reasoning): readonly ReasoningLevel[];
 ```
 
-Defined in: [packages/ai/src/reasoning.ts:117](https://github.com/TanStack/ai/blob/main/packages/ai/src/reasoning.ts#L117)
+Defined in: packages/ai/src/reasoning.ts:117
 
 The levels a model supports, from least to most thinking: the levels in its
 data. A model that does not reason, or has no data, supports only `off`.

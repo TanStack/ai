@@ -92,7 +92,6 @@ function createServerToolAdapter(): AnyTextAdapter {
         type: EventType.TOOL_CALL_START,
         toolCallId,
         toolCallName: 'getWeather',
-        toolName: 'getWeather',
         model,
         timestamp: Date.now(),
       }
@@ -107,7 +106,6 @@ function createServerToolAdapter(): AnyTextAdapter {
         type: EventType.TOOL_CALL_END,
         toolCallId,
         toolCallName: 'getWeather',
-        toolName: 'getWeather',
         input: { city: 'NYC' },
         model,
         timestamp: Date.now(),
@@ -138,6 +136,7 @@ export const Route = createFileRoute('/api/tool-call-lifecycle-wire')({
         const chunks: Array<unknown> = []
         try {
           for await (const chunk of chat({
+            threadId: 'tool-call-lifecycle-wire',
             ...createChatOptions({ adapter: createServerToolAdapter() }),
             tools: [getWeather],
             messages: [{ role: 'user', content: "What's the weather in NYC?" }],

@@ -7,7 +7,7 @@ title: toServerSentEventsResponse
 function toServerSentEventsResponse<TOffset>(stream, init?): Response;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:1059](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1059)
+Defined in: packages/ai/src/stream-to-response.ts:1059
 
 Convert a StreamChunk async iterable to a Response in Server-Sent Events format
 

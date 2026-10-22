@@ -687,7 +687,7 @@ function TriagePane({
     // run through the replay branch. This flag plus a stable `threadId` is the
     // whole of what makes a refresh resume.
     persistence: true,
-    body: {
+    forwardedProps: {
       harness,
       provider,
       issueUrl,

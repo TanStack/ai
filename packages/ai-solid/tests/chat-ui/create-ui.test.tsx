@@ -58,6 +58,7 @@ describe('Solid createChatHook', () => {
     expect(
       renderHtml(() => {
         const chat = useAppChat({
+          threadId: 'thread-1',
           initialMessages: [messageWithToolResults] as never,
         })
         return <chat.AppChat />

@@ -3,7 +3,7 @@ id: DuplicateToolNameError
 title: DuplicateToolNameError
 ---
 
-Defined in: [packages/ai/src/activities/chat/tools/unique-tool-names.ts:11](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/unique-tool-names.ts#L11)
+Defined in: packages/ai/src/activities/chat/tools/unique-tool-names.ts:11
 
 Thrown when `chat({ tools })` (or a provider converter) receives two tools
 with the same public `name`.
@@ -24,7 +24,7 @@ reject that pair, so we fail before the request is built.
 new DuplicateToolNameError(toolName, message): DuplicateToolNameError;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/unique-tool-names.ts:14](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/unique-tool-names.ts#L14)
+Defined in: packages/ai/src/activities/chat/tools/unique-tool-names.ts:14
 
 #### Parameters
 
@@ -54,4 +54,4 @@ Error.constructor
 readonly toolName: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/unique-tool-names.ts:12](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/unique-tool-names.ts#L12)
+Defined in: packages/ai/src/activities/chat/tools/unique-tool-names.ts:12

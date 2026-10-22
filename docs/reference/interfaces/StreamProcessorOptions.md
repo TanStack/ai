@@ -3,7 +3,7 @@ id: StreamProcessorOptions
 title: StreamProcessorOptions
 ---
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:159](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L159)
+Defined in: packages/ai/src/activities/chat/stream/processor.ts:159
 
 Options for StreamProcessor
 
@@ -15,7 +15,7 @@ Options for StreamProcessor
 optional chunkStrategy?: ChunkStrategy;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:160](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L160)
+Defined in: packages/ai/src/activities/chat/stream/processor.ts:160
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [packages/ai/src/activities/chat/stream/processor.ts:160](https://gi
 optional events?: StreamProcessorEvents;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:162](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L162)
+Defined in: packages/ai/src/activities/chat/stream/processor.ts:162
 
 Event-driven handlers
 
@@ -37,7 +37,7 @@ Event-driven handlers
 optional initialMessages?: UIMessage<unknown>[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:169](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L169)
+Defined in: packages/ai/src/activities/chat/stream/processor.ts:169
 
 Initial messages to populate the processor
 
@@ -49,7 +49,7 @@ Initial messages to populate the processor
 optional jsonParser?: object;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:163](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L163)
+Defined in: packages/ai/src/activities/chat/stream/processor.ts:163
 
 #### parse
 
@@ -75,7 +75,7 @@ parse: (jsonString) => any;
 optional recording?: boolean;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:167](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L167)
+Defined in: packages/ai/src/activities/chat/stream/processor.ts:167
 
 Enable recording for replay testing
 
@@ -87,7 +87,7 @@ Enable recording for replay testing
 optional subagentRunId?: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:174](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L174)
+Defined in: packages/ai/src/activities/chat/stream/processor.ts:174
 
 Set on the processor of a subagent card. Chunks tagged with this id are
 the card's own; chunks for an id no card holds are dropped.

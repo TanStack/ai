@@ -44,24 +44,13 @@ describe('ChatClient identity', () => {
 
     expect(() => {
       new ChatClient({
+        threadId: 'thread-1',
         connection: createCapturingAdapter().adapter,
       })
     }).not.toThrow()
 
     expect(randomUUID).not.toHaveBeenCalled()
     expect(mathRandom).not.toHaveBeenCalled()
-  })
-
-  it('mints a thread id on first send when none is provided, and reuses it', async () => {
-    const { adapter, runContexts } = createCapturingAdapter()
-    const client = new ChatClient({ connection: adapter })
-
-    await client.sendMessage('first')
-    await client.sendMessage('second')
-
-    expect(runContexts).toHaveLength(2)
-    expect(runContexts[0]?.threadId).toMatch(/^thread-/)
-    expect(runContexts[1]?.threadId).toBe(runContexts[0]?.threadId)
   })
 
   it('uses the provided threadId on the wire', async () => {
@@ -76,23 +65,26 @@ describe('ChatClient identity', () => {
     expect(runContexts[0]?.threadId).toBe('support-42')
   })
 
-  it('throws when persistence is set without a threadId', () => {
+  it.each([
+    ['empty', ''],
+    ['missing', undefined],
+    ['non-string', 42],
+  ])('throws when threadId is %s', (_label, threadId) => {
     expect(() => {
-      // @ts-expect-error threadId is required whenever persistence is on
+      new ChatClient({
+        connection: createCapturingAdapter().adapter,
+        threadId: threadId as never,
+      })
+    }).toThrow('ChatClient: threadId is required (a non-empty string).')
+  })
+
+  it('throws for an empty threadId even with persistence', () => {
+    expect(() => {
       new ChatClient({
         connection: createCapturingAdapter().adapter,
         persistence: createMockPersistence(),
+        threadId: '',
       })
-    }).toThrow(/persistence needs a stable `threadId`/)
-  })
-
-  it('throws when persistence: true is set without a threadId', () => {
-    expect(() => {
-      // @ts-expect-error threadId is required whenever persistence is on
-      new ChatClient({
-        connection: createCapturingAdapter().adapter,
-        persistence: true,
-      })
-    }).toThrow(/persistence needs a stable `threadId`/)
+    }).toThrow('ChatClient: threadId is required (a non-empty string).')
   })
 })

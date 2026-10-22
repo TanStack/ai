@@ -2,7 +2,7 @@
 
 [jscodeshift](https://github.com/facebook/jscodeshift) transforms for migrating between API versions of `@tanstack/ai` and friends.
 
-Each codemod lives in its own subdirectory and is named after the migration it covers. Codemods are **opt-in modernizations** — the deprecated APIs they replace continue to work, so you can run them at your own pace.
+Each codemod lives in its own subdirectory and is named after the migration it covers. In 1.0 the old names that these codemods replace are removed, so run the codemods as part of the upgrade.
 
 ## Available codemods
 

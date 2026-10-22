@@ -3,7 +3,7 @@ id: SubagentBudget
 title: SubagentBudget
 ---
 
-Defined in: [packages/ai/src/activities/chat/agents/limits.ts:17](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/limits.ts#L17)
+Defined in: packages/ai/src/activities/chat/agents/limits.ts:17
 
 The shared budget of one subagent tree.
 
@@ -15,7 +15,7 @@ The shared budget of one subagent tree.
 readonly deadline: number | undefined;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/limits.ts:24](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/limits.ts#L24)
+Defined in: packages/ai/src/activities/chat/agents/limits.ts:24
 
 Epoch ms after which this run's children must stop, if any.
 
@@ -27,7 +27,7 @@ Epoch ms after which this run's children must stop, if any.
 readonly depth: number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/limits.ts:21](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/limits.ts#L21)
+Defined in: packages/ai/src/activities/chat/agents/limits.ts:21
 
 The depth of the run that owns this budget view.
 
@@ -39,7 +39,7 @@ The depth of the run that owns this budget view.
 readonly limits: SubagentLimits;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/limits.ts:19](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/limits.ts#L19)
+Defined in: packages/ai/src/activities/chat/agents/limits.ts:19
 
 ## Accessors
 
@@ -51,7 +51,7 @@ Defined in: [packages/ai/src/activities/chat/agents/limits.ts:19](https://github
 get calls(): number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/limits.ts:33](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/limits.ts#L33)
+Defined in: packages/ai/src/activities/chat/agents/limits.ts:33
 
 How many children the tree started so far.
 
@@ -67,7 +67,7 @@ How many children the tree started so far.
 child(deadline?): SubagentBudget;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/limits.ts:72](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/limits.ts#L72)
+Defined in: packages/ai/src/activities/chat/agents/limits.ts:72
 
 The budget a child's own subagents use: one level deeper, same counters.
 
@@ -89,7 +89,7 @@ The budget a child's own subagents use: one level deeper, same counters.
 childTimeout(now?): number | undefined;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/limits.ts:63](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/limits.ts#L63)
+Defined in: packages/ai/src/activities/chat/agents/limits.ts:63
 
 Milliseconds a child started now may run, or `undefined` for no limit.
 
@@ -111,7 +111,7 @@ Milliseconds a child started now may run, or `undefined` for no limit.
 release(): void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/limits.ts:58](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/limits.ts#L58)
+Defined in: packages/ai/src/activities/chat/agents/limits.ts:58
 
 Undo one `reserve`. A background start that throws never began.
 
@@ -127,7 +127,7 @@ Undo one `reserve`. A background start that throws never began.
 reserve(active): string | undefined;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/limits.ts:42](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/limits.ts#L42)
+Defined in: packages/ai/src/activities/chat/agents/limits.ts:42
 
 Reserve one child spawn. Returns the refusal message the model sees, or
 `undefined` when the child may start. `active` is how many children this
@@ -151,7 +151,7 @@ run has running now.
 static root(limits?): SubagentBudget;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/limits.ts:28](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/limits.ts#L28)
+Defined in: packages/ai/src/activities/chat/agents/limits.ts:28
 
 A budget for a root run.
 

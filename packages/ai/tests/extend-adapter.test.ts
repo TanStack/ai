@@ -192,6 +192,7 @@ describe('extendAdapter', () => {
 
       // This should compile without errors
       chat({
+        threadId: 'thread-1',
         adapter: extendedMock('mock-gpt-4'),
         messages: [{ role: 'user', content: 'Hello' }],
       })
@@ -213,11 +214,13 @@ describe('extendAdapter', () => {
 
       // This should compile without errors
       chat({
+        threadId: 'thread-1',
         adapter: extendedMock('my-fine-tuned-model'),
         messages: [{ role: 'user', content: 'Hello' }],
       })
 
       chat({
+        threadId: 'thread-1',
         adapter: extendedMock('local-llm'),
         messages: [{ role: 'user', content: 'Hello' }],
       })

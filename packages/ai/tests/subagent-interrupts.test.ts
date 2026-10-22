@@ -743,7 +743,6 @@ describe('subagent cards', () => {
         type: EventType.TOOL_CALL_START,
         toolCallId: 'tc',
         toolCallName: 'search',
-        toolName: 'search',
         subagentRunId: 's1',
         timestamp: t,
       },

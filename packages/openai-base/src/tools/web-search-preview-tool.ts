@@ -7,9 +7,6 @@ import type { Tool } from '@tanstack/ai'
 
 export type { WebSearchPreviewToolConfig }
 
-/** @deprecated Renamed to `WebSearchPreviewToolConfig`. Will be removed in a future release. */
-export type WebSearchPreviewTool = WebSearchPreviewToolConfig
-
 /**
  * Converts a standard Tool to OpenAI WebSearchPreviewTool format. Force the
  * literal `type: 'web_search_preview'` instead of trusting `metadata.type`,

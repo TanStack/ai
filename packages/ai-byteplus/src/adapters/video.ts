@@ -103,8 +103,7 @@ function toTokenCount(value: number | string | undefined): number | undefined {
  * Seedance bills output only. The API documents input tokens as always 0 and
  * `total_tokens` as equal to `completion_tokens`, so `promptTokens` is 0 and
  * the completion count is the billed quantity (`usage.billed` with
- * `unit: 'tokens'`). The deprecated `unitsBilled` is still populated for
- * backward compatibility.
+ * `unit: 'tokens'`).
  */
 function buildBytePlusVideoUsage(
   usage: BytePlusVideoTaskUsage | undefined,
@@ -123,7 +122,6 @@ function buildBytePlusVideoUsage(
     completionTokens: completion,
     totalTokens: totalTokens ?? completion,
     billed: { quantity: completion, unit: 'tokens' },
-    unitsBilled: completion,
   }
 }
 

@@ -57,6 +57,7 @@ describe('executeToolCalls runtime context', () => {
       executeToolCalls(
         toolCalls,
         [tool],
+        'thread-1',
         new Map(),
         new Map(),
         undefined,
@@ -83,22 +84,7 @@ describe('executeToolCalls runtime context', () => {
       },
     ]
 
-    await drain(
-      executeToolCalls(
-        toolCalls,
-        [tool],
-        new Map(),
-        new Map(),
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        'thread-a',
-      ),
-    )
+    await drain(executeToolCalls(toolCalls, [tool], 'thread-a'))
 
     expect(seen).toEqual(['thread-a'])
   })

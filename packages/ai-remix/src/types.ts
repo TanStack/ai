@@ -60,7 +60,7 @@ export type DeepPartial<T> =
  *
  * Call `createChat(handle, options)` in Remix setup with Handle from
  * `remix/ui`. Handle is the first argument of the helper. It is not part of
- * this type. The default id is `options.threadId ?? handle.id`.
+ * this type. `threadId` is required.
  *
  * Pass either `connection` or `fetcher`. The XOR is enforced at the type
  * level via `ChatTransport`.
@@ -211,15 +211,6 @@ interface BaseCreateChatReturn<
   }) => Promise<void>
 
   /**
-   * @deprecated Use a bound `tool-approval` interrupt and
-   * `interrupt.resolveInterrupt`.
-   */
-  addToolApprovalResponse: (response: {
-    id: string // approval.id, not toolCallId
-    approved: boolean
-  }) => Promise<void>
-
-  /**
    * The id of the run this client has in flight (one it started or rejoined),
    * or `null` when there is none (including while a run sits paused on an
    * interrupt, waiting on approval).
@@ -232,8 +223,6 @@ interface BaseCreateChatReturn<
    */
   runId: string | null
   interrupts: BoundInterrupts<TTools, TInterrupts>
-  /** @deprecated Use `interrupts`. */
-  pendingInterrupts: BoundInterrupts<TTools, TInterrupts>
   interruptErrors: ChatInterruptState<TTools, TInterrupts>['interruptErrors']
   resuming: boolean
   resolveInterrupts: {
@@ -247,11 +236,6 @@ interface BaseCreateChatReturn<
   cancelInterrupts: () => void
   retryInterrupts: () => void
   resumeInterruptsUnsafe: (
-    resume: Array<RunAgentResumeItem>,
-    state?: ChatResumeState,
-  ) => Promise<boolean>
-  /** @deprecated Use bound interrupt methods or `resumeInterruptsUnsafe`. */
-  resumeInterrupts: (
     resume: Array<RunAgentResumeItem>,
     state?: ChatResumeState,
   ) => Promise<boolean>

@@ -62,6 +62,7 @@ describe('Gemini Audio (Lyria) Adapter', () => {
 
     const adapter = createGeminiAudio('lyria-3-pro-preview', 'key')
     const result = await generateAudio({
+      threadId: 'thread-1',
       adapter,
       prompt: 'Ambient piano and strings',
       modelOptions: { seed: 42 },
@@ -100,6 +101,7 @@ describe('Gemini Audio (Lyria) Adapter', () => {
 
     const adapter = createGeminiAudio('lyria-3-pro-preview', 'key')
     const result = await generateAudio({
+      threadId: 'thread-1',
       adapter,
       prompt: 'Ambient piano',
     })
@@ -125,7 +127,11 @@ describe('Gemini Audio (Lyria) Adapter', () => {
     })
 
     const adapter = createGeminiAudio('lyria-3-pro-preview', 'key')
-    const result = await generateAudio({ adapter, prompt: 'Ambient piano' })
+    const result = await generateAudio({
+      threadId: 'thread-1',
+      adapter,
+      prompt: 'Ambient piano',
+    })
 
     expect(result.usage).toBeUndefined()
   })
@@ -149,7 +155,11 @@ describe('Gemini Audio (Lyria) Adapter', () => {
     })
 
     const adapter = createGeminiAudio('lyria-3-clip-preview', 'key')
-    await generateAudio({ adapter, prompt: 'Ambient piano' })
+    await generateAudio({
+      threadId: 'thread-1',
+      adapter,
+      prompt: 'Ambient piano',
+    })
 
     const args = mockGenerateContent.mock.calls[0]![0]
     expect(args.config.responseMimeType).toBeUndefined()
@@ -160,9 +170,9 @@ describe('Gemini Audio (Lyria) Adapter', () => {
       candidates: [{ content: { parts: [] } }],
     })
     const adapter = createGeminiAudio('lyria-3-clip-preview', 'key')
-    await expect(generateAudio({ adapter, prompt: 'silence' })).rejects.toThrow(
-      /No audio data/,
-    )
+    await expect(
+      generateAudio({ threadId: 'thread-1', adapter, prompt: 'silence' }),
+    ).rejects.toThrow(/No audio data/)
   })
 
   it('emits only GenerateContentConfig-valid fields (SDK audit guard)', async () => {
@@ -193,6 +203,7 @@ describe('Gemini Audio (Lyria) Adapter', () => {
 
     const adapter = createGeminiAudio('lyria-3-pro-preview', 'key')
     await generateAudio({
+      threadId: 'thread-1',
       adapter,
       prompt: 'Ambient piano',
       modelOptions: {
@@ -230,7 +241,11 @@ describe('Gemini Audio (Lyria) Adapter', () => {
     })
 
     const adapter = createGeminiAudio('lyria-3-pro-preview', 'key')
-    const result = await generateAudio({ adapter, prompt: 'Ambient piano' })
+    const result = await generateAudio({
+      threadId: 'thread-1',
+      adapter,
+      prompt: 'Ambient piano',
+    })
 
     expect(result.audio.contentType).toBe('audio/mpeg')
   })

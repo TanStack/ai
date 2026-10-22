@@ -61,6 +61,7 @@ describe('gemini file content source', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           {
@@ -100,6 +101,7 @@ describe('gemini file content source', () => {
     await expect(
       collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [
             {

@@ -11,7 +11,6 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 
@@ -84,6 +83,7 @@ export interface CreateGenerateAudioReturn<
  *   import { createGenerateAudio, fetchServerSentEvents } from '@tanstack/ai-svelte'
  *
  *   const audio = createGenerateAudio({
+ *     threadId: 'theme-audio',
  *     connection: fetchServerSentEvents('/api/generate/audio'),
  *   })
  * </script>
@@ -102,12 +102,9 @@ export interface CreateGenerateAudioReturn<
  * ```
  */
 export function createGenerateAudio<TTransformed = void>(
-  options: Omit<
-    CreateGenerateAudioOptions,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<CreateGenerateAudioOptions, 'onResult'> & {
     onResult?: (result: AudioGenerationResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ): CreateGenerateAudioReturn<
   InferGenerationOutputFromReturn<AudioGenerationResult, TTransformed>
 > {

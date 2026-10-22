@@ -3,7 +3,7 @@ id: ImageAdapter
 title: ImageAdapter
 ---
 
-Defined in: [packages/ai/src/activities/generateImage/adapter.ts:39](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/adapter.ts#L39)
+Defined in: packages/ai/src/activities/generateImage/adapter.ts:39
 
 Image adapter interface with pre-resolved generics.
 
@@ -48,7 +48,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [packages/ai/src/activities/generateImage/adapter.ts:67](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/adapter.ts#L67)
+Defined in: packages/ai/src/activities/generateImage/adapter.ts:67
 
 **`Internal`**
 
@@ -86,7 +86,7 @@ providerOptions: TProviderOptions;
 generateImages: (options) => Promise<ImageGenerationResult>;
 ```
 
-Defined in: [packages/ai/src/activities/generateImage/adapter.ts:77](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/adapter.ts#L77)
+Defined in: packages/ai/src/activities/generateImage/adapter.ts:77
 
 Generate images from a prompt
 
@@ -108,7 +108,7 @@ Generate images from a prompt
 readonly kind: "image";
 ```
 
-Defined in: [packages/ai/src/activities/generateImage/adapter.ts:51](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/adapter.ts#L51)
+Defined in: packages/ai/src/activities/generateImage/adapter.ts:51
 
 Discriminator for adapter kind - used by generate() to determine API shape
 
@@ -120,7 +120,7 @@ Discriminator for adapter kind - used by generate() to determine API shape
 readonly model: TModel;
 ```
 
-Defined in: [packages/ai/src/activities/generateImage/adapter.ts:62](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/adapter.ts#L62)
+Defined in: packages/ai/src/activities/generateImage/adapter.ts:62
 
 The model this adapter is configured for
 
@@ -132,7 +132,7 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: [packages/ai/src/activities/generateImage/adapter.ts:53](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/adapter.ts#L53)
+Defined in: packages/ai/src/activities/generateImage/adapter.ts:53
 
 Adapter name identifier
 
@@ -144,7 +144,7 @@ Adapter name identifier
 readonly optional supportsFileSources?: boolean;
 ```
 
-Defined in: [packages/ai/src/activities/generateImage/adapter.ts:60](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/adapter.ts#L60)
+Defined in: packages/ai/src/activities/generateImage/adapter.ts:60
 
 Declares that this adapter can consume `{ type: 'file' }` content
 sources (provider Files API references). The activity dispatcher rejects

@@ -807,6 +807,7 @@ async function main() {
     try {
       const stream = chat({
         adapter,
+        threadId: 'eval-run',
         messages: [
           {
             role: 'user',

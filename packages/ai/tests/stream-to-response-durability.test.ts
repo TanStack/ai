@@ -999,6 +999,7 @@ function failingPersistenceRun(): AsyncIterable<StreamChunk> {
   })
 
   return chat({
+    threadId: 'thread-1',
     adapter,
     messages: [{ role: 'user', content: 'Hi' }],
     middleware: [
@@ -1217,6 +1218,7 @@ describe('CUSTOM events flush through durability at emit time', () => {
     const body = readBody(
       toServerSentEventsResponse(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'go' }],
           middleware: [middleware],
@@ -1279,6 +1281,7 @@ describe('CUSTOM events flush through durability at emit time', () => {
     await readBody(
       toServerSentEventsResponse(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'go' }],
           tools: [tool],

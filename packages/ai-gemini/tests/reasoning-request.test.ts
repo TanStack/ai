@@ -33,6 +33,7 @@ async function thinkingConfig(
   mocks.generateContentStream.mockResolvedValue(noChunks())
   const adapter = new GeminiTextAdapter({ apiKey: 'test' }, model)
   for await (const _chunk of adapter.chatStream({
+    threadId: 'thread-1',
     logger,
     model,
     messages: [{ role: 'user', content: 'hi' }],
@@ -113,6 +114,7 @@ describe('Gemini Interactions chat({ reasoning }) request shape', () => {
       'gemini-3.8-flash',
     )
     for await (const _chunk of adapter.chatStream({
+      threadId: 'thread-1',
       logger,
       model: 'gemini-3.8-flash',
       messages: [{ role: 'user', content: 'hi' }],

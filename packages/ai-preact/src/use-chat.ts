@@ -1,7 +1,7 @@
 import { ChatClient } from '@tanstack/ai-client'
 import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import { useSyncExternalStore } from 'preact/compat'
-import { useCallback, useEffect, useId, useMemo, useRef } from 'preact/hooks'
+import { useCallback, useEffect, useMemo, useRef } from 'preact/hooks'
 import type {
   ResolvableChatInterrupt,
   ChatResumeState,
@@ -32,10 +32,8 @@ export function useChat<
   options: UseChatOptions<TTools, TContext, TInterrupts>,
 ): UseChatReturn<TTools, TInterrupts> {
   // The hook's identity is its `threadId`. Reload with the same `threadId`
-  // restores the same conversation. `hookId` is only a recreation key when no
-  // `threadId` is given. It is never sent on the wire.
-  const hookId = useId()
-  const clientId = options.threadId ?? hookId
+  // restores the same conversation.
+  const clientId = options.threadId
 
   const activeClientRef = useRef<ChatClient | null>(null)
   const cleanupInvalidationRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -94,27 +92,15 @@ export function useChat<
       devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
       initialMessages: messagesToUse,
-      ...(initialOptions.body !== undefined && { body: initialOptions.body }),
-      ...(typeof initialOptions.threadId === 'string' &&
-      initialOptions.persistence === true
+      threadId: initialOptions.threadId,
+      ...(initialOptions.persistence === true
         ? {
             persistence: true,
-            threadId: initialOptions.threadId,
             ...(initialOptions.history !== undefined && {
               history: initialOptions.history,
             }),
           }
-        : typeof initialOptions.threadId === 'string' &&
-            initialOptions.persistence
-          ? {
-              persistence: initialOptions.persistence,
-              threadId: initialOptions.threadId,
-            }
-          : {
-              ...(initialOptions.threadId !== undefined && {
-                threadId: initialOptions.threadId,
-              }),
-            }),
+        : { persistence: initialOptions.persistence }),
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
       }),
@@ -207,27 +193,18 @@ export function useChat<
     client.getSnapshot,
   )
 
-  // Sync body / forwardedProps changes to the client.
-  // Both populate the same wire payload; `forwardedProps` is preferred
-  // and `body` is deprecated but still supported.
+  // Sync forwardedProps changes to the client.
   useEffect(() => {
     // Conditional spread: `updateOptions` declares strict-optional
     // fields and rejects explicit `undefined` under EOPT.
     client.updateOptions({
-      body: options.body,
       ...(options.forwardedProps !== undefined && {
         forwardedProps: options.forwardedProps,
       }),
       context: options.context,
       ...(options.queue !== undefined && { queue: options.queue }),
     })
-  }, [
-    client,
-    options.body,
-    options.forwardedProps,
-    options.context,
-    options.queue,
-  ])
+  }, [client, options.forwardedProps, options.context, options.queue])
 
   useEffect(() => {
     if (options.tools !== undefined) {
@@ -365,20 +342,6 @@ export function useChat<
     [client],
   )
 
-  const addToolApprovalResponse = useCallback(
-    async (response: { id: string; approved: boolean }) => {
-      await client.addToolApprovalResponse(response)
-    },
-    [client],
-  )
-
-  const resumeInterrupts = useCallback(
-    async (resumeItems: Array<RunAgentResumeItem>, state?: ChatResumeState) => {
-      return await client.resumeInterrupts(resumeItems, state)
-    },
-    [client],
-  )
-
   const resolveInterrupts = useCallback(
     (
       resolution:
@@ -430,18 +393,15 @@ export function useChat<
     setMessages: setMessagesManually,
     clear,
     addToolResult,
-    addToolApprovalResponse,
     queue: snapshot.queue,
     cancelQueued,
     runId: snapshot.runId,
     interrupts: snapshot.interruptState.interrupts,
-    pendingInterrupts: snapshot.interruptState.pendingInterrupts,
     interruptErrors: snapshot.interruptState.interruptErrors,
     resuming: snapshot.interruptState.resuming,
     resolveInterrupts,
     cancelInterrupts,
     retryInterrupts,
     resumeInterruptsUnsafe,
-    resumeInterrupts,
   }
 }

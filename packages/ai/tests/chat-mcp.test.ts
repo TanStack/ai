@@ -86,6 +86,7 @@ describe('chat({ mcp })', () => {
     })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hello' }],
       mcp: { clients: [source] },
@@ -115,6 +116,7 @@ describe('chat({ mcp })', () => {
     })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hello' }],
       mcp: { clients: [source], connection: 'keep-alive' },
@@ -139,6 +141,7 @@ describe('chat({ mcp })', () => {
     })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hello' }],
       mcp: { clients: [source] },
@@ -172,6 +175,7 @@ describe('chat({ mcp })', () => {
     })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hello' }],
       mcp: { clients: [source] },
@@ -228,6 +232,7 @@ describe('chat({ mcp })', () => {
     })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Get data' }],
       mcp: { clients: [source] },
@@ -281,6 +286,7 @@ describe('chat({ mcp })', () => {
     })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       mcp: { clients: [source], lazyTools: true },
@@ -313,6 +319,7 @@ describe('chat({ mcp })', () => {
     })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       mcp: {
@@ -341,6 +348,7 @@ describe('chat({ mcp })', () => {
     })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       mcp: {
@@ -366,6 +374,7 @@ describe('chat({ mcp })', () => {
     const { adapter } = createMockAdapter({ iterations: [] })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       mcp: { clients: [source1, source2] },
@@ -386,6 +395,7 @@ describe('chat({ mcp })', () => {
     const { adapter } = createMockAdapter({ iterations: [] })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       mcp: { clients: [source1, source2] },
@@ -410,6 +420,7 @@ describe('chat({ mcp })', () => {
     const { adapter } = createMockAdapter({ iterations: [] })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       mcp: {
@@ -461,6 +472,7 @@ describe('chat({ mcp }) — structured-output runners', () => {
     })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'extract' }],
       outputSchema: OutSchema,
@@ -485,6 +497,7 @@ describe('chat({ mcp }) — structured-output runners', () => {
     })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'extract' }],
       outputSchema: OutSchema,
@@ -508,6 +521,7 @@ describe('chat({ mcp }) — structured-output runners', () => {
     })
 
     const result = await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'extract' }],
       outputSchema: OutSchema,
@@ -552,6 +566,7 @@ describe('chat({ mcp }) — structured-output runners', () => {
     })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'do it then summarize' }],
       outputSchema: OutSchema,

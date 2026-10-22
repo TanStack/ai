@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { RealtimeToken } from '@tanstack/ai'
-import type { RealtimeAdapter, RealtimeConnection } from '@tanstack/ai-client'
+import type {
+  RealtimeAdapter,
+  RealtimeConnection,
+  RealtimeToken,
+} from '@tanstack/ai'
 import type { Handle } from 'remix/ui'
 import { createRealtimeChat } from '../src/create-realtime-chat'
 import type { CreateRealtimeChatOptions } from '../src/realtime-types'

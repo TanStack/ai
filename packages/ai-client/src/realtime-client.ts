@@ -9,6 +9,7 @@ import type { Atom } from './snapshot-atom'
 import type {
   AnyClientTool,
   AudioVisualization,
+  RealtimeConnection,
   RealtimeMessage,
   RealtimeMode,
   RealtimeSessionConfig,
@@ -18,7 +19,6 @@ import type {
 import type {
   RealtimeClientOptions,
   RealtimeClientState,
-  RealtimeConnection,
   RealtimeStateChangeCallback,
 } from './realtime-types'
 

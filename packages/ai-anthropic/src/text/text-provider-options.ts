@@ -59,20 +59,11 @@ export interface AnthropicCacheControlOptions {
 
 export interface AnthropicContainerOptions {
   /**
-   * Container identifier for reuse across requests.
-   * Container parameters with skills to be loaded.
+   * Container identifier for reuse across requests. To load skills into the
+   * container, use `codeExecutionTool(config, { skills })`.
    */
   container?: {
     id: string | null
-    /**
-     * List of skills to load into the container.
-     *
-     * @deprecated Configure skills on the `code_execution` tool instead:
-     * `codeExecutionTool(config, { skills })`. The adapter lifts those into
-     * `container.skills` and attaches the required beta headers. Setting
-     * skills here bypasses the beta-header wiring and may stop working.
-     */
-    skills: Array<AnthropicContainerSkill> | null
   } | null
 }
 
@@ -195,6 +186,15 @@ export interface InternalTextProviderOptions
    * such as specifying a particular goal or role.
    */
   system?: string | Array<TextBlockParam>
+
+  /**
+   * Container for the request. The adapter sets `skills` from the
+   * `code_execution` tool.
+   */
+  container?: {
+    id: string | null
+    skills?: Array<AnthropicContainerSkill> | null
+  } | null
 
   /** `BetaTool`: the placeholder and the deferred tools of mid-conversation tool mode. */
   tools?: Array<AnthropicTool | BetaTool>

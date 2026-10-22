@@ -146,7 +146,6 @@ export class GrokTranscriptionAdapter<
               completionTokens: 0,
               totalTokens: 0,
               billed: { quantity: data.duration, unit: 'seconds' },
-              durationSeconds: data.duration,
             }
           : undefined
       return {

@@ -3,7 +3,7 @@ id: VideoStreamResult
 title: VideoStreamResult
 ---
 
-Defined in: [packages/ai/src/types.ts:2721](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2721)
+Defined in: packages/ai/src/types.ts:2638
 
 **`Experimental`**
 
@@ -21,7 +21,7 @@ and sets `url`. Use `withGenerationPersistence` with `artifactUrl`.
 body: ReadableStream<Uint8Array<ArrayBufferLike>>;
 ```
 
-Defined in: [packages/ai/src/types.ts:2725](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2725)
+Defined in: packages/ai/src/types.ts:2642
 
 **`Experimental`**
 
@@ -35,7 +35,7 @@ The video bytes. Read once, with backpressure. Never buffer it whole.
 contentType: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2727](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2727)
+Defined in: packages/ai/src/types.ts:2644
 
 **`Experimental`**
 
@@ -49,7 +49,7 @@ MIME type of `body`, e.g. `video/mp4`.
 jobId: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2723](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2723)
+Defined in: packages/ai/src/types.ts:2640
 
 **`Experimental`**
 
@@ -63,7 +63,7 @@ Job identifier
 optional url?: undefined;
 ```
 
-Defined in: [packages/ai/src/types.ts:2729](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2729)
+Defined in: packages/ai/src/types.ts:2646
 
 **`Experimental`**
 
@@ -75,6 +75,6 @@ Defined in: [packages/ai/src/types.ts:2729](https://github.com/TanStack/ai/blob/
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:2728](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2728)
+Defined in: packages/ai/src/types.ts:2645
 
 **`Experimental`**

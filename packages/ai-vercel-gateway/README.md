@@ -49,6 +49,7 @@ const adapter = vercelGatewayText('anthropic/claude-opus-5')
 const stream = chat({
   adapter,
   messages: [{ role: 'user', content: 'Hello' }],
+  threadId: 'thread-1',
 })
 ```
 

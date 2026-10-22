@@ -70,6 +70,7 @@ export const Route = createFileRoute('/api/openrouter-structured-usage')({
         // Exercise the public promise API: middleware must observe the failed call's usage.
         const result = await chat({
           adapter,
+          threadId: 'openrouter-structured-usage',
           messages: [{ role: 'user', content: 'Return an answer.' }],
           outputSchema: z.object({ answer: z.string() }),
           middleware: [

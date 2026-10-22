@@ -98,7 +98,7 @@ const { useAppChat } = createChatHook({
 })
 
 function SolidUIPage() {
-  const chat = useAppChat()
+  const chat = useAppChat({ threadId: 'solid-ui' })
   return <chat.AppChat />
 }
 

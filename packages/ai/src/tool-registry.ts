@@ -4,7 +4,7 @@ import type { AnyTool } from './types'
  * A registry that holds tools and allows dynamic tool management.
  *
  * The registry can be either mutable (allowing additions/removals during execution)
- * or frozen (static tool list, for backward compatibility with tools arrays).
+ * or frozen (a static tool list, made from the normal `tools` array).
  */
 export interface ToolRegistry<TTool extends AnyTool = AnyTool> {
   /**
@@ -110,7 +110,7 @@ export function createToolRegistry<TTool extends AnyTool = AnyTool>(
 /**
  * Create a frozen (immutable) tool registry from a tools array.
  *
- * This is used internally to wrap static `tools` arrays for backward compatibility.
+ * Use it to wrap a static `tools` array.
  * Add and remove operations are no-ops on frozen registries.
  *
  * @param tools - The static array of tools

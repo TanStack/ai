@@ -98,12 +98,14 @@ interface VideoCallbacks<TOutput> {
  * // With streaming connection adapter (server-driven polling)
  * const client = new VideoGenerationClient({
  *   connection: fetchServerSentEvents('/api/generate/video'),
+ *   threadId,
  *   onResultChange: setResult,
  *   onVideoStatusChange: setVideoStatus,
  * })
  *
  * // With fetcher (direct result)
  * const client = new VideoGenerationClient({
+ *   threadId,
  *   fetcher: async (input) => {
  *     const res = await fetch('/api/video/generate', {
  *       method: 'POST',
@@ -130,10 +132,9 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   private readonly fetcher:
     | GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
     | undefined
-  private uniqueId: string
   private readonly devtoolsMetadata: AIDevtoolsClientMetadata
   private readonly devtoolsBridge: VideoDevtoolsBridge<TOutput>
-  private threadId: string
+  private readonly threadId: string
   // Server-driven mode (`persistence: true`): no local snapshot store; on mount
   // the client hydrates the last generation for `threadId` from the server.
   private readonly serverDriven: boolean = false
@@ -177,10 +178,14 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       GenerationPersistenceOptions &
       GenerationTransport<VideoGenerateInput, VideoGenerateResult>,
   ) {
-    // `threadId` is the only identity. Do not mint a random id during
-    // construct: hooks build this client during render.
-    this.threadId = options.threadId ?? ''
-    this.uniqueId = this.threadId
+    // `threadId` is the only identity. Checked at runtime too, because JS
+    // callers are not held to the type.
+    if (typeof options.threadId !== 'string' || options.threadId === '') {
+      throw new Error(
+        'VideoGenerationClient: threadId is required (a non-empty string).',
+      )
+    }
+    this.threadId = options.threadId
     this.connection = options.connection
     this.fetcher = options.fetcher
     this.hydrateGenerationHandler = options.hydrateGeneration
@@ -222,17 +227,10 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   }
 
   private buildDevtoolsBridgeOptions(): VideoDevtoolsBridgeOptions<TOutput> {
-    const client = this
     return {
-      get hookId() {
-        return client.uniqueId
-      },
-      get clientId() {
-        return client.uniqueId
-      },
-      get threadId() {
-        return client.threadId
-      },
+      hookId: this.threadId,
+      clientId: this.threadId,
+      threadId: this.threadId,
       metadata: this.devtoolsMetadata,
       getCoreState: () => ({
         input: this.input,
@@ -248,7 +246,6 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   }
 
   mountDevtools(): void {
-    this.ensureThreadId()
     // Mounting revives a disposed client. Framework hooks call this from
     // their mount effect, so a dispose → remount cycle (e.g. React
     // StrictMode's mount → cleanup → mount replay against the same memoized
@@ -387,10 +384,10 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     const { signal } = abortController
 
     // Fetcher returns a completed result directly, or a Response with SSE body
-    const result = await this.fetcher(
-      input,
-      headers === undefined ? { signal } : { signal, headers },
-    )
+    const result = await this.fetcher(input, {
+      ...this.createRunContext(runId, headers),
+      signal,
+    })
     if (!ownsRun(this.abortController, abortController)) return
 
     if (result instanceof Response) {
@@ -900,18 +897,6 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       ...(metadata?.framework ? { framework: metadata.framework } : {}),
       ...(metadata?.name ? { name: metadata.name } : {}),
     }
-  }
-
-  private ensureThreadId(): string {
-    if (!this.threadId) {
-      this.threadId = this.generateUniqueId('video')
-    }
-    this.uniqueId = this.threadId
-    return this.threadId
-  }
-
-  private generateUniqueId(prefix: string): string {
-    return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
   }
 
   private createRunContext(

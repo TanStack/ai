@@ -3,7 +3,7 @@ id: MemoryStreamOptions
 title: MemoryStreamOptions
 ---
 
-Defined in: [packages/ai/src/stream-durability.ts:242](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-durability.ts#L242)
+Defined in: packages/ai/src/stream-durability.ts:242
 
 Options for the in-process delivery-durability backend.
 
@@ -15,7 +15,7 @@ Options for the in-process delivery-durability backend.
 optional firstChunkDeadlineMs?: number;
 ```
 
-Defined in: [packages/ai/src/stream-durability.ts:248](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-durability.ts#L248)
+Defined in: packages/ai/src/stream-durability.ts:248
 
 Milliseconds a from-start join waits for the run's first chunk before
 throwing. Defaults to DEFAULT\_FIRST\_CHUNK\_DEADLINE\_MS (100ms) —

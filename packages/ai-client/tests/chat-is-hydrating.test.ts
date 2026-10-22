@@ -199,6 +199,7 @@ describe('ChatClient isHydrating', () => {
 
   it('is always false without persistence', () => {
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: { connect: async function* () {} },
     })
     client.attach()

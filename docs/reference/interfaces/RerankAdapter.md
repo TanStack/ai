@@ -3,7 +3,7 @@ id: RerankAdapter
 title: RerankAdapter
 ---
 
-Defined in: [packages/ai/src/activities/rerank/adapter.ts:23](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/rerank/adapter.ts#L23)
+Defined in: packages/ai/src/activities/rerank/adapter.ts:23
 
 Rerank adapter interface with pre-resolved generics.
 
@@ -32,7 +32,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [packages/ai/src/activities/rerank/adapter.ts:37](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/rerank/adapter.ts#L37)
+Defined in: packages/ai/src/activities/rerank/adapter.ts:37
 
 **`Internal`**
 
@@ -52,7 +52,7 @@ providerOptions: TProviderOptions;
 readonly kind: "rerank";
 ```
 
-Defined in: [packages/ai/src/activities/rerank/adapter.ts:28](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/rerank/adapter.ts#L28)
+Defined in: packages/ai/src/activities/rerank/adapter.ts:28
 
 Discriminator for adapter kind
 
@@ -64,7 +64,7 @@ Discriminator for adapter kind
 readonly model: TModel;
 ```
 
-Defined in: [packages/ai/src/activities/rerank/adapter.ts:32](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/rerank/adapter.ts#L32)
+Defined in: packages/ai/src/activities/rerank/adapter.ts:32
 
 The model this adapter is configured for
 
@@ -76,7 +76,7 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: [packages/ai/src/activities/rerank/adapter.ts:30](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/rerank/adapter.ts#L30)
+Defined in: packages/ai/src/activities/rerank/adapter.ts:30
 
 Adapter name identifier
 
@@ -88,7 +88,7 @@ Adapter name identifier
 rerank: (options) => Promise<RerankAdapterResult>;
 ```
 
-Defined in: [packages/ai/src/activities/rerank/adapter.ts:46](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/rerank/adapter.ts#L46)
+Defined in: packages/ai/src/activities/rerank/adapter.ts:46
 
 Rerank the given (pre-serialized) documents against the query, returning
 scored indices into `options.documents`. The activity layer maps these

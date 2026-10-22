@@ -197,7 +197,6 @@ export async function* translateAcpStream(
       type: EventType.TOOL_CALL_START,
       toolCallId: update.toolCallId,
       toolCallName,
-      toolName: toolCallName,
       model,
       timestamp: now(),
     }
@@ -213,7 +212,6 @@ export async function* translateAcpStream(
       type: EventType.TOOL_CALL_END,
       toolCallId: update.toolCallId,
       toolCallName,
-      toolName: toolCallName,
       model,
       timestamp: now(),
       input,

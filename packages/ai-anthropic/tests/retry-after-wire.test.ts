@@ -24,6 +24,7 @@ const rateLimited = (headers: Record<string, string>) =>
 async function runError(headers: Record<string, string>) {
   const chunks: Array<StreamChunk> = []
   for await (const chunk of rateLimited(headers).chatStream({
+    threadId: 'thread-1',
     logger,
     model,
     messages: [{ role: 'user', content: 'Hi' }],
@@ -49,6 +50,7 @@ describe('Anthropic adapter on a 429', () => {
   it('chat() moves retryAfterMs to metadata.tanstack', async () => {
     let retryAfterMs: number | undefined
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: rateLimited({ 'retry-after': '7' }),
       messages: [{ role: 'user', content: 'Hi' }],
     })) {

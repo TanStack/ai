@@ -41,6 +41,7 @@ async function sentInput(
 ) {
   const adapter = new StubAdapter({ apiKey: 'k' }, model)
   const options: TextOptions = {
+    threadId: 'thread-1',
     model,
     messages: [{ role: 'user', content: 'hi' }],
     systemPrompts: [{ content: 'stable' }],

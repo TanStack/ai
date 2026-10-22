@@ -64,6 +64,7 @@ export const Route = createFileRoute('/api/otel-usage')({
 
         try {
           for await (const _chunk of chat({
+            threadId: 'otel-usage',
             ...createChatOptions({ adapter }),
             messages: [
               provider === 'multimodal'

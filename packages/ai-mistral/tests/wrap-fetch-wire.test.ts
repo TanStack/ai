@@ -42,6 +42,7 @@ const messages = [{ role: 'user' as const, content: 'Hi' }]
 async function streamTag(wrapFetch?: FetchWrapper) {
   const adapter = createMistralText(model, 'test-key')
   for await (const _ of adapter.chatStream({
+    threadId: 'thread-1',
     logger,
     model,
     messages,
@@ -84,7 +85,13 @@ describe('Mistral wrapFetch', () => {
   it('sends the structured output request through the wrapper', async () => {
     const adapter = createMistralText(model, 'test-key')
     await adapter.structuredOutput({
-      chatOptions: { logger, model, messages, wrapFetch: addTag },
+      chatOptions: {
+        threadId: 'thread-1',
+        logger,
+        model,
+        messages,
+        wrapFetch: addTag,
+      },
       outputSchema: { type: 'object', properties: {} },
     })
     expect(sentTag).toBe('yes')

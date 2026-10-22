@@ -287,6 +287,7 @@ async function chatKeys(
   const name = nested ? 'lead' : 'probe'
   await collectChunks(
     chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Go' }],
       subagents: { agents, router: () => name, keys },

@@ -7,7 +7,7 @@ title: CUSTOM_EVENT
 const CUSTOM_EVENT: object;
 ```
 
-Defined in: [packages/ai/src/custom-events.ts:17](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L17)
+Defined in: packages/ai/src/custom-events.ts:17
 
 Well-known CUSTOM event names.
 

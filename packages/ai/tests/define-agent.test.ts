@@ -24,6 +24,7 @@ function routeTo(
 ) {
   return collectChunks(
     chat({
+      threadId: 'thread-1',
       adapter: parentAdapter().adapter,
       messages: [{ role: 'user', content: 'Go' }],
       subagents: { agents, router: () => pick },
@@ -312,6 +313,7 @@ describe('chat({ subagents }) router spawn', () => {
   it('emits SUBAGENT_STARTED and SUBAGENT_FINISHED with subagentRunId', async () => {
     const researcher = researcherAgent('Paris')
     const stream = chat({
+      threadId: 'thread-1',
       adapter: parentAdapter().adapter,
       messages: [{ role: 'user', content: 'Capital of France?' }],
       subagents: {
@@ -354,6 +356,7 @@ describe('chat({ subagents }) router spawn', () => {
     const { adapter, calls } = parentAdapter()
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Go' }],
         subagents: {
@@ -378,6 +381,7 @@ describe('chat({ subagents }) router spawn', () => {
     })
     const chunks: Array<StreamChunk> = []
     const stream = chat({
+      threadId: 'thread-1',
       adapter: parentAdapter().adapter,
       messages: [{ role: 'user', content: 'Go' }],
       abortController,
@@ -408,6 +412,7 @@ describe('chat({ subagents }) router spawn', () => {
     let writerSaw = ''
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: parentAdapter().adapter,
         messages: [
           { role: 'user', content: 'Research squids and write an article' },
@@ -451,6 +456,7 @@ describe('chat({ subagents }) router spawn', () => {
     let writerSaw = ''
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: parentAdapter().adapter,
         messages: [{ role: 'user', content: 'Research two animals' }],
         subagents: {
@@ -485,6 +491,7 @@ describe('chat({ subagents }) router spawn', () => {
     let writerSaw = ''
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: parentAdapter().adapter,
         messages: [
           { role: 'user', content: 'Research squids and write an article' },
@@ -526,6 +533,7 @@ describe('chat({ subagents }) router spawn', () => {
     let writerSaw = ''
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: parentAdapter().adapter,
         messages: [
           {
@@ -541,6 +549,7 @@ describe('chat({ subagents }) router spawn', () => {
               description: 'Suggests titles',
               run: () =>
                 chat({
+                  threadId: 'thread-1',
                   adapter: childTextAdapter('Title: Three hearts'),
                   messages: [],
                 }),
@@ -600,6 +609,7 @@ describe('chat({ subagents }) router spawn', () => {
   it('does not start the next step after a subagent error', async () => {
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: parentAdapter().adapter,
         messages: [{ role: 'user', content: 'Go' }],
         subagents: {
@@ -660,6 +670,7 @@ describe('chat({ subagents }) router spawn', () => {
   it("puts the failing child's own message and code on RUN_ERROR", async () => {
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: parentAdapter().adapter,
         messages: [{ role: 'user', content: 'Go' }],
         subagents: {
@@ -696,6 +707,7 @@ describe('chat({ subagents }) router spawn', () => {
   it("keeps a finished sibling's usage on the failed turn", async () => {
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: parentAdapter().adapter,
         messages: [{ role: 'user', content: 'Go' }],
         subagents: {
@@ -733,6 +745,7 @@ describe('chat({ subagents }) router spawn', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: parentAdapter().adapter,
         messages: [{ role: 'user', content: 'Go' }],
         abortController: controller,
@@ -768,6 +781,7 @@ describe('chat({ subagents }) router spawn', () => {
     await expect(
       collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter: parentAdapter().adapter,
           messages: [{ role: 'user', content: 'Go' }],
           subagents: {
@@ -806,6 +820,7 @@ describe('chat({ subagents }) synthetic tools', () => {
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Research this' }],
         subagents: { agents: [researcher] },
@@ -865,6 +880,7 @@ describe('defineAgent inputSchema', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Compare pricing' }],
         subagents: { agents: [agent] },
@@ -888,6 +904,7 @@ describe('defineAgent inputSchema', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Compare pricing' }],
         subagents: { agents: [agent] },
@@ -909,6 +926,7 @@ describe('defineAgent inputSchema', () => {
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Compare pricing' }],
         subagents: { agents: [agent] },
@@ -949,6 +967,7 @@ describe('defineAgent inputSchema', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Compare pricing' }],
         subagents: { agents: [agent] },
@@ -976,6 +995,7 @@ describe('defineAgent inputSchema', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Research this' }],
         subagents: { agents: [agent] },
@@ -1165,6 +1185,7 @@ describe('subagent guards', () => {
     const { adapter } = parentAdapter()
     expect(() =>
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         outputSchema: {

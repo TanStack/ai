@@ -46,14 +46,6 @@ import type { TokenUsage } from '../types'
 export type OtelSpanScope = 'chat' | 'iteration' | 'tool' | 'generation'
 
 /**
- * Alias retained for backwards compatibility. Prefer {@link OtelSpanScope}.
- *
- * @deprecated Use `OtelSpanScope` instead — the name shadows OTel's built-in
- * `SpanKind` which is also imported by integrations of this middleware.
- */
-export type OtelSpanKind = OtelSpanScope
-
-/**
  * Span metadata passed to `spanNameFormatter`, `attributeEnricher`,
  * `onBeforeSpanStart`, and `onSpanEnd`. Discriminated by `kind` so that
  * tool-only fields narrow automatically inside callback bodies.

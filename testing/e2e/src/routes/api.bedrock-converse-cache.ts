@@ -53,6 +53,7 @@ export const Route = createFileRoute('/api/bedrock-converse-cache')({
         let runError: string | undefined
         try {
           for await (const chunk of chat({
+            threadId: 'bedrock-converse-cache',
             ...createChatOptions({ adapter }),
             systemPrompts: [
               {

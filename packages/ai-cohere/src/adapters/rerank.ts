@@ -120,10 +120,7 @@ export class CohereRerankAdapter<
       completionTokens: 0,
       totalTokens: 0,
       ...(searchUnits !== undefined
-        ? {
-            billed: { quantity: searchUnits, unit: 'units' },
-            unitsBilled: searchUnits,
-          }
+        ? { billed: { quantity: searchUnits, unit: 'units' } }
         : {}),
     }
 

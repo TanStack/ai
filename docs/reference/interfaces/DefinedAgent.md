@@ -3,7 +3,7 @@ id: DefinedAgent
 title: DefinedAgent
 ---
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:101](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L101)
+Defined in: packages/ai/src/activities/chat/agents/define-agent.ts:101
 
 A named child agent. `run` is a `chat()` call (or any stream of AG-UI
 chunks), or a promise of a plain value such as an image result. A
@@ -53,7 +53,7 @@ type that child's parts. `TResult` is the value a promise `run` resolves to.
 description: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:113](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L113)
+Defined in: packages/ai/src/activities/chat/agents/define-agent.ts:113
 
 Required here: the router and the synthetic tool both read it.
 
@@ -71,7 +71,7 @@ AGUISubagentInfo.description
 optional inputSchema?: TInput;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:133](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L133)
+Defined in: packages/ai/src/activities/chat/agents/define-agent.ts:133
 
 The input this agent needs, such as a short brief. `run` reads it as
 `ctx.input`, and the client card as `part.subagent.input`. In tool mode,
@@ -91,7 +91,7 @@ only. A turn with a router input cannot resume after an interrupt.
 optional interrupts?: TInterrupts;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:135](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L135)
+Defined in: packages/ai/src/activities/chat/agents/define-agent.ts:135
 
 ***
 
@@ -101,7 +101,7 @@ Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:135](https:/
 name: TName;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:111](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L111)
+Defined in: packages/ai/src/activities/chat/agents/define-agent.ts:111
 
 Unique name or identifier of the subagent.
 
@@ -119,7 +119,7 @@ AGUISubagentInfo.name
 optional outputSchema?: TSchema;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:136](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L136)
+Defined in: packages/ai/src/activities/chat/agents/define-agent.ts:136
 
 ***
 
@@ -129,7 +129,7 @@ Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:136](https:/
 optional produces?: TProduces;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:121](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L121)
+Defined in: packages/ai/src/activities/chat/agents/define-agent.ts:121
 
 What this agent makes. See [AgentProduces](../type-aliases/AgentProduces.md).
 
@@ -144,7 +144,7 @@ run: (ctx) =>
 | Promise<TResult>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:114](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L114)
+Defined in: packages/ai/src/activities/chat/agents/define-agent.ts:114
 
 #### Parameters
 
@@ -166,7 +166,7 @@ Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:114](https:/
 optional subagents?: unknown;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:137](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L137)
+Defined in: packages/ai/src/activities/chat/agents/define-agent.ts:137
 
 ***
 
@@ -176,4 +176,4 @@ Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:137](https:/
 optional tools?: TTools;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:134](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L134)
+Defined in: packages/ai/src/activities/chat/agents/define-agent.ts:134

@@ -3,10 +3,11 @@ id: BoundActivities
 title: BoundActivities
 ---
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:97](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L97)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:164
 
 Activity functions bound to one child run. Each takes the same options as
-the plain function. Options you pass win over the bound defaults.
+the plain function, but `threadId` is optional: the child run fills it.
+Options you pass win over the bound defaults.
 
 ## Properties
 
@@ -16,15 +17,7 @@ the plain function. Options you pass win over the bound defaults.
 chat: <TAdapter, TSchema, TStream, TTools, TInterrupts, TContext, TMiddleware, TAgents>(options) => TextActivityResult<TSchema, TStream, TTools>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:98](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L98)
-
-Text activity - handles agentic text generation, one-shot text generation, and agentic structured output.
-
-This activity supports four modes:
-1. **Streaming agentic text**: Stream responses with automatic tool execution
-2. **Streaming one-shot text**: Simple streaming request/response without tools
-3. **Non-streaming text**: Returns a ChatResult with the text and every chunk (stream: false)
-4. **Agentic structured output**: Run tools, then return structured data
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:165
 
 #### Type Parameters
 
@@ -72,70 +65,11 @@ This activity supports four modes:
 
 ##### options
 
-`TextActivityOptionsWithContext`\<`TAdapter`, `TSchema`, `TStream`, `TTools`, `TInterrupts`, `TContext`, `TMiddleware`, `TAgents`\>
+`BoundTextActivityOptions`\<`TAdapter`, `TSchema`, `TStream`, `TTools`, `TInterrupts`, `TContext`, `TMiddleware`, `TAgents`\>
 
 #### Returns
 
 `TextActivityResult`\<`TSchema`, `TStream`, `TTools`\>
-
-#### Examples
-
-**Full agentic text (streaming with tools)**
-
-```ts
-import { chat } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
-
-for await (const chunk of chat({
-  adapter: openaiText('gpt-5.5'),
-  messages: [{ role: 'user', content: 'What is the weather?' }],
-  tools: [weatherTool]
-})) {
-  if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
-    console.log(chunk.delta)
-  }
-}
-```
-
-**One-shot text (streaming without tools)**
-
-```ts
-for await (const chunk of chat({
-  adapter: openaiText('gpt-5.5'),
-  messages: [{ role: 'user', content: 'Hello!' }]
-})) {
-  console.log(chunk)
-}
-```
-
-**Non-streaming text (stream: false)**
-
-```ts
-const { text, chunks } = await chat({
-  adapter: openaiText('gpt-5.5'),
-  messages: [{ role: 'user', content: 'Hello!' }],
-  stream: false
-})
-// text is a string with the full response
-// chunks is every chunk the run produced, in order
-```
-
-**Agentic structured output (tools + structured response)**
-
-```ts
-import { z } from 'zod'
-
-const result = await chat({
-  adapter: openaiText('gpt-5.5'),
-  messages: [{ role: 'user', content: 'Research and summarize the topic' }],
-  tools: [researchTool, analyzeTool],
-  outputSchema: z.object({
-    summary: z.string(),
-    keyPoints: z.array(z.string())
-  })
-})
-// result is { summary: string, keyPoints: string[] }
-```
 
 ***
 
@@ -145,7 +79,7 @@ const result = await chat({
 decide: <TAdapter, TQuestions>(options) => Promise<{ [K in string | number | symbol]: InferEvaluateAnswer<TQuestions[K]> } & object>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:110](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L110)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:259
 
 Ask typed questions about `state` and get answers your code can branch on.
 
@@ -219,7 +153,7 @@ result.meta.usage
 embed: <TAdapter>(options) => Promise<EmbeddingResult>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:108](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L108)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:257
 
 Embed activity - generates embedding vectors from text and image inputs.
 
@@ -295,11 +229,7 @@ const result = await embed({
 generateAudio: <TAdapter, TStream>(options) => AudioActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:102](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L102)
-
-Audio generation activity - generates audio from text prompts.
-
-Uses AI models to create music, sound effects, and other audio content.
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:212
 
 #### Type Parameters
 
@@ -315,28 +245,11 @@ Uses AI models to create music, sound effects, and other audio content.
 
 ##### options
 
-`AudioActivityOptions`\<`TAdapter`, `TStream`\>
+`WithOptionalThreadId`\<`AudioActivityOptions`\<`TAdapter`, `TStream`\>\>
 
 #### Returns
 
 `AudioActivityResult`\<`TStream`\>
-
-#### Example
-
-**Generate music from a prompt**
-
-```ts
-import { generateAudio } from '@tanstack/ai'
-import { falAudio } from '@tanstack/ai-fal'
-
-const result = await generateAudio({
-  adapter: falAudio('fal-ai/diffrhythm'),
-  prompt: 'An upbeat electronic track with synths',
-  duration: 10
-})
-
-console.log(result.audio.url) // URL to generated audio
-```
 
 ***
 
@@ -346,11 +259,7 @@ console.log(result.audio.url) // URL to generated audio
 generateImage: <TAdapter, TStream>(options) => ImageActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:100](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L100)
-
-Image activity - generates images from text prompts.
-
-Uses AI image generation models to create images based on natural language descriptions.
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:200
 
 #### Type Parameters
 
@@ -366,56 +275,11 @@ Uses AI image generation models to create images based on natural language descr
 
 ##### options
 
-`ImageActivityOptions`\<`TAdapter`, `TStream`\>
+`WithOptionalThreadId`\<`ImageActivityOptions`\<`TAdapter`, `TStream`\>\>
 
 #### Returns
 
 `ImageActivityResult`\<`TStream`\>
-
-#### Examples
-
-**Generate a single image**
-
-```ts
-import { generateImage } from '@tanstack/ai'
-import { openaiImage } from '@tanstack/ai-openai'
-
-const result = await generateImage({
-  adapter: openaiImage('dall-e-3'),
-  prompt: 'A serene mountain landscape at sunset'
-})
-
-console.log(result.images[0].url)
-```
-
-**Generate multiple images**
-
-```ts
-const result = await generateImage({
-  adapter: openaiImage('dall-e-2'),
-  prompt: 'A cute robot mascot',
-  numberOfImages: 4,
-  size: '512x512'
-})
-
-result.images.forEach((image, i) => {
-  console.log(`Image ${i + 1}: ${image.url}`)
-})
-```
-
-**With provider-specific options**
-
-```ts
-const result = await generateImage({
-  adapter: openaiImage('dall-e-3'),
-  prompt: 'A professional headshot photo',
-  size: '1024x1024',
-  modelOptions: {
-    quality: 'hd',
-    style: 'natural'
-  }
-})
-```
 
 ***
 
@@ -425,11 +289,7 @@ const result = await generateImage({
 generateLiveVideo: <TAdapter, TStream>(options) => LiveVideoActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:107](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L107)
-
-**`Experimental`**
-
-Live generation activity - opens a live, prompt-steerable video session.
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:248
 
 #### Type Parameters
 
@@ -445,29 +305,11 @@ Live generation activity - opens a live, prompt-steerable video session.
 
 ##### options
 
-`LiveVideoActivityOptions`\<`TAdapter`, `TStream`\>
+`WithOptionalThreadId`\<`LiveVideoActivityOptions`\<`TAdapter`, `TStream`\>\>
 
 #### Returns
 
 `LiveVideoActivityResult`\<`TStream`\>
-
-#### Example
-
-**Mint a session token on the server**
-
-```ts
-import { generateLiveVideo } from '@tanstack/ai'
-import { reactorVideo } from '@tanstack/ai-reactor'
-
-const live = await generateLiveVideo({
-  adapter: reactorVideo('helios'),
-  prompt: 'A red sports car powerslides a mountain hairpin',
-})
-
-// Hand live.token, live.model, and live.prompt to the browser.
-```
-
- Live generation is an experimental feature and may change.
 
 ***
 
@@ -477,11 +319,7 @@ const live = await generateLiveVideo({
 generateSpeech: <TAdapter, TStream>(options) => TTSActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:103](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L103)
-
-TTS activity - generates speech from text.
-
-Uses AI text-to-speech models to create audio from natural language text.
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:218
 
 #### Type Parameters
 
@@ -497,40 +335,11 @@ Uses AI text-to-speech models to create audio from natural language text.
 
 ##### options
 
-`TTSActivityOptions`\<`TAdapter`, `TStream`\>
+`Omit`\<`TTSActivityOptionsBase`\<`TAdapter`, `TStream`\>, `"threadId"`\> & `object` & `TTSTextOrTurns`
 
 #### Returns
 
 `TTSActivityResult`\<`TStream`\>
-
-#### Examples
-
-**Generate speech from text**
-
-```ts
-import { generateSpeech } from '@tanstack/ai'
-import { openaiSpeech } from '@tanstack/ai-openai'
-
-const result = await generateSpeech({
-  adapter: openaiSpeech('tts-1-hd'),
-  text: 'Hello, welcome to TanStack AI!',
-  voice: 'nova'
-})
-
-console.log(result.audio) // base64-encoded audio
-```
-
-**With format and speed options**
-
-```ts
-const result = await generateSpeech({
-  adapter: openaiSpeech('tts-1'),
-  text: 'This is slower speech.',
-  voice: 'alloy',
-  format: 'wav',
-  speed: 0.8
-})
-```
 
 ***
 
@@ -540,11 +349,7 @@ const result = await generateSpeech({
 generateTranscription: <TAdapter, TStream>(options) => TranscriptionActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:105](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L105)
-
-Transcription activity - converts audio to text.
-
-Uses AI speech-to-text models to transcribe audio content.
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:231
 
 #### Type Parameters
 
@@ -560,54 +365,11 @@ Uses AI speech-to-text models to transcribe audio content.
 
 ##### options
 
-`TranscriptionActivityOptions`\<`TAdapter`, `TStream`\>
+`WithOptionalThreadId`\<`TranscriptionActivityOptions`\<`TAdapter`, `TStream`\>\>
 
 #### Returns
 
 `TranscriptionActivityResult`\<`TStream`\>
-
-#### Examples
-
-**Transcribe an audio file**
-
-```ts
-import { generateTranscription } from '@tanstack/ai'
-import { openaiTranscription } from '@tanstack/ai-openai'
-
-const result = await generateTranscription({
-  adapter: openaiTranscription('whisper-1'),
-  audio: audioFile, // File, Blob, or base64 string
-  language: 'en'
-})
-
-console.log(result.text)
-```
-
-**With verbose output for timestamps**
-
-```ts
-const result = await generateTranscription({
-  adapter: openaiTranscription('whisper-1'),
-  audio: audioFile,
-  responseFormat: 'verbose_json'
-})
-
-result.segments?.forEach(segment => {
-  console.log(`[${segment.start}s - ${segment.end}s]: ${segment.text}`)
-})
-```
-
-**Streaming transcription result**
-
-```ts
-for await (const chunk of generateTranscription({
-  adapter: openaiTranscription('whisper-1'),
-  audio: audioFile,
-  stream: true
-})) {
-  console.log(chunk)
-}
-```
 
 ***
 
@@ -617,19 +379,7 @@ for await (const chunk of generateTranscription({
 generateVideo: <TAdapter, TStream>(options) => TStream extends true ? AsyncIterable<AGUIEvent, any, any> : Promise<VideoJobResult>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:101](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L101)
-
-**`Experimental`**
-
-Generate video - creates a video generation job from a text prompt.
-
-Uses AI video generation models to create videos based on natural language descriptions.
-Unlike image generation, video generation is asynchronous and requires polling for completion.
-
-When `stream: true` is passed, handles the full job lifecycle automatically:
-create job → poll for status → stream updates → yield final result.
-
- Video generation is an experimental feature and may change.
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:206
 
 #### Type Parameters
 
@@ -645,52 +395,11 @@ create job → poll for status → stream updates → yield final result.
 
 ##### options
 
-`VideoCreateOptions`\<`TAdapter`, `TStream`\>
+`WithOptionalThreadId`\<`VideoCreateOptions`\<`TAdapter`, `TStream`\>\>
 
 #### Returns
 
 `TStream` *extends* `true` ? `AsyncIterable`\<[`AGUIEvent`](../type-aliases/AGUIEvent.md), `any`, `any`\> : `Promise`\<[`VideoJobResult`](VideoJobResult.md)\>
-
-#### Examples
-
-**Create a video generation job**
-
-```ts
-import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
-import { openaiVideo } from '@tanstack/ai-openai'
-
-// Start a video generation job
-const { jobId } = await generateVideo({
-  adapter: openaiVideo('sora-2'),
-  prompt: 'A cat chasing a dog in a sunny park'
-})
-
-console.log('Job started:', jobId)
-
-// The submission only OPENS the run; the poll that sees a terminal state is
-// what completes it. The `jobId` is the whole correlation — pass the same
-// `middleware` and `threadId` when you use them.
-const status = await getVideoJobStatus({
-  adapter: openaiVideo('sora-2'),
-  jobId,
-})
-```
-
-**Stream the full video generation lifecycle**
-
-```ts
-import { generateVideo, toServerSentEventsResponse } from '@tanstack/ai'
-import { openaiVideo } from '@tanstack/ai-openai'
-
-const stream = generateVideo({
-  adapter: openaiVideo('sora-2'),
-  prompt: 'A cat chasing a dog in a sunny park',
-  stream: true,
-  pollingInterval: 3000,
-})
-
-return toServerSentEventsResponse(stream)
-```
 
 ***
 
@@ -700,13 +409,7 @@ return toServerSentEventsResponse(stream)
 generateVoice: <TAdapter, TStream>(options) => VoiceActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:104](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L104)
-
-Voice activity - creates a reusable voice.
-
-Providers create voices in one of two ways, and some support both: design a
-new voice from a text description, or clone one from reference audio. Either
-way the result carries voice ids you pass back to `generateSpeech()`.
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:225
 
 #### Type Parameters
 
@@ -722,45 +425,11 @@ way the result carries voice ids you pass back to `generateSpeech()`.
 
 ##### options
 
-`VoiceActivityOptions`\<`TAdapter`, `TStream`\>
+`WithOptionalThreadId`\<`VoiceActivityOptions`\<`TAdapter`, `TStream`\>\>
 
 #### Returns
 
 `VoiceActivityResult`\<`TStream`\>
-
-#### Examples
-
-**Design a voice from a description**
-
-```ts
-import { generateVoice, generateSpeech } from '@tanstack/ai'
-import { elevenlabsVoiceDesign, elevenlabsSpeech } from '@tanstack/ai-elevenlabs'
-
-const designed = await generateVoice({
-  adapter: elevenlabsVoiceDesign('eleven_ttv_v3'),
-  prompt: 'A warm, gravelly narrator in his sixties with a slight Irish lilt',
-})
-
-const [preview] = designed.voices
-if (!preview) throw new Error('No voice candidates returned')
-
-const speech = await generateSpeech({
-  adapter: elevenlabsSpeech('eleven_v4'),
-  text: 'Once upon a time...',
-  voice: preview.voiceId,
-})
-```
-
-**Save the voice to the provider's library**
-
-```ts
-const saved = await generateVoice({
-  adapter: elevenlabsVoiceDesign('eleven_ttv_v3'),
-  prompt: 'A bright, upbeat product demo host',
-  name: 'Demo Host',
-  description: 'Bright, upbeat, mid-30s',
-})
-```
 
 ***
 
@@ -770,12 +439,7 @@ const saved = await generateVoice({
 generateWorld: <TAdapter, TStream>(options) => WorldActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:106](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L106)
-
-**`Experimental`**
-
-World generation activity. Live adapters mint a session token. Job
-adapters return a viewer URL or an in-progress operation id.
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:242
 
 #### Type Parameters
 
@@ -791,29 +455,11 @@ adapters return a viewer URL or an in-progress operation id.
 
 ##### options
 
-`WorldActivityOptions`\<`TAdapter`, `TStream`\>
+`WithOptionalThreadId`\<`WorldActivityOptions`\<`TAdapter`, `TStream`\>\>
 
 #### Returns
 
 `WorldActivityResult`\<`TStream`\>
-
-#### Example
-
-**Mint a session token on the server**
-
-```ts
-import { generateWorld } from '@tanstack/ai'
-import { reactorWorld } from '@tanstack/ai-reactor'
-
-const world = await generateWorld({
-  adapter: reactorWorld('visko-orbis-stable'),
-  prompt: 'A neon cyberpunk city at night, slow aerial drift',
-})
-
-// Hand world.token, world.model, and world.prompt to the browser.
-```
-
- World generation is an experimental feature and may change.
 
 ***
 
@@ -823,7 +469,7 @@ const world = await generateWorld({
 rerank: <TAdapter, TDocument>(options) => Promise<RerankResult<TDocument>>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:109](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L109)
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:258
 
 Rerank activity - reorders documents by relevance to a query.
 
@@ -889,11 +535,7 @@ console.log(ranking[0].document.id)
 summarize: <TAdapter, TStream>(options) => SummarizeActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/bound.ts:99](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L99)
-
-Summarize activity - generates summaries from text.
-
-Supports both streaming and non-streaming modes.
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:194
 
 #### Type Parameters
 
@@ -909,59 +551,8 @@ Supports both streaming and non-streaming modes.
 
 ##### options
 
-`SummarizeActivityOptions`\<`TAdapter`, `TStream`\>
+`WithOptionalThreadId`\<`SummarizeActivityOptions`\<`TAdapter`, `TStream`\>\>
 
 #### Returns
 
 `SummarizeActivityResult`\<`TStream`\>
-
-#### Examples
-
-**Basic summarization**
-
-```ts
-import { summarize } from '@tanstack/ai'
-import { openaiSummarize } from '@tanstack/ai-openai'
-
-const result = await summarize({
-  adapter: openaiSummarize('gpt-4o-mini'),
-  text: 'Long article text here...'
-})
-
-console.log(result.summary)
-```
-
-**Summarization with style**
-
-```ts
-const result = await summarize({
-  adapter: openaiSummarize('gpt-4o-mini'),
-  text: 'Long article text here...',
-  style: 'bullet-points',
-  maxLength: 100
-})
-```
-
-**Focused summarization**
-
-```ts
-const result = await summarize({
-  adapter: openaiSummarize('gpt-4o-mini'),
-  text: 'Long technical document...',
-  focus: ['key findings', 'methodology']
-})
-```
-
-**Streaming summarization**
-
-```ts
-for await (const chunk of summarize({
-  adapter: openaiSummarize('gpt-4o-mini'),
-  text: 'Long article text here...',
-  stream: true
-})) {
-  if (chunk.type === 'content') {
-    process.stdout.write(chunk.delta)
-  }
-}
-```

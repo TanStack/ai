@@ -129,7 +129,6 @@ function harnessRun(
       type: EventType.TOOL_CALL_START,
       toolCallId: 'call-1',
       toolCallName: 'bash',
-      toolName: 'bash',
       ...base,
     }
     yield {

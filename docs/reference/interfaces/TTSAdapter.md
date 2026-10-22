@@ -3,7 +3,7 @@ id: TTSAdapter
 title: TTSAdapter
 ---
 
-Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:46](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L46)
+Defined in: packages/ai/src/activities/generateSpeech/adapter.ts:46
 
 TTS adapter interface with pre-resolved generics.
 
@@ -32,7 +32,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:65](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L65)
+Defined in: packages/ai/src/activities/generateSpeech/adapter.ts:65
 
 **`Internal`**
 
@@ -52,7 +52,7 @@ providerOptions: TProviderOptions;
 readonly optional capabilities?: TTSCapabilities;
 ```
 
-Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:60](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L60)
+Defined in: packages/ai/src/activities/generateSpeech/adapter.ts:60
 
 Optional static capability declaration. Absent means "single voice, no
 timestamps" — the contract every adapter had before dialogue existed.
@@ -65,7 +65,7 @@ timestamps" — the contract every adapter had before dialogue existed.
 generateSpeech: (options) => Promise<TTSResult>;
 ```
 
-Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:72](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L72)
+Defined in: packages/ai/src/activities/generateSpeech/adapter.ts:72
 
 Generate speech from text
 
@@ -87,7 +87,7 @@ Generate speech from text
 readonly kind: "tts";
 ```
 
-Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:51](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L51)
+Defined in: packages/ai/src/activities/generateSpeech/adapter.ts:51
 
 Discriminator for adapter kind - used to determine API shape
 
@@ -99,7 +99,7 @@ Discriminator for adapter kind - used to determine API shape
 optional listVoices?: (options?) => Promise<ListVoicesResult>;
 ```
 
-Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:84](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L84)
+Defined in: packages/ai/src/activities/generateSpeech/adapter.ts:84
 
 List the voices this account can use.
 
@@ -128,7 +128,7 @@ which is the case wherever `generateVoice()` can add to it.
 readonly model: TModel;
 ```
 
-Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:55](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L55)
+Defined in: packages/ai/src/activities/generateSpeech/adapter.ts:55
 
 The model this adapter is configured for
 
@@ -140,6 +140,6 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:53](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L53)
+Defined in: packages/ai/src/activities/generateSpeech/adapter.ts:53
 
 Adapter name identifier

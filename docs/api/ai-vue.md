@@ -2,7 +2,7 @@
 title: "@tanstack/ai-vue"
 id: ai-vue
 order: 5
-description: "API reference for @tanstack/ai-vue — Vue 3 composables including useChat for streaming chat with full type safety."
+description: "API reference for @tanstack/ai-vue: the useChat composable, generation composables, and Vue 3 bindings for the headless TanStack AI client."
 keywords:
   - tanstack ai
   - "@tanstack/ai-vue"
@@ -13,9 +13,7 @@ keywords:
   - api reference
 ---
 
-Vue composables for TanStack AI, providing convenient Vue 3 bindings for the headless client.
-
-For a typed headless chat UI, see [Vue Chat UI](../ui/vue).
+Vue 3 composables for TanStack AI. To build your first chat, start with the [Quick Start](../getting-started/quick-start). For a typed chat layout, see [Vue Chat UI](../ui/vue).
 
 ## Installation
 
@@ -25,212 +23,9 @@ vue: @tanstack/ai-vue
 
 <!-- ::end:tabs -->
 
-## `useRegisterWebMCPTools(tools, options?)`
+## `useChat(options)`
 
-Register executable client tools for the current Vue scope. Vue removes them when the scope is disposed.
-
-For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
-
-```vue
-<script setup lang="ts">
-import {
-  useRegisterWebMCPTools,
-  type UseRegisterWebMCPToolsOptions,
-} from "@tanstack/ai-vue";
-import { searchProducts } from "./tools";
-
-const tools = [searchProducts];
-const options: UseRegisterWebMCPToolsOptions<typeof tools> = {
-  onError(error) {
-    console.error(error);
-  },
-};
-
-useRegisterWebMCPTools(tools, options);
-</script>
-```
-
-`UseRegisterWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The composable owns the registration signal.
-
-The `context` field is required when a tool declares a required runtime context.
-
-## `usePageWebMCPTools(options?)`
-
-Read the WebMCP tools on the page as client tools. The ref starts empty and updates when the page adds or removes a tool. Pass the ref to `useChat` as `tools`.
-
-```ts
-import { usePageWebMCPTools } from "@tanstack/ai-vue";
-
-export function useSameOriginPageTools() {
-  return usePageWebMCPTools({
-    filter: (tool) => tool.origin === location.origin,
-  });
-}
-```
-
-`filter` skips a tool when it returns `false`. `onError` gets a failed WebMCP read. For a complete guide, see [Page WebMCP Tools in Chat](../tools/webmcp-page-tools).
-
-## `createChatHook(options)`
-
-Bind `chatOptions` once at module scope. Call `useChat()` in the screen to create the instance. Per-call overrides may set `threadId`, `initialMessages`, `live`, and `forwardedProps`. They must not change `tools`, `interrupts`, or `outputSchema`.
-
-```ts
-import { createChatHook, fetchServerSentEvents } from "@tanstack/ai-vue";
-
-const chatOptions = {
-  connection: fetchServerSentEvents("/api/chat"),
-};
-
-const { useChat } = createChatHook(chatOptions);
-
-const chat = useChat({ threadId: "support-1" });
-```
-
-`useChat(chatOptions)` from this package still works when you want to pass the full object at the call site. Rename the bound composable if both are in one file: `const { useChat: useSupportChat } = createChatHook(chatOptions)`.
-
-## `useChat(options?)`
-
-Main composable for managing chat state in Vue with full type safety.
-
-```typescript
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-vue";
-import {
-  createChatClientOptions,
-  type InferChatMessages,
-} from "@tanstack/ai-client";
-import { toolDefinition } from "@tanstack/ai";
-import { z } from "zod";
-import { ref } from "vue";
-
-const updateUIDef = toolDefinition({
-  name: "updateUI",
-  description: "Show a notification in the UI",
-  inputSchema: z.object({ message: z.string() }),
-});
-
-const notification = ref<string | null>(null);
-
-// In <script setup>
-const updateUI = updateUIDef.client((input) => {
-  notification.value = input.message;
-  return { success: true };
-});
-
-const tools = [updateUI];
-
-const chatOptions = createChatClientOptions({
-  connection: fetchServerSentEvents("/api/chat"),
-  tools,
-});
-
-// Fully typed messages!
-type ChatMessages = InferChatMessages<typeof chatOptions>;
-
-const { messages, sendMessage, isLoading, error, addToolApprovalResponse } =
-  useChat(chatOptions);
-```
-
-### Options
-
-Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state callbacks):
-
-- `connection` - Connection adapter (required)
-- `tools?` - Array of client tool implementations (with `.client()` method). Pass a ref or getter to change the tools after the chat is created.
-- `initialMessages?` - Initial messages array
-- `threadId?` - The only identity for this chat. Required when persistence is on. If omitted, minted after mount.
-- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (reactive -- changes are synced automatically via `watch`)
-- `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire (reactive)
-- `byok?` - Optional BYOK keyring from `defineByok`. On each send the client prepares the resolved provider and stamps `x-byok-*` request headers. Keys never go in the body
-- `byokProvider?` - Optional function that returns the provider slug for this chat. If it returns a slug, only that key is prepared and sent. Otherwise the merged `provider` from `forwardedProps`, `body`, and per-call `sendMessage` `body` is used. Later sources win. If no slug resolves, the send throws instead of attaching every stored key
-- `context?` - Typed client-local runtime context passed to client tool implementations (reactive). This value is not serialized to the server
-- `live?` - Enable live subscription mode (auto-subscribes/unsubscribes)
-- `onResponse?` - Callback when response is received
-- `onChunk?` - Callback when stream chunk is received
-- `onFinish?` - Callback when response finishes
-- `onError?` - Callback when error occurs
-- `onInterruptStateChange?` - Callback when interrupt state changes; context source is `hydrate` for restored state and `live` for streamed or client-initiated updates
-- `onCustomEvent?` - Callback for custom stream events
-- `streamProcessor?` - Stream processing configuration
-
-**Note:** Client tools are now automatically executed - no `onToolCall` callback needed!
-
-### Returns
-
-```typescript
-import type { DeepReadonly, ShallowRef } from "vue";
-import type { UIMessage } from "@tanstack/ai-vue";
-import type { ModelMessage } from "@tanstack/ai/client";
-import type {
-  MultimodalContent,
-  ChatClientState,
-  ConnectionStatus,
-  SendMessageOptions,
-} from "@tanstack/ai-client";
-
-interface UseChatReturn {
-  messages: Readonly<ShallowRef<ReadonlyArray<UIMessage>>>;
-  sendMessage: (
-    content: string | MultimodalContent,
-    options?: SendMessageOptions,
-  ) => Promise<void>;
-  append: (message: ModelMessage | UIMessage) => Promise<void>;
-  addToolResult: (result: {
-    toolCallId: string;
-    tool: string;
-    output: any;
-    state?: "output-available" | "output-error";
-    errorText?: string;
-  }) => Promise<void>;
-  addToolApprovalResponse: (response: {
-    id: string;
-    approved: boolean;
-  }) => Promise<void>;
-  reload: () => Promise<void>;
-  stop: () => void;
-  isLoading: DeepReadonly<ShallowRef<boolean>>;
-  error: DeepReadonly<ShallowRef<Error | undefined>>;
-  status: DeepReadonly<ShallowRef<ChatClientState>>;
-  isSubscribed: DeepReadonly<ShallowRef<boolean>>;
-  connectionStatus: DeepReadonly<ShallowRef<ConnectionStatus>>;
-  sessionGenerating: DeepReadonly<ShallowRef<boolean>>;
-  isHydrating: DeepReadonly<ShallowRef<boolean>>;
-  setMessages: (messages: ReadonlyArray<UIMessage>) => void;
-  clear: () => void;
-}
-```
-
-**Note:** Reactive state (`messages`, `isLoading`, `error`, `status`, `isSubscribed`, `connectionStatus`, `sessionGenerating`, `isHydrating`) is wrapped in `DeepReadonly<ShallowRef<T>>`. In `<script setup>` read the underlying value with `.value` (e.g., `messages.value`); in `<template>` Vue auto-unwraps the ref, so use the bare name (e.g., `v-for="m in messages"`). Cleanup is automatic via `onScopeDispose`.
-
-## `useByok(client)`
-
-Subscribe to a `ByokClient` snapshot in Vue. The return value is a `DeepReadonly<ShallowRef<ByokSnapshot>>`.
-
-```typescript
-import { useByok } from "@tanstack/ai-vue";
-import { byok } from "./byok";
-
-const snapshot = useByok(byok);
-const openai = snapshot.value.status.openai;
-const last4 = openai && "masked" in openai ? openai.masked : "No key";
-```
-
-`snapshot.value` has `status`, `locked`, and `prompt`. Call `byok.update(provider, value)` from your own UI to save a key. See [Bring Your Own Key](../advanced/byok).
-
-## Connection Adapters
-
-Re-exported from `@tanstack/ai-client` for convenience:
-
-```typescript
-import {
-  fetchServerSentEvents,
-  fetchHttpStream,
-  fetchJson,
-  stream,
-  type ConnectionAdapter,
-} from "@tanstack/ai-vue";
-```
-
-## Example: Basic Chat
+Holds the messages and the run state of one chat, and talks to your server route.
 
 ```vue
 <script setup lang="ts">
@@ -238,9 +33,9 @@ import { ref } from "vue";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-vue";
 
 const input = ref("");
-
 const { messages, sendMessage, isLoading } = useChat({
   connection: fetchServerSentEvents("/api/chat"),
+  threadId: "support-chat",
 });
 
 const handleSubmit = () => {
@@ -253,238 +48,256 @@ const handleSubmit = () => {
 
 <template>
   <div>
-    <div>
-      <div v-for="message in messages" :key="message.id">
-        <strong>{{ message.role }}:</strong>
-        <template v-for="(part, idx) in message.parts" :key="idx">
-          <div
-            v-if="part.type === 'thinking'"
-            class="text-sm text-gray-500 italic"
-          >
-            Thinking: {{ part.content }}
-          </div>
-          <span v-else-if="part.type === 'text'">{{ part.content }}</span>
-        </template>
-      </div>
+    <div v-for="message in messages" :key="message.id">
+      <strong>{{ message.role }}:</strong>
+      <template v-for="(part, idx) in message.parts" :key="idx">
+        <span v-if="part.type === 'text'">{{ part.content }}</span>
+      </template>
     </div>
     <form @submit.prevent="handleSubmit">
-      <input v-model="input" :disabled="isLoading" />
+      <input v-model="input" />
       <button type="submit" :disabled="isLoading">Send</button>
     </form>
   </div>
 </template>
 ```
 
-## Example: Tool Approval
+### Options
+
+You must pass `threadId`. You must also pass `connection` or `fetcher`, not both.
+
+| Option | What it does |
+| --- | --- |
+| `connection` | Connection adapter, for example `fetchServerSentEvents("/api/chat")`. See [Transports](../transports/overview). |
+| `fetcher` | A function that returns a `Response` or a stream. Use it with server functions. |
+| `tools` | Client tools from `.client()`. They run when the model calls them. Pass a ref or a getter to change them later. See [Client Tools](../tools/client-tools). |
+| `threadId` | Required. The id of this chat. Use a stable id for each conversation, for example the id from your route. |
+| `initialMessages` | The messages to show first. |
+| `forwardedProps` | JSON sent to the server in the AG-UI `forwardedProps` field, for example `{ model: "gpt-6.1-sol" }`. |
+| `persistence` | `true` to load the thread from the server, or a storage adapter. See [Chat Persistence](../persistence/chat-persistence). |
+| `outputSchema` | A Standard Schema. Adds typed `partial` and `final` to the return value. See [Streaming structured output](../structured-outputs/streaming). |
+| `context` | Client-only runtime context for client tools. It is not sent to the server. |
+| `live` | Subscribe while `live` is `true`. |
+| `queue` | What `sendMessage` does while a run is busy. Default: queue the message. See [Queueing](../chat/queueing). |
+| `interrupts` | Definitions from `defineInterrupt()`. See [Interrupts](../interrupts/overview). |
+| `byok`, `byokProvider` | A keyring from `defineByok()`. See [Bring Your Own Key](../advanced/byok). |
+| `devtools` | Display options for TanStack AI Devtools. |
+
+The composable also takes the `ChatClient` callbacks (`onResponse`, `onChunk`, `onFinish`, `onError`, `onInterruptStateChange`, `onCustomEvent`) and the other client options. See [`ChatClient` options](./ai-client#constructor-options).
+
+The composable watches `forwardedProps`, `context`, `queue`, and `live`. To change them after the chat starts, read reactive state in an option getter (for example `get forwardedProps() { ... }`). A change updates the current chat.
+
+### Returns
+
+State values are read-only Vue refs. Read `.value` in `<script setup>`. In `<template>`, Vue unwraps them, so use the bare name. Cleanup runs in `onScopeDispose`.
+
+| Field | What it is |
+| --- | --- |
+| `messages` | The `UIMessage` array of the chat. |
+| `sendMessage(content, options?)` | Sends a user message. `content` is a string or `{ content, id?, metadata? }`. `options` takes `whenBusy` and `body`. |
+| `isLoading` | `true` while a response streams. |
+| `error` | The last error, or `undefined`. |
+| `status` | `"ready"`, `"submitted"`, `"streaming"`, or `"error"`. |
+| `stop()` | Stops the current response. |
+| `reload()` | Runs the last user message again. |
+| `append(message)` | Adds a `UIMessage` or `ModelMessage` and starts a run. |
+| `addToolResult(result)` | Gives the result of a client tool by hand: `{ toolCallId, tool, output, state?, errorText? }`. |
+| `setMessages(messages)`, `clear()` | Replace or clear the messages. |
+| `queue`, `cancelQueued(id)` | Messages that wait while a run is busy. See [Queueing](../chat/queueing). |
+| `runId` | The id of the run in flight, or `null`. |
+| `interrupts` | Pending interrupts. Each item has `resolveInterrupt(...)`. See [Interrupts](../interrupts/overview). |
+| `resolveInterrupts`, `cancelInterrupts`, `retryInterrupts`, `resumeInterruptsUnsafe` | Act on all pending interrupts at once. |
+| `interruptErrors`, `resuming` | Errors from the last resume, and `true` while a resume runs. |
+| `isHydrating` | `true` while the chat loads from persistence. |
+| `hasOlderMessages`, `loadOlderMessages()` | Page in older messages. See [Chat Persistence](../persistence/chat-persistence). |
+| `isSubscribed`, `connectionStatus`, `sessionGenerating` | State of the live subscription. |
+| `partial`, `final` | Structured output. Only when you pass `outputSchema`. |
+
+### Example: tool approval
+
+A tool with `needsApproval: true` pauses the run. The pending call shows up in `interrupts`.
 
 ```vue
 <script setup lang="ts">
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-vue";
-
-const { messages, sendMessage, addToolApprovalResponse } = useChat({
-  connection: fetchServerSentEvents("/api/chat"),
-});
-</script>
-
-<template>
-  <div>
-    <template v-for="message in messages" :key="message.id">
-      <template v-for="part in message.parts" :key="part.id">
-        <div
-          v-if="
-            part.type === 'tool-call' &&
-            part.state === 'approval-requested' &&
-            part.approval
-          "
-        >
-          <p>Approve: {{ part.name }}</p>
-          <button
-            @click="
-              addToolApprovalResponse({
-                id: part.approval!.id,
-                approved: true,
-              })
-            "
-          >
-            Approve
-          </button>
-          <button
-            @click="
-              addToolApprovalResponse({
-                id: part.approval!.id,
-                approved: false,
-              })
-            "
-          >
-            Deny
-          </button>
-        </div>
-      </template>
-    </template>
-  </div>
-</template>
-```
-
-## Example: Client Tools with Type Safety
-
-```vue
-<script setup lang="ts">
-import { ref } from "vue";
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-vue";
-import {
-  createChatClientOptions,
-  type InferChatMessages,
-} from "@tanstack/ai-client";
 import { toolDefinition } from "@tanstack/ai";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-vue";
 import { z } from "zod";
 
-const updateUIDef = toolDefinition({
-  name: "updateUI",
-  description: "Show a notification in the UI",
-  inputSchema: z.object({ message: z.string(), type: z.string() }),
+const deleteFileTool = toolDefinition({
+  name: "delete_file",
+  description: "Delete a file",
+  needsApproval: true,
+  inputSchema: z.object({ path: z.string() }),
 });
 
-const saveToStorageDef = toolDefinition({
-  name: "saveToStorage",
-  description: "Save a value to localStorage",
-  inputSchema: z.object({ key: z.string(), value: z.string() }),
-});
-
-const notification = ref<{ message: string; type: string } | null>(null);
-
-// Create client implementations
-const updateUI = updateUIDef.client((input) => {
-  // input is fully typed!
-  notification.value = { message: input.message, type: input.type };
-  return { success: true };
-});
-
-const saveToStorage = saveToStorageDef.client((input) => {
-  localStorage.setItem(input.key, input.value);
-  return { saved: true };
-});
-
-// Create typed tools array (no 'as const' needed!)
-const tools = [updateUI, saveToStorage];
-
-const { messages, sendMessage } = useChat({
+const { interrupts } = useChat({
   connection: fetchServerSentEvents("/api/chat"),
-  tools, // Automatic execution, full type safety
+  threadId: "support-chat",
+  tools: [deleteFileTool],
 });
 </script>
 
 <template>
-  <div>
-    <template v-for="message in messages" :key="message.id">
-      <template v-for="(part, idx) in message.parts" :key="idx">
-        <div v-if="part.type === 'tool-call' && part.name === 'updateUI'">
-          Tool executed: {{ part.name }}
-        </div>
-      </template>
-    </template>
-  </div>
+  <template v-for="interrupt in interrupts" :key="interrupt.id">
+    <div v-if="interrupt.kind === 'tool-approval'">
+      <p>Approve: {{ interrupt.toolName }}</p>
+      <button @click="interrupt.resolveInterrupt(true)">Approve</button>
+      <button @click="interrupt.resolveInterrupt(false)">Deny</button>
+    </div>
+  </template>
 </template>
 ```
 
-## Generation Composables
+See [Tool Approval](../interrupts/tool-approval) for the server side.
 
-Vue composables for one-shot generation tasks (images, speech, transcription, summarization, video). All share the same pattern: provide a `connection` or `fetcher`, call `generate()`, and read reactive state.
+## `createChatHook(options)`
 
-### `useGeneration(options)`
+Binds chat options once at module scope and returns a `useChat` composable that uses them.
 
-Base composable for custom generation types. All specialized composables below are built on this.
+```ts
+import { createChatHook, fetchServerSentEvents } from "@tanstack/ai-vue";
 
-```typescript
-import { useGeneration } from "@tanstack/ai-vue";
-import { fetchServerSentEvents } from "@tanstack/ai-client";
-
-const { generate, result, isLoading, error, status, stop, reset } =
-  useGeneration({
-    connection: fetchServerSentEvents("/api/generate/custom"),
-  });
-```
-
-**Options:** `connection?`, `fetcher?`, `threadId?`, `body?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
-
-**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `runId` -- all reactive state is `DeepReadonly<ShallowRef<T>>`.
-
-### `useGenerateImage(options)`
-
-Image generation composable. `generate()` accepts `ImageGenerateInput`, result is `ImageGenerationResult`.
-
-### `useGenerateSpeech(options)`
-
-Text-to-speech composable. `generate()` accepts `SpeechGenerateInput`, result is `TTSResult`.
-
-### `useTranscription(options)`
-
-Audio transcription composable. `generate()` accepts `TranscriptionGenerateInput`, result is `TranscriptionResult`.
-
-### `useSummarize(options)`
-
-Text summarization composable. `generate()` accepts `SummarizeGenerateInput`, result is `SummarizationResult`.
-
-### `useGenerateVideo(options)`
-
-Video generation composable with job polling. Returns additional `jobId` and `videoStatus` refs. Accepts extra `onJobCreated?` and `onStatusUpdate?` callbacks.
-
-All generation composables automatically clean up via `onScopeDispose`.
-
-## `createChatClientOptions(options)`
-
-Helper to create typed chat options (re-exported from `@tanstack/ai-client`).
-
-```typescript
-import {
-  createChatClientOptions,
-  type InferChatMessages,
-} from "@tanstack/ai-client";
-import { fetchServerSentEvents } from "@tanstack/ai-vue";
-import { tool1, tool2 } from "./tools";
-
-// Create typed tools array (no 'as const' needed!)
-const tools = [tool1, tool2];
-
-const chatOptions = createChatClientOptions({
+export const { useChat: useSupportChat } = createChatHook({
   connection: fetchServerSentEvents("/api/chat"),
-  tools,
 });
 
-type Messages = InferChatMessages<typeof chatOptions>;
+// In a component: const chat = useSupportChat({ threadId: "support-1" })
 ```
+
+The bound composable takes these per-call overrides: `threadId`, `initialMessages`, `live`, and `forwardedProps`. Keep `tools`, `interrupts`, and `outputSchema` on the factory options.
+
+`@tanstack/ai-vue/ui` has its own `createChatHook` that also returns typed UI components. See [Vue Chat UI](../ui/vue).
+
+## Generation hooks
+
+Each composable runs one generation request and keeps its result. See [Generation Hooks](../media/generation-hooks).
+
+| Composable | `generate()` input | `result` |
+| --- | --- | --- |
+| `useGenerateImage` | `ImageGenerateInput` | `ImageGenerationResult` |
+| `useGenerateAudio` | `AudioGenerateInput` | `AudioGenerationResult` |
+| `useGenerateSpeech` | `SpeechGenerateInput` | `TTSResult` |
+| `useTranscription` | `TranscriptionGenerateInput` | `TranscriptionResult` |
+| `useSummarize` | `SummarizeGenerateInput` | `SummarizationResult` |
+| `useGenerateVideo` | `VideoGenerateInput` | `VideoGenerateResult` |
+| `useGeneration` | Your own input type | Your own result type |
+
+```vue
+<script setup lang="ts">
+import { useGenerateImage, fetchServerSentEvents } from "@tanstack/ai-vue";
+
+const image = useGenerateImage({
+  connection: fetchServerSentEvents("/api/generate/image"),
+  threadId: "image-studio",
+});
+</script>
+
+<template>
+  <button
+    :disabled="image.isLoading.value"
+    @click="image.generate({ prompt: 'A mountain at sunset' })"
+  >
+    Generate
+  </button>
+</template>
+```
+
+Options: `threadId` (required), `connection` or `fetcher`, `body`, `persistence`, `byok`, `byokProvider`, `devtools`, `onResult`, `onError`, `onProgress`, `onChunk`.
+
+Returns: `generate(input)`, `result`, `isLoading`, `error`, `status`, `stop()`, `reset()`, `runId`. The state fields are read-only refs. Cleanup runs in `onScopeDispose`.
+
+`useGenerateVideo` also returns `jobId` and `videoStatus`, and takes `onJobCreated` and `onStatusUpdate`.
+
+## Realtime chat
+
+This package does not export a realtime composable. Use `RealtimeClient`, which this package re-exports. See [Realtime Chat](../media/realtime-chat).
+
+## `useAudioRecorder(options?)`
+
+Records audio from the microphone. See [Audio Recording](../media/audio-recording).
+
+Returns `recording` and `isRecording` (read-only refs), `isSupported`, `start()`, `stop()`, and `cancel()`. Pass `onComplete` to transform the recording. Then `recording` and `stop()` use the transformed type.
+
+## `useByok(client)`
+
+Subscribes to a BYOK keyring and returns a read-only ref of its snapshot. See [Bring Your Own Key](../advanced/byok).
+
+```ts
+import { computed } from "vue";
+import { useByok } from "@tanstack/ai-vue";
+import { byok } from "./byok";
+
+const snapshot = useByok(byok);
+const last4 = computed(() => {
+  const openai = snapshot.value.status.openai;
+  return openai && "masked" in openai ? openai.masked : "No key";
+});
+```
+
+The snapshot has `status`, `locked`, `prompt`, and `storageError`. Save a key from your own UI with `byok.update(provider, value)`.
+
+## MCP App bridge
+
+This package does not export a bridge composable. Use `createMcpAppBridge`, which this package re-exports. See [MCP Apps](../mcp/apps).
+
+## `useRegisterWebMCPTools(tools, options?)`
+
+Exposes client tools to the browser WebMCP API for the current Vue scope. Vue removes them when the scope is disposed. See [WebMCP Tools](../tools/webmcp).
+
+```vue
+<script setup lang="ts">
+import { useRegisterWebMCPTools } from "@tanstack/ai-vue";
+import { searchProducts } from "./tools";
+
+useRegisterWebMCPTools([searchProducts], {
+  onError: (error) => console.error(error),
+});
+</script>
+```
+
+Options: `toolOptions`, `context`, and `onError`. `context` is required when a tool declares a required runtime context.
+
+## `usePageWebMCPTools(options?)`
+
+Reads the WebMCP tools that the page registered, as client tools. The ref starts empty and updates when the page adds or removes a tool. Pass the ref to `useChat` as `tools`. See [Page WebMCP Tools in Chat](../tools/webmcp-page-tools).
+
+```ts
+import { usePageWebMCPTools } from "@tanstack/ai-vue";
+
+export function useSameOriginPageTools() {
+  return usePageWebMCPTools({
+    filter: (tool) => tool.origin === location.origin,
+  });
+}
+```
+
+Options: `filter` (return `false` to skip a tool) and `onError`.
+
+## Re-exports from `@tanstack/ai-client`
+
+You can import these from `@tanstack/ai-vue` directly. See [`@tanstack/ai-client`](./ai-client) for details.
+
+| Group | Exports |
+| --- | --- |
+| Connection adapters | `fetchServerSentEvents`, `fetchHttpStream`, `fetchJson`, `xhrServerSentEvents`, `xhrHttpStream`, `webSocket`, `stream`, `rpcStream` |
+| Typed options | `createChatClientOptions`, `clientTools` |
+| Persistence | `localStoragePersistence`, `sessionStoragePersistence`, `indexedDBPersistence` |
+| Clients | `ChatClient`, `GenerationClient`, `VideoGenerationClient`, `RealtimeClient`, `AudioRecorder`, `InterruptManager` |
+| WebMCP and MCP Apps | `registerWebMCPTools`, `getWebMCPTools`, `subscribeWebMCPTools`, `createMcpAppBridge` |
+| Errors | `UnsupportedResponseStreamError`, `StreamTruncatedError`, `DurableStreamIncompleteError`, `StreamReconnectLimitError`, `StorageUnavailableError` |
+| Stream helpers | `StreamProcessor`, chunk strategies, `parsePartialJSON`, message converters |
+
+BYOK helpers (`defineByok`, `defaultByokStorage`, and more) are on the `@tanstack/ai-vue/byok` subpath.
 
 ## Types
 
-Re-exported from `@tanstack/ai-client`:
+| Type | What it is |
+| --- | --- |
+| `UseChatOptions`, `UseChatReturn` | The options and return value of `useChat`. |
+| `UIMessage<TTools>` | A chat message with typed parts. |
+| `InferChatMessages<T>` | The message type for a `createChatClientOptions` result. |
+| `SendMessageOptions`, `WhenBusy`, `QueueOption`, `QueuedMessage` | Send and queue types. |
+| `DeepPartial<T>` | The type of `partial` while structured output streams. |
+| `Use<Composable>Options`, `Use<Composable>Return` | Options and return types for the generation and recorder composables. The WebMCP composables export only an options type. |
 
-- `UIMessage<TTools>` - Message type with tool type parameter
-- `MessagePart<TTools>` - Message part with tool type parameter
-- `TextPart` - Text content part
-- `ThinkingPart` - Thinking content part
-- `ToolCallPart<TTools>` - Tool call part (discriminated union)
-- `ToolResultPart` - Tool result part
-- `ChatClientOptions<TTools, TContext>` - Chat client options with typed client runtime context
-- `ConnectionAdapter` - Connection adapter interface
-- `InferChatMessages<T>` - Extract message type from options
-- `ChatRequestBody` - Request body type
-- `GenerationClientState` - Generation lifecycle state
-- `ImageGenerateInput` - Image generation input type
-- `SpeechGenerateInput` - Speech generation input type
-- `TranscriptionGenerateInput` - Transcription input type
-- `SummarizeGenerateInput` - Summarization input type
-- `VideoGenerateInput` - Video generation input type
-- `VideoGenerateResult` - Video generation result type
-- `VideoStatusInfo` - Video job status info
-
-Re-exported from `@tanstack/ai`:
-
-- `toolDefinition()` - Create isomorphic tool definition
-- `ToolDefinitionInstance` - Tool definition type
-- `ClientTool` - Client tool type
-- `ServerTool` - Server tool type
-
-## Next Steps
-
-- [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../tools/tools) - Learn about the isomorphic tool system
-- [Client Tools](../tools/client-tools) - Learn about client-side tools
+Pass a plain tools array to `useChat` or `createChatClientOptions`. Tool names, inputs, and outputs stay typed without `as const`. Import `toolDefinition` from `@tanstack/ai`.

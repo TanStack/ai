@@ -2,7 +2,7 @@
 title: Mistral
 id: mistral-adapter
 order: 7
-description: "Use Mistral models with TanStack AI — Mistral Large, Mistral Medium, Pixtral vision models, Magistral reasoning models, and Codestral via @tanstack/ai-mistral."
+description: "Use Mistral models in TanStack AI with @tanstack/ai-mistral: Mistral Large and Medium, Pixtral vision, Magistral reasoning, Codestral, and Mistral embeddings."
 keywords:
   - tanstack ai
   - mistral
@@ -14,9 +14,9 @@ keywords:
   - llm
 ---
 
-The Mistral adapter provides access to Mistral's chat models, including Mistral Large, the multimodal Pixtral family, the Magistral reasoning models, and the Codestral code-specialized model.
+The Mistral adapter calls Mistral Large, Pixtral, Magistral, and Codestral. It also creates embeddings.
 
-## Installation
+## 1. Install
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
@@ -31,7 +31,215 @@ octane: @tanstack/ai-mistral
 
 <!-- ::end:tabs -->
 
-## Basic Usage
+## 2. Set the API key
+
+Get a key from the [Mistral Console](https://console.mistral.ai/). Put it in the environment of your server:
+
+```bash
+MISTRAL_API_KEY=...
+```
+
+`mistralText` and `mistralEmbedding` read `MISTRAL_API_KEY`. To pass the key in code, use `createMistralText`:
+
+```typescript
+import { createMistralText } from "@tanstack/ai-mistral";
+
+const adapter = createMistralText("mistral-large-latest", process.env.MISTRAL_API_KEY!);
+```
+
+## 3. Stream a chat from the server
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { mistralText } from "@tanstack/ai-mistral";
+
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
+
+  const stream = chat({
+    adapter: mistralText("mistral-large-latest"),
+    messages,
+    threadId,
+    runId,
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+## 4. Render the chat
+
+The client is the same for every provider. Point `useChat` at your route:
+
+```tsx
+import { useState } from "react";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+export function Chat() {
+  const [input, setInput] = useState("");
+  const { messages, sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
+  });
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        sendMessage(input);
+        setInput("");
+      }}
+    >
+      {messages.map((message) => (
+        <p key={message.id}>
+          {message.parts
+            .map((part) => (part.type === "text" ? part.content : ""))
+            .join("")}
+        </p>
+      ))}
+      <input value={input} onChange={(event) => setInput(event.target.value)} />
+    </form>
+  );
+}
+```
+
+For Vue, Solid, Svelte, Angular, and the other frameworks, see [Quick Start](../getting-started/quick-start#3-render-the-chat).
+
+You now have a streaming Mistral chat. [Tools](../tools/tools) work the same as with every adapter. Mistral has no provider tools of its own, so define your tools with `toolDefinition()`.
+
+## Images in a message
+
+Send an image with the text to a vision model: `pixtral-large-latest`, `pixtral-12b-2409`, `mistral-medium-latest`, or `mistral-small-latest`.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { mistralText } from "@tanstack/ai-mistral";
+
+const stream = chat({
+  adapter: mistralText("pixtral-large-latest"),
+  messages: [
+    {
+      role: "user",
+      content: [
+        { type: "text", content: "What's in this image?" },
+        {
+          type: "image",
+          source: {
+            type: "url",
+            value: "https://example.com/photo.jpg",
+          },
+        },
+      ],
+    },
+  ],
+  threadId: "thread-1",
+});
+```
+
+For base64 data, set `source.type` to `"data"` and add `mimeType`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { mistralText } from "@tanstack/ai-mistral";
+
+const base64String = "..."; // your base64-encoded image bytes
+
+const stream = chat({
+  adapter: mistralText("pixtral-large-latest"),
+  messages: [
+    {
+      role: "user",
+      content: [
+        { type: "text", content: "What's in this image?" },
+        {
+          type: "image",
+          source: {
+            type: "data",
+            mimeType: "image/png",
+            value: base64String,
+          },
+        },
+      ],
+    },
+  ],
+  threadId: "thread-1",
+});
+```
+
+See [Multimodal Content](../advanced/multimodal-content) for the full shape of a content part.
+
+## Structured output
+
+Get JSON that matches a Zod schema. The adapter uses the `json_schema` response format of Mistral:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { mistralText } from "@tanstack/ai-mistral";
+import { z } from "zod";
+
+const recipeSchema = z.object({
+  name: z.string(),
+  ingredients: z.array(z.string()),
+  steps: z.array(z.string()),
+});
+
+const recipe = await chat({
+  adapter: mistralText("mistral-large-latest"),
+  messages: [
+    { role: "user", content: "Give me a chocolate chip cookie recipe." },
+  ],
+  threadId: "thread-1",
+  outputSchema: recipeSchema,
+});
+
+console.log(recipe.name); // typed as z.infer<typeof recipeSchema>
+```
+
+See [Structured Outputs](../chat/structured-outputs).
+
+## Embeddings
+
+```typescript
+import { embed } from "@tanstack/ai";
+import { mistralEmbedding } from "@tanstack/ai-mistral";
+
+const result = await embed({
+  adapter: mistralEmbedding("mistral-embed"),
+  input: ["a red guitar", "a blue drum kit"],
+});
+
+console.log(result.embeddings[0]?.vector); // 1024 dimensions
+```
+
+`mistral-embed` always gives 1024 dimensions. `codestral-embed` is tuned for code, and it takes the top-level `dimensions` option:
+
+```typescript
+import { embed } from "@tanstack/ai";
+import { mistralEmbedding } from "@tanstack/ai-mistral";
+
+const result = await embed({
+  adapter: mistralEmbedding("codestral-embed"),
+  input: "function add(a, b) { return a + b }",
+  dimensions: 512,
+});
+```
+
+See the [Embeddings guide](../embeddings.md).
+
+## What Mistral does not do
+
+- Image, audio, and video generation. Use [OpenAI](./openai), [Gemini](./gemini), or [fal.ai](./fal).
+- Text-to-speech and transcription. Use [OpenAI](./openai) or [ElevenLabs](./elevenlabs).
+
+## Models and options
+
+### Model options
+
+Provider options go in `modelOptions`, with the snake_case names of Mistral. This includes the sampling options `temperature`, `top_p`, and `max_tokens`:
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -40,27 +248,63 @@ import { mistralText } from "@tanstack/ai-mistral";
 const stream = chat({
   adapter: mistralText("mistral-large-latest"),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
+  modelOptions: {
+    temperature: 0.7,
+    top_p: 0.9,
+    max_tokens: 1024,
+    random_seed: 42,
+    stop: ["END"],
+    safe_prompt: true,
+    frequency_penalty: 0.5,
+    presence_penalty: 0.5,
+    parallel_tool_calls: true,
+    tool_choice: "auto",
+  },
 });
 ```
 
-## Basic Usage - Custom API Key
+Sampling options do not go at the root of `chat()`. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
+
+### Reasoning
+
+Set `reasoning` on `chat()` to turn thinking up, down, or off:
 
 ```typescript
 import { chat } from "@tanstack/ai";
-import { createMistralText } from "@tanstack/ai-mistral";
-
-const adapter = createMistralText(
-  "mistral-large-latest",
-  process.env.MISTRAL_API_KEY!,
-);
+import { mistralText } from "@tanstack/ai-mistral";
 
 const stream = chat({
-  adapter,
-  messages: [{ role: "user", content: "Hello!" }],
+  adapter: mistralText("mistral-medium-latest"),
+  messages: [{ role: "user", content: "Why is the sky blue?" }],
+  threadId: "thread-1",
+  reasoning: "high",
 });
 ```
 
-## Configuration
+What goes to Mistral:
+
+- `mistral-medium-latest`, `mistral-small-latest`: `reasoning_effort`. They take `off` (sent as `none`) and `high`.
+- `magistral-medium-latest`, `magistral-small-latest`: they take `off` and `high`. `high` sends `prompt_mode: "reasoning"`. `off` sends nothing.
+
+The other models take no `reasoning`. The Magistral models stream their thinking before the answer. See [Magistral thinking events](#magistral-thinking-events).
+
+### Models
+
+| Group | Models |
+| --- | --- |
+| Chat | `mistral-large-latest` (flagship, 128k context), `mistral-medium-latest` (with vision), `mistral-small-latest` (fast, with vision), `ministral-8b-latest`, `ministral-3b-latest`, `open-mistral-nemo` |
+| Code | `codestral-latest` (256k context) |
+| Vision | `pixtral-large-latest`, `pixtral-12b-2409` |
+| Reasoning | `magistral-medium-latest`, `magistral-small-latest` |
+| Embeddings | `mistral-embed`, `codestral-embed` |
+| Chat on Vertex | `mistral-medium-3`, `mistral-small-2503`, `codestral-2` |
+
+See the [model comparison](https://docs.mistral.ai/getting-started/models/compare) of Mistral for the full details. `adapter.inputModalities` lists the input kinds of the selected model. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
+
+## Advanced
+
+### Configuration
 
 ```typescript
 import {
@@ -82,9 +326,9 @@ const adapter = createMistralText(
 );
 ```
 
-## Behind a proxy
+### Behind a proxy
 
-Route every request through a gateway, such as Cloudflare AI Gateway or a corporate proxy, with `baseURL` and `defaultHeaders`. These two option names are the same on every TanStack AI adapter, so one gateway config works for all of them.
+Send every request through a gateway, such as Cloudflare AI Gateway or a corporate proxy, with `baseURL` and `defaultHeaders`. These two option names are the same on every TanStack AI adapter, so one gateway config works for all of them.
 
 ```typescript
 import { createMistralText } from "@tanstack/ai-mistral";
@@ -95,14 +339,53 @@ const adapter = createMistralText("mistral-large-latest", process.env.MISTRAL_AP
 });
 ```
 
-`serverURL` is an alias of `baseURL`. If you set both, `baseURL` wins.
+- `serverURL` is an alias of `baseURL`. If you set both, `baseURL` wins.
+- Need more than a fixed header, such as a log of each model call? This adapter supports [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
 
-Need more than a fixed header, such as a log of each model call? This adapter supports [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
+### Prompt caching
 
-## Mistral on Vertex
+Mistral caches the start of your requests by itself.
 
-Use `@tanstack/ai-mistral/vertex` when Mistral must run on Vertex AI. That
-path uses Google Cloud credentials and the publisher `rawPredict` endpoint.
+- `chat()` sends `prompt_cache_key` by default. The key is the `threadId` that you pass, so one conversation shares a cache.
+- The key goes only to `api.mistral.ai`, on `chat()` and on structured output.
+- With `promptCache: 'none'`, no key goes out.
+- Cache reads show up in `usage.promptTokensDetails.cachedTokens`.
+
+See [Prompt Caching](../advanced/prompt-caching).
+
+### Magistral thinking events
+
+The Magistral models (`magistral-medium-latest`, `magistral-small-latest`) stream their thinking as separate events before the answer. The adapter sends AG-UI `REASONING_*` chunks for the thinking and `TEXT_MESSAGE_*` chunks for the answer:
+
+```typescript ignore
+// ignore: narrowing the raw AG-UI stream by `chunk.type` relies on @ag-ui/core's
+// discriminated-union `type` field, which kiira can't resolve in a source-only
+// check. The runtime behaviour is exactly as shown.
+import { chat } from "@tanstack/ai";
+import { mistralText } from "@tanstack/ai-mistral";
+
+const stream = chat({
+  adapter: mistralText("magistral-medium-latest"),
+  messages: [{ role: "user", content: "Why is the sky blue?" }],
+  threadId: "thread-1",
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === "REASONING_MESSAGE_CONTENT") {
+    process.stdout.write(`[thinking] ${chunk.delta}`);
+  } else if (chunk.type === "TEXT_MESSAGE_CONTENT") {
+    process.stdout.write(chunk.delta);
+  }
+}
+```
+
+The reasoning events always close before any text or tool output starts. So you first see the full sequence: `REASONING_START`, `REASONING_MESSAGE_START`, `REASONING_MESSAGE_CONTENT` (one or more), `REASONING_MESSAGE_END`, `REASONING_END`.
+
+See [Thinking & Reasoning](../chat/thinking-content) for the event spec of all providers.
+
+### Mistral on Vertex
+
+Use `@tanstack/ai-mistral/vertex` when Mistral must run on Vertex AI. That path uses Google Cloud credentials and the publisher `rawPredict` endpoint.
 
 Mistral on Vertex is regional only. Use `us-central1` or `europe-west4`.
 
@@ -129,362 +412,27 @@ const stream = chat({
     location: "europe-west4",
   }),
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
 });
 ```
 
-`project` and `location` use the same names as `@tanstack/ai-vertex`.
-`location` is required.
+- `project` and `location` use the same names as `@tanstack/ai-vertex`. `location` is required.
+- `mistralVertexText` accepts only the Mistral chat models that Vertex lists: `mistral-medium-3`, `mistral-small-2503`, and `codestral-2`.
+- Mistral API aliases such as `mistral-large-latest` and `mistral-medium-latest` are not Vertex model ids. Vertex also lists `mistral-ocr-2505`, but that model is OCR, not chat.
+- Install `google-auth-library` for Application Default Credentials, or pass `authClient` or `getAccessToken`.
 
-`mistralVertexText` accepts only the Mistral chat models that Vertex lists:
+Gemini on Vertex is in [`@tanstack/ai-vertex`](./vertex).
 
-- `mistral-medium-3`
-- `mistral-small-2503`
-- `codestral-2`
+### API reference
 
-Mistral API aliases such as `mistral-large-latest` and `mistral-medium-latest`
-are not Vertex model ids. Vertex also lists `mistral-ocr-2505`, but that
-model is OCR, not chat.
+| Factory | Creates |
+| --- | --- |
+| `mistralText(model, config?)` | Text adapter. Reads `MISTRAL_API_KEY` |
+| `createMistralText(model, apiKey, config?)` | Text adapter with an explicit API key |
+| `mistralEmbedding(model, config?)` / `createMistralEmbedding(model, apiKey, config?)` | Embedding adapter |
+| `mistralVertexText(model, config)` | Text adapter on Vertex. Import from `@tanstack/ai-mistral/vertex` |
 
-Install `google-auth-library` for Application Default Credentials, or pass
-`authClient` or `getAccessToken`.
+- `config.baseURL`: a custom base URL. Optional. `serverURL` is an alias.
+- `config.defaultHeaders`: headers for every request. Optional.
 
-Gemini on Vertex lives in [`@tanstack/ai-vertex`](./vertex).
-
-## Example: Chat Completion
-
-```typescript
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
-import { mistralText } from "@tanstack/ai-mistral";
-
-export async function POST(request: Request) {
-  const { messages } = await request.json();
-
-  const stream = chat({
-    adapter: mistralText("mistral-large-latest"),
-    messages,
-  });
-
-  return toServerSentEventsResponse(stream);
-}
-```
-
-## Example: With Tools
-
-```typescript
-import { chat, toolDefinition } from "@tanstack/ai";
-import { mistralText } from "@tanstack/ai-mistral";
-import { z } from "zod";
-
-const getWeatherDef = toolDefinition({
-  name: "get_weather",
-  description: "Get the current weather for a location",
-  inputSchema: z.object({
-    location: z.string(),
-  }),
-});
-
-const getWeather = getWeatherDef.server(async ({ location }) => {
-  return { temperature: 72, conditions: "sunny" };
-});
-
-const stream = chat({
-  adapter: mistralText("mistral-large-latest"),
-  messages: [{ role: "user", content: "What's the weather in Paris?" }],
-  tools: [getWeather],
-});
-```
-
-## Example: Multimodal (Vision)
-
-Use a vision-capable model — `pixtral-large-latest`, `pixtral-12b-2409`, `mistral-medium-latest`, or `mistral-small-latest` — to send images alongside text:
-
-```typescript
-import { chat } from "@tanstack/ai";
-import { mistralText } from "@tanstack/ai-mistral";
-
-const stream = chat({
-  adapter: mistralText("pixtral-large-latest"),
-  messages: [
-    {
-      role: "user",
-      content: [
-        { type: "text", content: "What's in this image?" },
-        {
-          type: "image",
-          source: {
-            type: "url",
-            value: "https://example.com/photo.jpg",
-          },
-        },
-      ],
-    },
-  ],
-});
-```
-
-For data-URL or base64 images, set `source.type` to `"data"` and provide `mimeType`:
-
-```typescript
-import { chat } from "@tanstack/ai";
-import { mistralText } from "@tanstack/ai-mistral";
-
-const base64String = "..."; // your base64-encoded image bytes
-
-const stream = chat({
-  adapter: mistralText("pixtral-large-latest"),
-  messages: [
-    {
-      role: "user",
-      content: [
-        { type: "text", content: "What's in this image?" },
-        {
-          type: "image",
-          source: {
-            type: "data",
-            mimeType: "image/png",
-            value: base64String,
-          },
-        },
-      ],
-    },
-  ],
-});
-```
-
-See [Multimodal Content](../advanced/multimodal-content) for the full content-part shape.
-
-## Example: Reasoning (Magistral)
-
-Magistral models (`magistral-medium-latest`, `magistral-small-latest`) stream their reasoning as separate events before the final answer. The adapter emits AG-UI `REASONING_*` chunks for the thinking content and `TEXT_MESSAGE_*` chunks for the answer:
-
-```typescript ignore
-// ignore: narrowing the raw AG-UI stream by `chunk.type` relies on @ag-ui/core's
-// discriminated-union `type` field, which kiira can't resolve in a source-only
-// check. The runtime behaviour is exactly as shown.
-import { chat } from "@tanstack/ai";
-import { mistralText } from "@tanstack/ai-mistral";
-
-const stream = chat({
-  adapter: mistralText("magistral-medium-latest"),
-  messages: [{ role: "user", content: "Why is the sky blue?" }],
-});
-
-for await (const chunk of stream) {
-  if (chunk.type === "REASONING_MESSAGE_CONTENT") {
-    process.stdout.write(`[thinking] ${chunk.delta}`);
-  } else if (chunk.type === "TEXT_MESSAGE_CONTENT") {
-    process.stdout.write(chunk.delta);
-  }
-}
-```
-
-Reasoning events are always closed before any text or tool output begins, so consumers see a complete `REASONING_START → REASONING_MESSAGE_START → REASONING_MESSAGE_CONTENT* → REASONING_MESSAGE_END → REASONING_END` sequence first.
-
-See [Thinking & Reasoning](../chat/thinking-content) for the cross-provider event spec.
-
-## Reasoning
-
-Set `reasoning` on `chat()` to turn thinking up, down, or off:
-
-```typescript
-import { chat } from "@tanstack/ai";
-import { mistralText } from "@tanstack/ai-mistral";
-
-const stream = chat({
-  adapter: mistralText("mistral-medium-latest"),
-  messages: [{ role: "user", content: "Why is the sky blue?" }],
-  reasoning: "high",
-});
-```
-
-What goes on the wire:
-
-- `mistral-medium-latest`, `mistral-small-latest`: `reasoning_effort`. They take `off` (sent as `none`) and `high`.
-- `magistral-medium-latest`, `magistral-small-latest`: they take `off` and `high`. `high` sends `prompt_mode: "reasoning"`. `off` sends nothing.
-
-The other models take no `reasoning`.
-
-## Example: Structured Output
-
-Generate JSON that conforms to a Zod schema using Mistral's `json_schema` response format:
-
-```typescript
-import { chat } from "@tanstack/ai";
-import { mistralText } from "@tanstack/ai-mistral";
-import { z } from "zod";
-
-const recipeSchema = z.object({
-  name: z.string(),
-  ingredients: z.array(z.string()),
-  steps: z.array(z.string()),
-});
-
-const recipe = await chat({
-  adapter: mistralText("mistral-large-latest"),
-  messages: [
-    { role: "user", content: "Give me a chocolate chip cookie recipe." },
-  ],
-  outputSchema: recipeSchema,
-});
-
-console.log(recipe.name); // typed as z.infer<typeof recipeSchema>
-```
-
-See [Structured Outputs](../chat/structured-outputs) for the full guide.
-
-## Model Options
-
-Mistral exposes provider-specific options via `modelOptions`:
-
-```typescript
-import { chat } from "@tanstack/ai";
-import { mistralText } from "@tanstack/ai-mistral";
-
-const stream = chat({
-  adapter: mistralText("mistral-large-latest"),
-  messages: [{ role: "user", content: "Hello!" }],
-  modelOptions: {
-    temperature: 0.7,
-    top_p: 0.9,
-    max_tokens: 1024,
-    random_seed: 42,
-    stop: ["END"],
-    safe_prompt: true,
-    frequency_penalty: 0.5,
-    presence_penalty: 0.5,
-    parallel_tool_calls: true,
-    tool_choice: "auto",
-  },
-});
-```
-
-> All sampling parameters — including `temperature`, `top_p`, and `max_tokens` —
-> go inside `modelOptions` using Mistral's native (snake_case) names.
-
-## Prompt caching
-
-Mistral caches the start of your requests by itself. `chat()` sends `prompt_cache_key` by default. The key is the `threadId` that you pass, so one conversation shares a cache. The key goes only to `api.mistral.ai`, on `chat()` and on structured output. With `promptCache: 'none'`, no key goes out. See [Prompt Caching](../advanced/prompt-caching).
-
-Cache reads show up in `usage.promptTokensDetails.cachedTokens`.
-
-## Embeddings
-
-Generate embedding vectors with mistral-embed or codestral-embed:
-
-```typescript
-import { embed } from "@tanstack/ai";
-import { mistralEmbedding } from "@tanstack/ai-mistral";
-
-const result = await embed({
-  adapter: mistralEmbedding("mistral-embed"),
-  input: ["a red guitar", "a blue drum kit"],
-});
-
-console.log(result.embeddings[0]?.vector); // 1024 dimensions
-```
-
-`mistral-embed` has fixed 1024-dimension output; `codestral-embed` (tuned for code) supports the top-level `dimensions` option:
-
-```typescript
-import { embed } from "@tanstack/ai";
-import { mistralEmbedding } from "@tanstack/ai-mistral";
-
-const result = await embed({
-  adapter: mistralEmbedding("codestral-embed"),
-  input: "function add(a, b) { return a + b }",
-  dimensions: 512,
-});
-```
-
-See the [Embeddings guide](../embeddings.md) for the full API.
-
-## Environment Variables
-
-Set your API key in environment variables:
-
-```bash
-MISTRAL_API_KEY=...
-```
-
-Get a key from the [Mistral Console](https://console.mistral.ai/).
-
-## Supported Models
-
-### Chat
-
-- `mistral-large-latest` — Flagship general-purpose model (128k context)
-- `mistral-medium-latest` — Multimodal mid-tier model with vision
-- `mistral-small-latest` — Fast, affordable multimodal model with vision
-- `ministral-8b-latest` — 8B edge model
-- `ministral-3b-latest` — 3B edge model
-- `open-mistral-nemo` — Open 12B model
-
-### Code
-
-- `codestral-latest` — Code-specialized model (256k context)
-
-### Vision
-
-- `pixtral-large-latest` — Large vision model
-- `pixtral-12b-2409` — 12B vision model
-
-### Reasoning
-
-Reasoning content is streamed as `REASONING_*` events before the final answer.
-
-- `magistral-medium-latest` — Mid-tier reasoning model
-- `magistral-small-latest` — Small reasoning model
-
-See [Mistral's model comparison](https://docs.mistral.ai/getting-started/models/compare) for full details.
-
-## API Reference
-
-### `mistralText(model, config?)`
-
-Creates a Mistral text adapter using the `MISTRAL_API_KEY` environment variable.
-
-`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
-
-**Parameters:**
-
-- `model` — The model name (e.g., `'mistral-large-latest'`)
-- `config.baseURL?`: custom base URL (optional). `serverURL` is an alias.
-- `config.defaultHeaders?` — Headers to attach to every request (optional)
-
-**Returns:** A Mistral text adapter instance.
-
-### `createMistralText(model, apiKey, config?)`
-
-Creates a Mistral text adapter with an explicit API key.
-
-**Parameters:**
-
-- `model` — The model name
-- `apiKey` — Your Mistral API key
-- `config.baseURL?`: custom base URL (optional). `serverURL` is an alias.
-- `config.defaultHeaders?` — Headers to attach to every request (optional)
-
-**Returns:** A Mistral text adapter instance.
-
-## Limitations
-
-- **Embeddings**: Use the [Mistral SDK](https://github.com/mistralai/client-ts) directly for `mistral-embed`.
-- **Image / Audio / Video Generation**: Mistral does not provide these endpoints. Use OpenAI, Gemini, or fal.ai.
-- **Text-to-Speech / Transcription**: Not supported. Use OpenAI or ElevenLabs.
-
-## Next Steps
-
-- [Getting Started](../getting-started/quick-start) — Learn the basics
-- [Tools Guide](../tools/tools) — Define and call tools
-- [Structured Outputs](../chat/structured-outputs) — Generate typed JSON
-- [Multimodal Content](../advanced/multimodal-content) — Send images and other modalities
-- [Other Adapters](./openai) — Explore other providers
-
-## Provider Tools
-
-Mistral does not currently expose provider-specific tool factories.
-Define your own tools with `toolDefinition()` from `@tanstack/ai`.
-
-See [Tools](../tools/tools.md) for the general tool-definition flow, or
-[Provider Tools](../tools/provider-tools.md) for other providers'
-native-tool offerings.
+`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know.

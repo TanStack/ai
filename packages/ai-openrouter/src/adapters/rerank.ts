@@ -80,7 +80,6 @@ export class OpenRouterRerankAdapter<
         ...(response.usage?.searchUnits !== undefined
           ? {
               billed: { quantity: response.usage.searchUnits, unit: 'units' },
-              unitsBilled: response.usage.searchUnits,
             }
           : {}),
         ...(response.usage?.cost !== undefined

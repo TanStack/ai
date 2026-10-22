@@ -7,7 +7,7 @@ title: RunAgentResumeItem
 type RunAgentResumeItem = AGUIResumeEntry & object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1620](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1620)
+Defined in: packages/ai/src/types.ts:1589
 
 ## Type Declaration
 

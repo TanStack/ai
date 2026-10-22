@@ -19,8 +19,8 @@ export interface UseGenerateImageOptions<TOutput = ImageGenerationResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for image generation */
   fetcher?: GenerationFetcher<ImageGenerateInput, ImageGenerationResult>
-  /** Unique identifier for this generation instance */
-  id?: string
+  /** Stable scope for this generation. Also the wire and DevTools identity. */
+  threadId: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
@@ -77,6 +77,7 @@ export interface UseGenerateImageReturn<TOutput = ImageGenerationResult> {
  *
  * function ImageGenerator() {
  *   const { generate, result, isLoading, error, reset } = useGenerateImage({
+ *     threadId: 'hero-image',
  *     connection: fetchServerSentEvents('/api/generate/image'),
  *   })
  *

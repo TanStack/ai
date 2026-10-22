@@ -26,10 +26,12 @@ import type { Provider } from '@/lib/model-selection'
 async function summarizeWith(
   adapter: AnyTextAdapter,
   messages: Array<ModelMessage>,
+  threadId: string,
 ): Promise<string> {
   let text = ''
   for await (const chunk of chat({
     adapter,
+    threadId,
     messages: [
       ...messages,
       {
@@ -140,12 +142,16 @@ export const Route = createFileRoute('/api/compaction')({
             : 'openai'
 
           const adapter = adapterFor(provider, model)
-          const options = createChatOptions({ adapter })
+          const options = createChatOptions({
+            adapter,
+            threadId: params.threadId,
+          })
 
           const strategy =
             strategyName === 'summarize'
               ? summarizeOldest({
-                  summarize: (msgs) => summarizeWith(adapter, msgs),
+                  summarize: (msgs) =>
+                    summarizeWith(adapter, msgs, params.threadId),
                 })
               : evictOldest()
 

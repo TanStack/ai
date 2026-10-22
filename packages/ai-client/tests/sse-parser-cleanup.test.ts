@@ -43,6 +43,7 @@ it('reports a generation error without waiting for custom cancellation', async (
     cancel,
   })
   const client = new GenerationClient({
+    threadId: 'thread-1',
     fetcher: async () => new Response(body),
   })
   try {

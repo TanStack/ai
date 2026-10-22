@@ -74,7 +74,7 @@ export type DeepPartial<T> =
  * inference; server-side validation still runs against the schema passed to
  * `chat({ outputSchema })` on the server route.
  *
- * Note: Connection and body changes will recreate the ChatClient instance.
+ * Note: Connection changes will recreate the ChatClient instance.
  * To update these options, remount the component or use a key prop.
  */
 export type UseChatOptions<
@@ -197,14 +197,6 @@ interface BaseUseChatReturn<
   }) => Promise<void>
 
   /**
-   * Respond to a tool approval request
-   */
-  addToolApprovalResponse: (response: {
-    id: string // approval.id, not toolCallId
-    approved: boolean
-  }) => Promise<void>
-
-  /**
    * The id of the run this client has in flight — one it started or rejoined —
    * or `null` when there is none (including while a run sits paused on an
    * interrupt, waiting on approval).
@@ -217,8 +209,6 @@ interface BaseUseChatReturn<
    */
   runId: DeepReadonly<ShallowRef<string | null>>
   interrupts: Readonly<ShallowRef<BoundInterrupts<TTools, TInterrupts>>>
-  /** @deprecated Use `interrupts`. */
-  pendingInterrupts: Readonly<ShallowRef<BoundInterrupts<TTools, TInterrupts>>>
   interruptErrors: DeepReadonly<
     ShallowRef<ChatInterruptState<TTools, TInterrupts>['interruptErrors']>
   >
@@ -234,11 +224,6 @@ interface BaseUseChatReturn<
   cancelInterrupts: () => void
   retryInterrupts: () => void
   resumeInterruptsUnsafe: (
-    resume: Array<RunAgentResumeItem>,
-    state?: ChatResumeState,
-  ) => Promise<boolean>
-  /** @deprecated Use bound interrupt methods or `resumeInterruptsUnsafe`. */
-  resumeInterrupts: (
     resume: Array<RunAgentResumeItem>,
     state?: ChatResumeState,
   ) => Promise<boolean>

@@ -49,6 +49,7 @@ export const Route = createFileRoute('/api/provider-tool-dispatch-wire')({
 
         try {
           for await (const _ of chat({
+            threadId: 'provider-tool-dispatch-wire',
             ...createTextAdapter(provider, undefined, undefined, testId),
             messages: [
               {

@@ -130,6 +130,7 @@ async function promptPathFor(runId: string): Promise<string> {
   const handle = recordingHandle()
   const chunks: Array<AdapterYieldChunk> = []
   for await (const chunk of codexText(MODEL).chatStream({
+    threadId: 'thread-1',
     model: MODEL,
     runId,
     messages: [{ role: 'user', content: 'hi' }],

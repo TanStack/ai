@@ -2,7 +2,7 @@
 title: Operating
 id: memory-operating
 order: 5
-description: "Run memoryMiddleware in production: configure its options, add onRecall/onSave telemetry, watch recall and save in devtools, and rely on non-fatal failure handling that never breaks a chat run."
+description: "Run memoryMiddleware in production: log recall and save with onRecall and onSave, watch memory in devtools, save without recall, and know what happens when the memory store fails."
 keywords:
   - tanstack ai
   - memory
@@ -13,35 +13,22 @@ keywords:
   - save-only
 ---
 
-Memory is wired into your `chat()` call. Now you want to see whether it actually recalls
-anything, get that activity into your own logs, and know that a slow or broken store
-won't take down the chat. This page covers the middleware's options and how to observe
-and operate it.
+Log what memory recalls, and keep a slow or failed store from failing the chat.
 
-New to memory? Start with the [Overview](./overview) and [Quickstart](./quickstart) first.
+Add the `onRecall` and `onSave` callbacks for your logs, and use the devtools **Memory** tab while you develop. A memory failure never stops the chat.
 
-## `memoryMiddleware` options
+## Quick setup
 
-| Option | Type | Default | Purpose |
-|--------|------|---------|---------|
-| `adapter` | `MemoryAdapter` | (required) | The backend to `recall` from and `save` to. |
-| `scope` | `MemoryScope \| (ctx) => MemoryScope` | (required) | Isolation scope, static or derived per request. |
-| `role` | `'recall+save' \| 'save-only'` | `'recall+save'` | `'save-only'` persists turns without recalling or injecting. |
-| `onRecall` | `({ scope, query, result }) => void` | none | App telemetry after each `recall`. |
-| `onSave` | `({ scope, turn, receipts }) => void` | none | App telemetry after each deferred `save`. |
-
-Every option in one place:
+### 1. Log recall and save
 
 ```ts
 import { memoryMiddleware } from '@tanstack/ai-memory'
 import { inMemory } from '@tanstack/ai-memory/in-memory'
 
-const mw = memoryMiddleware({
+const middleware = memoryMiddleware({
   adapter: inMemory(),
-  // Function form derives scope per request. `ctx.threadId` is the stable
-  // per-conversation id; add `userId` from your server-validated session.
+  // ctx.threadId is the conversation id. Add userId from your server session.
   scope: (ctx) => ({ threadId: ctx.threadId }),
-  role: 'recall+save', // or 'save-only' to persist without injecting
   onRecall: ({ query, result }) => {
     console.log('recalled', result.fragments?.length ?? 0, 'hits for', query)
   },
@@ -51,50 +38,86 @@ const mw = memoryMiddleware({
 })
 ```
 
+Add `middleware` to the `middleware` array of your `chat()` call. Then send your metrics client the counts in place of `console.log`.
+
+### 2. Watch memory in devtools
+
+Open the TanStack AI devtools and select the **Memory** tab. For each turn, it shows:
+
+- The recall query.
+- The number of recalled fragments.
+- The number of characters added to the prompt.
+- The recall duration.
+- The stored records and facts, for adapters that have `inspect` and `listFacts`. `inMemory()` and `redis()` have both.
+
+See the [Memory Inspector](../getting-started/devtools#memory-inspector) for how server-side memory gets to the panel.
+
+Each request now logs what memory recalled and saved, and the Memory tab shows the same data while you develop.
+
+## How it works
+
+- `onRecall` runs after each recall, with the scope, the query, and the result.
+- `onSave` runs after each deferred save, with the scope, the turn, and the write receipts.
+- If `recall` throws, the run continues with no memory in the prompt.
+- If `save` throws, the turn is not saved. The response is not affected, because the save runs after the stream.
+
+The middleware does not catch errors from your `onRecall` and `onSave` callbacks. Catch errors inside them.
+
+## `memoryMiddleware` options
+
+| Option | Type | Default | Purpose |
+| --- | --- | --- | --- |
+| `adapter` | `MemoryAdapter` | (required) | The backend that `recall` reads from and `save` writes to. |
+| `scope` | `MemoryScope \| (ctx) => MemoryScope` | (required) | The isolation scope. Static, or set for each request. The function can be async. |
+| `role` | `'recall+save' \| 'save-only'` | `'recall+save'` | `'save-only'` saves turns but does not recall or add to the prompt. |
+| `onRecall` | `({ scope, query, result }) => void` | none | Telemetry after each `recall`. |
+| `onSave` | `({ scope, turn, receipts }) => void` | none | Telemetry after each deferred `save`. |
+
 ## Persist without recalling
 
-By default the middleware both recalls and saves (`role: 'recall+save'`). Set
-`role: 'save-only'` to persist each turn without reading memory back or injecting anything
-into the prompt. Use it to build up a user's history before you turn recall on, or on
-routes where you want to record turns but not shape the current answer.
+Set `role: 'save-only'` to save each turn without reading memory or changing the prompt:
 
-## Telemetry with onRecall and onSave
+```ts
+import { memoryMiddleware } from '@tanstack/ai-memory'
+import { inMemory } from '@tanstack/ai-memory/in-memory'
 
-The devtools events below are for watching memory during development. For telemetry that
-ships with your app, use the `onRecall` and `onSave` callbacks shown above. `onRecall`
-fires after each recall with the query and result, so you can count hits. `onSave` fires
-after each deferred save with the write receipts, so you can count writes. Send those to
-your metrics client instead of `console.log`.
+const middleware = memoryMiddleware({
+  adapter: inMemory(),
+  scope: (ctx) => ({ threadId: ctx.threadId }),
+  role: 'save-only',
+})
+```
 
-## Watch it in devtools
+Use it in these cases:
 
-The AI DevTools has a **Memory** tab for any chat wired with `memoryMiddleware`. It
-shows each turn's recall (query, fragment count, characters injected, recall duration)
-and, for adapters that implement `inspect`/`listFacts` (the built-in `inMemory()` and
-`redis()` do), the current stored records and facts. See the
-[Memory Inspector](../getting-started/devtools#memory-inspector) for what it renders and
-how server-side memory reaches the panel.
+- You want to collect history for a user before you turn on recall.
+- A route must record turns but must not change the current answer.
 
-Under the hood the middleware emits these events on `aiEventClient` (from
-`@tanstack/ai-event-client`). The panel reads them, and you can subscribe directly:
+## Advanced
+
+### When recall and save run
+
+- The recall query is the text of the last user message. If there is no user text, recall does not run.
+- The middleware keeps the resolved scope for the request, so recall and save use the same scope.
+- Save runs only when the turn has both user text and assistant text.
+- If `save` throws, the middleware makes one receipt with `ok: false`, and `onSave` still runs with it.
+
+### Devtools events
+
+The middleware emits these events on `aiEventClient` from `@tanstack/ai-event-client`. The devtools panel reads them, and you can subscribe to them yourself.
 
 | Event | When |
-|-------|------|
-| `memory:retrieve:started` | Recall begins |
-| `memory:retrieve:completed` | Recall returns (fragment count, whether tools were injected) |
-| `memory:persist:started` | A deferred save begins |
-| `memory:persist:completed` | A save completes (receipt count) |
-| `memory:error` | A `recall` or `save` threw (`phase: 'recall'` or `'save'`). Carries `scope` only when it was already resolved; omitted if the resolver failed or never ran. |
+| --- | --- |
+| `memory:retrieve:started` | Recall starts. |
+| `memory:retrieve:completed` | Recall returns, with the fragment count and whether tools were added. |
+| `memory:persist:started` | A deferred save starts. |
+| `memory:persist:completed` | A save completes, with the receipt count. |
+| `memory:error` | `recall` or `save` threw (`phase: 'recall'` or `'save'`). It has `scope` only when the scope was already resolved. If the scope function failed or did not run, `scope` is not there. |
 
-## Failures are non-fatal
+When the adapter has `inspect`, the middleware also emits `memory:snapshot` with the stored records after each save.
 
-A memory failure never breaks a chat run. A throwing `recall` or `save` emits
-`memory:error` and the run continues with degraded memory: recall returns nothing, and a
-failed save is dropped. Streaming is never blocked, and a failed save never fails the
-turn. This means a flaky store degrades the experience instead of taking down the chat.
+### How server memory gets to the browser panel
 
-## Where to go next
+Server events do not cross to the browser. The middleware adds one `CUSTOM` chunk named `memory:state` to the stream of each turn. The chunk has the recall metrics. When the adapter has `inspect`, it also has a snapshot of the store from the start of the turn. The client devtools bridge in `@tanstack/ai-client` reads it and emits the `memory:*` events in the browser.
 
-- [Overview](./overview): the `recall`/`save` contract and how a turn flows
-- [Adapters](./adapters): every adapter's options, with an example of each
-- [Custom Adapter](./custom-adapter): implement `recall`/`save` for a backend that isn't shipped
+The snapshot is taken at the start of the turn, so the save of the current turn shows in the next turn.

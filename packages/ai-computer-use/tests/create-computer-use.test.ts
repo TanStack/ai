@@ -624,15 +624,14 @@ describe('createComputerUse threads', () => {
     ])
   })
 
-  it('uses one shared thread for calls with no threadId', async () => {
+  it('uses one shared thread for calls with no context', async () => {
     const { factory, created } = createFactory()
     const {
       tools: [tool],
     } = setupWith(factory)
-    const context = { emitCustomEvent() {} }
 
-    await tool.execute?.(CLICK, context)
-    await tool.execute?.(TYPE, context)
+    await tool.execute?.(CLICK)
+    await tool.execute?.(TYPE)
 
     expect(created).toHaveLength(1)
   })

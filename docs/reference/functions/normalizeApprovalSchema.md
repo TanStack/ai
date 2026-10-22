@@ -7,7 +7,7 @@ title: normalizeApprovalSchema
 function normalizeApprovalSchema(approvalSchema, inputSchema?): NormalizedApprovalSchema;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/approval-schema.ts:141](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/approval-schema.ts#L141)
+Defined in: packages/ai/src/activities/chat/tools/approval-schema.ts:141
 
 ## Parameters
 

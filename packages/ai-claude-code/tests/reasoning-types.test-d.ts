@@ -5,6 +5,7 @@ const messages = [{ role: 'user' as const, content: 'hi' }]
 
 // Haiku thinks with a token budget.
 chat({
+  threadId: 'thread-1',
   adapter: claudeCodeText('claude-haiku-4-5'),
   messages,
   reasoning: { level: 'high', budgetTokens: 4000 },

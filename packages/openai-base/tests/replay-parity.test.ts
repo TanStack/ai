@@ -130,7 +130,12 @@ describe('OpenAI replay parity', () => {
       ]
       const original = JSON.stringify(messages)
       await collect(
-        new Responses(mock.client).chatStream({ logger, model, messages }),
+        new Responses(mock.client).chatStream({
+          threadId: 'thread-1',
+          logger,
+          model,
+          messages,
+        }),
       )
       const call =
         name === 'shell'
@@ -277,10 +282,18 @@ describe('OpenAI replay parity', () => {
         const adapter = new Responses(mock.client)
         if (structured)
           await adapter.structuredOutput({
-            chatOptions: { logger, model, messages },
+            chatOptions: { threadId: 'thread-1', logger, model, messages },
             outputSchema: { type: 'object' },
           })
-        else await collect(adapter.chatStream({ logger, model, messages }))
+        else
+          await collect(
+            adapter.chatStream({
+              threadId: 'thread-1',
+              logger,
+              model,
+              messages,
+            }),
+          )
         const body = mock.bodies[0]
         if (
           typeof body !== 'object' ||
@@ -402,7 +415,12 @@ describe('OpenAI replay parity', () => {
       ]
       const original = JSON.stringify(messages)
       await collect(
-        new Responses(mock.client).chatStream({ logger, model, messages }),
+        new Responses(mock.client).chatStream({
+          threadId: 'thread-1',
+          logger,
+          model,
+          messages,
+        }),
       )
       expect(mock.bodies[0]).toMatchObject({
         input: [
@@ -428,6 +446,7 @@ describe('OpenAI replay parity', () => {
     const mock = sdk([responseCompleted], true)
     await collect(
       new Responses(mock.client).chatStream({
+        threadId: 'thread-1',
         logger,
         model,
         messages: [
@@ -512,6 +531,7 @@ describe('OpenAI replay parity', () => {
       expect(
         await adapter.structuredOutput({
           chatOptions: {
+            threadId: 'thread-1',
             logger,
             model,
             messages: [{ role: 'user', content: 'JSON' }],
@@ -549,6 +569,7 @@ describe('OpenAI replay parity', () => {
           : new Responses(mock.client)
       const result = await adapter.structuredOutput({
         chatOptions: {
+          threadId: 'thread-1',
           logger,
           model,
           messages: [{ role: 'user', content: 'JSON' }],
@@ -575,6 +596,7 @@ describe('OpenAI replay parity', () => {
         api === 'completions' ? new Completions(client) : new Responses(client)
       const chunks = await collect(
         adapter.chatStream({
+          threadId: 'thread-1',
           logger,
           model,
           messages: [{ role: 'user', content: 'Hello' }],
@@ -596,6 +618,7 @@ describe('OpenAI replay parity', () => {
       const mock = sdk([responseCompleted], true)
       await collect(
         new Responses(mock.client).chatStream({
+          threadId: 'thread-1',
           logger,
           model,
           messages: [
@@ -683,7 +706,9 @@ describe('OpenAI replay parity', () => {
         api === 'completions'
           ? new Completions(mock.client)
           : new Responses(mock.client)
-      await collect(adapter.chatStream({ logger, model, messages }))
+      await collect(
+        adapter.chatStream({ threadId: 'thread-1', logger, model, messages }),
+      )
       const body = mock.bodies[0]
       if (typeof body !== 'object' || body === null)
         throw new Error('Missing request body')
@@ -726,6 +751,7 @@ describe('OpenAI replay parity', () => {
     const mock = sdk([responseCompleted], true)
     await collect(
       new Responses(mock.client).chatStream({
+        threadId: 'thread-1',
         logger,
         model,
         messages: [
@@ -779,6 +805,7 @@ describe('OpenAI replay parity', () => {
       const controller = new AbortController()
       await collect(
         adapter.chatStream({
+          threadId: 'thread-1',
           logger,
           model,
           systemPrompts: ['System'],
@@ -849,6 +876,7 @@ describe('OpenAI replay parity', () => {
       const mock = sdk([responseCompleted], true)
       await collect(
         new Responses(mock.client).chatStream({
+          threadId: 'thread-1',
           logger,
           model,
           systemPrompts: ['System'],
@@ -921,7 +949,12 @@ describe('OpenAI replay parity', () => {
       { role: 'tool', toolCallId: 'call|fc/item', content: 'ok' },
     ]
     await collect(
-      new Completions(mock.client).chatStream({ logger, model, messages }),
+      new Completions(mock.client).chatStream({
+        threadId: 'thread-1',
+        logger,
+        model,
+        messages,
+      }),
     )
     expect(mock.bodies[0]).toMatchObject({
       messages: [
@@ -942,6 +975,7 @@ describe('OpenAI replay parity', () => {
       const mock = sdk([completed])
       await collect(
         new Completions(mock.client, images).chatStream({
+          threadId: 'thread-1',
           logger,
           model,
           messages: [
@@ -1038,6 +1072,7 @@ describe('OpenAI replay parity', () => {
     ]
     await collect(
       new Completions(mock.client).chatStream({
+        threadId: 'thread-1',
         logger,
         model,
         messages: [
@@ -1082,6 +1117,7 @@ describe('OpenAI replay parity', () => {
           : new Responses(mock.client)
       const chunks = await collect(
         adapter.chatStream({
+          threadId: 'thread-1',
           logger,
           model,
           messages: [{ role: 'user', content: 'Hello' }],
@@ -1123,6 +1159,7 @@ describe('Responses answer items on replay', () => {
     }
     await collect(
       chat({
+        threadId: 'thread-1',
         adapter: new Responses(mock.client),
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [keep],
@@ -1136,6 +1173,7 @@ describe('Responses answer items on replay', () => {
     const mock = sdk([responseCompleted], true)
     await collect(
       chat({
+        threadId: 'thread-1',
         adapter: new Responses(mock.client),
         messages: [...messages, { role: 'user', content: 'Again' }],
       }),

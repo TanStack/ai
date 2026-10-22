@@ -68,7 +68,10 @@ export function ImageGenUI({
   }
 
   const { generate, result, isLoading, error, status, runId } =
-    useGenerateImage(connectionOptions())
+    useGenerateImage({
+      threadId: testId ?? 'image-gen',
+      ...connectionOptions(),
+    })
   const activeTuple = useRef({ runId: '', status: 'idle', isLoading: false })
   if (runId && status === 'generating' && isLoading) {
     activeTuple.current = { runId, status, isLoading }

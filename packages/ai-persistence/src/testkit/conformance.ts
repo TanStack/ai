@@ -1161,6 +1161,7 @@ export function runPersistenceConformance(
       ): ArtifactRecord => ({
         runId: 'run-art',
         threadId: 'thread-art',
+        blobKey: 'artifacts/run-art/default',
         name: 'image.png',
         mimeType: 'image/png',
         size: 3,
@@ -1218,7 +1219,7 @@ export function runPersistenceConformance(
         )
         const updated = await store.get('\u{10000}')
         expect(updated).toMatchObject({ name: 'renamed.png', size: 9 })
-        expect(updated?.blobKey).toBeUndefined()
+        expect(updated?.blobKey).toBe('artifacts/run-art/default')
         expect((await store.list('run-art')).map((r) => r.artifactId)).toEqual([
           '\u{e000}',
           '\u{10000}',

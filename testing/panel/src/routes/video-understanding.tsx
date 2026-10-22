@@ -34,8 +34,9 @@ function VideoUnderstanding() {
   const body = useMemo(() => ({ video, mode }), [video, mode])
 
   const { messages, sendMessage, isLoading } = useChat({
+    threadId: 'video-understanding',
     connection: fetchServerSentEvents('/api/video-understanding'),
-    body,
+    forwardedProps: body,
   })
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

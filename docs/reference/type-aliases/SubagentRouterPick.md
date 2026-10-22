@@ -12,4 +12,4 @@ type SubagentRouterPick =
   | SubagentStepsPlan;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:87](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L87)
+Defined in: packages/ai/src/activities/chat/agents/spawn.ts:87

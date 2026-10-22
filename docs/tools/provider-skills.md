@@ -2,7 +2,7 @@
 title: Provider Skills
 id: provider-skills
 order: 3
-description: "Attach hosted, provider-managed skills to code execution and shell tools in TanStack AI so the model can produce documents, run specialised environments, and more."
+description: "Load hosted skills of Anthropic or OpenAI into the code sandbox of the provider, so the model can make documents and run special environments. Attach them to the code execution or shell tool."
 keywords:
   - tanstack ai
   - provider skills
@@ -14,51 +14,27 @@ keywords:
   - container skills
 ---
 
-Provider Skills are hosted, provider-managed capability bundles that the model
-loads on demand and runs inside the provider's server-side sandbox. You
-reference them by a skill ID; the provider handles installation and execution.
+A provider skill is a hosted skill, such as a PowerPoint skill, that Anthropic or OpenAI runs in its own sandbox.
 
-> **Not to be confused with `@tanstack/ai-code-mode-snippets`**, whose snippets
-> are TypeScript functions your application generates and runs in its own Code Mode sandbox (a local JS isolate). Provider
-> Skills run entirely on the provider's infrastructure.
+Attach the skill IDs to the execution tool of the provider. The provider installs the skills and runs them. You only give the IDs.
 
-Skills are **inert without an execution tool**. The execution tool activates the
-sandbox; skills are additional bundles that run inside it:
+- **Anthropic**: attach skills to `codeExecutionTool` from `@tanstack/ai-anthropic/tools`.
+- **OpenAI**: put skills inside `shellTool` from `@tanstack/ai-openai/tools`. This needs the Responses API.
 
-- **Anthropic**: skills attach to `codeExecutionTool` (`@tanstack/ai-anthropic/tools`).
-- **OpenAI**: skills nest inside `shellTool` (`@tanstack/ai-openai/tools`) and
-  require the Responses API.
-
-You already have a `chat()` call working. By the end of this page you will have
-attached a hosted skill to the right execution tool, with the provider handling
-the rest.
-
----
+A skill does nothing without its execution tool. The tool starts the sandbox, and the skills run inside it.
 
 ## Portable vs hosted skills
 
-There are two ways to give a model skills in TanStack AI, and they solve
-different problems:
+TanStack AI has two kinds of skills. Pick the one that fits:
 
-- **Portable skills** ([`withSkills`](../skills/agent-skills)) render a catalog
-  and let the model call `load_skill`. They run on any tool-calling model, need
-  no server sandbox, and read `SKILL.md` from a folder, a bundle, or your own
-  store. Reach for these first.
-- **Hosted (provider) skills**, this page, run inside the provider's server-side
-  sandbox and are referenced by ID. They are non-portable and require an
-  execution tool, but the provider does the running.
+- **Portable skills** ([`withSkills`](../skills/agent-skills)) show a catalog and let the model call `load_skill`. They work on any model that can call tools. They need no sandbox on the server, and they read `SKILL.md` from a folder, a bundle, or your own store. Start with these.
+- **Hosted skills** (this page) run in the sandbox of the provider, by ID. They work with one provider only, and they need an execution tool. The provider runs them.
 
-Use hosted skills when you need the provider's sandbox (running code, producing
-files). Use portable skills for everything else.
+If you need the sandbox of the provider, for example to run code or make files, use hosted skills. For everything else, use portable skills.
 
-The two do not mix in one `chat()` call. If you attach hosted skills to a
-`code_execution` or `shell` tool and also add `withSkills`, the middleware
-throws: the model would see two catalogs and two protocols. Pick one delivery
-mode per call.
+Use only one kind in a `chat()` call. If you attach hosted skills to a `code_execution` or `shell` tool and also add `withSkills`, the middleware throws. The reason: the model gets two catalogs and two protocols.
 
----
-
-## Anthropic: skills via `codeExecutionTool`
+## Anthropic: skills on `codeExecutionTool`
 
 ### 1. Install the package
 
@@ -75,22 +51,27 @@ octane: @tanstack/ai-anthropic
 
 <!-- ::end:tabs -->
 
-### 2. Add the `codeExecutionTool` with skills
+### 2. Add `codeExecutionTool` with skills
 
-Import `codeExecutionTool` from `@tanstack/ai-anthropic/tools`, not from the
-adapter root. Pass a `skills` array as the second argument.
+Import `codeExecutionTool` from `@tanstack/ai-anthropic/tools`, not from the root of the adapter. Pass a `skills` array as the second argument:
 
 ```typescript
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { codeExecutionTool } from '@tanstack/ai-anthropic/tools'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
 
   const stream = chat({
-    adapter: anthropicText('claude-sonnet-4-5'),
+    adapter: anthropicText('claude-opus-5-5'),
     messages,
+    threadId,
+    runId,
     tools: [
       codeExecutionTool(
         { type: 'code_execution_20250825', name: 'code_execution' },
@@ -105,41 +86,32 @@ export async function POST(request: Request) {
 }
 ```
 
-The adapter automatically:
+### 3. Try it
 
-- Lifts your skills into the request's top-level `container.skills` parameter
-  (the shape Anthropic's API requires).
-- Attaches the `code-execution-2025-08-25` beta header, plus the
-  `skills-2025-10-02` beta header when skills are present.
+Ask your chat "Make a three-slide deck about our Q3 results." The model loads the `pptx` skill and makes the file in the sandbox of Anthropic.
 
-You do not set beta headers manually.
+The adapter does the setup for you:
+
+- It moves your skills into the top-level `container.skills` parameter of the request. The Anthropic API wants them there.
+- It adds the `code-execution-2025-08-25` beta header. When skills are present, it also adds the `skills-2025-10-02` beta header.
+
+You do not set beta headers yourself.
 
 ### Skill shape
 
-Each entry in the `skills` array is an `AnthropicContainerSkill`:
+Each item in the `skills` array is an `AnthropicContainerSkill`:
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `type` | `'anthropic' \| 'custom'` | yes | `'anthropic'` for Anthropic-hosted skills; `'custom'` for your own bundles. |
-| `skill_id` | `string` | yes | 1–64 characters. |
-| `version` | `string` | no | Specific version string, or `'latest'` (default when omitted). |
+| `type` | `'anthropic' \| 'custom'` | yes | `'anthropic'` for skills that Anthropic hosts. `'custom'` for your own bundles. |
+| `skill_id` | `string` | yes | 1 to 64 characters. |
+| `version` | `string` | no | A version string, or `'latest'`. The default is `'latest'`. |
 
-Up to 8 skills per request. The factory throws at call time if you exceed this
-or supply an invalid `skill_id`.
+You can attach at most 8 skills to a request. If you pass more, or a `skill_id` that is not valid, the factory throws when you call it.
 
-### Deprecation notice
+## OpenAI: skills in `shellTool` (Responses API only)
 
-Setting skills via `modelOptions.container.skills` is deprecated. Use
-`codeExecutionTool(config, { skills })` instead — the legacy path bypasses the
-automatic beta-header wiring.
-
----
-
-## OpenAI: skills via `shellTool` (Responses API only)
-
-The OpenAI `shellTool` accepts an `environment` object that can carry a
-`skills` array. This is **Responses API only**; the Chat Completions API does
-not support the shell tool.
+The OpenAI `shellTool` takes an `environment` object, and that object can hold a `skills` array. This works only with the Responses API. The Chat Completions API does not support the shell tool.
 
 ### 1. Install the package
 
@@ -156,19 +128,25 @@ octane: @tanstack/ai-openai
 
 <!-- ::end:tabs -->
 
-### 2. Add the `shellTool` with skills
+### 2. Add `shellTool` with skills
 
 ```typescript
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { shellTool } from '@tanstack/ai-openai/tools'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
 
   const stream = chat({
-    adapter: openaiText('gpt-5.2'),
+    adapter: openaiText('gpt-6.1-sol'),
     messages,
+    threadId,
+    runId,
     tools: [
       shellTool({
         environment: {
@@ -185,37 +163,38 @@ export async function POST(request: Request) {
 }
 ```
 
+Replace `skill_abc` with the ID of your skill.
+
 ### Skill shape
 
-Each entry in the `skills` array is a `SkillReference`:
+Each item in the `skills` array is a `SkillReference`:
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `type` | `'skill_reference'` | yes | Always `'skill_reference'` for OpenAI. |
-| `skill_id` | `string` | yes | The skill identifier provided by OpenAI. |
-| `version` | `string` | no | A positive integer as a string (e.g. `'2'`) or `'latest'`. |
+| `skill_id` | `string` | yes | The skill ID that OpenAI gives you. |
+| `version` | `string` | no | A positive integer as a string (for example `'2'`), or `'latest'`. |
 
-Note: `version` is a string, not a number.
+`version` is a string, not a number.
 
----
+## Advanced
 
-## Scope
+### What these factories support
 
-Only **hosted, managed-by-id** skills are wired by these factories:
+The factories wire only hosted skills that you reference by ID:
 
-- Anthropic: `type: 'anthropic'` or `type: 'custom'`
-- OpenAI: `type: 'skill_reference'`
+- Anthropic: `type: 'anthropic'` or `type: 'custom'`.
+- OpenAI: `type: 'skill_reference'`.
 
-Inline bundles, local-path references, and upload-API skill creation are not
-handled by `codeExecutionTool` or `shellTool`.
+`codeExecutionTool` and `shellTool` do not handle inline bundles, local paths, or skill creation through the upload API.
 
----
+### Related pages
 
-## Related pages
+- [Portable Agent Skills](../skills/agent-skills): a catalog plus `load_skill`, on any model that can call tools.
+- [Provider Tools](./provider-tools.md): all native provider tools, and the type guard that stops a tool on a model that does not support it.
+- [Anthropic: Advanced, `codeExecutionTool`](../adapters/anthropic-advanced.md#codeexecutiontool)
+- [OpenAI: Advanced, `shellTool`](../adapters/openai-advanced.md#shelltool)
 
-- [Portable Agent Skills](../skills/agent-skills) — the provider-agnostic
-  alternative: a catalog plus `load_skill`, on any tool-calling model.
-- [Provider Tools](./provider-tools.md) — all native provider tools and the
-  type-level guard that prevents pairing a tool with an unsupported model.
-- [Anthropic adapter → `codeExecutionTool`](../adapters/anthropic.md#codeexecutiontool)
-- [OpenAI adapter → `shellTool`](../adapters/openai.md#shelltool)
+### Upgrade from 0.x
+
+`modelOptions.container.skills` is not in 1.0. Pass skills to `codeExecutionTool(config, { skills })`.

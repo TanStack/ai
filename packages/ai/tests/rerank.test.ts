@@ -55,7 +55,6 @@ function ranked(...indices: Array<number>): RerankAdapterResult {
     usage: {
       ...zeroUsage,
       billed: { quantity: 1, unit: 'units' },
-      unitsBilled: 1,
     },
   }
 }
@@ -112,7 +111,6 @@ describe('rerank() activity', () => {
       'sunny day at the beach',
     ])
     expect(result.usage.billed).toEqual({ quantity: 1, unit: 'units' })
-    expect(result.usage.unitsBilled).toBe(1)
   })
 
   it('serializes object documents with JSON.stringify before the adapter call', async () => {
@@ -162,7 +160,6 @@ describe('rerank() activity', () => {
     expect(events.start[0]!.activity).toBe('rerank')
     expect(events.start[0]!.provider).toBe('mock')
     expect(events.usage[0]!.billed).toEqual({ quantity: 1, unit: 'units' })
-    expect(events.usage[0]!.unitsBilled).toBe(1)
     expect(events.finish).toHaveLength(1)
     expect(events.error).toHaveLength(0)
     expect(events.abort).toHaveLength(0)

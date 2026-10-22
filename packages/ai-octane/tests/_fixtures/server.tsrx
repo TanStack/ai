@@ -12,6 +12,7 @@ const initialMessages: UIMessage[] = [
 
 export function ServerChat() @{
 	const { messages } = useChat({
+		threadId: 'thread-1',
 		fetcher: () => {
 			throw new Error('no fetch during SSR');
 		},

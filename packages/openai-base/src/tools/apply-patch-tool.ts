@@ -4,9 +4,6 @@ import type { Tool } from '@tanstack/ai'
 
 export type { ApplyPatchToolConfig }
 
-/** @deprecated Renamed to `ApplyPatchToolConfig`. Will be removed in a future release. */
-export type ApplyPatchTool = ApplyPatchToolConfig
-
 /**
  * Converts a standard Tool to OpenAI ApplyPatchTool format
  */

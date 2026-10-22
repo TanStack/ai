@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { chat } from '../src'
-import { defineAgent } from '../src/activities/chat/agents/define-agent'
 import { createMockAdapter, ev } from './test-utils'
 import type { PromptCacheOptions, ResolvedPromptCache } from '../src'
 
@@ -10,13 +9,13 @@ const done = [ev.runStarted(), ev.runFinished('stop')]
 interface CallerIds {
   promptCache?: PromptCacheOptions
   threadId?: string
-  conversationId?: string
 }
 
 /** Run one chat() call and give back the first adapter call. */
 async function firstAdapterCall(ids: CallerIds) {
   const { adapter, calls } = createMockAdapter({ iterations: [done] })
   await chat({
+    threadId: 'thread-1',
     adapter,
     messages: [{ role: 'user', content: 'hi' }],
     stream: false,
@@ -26,11 +25,13 @@ async function firstAdapterCall(ids: CallerIds) {
 }
 
 describe('chat({ promptCache })', () => {
-  it('sends short and no key when the caller gives no threadId', async () => {
+  it('uses the threadId as the key by default', async () => {
     const call = await firstAdapterCall({})
-    // chat() made up a threadId. It is not the key.
-    expect(call?.threadId).toMatch(/.+/)
-    expect(call?.promptCache).toStrictEqual({ retention: 'short' })
+    expect(call?.threadId).toBe('thread-1')
+    expect(call?.promptCache).toStrictEqual({
+      retention: 'short',
+      key: 'thread-1',
+    })
   })
 
   it.each<[string, CallerIds, ResolvedPromptCache]>([
@@ -40,17 +41,10 @@ describe('chat({ promptCache })', () => {
       { retention: 'short', key: 't1' },
     ],
     [
-      'a conversationId alone is the key',
-      { conversationId: 'c1' },
-      { retention: 'short', key: 'c1' },
-    ],
-    ['an empty threadId is no key', { threadId: '' }, { retention: 'short' }],
-    [
       "'none' keeps the key",
       { promptCache: 'none', threadId: 't1' },
       { retention: 'none', key: 't1' },
     ],
-    ["'long' with no threadId", { promptCache: 'long' }, { retention: 'long' }],
     [
       'an object key wins over the threadId',
       { threadId: 't1', promptCache: { retention: 'long', key: 'k-1' } },
@@ -83,27 +77,5 @@ describe('chat({ promptCache })', () => {
     })
     expect(result).toEqual({ name: 'Ada' })
     expect(seen).toStrictEqual({ retention: 'long', key: 't1' })
-  })
-})
-
-describe('chat({ promptCache }) with subagents', () => {
-  it('keeps the made-up threadId of a subagent parent out of the key', async () => {
-    const parent = createMockAdapter({ iterations: [done] })
-    await chat({
-      adapter: parent.adapter,
-      messages: [{ role: 'user', content: 'Go' }],
-      stream: false,
-      subagents: {
-        agents: [
-          defineAgent({
-            name: 'helper',
-            description: 'Idle',
-            run: async function* () {},
-          }),
-        ],
-      },
-    })
-    expect(parent.calls[0]?.threadId).toMatch(/^thread-/)
-    expect(parent.calls[0]?.promptCache).toStrictEqual({ retention: 'short' })
   })
 })

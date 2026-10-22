@@ -2,7 +2,7 @@
 title: Google Vertex AI
 id: vertex-adapter
 order: 4
-description: "Run Gemini on Google Vertex AI with TanStack AI. Use regional endpoints and Google Cloud credentials via @tanstack/ai-vertex."
+description: "Run Gemini on Google Vertex AI with TanStack AI. Use regional endpoints and Google Cloud credentials with @tanstack/ai-vertex."
 keywords:
   - tanstack ai
   - vertex
@@ -16,13 +16,11 @@ keywords:
   - adapter
 ---
 
-The Gemini Developer API has no regional endpoint. If you need EU data residency, CMEK, or VPC-SC, you have to run Gemini on Vertex AI.
+The Vertex adapter runs Gemini on Vertex AI. Use it when you need a regional endpoint, CMEK, or VPC-SC.
 
-`@tanstack/ai-vertex` is that path. It builds the existing Gemini adapters with Vertex auth. Request mapping, tools, and streaming stay the same.
+`@tanstack/ai-vertex` gives you the Gemini adapters with Vertex auth. Request mapping, tools, and streaming stay the same as in [`@tanstack/ai-gemini`](./gemini).
 
-Claude on Vertex is a different package. See [Anthropic Vertex](./anthropic#claude-on-vertex).
-
-## Installation
+## 1. Install
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
@@ -37,106 +35,34 @@ octane: @tanstack/ai-vertex
 
 <!-- ::end:tabs -->
 
-## Basic usage
+## 2. Set the credentials
 
-```typescript
-import { chat } from "@tanstack/ai";
-import { vertexText } from "@tanstack/ai-vertex";
+Vertex uses Google Cloud credentials. It does **not** read `GEMINI_API_KEY` or `GOOGLE_API_KEY`, because those keys are for AI Studio.
 
-const stream = chat({
-  adapter: vertexText("gemini-3.7-flash", {
-    project: "my-project",
-    location: "europe-west1",
-  }),
-  messages: [{ role: "user", content: "Hello!" }],
-});
-```
-
-Reuse one auth object for every factory:
-
-```typescript
-import { vertexImage, vertexText } from "@tanstack/ai-vertex";
-
-const auth = {
-  project: "my-project",
-  location: "europe-west1",
-};
-
-const text = vertexText("gemini-3.7-flash", auth);
-const image = vertexImage("gemini-3.1-flash-image", auth);
-```
-
-`vertexText` ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the `@google/genai` SDK does not take a custom fetch.
-
-## Authentication
-
-Vertex factories accept every auth option `@google/genai` accepts. They do **not** read `GEMINI_API_KEY` or `GOOGLE_API_KEY`. Those keys are AI Studio, not Vertex.
-
-### Application Default Credentials
-
-This is the usual Google Cloud path. Sign in with `gcloud auth application-default login`, or set `GOOGLE_APPLICATION_CREDENTIALS` to a service account JSON file.
-
-Pass `project` and `location` on the factory, or set:
+1. Sign in with `gcloud auth application-default login`, or set `GOOGLE_APPLICATION_CREDENTIALS` to a service account JSON file.
+2. Set the project and the region:
 
 ```bash
 GOOGLE_CLOUD_PROJECT=my-project
 GOOGLE_CLOUD_LOCATION=europe-west1
 ```
 
-`GOOGLE_VERTEX_PROJECT` and `GOOGLE_VERTEX_LOCATION` are also accepted.
+You can also pass `project` and `location` on each factory, as in the next step. For a service account in code or an express API key, see [Authentication](#authentication).
+
+## 3. Stream a chat from the server
+
+Keep the Vertex credentials on the server. The browser only talks to your route.
 
 ```typescript
-import { vertexText } from "@tanstack/ai-vertex";
-
-const adapter = vertexText("gemini-3.7-flash", {
-  project: "my-project",
-  location: "europe-west1",
-});
-```
-
-### Service account fields
-
-```typescript
-import { vertexText } from "@tanstack/ai-vertex";
-
-const adapter = vertexText("gemini-3.7-flash", {
-  project: "my-project",
-  location: "europe-west1",
-  googleAuthOptions: {
-    credentials: {
-      client_email: "sa@my-project.iam.gserviceaccount.com",
-      private_key: "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
-    },
-  },
-});
-```
-
-### Express API key
-
-Vertex express mode uses an API key and does not need project or location.
-
-```typescript
-import { vertexText } from "@tanstack/ai-vertex";
-
-const adapter = vertexText("gemini-3.7-flash", {
-  apiKey: "vertex-express-key",
-});
-```
-
-Or set `GOOGLE_VERTEX_API_KEY`.
-
-## Example: server and client
-
-Keep Vertex credentials on the server. The browser only talks to your route.
-
-Server:
-
-```typescript
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
 import { vertexText } from "@tanstack/ai-vertex";
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
 
   const stream = chat({
     adapter: vertexText("gemini-3.7-flash", {
@@ -144,55 +70,57 @@ export async function POST(request: Request) {
       location: "europe-west1",
     }),
     messages,
+    threadId,
+    runId,
   });
 
   return toServerSentEventsResponse(stream);
 }
 ```
 
-Client:
+## 4. Render the chat
+
+`useChat` does not know that this is Vertex. It reads the stream from your route, the same as for every provider:
 
 ```tsx
+import { useState } from "react";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
 export function Chat() {
+  const [input, setInput] = useState("");
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
   });
 
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        const form = event.currentTarget;
-        const input = new FormData(form).get("text");
-        if (typeof input === "string" && input.trim()) {
-          sendMessage(input);
-          form.reset();
-        }
+        sendMessage(input);
+        setInput("");
       }}
     >
       {messages.map((message) => (
-        <div key={message.id}>
-          {message.role}:{" "}
+        <p key={message.id}>
           {message.parts
-            .filter((part) => part.type === "text")
-            .map((part) => part.content)
+            .map((part) => (part.type === "text" ? part.content : ""))
             .join("")}
-        </div>
+        </p>
       ))}
-      <input name="text" />
-      <button type="submit">Send</button>
+      <input value={input} onChange={(event) => setInput(event.target.value)} />
     </form>
   );
 }
 ```
 
-`useChat` does not know this is Vertex. It only consumes the SSE stream from your server.
+For Vue, Solid, Svelte, Angular, and the other frameworks, see [Quick Start](../getting-started/quick-start#3-render-the-chat).
+
+You now have Gemini on Vertex, in the region that you chose.
 
 ## Other Gemini activities
 
-Every factory uses the same auth object.
+Each factory takes the same auth object:
 
 ```typescript
 import {
@@ -216,9 +144,64 @@ vertexAudio("lyria-3-pro-preview", auth);
 vertexVideo("veo-3.1-generate-preview", auth);
 ```
 
-Model ids and provider options are the same as `@tanstack/ai-gemini`. Vertex-only image options (for example `9:21`) are not unlocked in this release.
+- `vertexSpeech`, `vertexAudio`, and `vertexVideo` are experimental.
+- `vertexText` ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the `@google/genai` SDK does not take a custom fetch.
 
-## Environment variables
+## Models and options
+
+The model ids and the provider options are the same as in [`@tanstack/ai-gemini`](./gemini#models-and-options). Image options that only Vertex has (for example `9:21`) do not work in this release.
+
+## Advanced
+
+### Authentication
+
+Vertex factories accept every auth option that `@google/genai` accepts.
+
+#### Application Default Credentials
+
+This is the usual Google Cloud path. Sign in with `gcloud auth application-default login`, or set `GOOGLE_APPLICATION_CREDENTIALS` to a service account JSON file. Then pass `project` and `location` on the factory, or set them in the environment:
+
+```typescript
+import { vertexText } from "@tanstack/ai-vertex";
+
+const adapter = vertexText("gemini-3.7-flash", {
+  project: "my-project",
+  location: "europe-west1",
+});
+```
+
+#### Service account fields
+
+```typescript
+import { vertexText } from "@tanstack/ai-vertex";
+
+const adapter = vertexText("gemini-3.7-flash", {
+  project: "my-project",
+  location: "europe-west1",
+  googleAuthOptions: {
+    credentials: {
+      client_email: "sa@my-project.iam.gserviceaccount.com",
+      private_key: "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+    },
+  },
+});
+```
+
+#### Express API key
+
+Vertex express mode uses an API key. It needs no project and no location.
+
+```typescript
+import { vertexText } from "@tanstack/ai-vertex";
+
+const adapter = vertexText("gemini-3.7-flash", {
+  apiKey: "vertex-express-key",
+});
+```
+
+You can also set `GOOGLE_VERTEX_API_KEY`.
+
+### Environment variables
 
 | Variable | Purpose |
 | --- | --- |
@@ -229,46 +212,36 @@ Model ids and provider options are the same as `@tanstack/ai-gemini`. Vertex-onl
 | `GOOGLE_VERTEX_API_KEY` | Vertex express API key |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Path to a service account JSON file |
 
-## API reference
+### Claude on Vertex
 
-### `vertexText(model, config?)`
+Use [`anthropicVertexText`](./anthropic-advanced#claude-on-vertex) from `@tanstack/ai-anthropic/vertex`.
 
-Creates a Gemini chat adapter on Vertex.
+### Grok on Vertex
 
-### `vertexSummarize(model, config?)`
+Use [`grokVertexText`](./grok#grok-on-vertex) from `@tanstack/ai-grok/vertex`.
 
-Creates a Gemini summarize adapter on Vertex.
+- Vertex Grok uses the OpenAI-compatible Responses endpoint.
+- For summarize, use `grokVertexSummarize` from the same entry.
+- The factory accepts only the Grok chat models in the Vertex catalog: `grok-4.3`, `grok-4.20-reasoning`, `grok-4.20-non-reasoning`, `grok-4.1-fast-reasoning`, and `grok-4.1-fast-non-reasoning`.
 
-### `vertexImage(model, config?)`
+### Mistral on Vertex
 
-Creates a Gemini image adapter on Vertex.
+Use [`mistralVertexText`](./mistral#mistral-on-vertex) from `@tanstack/ai-mistral/vertex`.
 
-### `vertexEmbedding(model, config?)`
+- Vertex Mistral uses the publisher `rawPredict` path.
+- It is regional only: `us-central1` or `europe-west4`.
+- The factory accepts only the Mistral chat models in the Vertex catalog: `mistral-medium-3`, `mistral-small-2503`, and `codestral-2`.
 
-Creates a Gemini embedding adapter on Vertex.
+### API reference
 
-### `vertexSpeech(model, config?)`
-
-Creates a Gemini text-to-speech adapter on Vertex. Experimental.
-
-### `vertexAudio(model, config?)`
-
-Creates a Gemini Lyria audio adapter on Vertex. Experimental.
-
-### `vertexVideo(model, config?)`
-
-Creates a Gemini video adapter on Vertex. Experimental. `config.allowUrlFetch` is the same opt-in as the Gemini video adapter.
+| Factory | Creates |
+| --- | --- |
+| `vertexText(model, config?)` | Gemini chat adapter on Vertex |
+| `vertexSummarize(model, config?)` | Gemini summarize adapter on Vertex |
+| `vertexImage(model, config?)` | Gemini image adapter on Vertex |
+| `vertexEmbedding(model, config?)` | Gemini embedding adapter on Vertex |
+| `vertexSpeech(model, config?)` | Gemini text-to-speech adapter on Vertex. Experimental |
+| `vertexAudio(model, config?)` | Gemini Lyria audio adapter on Vertex. Experimental |
+| `vertexVideo(model, config?)` | Gemini video adapter on Vertex. Experimental. `config.allowUrlFetch` is the same opt-in as on the Gemini video adapter |
 
 `config` accepts `project`, `location`, `apiKey`, `googleAuthOptions`, `httpOptions`, and the other `@google/genai` client fields. The factory always sets `vertexai: true`.
-
-## Claude on Vertex
-
-Use [`anthropicVertexText`](./anthropic#claude-on-vertex) from `@tanstack/ai-anthropic/vertex`.
-
-## Grok on Vertex
-
-Use [`grokVertexText`](./grok#grok-on-vertex) from `@tanstack/ai-grok/vertex`. Vertex Grok uses the OpenAI-compatible Responses endpoint. Use `grokVertexSummarize` from the same entry for summarize. The factory accepts only the Grok chat models in the Vertex catalog (`grok-4.3`, `grok-4.20-reasoning`, `grok-4.20-non-reasoning`, `grok-4.1-fast-reasoning`, `grok-4.1-fast-non-reasoning`).
-
-## Mistral on Vertex
-
-Use [`mistralVertexText`](./mistral#mistral-on-vertex) from `@tanstack/ai-mistral/vertex`. Vertex Mistral uses the publisher `rawPredict` path. It is regional only (`us-central1` or `europe-west4`). The factory accepts only the Mistral chat models in the Vertex catalog (`mistral-medium-3`, `mistral-small-2503`, `codestral-2`).

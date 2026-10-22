@@ -201,7 +201,6 @@ const adapter: AnyTextAdapter = {
       type: EventType.TOOL_CALL_START,
       toolCallId,
       toolCallName: 'lookup',
-      toolName: 'lookup',
       model,
       timestamp: Date.now(),
     }
@@ -216,7 +215,6 @@ const adapter: AnyTextAdapter = {
       type: EventType.TOOL_CALL_END,
       toolCallId,
       toolCallName: 'lookup',
-      toolName: 'lookup',
       input: { query: 'first' },
       model,
       timestamp: Date.now(),

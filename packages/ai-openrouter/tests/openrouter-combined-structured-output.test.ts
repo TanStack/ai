@@ -250,6 +250,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       const adapter = createOpenRouterText('openai/gpt-4o', 'k')
 
       for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'openai/gpt-4o',
         messages: [{ role: 'user', content: 'hi' }],
@@ -281,6 +282,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       const adapter = createOpenRouterText('anthropic/claude-opus-4.1', 'k')
 
       for await (const _ of chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'hi' }],
         tools,
@@ -301,6 +303,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       const adapter = createOpenRouterText('openai/gpt-4o', 'k')
 
       for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'openai/gpt-4o',
         messages: [{ role: 'user', content: 'hi' }],
@@ -328,6 +331,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       const adapter = createOpenRouterResponsesText('openai/gpt-4o', 'k')
 
       for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'openai/gpt-4o',
         messages: [{ role: 'user', content: 'hi' }],
@@ -359,6 +363,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       const adapter = createOpenRouterResponsesText('openai/gpt-4o', 'k')
 
       for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'openai/gpt-4o',
         messages: [{ role: 'user', content: 'hi' }],
@@ -390,6 +395,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'hi' }],
         tools,
@@ -413,6 +419,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'hi' }],
         tools,
@@ -481,6 +488,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'hi' }],
         tools,
@@ -514,6 +522,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'hi' }],
         tools,

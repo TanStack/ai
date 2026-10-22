@@ -89,6 +89,7 @@ async function replay(
   )
   const chunks = []
   for await (const chunk of adapter.chatStream({
+    threadId: 'thread-1',
     model: 'claude-sonnet-5',
     messages,
     modelOptions: { max_tokens: 128 },
@@ -125,6 +126,7 @@ describe('Anthropic replay parity', () => {
         'claude-opus-5',
       )
       const options = {
+        threadId: 'thread-1',
         model: 'claude-opus-5',
         messages,
         modelOptions: { max_tokens: 128 },

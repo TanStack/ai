@@ -22,6 +22,7 @@ export const Route = createFileRoute('/api/openai-responses-usage')({
         let usage: Record<string, unknown> | undefined
         try {
           for await (const chunk of chat({
+            threadId: 'openai-responses-usage',
             ...createChatOptions({ adapter }),
             messages: [{ role: 'user', content: 'hi' }],
           })) {

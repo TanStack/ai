@@ -41,7 +41,7 @@ export interface CreateComputerUseOptions {
 
 const TOOL_NAME = 'computer'
 
-/** The thread of a call with no `threadId`, like a direct `execute()` call. */
+/** The thread of a direct `execute()` call with no context. */
 const SHARED_THREAD = 'computer-use:shared'
 
 /** The state of one thread. */
@@ -192,8 +192,6 @@ export function createComputerUse({
 } {
   // ponytail: the machines live in this process only. When the next request
   // of a thread reaches another server, the thread gets a new machine there.
-  // ponytail: without a stable threadId, chat() makes a new id for each
-  // request, so each request gets a new machine. Pass threadId to chat().
   // ponytail: when a person answers a safety check after idleTimeout, the
   // approved action runs on a new machine. Set idleTimeout above that wait.
   // ponytail: one queue for a shared driver. Per-thread queues if two

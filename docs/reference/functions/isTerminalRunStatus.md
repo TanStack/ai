@@ -7,7 +7,7 @@ title: isTerminalRunStatus
 function isTerminalRunStatus(status): status is TerminalRunStatus;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:86](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L86)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:86
 
 Whether `status` means no further events will be appended. Narrows, so a
 caller inside the guard can pass `status` where a [TerminalRunStatus](../type-aliases/TerminalRunStatus.md)

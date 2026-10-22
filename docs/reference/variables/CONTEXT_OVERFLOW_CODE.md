@@ -7,7 +7,7 @@ title: CONTEXT_OVERFLOW_CODE
 const CONTEXT_OVERFLOW_CODE: "context_overflow" = 'context_overflow';
 ```
 
-Defined in: [packages/ai/src/activities/error-payload.ts:41](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/error-payload.ts#L41)
+Defined in: packages/ai/src/activities/error-payload.ts:41
 
 The `RUN_ERROR.code` a text adapter sets when the provider says the input
 does not fit in the model's context window. Shorten the messages, then call

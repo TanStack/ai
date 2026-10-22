@@ -35,9 +35,14 @@ is a means (keep examples honest), not the end (a green check).
    - an adapter → `import { openaiText } from '@tanstack/ai-openai'; const adapter = openaiText('gpt-5.5')`.
    - tools → define inline with `toolDefinition({ name, description, inputSchema })`.
    - any other arbitrary placeholder (db, env, a client, a token) → import it from
-     a relative module: `import { db } from './db'`. kiira ignores unresolved
-     _relative_ imports, so the name is a usable `any` and the reader sees they
-     must supply it.
+     a relative module: `import { db } from './db'`. kiira hides the "cannot find
+     module" error for _relative_ imports, and the reader sees they must supply it.
+     **But the binding is TypeScript's error type, not `any`:** every other error
+     in a call that uses it is silently dropped. `chat({ ..., tools: serverTools })`
+     with `serverTools` from `./tools` passes even with no `threadId`. So never pass
+     a relative-import value into a TanStack call (tools, schemas, agents,
+     messages, options) in a fence that must prove the call is right. Define it
+     inline or in an earlier fence of the same file instead.
 
 2. **No invisible "ambient" fixture for `messages`/`message`.** Same reason as #1
    — the reader sees a variable appear from nowhere. Use real visible setup.

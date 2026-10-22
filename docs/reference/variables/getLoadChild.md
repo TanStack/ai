@@ -7,4 +7,4 @@ title: getLoadChild
 getLoadChild: CapabilityGetter<LoadChild>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/load-child.ts:23](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/load-child.ts#L23)
+Defined in: packages/ai/src/activities/chat/middleware/load-child.ts:23

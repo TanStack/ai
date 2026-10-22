@@ -3,7 +3,7 @@ id: MidConversationChange
 title: MidConversationChange
 ---
 
-Defined in: [packages/ai/src/types.ts:380](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L380)
+Defined in: packages/ai/src/types.ts:380
 
 The mid-conversation record that `chat()` saves on the first assistant
 message of a model call. It holds tool names and prompt hashes only, so it
@@ -17,7 +17,7 @@ does not depend on a provider.
 optional systemPrompts?: string[];
 ```
 
-Defined in: [packages/ai/src/types.ts:386](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L386)
+Defined in: packages/ai/src/types.ts:386
 
 Short prompt hashes: every prompt on a start point, the added prompts otherwise.
 
@@ -29,7 +29,7 @@ Short prompt hashes: every prompt on a start point, the added prompts otherwise.
 optional tools?: string[];
 ```
 
-Defined in: [packages/ai/src/types.ts:382](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L382)
+Defined in: packages/ai/src/types.ts:382
 
 A start point: the names of every tool.
 
@@ -41,6 +41,6 @@ A start point: the names of every tool.
 optional toolsAdded?: string[];
 ```
 
-Defined in: [packages/ai/src/types.ts:384](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L384)
+Defined in: packages/ai/src/types.ts:384
 
 Tool names added since the last record.

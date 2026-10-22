@@ -225,7 +225,13 @@ describe('createCodeModeTool', () => {
       tools: [createMockTool('fetchWeather')],
     })
 
-    await tool.execute!({ typescriptCode: 'return 1' }, { emitCustomEvent })
+    await tool.execute!(
+      { typescriptCode: 'return 1' },
+      {
+        threadId: 'thread-1',
+        emitCustomEvent,
+      },
+    )
 
     expect(emitCustomEvent).toHaveBeenCalledWith(
       'code_mode:execution_started',
@@ -249,7 +255,13 @@ describe('createCodeModeTool', () => {
       tools: [createMockTool('fetchWeather')],
     })
 
-    await tool.execute!({ typescriptCode: 'return null' }, { emitCustomEvent })
+    await tool.execute!(
+      { typescriptCode: 'return null' },
+      {
+        threadId: 'thread-1',
+        emitCustomEvent,
+      },
+    )
 
     const consoleEvents = emitCustomEvent.mock.calls.filter(
       ([eventName]) => eventName === 'code_mode:console',
@@ -341,6 +353,7 @@ describe('createCodeModeTool', () => {
       { typescriptCode: 'return await external_slow({})' },
       {
         toolCallId: 'parent-call',
+        threadId: 'thread-1',
         abortSignal: controller.signal,
         context: { userId: 'u1' },
         inputResponse: { status: 'cancelled' },

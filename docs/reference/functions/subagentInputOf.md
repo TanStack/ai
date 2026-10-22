@@ -7,7 +7,7 @@ title: subagentInputOf
 function subagentInputOf(metadata): unknown;
 ```
 
-Defined in: [packages/ai/src/utilities/subagent-wire.ts:44](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/subagent-wire.ts#L44)
+Defined in: packages/ai/src/utilities/subagent-wire.ts:44
 
 The checked input of a child that an agent with `inputSchema` got, read
 from the `metadata` of its card or of its `SUBAGENT_STARTED` event.

@@ -145,6 +145,7 @@ export const Route = createFileRoute(
             })
 
             const stream = chat({
+              threadId: 'anthropic-multi-turn-structured-wire',
               ...createChatOptions({ adapter }),
               messages: params.messages,
               outputSchema: recipeSchema,

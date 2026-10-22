@@ -48,6 +48,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: grokText('grok-4.6'),
   messages,
+  threadId: 'thread-1',
   // Reasoning: goes out as reasoning.effort
   reasoning: 'high',
   modelOptions: {

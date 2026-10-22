@@ -3,7 +3,7 @@ id: SubagentRouteOptions
 title: SubagentRouteOptions
 ---
 
-Defined in: [packages/ai/src/activities/chat/agents/route.ts:8](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/route.ts#L8)
+Defined in: packages/ai/src/activities/chat/agents/route.ts:8
 
 ## Type Parameters
 
@@ -19,7 +19,7 @@ Defined in: [packages/ai/src/activities/chat/agents/route.ts:8](https://github.c
 optional then?: readonly TAgents[number]["name"][];
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/route.ts:22](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/route.ts#L22)
+Defined in: packages/ai/src/activities/chat/agents/route.ts:22
 
 Agents that run after the other selected agents. The lead group starts
 together. The `then` agents then run one after another in list order, and
@@ -34,7 +34,7 @@ agent from each group. Otherwise `pick` returns `{ names, order }`.
 optional when?: { [K in string]: string };
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/route.ts:15](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/route.ts#L15)
+Defined in: packages/ai/src/activities/chat/agents/route.ts:15
 
 Question text for every agent. The key is the agent name.
 Omit this and each question uses that agent's description.

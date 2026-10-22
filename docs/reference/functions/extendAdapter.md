@@ -7,7 +7,7 @@ title: extendAdapter
 function extendAdapter<TFactory, TDefs>(factory, _customModels): ExtendedFactory<TFactory, TDefs>;
 ```
 
-Defined in: [packages/ai/src/extend-adapter.ts:247](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L247)
+Defined in: packages/ai/src/extend-adapter.ts:247
 
 Extends an existing adapter factory with additional custom models.
 

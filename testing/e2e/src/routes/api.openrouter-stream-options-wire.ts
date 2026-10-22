@@ -36,6 +36,7 @@ export const Route = createFileRoute('/api/openrouter-stream-options-wire')({
 
         try {
           for await (const _ of chat({
+            threadId: 'openrouter-stream-options-wire',
             ...createChatOptions({ adapter }),
             messages: [
               { role: 'user', content: '[stream-options-wire] usage check' },

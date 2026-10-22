@@ -52,7 +52,6 @@ export type {
   Gemini31FlashImageSize,
   Gemini31FlashLiteImageSize,
   Gemini3ProImageSize,
-  Gemini25FlashImageSize,
   GeminiNativeImageSize,
   // Re-export SDK types for convenience
   PersonGeneration,
