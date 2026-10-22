@@ -70,6 +70,22 @@ describe('remote-tools (co-located host-tool delegation)', () => {
     )
   })
 
+  it('executeHostTool refuses a tool with needsApproval', async () => {
+    let ran = false
+    const gated: AnyTool = {
+      ...getTime,
+      needsApproval: true,
+      execute: () => {
+        ran = true
+        return Promise.resolve('ran')
+      },
+    }
+    await expect(executeHostTool([gated], 'getTime', {})).rejects.toThrow(
+      /needsApproval/,
+    )
+    expect(ran).toBe(false)
+  })
+
   it('executeHostTool forwards context to the real tool', async () => {
     let seenCtx: unknown
     const tool: AnyTool = {

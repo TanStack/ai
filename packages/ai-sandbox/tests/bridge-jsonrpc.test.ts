@@ -108,6 +108,20 @@ describe('createToolBridgeCore', () => {
     expect(result.content[0]?.text).toContain('kaboom')
   })
 
+  it('refuses a tool with needsApproval instead of running it unapproved', () => {
+    let ran = false
+    const gated = {
+      ...tool('deleteUser', () => {
+        ran = true
+      }),
+      needsApproval: true,
+    }
+    expect(() => createToolBridgeCore([gated])).toThrow(
+      /"deleteUser" has needsApproval/,
+    )
+    expect(ran).toBe(false)
+  })
+
   it('throws for an unknown tool', async () => {
     const core = createToolBridgeCore([])
     await expect(core.callTool('ghost', {})).rejects.toThrow(/Unknown tool/)
