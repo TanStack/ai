@@ -3407,6 +3407,7 @@ describe('OpenRouter malformed tool arguments', () => {
       try {
         for await (const chunk of createAdapter().chatStream({
           model: 'openai/gpt-4o-mini',
+          threadId: 'thread-1',
           messages: [{ role: 'user', content: 'Weather?' }],
           tools: [weatherTool],
           logger: testLogger,

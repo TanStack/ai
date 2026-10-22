@@ -93,6 +93,7 @@ export const Route = createFileRoute(
 
         for await (const event of chat({
           adapter,
+          threadId: 'openrouter-malformed-tool-arguments',
           messages: [{ role: 'user', content: 'Run the local action' }],
           tools: [tool],
           agentLoopStrategy: maxIterations(2),
