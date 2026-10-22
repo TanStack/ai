@@ -94,6 +94,7 @@ An AG-UI `ACTIVITY_SNAPSHOT` or `ACTIVITY_DELTA` event shows in the client as a 
 Some facts about activity rows:
 
 - The model never gets activity rows as input.
+- A run that stops or fails also saves its activity rows.
 - A failed activity save does not fail the run.
 - Each `ActivityRecord` keeps the `metadata` of the row.
 

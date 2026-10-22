@@ -2440,6 +2440,8 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         }
       } finally {
         runState.get(ctx)?.completion?.reject(info.error)
+        // After the completion settles, so a slow save cannot hold it up.
+        await persistActivities(ctx)
       }
     },
 
@@ -2476,7 +2478,10 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           }
         }
       } finally {
-        if (terminal) state?.completion?.reject(info.reason)
+        if (terminal) {
+          state?.completion?.reject(info.reason)
+          await persistActivities(ctx)
+        }
       }
       // A plain disconnect on a detachable or interrupted run: write NOTHING.
       // Either the agent is still running and a later attach can take it over
