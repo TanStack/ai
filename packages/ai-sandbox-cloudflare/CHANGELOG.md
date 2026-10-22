@@ -1,5 +1,14 @@
 # @tanstack/ai-sandbox-cloudflare
 
+## 0.4.17
+
+### Patch Changes
+
+- Updated dependencies [[`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325), [`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325)]:
+  - @tanstack/ai@0.71.0
+  - @tanstack/ai-sandbox@0.5.25
+  - @tanstack/ai-sandbox-local-process@0.2.6
+
 ## 0.4.16
 
 ### Patch Changes

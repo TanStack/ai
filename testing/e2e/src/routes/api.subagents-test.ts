@@ -37,6 +37,9 @@ import type { SubagentScenario } from '@/lib/subagents-test'
  * - `approval`: a router picks `cleaner`. The child's tool needs approval,
  *   so the parent run ends with the child's interrupt. The resume continues
  *   the same child.
+ * - `tool-approval`: like `approval`, but the parent model calls the
+ *   `cleaner` tool. `withPersistence` stores the run, so the resume reads the
+ *   child's interrupt and messages from the store.
  * - `tool`: no router. The parent model calls the `researcher` tool, the
  *   child answers, and the parent reads its result.
  * - `brief`: no router. The parent model writes a `task` for `researcher`,
@@ -57,6 +60,17 @@ import type { SubagentScenario } from '@/lib/subagents-test'
  * - `routed-brief`: a router picks `researcher` and gives it the `task` as
  *   `{ name, input }`. The child's only message is that task.
  */
+/** One store per test, for scenarios whose resume is a second request. */
+const stores = new Map<string, ReturnType<typeof memoryPersistence>>()
+function storeFor(testId = 'manual') {
+  let store = stores.get(testId)
+  if (!store) {
+    store = memoryPersistence()
+    stores.set(testId, store)
+  }
+  return store
+}
+
 /** Send `Authorization` again as `x-e2e-authorization`, which aimock keeps. */
 const echoAuthorization: typeof fetch = (input, init) => {
   const headers = new Headers(init?.headers)
@@ -103,11 +117,13 @@ function subagentsFor(
     )
     return { agents: [researcher], router: () => 'researcher' }
   }
-  if (scenario === 'approval') {
+  if (scenario === 'approval' || scenario === 'tool-approval') {
     const cleaner = child('cleaner', [
       deleteLogs.server(({ folder }) => ({ deleted: folder })),
     ])
-    return { agents: [cleaner], router: () => 'cleaner' }
+    return scenario === 'approval'
+      ? { agents: [cleaner], router: () => 'cleaner' }
+      : { agents: [cleaner] }
   }
   if (
     scenario === 'brief' ||
@@ -261,6 +277,10 @@ export const Route = createFileRoute('/api/subagents-test')({
                     fillSessionId(),
                   ],
                 }
+              : {}),
+            // The resume is a second request, so the store outlives one.
+            ...(scenario === 'tool-approval'
+              ? { middleware: [withPersistence(storeFor(testId))] }
               : {}),
             agentLoopStrategy: maxIterations(4),
             abortController,

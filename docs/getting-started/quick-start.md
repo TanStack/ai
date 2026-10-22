@@ -38,6 +38,8 @@ For a table that fills as JSON streams, open [Streaming Structured Table](../tut
 
 For a blog desk where a researcher and an SEO agent run together and a writer uses their notes, open [Subagents](../tutorials/subagents).
 
+For a model that clicks through a web page from screenshots, open [Computer Use](../tutorials/computer-use).
+
 > [!TIP]
 > If you do not want a key per provider, [OpenRouter](../adapters/openrouter) gives you 300+ models with one API key.
 

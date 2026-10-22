@@ -314,6 +314,12 @@ rename/exists), `git` (clone/status/add/commit/push/pull/branch), `process`
 `capabilities()`; calling an unsupported optional method throws
 `UnsupportedCapabilityError`.
 
+For computer use (the model clicks and types on a Linux desktop), pass any of
+these providers to `sandboxComputer({ provider })` from
+`@tanstack/ai-computer-sandbox`. The image needs `xdotool`, `xdpyinfo`, and
+`scrot` (or ImageMagick). The E2B `desktop` template has them. See
+`docs/computer-use/drivers.md`.
+
 ## Policy
 
 ```typescript

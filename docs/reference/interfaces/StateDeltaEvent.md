@@ -3,7 +3,7 @@ id: StateDeltaEvent
 title: StateDeltaEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1774](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1774)
+Defined in: [packages/ai/src/types.ts:1780](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1780)
 
 Emitted to provide an incremental state update.
 

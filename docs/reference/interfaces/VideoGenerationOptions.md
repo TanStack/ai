@@ -3,7 +3,7 @@ id: VideoGenerationOptions
 title: VideoGenerationOptions
 ---
 
-Defined in: [packages/ai/src/types.ts:2611](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2611)
+Defined in: [packages/ai/src/types.ts:2617](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2617)
 
 **`Experimental`**
 
@@ -34,7 +34,7 @@ These are the common options supported across providers.
 optional abortSignal?: AbortSignal;
 ```
 
-Defined in: [packages/ai/src/types.ts:2648](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2648)
+Defined in: [packages/ai/src/types.ts:2654](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2654)
 
 **`Experimental`**
 
@@ -50,7 +50,7 @@ supported. Request-specific — never store on a global client config.
 optional duration?: TDuration;
 ```
 
-Defined in: [packages/ai/src/types.ts:2635](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2635)
+Defined in: [packages/ai/src/types.ts:2641](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2641)
 
 **`Experimental`**
 
@@ -67,7 +67,7 @@ seconds, a `"6s"` template, or `"auto"` when the model lists it.
 logger: InternalLogger;
 ```
 
-Defined in: [packages/ai/src/types.ts:2642](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2642)
+Defined in: [packages/ai/src/types.ts:2648](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2648)
 
 **`Experimental`**
 
@@ -82,7 +82,7 @@ call logger.request() before the SDK call and logger.errors() in catch blocks.
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2617](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2617)
+Defined in: [packages/ai/src/types.ts:2623](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2623)
 
 **`Experimental`**
 
@@ -96,7 +96,7 @@ The model to use for video generation
 optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: [packages/ai/src/types.ts:2637](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2637)
+Defined in: [packages/ai/src/types.ts:2643](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2643)
 
 **`Experimental`**
 
@@ -110,7 +110,7 @@ Model-specific options for video generation
 prompt: MediaPrompt;
 ```
 
-Defined in: [packages/ai/src/types.ts:2626](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2626)
+Defined in: [packages/ai/src/types.ts:2632](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2632)
 
 **`Experimental`**
 
@@ -129,7 +129,7 @@ provider-native request (e.g. OpenAI Sora `input_reference`, fal
 optional size?: TSize;
 ```
 
-Defined in: [packages/ai/src/types.ts:2628](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2628)
+Defined in: [packages/ai/src/types.ts:2634](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2634)
 
 **`Experimental`**
 

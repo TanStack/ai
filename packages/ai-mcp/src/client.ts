@@ -37,12 +37,18 @@ import type {
 } from './types'
 import type {
   ClientOptions,
+  DiscoverResult,
   GetPromptResult,
   McpSubscription,
+  PriorDiscovery,
   Prompt,
   ReadResourceResult,
+  Request as McpRequest,
+  RequestMethod,
+  RequestOptions,
   Resource,
   ResourceTemplateType,
+  StandardSchemaV1,
   Tool as McpToolDef,
   Transport,
 } from '@modelcontextprotocol/client'
@@ -75,6 +81,14 @@ export interface MCPClient<
    * Optional so an existing hand-rolled `MCPClient` keeps compiling.
    */
   readonly instructions?: string
+  /**
+   * The `server/discover` result of this connection, or the `prior` it
+   * adopted. Save it and pass it back as `prior: { kind: 'modern', discover }`
+   * to skip the `server/discover` request on a later connect. `undefined`
+   * when the server speaks protocol `2025-11-25`, or after a
+   * `{ kind: 'legacy' }` prior.
+   */
+  getDiscoverResult: () => DiscoverResult | undefined
   /**
    * Auto-discovery: every server tool as a ServerTool. With a generated
    * descriptor, tool names are typed as the descriptor's name literals;
@@ -130,6 +144,14 @@ export interface MCPClient<
     args?: TServer['tools'][TName]['input'],
     options?: { signal?: AbortSignal },
   ) => Promise<TypedCallToolResult<TServer['tools'][TName]['output']>>
+  /**
+   * Sends one request with the SDK `Client.request`, with the same
+   * arguments. Use it for a method this client has no helper for, such as
+   * a method of an MCP extension. Pass a result schema as the second
+   * argument for a method that is not in the MCP spec. The client's
+   * `requestOptions` apply under the options you pass.
+   */
+  request: Client['request']
   /**
    * The ORIGINAL connection descriptor this client was created from — the
    * `transport` input and `prefix` passed to `createMCPClient`. Used by
@@ -239,7 +261,7 @@ class MCPClientImpl<
     }
   }
 
-  async connect(transport: Transport): Promise<void> {
+  async connect(transport: Transport, prior?: PriorDiscovery): Promise<void> {
     try {
       // A tools/list_changed notice drops the cached definitions so the next
       // callTool reads each tool's execution mode again.
@@ -251,10 +273,12 @@ class MCPClientImpl<
       )
       // The connect handshake gets the request options too, so `timeout`
       // also limits a server that does not answer while it connects.
-      await this.#client.connect(
-        transport,
-        sdkRequestOptions(this.#policy.requestOptions),
-      )
+      // With `prior`, the SDK skips the server/discover probe and sends
+      // nothing here, so a dead or unauthorized server fails on first use.
+      await this.#client.connect(transport, {
+        ...sdkRequestOptions(this.#policy.requestOptions),
+        prior,
+      })
       this.capabilities = this.#client.getServerCapabilities() ?? {}
       this.instructions = this.#client.getInstructions()
       // A failed listen only means that tool changes are not pushed.
@@ -479,6 +503,32 @@ class MCPClientImpl<
     return result as TypedCallToolResult<TServer['tools'][TName]['output']>
   }
 
+  // The SDK method is overloaded: (request, options?) for a spec method, and
+  // (request, resultSchema, options?) for any other. This takes both shapes
+  // and forwards the same one, so the casts to the SDK types are safe.
+  request = (async (
+    request: McpRequest,
+    schemaOrOptions?: StandardSchemaV1 | RequestOptions,
+    options?: RequestOptions,
+  ) => {
+    if (this.#closed) throw new MCPConnectionError('MCP client is closed')
+    const defaults = sdkRequestOptions(this.#policy.requestOptions)
+    if (schemaOrOptions !== undefined && '~standard' in schemaOrOptions) {
+      return this.#client.request(request, schemaOrOptions, {
+        ...defaults,
+        ...options,
+      })
+    }
+    return this.#client.request(
+      request as { method: RequestMethod; params?: Record<string, unknown> },
+      { ...defaults, ...schemaOrOptions },
+    )
+  }) as Client['request']
+
+  getDiscoverResult(): DiscoverResult | undefined {
+    return this.#client.getDiscoverResult()
+  }
+
   async close(): Promise<void> {
     if (this.#closed) return
     this.#closed = true
@@ -610,7 +660,7 @@ async function connectTransport<
       requestOptions: options.requestOptions,
     },
   )
-  await impl.connect(transport)
+  await impl.connect(transport, options.prior)
   return impl
 }
 

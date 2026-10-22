@@ -26,6 +26,8 @@ Stream a typed table from `chat({ outputSchema })` in [Streaming Structured Tabl
 
 Add three named agents (researcher, SEO, and writer) to a blog-writing chat in [Subagents](../tutorials/subagents).
 
+Let the model use a web page from screenshots in [Computer Use](../tutorials/computer-use).
+
 ## Key Features
 
 - ✅ **Type-Safe** - Full TypeScript support with Zod schema inference

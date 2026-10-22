@@ -1,0 +1,59 @@
+{
+  "name": "@tanstack/ai-computer-sandbox",
+  "version": "0.1.0",
+  "description": "Sandbox desktop driver for TanStack AI computer use. Works with any @tanstack/ai-sandbox provider.",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-computer-sandbox"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:build": "publint --strict",
+    "test:oxlint": "oxlint src --type-aware",
+    "test:coverage": "vitest run --passWithNoTests --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
+    "test:lib": "vitest --passWithNoTests",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "tanstack",
+    "computer-use",
+    "sandbox",
+    "xdotool"
+  ],
+  "dependencies": {
+    "@tanstack/ai-utils": "workspace:^"
+  },
+  "peerDependencies": {
+    "@tanstack/ai-computer-use": "workspace:^",
+    "@tanstack/ai-sandbox": "workspace:^"
+  },
+  "devDependencies": {
+    "@tanstack/ai-computer-use": "workspace:*",
+    "@tanstack/ai-sandbox": "workspace:*",
+    "@vitest/coverage-v8": "4.1.10"
+  }
+}

@@ -363,6 +363,35 @@ describe('DaytonaHandle spawn stream and stdin', () => {
     )
   })
 
+  it('does not leave an unhandled rejection when the status poll fails and no one waits', async () => {
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
+    const sandbox = {
+      id: 'sbx-1',
+      process: {
+        createSession: vi.fn(async () => {}),
+        executeSessionCommand: vi.fn(async () => ({ cmdId: 'cmd-1' })),
+        getSessionCommandLogs: vi.fn(async () => {}),
+        getSessionCommand: vi.fn(async () => {
+          throw new Error('sandbox not found')
+        }),
+        deleteSession: vi.fn(async () => {}),
+        sendSessionCommandInput: vi.fn(async () => {}),
+      },
+      delete: vi.fn(async () => {}),
+    } as unknown as Sandbox
+    const handle = new DaytonaHandle({
+      sandbox,
+      workdir: '/home/daytona/workspace',
+    })
+
+    const proc = await handle.process.spawn('Xvfb :0')
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+    process.off('unhandledRejection', unhandled)
+    expect(unhandled).not.toHaveBeenCalled()
+    await expect(proc.wait()).rejects.toThrow('sandbox not found')
+  })
+
   it('does not put env values into the session command string', async () => {
     const executeSessionCommand = vi.fn(
       async (_sessionId: string, _request: { command: string }) => ({

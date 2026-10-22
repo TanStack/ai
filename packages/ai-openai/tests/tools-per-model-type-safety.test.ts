@@ -107,6 +107,12 @@ describe('OpenAI per-model tool gating', () => {
   // OpenAI's GPT-6 model pages list web_search, file_search, image_generation,
   // code_interpreter, hosted_shell, apply_patch, computer_use and mcp for the
   // Responses API, and neither web_search_preview nor local_shell.
+  it('gpt-6.1-sol accepts the computer tool', () => {
+    typedTools(openaiText('gpt-6.1-sol'), [
+      computerUseTool({ type: 'computer' }),
+    ])
+  })
+
   it('gpt-6-astra accepts the Responses tools its model page lists but rejects the rest', () => {
     const adapter = openaiText('gpt-6-astra')
     typedTools(adapter, [

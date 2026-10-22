@@ -1,5 +1,12 @@
 # @tanstack/ai-skills
 
+## 0.1.21
+
+### Patch Changes
+
+- Updated dependencies [[`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325)]:
+  - @tanstack/ai@0.71.0
+
 ## 0.1.20
 
 ### Patch Changes

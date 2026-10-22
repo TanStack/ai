@@ -1572,6 +1572,72 @@ describe('withPersistence (state-only)', () => {
     }
   })
 
+  it('saves activity that middleware adds and reconstructs it (#1803)', async () => {
+    const persistence = memoryPersistence()
+    const { adapter } = mockAdapter([
+      [ev.runStarted(), ev.text('hello'), ev.runFinished()],
+    ])
+    const searchProgress: ChatMiddleware = {
+      name: 'search-progress',
+      onChunk(_ctx, chunk) {
+        if (chunk.type === EventType.RUN_STARTED) {
+          return [
+            chunk,
+            {
+              type: EventType.ACTIVITY_SNAPSHOT,
+              messageId: 'act-1',
+              activityType: 'SEARCH',
+              content: { hits: 0 },
+              timestamp: 1,
+            },
+          ]
+        }
+        if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
+          return [
+            {
+              type: EventType.ACTIVITY_DELTA,
+              messageId: 'act-1',
+              activityType: 'SEARCH',
+              patch: [{ op: 'replace', path: '/hits', value: 3 }],
+              timestamp: 1,
+            },
+            chunk,
+          ]
+        }
+        return [chunk]
+      },
+    }
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'hi' }],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence), searchProgress],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(await persistence.stores.activities!.loadActivities('t1')).toEqual([
+      expect.objectContaining({
+        id: 'act-1',
+        activityType: 'SEARCH',
+        content: { hits: 3 },
+      }),
+    ])
+    const reconstructed = (await (
+      await reconstructChat(
+        persistence,
+        new Request('http://example.test/api/chat?threadId=t1'),
+      )
+    ).json()) as { messages: Array<{ role: string }> }
+    expect(reconstructed.messages.map((message) => message.role)).toEqual([
+      'user',
+      'activity',
+      'assistant',
+    ])
+  })
+
   it('keeps activity metadata from the stream and from inbound rows', async () => {
     const persistence = memoryPersistence()
     const { adapter } = mockAdapter([

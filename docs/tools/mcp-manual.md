@@ -102,6 +102,77 @@ const stream = chat({
 
 In a [multi-server pool](./mcp#per-server-access), each client has its own value: `pool.clients.github!.instructions`.
 
+## Extension methods
+
+A server can serve an [MCP extension](https://modelcontextprotocol.io/extensions/overview), with methods that `MCPClient` has no helper for. Call them with `mcp.request`. It takes the same arguments as the SDK `Client.request`, and it uses the client's `requestOptions`.
+
+1. Declare the extension in `clientOptions.capabilities.extensions`. The spec asks both sides to list the extensions they support, and a server can change what it sends based on this list.
+2. After connect, look for the extension in `mcp.capabilities.extensions`.
+3. Call the method. For a method that is not in the MCP spec, pass a result schema as the second argument.
+
+```ts
+import { createMCPClient } from '@tanstack/ai-mcp'
+import { z } from 'zod'
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: process.env.MCP_URL! },
+  clientOptions: {
+    capabilities: { extensions: { 'com.example/notes': {} } },
+  },
+})
+
+const extensions = mcp.capabilities.extensions
+if (
+  typeof extensions === 'object' &&
+  extensions !== null &&
+  'com.example/notes' in extensions
+) {
+  const notes = await mcp.request(
+    { method: 'notes/count', params: {} },
+    z.object({ count: z.number() }),
+  )
+  console.log(notes.count)
+}
+```
+
+To serve an extension, see [Serve an MCP extension](../mcp/server#serve-an-mcp-extension).
+
+## Skip the discover request
+
+On protocol `2026-07-28`, the client sends `server/discover` when it connects. Some hosts open a new connection for each request. They pay for that round trip each time.
+
+Save the result per user or token, then pass it back as `prior`:
+
+```ts
+import { createMCPClient } from '@tanstack/ai-mcp'
+import type { DiscoverResult } from '@tanstack/ai-mcp'
+
+const MAX_AGE_MS = 5 * 60_000
+const saved = new Map<string, { discover: DiscoverResult; savedAt: number }>()
+
+export async function connect(token: string) {
+  const hit = saved.get(token)
+  const fresh = hit !== undefined && Date.now() - hit.savedAt < MAX_AGE_MS
+  const mcp = await createMCPClient({
+    transport: {
+      type: 'http',
+      url: process.env.MCP_URL!,
+      headers: { Authorization: `Bearer ${token}` },
+    },
+    prior: fresh ? { kind: 'modern', discover: hit.discover } : undefined,
+  })
+  const discover = mcp.getDiscoverResult()
+  if (!fresh && discover) saved.set(token, { discover, savedAt: Date.now() })
+  return mcp
+}
+```
+
+- `getDiscoverResult()` returns the `server/discover` result of the connection. It is `undefined` when the server speaks protocol `2025-11-25`.
+- The result is plain JSON, so you can keep it in a cache or a database.
+- Do not share a saved result between users. The spec treats it as private to one authorization context. See [Caching](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching).
+- You decide how long to keep it. A stale result fails on the first request after connect, not on connect.
+- With `prior`, connect sends no request. A server that is down, or a token that is no longer valid, fails on the first call.
+
 ## Resources
 
 MCP resources are context documents (files, database records, web pages) the server exposes. Fetch them and inject them into `chat()` as content parts.

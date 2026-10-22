@@ -15,6 +15,8 @@ keywords:
 
 The OpenCode adapter runs [OpenCode](https://opencode.ai) as a chat backend, driving it over its local HTTP server (`@opencode-ai/sdk`). Unlike HTTP provider adapters, this is a **harness adapter**: OpenCode runs its own agent loop and executes its own tools — shell commands, file reads and edits, search — locally on your server. Each `chat()` call runs one full harness turn; assistant text and reasoning stream as true token-level deltas, and the harness's tool activity streams back as already-resolved tool-call events your UI can render.
 
+The adapter buffers each message part until it knows the parent message role. It streams assistant parts and skips user parts.
+
 > **Server-only.** The adapter spawns (or attaches to) an `opencode serve` process, so it only works in a Node.js server environment — never in the browser. Treat it like giving OpenCode a shell on the machine it runs on, and configure permissions accordingly.
 
 ## Installation
@@ -191,6 +193,8 @@ Two kinds of tools flow through this adapter:
 1. **Built-in harness tools** are executed by OpenCode itself and stream back as tool-call events with results already attached: `bash`, `edit`, `write`, `read`, `grep`, and the agent's running todo plan (surfaced as an `opencode.todo` custom event). Your code never executes them.
 
 2. **Your TanStack tools** are bridged *into* the harness: the adapter starts a short-lived Streamable-HTTP MCP server on `127.0.0.1` for the duration of the turn and registers it with OpenCode. Define tools as usual with `toolDefinition().server()`; tool-call events come back under the names you registered (OpenCode prefixes MCP tools `tanstack_…` internally, which the adapter strips).
+
+OpenCode can send a tool part in `pending` state before the tool input is ready. The adapter waits for the next update, so a tool call always streams with its arguments.
 
 ```typescript group=tools
 import { z } from "zod";

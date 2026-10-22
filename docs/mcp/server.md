@@ -170,6 +170,46 @@ const server = createMCPServer({
 })
 ```
 
+## Serve an MCP extension
+
+An [MCP extension](https://modelcontextprotocol.io/extensions/overview) adds methods that the core spec does not have. For example, the [Skills extension](https://modelcontextprotocol.io/extensions/skills/overview) adds `skills/list` and `skills/get`. A client uses an extension only when the server lists it in `capabilities.extensions`.
+
+Pass `setup` to get each SDK `McpServer` before it connects. Declare the extension there, then add a handler for each of its methods:
+
+```ts
+import { createMCPServer } from '@tanstack/ai-mcp/server'
+import { z } from 'zod'
+
+const server = createMCPServer({
+  name: 'notes',
+  version: '1.0.0',
+  setup: (mcp, context) => {
+    const userId = context?.userId
+    mcp.server.registerCapabilities({
+      extensions: { 'com.example/notes': {} },
+    })
+    mcp.server.setRequestHandler(
+      'notes/count',
+      { params: z.object({}) },
+      () => ({ count: typeof userId === 'string' ? userId.length : 0 }),
+    )
+  },
+})
+
+export function handleMcp(request: Request, userId: string) {
+  return server.handle(request, { context: { userId } })
+}
+```
+
+Rules for `setup`:
+
+- It runs each time the server builds an `McpServer`. That is each request, or once for each spec 2025 session when `sessions` is `'memory'`. Keep it fast.
+- The second argument is the `context` object from `server.handle`. On a spec 2025 memory session, that value is from the request that opened the session. A later request on that session does not run `setup` again. A tool on the later request sees the new context.
+- It must be synchronous. The server connects as soon as `setup` returns, so an `async` function fails the request.
+- Add new methods only. Do not replace a method the server already handles, such as `tools/call`.
+
+To call the method from a client, see [Extension methods](../tools/mcp-manual#extension-methods).
+
 ## Shape the result yourself
 
 The server parses the tool output with its `outputSchema`. If the output does not match, the call returns a tool error that names the tool. The server sends the output as one text block. An object also goes on `structuredContent`. When you want more than one block, or `isError` without an exception, return an MCP `CallToolResult` from a tool with no `outputSchema`. The server sends it as is.

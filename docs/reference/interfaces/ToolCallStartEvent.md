@@ -3,7 +3,7 @@ id: ToolCallStartEvent
 title: ToolCallStartEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1698](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1698)
+Defined in: [packages/ai/src/types.ts:1704](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1704)
 
 Emitted when a tool call starts.
 
@@ -22,7 +22,7 @@ Emitted when a tool call starts.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1706](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1706)
+Defined in: [packages/ai/src/types.ts:1712](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1712)
 
 Provider-specific metadata to carry into the ToolCall.
 
@@ -40,7 +40,7 @@ Omit.metadata
 optional toolName?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1704](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1704)
+Defined in: [packages/ai/src/types.ts:1710](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1710)
 
 Alias of `toolCallName`. Kept so existing stream readers still compile.
 
@@ -52,4 +52,4 @@ Alias of `toolCallName`. Kept so existing stream readers still compile.
 type: "TOOL_CALL_START";
 ```
 
-Defined in: [packages/ai/src/types.ts:1702](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1702)
+Defined in: [packages/ai/src/types.ts:1708](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1708)

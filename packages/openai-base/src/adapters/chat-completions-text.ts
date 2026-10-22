@@ -7,6 +7,7 @@ import {
 } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
+  getComputerUseToolMetadata,
   hashToolCallId,
   resolveReasoning,
   toRunErrorPayload,
@@ -144,6 +145,14 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       // other failure mode here — callers iterating chatStream then only need
       // one error-handling path instead of both a try/catch around iteration
       // and a RUN_ERROR handler.
+      const hasComputerTool = options.tools?.some(
+        (tool) => getComputerUseToolMetadata(tool) !== undefined,
+      )
+      if (hasComputerTool) {
+        throw new Error(
+          'Computer use needs the Responses API. The Chat Completions API has no computer tool.',
+        )
+      }
       const requestParams = this.mapOptionsToRequest(options)
       options.logger.request(
         `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,

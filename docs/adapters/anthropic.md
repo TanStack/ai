@@ -618,30 +618,75 @@ equivalent — see [Provider Skills](../tools/provider-skills.md).
 
 ### `computerUseTool`
 
-Allows Claude to observe a virtual desktop (screenshots) and interact with it
-via keyboard and mouse events. Provide the screen resolution so Claude can
-calculate accurate coordinates.
+Claude can look at a screen and use the mouse and the keyboard. Your app runs each action and sends back a screenshot. `createComputerUse` from `@tanstack/ai-computer-use` does this on a Playwright browser or an E2B desktop. Each thread gets its own machine:
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
-import { computerUseTool } from "@tanstack/ai-anthropic/tools";
+import { createComputerUse } from "@tanstack/ai-computer-use";
+import { playwrightComputer } from "@tanstack/ai-computer-playwright";
+
+declare const threadId: string;
+
+const computerUse = createComputerUse({
+  driver: playwrightComputer({ startUrl: "https://tanstack.com" }),
+});
 
 const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-6"),
-  messages: [{ role: "user", content: "Open the browser and go to example.com" }],
-  tools: [
-    computerUseTool({
-      type: "computer_20250124",
-      name: "computer",
-      display_width_px: 1024,
-      display_height_px: 768,
-    }),
-  ],
+  adapter: anthropicText("claude-opus-5-5"),
+  messages: [{ role: "user", content: "Find the TanStack AI docs" }],
+  threadId,
+  tools: computerUse.tools,
+  middleware: [computerUse.middleware],
+  interrupts: [computerUse.interrupt],
 });
 ```
 
-**Supported models:** Claude Sonnet 3.5 and above, with two exceptions. `claude-opus-5-fast` takes no provider tools. Claude Opus 5.5, Claude Sonnet 5.5, and Claude Haiku 5.5 accept only the `computer_toolset_20260801` toolset, which the adapter does not offer yet. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+The adapter sends the `computer` tool to Claude as the newest native computer tool that your model takes.
+
+- For the setup, the threads, and how to close the machines, see [Computer use](../computer-use/computer-use.md).
+- For your own machine, see [Custom driver](../computer-use/custom-driver.md).
+
+#### The raw tool
+
+`computerUseTool` from `@tanstack/ai-anthropic/tools` is the native tool with no `execute`. Use it when your app runs the actions itself. Pick the version that your model takes:
+
+| Version | Models |
+| --- | --- |
+| `computer_toolset_20260801` | Claude Opus 5.5, Sonnet 5.5, Haiku 5.5, Fable 5.1, Fable 5, Opus 5, Sonnet 5, Opus 4.8 |
+| `computer_20251124` | Claude Fable 5.1, Fable 5, Opus 5, Sonnet 5, Opus 4.8, Opus 4.7, Opus 4.6, Sonnet 4.6, Opus 4.5 |
+| `computer_20250124` | Claude Sonnet 4.5, Haiku 4.5, Opus 4.1 |
+
+```typescript
+import { computerUseTool } from "@tanstack/ai-anthropic/tools";
+
+const computer = computerUseTool({ type: "computer_toolset_20260801" });
+```
+
+The earlier versions also take a name and the screen size:
+
+```typescript
+import { computerUseTool } from "@tanstack/ai-anthropic/tools";
+
+const computer = computerUseTool({
+  type: "computer_20251124",
+  name: "computer",
+  display_width_px: 1280,
+  display_height_px: 800,
+});
+```
+
+Add an `execute` that runs the action and returns a result:
+
+- Every version calls `execute` with the action in `input.action`. With the toolset, Claude calls each action as its own tool. The adapter gives you each call as one `computer` call.
+- Return a screenshot as an image part for the `screenshot` action, and `"OK"` for the other actions.
+- Send screenshots that fit the image limits of the model. The toolset refuses a large screenshot. It does not make it smaller.
+- The toolset turns on `zoom` by default. Return an image for the `zoom` action, or turn it off with `configs: { zoom: { enabled: false } }`.
+- The adapter sends the beta header that an earlier version needs. The toolset needs no beta header.
+
+Claude gives coordinates in the pixels of your screenshots.
+
+A version that your model does not take is a type error. `claude-opus-5-fast` takes no provider tools. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
 ### `bashTool`
 
