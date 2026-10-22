@@ -202,6 +202,7 @@ describe('ChatClient — fetcher transport', () => {
     // The XOR is enforced at the type level via `ChatTransport`; the runtime
     // check is defense-in-depth for callers using `as any` / dynamic options.
     const both: any = {
+      threadId: 'thread-1',
       connection: { connect: async function* () {} },
       fetcher: async () => new Response(''),
     }
@@ -211,7 +212,7 @@ describe('ChatClient — fetcher transport', () => {
   })
 
   it('throws when neither connection nor fetcher is passed', () => {
-    expect(() => new ChatClient({} as any)).toThrow(
+    expect(() => new ChatClient({ threadId: 'thread-1' } as any)).toThrow(
       'either `connection` or `fetcher` is required',
     )
   })

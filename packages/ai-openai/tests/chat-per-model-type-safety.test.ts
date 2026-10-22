@@ -42,6 +42,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
 
     it('takes reasoning only as the chat() option, not in modelOptions', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('gpt-5.2'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -53,6 +54,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
 
     it('rejects a level the model does not have', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('gpt-5.2'),
         messages: [{ role: 'user', content: 'hi' }],
         // @ts-expect-error - gpt-5.2 has no `max` level
@@ -62,6 +64,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
 
     it('rejects unknown options', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('gpt-5.2'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -89,6 +92,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
 
     it('rejects structured-output `text` option', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('gpt-5.2-pro'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -116,6 +120,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
 
     it('rejects reasoning option', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('gpt-4'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -127,6 +132,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
 
     it('rejects structured-output `text` option', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('gpt-4'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -152,6 +158,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
 
     it('rejects reasoning option', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('gpt-3.5-turbo'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -177,6 +184,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
 
     it('rejects tools options', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('o3'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -188,6 +196,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
 
     it('rejects streaming options', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('o3'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -199,6 +208,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
 
     it('rejects structured-output `text` option', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('o3'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -212,6 +222,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
   describe('chatgpt-4o-latest — base + streaming + metadata only', () => {
     it('rejects tools options', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('chatgpt-4o-latest'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -223,6 +234,7 @@ describe('OpenAI per-model chat modelOptions gating', () => {
 
     it('rejects reasoning option', () => {
       chat({
+        threadId: 'thread-1',
         adapter: openaiText('chatgpt-4o-latest'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {

@@ -516,7 +516,7 @@ describe('ChatClient', () => {
     })
 
     it('should throw if neither connection nor fetcher is provided', () => {
-      expect(() => new ChatClient({} as any)).toThrow(
+      expect(() => new ChatClient({ threadId: 'thread-1' } as any)).toThrow(
         'either `connection` or `fetcher` is required',
       )
     })

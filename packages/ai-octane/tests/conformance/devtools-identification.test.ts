@@ -56,6 +56,7 @@ describe('devtools identification', () => {
   it('keeps the octane identity when a caller supplies its own devtools metadata', () => {
     renderHook(() =>
       useGeneration({
+        threadId: 'thread-1',
         connection: createMockConnectionAdapter(),
         devtools: { framework: 'react', hookName: 'somethingElse' },
       }),
@@ -71,6 +72,7 @@ describe('devtools identification', () => {
   it('preserves unrelated caller devtools metadata', () => {
     renderHook(() =>
       useGeneration({
+        threadId: 'thread-1',
         connection: createMockConnectionAdapter(),
         devtools: { outputKind: 'image' },
       }),
@@ -85,6 +87,7 @@ describe('devtools identification', () => {
   it('tags useChat as octane and resists caller override', () => {
     renderHook(() =>
       useChat({
+        threadId: 'thread-1',
         connection: createMockConnectionAdapter(),
         devtools: { framework: 'react' },
       }),

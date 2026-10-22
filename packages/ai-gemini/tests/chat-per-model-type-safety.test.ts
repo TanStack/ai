@@ -40,6 +40,7 @@ describe('Gemini per-model chat modelOptions gating', () => {
 
     it('rejects thinkingConfig in modelOptions (chat({ reasoning }) owns it)', () => {
       chat({
+        threadId: 'thread-1',
         adapter: geminiText('gemini-3.1-pro-preview'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -51,6 +52,7 @@ describe('Gemini per-model chat modelOptions gating', () => {
 
     it('rejects unknown options', () => {
       chat({
+        threadId: 'thread-1',
         adapter: geminiText('gemini-3.1-pro-preview'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -93,6 +95,7 @@ describe('Gemini per-model chat modelOptions gating', () => {
   describe('cachedContent type safety', () => {
     it('rejects cachedContent without the required prefix', () => {
       chat({
+        threadId: 'thread-1',
         adapter: geminiText('gemini-2.5-pro'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -112,12 +115,14 @@ describe('Gemini per-model chat modelOptions gating', () => {
         reasoning: 'high',
       })
       chat({
+        threadId: 'thread-1',
         adapter: geminiText('gemini-3.1-pro-preview'),
         messages: [{ role: 'user', content: 'hi' }],
         // @ts-expect-error - gemini-3.1-pro-preview has no minimal level
         reasoning: 'minimal',
       })
       chat({
+        threadId: 'thread-1',
         adapter: geminiText('gemini-3.1-pro-preview'),
         messages: [{ role: 'user', content: 'hi' }],
         // @ts-expect-error - gemini-3.1-pro-preview takes no token budget
@@ -139,6 +144,7 @@ describe('Gemini per-model chat modelOptions gating', () => {
         reasoning: 'off',
       })
       chat({
+        threadId: 'thread-1',
         adapter: geminiText('gemini-2.5-pro'),
         messages: [{ role: 'user', content: 'hi' }],
         // @ts-expect-error - gemini-2.5-pro cannot turn thinking off

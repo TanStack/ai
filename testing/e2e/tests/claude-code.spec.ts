@@ -48,6 +48,7 @@ test.describe('claude-code harness (gated live smoke)', () => {
         disallowedTools: ['Bash', 'Write', 'Edit'],
       }),
       middleware: [withSandbox(sandbox)],
+      threadId: 'thread-claude-code-pong',
       messages: [
         {
           role: 'user',
@@ -99,6 +100,7 @@ test.describe('claude-code harness (gated live smoke)', () => {
         disallowedTools: ['Bash', 'Write', 'Edit'],
       }),
       middleware: [withSandbox(sandbox)],
+      threadId: 'thread-claude-code-read',
       messages: [
         {
           role: 'user',
