@@ -14,7 +14,7 @@ import {
   SHUTDOWN_REASON,
 } from './helpers'
 import { SessionState } from './state'
-import type { ModelMessage, SchemaInput } from '@tanstack/ai'
+import type { InferSchemaType, ModelMessage, SchemaInput } from '@tanstack/ai'
 import type { SessionIndexEntry } from '@tanstack/ai-persistence'
 import type { PluginSessionApi, Question } from '../commands'
 import type { AnyHarness, HarnessToolInput, HarnessToolsOf } from '../define'
@@ -109,6 +109,13 @@ export abstract class SessionRequests<
    * like `overrides`, and only server code sets them. A client input cannot
    * set them.
    *
+   * `outputSchema` goes to the `chat()` call of the turn, as
+   * `chat({ outputSchema })`. The result has the checked value as
+   * `structured`. A failed check fails the turn with the `chat()` error code
+   * and the model text (`rawText`). Only server code sets it. The log does
+   * not keep it, so a turn that recovery runs again runs without it, and
+   * the session warns. A steer that joins the running turn ignores it.
+   *
    * `as: 'operator'` is the reply of a person who took over after a handoff
    * to a person. It goes in the transcript as an assistant message, and no
    * model turn runs. It needs the `operator` access action and an open
@@ -123,6 +130,14 @@ export abstract class SessionRequests<
    * ```
    */
   send(message: UserInput, options: AgentSendOptions): Operation<unknown>
+  send<TSchema extends SchemaInput>(
+    message: UserInput,
+    options: SendOptions & { outputSchema: TSchema },
+  ): Operation<ChatTurnResult<InferSchemaType<TSchema>>>
+  send(
+    message: UserInput,
+    options?: SendOptions & { outputSchema?: undefined },
+  ): Operation<ChatTurnResult<undefined>>
   send(message: UserInput, options?: SendOptions): Operation<ChatTurnResult>
   send(
     message: UserInput,
@@ -180,6 +195,7 @@ export abstract class SessionRequests<
     const overrides = options?.overrides
     const systemPreamble = options?.systemPreamble
     const ephemeral = options?.ephemeral
+    const outputSchema = options?.outputSchema
     const user = options?.user ?? this.user
     const wake = options?.wake === true
     const stored: typeof input =
@@ -209,7 +225,7 @@ export abstract class SessionRequests<
       this.accept(inputId, stored, user, {
         // An offered turn runs as the operation of this host.
         runId: operation.id,
-        turn: { overrides, systemPreamble, ephemeral },
+        turn: { overrides, systemPreamble, ephemeral, outputSchema },
         // As the W3C rules say, an invalid `traceparent` is dropped.
         ...(traceparent !== undefined && parseTraceparent(traceparent)
           ? { traceparent }
@@ -292,7 +308,12 @@ export abstract class SessionRequests<
             status: isWaiting && !joins ? 'queued' : 'accepted',
             operationId: joins ? running.id : operation.id,
           })
-          const sent = { user, context, ...(wake ? { wake } : {}) }
+          const sent = {
+            user,
+            context,
+            ...(wake ? { wake } : {}),
+            ...(outputSchema ? { outputSchema } : {}),
+          }
           if (running) {
             this.steerQueue.push({
               inputId,

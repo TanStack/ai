@@ -721,9 +721,9 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
   /**
    * The extras of a turn that recovery runs again: the JSON overrides,
    * preamble, and ephemeral messages that the log keeps, under the
-   * overrides of the recover hook (`decided`). A turn that had overrides
-   * that the log does not keep (an adapter object, tools) goes on without
-   * them, and the session warns once.
+   * overrides of the recover hook (`decided`). A turn that had options
+   * that the log does not keep (an adapter object, tools, an
+   * `outputSchema`) goes on without them, and the session warns once.
    */
   protected recoveredExtras(
     inputId: string,
@@ -733,7 +733,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
     if (named?.liveOnly) {
       this.warnSession(
         'harness:overrides',
-        `The turn of input ${inputId} runs again without its ${named.liveOnly.join(' and ')} overrides: the log keeps only JSON overrides. Name the model with overrides.model to keep it.`,
+        `The turn of input ${inputId} runs again without its ${named.liveOnly.join(' and ')}: the log keeps only JSON options. Name the model with overrides.model to keep it.`,
       )
     }
     const logged = named ? loggedExtras(named) : {}

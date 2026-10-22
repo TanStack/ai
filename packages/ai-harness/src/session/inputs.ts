@@ -565,6 +565,7 @@ export abstract class SessionInputs<
       operation: turn.operation,
       overrides: turn.overrides,
       ephemeral: turn.ephemeral,
+      ...(turn.outputSchema ? { outputSchema: turn.outputSchema } : {}),
       user: turn.user,
       context: turn.context,
       ...(turn.wake ? { wake: true } : {}),

@@ -100,7 +100,7 @@ it('describes how an input ended', () => {
     'completed' | 'failed' | 'aborted' | 'interrupted'
   >()
   expectTypeOf<InputSettlement['error']>().toEqualTypeOf<
-    { message: string; code?: string } | undefined
+    { message: string; code?: string; rawText?: string } | undefined
   >()
 })
 

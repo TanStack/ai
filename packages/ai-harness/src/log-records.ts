@@ -77,8 +77,8 @@ export type AgentResultRecord = {
 
 /**
  * The turn overrides that the log can keep: each one is JSON. An adapter
- * object and `tools` are not here, so a run after a restart goes on
- * without them. `liveOnly` names the ones that the turn had.
+ * object, `tools`, and an `outputSchema` are not here, so a run after a
+ * restart goes on without them. `liveOnly` names the ones that the turn had.
  */
 export interface NamedTurnOverrides {
   /** A key of `defineHarness({ models })`. */
@@ -90,7 +90,7 @@ export interface NamedTurnOverrides {
   systemPreamble?: Array<string>
   ephemeral?: Array<ModelMessage>
   /** The overrides of the turn that are not JSON, so the log does not keep them. */
-  liveOnly?: Array<'adapter' | 'tools'>
+  liveOnly?: Array<'adapter' | 'tools' | 'outputSchema'>
 }
 
 /**

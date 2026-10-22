@@ -19,6 +19,7 @@ import type {
   ModelMessage,
   PromptCacheOptions,
   RunAgentResumeItem,
+  SchemaInput,
   Scope,
   StreamChunk,
   SubagentsBag,
@@ -206,6 +207,8 @@ export interface TurnExtras {
   overrides?: TurnOverrides
   systemPreamble?: Array<string>
   ephemeral?: ReadonlyArray<ModelMessage>
+  /** Not JSON, so the log names it in `liveOnly` only. */
+  outputSchema?: SchemaInput
 }
 
 /**
@@ -227,10 +230,11 @@ export function turnRecords(inputId: string, extras: TurnExtras) {
  * JSON.
  */
 function namedOverrides(extras: TurnExtras) {
-  const { overrides, systemPreamble, ephemeral } = extras
+  const { overrides, systemPreamble, ephemeral, outputSchema } = extras
   const liveOnly = [
     ...(overrides?.adapter !== undefined ? ['adapter' as const] : []),
     ...(overrides?.tools?.length ? ['tools' as const] : []),
+    ...(outputSchema !== undefined ? ['outputSchema' as const] : []),
   ]
   const named: NamedTurnOverrides = {
     ...(overrides?.model !== undefined ? { model: overrides.model } : {}),

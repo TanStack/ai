@@ -171,6 +171,42 @@ await drafted
 - The harness keeps them in memory for the turn, like `ephemeral`. The transcript and the session log never store them.
 - A turn that recovery runs again after a crash has no `systemPreamble`, because the log does not keep it.
 
+## Get a typed answer from a turn
+
+Pass `outputSchema` to `session.send`. The turn's `chat()` call gets the schema, and the result has the checked object as `structured`, typed from the schema.
+
+```ts group=harness-inputs
+import { z } from 'zod'
+
+const Ticket = z.object({
+  title: z.string(),
+  priority: z.enum(['low', 'high']),
+})
+
+const triaged = await session.send('Triage: the login page is down.', {
+  inputId: 'req-60',
+  outputSchema: Ticket,
+})
+console.log(triaged.structured?.priority) // 'low' | 'high' | undefined
+```
+
+- `structured` is set when the turn completes. A turn that stops for an approval or another wait has no `structured`.
+- The transcript keeps the answer that `chat()` writes for structured output: the JSON text of the object.
+
+If the object fails the schema, the turn fails:
+
+1. `await triaged` rejects. The error has `code` and `rawText`.
+2. `session.settled({ inputId: 'req-60' })` resolves to `outcome: 'failed'`, with the same `error.code` and `error.rawText`.
+
+The `code` is `structured-output-validation-failed` (the JSON parsed, but the object failed the schema) or `structured-output-parse-failed` (the text was not JSON). `rawText` is the text of the model.
+
+Where the schema applies:
+
+- **One send only.** Thread settings and `overrides` do not keep it. The next turn runs without it.
+- **Server code only.** A schema is code, so clients cannot send it. The HTTP handler and the client protocol do not take `outputSchema`.
+- **A recovered turn runs without it.** The session log keeps only JSON, so a turn that recovery runs again after a crash has no schema. The session writes a `harness:overrides` warning to the log.
+- **A joined steer ignores it.** A `busy: 'steer'` message that joins a running turn uses that turn's settings. A steer that runs as its own turn uses its schema.
+
 ## Send a message while a turn runs
 
 With `busy: 'steer'` or `mode: 'steer'`, a message joins the running turn. It reaches the model at the next model call, in the order the messages arrived, and it ends with that turn.
@@ -401,6 +437,7 @@ A refused `POST run` answers `409` with `{ error: reason }`, so `useChat` gets a
 
 - Retries that never run a prompt twice.
 - The outcome of each input by its id, also after a restart.
+- Typed answers from a turn, checked against your schema.
 - Messages that join a running turn in order.
 - Waiting messages that a user can cancel, or move into the running turn, and running jobs that a user can move to the background.
 - Context from the client that tools read, also after a restart.

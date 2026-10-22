@@ -678,6 +678,9 @@ export abstract class SessionTurn<
     let openMessageId: string | undefined
     let interrupts: Array<Interrupt> | undefined
     let failure: string | undefined
+    /** With `outputSchema`: the value of the last call, or why its check failed. */
+    let structured: unknown
+    let structuredError: { code: string; rawText?: string } | undefined
     const captured: Array<MediaRecord> = []
     // What plugins and the router see of this turn. A turn that recovery
     // runs again gets the message its input sent.
@@ -1080,6 +1083,8 @@ export abstract class SessionTurn<
         let streamed = false
         let runError: ModelErrorContext['error'] | undefined
         let heldError: StreamChunk | undefined
+        structured = undefined
+        structuredError = undefined
         try {
           // The router and the routed agents get the full history. The
           // stores merge by message id, so no message is saved twice.
@@ -1243,6 +1248,7 @@ export abstract class SessionTurn<
             // The context type narrows per harness; chat() wants it exact.
             context: context as never,
             ...(reasoning !== undefined ? { reasoning } : {}),
+            ...(turn.outputSchema ? { outputSchema: turn.outputSchema } : {}),
             promptCache,
             threadId: this.threadId,
             runId: operation.id,
@@ -1268,6 +1274,20 @@ export abstract class SessionTurn<
               (chunk.metadata?.tanstack?.interruptErrors?.length ?? 0) > 0
             ) {
               isResumeRefused = true
+            }
+            // chat() failed the `outputSchema` check: the settlement keeps
+            // its code and the model text.
+            if (
+              chunk.type === EventType.RUN_ERROR &&
+              chunk.code?.startsWith('structured-output-')
+            ) {
+              const rawText = chunk.metadata?.tanstack?.rawText
+              structuredError = {
+                code: chunk.code,
+                ...(rawText !== undefined
+                  ? { rawText: this.scrub(rawText) }
+                  : {}),
+              }
             }
             if (
               chunk.type === EventType.RUN_FINISHED &&
@@ -1327,6 +1347,15 @@ export abstract class SessionTurn<
               }
               if (chunk.type === EventType.TEXT_MESSAGE_END) {
                 openMessageId = undefined
+              }
+              // chat() checks the value against `outputSchema`. A failed
+              // check ends the call with a RUN_ERROR.
+              if (
+                chunk.type === EventType.CUSTOM &&
+                chunk.name === 'structured-output.complete' &&
+                isRecord(chunk.value)
+              ) {
+                structured = chunk.value.object
               }
               if (chunk.type === EventType.RUN_STARTED) isRunOpen = true
               if (
@@ -1808,8 +1837,13 @@ export abstract class SessionTurn<
       await settleTurn({ outcome: 'aborted' })
       operation.fail('cancelled', new Error('Cancelled.'))
     } else if (failure !== undefined) {
-      await settleTurn({ outcome: 'failed', error: { message: failure } })
-      operation.fail('failed', new Error(failure))
+      // A failed `outputSchema` check keeps the code and text of chat().
+      const error = { message: failure, ...structuredError }
+      await settleTurn({ outcome: 'failed', error })
+      operation.fail(
+        'failed',
+        Object.assign(new Error(failure), structuredError),
+      )
     } else if (interrupts && interrupts.length > 0) {
       // `this.interrupted` was kept at RUN_FINISHED.
       await settleTurn({ outcome: 'interrupted' })
@@ -1820,7 +1854,11 @@ export abstract class SessionTurn<
       operation.finish('interrupted', { text, interrupts: [], media: captured })
     } else {
       await settleTurn({ outcome: 'completed' })
-      operation.finish('completed', { text, media: captured })
+      operation.finish('completed', {
+        text,
+        media: captured,
+        ...(structured !== undefined ? { structured } : {}),
+      })
     }
     this.publishFinished(operation)
     this.requeueWaitingSteers()
