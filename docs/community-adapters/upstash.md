@@ -15,7 +15,7 @@ keywords:
   - community adapter
 ---
 
-The built-in stores of TanStack AI (`memoryPersistence()`, `memoryStream()`, `InMemoryLockStore`, and `inMemory()`) live in one process. On serverless, each instance has its own copy, so state gets lost between requests. [`@upstash/agentkit-tanstack-ai`](https://github.com/upstash/agentkit/tree/main/packages/tanstack-ai) keeps the same state in [Upstash Redis](https://upstash.com/docs/redis/overall/getstarted), so every instance sees it. Upstash maintains this package.
+`@upstash/agentkit-tanstack-ai` stores chat state in Upstash Redis. Every serverless instance then reads the same messages, streams, and locks. Upstash maintains it.
 
 | TanStack AI part | Upstash adapter |
 | --- | --- |

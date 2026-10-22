@@ -13,7 +13,7 @@ keywords:
   - custom voice
 ---
 
-Every text-to-speech provider has a fixed list of voices. Your narrator, your character, or your brand voice is often not on that list. `generateVoice()` makes a new voice for you, and gives you an id that [`generateSpeech()`](./text-to-speech) accepts as `voice`.
+`generateVoice()` creates a voice id. Pass that id as `voice` to `generateSpeech()`.
 
 ## Quick setup
 

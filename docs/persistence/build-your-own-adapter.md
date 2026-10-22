@@ -9,8 +9,7 @@ keywords:
   - drizzle prisma d1 adapter
 ---
 
-Your data lives in your own database (Postgres behind Prisma, a SQLite file, D1,
-Mongo). You do not want a second service only for chat history.
+A custom persistence adapter writes chat state to your database. Implement the stores on this page.
 
 You do not need one. An adapter is a plain object of store functions, and the
 core never reads your tables. Here is the smallest adapter that works, in about

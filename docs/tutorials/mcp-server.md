@@ -15,7 +15,7 @@ keywords:
   - tanstack start
 ---
 
-You have a tool, a file, and a prompt, and you want an MCP host to use them. Right now no host can call them.
+This tutorial serves a tool, a file, and a prompt with `createMCPServer` on a TanStack Start route.
 
 `createMCPServer` serves all three from one TanStack Start route. In this tutorial, a page in the same app calls the server with a typed client and shows the three results. It takes about 10 minutes, and you do not need a model key.
 

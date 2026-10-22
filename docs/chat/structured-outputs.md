@@ -10,7 +10,7 @@ keywords:
   - redirect
 ---
 
-You want the model to return a typed object, not free text. Structured outputs have their own section. Pick the page for what you build:
+Structured output returns a typed object from the model. Pick the page for the shape you need:
 
 - **[Overview](../structured-outputs/overview)**: what structured output is, which schema libraries work, provider support, and which page to read.
 - **[One-Shot Extraction](../structured-outputs/one-shot)**: one prompt in, one typed object out. Use it when you do not need streaming or chat history.

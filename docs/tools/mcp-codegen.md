@@ -15,7 +15,7 @@ keywords:
   - generated types
 ---
 
-You call MCP tools through [`createMCPClient`](./mcp), but nothing checks the tool names at compile time. A typo shows up only at runtime. Generate types from the live server, and pass them to `createMCPClient` as a generic.
+Generate TypeScript types from a live MCP server and pass them to `createMCPClient`. A wrong tool name is then a type error.
 
 You get:
 

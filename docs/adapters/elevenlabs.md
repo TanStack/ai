@@ -13,7 +13,7 @@ keywords:
   - adapter
 ---
 
-ElevenLabs gives you voice: realtime voice agents, text-to-speech, music and sound effects, transcription, and voice design. It has no text chat. For `chat()` and `summarize()`, use a text adapter such as [OpenAI](./openai) or [Anthropic](./anthropic).
+`@tanstack/ai-elevenlabs` calls ElevenLabs for voice agents, speech, music, sound effects, transcription, and voice design. It has no text chat.
 
 The quick setup below builds a live voice conversation with an ElevenLabs agent.
 

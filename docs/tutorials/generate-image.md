@@ -14,7 +14,7 @@ keywords:
   - tanstack start
 ---
 
-You want a prompt box that returns an image. You also do not want to put a provider key in a server env file while you try it out.
+This tutorial builds a prompt box that returns an image. The provider key stays in the browser for the demo.
 
 In this tutorial, the user pastes an OpenRouter key in the browser. `useGenerateImage` sends the prompt to a server route, and the route runs `generateImage`. It takes about 10 minutes.
 

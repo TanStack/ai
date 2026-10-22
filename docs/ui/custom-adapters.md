@@ -10,7 +10,7 @@ keywords:
   - headless ui
 ---
 
-Your framework has no chat UI package, and you want the same typed widget maps that React and Vue get. Build an adapter on `@tanstack/ai-client/ui`. That subpath holds the framework-free part: types and selectors. Your adapter adds the components and the reactivity.
+Build a chat UI adapter on `@tanstack/ai-client/ui`. That subpath exports the types and selectors. Your adapter adds the components.
 
 ## What the core gives you
 

@@ -12,8 +12,7 @@ keywords:
   - createCapability
 ---
 
-The user approved a plan or typed a note. The server must use that answer in
-the next model call, or stop the run when the user said no.
+Read the user's answer in `onInterruptResolution`, then apply it in `onConfig`. A no stops the run.
 
 Read the answer in `onInterruptResolution`, keep it on a middleware capability,
 and apply it in `onConfig`.

@@ -14,7 +14,7 @@ keywords:
   - container skills
 ---
 
-You want the model to make a PowerPoint file, or to use a ready-made skill in a sandbox. Anthropic and OpenAI host skills like this, and they run them in their own server-side sandbox.
+A provider skill is a hosted skill, such as a PowerPoint skill, that Anthropic or OpenAI runs in its own sandbox.
 
 Attach the skill IDs to the execution tool of the provider. The provider installs the skills and runs them. You only give the IDs.
 

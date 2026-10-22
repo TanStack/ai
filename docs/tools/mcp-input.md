@@ -11,7 +11,7 @@ keywords:
   - sampling
 ---
 
-Sometimes an MCP server stops a tool call and asks for input. It needs one of these:
+An MCP server can pause a tool call and ask for input. It asks for one of these:
 
 - A form that the user fills in.
 - A sampling request that needs a model reply.

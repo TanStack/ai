@@ -13,7 +13,7 @@ keywords:
   - MCPToolContext
 ---
 
-Your tool deletes a file. Before it does that, it must get a yes from the user.
+An MCP tool can stop and ask the user before it runs. Use that when the tool deletes a file or sends data.
 
 Call `ctx.context.requestInput` inside the tool. The host shows your message to the user, and the call returns the answer.
 

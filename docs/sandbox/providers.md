@@ -5,7 +5,7 @@ order: 3
 description: "Pick where a TanStack AI sandbox runs (local process, Docker container, Docker Sandboxes microVM, Daytona, Vercel, Sprites, Upstash Box, Blaxel, E2B, boxd, or Railway), install it, and configure it."
 ---
 
-You need a place for the agent to run. On your laptop you want a fast loop. In production you want real isolation, or a managed cloud VM that you do not run yourself.
+A provider is where the sandbox runs: a local process for a fast loop, or an isolated VM in production.
 
 A provider is that place. Every provider has the same contract, so your [workspace](./workspace), [policy](./policy), and harness stay the same when you change the provider.
 

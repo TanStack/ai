@@ -15,7 +15,7 @@ keywords:
   - sandbox
 ---
 
-You asked a coding agent to inspect a repository. It streams tool calls and prose, but you need a typed object that you can store or render.
+Pass `outputSchema` to a coding-agent `chat()` call. The agent still streams tool calls, and the run ends with a typed object.
 
 Pass `outputSchema` on the same `chat()` call. The agent runs its native tools in the sandbox. Then you get a validated object from `await chat()` or from `useChat().final`.
 

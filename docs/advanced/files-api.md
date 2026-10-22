@@ -12,7 +12,7 @@ keywords:
   - multimodal
 ---
 
-Your user asks five questions about the same PDF. If you send the PDF as base64 in each request, every turn uploads the full file again. That is slow, it uses bandwidth, and it fills memory on small runtimes such as Cloudflare Workers.
+The files API uploads a file once and sends the file id on later turns. Each request then skips a fresh base64 upload of the same PDF.
 
 Upload the file to the Files API of the provider one time. You get a small handle back. Put that handle in each message instead of the bytes.
 

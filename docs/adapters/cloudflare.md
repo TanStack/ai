@@ -14,7 +14,7 @@ keywords:
   - jev
 ---
 
-Cloudflare gives you the Workers AI models, plus AI Gateway in front of any provider. Use this adapter when:
+The Cloudflare adapter calls Workers AI, and it can put AI Gateway in front of another provider.
 
 - You have a Cloudflare Worker and want an AI route with no API keys to manage.
 - You have a server somewhere else and want to call Workers AI models.

@@ -11,7 +11,7 @@ keywords:
   - example
 ---
 
-Some tools must not run until a person says yes: deleting a file, sending money. Add `needsApproval: true` to the tool. The run pauses, and your tool component gets an `interrupt` prop with the buttons that you need.
+Set `needsApproval: true` on the tool. The tool component receives an `interrupt` prop with the approve and reject actions.
 
 This page covers the UI. For the server side of approvals, read [Tool approval](../../interrupts/tool-approval).
 

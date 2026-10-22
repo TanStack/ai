@@ -20,7 +20,7 @@ keywords:
   - adapter
 ---
 
-BytePlus is the international model platform of ByteDance. It gives you the Seed chat models with reasoning, Seedance video, Seedream images, and Seed Speech, all from one package.
+`@tanstack/ai-byteplus` calls Seed chat models with reasoning, plus Seedance video, Seedream images, and Seed Speech.
 
 ## 1. Install
 

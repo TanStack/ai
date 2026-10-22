@@ -5,7 +5,7 @@ order: 2
 description: "Run a Grok Build coding agent inside a Docker sandbox, let it fix a bug in a cloned repo, and print the diff. About 10 minutes."
 ---
 
-You want an agent to fix a bug in a repo without touching your machine. At the end of this page, a Grok Build agent clones a repo into a Docker container and fixes the bug. Then your script prints the `git diff` in your terminal.
+This guide runs a Grok Build agent in Docker. The agent clones a repo, fixes a bug, and the script prints the `git diff`.
 
 You need:
 

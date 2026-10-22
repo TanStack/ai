@@ -11,7 +11,7 @@ keywords:
   - model context protocol
 ---
 
-Your app calls `createMCPClient`, and an import from `@modelcontextprotocol/sdk` does not resolve. `@tanstack/ai-mcp` does not use that package. It uses the v2 packages:
+`@tanstack/ai-mcp` imports the MCP v2 packages. An import from `@modelcontextprotocol/sdk` does not resolve.
 
 - A client app imports `@modelcontextprotocol/client`.
 - A server app imports `@modelcontextprotocol/server`.

@@ -11,10 +11,7 @@ keywords:
   - resumeInterrupts
 ---
 
-Your 0.x app approves tools with `addToolApprovalResponse` and reads
-`pendingInterrupts`. 1.0 removed both. In 1.0, approvals, generic pauses, and
-client-tool execution are all AG-UI interrupts, and you resolve each one on the
-item itself.
+In 1.0, tool approval, a generic pause, and client-tool execution are AG-UI interrupts. Resolve each one on the item. `addToolApprovalResponse` and `pendingInterrupts` are removed.
 
 There is no codemod. Upgrade the server and the client together. For the full
 list of 1.0 changes, see [Upgrade to 1.0](../migration/v1).

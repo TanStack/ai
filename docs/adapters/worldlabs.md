@@ -12,7 +12,7 @@ keywords:
   - adapter
 ---
 
-World Labs Marble gives you a finished 3D world from a prompt, an image, or a video. You get a viewer URL, and often splat files, a mesh, and a panorama. A world often takes several minutes to make. The adapter works with `generateWorld()` only. It has no chat.
+`generateWorld()` calls World Labs Marble. A prompt, image, or video returns a viewer URL, and often splat files, a mesh, and a panorama. The adapter has no chat.
 
 ## 1. Install
 

@@ -11,7 +11,7 @@ keywords:
   - grounding
 ---
 
-Perplexity gives your agent fresh web results with titles, URLs, and snippets that it can cite. `@tanstack/ai-perplexity` wraps the Perplexity Search API as a tool. It is not a text adapter, so pair the tool with a chat adapter that calls tools, for example `openaiText` or `anthropicText`.
+`@tanstack/ai-perplexity` exposes the Perplexity Search API as a tool. Pair it with a chat adapter that calls tools, such as `openaiText` or `anthropicText`.
 
 Want Sonar, the Perplexity chat model, instead? See [Chat with Sonar](#chat-with-sonar).
 

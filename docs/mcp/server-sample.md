@@ -14,7 +14,7 @@ keywords:
   - MCPToolContext
 ---
 
-Your tool must return a draft, for example a short note. The tool has no model of its own to write it.
+`sample` lets an MCP tool call a model for a draft, such as a short note. The tool itself has no model.
 
 Call `ctx.context.sample` inside the tool. It sends messages to a model and returns the result.
 

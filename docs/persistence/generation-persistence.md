@@ -3,7 +3,7 @@ title: Generation Persistence
 id: generation-persistence
 ---
 
-Media generation takes time, and a video can take minutes. If the user reloads the page or the connection drops during the run, the run is lost.
+Generation persistence stores a media run. A reload or a dropped connection can resume a video that takes minutes.
 
 Generation persistence keeps a small record of each run. On reload, it puts the run back into the normal `status`, `result`, and `error` fields of the hook. So a restored run looks like a live run.
 

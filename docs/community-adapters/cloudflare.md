@@ -14,7 +14,7 @@ keywords:
   - community adapter
 ---
 
-Cloudflare's `@cloudflare/tanstack-ai` package gives you two things:
+`@cloudflare/tanstack-ai` is the community Cloudflare package. It provides:
 
 - [Workers AI](https://developers.cloudflare.com/workers-ai/) models, which run on the Cloudflare network.
 - [AI Gateway](https://developers.cloudflare.com/ai-gateway/) routing to OpenAI, Anthropic, Gemini, Grok, and OpenRouter, with caching, rate limits, and one bill.

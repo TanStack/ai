@@ -14,7 +14,7 @@ keywords:
   - semantic conventions
 ---
 
-Your app already sends traces to an OpenTelemetry backend, but the AI calls are a black box. You cannot see which model ran, how many tokens it used, or which tool was slow.
+The OpenTelemetry middleware records the model, token counts, and tool time on your existing traces.
 
 Add `otelMiddleware` to your `chat()` call. Each call then sends spans and metrics with the [GenAI semantic-convention attributes](https://opentelemetry.io/docs/specs/semconv/gen-ai/).
 

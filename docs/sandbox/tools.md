@@ -5,7 +5,7 @@ order: 6
 description: "Give the in-sandbox agent your app's own server tools. They run on your host, with their database, secrets, and closures, over an authenticated MCP tool proxy."
 ---
 
-The agent in the sandbox can edit files and run commands. It cannot reach your app: your database, your secrets, or the closures in your tool code.
+A host tool runs in your app, with your database and secrets. The agent in the sandbox calls it. The tool code does not run in the sandbox.
 
 Pass your server tools to `chat()`. TanStack AI bridges them into the sandbox. The agent calls them like any MCP tool, and each tool runs on your host.
 

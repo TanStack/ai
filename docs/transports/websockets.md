@@ -13,7 +13,7 @@ keywords:
   - resumable websocket
 ---
 
-You want one connection for the whole conversation, not one request per message. Use the built-in `webSocket()` transport. It opens one socket for the conversation. When a durable run drops, it reconnects by itself.
+`webSocket()` opens one socket for the conversation. A durable run reconnects on that socket.
 
 ## Quick setup
 

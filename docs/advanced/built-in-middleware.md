@@ -13,7 +13,7 @@ keywords:
   - opentelemetry
 ---
 
-Your weather tool runs again for each question about the same city. Or the model writes a customer number into the reply, and you must hide it. You do not have to write middleware for these cases.
+Built-in middleware caches a tool result and redacts text from a reply. Use it when the same tool call repeats, or when a reply must hide a value.
 
 TanStack AI ships ready-made middleware. Add one to the `middleware` array of `chat()`:
 

@@ -12,7 +12,7 @@ keywords:
   - tree-shakeable
 ---
 
-You add chat with one provider, and you do not want code for image generation or five other providers in your bundle.
+Import one adapter from its package subpath. The bundle then omits image generation and the adapters you do not call.
 
 TanStack AI exports each activity and each adapter as a separate named function. Import only the ones you use, and your bundler drops the rest.
 

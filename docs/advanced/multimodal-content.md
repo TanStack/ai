@@ -15,7 +15,7 @@ keywords:
   - ImagePart
 ---
 
-Your user wants to ask "what is wrong in this screenshot?" or "summarize this PDF". A plain text message cannot carry the file.
+A message part can carry an image, audio clip, video, or PDF. The model then answers about that file.
 
 Make the `content` of the message an array of parts. One part holds the text, and the other parts hold the image, audio, video, or document.
 

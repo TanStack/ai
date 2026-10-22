@@ -15,7 +15,7 @@ keywords:
   - type safety
 ---
 
-You want the model to use tools that already live on an MCP server: GitHub, Linear, or your own server. Connect to the server with `createMCPClient`, then give the client to `chat()` in the `mcp` option.
+`createMCPClient` connects to an MCP server. Pass that client to `chat()` in the `mcp` option.
 
 > [!NOTE]
 > MCP tools run on the server. Call `createMCPClient` in a server route or a serverless function, never in browser code.

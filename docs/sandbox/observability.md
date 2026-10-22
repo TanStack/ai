@@ -5,7 +5,7 @@ order: 10
 description: "Run server-side code on every file the agent creates, changes, or deletes, read the diff, log sandbox internals, and watch a workspace outside a chat() run."
 ---
 
-The agent edits files in a sandbox you cannot see. You want to log each change, keep an audit trail, or post the diff somewhere, on the server, without trusting the client.
+Observe sandbox file changes on the server. Log each edit, store an audit trail, or post the diff.
 
 File hooks do that. Declare them on the sandbox, and they run on the server for every file the agent touches.
 

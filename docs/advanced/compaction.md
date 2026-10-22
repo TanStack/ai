@@ -12,7 +12,7 @@ keywords:
   - summarize history
 ---
 
-A long chat or an agent loop keeps adding messages. At some point the transcript passes the context limit of the model, and the call fails.
+Compaction shortens a transcript before it passes the model context limit. A long chat or agent loop otherwise fails on the next call.
 
 Add `withCompaction` to your `chat()` call. Before each model call, it shrinks the messages that the model sees, so the chat keeps working.
 

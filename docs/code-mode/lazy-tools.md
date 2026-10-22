@@ -13,7 +13,7 @@ keywords:
   - tool catalog
 ---
 
-Each tool that you give to [Code Mode](./code-mode) adds a full TypeScript type stub to the system prompt. With 50 or more tools, the prompt can grow to tens of thousands of tokens before the model reads the user message.
+Lazy Code Mode tools load a type stub only when the program imports that tool. The system prompt stays small when you register many tools.
 
 Mark the rarely used tools `lazy: true`. The prompt then lists only their names. When the model needs one, it calls `discover_tools` to get the signature, then uses the tool in `execute_typescript`.
 

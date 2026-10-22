@@ -14,7 +14,7 @@ keywords:
   - llm
 ---
 
-Mistral gives you the Mistral chat models: Mistral Large, the Pixtral vision models, the Magistral reasoning models, and Codestral for code. It also has embeddings.
+The Mistral adapter calls Mistral Large, Pixtral, Magistral, and Codestral. It also creates embeddings.
 
 ## 1. Install
 

@@ -12,7 +12,7 @@ keywords:
   - cloudflare durable streams
 ---
 
-`memoryStream` works on one machine. In production, requests land on many processes, and a reconnect can reach a worker that has never seen the run. Swap in `durableStream`, which keeps the log in an external [Durable Streams](https://durablestreams.com) backend. The [Overview](./overview) has the basic setup. This page has the rest.
+`durableStream` keeps the stream log in an external Durable Streams backend. A reconnect can then reach any worker.
 
 ## Go to production
 

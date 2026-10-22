@@ -11,7 +11,7 @@ keywords:
   - syntax highlighting
 ---
 
-Model replies often include fenced code, and `TextPart` shows it as plain text. Pass a TanStack Highlight `highlighter` to `TextPart`, and the fences get token colors.
+Pass a TanStack Highlight `highlighter` to `TextPart`. Fenced code then renders with token colors.
 
 `TextPart` is in the React, Vue, and Solid UI packages. If your app still passes `remarkPlugins` or `rehypePlugins`, start with [TextPart markdown](../migration/text-part-markdown).
 

@@ -11,7 +11,7 @@ keywords:
   - defineByok
 ---
 
-You do not want to pay the provider bill for every user of your app. And you do not want to store their API keys in your database.
+`defineByok` keeps each user's provider key in the browser. The server reads one key with `getByokKey` and does not store it.
 
 With BYOK, each user pastes their own key. The key stays in the browser. Each send puts it on an `x-byok-*` header, and your server uses it for that one call.
 

@@ -14,7 +14,7 @@ keywords:
   - jev
 ---
 
-OpenRouter gives you 300+ models from OpenAI, Anthropic, Google, Meta, Mistral, and more, with one API key. It is the first official AI partner of TanStack AI, and a good place to start for most projects.
+`openRouterText` calls 300+ models from OpenAI, Anthropic, Google, Meta, Mistral, and others with one API key.
 
 ## 1. Install
 

@@ -4,7 +4,7 @@ id: sandbox-harnesses
 description: "Pick which coding agent runs inside a TanStack AI sandbox: Grok Build, Claude Code, Codex, OpenCode, or any ACP-compatible agent through acpCompatible."
 ---
 
-You have a sandbox. Now you pick the agent that works in it: Grok Build, Claude Code, Codex, OpenCode, or another CLI agent.
+A harness is the agent inside the sandbox. Pick Grok Build, Claude Code, Codex, OpenCode, or another CLI.
 
 A harness adapter starts that agent inside the sandbox and turns its work into `chat()` stream chunks. The [provider](./providers) decides where the agent runs. The harness decides which agent runs. You can change one without changing the other.
 

@@ -11,7 +11,7 @@ keywords:
   - community adapter
 ---
 
-The Decart adapter gives you Decart's image and video models in `generateImage()` and `generateVideo()`. Decart maintains this adapter.
+The Decart community adapter calls Decart image and video models from `generateImage()` and `generateVideo()`. Decart maintains it.
 
 ## 1. Install
 

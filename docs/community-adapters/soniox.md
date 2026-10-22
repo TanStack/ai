@@ -12,7 +12,7 @@ keywords:
   - community adapter
 ---
 
-The Soniox adapter gives you Soniox speech-to-text models in `generateTranscription()`, with speaker labels, language detection, custom terms, and translation. Soniox maintains this adapter.
+The Soniox community adapter calls Soniox speech-to-text from `generateTranscription()`. It supports speaker labels, language detection, custom terms, and translation. Soniox maintains it.
 
 ## 1. Install
 

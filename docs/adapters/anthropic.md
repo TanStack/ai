@@ -14,7 +14,7 @@ keywords:
   - llm
 ---
 
-Anthropic gives you the Claude models for chat, with thinking, automatic prompt caching, and tools that Anthropic runs for you.
+The Anthropic adapter calls Claude for chat. It supports thinking, automatic prompt caching, and tools that Anthropic runs.
 
 ## 1. Install
 

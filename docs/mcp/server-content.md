@@ -15,7 +15,7 @@ keywords:
   - createMCPServer
 ---
 
-Your MCP server serves tools, but a host also wants to read your documents and start from your prompts. Until you serve them, the host cannot see them.
+Serve resources and prompts from the same MCP server as your tools. A host can then read those documents and start from those prompts.
 
 Define each document with `resourceDefinition` and each prompt with `promptDefinition`. Then pass them to `createMCPServer`.
 

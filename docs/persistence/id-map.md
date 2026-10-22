@@ -14,7 +14,7 @@ keywords:
   - useGenerateImage threadId
 ---
 
-Your chat comes back empty after a reload. Or an image panel shows the image of a different panel. Almost always, the cause is the ids. TanStack AI has two ids, and persistence works only when you choose the first one yourself and keep it stable.
+Persistence matches rows by the id you choose and keep stable. A new id on each load returns an empty chat or the wrong image.
 
 | Id | Names | Lifetime | Who sets it |
 | --- | --- | --- | --- |

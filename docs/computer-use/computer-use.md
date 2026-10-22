@@ -14,7 +14,7 @@ keywords:
   - anthropic
 ---
 
-You have a chat app. You want the model to do a task on a web page for the user, for example fill in a form or find a price.
+`createComputerUse` gives `chat()` tools that click, type, and read a web page. The driver runs those actions in a browser.
 
 Computer use gives the model a screen, a mouse, and a keyboard. The model reads screenshots and sends clicks and key presses. Each conversation gets its own browser page, and the same code runs on OpenAI and on Anthropic.
 

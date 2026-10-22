@@ -5,7 +5,7 @@ order: 9
 description: "Resume the same sandbox from any server process. Pass a SandboxInstanceStore and a lock to withSandbox."
 ---
 
-Your agent runs behind more than one server, or at the edge. A run creates a sandbox, clones the repo, and installs dependencies. The next run for the same thread lands on a different server. That server has never seen the sandbox, so it builds a new one and pays the cold start again.
+Durability stores the sandbox for a thread. The next run on another server reuses it and skips the cold start.
 
 [Lifecycle & Snapshots](./lifecycle) can resume a sandbox, but it keeps its records in memory, in one process. A `SandboxInstanceStore` keeps those records in shared storage, so every server finds the same sandbox.
 

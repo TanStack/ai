@@ -19,7 +19,7 @@ keywords:
   - sandbox
 ---
 
-You need to pick a TypeScript AI toolkit, or you already use the Vercel AI SDK and want to know what is different. This page gives you the short answer first, then the API map, then the full feature table.
+This page compares TanStack AI with the Vercel AI SDK: a short answer, an API map, then the feature table.
 
 Both are open-source TypeScript toolkits. Both stream chat, call tools, talk to many providers, and run on any host. The difference is in the approach:
 

@@ -12,7 +12,7 @@ keywords:
   - MediaRecorder
 ---
 
-Your users want to talk instead of type. To do that, you must get the microphone, record, stop, and turn the bytes into something a model accepts. `useAudioRecorder` does all of it and gives you a clip that is ready to send to a chat or to a transcription.
+`useAudioRecorder` captures the microphone and returns a clip you can send to `chat()` or to transcription.
 
 ## Record and transcribe
 

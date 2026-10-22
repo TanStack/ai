@@ -13,7 +13,7 @@ keywords:
   - cloudflare workers
 ---
 
-You have TanStack server tools, and you want an MCP host (Claude Desktop, Cursor, or your own app) to call them. A host cannot call a tool that only lives in your code.
+`createMCPServer` exposes your TanStack server tools over MCP. A host such as Claude Desktop or Cursor can then call them.
 
 `createMCPServer` turns your tools into an MCP server. Your route returns `server.fetch(request)`, and the host connects to that URL.
 

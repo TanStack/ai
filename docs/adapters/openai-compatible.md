@@ -19,7 +19,7 @@ keywords:
   - adapter
 ---
 
-Your provider speaks the OpenAI Chat Completions API (`/chat/completions`), but it has no `@tanstack/ai-*` package. DeepSeek, Moonshot/Kimi, Together, Fireworks, Cerebras, Qwen, Perplexity, NVIDIA NIM, LM Studio, and vLLM are examples.
+`openaiCompatible` calls any server that speaks `/chat/completions` and has no `@tanstack/ai-*` package. Set `baseURL` and the model list, then call `chat()`.
 
 `openaiCompatible` is one generic adapter for all of them. Point it at the `baseURL`, list your models, and you get the same type-safe `chat()` as with the other adapters.
 

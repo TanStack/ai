@@ -12,7 +12,7 @@ keywords:
   - dynamic adapter
 ---
 
-Your users want to pick the model: Claude for one question, GPT for the next. You need one endpoint that serves both, without `as any` casts and without a broken history after the switch.
+One endpoint can call Claude for one turn and GPT for the next. The history stays typed across the switch.
 
 Keep a map of adapter factories on the server. The client sends the provider that the user picked, and the server picks the adapter from the map.
 

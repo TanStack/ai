@@ -17,7 +17,7 @@ keywords:
   - agent loop
 ---
 
-Your app runs on the Vercel AI SDK (`ai` and `@ai-sdk/*`), and you want to move it to TanStack AI. Most of the port is a swap of names:
+Move a Vercel AI SDK app (`ai` and `@ai-sdk/*`) to TanStack AI by swapping the package names, the server call, the client hook, and the tool helpers.
 
 - `streamText` becomes `chat()`.
 - `useChat` from `@ai-sdk/react` becomes `useChat` from `@tanstack/ai-react`.

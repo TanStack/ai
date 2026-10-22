@@ -23,7 +23,7 @@ keywords:
   - image-to-video
 ---
 
-You want a short video clip from a prompt. A video takes minutes to make. One plain request times out, and your users see a frozen button. `generateVideo()` starts a video job, watches it for you, and streams the progress to the browser.
+`generateVideo()` starts a video job, watches it, and streams progress to the browser. A video takes minutes, so one plain request times out.
 
 > [!WARNING]
 > Video generation is experimental. The API can change in a future version. Provider access, pricing, rate limits, and quotas also change. For example, the OpenAI Sora API can need organization verification.

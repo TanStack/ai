@@ -15,7 +15,7 @@ keywords:
   - experimental
 ---
 
-You want a video that plays while the model makes it, and you want to change the prompt while it plays. A normal video job ends with a file, so it cannot do that. `generateLiveVideo()` opens a live session instead: your server mints the session, and the browser plays and steers the stream.
+`generateLiveVideo()` opens a live video session. The server mints the session. The browser plays it and can change the prompt while it plays.
 
 > [!WARNING]
 > Live generation is experimental. The API can change. Live models bill for each second that a session holds a GPU.

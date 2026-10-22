@@ -14,9 +14,7 @@ keywords:
   - afterTools
 ---
 
-You need a generic interrupt, but you do not know where to pause. If you pause
-too early, the model has no draft to review. If you pause too late, a tool has
-already run.
+Pause a generic interrupt after the model has a draft and before a tool runs.
 
 Each agent iteration has four boundaries. You pick one with a `ctx.phase` guard
 in `onInterruptBoundary`.

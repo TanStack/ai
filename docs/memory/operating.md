@@ -13,7 +13,7 @@ keywords:
   - save-only
 ---
 
-Memory is in your `chat()` call. Now you want to know if it recalls anything, get that into your logs, and be sure that a slow or broken store does not break the chat.
+Log what memory recalls, and keep a slow or failed store from failing the chat.
 
 Add the `onRecall` and `onSave` callbacks for your logs, and use the devtools **Memory** tab while you develop. A memory failure never stops the chat.
 

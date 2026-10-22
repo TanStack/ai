@@ -19,7 +19,7 @@ keywords:
   - secure execution
 ---
 
-[Code Mode](./code-mode.md) runs the code that the model writes in a sandbox. Which sandbox you can use depends on where your server runs.
+Code Mode runs model-written code in a sandbox. The sandbox you can use depends on where the server runs.
 
 An isolate driver is that sandbox. All drivers have the same `IsolateDriver` shape, so you change the driver in one line and keep the rest of your code.
 

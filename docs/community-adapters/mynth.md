@@ -13,7 +13,7 @@ keywords:
   - community adapter
 ---
 
-The Mynth adapter gives you Mynth's image models in `generateImage()`: Flux, Recraft, Gemini, Qwen, Seedream, Wan, Grok Imagine, and more. It has typed model ids, image-to-image input, and Mynth options in `modelOptions`. Mynth maintains this adapter.
+The Mynth community adapter calls Flux, Recraft, Gemini, Qwen, Seedream, Wan, and Grok Imagine from `generateImage()`. Mynth maintains it.
 
 > [!NOTE]
 > Mynth is in public beta. The model list and some request options can still change. The adapter follows the Mynth SDK closely, and Mynth welcomes feedback on the API.

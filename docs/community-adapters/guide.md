@@ -13,7 +13,7 @@ keywords:
   - contribute
 ---
 
-You run an AI service, or you want one in TanStack AI, and no adapter exists for it. A community adapter is an npm package that maps the API of the service to the TanStack AI adapter interface. Then users call your service with `chat()`, `generateImage()`, and the other functions.
+A community adapter is an npm package that maps one AI service onto `chat()`, `generateImage()`, and the other TanStack AI functions.
 
 You build, publish, and maintain the adapter. The TanStack AI core team does not.
 

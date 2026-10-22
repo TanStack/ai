@@ -13,7 +13,7 @@ keywords:
   - agentic cycle
 ---
 
-You want to show what a tool call is doing in your UI. Or a tool did not run, and you want to know why. For both, you need to know how a call moves between the browser, your server, and the model.
+A tool call moves from the model, to your server or the browser, then back as a result. This page shows that path.
 
 Each tool call is a `tool-call` part in the assistant message. It has a `state` that changes as the call moves forward. The result arrives as a sibling `tool-result` part.
 

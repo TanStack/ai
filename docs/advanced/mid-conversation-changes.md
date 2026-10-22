@@ -12,7 +12,7 @@ keywords:
   - tool_addition
 ---
 
-Your agent gets a new tool halfway through a chat. A middleware adds it, a [lazy tool](../tools/lazy-tool-discovery) is found, or the user turns on a feature. The tool list sits at the start of each request, so the new tool changes the start. Then the provider cannot use its [prompt cache](./prompt-caching), and the next call costs more.
+Put a stable tool list at the start of each request so the provider can keep its prompt cache. Add a tool that appears mid-chat after that prefix.
 
 On some GPT and Claude models, TanStack AI sends the added tool inside the conversation. The start stays the same, and the cache keeps working. You change no code.
 

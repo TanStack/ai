@@ -3,7 +3,7 @@ title: Moving Sampling Options into modelOptions
 description: "Move temperature, topP, and maxTokens from the root of chat() into modelOptions, with the key name of each provider. A codemod does most of the work."
 ---
 
-Your `chat()` call has `temperature`, `topP`, or `maxTokens` at the root, and it does not type-check. These three options moved into `modelOptions`, under the key name of each provider. At the root, they also do nothing at runtime.
+Move `temperature`, `topP`, and `maxTokens` into `modelOptions` under the provider key. At the root of `chat()` they do not type-check and they do nothing at runtime.
 
 A codemod moves them for you. `metadata` is not a sampling option, so it stays at the root.
 

@@ -14,7 +14,7 @@ keywords:
   - serverless timeout
 ---
 
-Your host, proxy, or React Native setup buffers or breaks streamed responses. Or you want one plain response per run. Send the whole run as one JSON body with `fetchJson`. `useChat` works the same: messages, tool calls, approvals, and errors.
+`fetchJson` returns the whole run as one JSON body. `useChat` still renders messages, tool calls, approvals, and errors.
 
 ## Quick setup
 

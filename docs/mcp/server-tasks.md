@@ -15,7 +15,7 @@ keywords:
   - waitUntil
 ---
 
-Your tool takes minutes, and the HTTP call stays open until the work ends. The host has no task id to poll.
+A task tool returns a task id and finishes later. The host polls that id instead of holding the HTTP call open.
 
 Set `execution: 'task'` on the tool. The call returns a task handle at once, and the host polls for the result.
 

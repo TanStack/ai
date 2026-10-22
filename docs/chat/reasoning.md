@@ -12,7 +12,7 @@ keywords:
   - thinking budget
 ---
 
-Every provider has its own setting for thinking: `reasoning.effort` on OpenAI, `thinking` on Anthropic, `thinkingConfig` on Gemini, `think` on Ollama. You do not want to learn all of them.
+Pass `reasoning` to `chat()`. The adapter maps that level onto the provider setting, such as OpenAI `reasoning.effort` or Anthropic `thinking`.
 
 Set `reasoning` on `chat()`. The adapter sends the right field for the model.
 

@@ -12,7 +12,7 @@ keywords:
   - start
 ---
 
-You have support tickets, and you need to route them in code. A chat reply in prose is hard to branch on.
+This tutorial routes a support ticket with `decide()`. The result is a typed value the code can branch on.
 
 `decide()` asks typed questions about the ticket and gives back typed answers. In this tutorial, a server route returns a queue, an urgency, and a refund flag. It takes about 10 minutes.
 

@@ -17,7 +17,7 @@ keywords:
   - laya
 ---
 
-You have a ticket, a record, or a log, and your code must branch on it. You need a queue name, an urgency level, or a yes or no. Prose from a chat model is hard to branch on.
+`decide()` returns a typed value your code can branch on, such as a queue name, an urgency level, or a yes or no.
 
 `decide()` asks a decision model typed questions about your data. You read the answers as typed fields, like `result.queue.value`. There is no stream.
 

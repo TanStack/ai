@@ -14,7 +14,7 @@ keywords:
   - openai
 ---
 
-You want a streaming AI chat in your React Native or Expo app. You do not want provider SDKs or API keys in the native bundle.
+This guide adds a streaming chat to a React Native or Expo app. The provider key stays on your server.
 
 Put the model behind a small server route. The app calls it with `useChat` from `@tanstack/ai-react` and streams over XHR. This takes about 10 minutes.
 

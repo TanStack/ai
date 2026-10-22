@@ -11,7 +11,7 @@ keywords:
   - example
 ---
 
-A tool call does not arrive at once. The model names the tool, streams the arguments, and then the result comes back. A component that only reads `part.output` shows nothing for most of that time.
+Register a tool component under `toolsComponents` and branch on `part.state`. `part.input` and `part.output` are typed from the tool schemas.
 
 Register a component for the tool under `toolsComponents`, and branch on `part.state`. The key is the tool name. `part.input` and `part.output` are typed from the tool schemas, with no casts.
 

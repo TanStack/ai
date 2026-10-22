@@ -16,7 +16,7 @@ keywords:
   - adapter
 ---
 
-Need EU data residency, CMEK, or VPC-SC for Gemini? The Gemini Developer API has no regional endpoint, so you must run Gemini on Vertex AI.
+The Vertex adapter runs Gemini on Vertex AI. Use it when you need a regional endpoint, CMEK, or VPC-SC.
 
 `@tanstack/ai-vertex` gives you the Gemini adapters with Vertex auth. Request mapping, tools, and streaming stay the same as in [`@tanstack/ai-gemini`](./gemini).
 

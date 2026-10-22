@@ -14,7 +14,7 @@ keywords:
   - driverEpoch
 ---
 
-Your coding agent works for ten minutes. In that time, users refresh, close the laptop, lose wifi, or land on a different replica behind the load balancer. By default, a disconnect destroys the sandbox, and the work is lost.
+Takeover attaches a new connection to a run that is still in progress. A refresh, a closed laptop, or another replica does not destroy the sandbox.
 
 Takeover keeps the run alive. A disconnect **detaches**: the agent keeps working, and the run record notes that nobody is watching. A later request, on any server, **takes the run over**. It replays what the client already saw, then streams the rest.
 

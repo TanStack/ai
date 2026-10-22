@@ -13,7 +13,7 @@ keywords:
   - ai agents
 ---
 
-Your model calls tools one at a time. A task that touches five tools takes five round trips, and each round trip adds tokens and time.
+Code Mode lets the model write one program that calls several tools. One sandbox run replaces one round trip per tool.
 
 Code Mode gives the model one tool, `execute_typescript`. The model writes a short TypeScript program that calls your tools, and a sandbox runs it. You get one result back.
 

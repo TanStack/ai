@@ -12,7 +12,7 @@ keywords:
   - custom adapter
 ---
 
-Your coding agent speaks the [Agent Client Protocol](https://agentclientprotocol.com) (ACP), but it has no `@tanstack/ai-*` package. `acpCompatible` builds a `chat()` adapter for any ACP agent CLI. You tell it how to start the agent, and it runs the agent inside a sandbox.
+`acpCompatible` builds a `chat()` adapter for an ACP agent CLI that has no `@tanstack/ai-*` package. You pass the start command. The adapter runs the agent in a sandbox.
 
 It is the harness version of the [OpenAI-Compatible adapter](./openai-compatible). Does a dedicated harness adapter exist for your agent, such as [Grok Build](./grok-build)? Use that one. It knows the models and the special behavior of its agent.
 

@@ -14,7 +14,7 @@ keywords:
   - adapter
 ---
 
-The Grok Build adapter gives `chat()` xAI's coding agent. It runs the `grok` CLI inside a sandbox, where the agent edits files, runs commands, and searches a real repo. Each step streams back to your UI.
+The Grok Build adapter runs the `grok` CLI in a sandbox and streams each step to `chat()`. The agent edits files, runs commands, and searches a repo.
 
 You need:
 

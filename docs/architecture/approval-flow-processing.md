@@ -10,7 +10,7 @@ keywords:
   - persistence
 ---
 
-You gate a tool behind an approval, and you need to know what happens between "the model asked" and "the tool ran". You want this to debug a stuck approval, to build a custom approval UI, or to run approvals across many servers.
+This page lists each step from the model tool call to the tool result, after a person approves the call.
 
 An approval is an interrupt. The run stops before the tool executes and ends with an `interrupt` outcome. The client sends the decision in a new run. The server checks that decision and then runs the tool.
 

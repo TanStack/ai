@@ -12,7 +12,7 @@ keywords:
   - database access
 ---
 
-The model needs data that lives on your server: a database row, an API that needs a secret key, an environment variable. That code must never run in the browser.
+A server tool runs on your server. Use it for a database row, a secret, or an environment variable. That code never runs in the browser.
 
 A server tool fixes this. You write the function with `.server()`, and `chat()` runs it on your server each time the model calls it. The browser never sees the code or the keys.
 

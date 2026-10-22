@@ -13,7 +13,7 @@ keywords:
   - stream narrowing
 ---
 
-A tool runs for 20 seconds and your UI shows nothing. Or you read a `chat()` stream and get a `CUSTOM` event, and you do not know its shape.
+A `CUSTOM` event carries app data on the `chat()` stream, such as progress during a 20-second tool. This page shows the event shape.
 
 A `CUSTOM` event carries a `name` and a `value` next to the normal chat chunks. Your server sends one with `emitCustomEvent`. Your client reads it with `onCustomEvent`. TanStack AI also sends its own `CUSTOM` events, and this page lists all of them.
 

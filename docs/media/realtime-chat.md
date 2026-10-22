@@ -15,7 +15,7 @@ keywords:
   - useRealtimeChat
 ---
 
-You want users to talk to your app and hear it talk back, with no typing and no wait for a full reply. Realtime voice chat opens a live audio connection between the browser and the model. Your server only mints a short-lived token, so your API key never reaches the browser.
+Realtime voice opens a live audio connection between the browser and the model. The server mints a short-lived token. The API key stays on the server.
 
 ## Quick setup
 

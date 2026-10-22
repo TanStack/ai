@@ -5,7 +5,7 @@ order: 11
 description: "Run a coding-agent harness at the edge with @tanstack/ai-sandbox-cloudflare: the agent loop, the run log, and the sandbox container in one Worker deploy, with runs that survive a closed tab."
 ---
 
-You want your coding agent at the edge: the agent loop, its run history, and the sandbox container in one Cloudflare deploy. You also want a run to keep going when the user closes the tab, without running your own stream servers.
+The Cloudflare sandbox runs the agent loop, the run history, and the container in one deploy. A run continues after the user closes the tab.
 
 `@tanstack/ai-sandbox-cloudflare` gives you both. `createCloudflareSandboxAgent` builds the Worker routes, a coordinator Durable Object that drives each run and keeps its log, and the container plumbing.
 

@@ -10,7 +10,7 @@ keywords:
   - examples
 ---
 
-You want to add one thing to your chat UI and copy a file that works. Each recipe below is one short, complete example. Each one adds a single thing to the one before it.
+Each recipe is one complete example. Each one adds a single piece to the recipe before it.
 
 If you have not built a chat UI here yet, start with the first one.
 

@@ -11,8 +11,7 @@ keywords:
   - defineSandboxInstanceStore
 ---
 
-Your agent runs in a sandbox. The server restarts, a second replica takes a
-request, or the user closes the tab. What survives?
+A sandbox persistence adapter stores the sandbox id for a thread. The next request, including one on another replica, reconnects to that sandbox.
 
 A sandboxed run has two halves, and each one persists on its own:
 

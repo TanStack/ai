@@ -13,7 +13,7 @@ keywords:
   - adapter
 ---
 
-The OpenCode adapter gives `chat()` a coding agent that works with many model providers. It starts an `opencode serve` server inside a sandbox, where the agent edits files and runs commands in a real repo. Text and each tool step stream back to your UI.
+The OpenCode adapter starts `opencode serve` in a sandbox and streams text and tool steps to `chat()`. The agent edits files and runs commands in a repo.
 
 You need:
 

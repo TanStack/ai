@@ -12,7 +12,7 @@ keywords:
   - chat middleware
 ---
 
-You have a chat route that works. Now you want the assistant to remember what the user said. At the end of this page, your route recalls memory before each answer, saves each turn, and is ready to move to Redis.
+Add `memoryMiddleware` to a working chat route. The route recalls memory before each answer and saves each turn.
 
 ## Quick setup
 

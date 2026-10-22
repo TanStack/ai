@@ -12,7 +12,7 @@ keywords:
   - SSE
 ---
 
-Your own server sends AG-UI events, but `useChat` does not get the finish reason or the model id. The AG-UI spec has no field for them.
+TanStack AI puts the finish reason and the model id in AG-UI metadata. `useChat` reads those fields from there.
 
 Put these extras in `metadata.tanstack` on the event. The spec fields stay at the top level.
 

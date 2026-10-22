@@ -13,7 +13,7 @@ keywords:
   - toServerSentEventsStream
 ---
 
-Your code comes from an early 0.x release of TanStack AI. It calls `openai()`, passes `model` to `chat()`, or uses `providerOptions` or `toResponseStream`. These APIs changed during 0.x. Make the changes on this page first, then do [Upgrade to 1.0](./v1).
+Early 0.x called `openai()`, passed `model` to `chat()`, and used `providerOptions` or `toResponseStream`. Replace those first, then follow [Upgrade to 1.0](./v1).
 
 ## What changed
 

@@ -5,7 +5,7 @@ order: 4
 description: "Describe what the agent sees inside the sandbox: the source repo, the package manager, the setup commands, and named scripts, in one portable definition."
 ---
 
-The agent needs your code, cloned and installed, before it can do anything. You do not want to write that bootstrap again for each provider and each agent.
+The workspace clones your repo and installs dependencies before the agent starts. The same setup runs on each provider and each agent.
 
 `defineWorkspace()` describes the working tree once. Each harness adapter converts it to its own format, and it runs in any [provider](./providers).
 

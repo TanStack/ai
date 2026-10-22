@@ -14,7 +14,7 @@ keywords:
   - adapter
 ---
 
-The Codex adapter gives `chat()` a coding agent. It runs the `codex` CLI inside a sandbox, where the agent runs shell commands and edits files in a real repo. Each step streams back to your UI.
+The Codex adapter runs the `codex` CLI in a sandbox and streams each step to `chat()`. The agent runs shell commands and edits files in a repo.
 
 You need:
 

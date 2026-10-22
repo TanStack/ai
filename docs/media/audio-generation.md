@@ -5,7 +5,7 @@ order: 15
 description: "Make music, soundscapes, and sound effects from a text prompt with generateAudio() and the useGenerateAudio hook. Works with Gemini Lyria and fal.ai models."
 ---
 
-Your app needs a music track, a background soundscape, or a sound effect, made from a text prompt. `generateAudio()` sends the prompt to an audio model and gives you the audio back. The `useGenerateAudio` hook plays it in the browser.
+`generateAudio()` sends a text prompt to an audio model and returns the clip. `useGenerateAudio` plays it in the browser.
 
 For a spoken voice, use [Text-to-Speech](./text-to-speech) instead.
 

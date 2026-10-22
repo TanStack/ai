@@ -14,7 +14,7 @@ keywords:
   - adapter
 ---
 
-Reactor gives you live worlds and live video that you steer with prompts while they play. Your server mints a short session token. The browser connects with the token and plays the stream. The adapter has no chat.
+The Reactor adapter opens a live world or live video session. The server mints a session token. The browser plays and steers the stream. It has no chat.
 
 - `reactorWorld()` with `generateWorld()`: a world the user can look at and move through.
 - `reactorVideo()` with `generateLiveVideo()`: a live video session.

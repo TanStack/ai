@@ -14,7 +14,7 @@ keywords:
   - TEXT_MESSAGE_CONTENT
 ---
 
-You have a stream of chunks. You need to know which chunks are tokens, which are tool calls, and when the run is done.
+A `chat()` stream yields text deltas, tool-call chunks, and a finish chunk. This page names each chunk.
 
 Every chunk has a `type`. Branch on it.
 

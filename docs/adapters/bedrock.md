@@ -19,7 +19,7 @@ keywords:
   - adapter
 ---
 
-[Amazon Bedrock](https://aws.amazon.com/bedrock/) gives you Claude, Nova, Llama, Mistral, DeepSeek, gpt-oss, and more in your AWS account, with streaming, tools, reasoning, and embeddings.
+The Bedrock adapter calls Claude, Nova, Llama, Mistral, DeepSeek, and gpt-oss in your AWS account. It supports streaming, tools, reasoning, and embeddings.
 
 ## 1. Install
 

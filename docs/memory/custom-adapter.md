@@ -14,7 +14,7 @@ keywords:
   - contract suite
 ---
 
-Your memory must live in pgvector, MongoDB, DynamoDB, or a hosted memory API, and the built-in adapters do not fit. Write your own adapter. It is an object with two methods, `recall` and `save`.
+A custom memory adapter is an object with `recall` and `save`. Use one for pgvector, MongoDB, DynamoDB, or a hosted memory API.
 
 This page builds a pgvector adapter. The same shape works for any backend.
 

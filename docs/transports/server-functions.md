@@ -14,7 +14,7 @@ keywords:
   - async iterable
 ---
 
-Your client can call your server code directly, so you do not want to write an HTTP route for chat. Hand that function to `useChat`. Pick the helper from what your function returns:
+Pass a server function to `useChat` when the client can call that function directly. Pick the helper from the return value:
 
 | Your function | Use |
 | --- | --- |

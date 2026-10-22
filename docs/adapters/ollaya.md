@@ -12,7 +12,7 @@ keywords:
   - adapter
 ---
 
-Ollaya runs the `laya` decision models on your own machine. You get typed answers about your data (a queue name, an urgency level, a yes or no), and the data never leaves your hardware. The adapter works with `decide()` only. It has no chat.
+The Ollaya adapter calls the `laya` models on your machine through `decide()`. It returns a typed answer. It has no chat.
 
 ## 1. Install
 

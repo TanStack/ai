@@ -11,9 +11,7 @@ keywords:
   - resolveInterrupt
 ---
 
-You have a tool that must not run until a person says yes: transferring money,
-deleting a record, sending a message. The model can plan the call, but a human
-must approve it first.
+Set `needsApproval: true` on a tool. The model can plan the call. The tool runs after a person approves it.
 
 Mark the tool `needsApproval: true`. Each call then pauses the run, shows an
 approve or reject prompt in the chat, and continues with the decision.

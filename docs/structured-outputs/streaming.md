@@ -14,7 +14,7 @@ keywords:
   - progressive ui
 ---
 
-Your structured reply takes a few seconds, and the UI stays empty until the whole object is ready. Users think the app froze.
+A streaming structured output emits the object as the model writes it. The UI can render each finished field before the object is complete.
 
 Stream the JSON instead. `useChat` parses it as it arrives and gives you a typed `partial` object that fills in field by field.
 

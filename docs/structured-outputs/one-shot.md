@@ -13,7 +13,7 @@ keywords:
   - type inference
 ---
 
-You have free text, such as an email body or a user prompt, and you need one typed object from it. You do not need streaming, history, or an agent loop.
+`chat()` with `outputSchema` returns one typed object from text. It does not stream, store history, or run tools.
 
 Call `chat()` with an `outputSchema` and await it. You get one validated object back.
 

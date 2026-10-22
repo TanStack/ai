@@ -12,9 +12,9 @@ keywords:
   - ToolProps
 ---
 
-You have a streaming chat and you want it to look like your Angular app. You also want tool calls and approvals typed, with no casts.
+`createChatHook` from `@tanstack/ai-angular/ui` binds your chat options and components once. Tool calls and approvals stay typed.
 
-`createChatHook` from `@tanstack/ai-angular/ui` binds your chat options and your components once. Each screen then creates a chat with `injectAppChat()` and renders it with `<ai-chat [chat]="chat" />`.
+`createChatHook` from `@tanstack/ai-angular/ui` Each screen then creates a chat with `injectAppChat()` and renders it with `<ai-chat [chat]="chat" />`.
 
 - Widgets are standalone Angular components with signal inputs.
 - Chat state is signals.

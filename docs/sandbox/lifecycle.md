@@ -5,7 +5,7 @@ order: 8
 description: "Reuse one sandbox per thread, snapshot the workspace after setup, and resume on the next run, so only the first run pays the cold-start cost."
 ---
 
-Every new sandbox clones the repo, installs dependencies, and runs `setup`. That is the slow part of a run. You do not want to pay it on every message.
+Reuse a sandbox across messages in a thread. A new sandbox clones the repo, installs dependencies, and runs `setup` again.
 
 The `lifecycle` config lets you pay it once. Keep one sandbox per thread, take a snapshot after setup, and resume on the next run.
 

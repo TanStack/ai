@@ -13,7 +13,7 @@ keywords:
   - execution progress
 ---
 
-[Code Mode](./code-mode) works on your server, but your users see nothing while the sandbox runs. They wait, then an answer appears.
+Stream Code Mode events to the client so the UI shows each sandbox step. The user then sees the run before the final answer.
 
 Code Mode sends custom events while it runs. Catch them with `onCustomEvent` in `useChat`, and show the code, each tool call, and the result in the chat.
 

@@ -14,7 +14,7 @@ keywords:
   - adapter
 ---
 
-Ollama runs open models such as Qwen, Llama, and gpt-oss on your own hardware. You need no API key, you pay no API cost, the data stays on your machine, and it works offline.
+The Ollama adapter calls Qwen, Llama, gpt-oss, and other open models on your machine. It needs no API key and it works offline.
 
 ## 1. Install
 

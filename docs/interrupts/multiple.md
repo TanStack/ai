@@ -11,9 +11,7 @@ keywords:
   - cancelInterrupts
 ---
 
-One run can pause on several decisions at once, for example two tool approvals
-and a generic middleware question. You want to show the whole queue and send
-all the answers in one request.
+One run can pause on several interrupts at once. Render the queue, then send every answer in one request.
 
 `useChat` collects the answers as local drafts. It sends them together when
 every item has an answer, and the server validates the full batch.

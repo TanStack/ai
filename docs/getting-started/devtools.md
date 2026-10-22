@@ -13,7 +13,7 @@ keywords:
   - observability
 ---
 
-Your chat gives a strange answer, and you cannot see why. Which messages did the model get? Which tool ran, with which input? What came back?
+Devtools shows the messages sent to the model, the tool input, and the tool result for a chat run.
 
 The TanStack AI devtools panel shows you this while the app runs. It is a plugin for TanStack Devtools. This takes about 3 minutes.
 

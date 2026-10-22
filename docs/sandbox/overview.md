@@ -5,7 +5,7 @@ title: Sandboxes Overview
 description: "Run a coding agent (Grok Build, Claude Code, Codex, OpenCode) inside an isolated sandbox with a real filesystem and a cloned repo, and stream its work back through chat()."
 ---
 
-You want an agent that edits code, runs the tests, and shows you the diff. A normal `chat()` call can only talk about code. It has no filesystem and no shell.
+A sandbox gives the agent a filesystem and a shell. `chat()` alone can only talk about code.
 
 A sandbox gives the agent a real computer to work in: a cloned repo, a shell, and processes. The agent runs inside it, and its edits, commands, and tool calls stream back to you like any other `chat()` run.
 

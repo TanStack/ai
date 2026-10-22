@@ -14,7 +14,7 @@ keywords:
   - snippet storage
 ---
 
-Your model writes the same [Code Mode](./code-mode.md) program again on every request. For example, it writes a function that fetches and ranks npm packages, then writes it again next time.
+A snippet is a TypeScript function you put in the Code Mode prompt. The model calls that function instead of writing the same program again.
 
 Snippets let the model save working code under a name. On later requests, the saved snippets load from storage, and the model calls them as tools.
 

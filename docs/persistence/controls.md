@@ -3,7 +3,7 @@ title: Persistence Controls
 id: controls
 ---
 
-You want to keep messages in your database, but approvals somewhere else. Or you do not need one of the stores at all.
+Pass only the stores you use. Messages can live in your database while approvals live somewhere else.
 
 Persistence has no feature flags. The stores that the backend provides decide what is persisted. Use `composePersistence` to mix backends per store, and give only the stores your app needs.
 

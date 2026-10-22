@@ -3,8 +3,7 @@ title: Build a Generation Adapter (Advanced)
 id: build-your-own-generation-adapter
 ---
 
-A video takes minutes to generate. The user reloads, and the run is gone. Or
-the provider URL expires, and the media is gone.
+A generation adapter stores the run and the output bytes. A reload can then show a video that is still in progress, and the file remains after the provider URL expires.
 
 Keep both in your own database with three stores. This page builds them
 against SQLite (the built-in `node:sqlite` module of Node). Plan about 30

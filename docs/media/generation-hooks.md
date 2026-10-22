@@ -15,7 +15,7 @@ keywords:
   - react hooks
 ---
 
-Your server can make an image or a voice clip. Now the browser needs a button, a loading state, an error message, and a place to show the result. A generation hook gives you all four, with the same shape for every media type.
+A generation hook tracks the request, the loading state, the error, and the result for one media call.
 
 ## Quick setup
 

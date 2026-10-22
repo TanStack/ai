@@ -14,7 +14,7 @@ keywords:
   - google ai
 ---
 
-Gemini gives you multimodal chat with thinking and Google tools, plus images (Gemini native and Imagen), speech, embeddings, music, and video.
+The Gemini adapter calls Gemini for multimodal chat, thinking, and Google tools. It also calls image, speech, embedding, music, and video models.
 
 Need Gemini on Vertex AI, for regional endpoints and Google Cloud credentials? Use the [Vertex adapter](./vertex).
 

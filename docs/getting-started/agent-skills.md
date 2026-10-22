@@ -19,7 +19,7 @@ keywords:
   - npx skills
 ---
 
-You ask your coding agent to add a chat endpoint, and it writes code for another SDK, or for an old version of TanStack AI.
+Install the TanStack AI agent skill so your coding agent writes current TanStack AI code.
 
 TanStack AI ships Agent Skills: `SKILL.md` files that teach your coding agent how the library works. They come with the package version you install, so the agent reads guidance that matches your code. This takes about 5 minutes.
 

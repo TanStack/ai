@@ -3,7 +3,7 @@ title: Migrating to AG-UI Client-to-Server Compliance
 description: "Move a 0.x chat endpoint to the AG-UI wire format: read forwardedProps, not body.data, rename body and conversationId, and keep forwarded values safe."
 ---
 
-Your server reads `body.data`, and after the upgrade it gets `undefined`. `@tanstack/ai-client` now posts an AG-UI `RunAgentInput` body, and the extra fields from the client arrive in `forwardedProps`.
+`@tanstack/ai-client` posts an AG-UI `RunAgentInput` body. Extra client fields arrive in `forwardedProps`, not `body.data`.
 
 On the client, `useChat` messages, thinking, tools, and approvals keep working. The breaking change is on the HTTP wire and in a few option names. In 1.0, the old `body` client option and the `data` wire field are gone. For every other 1.0 change, see [Upgrade to 1.0](./v1).
 

@@ -13,7 +13,7 @@ keywords:
   - cancelQueued
 ---
 
-The user hits send while a reply is still streaming. You need a rule for that message: wait, ignore it, or cut in.
+Queueing decides what happens when the user sends a message while a reply is still streaming: wait, ignore it, or stop the current run.
 
 `useChat` has a message queue for this. By default, the new message waits and sends after the current run succeeds.
 

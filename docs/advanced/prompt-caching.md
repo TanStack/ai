@@ -13,7 +13,7 @@ keywords:
   - token cost
 ---
 
-Each request of a chat sends the same start again: the system prompt, the tools, and the earlier messages. You pay for those tokens on each call, and the model reads them again before it answers.
+Prompt caching reuses the system prompt, tools, and earlier messages that each request sends again. The provider bills those tokens once while the cache is valid.
 
 With prompt caching, the provider keeps that start. The next request with the same start reads it from the cache, so it costs less and the answer starts sooner. `chat()` turns it on by default.
 

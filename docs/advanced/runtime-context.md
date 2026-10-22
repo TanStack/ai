@@ -12,7 +12,7 @@ keywords:
   - ag-ui context
 ---
 
-Your tool needs to know who is asking: the user ID, the tenant, a database client. You cannot put these values in the prompt, and you do not want a global variable.
+`runtimeContext` passes a user id, tenant, or database client into a tool. Those values stay out of the prompt.
 
 Pass them as runtime context. Your tools and middleware read them from `ctx.context`, with full types. The model never sees them.
 

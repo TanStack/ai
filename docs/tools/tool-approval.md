@@ -13,7 +13,7 @@ keywords:
   - human-in-the-loop
 ---
 
-Some tools must not run without a human saying yes: sending an email, making a purchase, deleting data. The model can plan the call, but a person must approve it first.
+Set `needsApproval: true` on a tool that sends email, pays, or deletes data. The tool runs after a person approves the call.
 
 Add `needsApproval: true` to the tool. The run pauses before the tool runs. Your UI shows the call with Approve and Deny buttons. Then the run continues with the answer of the user.
 

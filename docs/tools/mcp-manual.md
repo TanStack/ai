@@ -15,7 +15,7 @@ keywords:
   - abortController
 ---
 
-You want more from your [MCP client](./mcp) than tools with `unknown` arguments. You want typed tool arguments, or the resources and prompts of the server in the conversation. Call the client methods yourself and pass the results to `chat()`.
+Call the MCP client yourself when you need typed tool arguments, resources, or prompts. Pass the results into `chat()`.
 
 On this path, you own the client and you close it. If you only need tools, and you want `chat()` to close the client, use [Managed MCP with chat()](./mcp-managed).
 

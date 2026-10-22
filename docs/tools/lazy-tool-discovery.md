@@ -13,7 +13,7 @@ keywords:
   - large tool sets
 ---
 
-Your app has many tools. Each request sends every tool definition to the model, even the ones that it almost never uses. That costs tokens, and a long tool list can make the answers worse.
+Lazy tool discovery sends a tool definition only after the model asks for that tool. Each request omits the tools it does not need.
 
 Mark the rarely used tools with `lazy: true`. The model then sees only their names. When a task needs one, the model asks for it, gets its full definition, and calls it.
 

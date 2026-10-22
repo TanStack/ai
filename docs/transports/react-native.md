@@ -14,7 +14,7 @@ keywords:
   - mobile streaming
 ---
 
-Your native app calls your own backend, and streaming `fetch` is often missing on phones. Use `useChat` from `@tanstack/ai-react` with the `xhrHttpStream()` transport and an absolute URL. It reads the stream through XHR progress events.
+Use `useChat` from `@tanstack/ai-react` with `xhrHttpStream()` and an absolute URL. XHR progress events carry the stream when `fetch` streaming is missing.
 
 ## Quick setup
 

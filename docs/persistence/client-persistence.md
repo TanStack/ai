@@ -3,7 +3,7 @@ title: Client Persistence
 id: client-persistence
 ---
 
-`useChat` keeps messages in memory. A reload or a crashed tab loses the whole conversation, and any reply that was still streaming.
+Client persistence writes `useChat` messages to storage in the browser. A reload keeps the conversation and a reply that was still streaming.
 
 The `persistence` option fixes this from the browser side. On reload, it shows the transcript again, brings back a pending approval, and rejoins a reply that was still streaming.
 

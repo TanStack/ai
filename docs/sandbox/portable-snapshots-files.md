@@ -5,8 +5,7 @@ order: 15
 description: "Pass include and exclude functions so a portable snapshot stores only the files you choose, including a single file."
 ---
 
-You have portable snapshots wired. The agent writes a full workspace. You do
-not want every file in durable storage.
+Limit which workspace files a portable snapshot stores. The agent can still write the rest of the workspace.
 
 Pass a `policy` when you create the snapshots object. `include` and `exclude`
 are functions. They decide which workspace paths the capture stores. The same

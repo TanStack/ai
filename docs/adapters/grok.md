@@ -15,7 +15,7 @@ keywords:
   - adapter
 ---
 
-Grok gives you the xAI chat models on the Responses API, plus Grok Imagine images and video, speech, transcription, and realtime voice.
+The Grok adapter calls xAI chat models on the Responses API. It also calls Grok Imagine for images and video, plus speech, transcription, and realtime voice.
 
 ## 1. Install
 

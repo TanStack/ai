@@ -13,7 +13,7 @@ keywords:
   - skill catalog
 ---
 
-You have `SKILL.md` files that teach a model one task well: build a slide deck, write in your brand voice, fill a PDF. You want the model to pick the right one by itself, on any provider. You do not want every skill in the system prompt.
+`withSkills` lets the model pick one `SKILL.md` for the turn. The other skills stay out of the system prompt.
 
 `withSkills` from `@tanstack/ai-skills` gives the model a short catalog of your skills and a `load_skill` tool. The model loads the full instructions only when it needs them.
 

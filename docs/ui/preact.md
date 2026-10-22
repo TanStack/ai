@@ -11,9 +11,9 @@ keywords:
   - ToolProps
 ---
 
-You have a streaming chat and you want it to look like your Preact app. You also want tool calls and approvals typed, with no casts.
+`createChatHook` from `@tanstack/ai-preact/ui` binds your chat options and components once. Tool calls and approvals stay typed.
 
-`createChatHook` from `@tanstack/ai-preact/ui` binds your chat options and your components once. Each screen then renders the chat with one hook call. The API is the same as [React](./react). Widgets are Preact components. You supply every visible component. There is no default markup or style.
+`createChatHook` from `@tanstack/ai-preact/ui` Each screen then renders the chat with one hook call. The API is the same as [React](./react). Widgets are Preact components. You supply every visible component. There is no default markup or style.
 
 ## Quick setup
 

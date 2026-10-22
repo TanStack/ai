@@ -13,7 +13,7 @@ keywords:
   - resumeHttpResponse
 ---
 
-Your runtime or proxy does not let SSE through. Some edge runtimes and mobile WebViews block it, and some proxies strip `text/event-stream`. Stream newline-delimited JSON (NDJSON) instead: one JSON `StreamChunk` per line.
+`httpStream()` reads newline-delimited JSON: one `StreamChunk` per line. Use it when SSE is blocked.
 
 ## Quick setup
 

@@ -11,7 +11,7 @@ keywords:
   - client authoritative
 ---
 
-Your user reloads the page and the conversation is gone, because it only lived in memory. Or they open the app on their phone and nothing is there.
+Persistence stores the conversation outside process memory. A reload, or the same user on another device, then loads that conversation.
 
 Persistence fixes this. The server saves each thread, and `useChat` loads it back when the page opens.
 

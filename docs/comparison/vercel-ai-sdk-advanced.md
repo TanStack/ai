@@ -16,7 +16,7 @@ keywords:
   - sandbox
 ---
 
-You read [the short comparison](./vercel-ai-sdk) and want the facts behind one row of the table. Each section below shows the TanStack AI code, then what the Vercel AI SDK does for the same job. Versions: TanStack AI at the time of writing, and Vercel AI SDK `ai@7.x`.
+Each section below shows the TanStack AI code for one row of the [short comparison](./vercel-ai-sdk), then the Vercel AI SDK `ai@7.x` code for the same job.
 
 To move an app, use [Migration from Vercel AI SDK](../migration/migration-from-vercel-ai).
 

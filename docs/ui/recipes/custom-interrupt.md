@@ -11,7 +11,7 @@ keywords:
   - example
 ---
 
-Sometimes the run needs an answer that is not a tool approval: pick a plan, choose a date, confirm an address. Define the question with `defineInterrupt`. The server pauses the run and asks, and your component answers.
+`defineInterrupt` pauses the run for a question that is not a tool approval. The component sends the answer.
 
 Two schemas define the exchange:
 

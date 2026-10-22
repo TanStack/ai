@@ -16,7 +16,7 @@ keywords:
   - transcription
 ---
 
-Lovable AI Gateway gives you Google and OpenAI models with one project key. You do not need an account with each provider. The adapter covers chat, images, video, embeddings, speech, and transcription.
+The Lovable adapter calls Google and OpenAI models with one project key. It covers chat, images, video, embeddings, speech, and transcription.
 
 ## 1. Install
 

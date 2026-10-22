@@ -14,7 +14,7 @@ keywords:
   - retention
 ---
 
-A [detached run](./takeover) keeps working after the user leaves. If the user never comes back, nothing ends that run:
+The reaper stops a detached run that the user never resumes.
 
 - **The sandbox bills forever.** Detach exists so the sandbox is not destroyed, so something else must destroy it.
 - **Clients wait forever.** A detached run's log stays open on purpose, so a client that joins waits for an event that never comes.

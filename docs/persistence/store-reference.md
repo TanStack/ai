@@ -3,7 +3,7 @@ title: Store Reference (Advanced)
 id: store-reference
 ---
 
-The store contracts of `@tanstack/ai-persistence`. Implement only the stores you need: the middleware turns each feature on from the stores that are present.
+These are the store contracts in `@tanstack/ai-persistence`. Implement the stores you need. The middleware enables a feature when its store is present.
 
 | Store | Holds | Used by | Guide |
 | --- | --- | --- | --- |

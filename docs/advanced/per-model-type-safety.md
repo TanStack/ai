@@ -13,7 +13,7 @@ keywords:
   - compile-time
 ---
 
-You set a provider option, but the model you picked does not support it. You find out only when the request fails or the option has no effect.
+Provider options are typed from the model you pass to the adapter. An option that model does not support is a type error.
 
 TanStack AI gives `modelOptions` the type of the exact model that you select. Your editor shows only the options that the model has, and TypeScript rejects the others.
 

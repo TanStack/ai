@@ -14,7 +14,7 @@ keywords:
   - injectRegisterWebMCPTools
 ---
 
-A browser agent visits your page and wants to do something, like open the help panel. Clicking around the UI is slow, and it breaks when the UI changes. WebMCP lets you give that agent a list of actions it can call by name.
+WebMCP publishes named actions on the page. A browser agent calls an action by name instead of clicking the UI.
 
 You register your TanStack client tools on `document.modelContext`. The agent finds them there and calls them.
 

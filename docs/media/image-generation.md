@@ -14,7 +14,7 @@ keywords:
   - fal.ai
 ---
 
-Your app needs a picture from a text prompt: a product shot, an avatar, a header image. `generateImage()` sends the prompt to an image model and gives you the images back. The `useGenerateImage` hook shows them in the browser.
+`generateImage()` sends a text prompt to an image model and returns the images. `useGenerateImage` shows them in the browser.
 
 ## Generate an image
 

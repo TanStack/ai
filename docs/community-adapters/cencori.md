@@ -13,7 +13,7 @@ keywords:
   - community adapter
 ---
 
-Cencori gives you 14+ AI providers (OpenAI, Anthropic, Google, xAI, and more) through one API key. It also adds security filters, request logs, and cost tracking. Cencori maintains this adapter.
+The Cencori community adapter calls 14+ providers with one API key. It also applies security filters and records request cost. Cencori maintains it.
 
 ## 1. Install
 

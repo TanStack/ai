@@ -13,7 +13,7 @@ keywords:
   - edge skills
 ---
 
-Your skills live in a folder in your repo, not in code. Or you deploy to the edge, where you cannot read files at request time.
+A skill source loads `SKILL.md` files from a folder, or from bytes you pass in when the server cannot read the disk.
 
 A `SkillSource` tells `withSkills` where to read skills from. Pick the built-in source that matches where your skills live:
 

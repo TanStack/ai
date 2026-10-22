@@ -11,7 +11,7 @@ keywords:
   - example
 ---
 
-Your server route needs to know which tenant or user a chat belongs to, and that value must not go into the prompt. Pass it as `forwardedProps` to `useAppChat()`. Every request from that chat instance carries it, and the model does not see it.
+Pass `forwardedProps` to `useAppChat()`. Every request from that chat carries the value, and the model does not see it.
 
 ## Client
 

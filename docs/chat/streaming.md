@@ -13,9 +13,8 @@ keywords:
   - useChat
 ---
 
-You send a message, and the UI sits still until the model is done. That wait feels broken.
+`chat()` returns each token while the model writes the reply. `useChat` renders those tokens. Call `stop()` to cancel the run.
 
-Stream the reply instead. The tokens show up in the UI while the model writes them.
 
 ## Quick setup
 

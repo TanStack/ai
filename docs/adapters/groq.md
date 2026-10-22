@@ -15,7 +15,7 @@ keywords:
   - transcription
 ---
 
-Groq runs open-weight models (Llama, gpt-oss, Qwen, Kimi) with very low latency. It also has Whisper transcription and Orpheus speech.
+The Groq adapter calls Llama, gpt-oss, Qwen, and Kimi with low latency. It also calls Whisper for transcription and Orpheus for speech.
 
 ## 1. Install
 

@@ -12,7 +12,7 @@ keywords:
   - last-event-id
 ---
 
-The connection drops while a reply is still streaming. Or the user refreshes the tab, or the phone suspends it. The reply stops half done, and a retry calls the model again.
+A resumable stream keeps the reply log when the connection drops. A refresh continues that reply and does not call the model again.
 
 A resumable stream fixes this. The server records every chunk in a log, and the client reconnects and gets only the chunks it missed. The model does not run again.
 

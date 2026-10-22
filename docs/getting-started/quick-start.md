@@ -26,7 +26,7 @@ redirect_from:
   - /getting-started/quick-start-octane
 ---
 
-You want a chat in your app that shows the answer while the model writes it. You need three things: a server route that talks to the model, an API key, and a UI that renders the stream.
+This guide adds a chat that renders tokens while the model writes them. You add a server route, an API key, and a UI.
 
 TanStack AI gives you each piece. `chat()` streams from your server route. A hook for your framework renders the tokens. This takes about 5 minutes.
 

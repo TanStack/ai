@@ -11,7 +11,7 @@ keywords:
   - sandbox billing
 ---
 
-Your coding agent can take ten minutes to finish a task. In that time the user refreshes, closes the laptop, or loses wifi. By default, a dropped connection destroys the sandbox, and the work is lost.
+A durable run keeps the sandbox when the connection drops. A ten-minute coding task survives a refresh, a closed laptop, or lost wifi.
 
 Durable runs keep the agent working when the user leaves. When the user comes back, the stream continues from where they left off.
 

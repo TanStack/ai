@@ -11,9 +11,7 @@ keywords:
   - resolveInterrupt
 ---
 
-Some tool calls must not run until a person says yes: moving money, deleting a
-project, sending an email. An interrupt pauses the run at that call, waits for
-the decision, and then continues the run from the same point.
+An interrupt pauses a run until a person decides. The run then continues from the same point.
 
 ## Quick setup
 

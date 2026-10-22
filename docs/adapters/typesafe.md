@@ -12,7 +12,7 @@ keywords:
   - adapter
 ---
 
-TypeSafe gives you Jev, a model that answers typed questions about your data: a queue name, an urgency level, or a yes or no. The adapter works with `decide()` only. It has no chat.
+The TypeSafe adapter calls Jev through `decide()`. Jev returns a typed answer about your data. The adapter has no chat.
 
 ## 1. Install
 

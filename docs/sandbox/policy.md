@@ -5,7 +5,7 @@ order: 7
 description: "Set allow, ask, and deny rules for the commands and capabilities the in-sandbox agent can use. Write them once, and each harness maps them to its own permissions."
 ---
 
-You do not want the agent to run `sudo`, delete the repo, or call random hosts. Some commands are fine, some need a human yes, and some must never run.
+A policy allows a command, asks for approval, or blocks it. Use it to stop `sudo`, a repo delete, or a call to an unknown host.
 
 A policy holds those rules. `defineSandboxPolicy()` writes them once, and each harness adapter maps them to its own permission system.
 

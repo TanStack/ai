@@ -18,7 +18,7 @@ redirect_from:
   - /chat/connection-adapters
 ---
 
-Your chat must get chunks from the server to the UI. The right way to do that depends on where your code runs: a web server, an edge runtime, a phone, or one process.
+A transport carries chunks from the server to `useChat`. Pick one from where the code runs: a web server, an edge runtime, a phone, or one process.
 
 A transport is the one part of the chat that touches the network. You pick it with the `connection` option of `useChat`. Messages, tool calls, and UI updates work the same on every transport.
 

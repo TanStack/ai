@@ -14,7 +14,7 @@ keywords:
   - outputSchema
 ---
 
-You want data from the model, not prose. Parsing JSON out of a chat reply breaks the first time the model adds a sentence before the braces.
+Pass `outputSchema` so the model returns an object that matches the schema. The call fails when the output does not match.
 
 Pass a schema as `outputSchema`. The model must answer in that shape, and you get a typed object back.
 

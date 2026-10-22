@@ -13,7 +13,7 @@ keywords:
   - approval
 ---
 
-Some computer actions are risky. The page can ask the model to do a thing that the user did not ask for, or the action can send data.
+A safety check runs before a computer action. It blocks an action the user did not ask for, or an action that sends data.
 
 OpenAI attaches safety checks to these actions. TanStack AI pauses the run, and a person approves or declines the action. This page adds the approval card to your [computer use](./computer-use) app.
 

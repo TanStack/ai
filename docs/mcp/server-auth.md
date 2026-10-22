@@ -16,7 +16,7 @@ keywords:
   - oauthMetadataResponse
 ---
 
-Your MCP server is on a public URL. Any client that can reach that URL can call your tools.
+Require a credential on your public MCP route. A client that cannot present it cannot call your tools.
 
 Pass `auth` to `createMCPServer`. The server then checks the access token on each request, and a missing or bad token gets 401.
 

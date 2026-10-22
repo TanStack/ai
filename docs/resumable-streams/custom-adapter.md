@@ -11,7 +11,7 @@ keywords:
   - delivery durability
 ---
 
-You want streams to survive on a store that you already run: Redis, Postgres, a queue, Electric, an object store. Write a `StreamDurability` adapter for it. The adapter plugs into `toServerSentEventsResponse` or `toHttpResponse`, and a client can then reconnect to an in-flight run without running the model again.
+A `StreamDurability` adapter stores the stream log in Redis, Postgres, a queue, or an object store. A client can reconnect without calling the model again.
 
 > [!NOTE]
 > On Upstash Redis, a third-party adapter is available: `upstashStream()` from `@upstash/agentkit-tanstack-ai`. See [Upstash](../community-adapters/upstash#resumable-streams).

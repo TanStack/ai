@@ -16,7 +16,7 @@ keywords:
   - adapter
 ---
 
-Cohere gives you the two retrieval steps of a RAG pipeline: embeddings that turn text and images into vectors, and reranking that sorts documents by relevance to a query.
+The Cohere adapter embeds text and images, and it reranks documents for a query. This package has no `chat()`, `summarize()`, or media generation.
 
 Cohere has no `chat()`, `summarize()`, or media generation in this package. For those, use [OpenAI](./openai), [Anthropic](./anthropic), or [Gemini](./gemini). The adapter calls the HTTP API of Cohere with `fetch`, with no SDK dependency.
 

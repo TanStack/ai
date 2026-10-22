@@ -15,7 +15,7 @@ keywords:
   - fal
 ---
 
-You have a voice memo, a meeting recording, or a clip from the microphone, and you need the words as text. Transcription sends the audio to a speech-to-text model and gives you back the text, with timestamps when you need them.
+Transcription sends audio to a speech-to-text model and returns the text, with timestamps when you request them.
 
 ## Transcribe your first file
 

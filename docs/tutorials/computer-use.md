@@ -14,7 +14,7 @@ keywords:
   - tanstack start
 ---
 
-You have a chat app. You want the model to do a task on a web page for your user.
+This tutorial adds `computerUse()` to a chat so the model can complete a task on a web page.
 
 With computer use, the model sees only screenshots. It clicks, types, and scrolls on what it sees. In this tutorial, the model opens tanstack.com and finds the TanStack AI computer use docs. Each screenshot shows in your chat.
 

@@ -13,7 +13,7 @@ keywords:
   - adapter
 ---
 
-[LLM Gateway](https://llmgateway.io) gives you hundreds of models from many providers behind one OpenAI-compatible endpoint. It picks a provider for you, falls back when a provider fails, and tracks usage and cost. Use the hosted gateway at `api.llmgateway.io`, or run your own copy, because it is open source.
+`llmgatewayText` calls one OpenAI-compatible endpoint that routes across providers, falls back on failure, and records usage and cost.
 
 ## 1. Install
 

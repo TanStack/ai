@@ -14,7 +14,7 @@ keywords:
   - llm sdk
 ---
 
-You want to add AI to a TypeScript app: a chat that streams, a model that calls your functions, or an image from a prompt. You do not want to rewrite it when you change providers or frameworks.
+TanStack AI is a TypeScript SDK for streaming chat, tool calls, and media generation. Swap the provider or the UI framework without rewriting the call.
 
 TanStack AI gives you one typed API for all of that. Your server talks to the provider through an adapter. Your UI reads the stream through a hook for your framework.
 

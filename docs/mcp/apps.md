@@ -16,7 +16,7 @@ keywords:
   - interactive widgets
 ---
 
-Your MCP server returns a widget with a tool result: a chart, a form, a booking card. Your chat shows only the text, and the user never sees the widget.
+An MCP App is a widget returned with a tool result. Render that widget in the chat next to the text.
 
 TanStack AI reads the widget during the `chat()` run and puts it on the assistant message as a `ui-resource` part. Render that part with `MCPAppResource`.
 

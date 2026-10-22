@@ -9,7 +9,7 @@ keywords:
   - modelOptions
 ---
 
-Your `modelOptions` has a reasoning field, like `reasoning: { effort }`, `thinking`, or `thinkingConfig`, and now it does not type-check. That field moved to one option on `chat()`: `reasoning`. It takes a level (`off` to `max`) or `{ level, summary, budgetTokens }`.
+Move `reasoning`, `thinking`, and `thinkingConfig` out of `modelOptions`. Pass `reasoning` to `chat()` as a level, or as `{ level, summary, budgetTokens }`.
 
 ## Upgrade
 

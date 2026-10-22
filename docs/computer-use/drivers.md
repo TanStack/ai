@@ -19,7 +19,7 @@ keywords:
   - local desktop
 ---
 
-A browser page is not always enough. Sometimes the model must use a desktop app, a file manager, or a terminal.
+A driver is the surface the model controls. Pick a browser, a desktop, or a terminal.
 
 A driver decides which machine the model uses. Change the driver, and the rest of your [computer use](./computer-use) code stays the same.
 

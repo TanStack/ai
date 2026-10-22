@@ -14,7 +14,7 @@ keywords:
   - stream transform
 ---
 
-You want to log each chat run, count tokens, or block a risky tool call. You do not want to put that code in every route and every tool.
+Middleware runs around every `chat()` call. Use it to log a run, count tokens, or block a tool, without copying that code into each route.
 
 Write it once as middleware. A middleware is an object with hooks. `chat()` calls each hook at a fixed step of the run.
 

@@ -15,7 +15,7 @@ keywords:
   - options
 ---
 
-Every adapter has the same `recall` and `save` methods, so you can swap one for another in `memoryMiddleware`. This page lists each adapter and its options. To wire one in, see the [Quickstart](./quickstart).
+Each memory adapter implements `recall` and `save`. Swap one for another in `memoryMiddleware`.
 
 | Adapter | Import | Use it for | Extra install |
 | --- | --- | --- | --- |

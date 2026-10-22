@@ -14,7 +14,7 @@ keywords:
   - cohere
 ---
 
-You have a query and a list of candidate documents: chunks from a vector search, rows from a keyword query, or FAQ entries. Vector similarity gets close, but the best answer is often not at the top.
+`rerank()` sorts candidate documents by relevance to a query. Use it after vector search or keyword search.
 
 `rerank()` sends the query and the candidates to a reranking model. You get the documents back sorted by relevance, with a score for each.
 

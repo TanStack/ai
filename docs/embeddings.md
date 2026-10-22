@@ -20,7 +20,7 @@ keywords:
   - vercel ai gateway
 ---
 
-You want to find content by meaning, not by exact words. Semantic search, RAG, and clustering all need a vector for each piece of text.
+`embed()` turns text into a vector. Search, RAG, and clustering then compare those vectors.
 
 `embed()` turns text (and images, for multimodal models) into those vectors. One call, any provider.
 

@@ -14,7 +14,7 @@ keywords:
   - personalization
 ---
 
-Your assistant forgets what the user told it. The user gives their name, their stack, or their preferences, and a few turns later the model asks again.
+Memory stores facts from earlier turns and puts them back into the next request. The model then keeps the user's name, stack, and preferences.
 
 `memoryMiddleware` fixes this. It finds the memory that matters for each new message, adds it to the prompt, and saves each finished turn for later.
 

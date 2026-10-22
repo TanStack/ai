@@ -13,7 +13,7 @@ keywords:
   - adapter factory
 ---
 
-You run a fine-tuned model, or a proxy with its own model names. `openaiText('my-fine-tuned-model')` gives a type error, because the adapter knows only the model list of the provider.
+`extendAdapter` adds your model ids to an existing text adapter. `openaiText('my-fine-tuned-model')` type-checks after you register that id.
 
 `extendAdapter` adds your model names to an adapter factory. The built-in models keep their types, and your models get the types that you declare.
 

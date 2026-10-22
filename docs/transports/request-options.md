@@ -14,7 +14,7 @@ keywords:
   - fetchClient
 ---
 
-Your server needs more than the messages. It needs an auth token, a user id, a model choice, or data for one message. Pass it through the options of the transport.
+Transport options send an auth token, a user id, a model choice, or per-message data with the messages.
 
 The examples use `fetchServerSentEvents`. `fetchHttpStream` and `fetchJson` take the same options. The XHR transports take `headers` and `body` too, and use `withCredentials` for cookies.
 

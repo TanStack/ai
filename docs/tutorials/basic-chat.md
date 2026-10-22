@@ -13,7 +13,7 @@ keywords:
   - tanstack start
 ---
 
-You want a chat in your app that streams the answer token by token. You also do not want to put a provider key in a server env file while you try it out.
+This tutorial builds a chat that streams tokens. The provider key stays in the browser for the demo.
 
 In this tutorial, the user pastes an OpenRouter key in the browser. `useChat` sends it to a server route, and the route streams the reply back. It takes about 10 minutes.
 

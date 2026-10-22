@@ -14,7 +14,7 @@ keywords:
   - tanstack start
 ---
 
-You want a blog-writing chat. Some turns need facts, some need a draft, and some need SEO titles. One model with one system prompt is a poor fit for all of them.
+This tutorial gives research, drafting, and SEO titles each a named agent. A router picks who runs on each turn.
 
 Give each job its own named agent, and let a router pick who runs on each turn. In this tutorial, Jev on OpenRouter is the router. Research and SEO can run at the same time, and the page shows a card for each agent while it streams. It takes about 30 minutes.
 

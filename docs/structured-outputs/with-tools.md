@@ -13,7 +13,7 @@ keywords:
   - outputSchema tools
 ---
 
-The model must look something up before it can fill your schema. "Recommend a product for a developer" needs a price from your API before the model can return `{ productName, currentPrice, reason }`.
+The model can call tools, then return an object that matches `outputSchema`. The tool result is available before the object is filled.
 
 Pass `tools` and `outputSchema` to the same `chat()` call. The agent loop runs the tools first. Then the model returns the typed object.
 

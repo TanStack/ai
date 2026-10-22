@@ -3,8 +3,7 @@ title: Build a Chat Adapter (Advanced)
 id: build-your-own-chat-adapter
 ---
 
-You want the transcript, the run status, and durable approvals in your own
-database. You do not want to add a service for them.
+A chat adapter stores the transcript, the run status, and durable approvals in your database.
 
 Write four small stores. This page builds all four against SQLite (the
 built-in `node:sqlite` module of Node), in the order an app usually needs them.

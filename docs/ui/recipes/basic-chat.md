@@ -10,7 +10,7 @@ keywords:
   - example
 ---
 
-You want the smallest chat UI that works, so you can see the shape before you add anything. This chat has no tools, no interrupts, and no styles. It has four components: a `layout`, a `message`, a `text` part, and an `input`.
+This recipe is a chat UI with four components: `layout`, `message`, `text`, and `input`. It has no tools, no interrupts, and no styles.
 
 For a full TanStack Start app with your own API key, read the [Basic Chat](../../tutorials/basic-chat) tutorial.
 

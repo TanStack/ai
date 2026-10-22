@@ -5,7 +5,7 @@ order: 6
 description: "Keep the blog desk after a refresh. The agent cards come back, and a run that is still in progress continues."
 ---
 
-On the blog desk from the [Subagents](./subagents) tutorial, a refresh drops every card. A closed tab also loses the run.
+This tutorial saves the subagent thread on the server. A refresh shows the cards again, and an in-progress run continues.
 
 Save the thread on the server. Then a refresh shows the cards again, and a run that is still in progress continues in the same card. Finish the Subagents tutorial first. This page takes about 20 minutes.
 

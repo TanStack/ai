@@ -3,7 +3,7 @@ title: Persistence Migrations
 id: migrations
 ---
 
-Your persistence adapter writes to tables, and those tables need a schema change from time to time. A change that runs on the first request in production can fail under load or race between instances.
+Run persistence schema changes as migrations. A change on the first production request can fail under load or race across instances.
 
 Your adapter owns its schema. TanStack AI never reads your tables, so you choose the table layout and how changes are applied. Apply each change before you deploy the code that uses it.
 

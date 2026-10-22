@@ -12,7 +12,7 @@ keywords:
   - virtual machine
 ---
 
-You have your own machine: a VM, a remote desktop, or a device in a lab. No driver package controls it.
+A custom driver connects `createComputerUse` to a machine that has no built-in driver, such as a VM, a remote desktop, or a lab device.
 
 Write a `ComputerDriver`, and [computer use](./computer-use) runs on it with no other change.
 

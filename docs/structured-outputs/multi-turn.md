@@ -14,7 +14,7 @@ keywords:
   - recipe builder
 ---
 
-Your users want to refine a result, not start over. "Give me a pasta recipe under $15." Then "Now make it vegan." Then "Add a salad." Each answer must be a typed recipe, and the old versions must stay on screen to compare.
+Each turn of a structured chat returns the same schema. Earlier objects stay in the thread so the user can compare them.
 
 Each structured run adds a new assistant message with its own typed `structured-output` part. Walk `messages` and render one card per part.
 

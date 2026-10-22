@@ -14,7 +14,7 @@ keywords:
   - runContext
 ---
 
-No built-in transport fits your protocol. Write your own connection adapter. Pick the shape from how your channel works:
+A custom connection adapter reads your protocol and writes chunks into `useChat`. Pick the shape from the channel:
 
 - **`connect`**: one request per user message. See [Request-scoped adapters](#request-scoped-adapters).
 - **`subscribe` / `send`**: one channel that stays open for many messages. See [Persistent transports](#persistent-transports).

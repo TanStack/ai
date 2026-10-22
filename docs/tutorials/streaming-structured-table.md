@@ -15,7 +15,7 @@ keywords:
   - tanstack start
 ---
 
-You want the model to fill a table with typed rows. If you wait for the full JSON object, the table stays empty until the model is done.
+This tutorial streams typed table rows. `partial.rows` updates while the model writes the JSON.
 
 Pass one schema to `chat()` on the server and to `useChat` on the client. The hook gives you `partial.rows` while the JSON streams, so rows show up as the model writes them. It takes about 10 minutes.
 

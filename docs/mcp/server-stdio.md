@@ -14,7 +14,7 @@ keywords:
   - node
 ---
 
-A desktop host does not call your HTTP route. It starts a local Node process, writes JSON-RPC on stdin, and reads each answer on stdout.
+A stdio MCP server reads JSON-RPC from stdin and writes each answer to stdout. Desktop hosts start that process locally.
 
 `serveMCPStdio` connects your `createMCPServer` server to stdin and stdout. You keep the same tools.
 

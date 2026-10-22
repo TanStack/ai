@@ -14,7 +14,7 @@ keywords:
   - Last-Event-ID
 ---
 
-You have a normal HTTP server, and you want the chat reply to show up word by word. Use Server-Sent Events (SSE), the default transport. It works in all browsers and through most proxies.
+SSE is the default transport. The server sends `text/event-stream`, and the reply renders word by word.
 
 ## Quick setup
 

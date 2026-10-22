@@ -16,7 +16,7 @@ keywords:
   - shared configuration
 ---
 
-Several routes call `chat()` with the same adapter, system prompt, and tools. You copy the config into each route, or you type it by hand and lose the types of the model.
+`createChatOptions` stores one adapter, system prompt, and tool list. Each route spreads that object and keeps the model types.
 
 Define the config once with `createChatOptions`. The object keeps the full type of the adapter, so `modelOptions`, content types, and `outputSchema` stay checked where you spread it.
 

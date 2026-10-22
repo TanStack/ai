@@ -14,7 +14,7 @@ keywords:
   - getWebMCPTools
 ---
 
-Your page already has WebMCP tools. A widget, a library, or your own code registered them on `document.modelContext`. You want your in-page chat to use the same tools, without a second copy of each one.
+Read the WebMCP tools already registered on `document.modelContext` and pass those same tools to the in-page chat.
 
 The page tools API reads those tools and gives them to your chat as client tools. When the model calls one, the chat runs it through WebMCP.
 

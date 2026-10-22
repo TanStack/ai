@@ -16,7 +16,7 @@ keywords:
   - experimental
 ---
 
-You want a world from a prompt: a place the user can look at, move through, or steer. `generateWorld()` makes one on the server. There are two kinds of result:
+`generateWorld()` builds a world on the server from a prompt. The result is one of two kinds:
 
 - **A live world** (Reactor). The server mints a session token. The browser connects, plays the world, and changes it with new prompts.
 - **A finished 3D world** (World Labs Marble). The server waits for the job, then returns a viewer URL and asset links.

@@ -3,7 +3,7 @@ title: Chat Persistence
 id: chat-persistence
 ---
 
-Your chat lives in one request. When the process restarts, the transcript is gone, and so is any approval that was still waiting for an answer.
+`withPersistence` writes the transcript and a waiting approval outside the request. A process restart then keeps both.
 
 `withPersistence` is a chat middleware that fixes this. It writes each thread to a store you choose, so the server keeps the true copy of every conversation.
 

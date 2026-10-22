@@ -5,7 +5,7 @@ order: 2
 description: "Use the built-in tools of a provider, such as web search, code execution, and computer use. Import the factory from the /tools subpath of the adapter and add it to chat()."
 ---
 
-You want the model to search the web or run code. Your provider already has a tool for this, and it runs on the provider's servers. You do not want to build and host your own.
+A provider tool runs on the provider's servers. Use it for web search or code execution that you do not host.
 
 Import the factory of the provider tool from the `/tools` subpath of your adapter, and add it to `chat({ tools })`. The provider runs the tool. TypeScript stops you if the model does not support that tool.
 

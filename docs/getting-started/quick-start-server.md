@@ -14,7 +14,7 @@ keywords:
   - sse
 ---
 
-You have a Node.js backend and you want a model to answer from it. You do not need a UI framework for that.
+This guide calls a model from a Node.js server. It has no UI framework.
 
 `chat()` runs on the server and returns a stream. You can read it to the end as text, or send it over HTTP. This takes about 5 minutes.
 

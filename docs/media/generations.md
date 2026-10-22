@@ -13,7 +13,7 @@ keywords:
   - video generation
 ---
 
-You want an image, a voice clip, a transcript, or a video. You do not want a conversation. TanStack AI calls each of these a **generation**: one request goes in, one result comes out.
+A generation is one request and one result: an image, a voice clip, a transcript, or a video. It does not keep a conversation.
 
 Every generation uses the same three parts. When you know how to make one image, you know how to make all of them.
 

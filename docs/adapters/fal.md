@@ -13,7 +13,7 @@ keywords:
   - adapter
 ---
 
-fal.ai gives you 600+ hosted media models behind one key: images, video, live video, speech, transcription, music, and sound effects. It has no text chat and no tools. For `chat()`, use a text adapter such as [OpenAI](./openai) or [Anthropic](./anthropic).
+The fal.ai adapter calls hosted models for images, video, live video, speech, transcription, music, and sound effects. It has no text chat and no tools.
 
 The quick setup below generates an image on your server and shows it in React. For a full app, see the [media example](https://github.com/TanStack/ai/tree/main/examples/ts-react-media).
 

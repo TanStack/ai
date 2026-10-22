@@ -13,7 +13,7 @@ keywords:
   - mcp-session-id
 ---
 
-Some MCP clients speak only spec 2025. Spec 2025 can use sessions, and a session lives in one process. On a deploy with many instances, sessions need sticky routing.
+MCP spec 2025 sessions live in one process. A multi-instance deploy needs sticky routing for those clients.
 
 The `sessions` option of `createMCPServer` sets how the server treats spec 2025 clients. By default, it keeps no session. Change it only for one of the cases below.
 

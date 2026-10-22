@@ -14,7 +14,7 @@ keywords:
   - adapter
 ---
 
-The Claude Code adapter gives `chat()` a coding agent. It runs the `claude` CLI inside a sandbox, where the agent reads files, edits them, and runs commands in a real repo. Each step streams back to your UI.
+The Claude Code adapter runs the `claude` CLI in a sandbox and streams each step to `chat()`. The agent reads files, edits them, and runs commands in a repo.
 
 You need:
 

@@ -11,7 +11,7 @@ keywords:
   - breaking changes
 ---
 
-Your `TextPart` stopped type-checking on `remarkPlugins`, `rehypePlugins`, or `disableDefaultPlugins`. `TextPart` from `@tanstack/ai-react/ui`, `@tanstack/ai-vue/ui`, and `@tanstack/ai-solid/ui` now renders with [TanStack Markdown](https://tanstack.com/markdown). Pass `extensions` and `highlighter` instead.
+`TextPart` in the React, Vue, and Solid UI packages now renders with TanStack Markdown. Pass `extensions` and `highlighter`. `remarkPlugins`, `rehypePlugins`, and `disableDefaultPlugins` are removed.
 
 This page is only for apps that import the `TextPart` component. `createChatHook` does not use it unless you pass it as `partsComponents.text`.
 

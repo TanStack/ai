@@ -15,7 +15,7 @@ keywords:
   - chatgpt
 ---
 
-OpenAI gives you the GPT chat models, plus image, speech, transcription, embedding, and video models, all from one package.
+The OpenAI adapter calls GPT for chat, and it calls image, speech, transcription, embedding, and video models from the same package.
 
 Does your provider speak the OpenAI API, for example DeepSeek, Kimi, or a local vLLM server? Use the [OpenAI-Compatible adapter](./openai-compatible).
 

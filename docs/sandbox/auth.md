@@ -4,7 +4,7 @@ id: sandbox-auth
 description: "Pick host login or an API key for a coding-agent harness. The same local-process sandbox can run on your laptop or on a CI runner."
 ---
 
-Your laptop already has `grok login`, `claude login`, or `codex login`. A GitHub runner has no browser login, only an API key. Both can use `localProcessSandbox()`, so the sandbox type cannot tell the agent how to sign in.
+Pass credentials into `localProcessSandbox()` yourself. The sandbox type does not know whether the machine has `grok login` or only an API key.
 
 You tell it with `authMode` on the harness adapter:
 

@@ -14,7 +14,7 @@ keywords:
   - ThinkingPart
 ---
 
-A reasoning model thinks before it answers. You want to show that thinking in your UI, in a box the user can open, and keep it in the right order next to the tool calls.
+A thinking part holds the text a reasoning model writes before the answer. Render it in order with the tool calls.
 
 TanStack AI streams the thinking as `ThinkingPart` entries in `message.parts`, next to the text and the tool calls.
 

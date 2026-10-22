@@ -12,7 +12,7 @@ keywords:
   - ai agents
 ---
 
-One model call cannot do a task with many steps. To answer "What should I wear in San Francisco today?", the model must get the weather first, then ask for clothing advice, then write the answer.
+The agent loop calls the model again after each tool result. One call cannot finish a task that needs a tool first.
 
 `chat()` runs this loop for you. The model calls a tool, `chat()` runs it and gives the result back, and the model continues until it can answer.
 

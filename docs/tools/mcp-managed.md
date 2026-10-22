@@ -16,7 +16,7 @@ keywords:
   - needsApproval
 ---
 
-You have one or more [MCP clients](./mcp), and you do not want to write `await client.tools()` and a `close()` block in every route. Pass the clients to `chat()` in the `mcp` option. `chat()` finds their tools and closes the connections when the run ends.
+Pass MCP clients to `chat()` in the `mcp` option. `chat()` loads their tools and closes the clients when the run ends.
 
 ## Quick setup
 

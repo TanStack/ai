@@ -12,8 +12,7 @@ keywords:
   - INTERRUPT_BOUNDARY_PHASES
 ---
 
-Sometimes the server needs an answer from the user, but no tool call asks for
-it. For example, the user must review a plan before the model runs.
+`defineInterrupt` pauses a run for a user answer that is not a tool call. The run continues after the answer.
 
 A generic interrupt pauses the run with a typed question. `defineInterrupt`
 describes the data that the client sees and the data that it sends back. The

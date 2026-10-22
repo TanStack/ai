@@ -15,7 +15,7 @@ keywords:
   - jev
 ---
 
-Vercel AI Gateway gives you one API key and one URL for many model providers, and you still pick the provider for each request. You can also set a fallback order, so a request moves to the next provider when one fails.
+`vercelGatewayText` calls many providers through one API key and one URL. You pick the provider per request, and you can set a fallback order.
 
 ## 1. Install
 

@@ -12,7 +12,7 @@ keywords:
   - AG-UI
 ---
 
-You want a specialist to do part of the work, such as research, writing, or a sandbox job. But you want the user to see one conversation, not three separate chats.
+A subagent runs one job, such as research or a sandbox task, inside the same conversation. The user still sees one thread.
 
 A subagent is a named child agent. Give it to `chat({ subagents })`, and the parent model can start it like a tool. The client shows the work of the child as a card inside the assistant message.
 

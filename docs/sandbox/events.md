@@ -5,7 +5,7 @@ order: 9
 description: "Everything a harness agent does inside a sandbox (text, tool calls, reasoning, session ids, and file edits) streams back as AG-UI chunks plus named CUSTOM events. Read them, show them, and choose what to store."
 ---
 
-You want to show the user what the agent is doing: its text, the tools it calls, and the files it edits. A spinner for ten minutes is not enough.
+Sandbox events stream the agent text, tool calls, and file edits to the UI while the run is in progress.
 
 Everything a harness does in a sandbox comes back on the `chat()` stream. You get the normal AG-UI chunks, plus `CUSTOM` events with a `name` for sandbox-specific things such as file edits.
 

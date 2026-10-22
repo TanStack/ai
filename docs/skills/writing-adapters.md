@@ -13,7 +13,7 @@ keywords:
   - database skills
 ---
 
-Your skills live in S3, a database, or a private registry, not on disk. `withSkills` cannot read them yet.
+A skill source adapter loads skills from S3, a database, or a registry. `withSkills` then reads them through that adapter.
 
 Write a `SkillSource` for your store. It is a small interface that returns bytes only, so it works anywhere, including the edge. Then prove it with the conformance suite.
 

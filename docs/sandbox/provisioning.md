@@ -5,7 +5,7 @@ order: 5
 description: "Give the in-sandbox agent secrets, skill repos, MCP servers, plugins, and instructions. Declare them once, and each harness writes them in its own native format."
 ---
 
-Your agent needs more than the repo. It needs API tokens, your team's skills, an MCP server or two, and house rules like "run the tests first". Each CLI (Claude Code, Codex, Grok Build, OpenCode) wants these in a different file, in a different format.
+Provisioning writes tokens, skills, MCP servers, and house rules into the files each CLI expects.
 
 Provisioning lets you declare all of it once, on [`defineWorkspace()`](./workspace). At bootstrap, each harness adapter writes it in the format its CLI reads.
 

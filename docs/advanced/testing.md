@@ -12,7 +12,7 @@ keywords:
   - fakeText
 ---
 
-Tests that call a real model are slow, cost money, and need an API key. They also get a different answer each time.
+The test adapter returns a scripted stream. Tests then skip the network, the API key, and a different answer on each run.
 
 Use `fakeText()` from `@tanstack/ai/testing`. It is a text adapter that answers from a script that you write. Give it to `chat()` like any other adapter.
 

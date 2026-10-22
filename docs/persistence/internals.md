@@ -10,7 +10,7 @@ keywords:
   - middleware lifecycle
 ---
 
-A reload did something you did not expect, or you are about to write a backend and want to know what calls it. This page explains the model behind persistence. To set persistence up, use [the overview](./overview).
+This page describes the calls a reload makes. To set persistence up, use [the overview](./overview).
 
 ## The short version
 

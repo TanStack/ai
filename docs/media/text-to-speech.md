@@ -13,7 +13,7 @@ keywords:
   - speech generation
 ---
 
-You want your app to read text out loud: a reply, an article, or a notification. `generateSpeech()` sends the text to a text-to-speech (TTS) model and gives you back audio that the browser can play.
+`generateSpeech()` sends text to a text-to-speech model and returns audio the browser can play.
 
 ## Quick setup
 

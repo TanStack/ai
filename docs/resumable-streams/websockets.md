@@ -14,7 +14,7 @@ keywords:
   - websocket heartbeat
 ---
 
-SSE and NDJSON open one connection for each turn. Sometimes you want one channel that stays open: a WebSocket gateway that you already run, or a mobile client that must not repeat the handshake for each message.
+`webSocket()` keeps one socket open for the conversation. A durable run reconnects on that socket.
 
 A WebSocket connection keeps one socket open for the whole conversation. Every turn goes over it, and it resumes after a drop without a second model call.
 
