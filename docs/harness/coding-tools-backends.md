@@ -73,6 +73,7 @@ In a sandbox, some things are different:
 - `background: true` needs a sandbox with `capabilities.backgroundProcesses`.
 - A sandbox with `capabilities.killableProcesses` off cannot stop a command after the time limit. The call returns, and the command continues in the sandbox.
 - `list_files` and `grep` use `rg` in the sandbox. The `@vscode/ripgrep` binary is a host file, so the sandbox does not use it.
+- When the run stops, the file calls of a tool in the sandbox get the abort signal too, so they stop with the run.
 
 ### Copy your project into the container
 
@@ -115,6 +116,7 @@ The backend must have:
 - After `options.timeoutMs`, `exec` stops the command with every process that it started, and gives exit code 124. `options.signal` stops it too.
 - `options.env` holds the variables to add. Give a command only these and the few variables that it needs to start. Do not give it the variables of your server.
 - When `realpath` throws, the tool call fails. So a path with a link that the backend cannot resolve is never used.
+- Each file method gets an optional last argument, `{ signal }`. It is the abort signal of the tool call. Give it to your file calls, so a stopped run stops them too. `readLines` gets `signal` in its options.
 
 The backend can also have:
 

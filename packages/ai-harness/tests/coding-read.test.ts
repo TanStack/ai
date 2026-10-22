@@ -343,3 +343,45 @@ describe('read_file hooks', () => {
     )
   })
 })
+
+describe('the abort signal of a call', () => {
+  it('goes to each file call of the backend', async () => {
+    const files = memoryBackend()
+    // The signal of each file call, by the name of the method.
+    const seen: Array<[string, AbortSignal | undefined]> = []
+    const watched: WorkspaceBackend = {
+      ...files,
+      readFile: (path, options) => {
+        seen.push(['readFile', options?.signal])
+        return files.readFile(path)
+      },
+      writeFile: (path, data, options) => {
+        seen.push(['writeFile', options?.signal])
+        return files.writeFile(path, data)
+      },
+      stat: (path, options) => {
+        seen.push(['stat', options?.signal])
+        return files.stat(path)
+      },
+      realpath: (path, options) => {
+        seen.push(['realpath', options?.signal])
+        return files.realpath(path)
+      },
+    }
+    const { tools } = createWorkspaceTools({ root, backend: watched })
+    const tool = (name: string) => {
+      const found = tools.find((item) => item.name === name)?.execute
+      if (!found) throw new Error(`No ${name} tool`)
+      return found
+    }
+    const { signal } = new AbortController()
+    const context = { abortSignal: signal, emitCustomEvent: () => undefined }
+    await tool('write_file')({ path: 'signal.txt', content: 'hi' }, context)
+    await tool('read_file')({ path: 'signal.txt' }, context)
+    const names = new Set(seen.map(([name]) => name))
+    expect(names).toEqual(
+      new Set(['readFile', 'writeFile', 'stat', 'realpath']),
+    )
+    expect(seen.filter(([, each]) => each !== signal)).toEqual([])
+  })
+})

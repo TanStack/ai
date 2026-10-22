@@ -53,6 +53,22 @@ describe('hostBackend', () => {
     expect(await hostBackend.readdir(dir)).toEqual([{ name: 'a', type: 'dir' }])
   })
 
+  it('stops a file read, a write, and a page read when the signal aborts', async () => {
+    const file = join(dir, 'a.txt')
+    await writeFile(file, 'hi')
+    const signal = AbortSignal.abort()
+    await expect(hostBackend.readFile(file, { signal })).rejects.toThrow(
+      'aborted',
+    )
+    await expect(
+      hostBackend.writeFile(join(dir, 'b.txt'), 'b', { signal }),
+    ).rejects.toThrow('aborted')
+    await expect(
+      hostBackend.readLines(file, { offset: 1, limit: 1, signal }),
+    ).rejects.toThrow('aborted')
+    expect(await hostBackend.stat(join(dir, 'b.txt'))).toBeUndefined()
+  })
+
   it('stats a missing path as undefined', async () => {
     expect(await hostBackend.stat(join(dir, 'missing'))).toBeUndefined()
   })

@@ -255,7 +255,10 @@ export const ThreadWorkspace = createCapability<ThreadWorkspaces>()(
  * abort signal of the call, one for each `chat()`). A tool-mode subagent
  * shares the run of its turn, but has its own chat run.
  */
-const calls = new AsyncLocalStorage<{ run?: RunContext; chat?: object }>()
+const calls = new AsyncLocalStorage<{
+  run?: RunContext
+  chat?: AbortSignal
+}>()
 
 /**
  * The run of the workspace tool call that runs now, or `undefined` outside
@@ -267,6 +270,31 @@ export function writingRun() {
 
 /** The chat run of the workspace tool call that runs now. See `calls`. */
 const callingChat = () => calls.getStore()?.chat
+
+/**
+ * `backend`, where each file call gets the abort signal of the tool call
+ * that runs now, so an aborted call stops its file work too.
+ */
+function withCallSignal(backend: WorkspaceBackend): WorkspaceBackend {
+  // No options outside a call, or for a call without a signal.
+  const signal = () => {
+    const chat = callingChat()
+    return chat ? ([{ signal: chat }] as const) : ([] as const)
+  }
+  const { readLines, remove } = backend
+  return {
+    ...backend,
+    readFile: (path) => backend.readFile(path, ...signal()),
+    writeFile: (path, data) => backend.writeFile(path, data, ...signal()),
+    stat: (path) => backend.stat(path, ...signal()),
+    realpath: (path) => backend.realpath(path, ...signal()),
+    readdir: (path) => backend.readdir(path, ...signal()),
+    ...(readLines && {
+      readLines: (path, page) => readLines(path, { ...page, ...signal()[0] }),
+    }),
+    ...(remove && { remove: (path) => remove(path, ...signal()) }),
+  }
+}
 
 /**
  * The tools for one workspace: `backend`, with the boundary `root`, and what
@@ -283,7 +311,7 @@ function bindTools(
   session: SessionAccess,
   rulesSawRealPaths = true,
 ) {
-  const { backend } = workspace
+  const backend = withCallSignal(workspace.backend)
   const paths = pathsOf(backend)
   const root = paths.resolve(workspace.root)
   const { access, note } = session
@@ -304,7 +332,7 @@ function bindTools(
    */
   const realpathOf = (path: string) => {
     // ponytail: the type needs `realpath`. This check is for JavaScript.
-    if (typeof backend.realpath !== 'function') {
+    if (typeof workspace.backend.realpath !== 'function') {
       throw new Error(
         'The workspace backend has no realpath, so the tools cannot check links.',
       )

@@ -13,6 +13,9 @@ export type { WorkspaceBinding } from '../../log-records'
  * Where the workspace tools read and write files and run commands. Every
  * path is absolute. {@link hostBackend} is this machine. Another backend, for
  * example a sandbox, lets the same tools work there.
+ *
+ * Each file method takes an optional `signal`: the abort signal of the tool
+ * call. A backend can stop the work and reject when it aborts.
  */
 export interface WorkspaceBackend {
   /**
@@ -25,7 +28,10 @@ export interface WorkspaceBackend {
    */
   shell?: 'sh' | 'cmd'
   /** The bytes of a file. Throws when there is no file. */
-  readFile: (path: string) => Promise<Uint8Array>
+  readFile: (
+    path: string,
+    options?: { signal?: AbortSignal },
+  ) => Promise<Uint8Array>
   /**
    * One page of a file, without the whole file in memory: the first 8 KiB
    * (`head`), the size in bytes, and the lines from line `offset` (from 1)
@@ -41,7 +47,7 @@ export interface WorkspaceBackend {
    */
   readLines?: (
     path: string,
-    options: { offset: number; limit: number },
+    options: { offset: number; limit: number; signal?: AbortSignal },
   ) => Promise<{
     head: Uint8Array
     size: number
@@ -49,15 +55,20 @@ export interface WorkspaceBackend {
     total?: number
   }>
   /** Create or replace a file. Missing parent folders are created. */
-  writeFile: (path: string, data: Uint8Array | string) => Promise<void>
+  writeFile: (
+    path: string,
+    data: Uint8Array | string,
+    options?: { signal?: AbortSignal },
+  ) => Promise<void>
   /**
    * Remove one file. Throws when there is no file, or for a folder. Optional:
    * without it, the `patch` tool cannot delete or move files.
    */
-  remove?: (path: string) => Promise<void>
+  remove?: (path: string, options?: { signal?: AbortSignal }) => Promise<void>
   /** A file or a folder, or `undefined` when nothing is at `path`. */
   stat: (
     path: string,
+    options?: { signal?: AbortSignal },
   ) => Promise<
     { type: 'file' | 'dir'; size: number; mtimeMs: number } | undefined
   >
@@ -67,13 +78,17 @@ export interface WorkspaceBackend {
    * The tools use it to refuse a link that leads out of the workspace. A
    * backend that cannot resolve a path throws, and the tool call fails.
    */
-  realpath: (path: string) => Promise<string | undefined>
+  realpath: (
+    path: string,
+    options?: { signal?: AbortSignal },
+  ) => Promise<string | undefined>
   /**
    * The entries of a folder. A symbolic link (or a Windows junction) has
    * the type `'link'`, whatever it points to. The tools do not follow it.
    */
   readdir: (
     path: string,
+    options?: { signal?: AbortSignal },
   ) => Promise<Array<{ name: string; type: 'file' | 'dir' | 'link' }>>
   /**
    * Run a shell command and wait for it to end. `env` is added to the
@@ -480,11 +495,12 @@ function startShell(
  * `timeout`, when the timeout stops a command or the output is over 10 MiB.
  * It gives 1 when the signal stops a command, or the command did not
  * start. A stopped command is stopped with every command it started.
+ * The signal of a file call stops `readFile`, `writeFile`, and `readLines`.
  */
 export const hostBackend = {
   shell: process.platform === 'win32' ? 'cmd' : 'sh',
-  readFile: (path) => fs.readFile(path),
-  readLines: async (path, { offset, limit }) => {
+  readFile: (path, options?) => fs.readFile(path, options),
+  readLines: async (path, { offset, limit, signal }) => {
     const handle = await fs.open(path, 'r')
     try {
       const { size } = await handle.stat()
@@ -503,6 +519,7 @@ export const hostBackend = {
       // ponytail: reads up to the size at the start. Bytes added later wait
       // for the next read.
       for (let position = 0; position < size && !hasMore;) {
+        signal?.throwIfAborted()
         const { bytesRead } = await handle.read(
           chunk,
           0,
@@ -555,12 +572,12 @@ export const hostBackend = {
       await handle.close()
     }
   },
-  writeFile: async (path, data) => {
+  writeFile: async (path, data, options?) => {
     // One call when the folder is there. When it is not, make it and write again.
-    await fs.writeFile(path, data).catch(async (error: unknown) => {
+    await fs.writeFile(path, data, options).catch(async (error: unknown) => {
       if (!isMissing(error)) throw error
       await fs.mkdir(nodePath.dirname(path), { recursive: true })
-      await fs.writeFile(path, data)
+      await fs.writeFile(path, data, options)
     })
   },
   // Without `recursive`, `fs.rm` refuses a folder.
