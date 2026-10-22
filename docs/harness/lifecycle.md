@@ -117,6 +117,7 @@ What the view reads for the chat:
 - `snapshot()`: the status and the waiting approvals. When the session is open on this host, it also has the running operations.
 - `events({ from, signal })`: the events of the thread after a cursor.
 - `agentTranscript({ subagentRunId })`: the messages of one child agent run.
+- `settled({ inputId, signal })`: how an input ended. It waits until the input ends, also when another host runs it.
 
 What the view reads for the rest:
 

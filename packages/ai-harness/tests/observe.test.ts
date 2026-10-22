@@ -124,6 +124,36 @@ describe('host.observe of an idle thread', () => {
   })
 })
 
+describe('host.observe settled', () => {
+  it('reads how an input ended, and waits for one that did not end yet, with no plugin setup', async () => {
+    const { host, harness, setups, reset, isOpen } = setup()
+    const owner = await host.open(harness, { threadId: THREAD })
+    await owner.send('Hello.', { inputId: 'in-1' })
+    await owner.close()
+    reset()
+
+    const view = await host.observe(harness, { threadId: THREAD })
+    expect(await view.settled({ inputId: 'in-1' })).toMatchObject({
+      inputId: 'in-1',
+      outcome: 'completed',
+    })
+    expect(setups.count).toBe(0)
+    expect(isOpen()).toBe(false)
+
+    const later = view.settled({ inputId: 'in-2' })
+    const again = await host.open(harness, { threadId: THREAD })
+    await again.send('Again.', { inputId: 'in-2' })
+    expect(await later).toMatchObject({ inputId: 'in-2', outcome: 'completed' })
+    await again.close()
+
+    const stop = new AbortController()
+    const never = view.settled({ inputId: 'in-3', signal: stop.signal })
+    stop.abort(new Error('gave up'))
+    await expect(never).rejects.toThrow('gave up')
+    await host.close()
+  })
+})
+
 describe('host.observe snapshot', () => {
   it('matches session.snapshot() of the same thread state', async () => {
     const deploy = toolDefinition({

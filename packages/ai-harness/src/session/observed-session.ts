@@ -2,6 +2,7 @@ import { loadChildTranscript } from '@tanstack/ai-persistence'
 import { runStartOf, visibleMessages } from '../log'
 import { agentRunThread } from '../log-records'
 import { createMediaStore } from '../media'
+import { InputRejectedError } from '../types'
 import { untilRevoked } from './handle'
 import { jobsOf, loggedChildWaits, snapshotFrom } from './helpers'
 import type { ModelMessage } from '@tanstack/ai'
@@ -20,7 +21,12 @@ import type {
   SessionMetadataOf,
 } from '../define'
 import type { SessionIndexWriter } from '../host'
-import type { Cursor, MediaRecord, SessionEvent } from '../types'
+import type {
+  Cursor,
+  InputSettlement,
+  MediaRecord,
+  SessionEvent,
+} from '../types'
 import type { HandleGuard } from './handle'
 import type { SessionImpl } from './harness-session'
 import type { JobInfo, SessionSnapshot } from './types'
@@ -111,6 +117,17 @@ export interface ObservedSession<THarness extends AnyHarness = AnyHarness> {
    * the session is not open on this host, `running` is `false` for each.
    */
   jobs: () => Promise<Array<JobInfo>>
+  /**
+   * How the input `inputId` ended, as `session.settled()` gives it, read
+   * from the log with no plugin setup. It waits until the input ends. An id
+   * that the log does not have yet waits too, so pass a `signal`. Rejects
+   * with `InputRejectedError` when the owner refused the input, and with the
+   * reason of `signal` when it aborts first.
+   */
+  settled: (options: {
+    inputId: string
+    signal?: AbortSignal
+  }) => Promise<InputSettlement>
 }
 
 /** What a view reads, from the host that makes it. */
@@ -350,6 +367,41 @@ export function observedSession<THarness extends AnyHarness>(
       const session = open()
       if (session) return session.jobs()
       return fromLog((reader) => jobsOf(reader, threadId, new Set()))
+    },
+    async settled({ inputId, signal }) {
+      const session = open()
+      if (session)
+        return session.settled({ inputId, ...(signal ? { signal } : {}) })
+      const { reader } = await readLog()
+      try {
+        const known = () => {
+          const logged = reader.state.inputs.get(inputId)
+          if (logged?.status === 'rejected') {
+            throw new InputRejectedError({
+              inputId,
+              status: 'rejected',
+              reason: logged.reason ?? 'rejected',
+            })
+          }
+          return logged?.settlement
+        }
+        // The position first, so a settlement after the check is read.
+        const from = reader.head()
+        const settlement = known()
+        if (settlement) return settlement
+        signal?.throwIfAborted()
+        for await (const _event of reader.read({
+          from,
+          ...(signal ? { signal } : {}),
+        })) {
+          const ended = known()
+          if (ended) return ended
+        }
+        signal?.throwIfAborted()
+        throw new Error('The log closed before the input ended.')
+      } finally {
+        reader.close()
+      }
     },
   }
   liveSessions.set(view, live)
