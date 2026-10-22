@@ -154,9 +154,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter — tool call deltas without an i
           function: { name: 'get_weather', arguments: '{"location":"Berlin"}' },
         },
       ]),
-    ).resolves.toEqual([
-      ['call_a', 'get_weather', '{"location":"Berlin"}'],
-    ])
+    ).resolves.toEqual([['call_a', 'get_weather', '{"location":"Berlin"}']])
   })
 
   it('starts a new call when a different name arrives with an id before the previous id', async () => {
@@ -168,9 +166,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter — tool call deltas without an i
           function: { name: 'get_time', arguments: '{"tz":"CET"}' },
         },
       ]),
-    ).resolves.toEqual([
-      ['call_b', 'get_time', '{"tz":"CET"}'],
-    ])
+    ).resolves.toEqual([['call_b', 'get_time', '{"tz":"CET"}']])
   })
 
   it('does not reuse an index that is still in progress', async () => {
