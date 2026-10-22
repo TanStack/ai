@@ -308,6 +308,7 @@ const agentCompaction = withCompaction({
 ```
 
 - In the text that goes to the summarizer, each tool result is cut to 2,000 characters. Set `maxToolResultChars` to change this limit.
+- The summary call runs only its own usage count. To let your cost ledger or traces see it, pass them in `middleware`: `conversationSummarizer({ adapter, middleware: [ledger] })`.
 - Your own `summarize` function gets a second argument, `summarize(messages, input)`:
   - `previousSummary` and `previousDetails`: the older summary and its details.
   - `turnPrefix`: `true` when the call summarizes the start of the current turn.

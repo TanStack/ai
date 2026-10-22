@@ -429,7 +429,8 @@
         {
           "label": "Compaction: Advanced",
           "to": "advanced/compaction-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-10-22"
         }
       ],
       "tab": "guides"

@@ -2396,6 +2396,22 @@ describe('conversationSummarizer', () => {
     expect(requests[0]?.threadId).toBe('thread-1:compaction')
   })
 
+  it('runs the middleware option after its own usage count', async () => {
+    const { fake } = fakeSummaryModel()
+    const onUsage = vi.fn()
+    const result = await conversationSummarizer({
+      adapter: fake,
+      middleware: [{ name: 'app-ledger', onUsage }],
+    })([text('user', 'fix the bug')], { threadId: 'thread-1' })
+
+    expect(onUsage).toHaveBeenCalledTimes(1)
+    expect(onUsage.mock.calls[0]?.[0]).toMatchObject({
+      threadId: 'thread-1:compaction',
+    })
+    // The summarizer still reports the usage of its call.
+    expect(result).toMatchObject({ usage: { completionTokens: 3 } })
+  })
+
   it('writes text parts and a tag for each other part', async () => {
     const { fake, requests } = fakeSummaryModel()
     await conversationSummarizer({ adapter: fake })(
