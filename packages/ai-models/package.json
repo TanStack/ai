@@ -1,0 +1,213 @@
+{
+  "name": "@tanstack/ai-models",
+  "version": "0.0.0",
+  "description": "A runtime model catalog for TanStack AI: context windows, prices, reasoning levels, and wire quirks per provider.",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-models"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    },
+    "./amazon-bedrock": {
+      "types": "./dist/esm/providers/amazon-bedrock.d.ts",
+      "import": "./dist/esm/providers/amazon-bedrock.js"
+    },
+    "./ant-ling": {
+      "types": "./dist/esm/providers/ant-ling.d.ts",
+      "import": "./dist/esm/providers/ant-ling.js"
+    },
+    "./anthropic": {
+      "types": "./dist/esm/providers/anthropic.d.ts",
+      "import": "./dist/esm/providers/anthropic.js"
+    },
+    "./azure-openai-responses": {
+      "types": "./dist/esm/providers/azure-openai-responses.d.ts",
+      "import": "./dist/esm/providers/azure-openai-responses.js"
+    },
+    "./baseten": {
+      "types": "./dist/esm/providers/baseten.d.ts",
+      "import": "./dist/esm/providers/baseten.js"
+    },
+    "./cerebras": {
+      "types": "./dist/esm/providers/cerebras.d.ts",
+      "import": "./dist/esm/providers/cerebras.js"
+    },
+    "./cloudflare-ai-gateway": {
+      "types": "./dist/esm/providers/cloudflare-ai-gateway.d.ts",
+      "import": "./dist/esm/providers/cloudflare-ai-gateway.js"
+    },
+    "./cloudflare-workers-ai": {
+      "types": "./dist/esm/providers/cloudflare-workers-ai.d.ts",
+      "import": "./dist/esm/providers/cloudflare-workers-ai.js"
+    },
+    "./deepseek": {
+      "types": "./dist/esm/providers/deepseek.d.ts",
+      "import": "./dist/esm/providers/deepseek.js"
+    },
+    "./fireworks": {
+      "types": "./dist/esm/providers/fireworks.d.ts",
+      "import": "./dist/esm/providers/fireworks.js"
+    },
+    "./google": {
+      "types": "./dist/esm/providers/google.d.ts",
+      "import": "./dist/esm/providers/google.js"
+    },
+    "./google-vertex": {
+      "types": "./dist/esm/providers/google-vertex.d.ts",
+      "import": "./dist/esm/providers/google-vertex.js"
+    },
+    "./groq": {
+      "types": "./dist/esm/providers/groq.d.ts",
+      "import": "./dist/esm/providers/groq.js"
+    },
+    "./huggingface": {
+      "types": "./dist/esm/providers/huggingface.d.ts",
+      "import": "./dist/esm/providers/huggingface.js"
+    },
+    "./kimi-coding": {
+      "types": "./dist/esm/providers/kimi-coding.d.ts",
+      "import": "./dist/esm/providers/kimi-coding.js"
+    },
+    "./meta": {
+      "types": "./dist/esm/providers/meta.d.ts",
+      "import": "./dist/esm/providers/meta.js"
+    },
+    "./minimax": {
+      "types": "./dist/esm/providers/minimax.d.ts",
+      "import": "./dist/esm/providers/minimax.js"
+    },
+    "./minimax-cn": {
+      "types": "./dist/esm/providers/minimax-cn.d.ts",
+      "import": "./dist/esm/providers/minimax-cn.js"
+    },
+    "./mistral": {
+      "types": "./dist/esm/providers/mistral.d.ts",
+      "import": "./dist/esm/providers/mistral.js"
+    },
+    "./moonshotai": {
+      "types": "./dist/esm/providers/moonshotai.d.ts",
+      "import": "./dist/esm/providers/moonshotai.js"
+    },
+    "./moonshotai-cn": {
+      "types": "./dist/esm/providers/moonshotai-cn.d.ts",
+      "import": "./dist/esm/providers/moonshotai-cn.js"
+    },
+    "./nvidia": {
+      "types": "./dist/esm/providers/nvidia.d.ts",
+      "import": "./dist/esm/providers/nvidia.js"
+    },
+    "./openai": {
+      "types": "./dist/esm/providers/openai.d.ts",
+      "import": "./dist/esm/providers/openai.js"
+    },
+    "./opencode": {
+      "types": "./dist/esm/providers/opencode.d.ts",
+      "import": "./dist/esm/providers/opencode.js"
+    },
+    "./opencode-go": {
+      "types": "./dist/esm/providers/opencode-go.d.ts",
+      "import": "./dist/esm/providers/opencode-go.js"
+    },
+    "./openrouter": {
+      "types": "./dist/esm/providers/openrouter.d.ts",
+      "import": "./dist/esm/providers/openrouter.js"
+    },
+    "./qwen-token-plan": {
+      "types": "./dist/esm/providers/qwen-token-plan.d.ts",
+      "import": "./dist/esm/providers/qwen-token-plan.js"
+    },
+    "./qwen-token-plan-cn": {
+      "types": "./dist/esm/providers/qwen-token-plan-cn.d.ts",
+      "import": "./dist/esm/providers/qwen-token-plan-cn.js"
+    },
+    "./qwen-token-plan-individual": {
+      "types": "./dist/esm/providers/qwen-token-plan-individual.d.ts",
+      "import": "./dist/esm/providers/qwen-token-plan-individual.js"
+    },
+    "./together": {
+      "types": "./dist/esm/providers/together.d.ts",
+      "import": "./dist/esm/providers/together.js"
+    },
+    "./vercel-ai-gateway": {
+      "types": "./dist/esm/providers/vercel-ai-gateway.d.ts",
+      "import": "./dist/esm/providers/vercel-ai-gateway.js"
+    },
+    "./xai": {
+      "types": "./dist/esm/providers/xai.d.ts",
+      "import": "./dist/esm/providers/xai.js"
+    },
+    "./xiaomi": {
+      "types": "./dist/esm/providers/xiaomi.d.ts",
+      "import": "./dist/esm/providers/xiaomi.js"
+    },
+    "./xiaomi-token-plan-ams": {
+      "types": "./dist/esm/providers/xiaomi-token-plan-ams.d.ts",
+      "import": "./dist/esm/providers/xiaomi-token-plan-ams.js"
+    },
+    "./xiaomi-token-plan-cn": {
+      "types": "./dist/esm/providers/xiaomi-token-plan-cn.d.ts",
+      "import": "./dist/esm/providers/xiaomi-token-plan-cn.js"
+    },
+    "./xiaomi-token-plan-sgp": {
+      "types": "./dist/esm/providers/xiaomi-token-plan-sgp.d.ts",
+      "import": "./dist/esm/providers/xiaomi-token-plan-sgp.js"
+    },
+    "./zai": {
+      "types": "./dist/esm/providers/zai.d.ts",
+      "import": "./dist/esm/providers/zai.js"
+    },
+    "./zai-coding-cn": {
+      "types": "./dist/esm/providers/zai-coding-cn.d.ts",
+      "import": "./dist/esm/providers/zai-coding-cn.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:build": "publint --strict",
+    "test:oxlint": "oxlint src --type-aware",
+    "test:coverage": "vitest run --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "models",
+    "model-catalog",
+    "pricing",
+    "context-window"
+  ],
+  "devDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@types/node": "^24.10.1",
+    "@vitest/coverage-v8": "4.1.10",
+    "vite": "^8.2.1"
+  }
+}
