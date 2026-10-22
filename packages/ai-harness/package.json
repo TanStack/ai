@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-harness",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Build agent harnesses on TanStack AI: long-lived sessions, typed agents, and plugins",
   "keywords": [
     "agent",

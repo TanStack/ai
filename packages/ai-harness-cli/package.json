@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-harness-cli",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Run a TanStack AI harness from the terminal: line mode or your own screen, print mode, NDJSON, ACP, MCP, and an HTTP server",
   "author": "",
   "license": "MIT",

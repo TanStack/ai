@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-computer-playwright",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Playwright browser driver for TanStack AI computer use.",
   "author": "",
   "license": "MIT",

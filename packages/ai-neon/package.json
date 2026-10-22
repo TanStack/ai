@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-neon",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Neon AI Gateway adapter for TanStack AI chat, embeddings, and summarization.",
   "author": "Tanner Linsley",
   "license": "MIT",
