@@ -230,6 +230,51 @@ describe('chat turns', () => {
     await host.close()
   })
 
+  it('keeps the text that a cancelled turn streamed in the transcript', async () => {
+    const { host } = setup()
+    const streamed = gate()
+    const { adapter, calls } = mockAdapter([
+      (options: any) =>
+        (async function* (): AsyncGenerator<StreamChunk> {
+          // RUN_STARTED, TEXT_MESSAGE_START, TEXT_MESSAGE_CONTENT.
+          yield* text('Here').slice(0, 3)
+          streamed.open()
+          const signal: AbortSignal = options.abortController.signal
+          await new Promise((resolve) =>
+            signal.addEventListener('abort', resolve, { once: true }),
+          )
+        })(),
+      () => text('Again.'),
+    ])
+    const session = await host.open(
+      defineHarness({ name: 'test/cancel', adapter }),
+      { threadId: 't1' },
+    )
+
+    const turn = session.send('first')
+    await streamed.opened
+    await turn.cancel()
+    await expect(turn).rejects.toThrow('Cancelled')
+    await session.send('second')
+
+    const pairs = (
+      messages: ReadonlyArray<{ role: string; content: unknown }>,
+    ) => messages.map((message) => [message.role, message.content])
+    // The next model call never gets two user messages in a row.
+    expect(pairs(calls[1].messages)).toEqual([
+      ['user', 'first'],
+      ['assistant', 'Here'],
+      ['user', 'second'],
+    ])
+    expect(pairs(await session.transcript())).toEqual([
+      ['user', 'first'],
+      ['assistant', 'Here'],
+      ['user', 'second'],
+      ['assistant', 'Again.'],
+    ])
+    await host.close()
+  })
+
   it('stops for an approval and continues after resolve', async () => {
     const { host } = setup()
     const execute = vi.fn(async () => ({ ok: true }))

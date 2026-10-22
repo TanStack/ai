@@ -1101,7 +1101,7 @@
           "label": "Send inputs safely",
           "to": "harness/inputs",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-20"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Run a tool without a model",

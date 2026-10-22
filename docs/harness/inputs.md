@@ -86,7 +86,7 @@ On a host that does not own the thread, the input waits for the owner. If the ow
 
 - `completed`: the turn has its answer.
 - `failed`: the turn failed. `error.code` is set for a limit.
-- `aborted`: someone cancelled the turn.
+- `aborted`: someone cancelled the turn. The text that the model streamed before the cancel stays in the transcript as its answer.
 - `interrupted`: the turn waits for a person. The `resolve` that answers it is a new input. See [Wait for a person](./waits).
 
 If the turn fails after an approved tool ran (for example, the next model call fails), the interrupt is used up, and the tool does not run again. Its result stays in the transcript. To go on, send a new message. If a resume stopped before its tool ran, the interrupt stays open, and you can resolve it again.

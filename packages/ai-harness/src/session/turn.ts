@@ -27,6 +27,7 @@ import { HARNESS_EVENTS, InputRejectedError } from '../types'
 import { isRecord } from '../utils'
 import {
   createInputId,
+  createMessageId,
   inputMessageId,
   customEvent,
   errorText,
@@ -668,6 +669,8 @@ export abstract class SessionTurn<
     const resultIds = new Set<string>()
     const errorResultIds = new Set<string>()
     let text = ''
+    /** The turn text that the transcript has, before the current call. */
+    let textBefore = ''
     let interrupts: Array<Interrupt> | undefined
     let failure: string | undefined
     const captured: Array<MediaRecord> = []
@@ -1056,7 +1059,7 @@ export abstract class SessionTurn<
       for (;;) {
         // The main model and the root agents of a routed part run them.
         const turnHooks = this.harness.turn
-        let textBefore = text
+        textBefore = text
         /** Text, reasoning, or a tool call streamed since `textBefore`. */
         let streamed = false
         let runError: ModelErrorContext['error'] | undefined
@@ -1571,6 +1574,28 @@ export abstract class SessionTurn<
       this.giveBack(operation)
       this.requeueWaitingSteers()
       return
+    }
+
+    // A cancel cuts the answer, and withPersistence saves none of it. The
+    // text the model streamed stays as an answer, so the next model call
+    // gets no two user messages in a row. A saved answer is not added twice.
+    const cutText = text.slice(textBefore.length)
+    if (
+      operation.abortController.signal.aborted &&
+      !this.logFailure &&
+      cutText !== ''
+    ) {
+      try {
+        const history = await this.messages.loadThread(this.threadId)
+        if (history.at(-1)?.role !== 'assistant') {
+          await this.messages.saveThread(this.threadId, [
+            ...history,
+            { id: createMessageId(), role: 'assistant', content: cutText },
+          ])
+        }
+      } catch (error) {
+        this.warn(operation, 'harness:transcript', error)
+      }
     }
 
     // The stream has ended, so withPersistence has saved the turn. A failed or
