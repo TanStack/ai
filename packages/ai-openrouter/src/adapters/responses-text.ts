@@ -2098,9 +2098,8 @@ export class OpenRouterResponsesTextAdapter<
 
         if (message.content) {
           const contentStr = this.extractTextContent(message.content)
-          // Text goes before the calls, never between a call and its output.
           if (contentStr) {
-            result.splice(firstItem, 0, {
+            result.push({
               type: 'message',
               role: 'assistant',
               content: contentStr,
