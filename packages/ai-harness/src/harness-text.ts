@@ -343,8 +343,7 @@ function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
     chatStream: (chatOptions) =>
       (async function* (): AsyncGenerator<StreamChunk> {
         const runId = chatOptions.runId ?? `harness-${Date.now().toString(36)}`
-        // No thread id: a new remote session per call, as codexText does.
-        const threadId = chatOptions.threadId ?? runId
+        const { threadId } = chatOptions
         // AG-UI parts: text parts carry `text`, media parts pass through.
         const [message] = uiMessagesToWire([
           { role: 'user', content: lastUserInput(chatOptions.messages) },
@@ -495,8 +494,7 @@ export function harnessText(
         // The inner thread belongs to the outer one. On a host with access,
         // it is checked through the outer thread (see `throughOuterThread`).
         const outer = outerRunOf(chatOptions.capabilities)
-        // No thread id: a new inner session per call, as codexText does.
-        const outerThread = outer?.threadId ?? chatOptions.threadId ?? runId
+        const outerThread = outer?.threadId ?? chatOptions.threadId
         const threadId = innerThreadOf(outerThread, harness.name)
         const signal = signalOf(chatOptions.request)
         // The call releases its handle at the end. The session then closes

@@ -361,7 +361,7 @@ export async function artifactText(
       ),
     chatStream: (chatOptions) =>
       (async function* (): AsyncGenerator<StreamChunk> {
-        const threadId = chatOptions.threadId ?? 'default'
+        const { threadId } = chatOptions
         let worker = workers.get(threadId)
         if (!worker) {
           await checkDigest()

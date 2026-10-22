@@ -44,7 +44,7 @@ export class ToolTurnAdapter extends BaseTextAdapter<
   async *chatStream(options: TextOptions): AsyncIterable<AdapterYieldChunk> {
     const { toolCallId, model } = this
     const runId = options.runId ?? toolCallId
-    const threadId = options.threadId ?? ''
+    const { threadId } = options
     const isAnswered = options.messages.some(
       (message) => message.role === 'tool' && message.toolCallId === toolCallId,
     )
