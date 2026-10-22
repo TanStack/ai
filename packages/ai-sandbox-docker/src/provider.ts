@@ -175,8 +175,11 @@ class DockerProvider implements SandboxProvider {
     let info: Dockerode.ContainerInspectInfo
     try {
       info = await container.inspect()
-    } catch {
-      return null
+    } catch (error) {
+      // Only a container that Docker does not have is gone. When Docker does
+      // not answer, the caller gets that error, not "gone".
+      if (isNotFound(error)) return null
+      throw error
     }
     if (!info.State.Running) {
       try {
@@ -229,4 +232,14 @@ class DockerProvider implements SandboxProvider {
  */
 export function dockerSandbox(config: DockerSandboxConfig): SandboxProvider {
   return new DockerProvider(config)
+}
+
+/** True for a 404 of the Docker API: Docker does not have the container. */
+function isNotFound(error: unknown) {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'statusCode' in error &&
+    error.statusCode === 404
+  )
 }
