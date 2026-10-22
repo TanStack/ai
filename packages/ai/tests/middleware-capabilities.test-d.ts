@@ -11,6 +11,8 @@ import type {
   ChatMiddlewareContext,
 } from '../src/activities/chat/middleware/types'
 import type { GenerationMiddleware } from '../src/activities/middleware'
+import type { Capability } from '../src/activities/chat/middleware/capabilities'
+import type { ToolExecutionContext } from '../src/types'
 
 const aCap = createCapability<{ a: number }>()('a')
 const bCap = createCapability<{ b: string }>()('b')
@@ -147,3 +149,16 @@ const chatReadsMessages = defineChatMiddleware({
 // @ts-expect-error chat middleware is not assignable to GenerationMiddleware.
 const _baseSlot: GenerationMiddleware = chatReadsMessages
 void _baseSlot
+
+// A server tool reads a run capability off its execution context. The value
+// type comes from the capability token.
+declare const toolCtx: ToolExecutionContext
+expectTypeOf(toolCtx.get).toEqualTypeOf<
+  (<TValue>(capability: Capability<TValue>) => TValue) | undefined
+>()
+if (toolCtx.get && toolCtx.getOptional) {
+  expectTypeOf(toolCtx.get(aCap)).toEqualTypeOf<{ a: number }>()
+  expectTypeOf(toolCtx.getOptional(bCap)).toEqualTypeOf<
+    { b: string } | undefined
+  >()
+}

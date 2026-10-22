@@ -1,11 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineAgent, toolDefinition } from '@tanstack/ai'
+import {
+  createCapability,
+  defineAgent,
+  defineChatMiddleware,
+  toolDefinition,
+} from '@tanstack/ai'
 import {
   memoryLogState,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import {
   after,
   gate,
@@ -215,6 +220,45 @@ describe('session.background', () => {
     await turn
 
     expect(toolResultIn(model.calls[1], 'call-1')).toBe('waited')
+    await host.close()
+  })
+})
+
+describe('tool context in a harness turn', () => {
+  it('gives a server tool the run capabilities next to runId', async () => {
+    const greeter = createCapability<string>()('test/greeter')
+    const provider = defineChatMiddleware({
+      name: 'test/provide-greeter',
+      provides: [greeter],
+      setup: (ctx) => ctx.provide(greeter, 'hello'),
+    })
+    const seen: Array<unknown> = []
+    const greet = toolDefinition({
+      name: 'greet',
+      description: 'Greets',
+      inputSchema: { type: 'object', properties: {} },
+    }).server((_args: unknown, context) => {
+      seen.push(context?.runId, context?.get?.(greeter))
+      return 'ok'
+    })
+    const model = mockAdapter([
+      () => toolCall('greet', {}, 'call-1'),
+      () => text('Done.'),
+    ])
+    const { host, session } = await open(model.adapter, {
+      tools: [greet],
+      plugins: () => [
+        definePlugin({
+          name: 'test/greeter',
+          setup: () => ({ middleware: [provider] }),
+        }),
+      ],
+    })
+
+    await session.send('Greet')
+
+    expect(typeof seen[0]).toBe('string')
+    expect(seen[1]).toBe('hello')
     await host.close()
   })
 })

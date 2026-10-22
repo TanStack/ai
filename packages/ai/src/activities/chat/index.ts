@@ -188,6 +188,7 @@ import type {
   ToolCallStartEvent,
   ToolChoice,
   FetchWrapper,
+  ToolExecutionContext,
   ToolInputResponse,
   UIMessage,
 } from '../../types'
@@ -2717,6 +2718,7 @@ class TextEngine<
       this.toolResumeState(),
       this.params.toolExecution,
       this.params.repairToolInput,
+      this.toolCapabilities(),
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -2954,6 +2956,7 @@ class TextEngine<
       this.toolResumeState(),
       this.params.toolExecution,
       this.params.repairToolInput,
+      this.toolCapabilities(),
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -4058,7 +4061,17 @@ class TextEngine<
       this.toolResumeState(),
       undefined,
       this.params.repairToolInput,
+      this.toolCapabilities(),
     )
+  }
+
+  /** The run's capability readers, for each server tool's context. */
+  private toolCapabilities(): Pick<
+    ToolExecutionContext,
+    'get' | 'getOptional'
+  > {
+    const { get, getOptional } = this.middlewareCtx
+    return { get, getOptional }
   }
 
   private toolMiddlewareHooks(): ToolExecutionMiddlewareHooks {

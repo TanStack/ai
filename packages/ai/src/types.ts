@@ -4,7 +4,10 @@ import type {
 } from '@standard-schema/spec'
 import type { InternalLogger } from './logger/internal-logger'
 import type { SystemPrompt } from './system-prompts'
-import type { CapabilityContext } from './activities/chat/middleware/capabilities'
+import type {
+  Capability,
+  CapabilityContext,
+} from './activities/chat/middleware/capabilities'
 import type { InterruptSubmissionError } from './interrupts'
 import type { ReasoningRequest } from './reasoning'
 // The canonical usage types live in the leaf `@tanstack/ai-event-client`
@@ -913,6 +916,23 @@ export type ToolExecutionContext<TContext = unknown> =
      * a host such as the harness wraps the tool's `execute` to add it.
      */
     runId?: string
+    /**
+     * Read a capability that a middleware of the run provided, by its
+     * handle. It works like `ctx.get` in middleware and throws if the
+     * capability was never provided. `chat()` sets it. It is missing when a
+     * tool runs outside a chat.
+     *
+     * @example
+     * ```ts
+     * const sandbox = context?.get?.(SandboxCapability)
+     * ```
+     */
+    get?: <TValue>(capability: Capability<TValue>) => TValue
+    /**
+     * Read a capability by its handle. Returns `undefined` if no middleware
+     * provided it. It works like `ctx.getOptional` in middleware.
+     */
+    getOptional?: <TValue>(capability: Capability<TValue>) => TValue | undefined
     /**
      * Emit a custom event during tool execution.
      * Events are streamed to the client in real-time as AG-UI CUSTOM events.
