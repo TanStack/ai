@@ -19,7 +19,7 @@
  *
  * NOTE: Workers-runtime code — compiles against `@cloudflare/workers-types`.
  */
-import { isTerminalRunStatus } from '@tanstack/ai'
+import { isRunStatus, isTerminalRunStatus } from '@tanstack/ai'
 import type {
   RunEvent,
   RunEventLog,
@@ -37,6 +37,24 @@ const evtKey = (runId: string, seq: number): string =>
   `evt:${runId}:${String(seq).padStart(8, '0')}`
 const evtPrefix = (runId: string): string => `evt:${runId}:`
 
+/**
+ * Reject a `rec:` value written in the 0.x layout (`done`/`error` statuses).
+ * Read as-is it looks like a live run, and the stall watchdog would mark a
+ * finished run failed.
+ */
+function checkRecord(
+  key: string,
+  value: RunLogRecord | undefined,
+): RunLogRecord | null {
+  if (!value) return null
+  if (!isRunStatus(value.status)) {
+    throw new Error(
+      `run-log: ${key} uses the 0.x record layout (status "${String(value.status)}"). Clear old run records before upgrading to 1.0.`,
+    )
+  }
+  return value
+}
+
 export class DurableObjectRunEventLog implements RunEventLog {
   /** Per-run wake-ups for live-tailing readers on THIS instance. */
   private readonly waiters = new Map<string, Set<() => void>>()
@@ -45,7 +63,10 @@ export class DurableObjectRunEventLog implements RunEventLog {
 
   /** Read the record under `rec:<runId>`. */
   private async getRecord(runId: string): Promise<RunLogRecord | null> {
-    return (await this.storage.get<RunLogRecord>(recKey(runId))) ?? null
+    return checkRecord(
+      recKey(runId),
+      await this.storage.get<RunLogRecord>(recKey(runId)),
+    )
   }
 
   private async require(runId: string): Promise<RunLogRecord> {
@@ -127,7 +148,10 @@ export class DurableObjectRunEventLog implements RunEventLog {
 
   async touch(runId: string): Promise<void> {
     await this.storage.transaction(async (txn) => {
-      const record = await txn.get<RunLogRecord>(recKey(runId))
+      const record = checkRecord(
+        recKey(runId),
+        await txn.get<RunLogRecord>(recKey(runId)),
+      )
       if (!record || isTerminalRunStatus(record.status)) return
       await txn.put(recKey(runId), { ...record, updatedAt: Date.now() })
     })
@@ -141,7 +165,10 @@ export class DurableObjectRunEventLog implements RunEventLog {
     chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
   ): Promise<boolean> {
     const finished = await this.storage.transaction(async (txn) => {
-      const record = await txn.get<RunLogRecord>(recKey(runId))
+      const record = checkRecord(
+        recKey(runId),
+        await txn.get<RunLogRecord>(recKey(runId)),
+      )
       if (
         !record ||
         isTerminalRunStatus(record.status) ||
@@ -175,7 +202,10 @@ export class DurableObjectRunEventLog implements RunEventLog {
 
   async update(runId: string, patch: RunRecordPatch): Promise<void> {
     const updated = await this.storage.transaction(async (txn) => {
-      const record = await txn.get<RunLogRecord>(recKey(runId))
+      const record = checkRecord(
+        recKey(runId),
+        await txn.get<RunLogRecord>(recKey(runId)),
+      )
       if (!record || isTerminalRunStatus(record.status)) return false
       await txn.put(recKey(runId), {
         ...record,
@@ -201,7 +231,14 @@ export class DurableObjectRunEventLog implements RunEventLog {
    */
   async list(): Promise<Array<RunLogRecord>> {
     const stored = await this.storage.list<RunLogRecord>({ prefix: 'rec:' })
-    return [...stored.values()]
+    const records: Array<RunLogRecord> = []
+    for (const [key, value] of stored) {
+      // Skip, not throw: one 0.x record must not stop the watchdog for live runs.
+      if (isRunStatus(value.status)) records.push(value)
+      else
+        console.error(`run-log: skipping ${key}, it uses the 0.x record layout`)
+    }
+    return records
   }
 
   async *read(

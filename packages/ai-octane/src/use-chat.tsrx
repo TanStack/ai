@@ -109,6 +109,8 @@ export function useChat<
       ...(initialOptions.context !== undefined && {
         context: initialOptions.context,
       }),
+      ...(initialOptions.byok !== undefined && { byok: initialOptions.byok }),
+      byokProvider: () => optionsRef.current.byokProvider?.(),
       devtools: {
         ...initialOptions.devtools,
         // OCTANE DIVERGENCE: identify this binding as Octane (not 'react') in TanStack AI Devtools.

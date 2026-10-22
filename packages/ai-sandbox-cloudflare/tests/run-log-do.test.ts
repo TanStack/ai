@@ -96,4 +96,20 @@ describe('DurableObjectRunEventLog', () => {
     await reading
     expect(seen).toEqual([0, 1])
   })
+
+  it('rejects a 0.x record and leaves it out of list()', async () => {
+    const storage = fakeStorage()
+    const log = new DurableObjectRunEventLog(storage)
+    await log.open({ runId: 'live', threadId: 't1' })
+    await storage.put('rec:old', {
+      runId: 'old',
+      status: 'done',
+      lastSeq: 0,
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    await expect(log.get('old')).rejects.toThrow(/0\.x record layout/)
+    await expect(log.touch('old')).rejects.toThrow(/0\.x record layout/)
+    expect((await log.list()).map((r) => r.runId)).toEqual(['live'])
+  })
 })

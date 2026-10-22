@@ -2913,7 +2913,7 @@ importers:
         specifier: 2.2.0
         version: 2.2.0
       '@tanstack/ai-utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-utils
     devDependencies:
       '@tanstack/ai':
@@ -2932,7 +2932,7 @@ importers:
   packages/ai-octane:
     dependencies:
       '@tanstack/ai-client':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-client
     devDependencies:
       '@octanejs/testing-library':
@@ -3544,7 +3544,7 @@ importers:
     devDependencies:
       '@google/genai':
         specifier: ^2.10.0
-        version: 2.10.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.3.6))
+        version: 2.10.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
