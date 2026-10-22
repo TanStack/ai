@@ -55,6 +55,7 @@ export async function judgeReports(params: {
 
   const result = await chat({
     adapter,
+    threadId: 'eval-judge',
     messages: [
       {
         role: 'user' as const,

@@ -44,6 +44,7 @@ describe('generateImage abortSignal + timeout', () => {
     const controller = new AbortController()
 
     await generateImage({
+      threadId: 'thread-1',
       adapter,
       prompt: 'a cat',
       abortSignal: controller.signal,
@@ -69,6 +70,7 @@ describe('generateImage abortSignal + timeout', () => {
     const adapter = createMockImageAdapter({ generateImages })
 
     const promise = generateImage({
+      threadId: 'thread-1',
       adapter,
       prompt: 'a cat',
       timeout: 50,
@@ -110,6 +112,7 @@ describe('generateImage abortSignal + timeout', () => {
     const controller = new AbortController()
 
     const promise = generateImage({
+      threadId: 'thread-1',
       adapter,
       prompt: 'a cat',
       abortSignal: controller.signal,
@@ -136,6 +139,7 @@ describe('generateImage abortSignal + timeout', () => {
     const adapter = createMockImageAdapter({ generateImages })
 
     const resultPromise = generateImage({
+      threadId: 'thread-1',
       adapter,
       prompt: 'a cat',
       timeout: 1_000,
@@ -174,6 +178,7 @@ describe('generateImage abortSignal + timeout', () => {
     ]
 
     const promise = generateImage({
+      threadId: 'thread-1',
       adapter,
       prompt: 'a cat',
       timeout: 25,
@@ -219,6 +224,7 @@ describe('generateImage abortSignal + timeout', () => {
     ]
 
     const promise = generateImage({
+      threadId: 'thread-1',
       adapter,
       prompt: 'a cat',
       abortSignal: controller.signal,

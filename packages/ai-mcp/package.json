@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-mcp",
-  "version": "0.8.3",
+  "version": "0.9.2",
   "description": "Host-side Model Context Protocol client for TanStack AI: discover and run MCP server tools, resources, and prompts in any adapter's chat() loop, with generated end-to-end types.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -52,6 +52,10 @@
     "./server/stdio": {
       "types": "./dist/esm/server/stdio.d.ts",
       "import": "./dist/esm/server/stdio.js"
+    },
+    "./events": {
+      "types": "./dist/esm/events/index.d.ts",
+      "import": "./dist/esm/events/index.js"
     }
   },
   "files": [

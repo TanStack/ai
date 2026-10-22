@@ -7,7 +7,7 @@ title: decodeWsFrame
 function decodeWsFrame(data): InboundFrame;
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:48](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L48)
+Defined in: packages/ai/src/stream-to-websocket.ts:48
 
 Decode one client→server frame. An `{ type: 'abort', runId }` object is a
 control frame; anything else is treated as a `RunAgentInput` and validated

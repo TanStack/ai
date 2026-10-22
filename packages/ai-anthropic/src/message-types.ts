@@ -13,22 +13,9 @@ import type {
 } from '@anthropic-ai/sdk/resources'
 
 /**
- * Supported image media types for Anthropic.
- */
-export type AnthropicImageMediaType =
-  | 'image/jpeg'
-  | 'image/png'
-  | 'image/gif'
-  | 'image/webp'
-
-/**
  * Metadata for Anthropic image content parts.
  */
 export interface AnthropicImageMetadata {
-  /**
-   * @deprecated Ignored. The media type is taken from `source.mimeType`.
-   */
-  mediaType?: AnthropicImageMediaType
   /**
    * Cache control settings for the image content.
    */
@@ -46,18 +33,9 @@ export interface AnthropicTextMetadata {
   citations?: Array<TextCitationParam>
 }
 /**
- * Supported document media types for Anthropic.
- */
-export type AnthropicDocumentMediaType = 'application/pdf'
-
-/**
  * Metadata for Anthropic document content parts (e.g., PDFs).
  */
 export interface AnthropicDocumentMetadata {
-  /**
-   * @deprecated Ignored. The media type is taken from `source.mimeType`.
-   */
-  mediaType?: AnthropicDocumentMediaType
   /**
    * Cache control settings for the document.
    */

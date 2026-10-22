@@ -14,9 +14,6 @@ export type TextEditorToolConfig =
   | ToolTextEditor20250429
   | ToolTextEditor20250728
 
-/** @deprecated Renamed to `TextEditorToolConfig`. Will be removed in a future release. */
-export type TextEditorTool = TextEditorToolConfig
-
 export type AnthropicTextEditorTool = ProviderTool<'anthropic', 'text_editor'>
 
 export function convertTextEditorToolToAdapterFormat(

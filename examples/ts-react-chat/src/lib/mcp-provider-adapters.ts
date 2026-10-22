@@ -25,7 +25,7 @@ export function resolveTextAdapter(provider: unknown) {
     case 'gemini':
       return geminiText('gemini-3.5-flash')
     case 'groq':
-      return groqText('llama-3.3-70b-versatile')
+      return groqText('openai/gpt-oss-120b')
     case 'openai':
     default:
       return openaiText('gpt-5.5')

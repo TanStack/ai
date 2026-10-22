@@ -36,6 +36,7 @@ describe('processConverseStream', () => {
         },
       ),
       () => 'msg-1',
+      { threadId: 'thread-1' },
     )) {
       types.push(c.type)
     }
@@ -56,6 +57,7 @@ describe('processConverseStream', () => {
         { messageStop: { stopReason: 'end_turn' } },
       ),
       () => 'msg-1',
+      { threadId: 'thread-1' },
     )) {
       if (c.type === EventType.TEXT_MESSAGE_CONTENT)
         contents.push((c as { delta: string }).delta)
@@ -91,6 +93,7 @@ describe('processConverseStream', () => {
         { messageStop: { stopReason: 'tool_use' } },
       ),
       () => 'msg-2',
+      { threadId: 'thread-1' },
     )) {
       types.push(c.type)
       if (c.type === EventType.TOOL_CALL_ARGS)
@@ -116,6 +119,7 @@ describe('processConverseStream', () => {
         { messageStop: { stopReason: 'end_turn' } },
       ),
       () => 'msg-3',
+      { threadId: 'thread-1' },
     )) {
       types.push(c.type)
     }
@@ -133,7 +137,9 @@ describe('processConverseStream', () => {
     ...events: Array<ConverseStreamFixture>
   ): Promise<Array<AdapterYieldChunk>> {
     const out: Array<AdapterYieldChunk> = []
-    for await (const c of processConverseStream(gen(...events), counter())) {
+    for await (const c of processConverseStream(gen(...events), counter(), {
+      threadId: 'thread-1',
+    })) {
       out.push(c)
     }
     return out
@@ -309,6 +315,7 @@ describe('processConverseStream', () => {
           { throttlingException: new Error('rate limited') },
         ),
         counter(),
+        { threadId: 'thread-1' },
       )) {
         // consume
       }
@@ -376,5 +383,67 @@ describe('processConverseStream', () => {
     expect(
       events.filter((e) => e.type === EventType.TOOL_CALL_END),
     ).toHaveLength(2)
+  })
+
+  it('puts the raw streamed argument string on TOOL_CALL_END', async () => {
+    const events = await collect(
+      {
+        contentBlockStart: {
+          start: { toolUse: { toolUseId: 't1', name: 'getX' } },
+          contentBlockIndex: 0,
+        },
+      },
+      {
+        contentBlockDelta: {
+          delta: { toolUse: { input: '{"n": ' } },
+          contentBlockIndex: 0,
+        },
+      },
+      {
+        contentBlockDelta: {
+          delta: { toolUse: { input: '1.50}' } },
+          contentBlockIndex: 0,
+        },
+      },
+      { contentBlockStop: { contentBlockIndex: 0 } },
+      { messageStop: { stopReason: 'tool_use' } },
+    )
+    const end = events.find((e) => e.type === EventType.TOOL_CALL_END)
+    expect(end).toMatchObject({ toolCallId: 't1', args: '{"n": 1.50}' })
+  })
+
+  it('puts malformed raw arguments on TOOL_CALL_END without an input', async () => {
+    const events = await collect(
+      {
+        contentBlockStart: {
+          start: { toolUse: { toolUseId: 't1', name: 'getX' } },
+          contentBlockIndex: 0,
+        },
+      },
+      {
+        contentBlockDelta: {
+          delta: { toolUse: { input: '{"a":' } },
+          contentBlockIndex: 0,
+        },
+      },
+      // Truncated: the drained END still carries the raw string.
+    )
+    const end = events.find((e) => e.type === EventType.TOOL_CALL_END)
+    expect(end).toMatchObject({ toolCallId: 't1', args: '{"a":' })
+    expect(end).not.toHaveProperty('input')
+  })
+
+  it('sends empty args on TOOL_CALL_END when no argument fragment arrived', async () => {
+    const events = await collect(
+      {
+        contentBlockStart: {
+          start: { toolUse: { toolUseId: 't1', name: 'getX' } },
+          contentBlockIndex: 0,
+        },
+      },
+      { contentBlockStop: { contentBlockIndex: 0 } },
+    )
+    const end = events.find((e) => e.type === EventType.TOOL_CALL_END)
+    expect(end).toMatchObject({ toolCallId: 't1', args: '' })
   })
 })

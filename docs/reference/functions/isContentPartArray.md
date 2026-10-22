@@ -7,7 +7,7 @@ title: isContentPartArray
 function isContentPartArray(value): value is ContentPart[];
 ```
 
-Defined in: [packages/ai/src/utilities/tool-result.ts:57](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/tool-result.ts#L57)
+Defined in: packages/ai/src/utilities/tool-result.ts:57
 
 True iff `value` is a NON-EMPTY array whose every element is a valid
 `ContentPart`. Empty arrays and mixed arrays return false so they continue

@@ -91,6 +91,7 @@ export interface ContainerRunConfig {
 interface ToolExecState {
   token: string
   hostTools: Array<AnyTool>
+  threadId: string
   context?: unknown
   /** Aborted once the run is terminal so a still-running host tool is cancelled. */
   abort: AbortController
@@ -213,6 +214,7 @@ export abstract class ContainerSandboxCoordinator<
     this.toolExec.set(input.runId, {
       token,
       hostTools: runConfig.hostTools,
+      threadId: input.threadId,
       ...(runConfig.context !== undefined
         ? { context: runConfig.context }
         : {}),
@@ -433,6 +435,7 @@ export abstract class ContainerSandboxCoordinator<
             payload.name,
             payload.args,
             {
+              threadId: state.threadId,
               ...(state.context !== undefined
                 ? { context: state.context }
                 : {}),

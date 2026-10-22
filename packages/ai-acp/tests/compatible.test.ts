@@ -186,6 +186,7 @@ describe('acpCompatible in-sandbox adapter (stdio)', () => {
 
     const chunks = await collect(
       pi('pi-fast').chatStream({
+        threadId: 'thread-1',
         model: 'pi-fast',
         messages: [{ role: 'user', content: 'say pong' }],
         logger: noopLogger,
@@ -224,6 +225,7 @@ describe('acpCompatible in-sandbox adapter (stdio)', () => {
         name: 'pi',
         command: () => 'node fake-acp-agent.mjs',
       }).chatStream({
+        threadId: 'thread-1',
         model: 'pi-fast',
         messages: [{ role: 'user', content: 'say pong' }],
         logger: noopLogger,
@@ -248,6 +250,7 @@ describe('acpCompatible in-sandbox adapter (stdio)', () => {
         name: 'pi',
         command: () => 'node fake-acp-agent.mjs',
       }).chatStream({
+        threadId: 'thread-1',
         model: 'pi-fast',
         runId: 'caller-supplied-run-id',
         messages: [{ role: 'user', content: 'say pong' }],
@@ -272,6 +275,7 @@ describe('acpCompatible in-sandbox adapter (stdio)', () => {
         name: 'pi',
         command: () => 'node fake-acp-agent.mjs',
       }).chatStream({
+        threadId: 'thread-1',
         model: 'pi-fast',
         messages: [
           { role: 'user', content: 'first question' },
@@ -311,6 +315,7 @@ describe('acpCompatible in-sandbox adapter (stdio)', () => {
 
     await collect(
       pi('pi-pro').chatStream({
+        threadId: 'thread-1',
         model: 'pi-pro',
         messages: [{ role: 'user', content: 'hi' }],
         logger: noopLogger,
@@ -335,6 +340,7 @@ describe('acpCompatible in-sandbox adapter (stdio)', () => {
         name: 'pi',
         command: () => 'node fake-acp-agent.mjs',
       }).chatStream({
+        threadId: 'thread-1',
         model: 'pi-fast',
         messages: [{ role: 'user', content: 'hi' }],
         logger: noopLogger,
@@ -365,6 +371,7 @@ describe('acpCompatible in-sandbox adapter (stdio)', () => {
         name: 'pi',
         command: () => 'node fake-acp-agent.mjs',
       }).chatStream({
+        threadId: 'thread-1',
         model: 'pi-fast',
         messages: [{ role: 'user', content: 'hi' }],
         logger: noopLogger,
@@ -393,6 +400,7 @@ describe('acpCompatible in-sandbox adapter (stdio)', () => {
         name: 'pi',
         command: () => 'node fake-acp-agent.mjs',
       }).chatStream({
+        threadId: 'thread-1',
         model: 'pi-fast',
         messages: [{ role: 'user', content: 'report' }],
         outputSchema: {
@@ -438,6 +446,7 @@ describe('acpCompatible in-sandbox adapter (stdio)', () => {
         name: 'pi',
         command: () => 'node fake-acp-agent.mjs',
       }).chatStream({
+        threadId: 'thread-1',
         model: 'pi-fast',
         messages: [{ role: 'user', content: 'report' }],
         outputSchema: {

@@ -2,7 +2,7 @@
 title: Client Tools
 id: client-tools
 order: 4
-description: "Client tools in TanStack AI run in the browser for UI updates, localStorage, and browser API access with automatic execution."
+description: "Run a tool in the browser so the model can update the UI, use localStorage, or call browser APIs. The server sends the call, and the browser runs it and sends the result back."
 keywords:
   - tanstack ai
   - client tools
@@ -13,7 +13,147 @@ keywords:
   - localStorage
 ---
 
-Client tools execute in the browser, enabling UI updates, local storage access, and browser API interactions. Unlike server tools, client tools don't have an `execute` function in their server definition.
+A client tool runs in the browser. Use it for a notification, `localStorage`, the clipboard, or navigation.
+
+The server tells the model that the tool exists. When the model calls it, the browser runs your `.client()` function and sends the result back. Then the model continues.
+
+Good jobs for a client tool:
+
+- **UI changes**: show a notification, fill a form, open a panel.
+- **Local data**: save preferences, cache values in `localStorage`.
+- **Browser APIs**: geolocation, camera, clipboard.
+- **Navigation**: change the route, scroll to a section.
+- **App state**: update React, Vue, or Solid state, or send an analytics event.
+
+## Add a client tool
+
+### 1. Define the tool in a shared file
+
+The server and the browser both import this file. It has no implementation yet:
+
+```typescript
+// tools/definitions.ts
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+
+export const savePreferenceDef = toolDefinition({
+  name: "save_preference",
+  description: "Save a user preference in the browser, such as the color theme",
+  inputSchema: z.object({
+    key: z.string().meta({ description: "Preference name, for example theme" }),
+    value: z.string().meta({ description: "Preference value, for example dark" }),
+  }),
+  outputSchema: z.object({
+    saved: z.boolean(),
+  }),
+});
+```
+
+### 2. Pass the definition to `chat()`
+
+On the server, pass the definition, not an implementation:
+
+```typescript
+// api/chat.ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { savePreferenceDef } from "../tools/definitions";
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+
+  const stream = chat({
+    adapter: openaiText("gpt-6.1-sol"),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    parentRunId: params.parentRunId,
+    ...(params.resume ? { resume: params.resume } : {}),
+    tools: [savePreferenceDef],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+The browser sends the tool result in a second request. `parentRunId` and `resume` let `chat()` find the paused call and continue it.
+
+### 3. Add the `.client()` function and pass it to your chat hook
+
+Create the implementation at module scope. Then add it to `tools`:
+
+```tsx
+// app/chat.tsx
+import { useState } from "react";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+
+// The same definition as tools/definitions.ts. In your app, import it from that file.
+const savePreferenceDef = toolDefinition({
+  name: "save_preference",
+  description: "Save a user preference in the browser, such as the color theme",
+  inputSchema: z.object({
+    key: z.string().meta({ description: "Preference name, for example theme" }),
+    value: z.string().meta({ description: "Preference value, for example dark" }),
+  }),
+  outputSchema: z.object({
+    saved: z.boolean(),
+  }),
+});
+
+const savePreference = savePreferenceDef.client((input) => {
+  localStorage.setItem(input.key, input.value);
+  return { saved: true };
+});
+
+export function Chat() {
+  const [input, setInput] = useState("");
+  const { messages, sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
+    tools: [savePreference],
+  });
+
+  return (
+    <>
+      {messages.map((message) => (
+        <div key={message.id}>
+          {message.parts.map((part, index) =>
+            part.type === "text" ? <p key={index}>{part.content}</p> : null,
+          )}
+        </div>
+      ))}
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          sendMessage(input);
+          setInput("");
+        }}
+      >
+        <input value={input} onChange={(event) => setInput(event.target.value)} />
+        <button type="submit">Send</button>
+      </form>
+    </>
+  );
+}
+```
+
+Every framework takes the same `tools` option:
+
+- `useChat` in Vue, Solid, Preact, and Octane.
+- `createChat` in Svelte and Remix.
+- `injectChat` in Angular.
+
+### 4. Try it
+
+Ask your chat "Use the dark theme from now on." The model calls `save_preference`. Your browser saves `theme` as `dark` in `localStorage`, and the model confirms. Open the dev tools of your browser to see the saved value.
+
+## How it works
 
 ```mermaid
 sequenceDiagram
@@ -21,12 +161,12 @@ sequenceDiagram
     participant Server
     participant Browser
     participant ClientTool
-    
-    LLM Service->>Server: tool_call chunk<br/>{name: "updateUI", args: {...}}
+
+    LLM Service->>Server: tool_call chunk<br/>{name: "save_preference", args: {...}}
     Server->>Server: Check if tool has<br/>server execute
-    
+
     Note over Server: No execute function<br/>= client tool
-    
+
     Server->>Browser: RUN_FINISHED client-tool<br/>interrupt via SSE/HTTP
     Browser->>Browser: Find registered<br/>client tool
     Browser->>ClientTool: execute(args)
@@ -34,50 +174,100 @@ sequenceDiagram
     ClientTool-->>Browser: Return result
     Browser->>Server: POST tool result
     Server->>LLM Service: Add tool_result<br/>to conversation
-    
+
     Note over LLM Service: Model uses result<br/>to continue
-    
+
     LLM Service-->>Server: Stream response
     Server-->>Browser: Forward chunks
 ```
 
-## When to Use Client Tools
+1. The model calls the tool.
+2. The server sees that the tool has no server function. It pauses the run and sends the call to the browser.
+3. The browser finds the `.client()` function with the same tool name and runs it with the parsed input.
+4. The browser sends the result back to the server and starts the next run.
+5. The server checks the result against `outputSchema`. If the function throws or the check fails, the model gets a tool error.
+6. The model reads the result and continues.
 
-- **UI Updates**: Show notifications, update forms, toggle visibility
-- **Local Storage**: Save user preferences, cache data
-- **Browser APIs**: Access geolocation, camera, clipboard
-- **State Management**: Update React/Vue/Solid state
-- **Navigation**: Change routes, scroll to sections
+You do not write code for steps 2 to 5. `useChat` does them for you.
 
-## How It Works
+## Show the tool call in your UI
 
-1. **Tool Call from LLM**: LLM decides to call a client tool
-2. **Server Detection**: Server sees the tool has no `execute` function
-3. **Client Notification**: Server emits an internal `client-tool-execution`
-   pause on the interrupt wire (not a public item in `interrupts`)
-4. **Client Execution**: The browser finds the registered `.client()`
-   implementation by tool name and runs it with the parsed input
-5. **Result Return**: Client auto-submits the result via the resume batch
-6. **Server Update**: Successful output is validated. Execution and output
-   validation failures are added as failed tool results.
-7. **LLM Continuation**: LLM receives the result and continues the conversation
+Each tool call is a `tool-call` part in the assistant message. When you pass the tools to the hook, a check on `part.name` gives you typed `part.input` and `part.output`:
 
-Native client-tool execution shares the atomic interrupt **batch** lifecycle
-(it can gate multi-item submits) but is **auto-resolved** — you do not call
-`resolveInterrupt` for it. See [Interrupts](../interrupts/overview) for the
-ephemeral lifecycle, batches, and migration from the historical
-`tool-input-available` custom event. After hydration, a pending client-tool
-execution is restored but not run again. See
-[Client persistence](../persistence/client-persistence#handle-restored-client-tools)
-for recovery policies.
+```tsx
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { createChatClientOptions, type InferChatMessages } from "@tanstack/ai-client";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
 
-## Approval is a separate axis
+// The same definition as tools/definitions.ts. In your app, import it from that file.
+const savePreferenceDef = toolDefinition({
+  name: "save_preference",
+  description: "Save a user preference in the browser, such as the color theme",
+  inputSchema: z.object({
+    key: z.string().meta({ description: "Preference name, for example theme" }),
+    value: z.string().meta({ description: "Preference value, for example dark" }),
+  }),
+  outputSchema: z.object({
+    saved: z.boolean(),
+  }),
+});
 
-A client tool can also require approval, and approval is separate from the
-browser result. Add `needsApproval: true` and the tool pauses on a
-`tool-approval` interrupt first. You resolve **that decision only** — once
-approved, the client runs the `.client()` implementation automatically and
-returns its result:
+const savePreference = savePreferenceDef.client((input) => {
+  localStorage.setItem(input.key, input.value);
+  return { saved: true };
+});
+
+const chatOptions = createChatClientOptions({
+  connection: fetchServerSentEvents("/api/chat"),
+  threadId: "support-chat",
+  tools: [savePreference],
+});
+
+type ChatMessages = InferChatMessages<typeof chatOptions>;
+
+function Message({ message }: { message: ChatMessages[number] }) {
+  return (
+    <div>
+      {message.parts.map((part, index) => {
+        if (part.type === "text") {
+          return <p key={index}>{part.content}</p>;
+        }
+        if (part.type === "tool-call" && part.name === "save_preference") {
+          // part.input is { key: string; value: string }
+          // part.output is { saved: boolean } | undefined
+          return (
+            <p key={part.id}>
+              Saving {part.input?.key}
+              {part.output?.saved ? " (done)" : "..."}
+            </p>
+          );
+        }
+        return null;
+      })}
+    </div>
+  );
+}
+
+export function Chat() {
+  const { messages } = useChat(chatOptions);
+  return (
+    <>
+      {messages.map((message) => (
+        <Message key={message.id} message={message} />
+      ))}
+    </>
+  );
+}
+```
+
+A plain array in `tools` is enough for this type inference. You do not need `as const` or a wrapper. For every state that a tool call goes through, see [Tool Architecture](./tool-architecture#call-states). For typed tool events, see [Type-safe tool call events](../chat/stream-events#type-safe-tool-call-events).
+
+## Advanced
+
+### Ask the user before a client tool runs
+
+Add `needsApproval: true` to the definition. The tool first pauses on a `tool-approval` interrupt. You resolve only that decision. After the user approves, the client runs the `.client()` function and sends its result:
 
 ```ts ignore
 const approval = interrupts.find(
@@ -94,218 +284,21 @@ if (
 }
 ```
 
-You never resolve the execution by hand — that is what the `.client()`
-implementation is for. If you register a tool **without** a `.client()`
-implementation and want to supply the result yourself, use `addToolResult`
-(validated against the tool's output schema); it also preserves the historical
-path for legacy streams. See [Tool approval flow](./tool-approval) for approval
-forms and [Interrupts](../interrupts/overview) for the approval lifecycle.
+You never resolve the run of the tool by hand. The `.client()` function does that. If you register a tool with no `.client()` function and want to give the result yourself, call `addToolResult`. It checks the result against the output schema of the tool.
 
-## Defining Client Tools
+For approval forms, see [Tool Approval Flow](./tool-approval). For the approval lifecycle, see [Interrupts](../interrupts/overview).
 
-Client tools use the same `toolDefinition()` API but with the `.client()` method:
+### The client-tool pause
 
-```typescript
-// tools/definitions.ts - Shared between server and client
-import { toolDefinition } from "@tanstack/ai";
-import { z } from "zod";
+- The server pauses the run with an internal `client-tool-execution` item on the interrupt wire. It is not a public item in `interrupts`.
+- This pause uses the same atomic interrupt batch as approvals, so it can hold back a submit of several items. The client resolves it for you. You do not call `resolveInterrupt` for it.
+- After hydration, a pending client-tool call comes back, but it does not run again. For recovery policies, see [Client persistence](../persistence/client-persistence#handle-restored-client-tools).
 
-export const updateUIDef = toolDefinition({
-  name: "update_ui",
-  description: "Update the UI with new information",
-  inputSchema: z.object({
-    message: z.string().meta({ description: "Message to display" }),
-    type: z.enum(["success", "error", "info"]).meta({ description: "Message type" }),
-  }),
-  outputSchema: z.object({
-    success: z.boolean(),
-  }),
-});
+For the ephemeral lifecycle and batches, see [Interrupts](../interrupts/overview).
 
-export const saveToLocalStorageDef = toolDefinition({
-  name: "save_to_local_storage",
-  description: "Save data to browser local storage",
-  inputSchema: z.object({
-    key: z.string().meta({ description: "Storage key" }),
-    value: z.string().meta({ description: "Value to store" }),
-  }),
-  outputSchema: z.object({
-    saved: z.boolean(),
-  }),
-});
-```
+### Pass local values to a client tool
 
-## Using Client Tools
-
-### Server-Side
-
-To give the LLM access to client tools, pass the tool definitions (not implementations) to the server when creating the chat:
-
-```typescript
-// api/chat/route.ts
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-import { updateUIDef, saveToLocalStorageDef } from "./tools/definitions";
-
-export async function POST(request: Request) {
-  const { messages } = await request.json();
-
-  const stream = chat({
-    adapter: openaiText("gpt-5.5"),
-    messages,
-    tools: [updateUIDef, saveToLocalStorageDef], // Pass definitions
-  });
-
-  return toServerSentEventsResponse(stream);
-}
-```
-
-> **Security:** registering the definitions statically (as above) is the safe
-> default — the server alone decides which tools the model sees, so a client
-> can't advertise tools you didn't sanction. If you'd instead like the client
-> to declare its tools per request via AG-UI `RunAgentInput.tools`, use
-> [`mergeAgentTools`](../migration/ag-ui-compliance#tier-3--optional-let-the-client-advertise-its-tools) —
-> read its security note first, since `params.tools` is client-controlled.
-
-### Client-Side
-
-Create client implementations with automatic execution and full type safety:
-
-```tsx
-// app/chat.tsx
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-import { 
-  createChatClientOptions, 
-  type InferChatMessages,
-  type ToolCallPart,
-  type MessagePart,
-} from "@tanstack/ai-client";
-import { toolDefinition } from "@tanstack/ai";
-import { z } from "zod";
-
-const updateUIDef = toolDefinition({
-  name: "update_ui",
-  description: "Update the UI with new information",
-  inputSchema: z.object({
-    message: z.string().meta({ description: "Message to display" }),
-    type: z.enum(["success", "error", "info"]).meta({ description: "Message type" }),
-  }),
-  outputSchema: z.object({ success: z.boolean() }),
-});
-
-const saveToLocalStorageDef = toolDefinition({
-  name: "save_to_local_storage",
-  description: "Save data to browser local storage",
-  inputSchema: z.object({
-    key: z.string().meta({ description: "Storage key" }),
-    value: z.string().meta({ description: "Value to store" }),
-  }),
-  outputSchema: z.object({ saved: z.boolean() }),
-});
-
-// Step 1: Create client implementations (module scope)
-const updateUI = updateUIDef.client((input) => {
-  // Update UI state - fully typed!
-  console.log(input.message, input.type);
-  return { success: true };
-});
-
-const saveToLocalStorage = saveToLocalStorageDef.client((input) => {
-  localStorage.setItem(input.key, input.value);
-  return { saved: true };
-});
-
-// Step 2: A plain array is all you need — literal tool names, inputs and
-// outputs are inferred without any wrapper or `as const`.
-const tools = [updateUI, saveToLocalStorage];
-
-const chatOptions = createChatClientOptions({
-  connection: fetchServerSentEvents("/api/chat"),
-  tools,
-});
-
-// Step 3: Infer message types for full type safety
-type ChatMessages = InferChatMessages<typeof chatOptions>;
-
-function ChatComponent() {
-  const { messages, sendMessage, isLoading } = useChat(chatOptions);
-
-  // Step 4: Render with full type safety
-  return (
-    <div>
-      {messages.map((message) => (
-        <MessageComponent key={message.id} message={message} />
-      ))}
-    </div>
-  );
-}
-
-// Messages component with full type safety
-function MessageComponent({ message }: { message: ChatMessages[number] }) {
-  return (
-    <div>
-      {message.parts.map((part: MessagePart) => {
-        if (part.type === "text") {
-          return <p>{part.content}</p>;
-        }
-        
-        if (part.type === "tool-call") {
-          // ✅ part.name is narrowed to specific tool names
-          if (part.name === "update_ui") {
-            // ✅ part.input is typed as { message: string, type: "success" | "error" | "info" }
-            // ✅ part.output is typed as { success: boolean } | undefined
-            return (
-              <div>
-                Tool: {part.name}
-                {part.output && <span>✓ Success</span>}
-              </div>
-            );
-          }
-        }
-        return null;
-      })}
-    </div>
-  );
-}
-```
-
-## Automatic Execution
-
-Client tools are **automatically executed** when the model calls them. The flow is:
-
-1. LLM calls a client tool
-2. Server sends a `client-tool-execution` interrupt to the browser
-3. Client automatically executes the matching tool implementation
-4. Result is sent back to server
-5. Conversation continues with the result
-
-## Client Tools With Other AG-UI Servers
-
-Your agent runs on another AG-UI server, such as Pydantic AI. It calls a frontend tool, then ends the run. `useChat` runs the tool and starts the next run with the result.
-
-Register the client tools as in [Client-Side](#client-side), and point the connection at the endpoint of that server, for example `fetchServerSentEvents("/agent")`.
-
-The AG-UI spec ends such a run with `RUN_FINISHED` and a success outcome. The tool call gets no `TOOL_CALL_RESULT`. When that run ends:
-
-- The client runs each tool call that the run started and did not answer.
-- If the server names the calls in `outcome.pendingToolCallIds`, the client runs only those of them that this run started.
-- The next request carries each result as a `role: "tool"` message.
-
-If no client tool has the name of the call, the call does not run. If the arguments of the call are not complete JSON, the call does not run. A client tool with `needsApproval: true` does not run on this path, because the server did not ask for approval.
-
-## Expose Client Tools Through WebMCP
-
-The normal client-tool path belongs to a TanStack chat run. It returns the browser result to the server and continues the conversation.
-
-WebMCP provides a separate execution path for browser agents. It calls the client handler and returns the result directly to WebMCP.
-
-WebMCP execution does not call `addToolResult`. It does not continue a TanStack chat run.
-
-Register the same executable client tools with a framework lifecycle wrapper or `registerWebMCPTools`. See [WebMCP Tools](./webmcp) for setup and security rules.
-
-## Client Runtime Context
-
-Client tools can receive typed runtime context as their second argument. This context is local to the `ChatClient` or framework hook instance and is not serialized to the server.
+A client tool gets typed runtime context as its second argument. This context belongs to the `ChatClient` or the hook instance. It is not sent to the server.
 
 ```typescript
 import { createChatClientOptions } from "@tanstack/ai-client";
@@ -330,6 +323,7 @@ const showToast = toolDefinition({
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),
+  threadId: "support-chat",
   tools: [showToast],
   context: {
     activeProjectId,
@@ -340,92 +334,11 @@ const chatOptions = createChatClientOptions({
 const chat = useChat(chatOptions);
 ```
 
-Use `context` for local browser dependencies. If the server also needs a value from the client, send it with `forwardedProps`, validate it in your route, and map it into server `chat({ context })` explicitly. See [Runtime Context](../advanced/runtime-context) for the full pattern.
+Does the server also need a value from the client? Send it with `forwardedProps`, check it in your route, and put it in the server `chat({ context })`. See [Runtime Context](../advanced/runtime-context).
 
-## The `clientTools()` helper (optional)
+### One definition, two implementations
 
-Passing a plain array — `tools: [toolA, toolB]` — is all you need: tool names, inputs and outputs are inferred without any wrapper and without `as const`. `clientTools()` is an optional identity helper that performs the same capture explicitly. Reach for it only when you want to build a shared, reusable tools tuple **outside** the hook/options call:
-
-```ts
-import { clientTools } from "@tanstack/ai-client";
-import { toolDefinition } from "@tanstack/ai";
-
-const notify = toolDefinition({
-  name: "notify",
-  description: "Show a notification",
-}).client(() => ({ ok: true }));
-
-// Equivalent to `const tools = [notify]` — just captured explicitly.
-const tools = clientTools(notify);
-```
-
-## Type Safety Benefits
-
-The isomorphic architecture provides complete end-to-end type safety:
-
-```typescript
-import type { UIMessage } from "@tanstack/ai-client";
-
-const messages: UIMessage[] = [];
-
-messages.forEach((message) => {
-  message.parts.forEach((part) => {
-    if (part.type === "tool-call" && part.name === "update_ui") {
-      // ✅ TypeScript knows part.name is literally "update_ui"
-      // ✅ part.input is typed as { message: string, type: "success" | "error" | "info" }
-      // ✅ part.output is typed as { success: boolean } | undefined
-      
-      console.log(part.input.message); // ✅ Fully typed!
-      
-      if (part.output) {
-        console.log(part.output.success); // ✅ Fully typed!
-      }
-    }
-  });
-});
-```
-
-## Tool States
-
-A `tool-call` part moves through a small set of observable `ToolCallState` values you can surface in the UI to indicate progress:
-
-- `awaiting-input` — the model intends to call the tool but arguments haven't arrived yet.
-- `input-streaming` — the model is streaming the tool arguments (partial input may be available).
-- `input-complete` — all arguments have been received and the tool can run.
-- `approval-requested` — the tool is waiting for user approval before it can run.
-- `approval-responded` — the user has approved or denied the tool call.
-
-The `ToolCallState` union includes a `complete` value, but the runtime never transitions a tool-call part to it — a finished call settles at `input-complete`. Once the tool runs, the result appears two ways: `part.output` becomes populated on the tool-call part, and a sibling `tool-result` part is emitted whose own `state` is `complete` or `error` (the `error` case carries `part.error`). Use the tool-call states for loading/streaming progress and the tool-result part for final success/error feedback.
-
-```tsx
-import type { ToolCallPart } from "@tanstack/ai-client";
-
-function ToolCallDisplay({ part }: { part: ToolCallPart }) {
-  if (part.state === "awaiting-input") {
-    return <div>🔄 Waiting for arguments...</div>;
-  }
-  
-  if (part.state === "input-streaming") {
-    return <div>📥 Receiving arguments...</div>;
-  }
-  
-  if (part.state === "input-complete") {
-    return <div>✓ Arguments received, running tool...</div>;
-  }
-
-  // Completion shows up as a populated `part.output` (and as a sibling
-  // `tool-result` part whose state is `complete` / `error`).
-  if (part.output) {
-    return <div>✅ Tool complete</div>;
-  }
-  
-  return null;
-}
-```
-
-## Hybrid Tools
-
-Tools can be implemented for both server and client, enabling flexible execution:
+A definition can have a `.server()` and a `.client()` implementation. The tool that you pass to `chat()` decides where it runs:
 
 ```typescript
 import { toolDefinition, chat } from "@tanstack/ai";
@@ -433,7 +346,6 @@ import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
 import { db } from "./db";
 
-// Define once
 const addToCartDef = toolDefinition({
   name: "add_to_cart",
   description: "Add item to shopping cart",
@@ -447,7 +359,7 @@ const addToCartDef = toolDefinition({
   }),
 });
 
-// Server implementation - Store in database
+// Server implementation: store the cart in the database
 const addToCartServer = addToCartDef.server(async (input) => {
   const cart = await db.carts.create({
     data: { itemId: input.itemId, quantity: input.quantity },
@@ -455,7 +367,7 @@ const addToCartServer = addToCartDef.server(async (input) => {
   return { success: true, cartId: cart.id };
 });
 
-// Client implementation - Update local wishlist
+// Client implementation: update a local wishlist
 const addToCartClient = addToCartDef.client((input) => {
   const wishlist = JSON.parse(localStorage.getItem("wishlist") || "[]");
   wishlist.push(input.itemId);
@@ -463,33 +375,68 @@ const addToCartClient = addToCartDef.client((input) => {
   return { success: true, cartId: "local" };
 });
 
-// Server: Pass definition for client execution
-chat({ adapter: openaiText('gpt-5.5'), messages: [], tools: [addToCartDef] }); // Client will execute
+// Pass the definition: the client runs the tool
+chat({ adapter: openaiText("gpt-6.1-sol"), messages: [], tools: [addToCartDef], threadId: "thread-1" });
 
-// Or pass server implementation for server execution
-chat({ adapter: openaiText('gpt-5.5'), messages: [], tools: [addToCartServer] }); // Server will execute
+// Or pass the server implementation: the server runs the tool
+chat({ adapter: openaiText("gpt-6.1-sol"), messages: [], tools: [addToCartServer], threadId: "thread-1" });
 ```
 
-## Best Practices
+Pass only one of the two to a `chat()` call. Both have the same name, and the tool names in one `tools` array must be unique.
 
-- **Keep client tools simple** - Since client tools run in the browser, avoid heavy computations or large dependencies that could bloat your bundle size.
-- **Handle errors gracefully** - Define clear error handling in your tool implementations and return meaningful error messages in your output schema.
-- **Update UI reactively** - Use your framework's state management (eg. React/Vue/Solid) to update the UI in response to tool executions.
-- **Secure sensitive data** - Never store sensitive data (like API keys or personal info) in local storage or expose it via client tools.
-- **Provide feedback** - Use tool states to inform users about ongoing operations and results of client tool executions (loading spinners, success messages, error alerts).
-- **Type everything** - Leverage TypeScript and Zod schemas for full type safety from tool definitions to implementations to usage.
+### Let the client declare its tools
 
-## Common Use Cases
+Pass the definitions on the server, as in the quick setup. Then the server alone decides which tools the model sees, and a client cannot add tools that you did not allow.
 
-- **UI Updates** - Show notifications, update forms, toggle visibility
-- **Local Storage** - Save user preferences, cache data
-- **Browser APIs** - Access geolocation, camera, clipboard
-- **State Management** - Update React/Vue/Solid state
-- **Navigation** - Change routes, scroll to sections
-- **Analytics** - Track user interactions
+To let the client declare its tools for each request through AG-UI `RunAgentInput.tools`, use [`mergeAgentTools`](../migration/ag-ui-compliance#tier-3-let-the-client-advertise-its-tools). Read its security note first, because the client controls `params.tools`.
 
-## Next Steps
+### Client tools with other AG-UI servers
 
-- [How Tools Work](./tool-architecture) - Deep dive into the tool architecture
-- [Server Tools](./server-tools) - Learn about server-side tool execution
-- [Tool Approval Flow](./tool-approval) - Add approval workflows for sensitive operations
+Your agent runs on another AG-UI server, such as Pydantic AI. It calls a frontend tool, then ends the run. `useChat` runs the tool and starts the next run with the result.
+
+Register the client tools as in [step 3](#3-add-the-client-function-and-pass-it-to-your-chat-hook). Point the connection at the endpoint of that server, for example `fetchServerSentEvents("/agent")`.
+
+The AG-UI spec ends such a run with `RUN_FINISHED` and a success outcome. The tool call gets no `TOOL_CALL_RESULT`. When that run ends:
+
+- The client runs each tool call that the run started and did not answer.
+- If the server names the calls in `outcome.pendingToolCallIds`, the client runs only those of them that this run started.
+- The next request carries each result as a `role: "tool"` message.
+
+These calls do not run:
+
+- A call with a name that no client tool has.
+- A call with arguments that are not complete JSON.
+- A call to a client tool with `needsApproval: true`, because the server did not ask for approval.
+
+### Expose client tools through WebMCP
+
+WebMCP lets browser agents call your client tools. This path is separate from a TanStack chat run:
+
+- WebMCP calls the client function and returns the result to WebMCP.
+- It does not call `addToolResult`, and it does not continue a chat run.
+
+Register the same client tools with a framework wrapper or `registerWebMCPTools`. See [WebMCP Tools](./webmcp) for setup and security rules.
+
+### The `clientTools()` helper
+
+A plain array, `tools: [toolA, toolB]`, already gives you typed tool names, inputs, and outputs. `clientTools()` does the same capture by name. Use it only to build a shared tool list outside the hook or the options call:
+
+```ts
+import { clientTools } from "@tanstack/ai-client";
+import { toolDefinition } from "@tanstack/ai";
+
+const notify = toolDefinition({
+  name: "notify",
+  description: "Show a notification",
+}).client(() => ({ ok: true }));
+
+// Same as `const tools = [notify]`
+const tools = clientTools(notify);
+```
+
+### Tips for good client tools
+
+- **Keep them small.** They run in the browser, so heavy work and large dependencies make your bundle bigger.
+- **Return errors as data.** Put an error field in the output schema and give a clear message.
+- **Keep secrets out.** Do not put API keys or personal data in `localStorage` or in a client tool.
+- **Show progress.** Use the tool-call states to show a spinner, a result, or an error.

@@ -49,6 +49,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: openRouterText('deepseek/deepseek-v4-pro'),
   messages,
+  threadId: 'thread-1',
   // Reasoning: goes out as reasoning.effort ('off' sends 'none')
   reasoning: 'high',
   modelOptions: {

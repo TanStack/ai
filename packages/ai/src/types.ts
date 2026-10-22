@@ -702,6 +702,17 @@ export interface TanStackMessageMetadata {
   source?: MessageSource
   stopReason?: 'error' | 'aborted'
   responseId?: string
+  /**
+   * Why the model call of this assistant message ended. A `'length'` message
+   * stopped at the output limit, so its tool calls are not complete.
+   */
+  finishReason?: TanStackRunMetadata['finishReason']
+  /**
+   * The provider's answer items of this assistant message, in order, for a
+   * same-model replay. The OpenAI Responses adapter keeps each output
+   * message item's `id` and `phase` (`commentary` or `final_answer`).
+   */
+  responseItems?: Array<{ id: string; phase?: string }>
   /** Parent chat run that produced this assistant message. */
   runId?: string
   /**
@@ -747,6 +758,8 @@ export interface TanStackRunMetadata {
   source?: MessageSource
   model?: string
   responseId?: string
+  /** The answer items of this model call. See `TanStackMessageMetadata.responseItems`. */
+  responseItems?: TanStackMessageMetadata['responseItems']
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   /** TokenUsage fields that have no AG-UI `usage[]` equivalent. */
   usage?: TokenUsageLeftover
@@ -760,6 +773,8 @@ export interface TanStackRunMetadata {
   state?: ToolOutputState
   /** Parsed `TOOL_CALL_END` input. Spec `TOOL_CALL_END` has no top-level `input`. */
   input?: unknown
+  /** The raw tool argument string on `TOOL_CALL_END`, as the provider sent it. */
+  args?: string
 }
 
 /**
@@ -858,6 +873,13 @@ export type ToolExecutionContext<TContext = unknown> =
   RuntimeContextField<TContext> & {
     /** The ID of the tool call being executed */
     toolCallId?: string
+    /**
+     * The thread id of the chat run. `chat()` sets it to the same value as
+     * `ctx.threadId` in middleware. A tool can use it to keep its own state
+     * for each conversation. It is missing when a tool runs outside a chat,
+     * for example from an MCP server, WebMCP, or a direct `execute()` call.
+     */
+    threadId?: string
     /**
      * Abort signal for the current chat run. Aborts when the run's
      * `abortController` fires (or middleware aborts). Long-running tools —
@@ -1265,6 +1287,20 @@ export interface ResolvedPromptCache {
 export type FetchWrapper = (next: typeof fetch) => typeof fetch
 
 /**
+ * What a `repairToolInput` function gets: a tool input that failed the check.
+ */
+export interface ToolInputRepairContext {
+  /** The tool the model called. */
+  tool: AnyTool
+  /** The call, with its id and the raw arguments text. */
+  toolCall: ToolCall
+  /** The input that failed, after approval edits and middleware. */
+  input: unknown
+  /** The validation error. A Standard Schema error also has `issues`. */
+  error: Error
+}
+
+/**
  * Options passed into the SDK and further piped to the AI provider.
  */
 export interface TextOptions<
@@ -1301,6 +1337,16 @@ export interface TextOptions<
    * starts them together, and `'sequential'` runs them one at a time.
    */
   toolExecution?: 'parallel' | 'sequential'
+  /**
+   * How a tool input that fails the final check is repaired. By default,
+   * common model mistakes such as `"5"` for a number are repaired against the
+   * schema. `false` turns the repair off. A function replaces the built-in
+   * repair: it returns the input to check again, or `undefined` to send the
+   * validation error to the model.
+   */
+  repairToolInput?:
+    | false
+    | ((context: ToolInputRepairContext) => unknown | Promise<unknown>)
   /**
    * Retry a model call when the provider error has a wait time (usually a
    * 429). `chat()` waits for the `retryAfterMs` time of the `RUN_ERROR`, then
@@ -1373,17 +1419,6 @@ export interface TextOptions<
    */
   outputSchema?: SchemaInput
   /**
-   * @deprecated Use `threadId` instead. `conversationId` is the legacy
-   * pre-AG-UI name for the same concept (a stable per-conversation
-   * identifier used to correlate client/server devtools events). When
-   * `conversationId` is omitted, the runtime falls back to `threadId`
-   * automatically, so most callers can simply pass `threadId` (or rely
-   * on `chatParamsFromRequest`, which surfaces it on `params`).
-   *
-   * Will be removed in a future major release.
-   */
-  conversationId?: string
-  /**
    * AbortController for request cancellation.
    *
    * Allows you to cancel an in-progress request using an AbortController.
@@ -1406,10 +1441,10 @@ export interface TextOptions<
   logger: InternalLogger
 
   /**
-   * Thread ID for AG-UI protocol run correlation.
-   * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
+   * Thread ID for AG-UI protocol run correlation. Required. It is used in
+   * RunStartedEvent and RunFinishedEvent.
    */
-  threadId?: string
+  threadId: string
   /**
    * Automatic prompt caching for this request. `chat()` sets it. When it is
    * absent, the adapter adds no automatic cache fields.
@@ -1451,6 +1486,16 @@ export interface TextOptions<
    * `ctx.subagentRunId`. Absent on a top-level run.
    */
   subagentRunId?: string
+  /**
+   * The agent name when this chat runs as a subagent. Middleware reads it as
+   * `ctx.subagentName`.
+   */
+  subagentName?: string
+  /**
+   * The subagentRunId of the child that started this one, for a nested child.
+   * Middleware reads it as `ctx.parentSubagentRunId`.
+   */
+  parentSubagentRunId?: string
 
   /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
   state?: unknown
@@ -1481,6 +1526,18 @@ export interface TextOptions<
   approvals?: ReadonlyMap<string, boolean>
 }
 
+/** What `TextAdapter.compact` receives. */
+export interface TextCompactOptions {
+  /** The history to compact. */
+  messages: Array<ModelMessage>
+  model: string
+  signal?: AbortSignal
+  /** Wraps the fetch of the compaction request. */
+  wrapFetch?: FetchWrapper
+  /** The system prompts of the chat call. */
+  systemPrompts?: Array<SystemPrompt>
+}
+
 // ============================================================================
 // AG-UI Protocol Event Types
 // ============================================================================
@@ -1490,20 +1547,6 @@ export interface TextOptions<
  * Use `EventType.RUN_STARTED` etc. when constructing event objects.
  */
 export { EventType } from '@ag-ui/core'
-
-/**
- * AG-UI Protocol event types.
- * @deprecated Use `EventType` enum from `@ag-ui/core` instead. This type alias
- * is kept for backward compatibility but will be removed in a future version.
- * @see https://docs.ag-ui.com/concepts/events
- */
-export type AGUIEventType = `${EventType}`
-
-/**
- * Stream chunk/event types (AG-UI protocol).
- * @deprecated Use `EventType` enum instead.
- */
-export type StreamChunkType = AGUIEventType
 
 /**
  * Base structure for AG-UI events.
@@ -1538,13 +1581,6 @@ export type {
   TokenUsage,
   UsageCostBreakdown,
 }
-
-/**
- * @deprecated Renamed to {@link TokenUsage}. Kept as an alias for backward
- * compatibility with `@tanstack/ai@0.23` and earlier; will be removed in a
- * future release.
- */
-export type UsageTotals = TokenUsage
 
 export type Interrupt = AGUIInterrupt
 
@@ -1639,8 +1675,6 @@ export interface ToolCallStartEvent extends Omit<
   'type'
 > {
   type: 'TOOL_CALL_START'
-  /** Alias of `toolCallName`. Kept so existing stream readers still compile. */
-  toolName?: string
   /** Provider-specific metadata to carry into the ToolCall. */
   metadata?: Record<string, any>
 }
@@ -1760,46 +1794,6 @@ export interface StructuredOutputStartEvent extends CustomEvent {
   value: { messageId: string }
 }
 
-/**
- * Emitted when a server tool requires approval before execution. The agent
- * loop yields this and pauses — `structured-output.complete` will not fire
- * for that run. The shape is fixed by the orchestrator's tool-approval flow
- * (the agent-loop branch of `runStreamingStructuredOutputImpl` in
- * `activities/chat/index.ts` forwards CUSTOM events from `TextEngine.run()`).
- */
-/**
- * @deprecated Native interrupts use RUN_FINISHED interrupt outcomes. This
- * compatibility event remains readable until 1.0.
- */
-export interface ApprovalRequestedEvent extends CustomEvent {
-  name: 'approval-requested'
-  value: {
-    toolCallId: string
-    toolName: string
-    input: unknown
-    approval: { id: string; needsApproval: true }
-  }
-}
-
-/**
- * Emitted when a client tool is invoked. The agent loop yields this and
- * pauses to let the caller run the tool client-side — `structured-output.complete`
- * will not fire for that run. Shape fixed by the agent-loop forwarding in
- * `runStreamingStructuredOutputImpl` in `activities/chat/index.ts`.
- */
-/**
- * @deprecated Native interrupts use RUN_FINISHED interrupt outcomes. This
- * compatibility event remains readable until 1.0.
- */
-export interface ToolInputAvailableEvent extends CustomEvent {
-  name: 'tool-input-available'
-  value: {
-    toolCallId: string
-    toolName: string
-    input: unknown
-  }
-}
-
 /** Emitted when an MCP tool returns a ui:// resource (MCP Apps). Reconciled into
  *  a UIResourcePart on the assistant UIMessage. Never enters model input. */
 export interface UIResourceEvent extends CustomEvent {
@@ -1905,8 +1899,6 @@ export type KnownCustomEvent =
   | SnippetRegisteredEvent
   | StructuredOutputStartEvent
   | StructuredOutputCompleteEvent
-  | ApprovalRequestedEvent
-  | ToolInputAvailableEvent
   | UIResourceEvent
 
 /** The default chat streaming result: standard chunks plus every typed
@@ -1925,10 +1917,7 @@ export type ChatStream = AsyncIterable<
  * - `structured-output.complete` — terminal event with typed `value.object: T`
  *
  * User-actionable waits, such as tool approval and client tool input, are
- * represented by `RUN_FINISHED.outcome.type === 'interrupt'` in current core
- * streams. Legacy `approval-requested` and `tool-input-available` custom
- * events may still be consumed for replay and backward compatibility, but
- * they are not the current source of truth for waits.
+ * represented by `RUN_FINISHED.outcome.type === 'interrupt'`.
  *
  * Each variant has a literal `name`, so a single discriminated narrow gives
  * you a typed `value` with no helper or cast:
@@ -1953,8 +1942,6 @@ export type StructuredOutputStream<T = unknown> = AsyncIterable<
   | Exclude<StreamChunk, CustomEvent>
   | StructuredOutputStartEvent
   | StructuredOutputCompleteEvent<T>
-  | ApprovalRequestedEvent
-  | ToolInputAvailableEvent
 >
 
 // ============================================================================
@@ -2116,8 +2103,8 @@ export type StreamChunk = AGUIEvent
  * `value` with no helper or cast:
  *
  * ```ts
- * if (chunk.type === 'CUSTOM' && chunk.name === 'approval-requested') {
- *   chunk.value.toolCallId // typed as string
+ * if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.start') {
+ *   chunk.value.messageId // typed as string
  * }
  * ```
  *
@@ -2136,8 +2123,6 @@ export type StreamChunk = AGUIEvent
 export type TaggedCustomEvent<T = unknown> =
   | StructuredOutputStartEvent
   | StructuredOutputCompleteEvent<T>
-  | ApprovalRequestedEvent
-  | ToolInputAvailableEvent
 
 // Simple streaming format for basic text completions
 // Converted to StreamChunk format by convertTextCompletionStream()
@@ -2169,7 +2154,7 @@ export interface SummarizationOptions<
    * their own.
    */
   runId?: string
-  threadId?: string
+  threadId: string
   /**
    * Internal logger threaded from the summarize() entry point. Adapters must
    * call logger.request() before the SDK call and logger.errors() in catch blocks.
@@ -2251,7 +2236,6 @@ export interface RerankResult<TDocument = string> {
    * units" (`usage.billed = { quantity, unit: 'units' }`) rather than tokens.
    * Some providers (e.g. OpenRouter) may also report `totalTokens` and `cost`.
    * Cohere reports only search units and leaves the token counts at 0.
-   * The deprecated `unitsBilled` field is still populated for compatibility.
    */
   usage: TokenUsage
 }

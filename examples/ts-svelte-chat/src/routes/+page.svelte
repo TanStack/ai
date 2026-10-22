@@ -65,8 +65,9 @@
   // Create chat instance - reactive getters mean no $ prefix needed!
   const chat = createChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'guitar-chat',
     tools,
-    get body() {
+    get forwardedProps() {
       return {
         provider: selectedModel.provider,
         model: selectedModel.model,
@@ -121,10 +122,42 @@
       </div>
     </div>
 
-    <Messages
-      messages={chat.messages}
-      addToolApprovalResponse={chat.addToolApprovalResponse}
-    />
+    <Messages messages={chat.messages} />
+
+    <!-- Tool approvals render from the bound `interrupts` list. -->
+    {#each chat.interrupts as interrupt (interrupt.id)}
+      {#if interrupt.kind === 'tool-approval'}
+        <div
+          class="mx-4 mb-2 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg"
+        >
+          <p class="text-white font-medium mb-2">
+            🔒 Approval Required: {interrupt.toolName}
+          </p>
+          <div class="text-gray-300 text-sm mb-3">
+            <pre
+              class="bg-gray-800 p-2 rounded text-xs overflow-x-auto">{JSON.stringify(
+                interrupt.originalArgs,
+                null,
+                2,
+              )}</pre>
+          </div>
+          <div class="flex gap-2">
+            <button
+              onclick={() => interrupt.resolveInterrupt(true)}
+              class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              ✓ Approve
+            </button>
+            <button
+              onclick={() => interrupt.resolveInterrupt(false)}
+              class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              ✗ Deny
+            </button>
+          </div>
+        </div>
+      {/if}
+    {/each}
 
     <ChatInput
       bind:value={input}

@@ -1,10 +1,5 @@
 import type { ModelMessage } from '@tanstack/ai'
 
-// Empty incoming keeps stored. Non-empty: the last incoming id that already
-// exists in stored is a cutoff (reload drops the old assistant after that
-// user). Same id is replaced in place, but a stored mid-conversation record
-// stays when the incoming copy has none. New ids and messages with no id are
-// appended.
 /** How many stored messages the merge keeps. Less than `stored.length` on a reload. */
 export function storedCutoff(
   stored: ReadonlyArray<ModelMessage>,
@@ -19,6 +14,12 @@ export function storedCutoff(
   return stored.length
 }
 
+// Empty incoming keeps stored. Non-empty: the last incoming id that already
+// exists in stored is a cutoff (reload drops the old assistant after that
+// user). Same id, or a tool result with the same toolCallId, is replaced in
+// place, but a stored mid-conversation record stays when the incoming copy has
+// none. An id-less message that matches the prefix row at its index is
+// dropped. Other messages are appended.
 export function mergeStoredMessages(
   stored: ReadonlyArray<ModelMessage>,
   incoming: ReadonlyArray<ModelMessage>,
@@ -55,6 +56,19 @@ export function mergeStoredMessages(
     if (!message) continue
     const id = message.id
     if (id && storedIds.has(id)) continue
+    // A resumed run posts stored tool results under the interrupt snapshot's
+    // ids, which the store never saw. Match tool results by toolCallId.
+    if (message.role === 'tool' && message.toolCallId !== undefined) {
+      const storedIndex = prefix.findIndex(
+        (stored) =>
+          stored.role === 'tool' && stored.toolCallId === message.toolCallId,
+      )
+      const stored = prefix[storedIndex]
+      if (stored) {
+        merged[storedIndex] = keepStoredRecord(message, stored)
+        continue
+      }
+    }
     // Attach/reload can post the stored transcript again with no ids. Keep the
     // prefix row instead of appending a second copy of the same turn.
     if (!id) {

@@ -69,6 +69,7 @@ function StructuredChatPage() {
   const [input, setInput] = useState('')
 
   const { messages, sendMessage, isLoading, partial, final } = useChat({
+    threadId: 'structured-chat',
     outputSchema: RecipeSchema,
     connection: fetchServerSentEvents('/api/structured-chat'),
   })

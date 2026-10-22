@@ -1,7 +1,7 @@
 ---
 title: Ollaya
 id: ollaya-adapter
-description: "Call decide() on a local Ollaya server with @tanstack/ai-ollaya."
+description: "Run decide() on a local Ollaya server with @tanstack/ai-ollaya. Typed answers about your data, with no API key, and the data stays on your machine."
 keywords:
   - tanstack ai
   - ollaya
@@ -12,37 +12,9 @@ keywords:
   - adapter
 ---
 
-You want a queue, an urgency, and a yes or no from a ticket that stays on your machine.
-Install Ollaya.
-Then pass `ollayaDecider` to `decide()`.
+The Ollaya adapter calls the `laya` models on your machine through `decide()`. It returns a typed answer. It has no chat.
 
-The adapter covers evaluate only.
-It sends `POST /v1/systemone` to a local Ollaya server with `fetch`.
-There is no Ollaya SDK.
-
-## Install the server
-
-On macOS or Linux, run:
-
-```bash
-curl -fsSL https://ollaya.dev/install.sh | sh
-```
-
-On Windows, run this in PowerShell:
-
-```powershell
-irm https://ollaya.dev/install.ps1 | iex
-```
-
-The server listens on `http://127.0.0.1:11435`.
-This adapter uses that URL by default.
-
-1. Run `ollaya serve`.
-2. Run `ollaya pull laya:latest`.
-
-The download page and the desktop app are on [ollaya.dev/download](https://ollaya.dev/download).
-
-## Install the adapter
+## 1. Install
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
@@ -57,69 +29,116 @@ octane: @tanstack/ai @tanstack/ai-ollaya
 
 <!-- ::end:tabs -->
 
-## Evaluate
+## 2. Start Ollaya and pull a model
+
+Ollaya needs no API key. It needs a running server with a model.
+
+1. Install Ollaya:
+
+```bash
+# macOS or Linux
+curl -fsSL https://ollaya.dev/install.sh | sh
+```
+
+```powershell
+# Windows (PowerShell)
+irm https://ollaya.dev/install.ps1 | iex
+```
+
+2. Start the server:
+
+```bash
+ollaya serve
+```
+
+3. Pull a model:
+
+```bash
+ollaya pull laya:latest
+```
+
+The server listens on `http://127.0.0.1:11435`. The adapter uses this URL by default. The download page and the desktop app are on [ollaya.dev/download](https://ollaya.dev/download).
+
+## 3. Ask your first questions from the server
+
+This route reads a support ticket and asks three questions about it:
 
 ```typescript
 import { decide, choice, score, boolean } from "@tanstack/ai";
 import { ollayaDecider } from "@tanstack/ai-ollaya";
 
-const ticket = {
-  subject: "Charged twice for the same invoice",
-  body: "Please refund the extra payment.",
-};
+export async function POST(request: Request) {
+  const ticket = await request.text();
 
-const result = await decide({
-  adapter: ollayaDecider("laya:latest"),
-  state: ticket,
-  questions: {
-    queue: choice({
-      instructions: "Which team should handle this ticket?",
-      options: {
-        billing: "Payments, invoices, refunds",
-        tech: "Bugs, outages, integrations",
-        sales: "Pricing, upgrades, new accounts",
-      },
-    }),
-    urgency: score({
-      instructions: "How urgent is this ticket?",
-      levels: ["low", "medium", "high"],
-    }),
-    refund: boolean({
-      instructions: "Is the customer asking for a refund?",
-    }),
-  },
-});
+  const result = await decide({
+    adapter: ollayaDecider("laya:latest"),
+    state: ticket,
+    questions: {
+      queue: choice({
+        instructions: "Which team should handle this ticket?",
+        options: {
+          billing: "Payments, invoices, refunds",
+          tech: "Bugs, outages, integrations",
+          sales: "Pricing, upgrades, new accounts",
+        },
+      }),
+      urgency: score({
+        instructions: "How urgent is this ticket?",
+        levels: ["low", "medium", "high"],
+      }),
+      refund: boolean({
+        instructions: "Is the customer asking for a refund?",
+      }),
+    },
+  });
 
-console.log(result.queue.value);
-console.log(result.urgency.value);
-console.log(result.refund.value);
-console.log(result.meta.model);
-console.log(result.meta.usage);
+  return Response.json({
+    queue: result.queue.value,
+    urgency: result.urgency.value,
+    refund: result.refund.value,
+    model: result.meta.model,
+  });
+}
 ```
 
-You now have `result.queue.value`, `result.urgency.value`, and `result.refund.value`.
+When you ask for `laya:latest`, the server picks `laya:en` or `laya:multilingual` from the text. `result.meta.model` tells you which one answered.
 
-See [Evaluate](../evaluate/evaluate) for the rest of `decide()`.
+## 4. Call the route from the client
 
-When you request `laya:latest`, `result.meta.model` can be `laya:en` or `laya:multilingual`.
-The server picks the model from the text.
+The client sends the ticket text to the route:
 
-## Models
+```typescript
+export async function evaluateTicket(ticket: string) {
+  const response = await fetch("/api/evaluate", {
+    method: "POST",
+    body: ticket,
+  });
+  return response.json();
+}
+```
 
-| Model               | Description                                              |
-| ------------------- | -------------------------------------------------------- |
-| `laya:latest`       | Routes each request to `laya:en` or `laya:multilingual`. |
-| `laya:en`           | English decision model (ModernBERT-large).               |
-| `laya:multilingual` | Decision model for 100+ languages (mmBERT-base).         |
+Call `evaluateTicket("Charged twice for the same invoice. Please refund the extra payment.")` and you get back the queue, the urgency, and the refund answer.
 
-You can pass any other model tag as a string.
+For the rest of `decide()`, see [Evaluate](../evaluate/evaluate). For a full TanStack Start app, see [Evaluate a ticket](../tutorials/evaluate).
 
-## Host and API key
+## Models and options
 
-By default the adapter calls `http://127.0.0.1:11435`.
+| Model | Description |
+| --- | --- |
+| `laya:latest` | Sends each request to `laya:en` or `laya:multilingual`. |
+| `laya:en` | The English decision model (ModernBERT-large). |
+| `laya:multilingual` | The decision model for 100+ languages (mmBERT-base). |
+
+You can pass any other model tag as a string. The package exports the known tags as `OLLAYA_EVALUATE_MODELS`.
+
+## Advanced
+
+### Another host, or an API key
+
 The adapter does not read environment variables.
-If the server is on another host, pass `baseURL`.
-If the server requires `OLLAYA_API_KEY`, pass `apiKey`.
+
+- If the server is on another host, pass `baseURL`.
+- If the server requires `OLLAYA_API_KEY`, pass the key as `apiKey`.
 
 ```typescript
 import { ollayaDecider } from "@tanstack/ai-ollaya";
@@ -130,25 +149,15 @@ const adapter = ollayaDecider("laya:latest", {
 });
 ```
 
-`baseUrl` and `headers` are aliases of `baseURL` and `defaultHeaders`.
-If you set both forms, `baseURL` and `defaultHeaders` win.
-A blank `baseURL` keeps the default host.
+`baseUrl` and `headers` are aliases of `baseURL` and `defaultHeaders`. If you set both forms, `baseURL` and `defaultHeaders` win. A blank `baseURL` keeps the default host.
 
-## API reference
+### API reference
 
-### `ollayaDecider(model, config?)`
+The adapter sends `POST /v1/systemone` to the base URL with `fetch`. There is no Ollaya SDK.
 
-Creates an evaluate adapter.
+`ollayaDecider(model, config?)` creates an evaluate adapter. The `config` fields:
 
-- `model`: `"laya:latest"`, `"laya:en"`, `"laya:multilingual"`, or another model tag
-- `config.baseURL`: server URL (default `http://127.0.0.1:11435`). `baseUrl` is an alias. A blank value keeps the default.
-- `config.apiKey`: bearer token when the server requires `OLLAYA_API_KEY`
-- `config.defaultHeaders`: extra request headers. `headers` is an alias.
-- `config.fetch`: override `fetch`
-
-The adapter sends `POST /v1/systemone` to that base URL.
-
-## Next steps
-
-- [Evaluate guide](../evaluate/evaluate): full `decide()` walkthrough
-- [Evaluate a ticket](../tutorials/evaluate): build a Start route
+- `baseURL`: the server URL. The default is `http://127.0.0.1:11435`. `baseUrl` is an alias.
+- `apiKey`: a bearer token, for a server that requires `OLLAYA_API_KEY`.
+- `defaultHeaders`: extra request headers. `headers` is an alias.
+- `fetch`: your own `fetch` function.

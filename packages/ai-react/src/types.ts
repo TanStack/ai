@@ -79,7 +79,7 @@ export type DeepPartial<T> =
  * inference on the client — server-side validation still runs against the
  * schema you pass to `chat({ outputSchema })` on the server route.
  *
- * Note: Connection and body changes will recreate the ChatClient instance.
+ * Note: Connection changes will recreate the ChatClient instance.
  * To update these options, remount the component or use a key prop.
  */
 export type UseChatOptions<
@@ -177,7 +177,7 @@ interface BaseUseChatReturn<
    * When `subagents` is supplied, a `type: 'subagent'` part narrows on
    * `subagent.name`, and that child's `messages` use the agent's tools.
    */
-  messages: Array<UIMessage<TTools, TData, TSubagents>>
+  messages: ReadonlyArray<UIMessage<TTools, TData, TSubagents>>
 
   /**
    * Live child-agent invocations, nested cards included. Each entry is the
@@ -203,7 +203,7 @@ interface BaseUseChatReturn<
    * Pending messages queued while the client is busy (streaming, claiming a
    * send, or draining). Separate from `messages` until they drain.
    */
-  queue: Array<QueuedMessage>
+  queue: ReadonlyArray<QueuedMessage>
 
   /**
    * Cancel a queued message before it drains. No-op if already sent.
@@ -227,14 +227,6 @@ interface BaseUseChatReturn<
   }) => Promise<void>
 
   /**
-   * Respond to a tool approval request
-   */
-  addToolApprovalResponse: (response: {
-    id: string // approval.id, not toolCallId
-    approved: boolean
-  }) => Promise<void>
-
-  /**
    * The id of the run this client has in flight — one it started or rejoined —
    * or `null` when there is none (including while a run sits paused on an
    * interrupt, waiting on approval).
@@ -247,8 +239,6 @@ interface BaseUseChatReturn<
    */
   runId: string | null
   interrupts: BoundInterrupts<TTools, TInterrupts>
-  /** @deprecated Use `interrupts`. */
-  pendingInterrupts: BoundInterrupts<TTools, TInterrupts>
   interruptErrors: ChatInterruptState<TTools, TInterrupts>['interruptErrors']
   resuming: boolean
   resolveInterrupts: {
@@ -262,11 +252,6 @@ interface BaseUseChatReturn<
   cancelInterrupts: () => void
   retryInterrupts: () => void
   resumeInterruptsUnsafe: (
-    resume: Array<RunAgentResumeItem>,
-    state?: ChatResumeState,
-  ) => Promise<boolean>
-  /** @deprecated Use bound interrupt methods or `resumeInterruptsUnsafe`. */
-  resumeInterrupts: (
     resume: Array<RunAgentResumeItem>,
     state?: ChatResumeState,
   ) => Promise<boolean>
@@ -335,7 +320,7 @@ interface BaseUseChatReturn<
   /**
    * Set messages manually
    */
-  setMessages: (messages: Array<UIMessage<TTools, TData>>) => void
+  setMessages: (messages: ReadonlyArray<UIMessage<TTools, TData>>) => void
 
   /**
    * Clear all messages

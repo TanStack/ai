@@ -125,17 +125,8 @@ export interface VideoAdapter<
    * Get the finished video: a public URL when the provider has one, or the
    * download stream for generation middleware to host. Call only after
    * status is 'completed'.
-   *
-   * Optional only so adapters written against `getVideoUrl` keep working.
-   * New adapters implement this.
    */
-  getVideo?: (jobId: string) => Promise<VideoUrlResult | VideoStreamResult>
-
-  /**
-   * @deprecated Use `getVideo`. This is `getVideo` with a provider stream
-   * buffered into a base64 `data:` URL, which holds the whole video in memory.
-   */
-  getVideoUrl: (jobId: string) => Promise<VideoUrlResult>
+  getVideo: (jobId: string) => Promise<VideoUrlResult | VideoStreamResult>
 
   /**
    * Describe the durations this adapter's model accepts. Returns a tagged
@@ -251,19 +242,8 @@ export abstract class BaseVideoAdapter<
 
   abstract getVideoStatus(jobId: string): Promise<VideoStatusResult>
 
-  /** Implement this. See {@link VideoAdapter.getVideo}. */
-  getVideo?(jobId: string): Promise<VideoUrlResult | VideoStreamResult>
-
-  /**
-   * @deprecated Implement and call `getVideo`. This is `getVideo` with a
-   * provider stream buffered into a base64 `data:` URL.
-   */
-  async getVideoUrl(jobId: string): Promise<VideoUrlResult> {
-    if (!this.getVideo) {
-      throw new Error(`${this.name}: video adapter must implement getVideo()`)
-    }
-    return await inlineVideoStream(await this.getVideo(jobId))
-  }
+  /** See {@link VideoAdapter.getVideo}. */
+  abstract getVideo(jobId: string): Promise<VideoUrlResult | VideoStreamResult>
 
   /**
    * Default implementation returns `{ kind: 'none' }`. Adapters that have

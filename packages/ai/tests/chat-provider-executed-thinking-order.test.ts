@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { chat } from '../src/activities/chat'
+import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
 import {
   convertMessagesToModelMessages,
   modelMessagesToUIMessages,
@@ -16,7 +17,8 @@ import {
   serverTool,
 } from './test-utils'
 import { EventType } from '../src/types'
-import type { StreamChunk, UIMessage } from '../src/types'
+import { maxIterations } from '../src/activities/chat/agent-loop-strategies'
+import type { ModelMessage, StreamChunk, UIMessage } from '../src/types'
 
 /**
  * Anthropic runs web_search / web_fetch inside one provider response and
@@ -59,13 +61,15 @@ function providerToolStart(toolCallId: string, query: string) {
 }
 
 function reasoning(stepName: string, content: string, signature: string) {
+  const messageId = `${stepName}-reasoning`
   return [
-    ev.stepStarted(stepName),
-    chunk(EventType.REASONING_MESSAGE_CONTENT, {
-      messageId: `${stepName}-reasoning`,
-      delta: content,
+    chunk(EventType.REASONING_MESSAGE_START, { messageId, role: 'reasoning' }),
+    chunk(EventType.REASONING_MESSAGE_CONTENT, { messageId, delta: content }),
+    chunk(EventType.REASONING_ENCRYPTED_VALUE, {
+      subtype: 'message',
+      entityId: messageId,
+      encryptedValue: signature,
     }),
-    { ...ev.stepFinished('', stepName), signature },
   ]
 }
 
@@ -302,6 +306,7 @@ describe('provider-executed tools interleaved with signed thinking', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Research and save' }],
           tools: [clientTool('saveDraft')],
@@ -340,6 +345,7 @@ describe('provider-executed tools interleaved with signed thinking', () => {
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Research and save' }],
           tools: [clientTool('saveDraft')],
@@ -401,6 +407,7 @@ describe('provider-executed tools interleaved with signed thinking', () => {
 
       await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Research' }],
           tools: [serverTool('lookup', () => ({ found: true }))],
@@ -438,6 +445,120 @@ describe('provider-executed tools interleaved with signed thinking', () => {
       expect(history.filter((message) => message.role === 'tool')).toHaveLength(
         1,
       )
+    })
+
+    const DEFAULT_TEXT =
+      'The answer stopped at the output limit, so no tool call in it ran. Send the tool calls again. Do not repeat text you already wrote. If one call has a large input, split the work into smaller calls.'
+
+    it('gives the calls of an answer cut at the output limit an error result, so a later run does not run them', async () => {
+      const lookup = vi.fn(() => ({ found: true }))
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ...reasoning('step-1', 'plan', 'sig-a'),
+            providerToolStart('srvtoolu_1', 'one'),
+            ev.toolEnd('srvtoolu_1'),
+            ...reasoning('step-2', 'refine', 'sig-b'),
+            ev.toolStart('call_1', 'lookup'),
+            ev.toolArgs('call_1', '{"id":'),
+            ev.runFinished('length'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Done.'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+      let transcript: Array<ModelMessage> = []
+      const keep = defineChatMiddleware({
+        onFinish(ctx) {
+          transcript = [...ctx.messages]
+        },
+      })
+      const tools = [serverTool('lookup', lookup)]
+
+      await collectChunks(
+        chat({
+          threadId: 'thread-1',
+          adapter,
+          messages: [{ role: 'user', content: 'Research' }],
+          tools,
+          middleware: [keep],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const text = DEFAULT_TEXT
+      expect(transcript.filter((message) => message.role === 'tool')).toEqual([
+        { role: 'tool', toolCallId: 'call_1', content: text, error: text },
+      ])
+
+      // The next run from this transcript.
+      await collectChunks(
+        chat({
+          threadId: 'thread-1',
+          adapter,
+          messages: transcript,
+          tools,
+        }) as AsyncIterable<StreamChunk>,
+      )
+      expect(lookup).not.toHaveBeenCalled()
+      expect(calls).toHaveLength(2)
+    })
+
+    it('with a strategy that goes on, gives the cut call the text and calls the model again', async () => {
+      const lookup = vi.fn(() => ({ found: true }))
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ...reasoning('step-1', 'plan', 'sig-a'),
+            providerToolStart('srvtoolu_1', 'one'),
+            ev.toolEnd('srvtoolu_1'),
+            ...reasoning('step-2', 'refine', 'sig-b'),
+            ev.toolStart('call_1', 'lookup'),
+            ev.toolArgs('call_1', '{"id":'),
+            ev.runFinished('length'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Done.'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      await collectChunks(
+        chat({
+          threadId: 'thread-1',
+          adapter,
+          messages: [{ role: 'user', content: 'Research' }],
+          tools: [serverTool('lookup', lookup)],
+          agentLoopStrategy: maxIterations(5),
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(lookup).not.toHaveBeenCalled()
+      expect(calls).toHaveLength(2)
+      const history = calls[1]!.messages as Array<ModelMessage>
+      expect(
+        history.map((message) =>
+          message.role === 'tool'
+            ? { tool: message.toolCallId, content: message.content }
+            : { [message.role]: message.toolCalls?.map((call) => call.id) },
+        ),
+      ).toEqual([
+        { user: undefined },
+        { assistant: ['srvtoolu_1'] },
+        { assistant: ['call_1'] },
+        // The provider-executed call keeps its own result.
+        { tool: 'call_1', content: DEFAULT_TEXT },
+      ])
     })
   })
 })

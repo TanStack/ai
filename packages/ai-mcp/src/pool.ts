@@ -52,6 +52,8 @@ export interface MCPClients<
       clientOptions?: ClientOptions
       toolFilter?: MCPClientOptions['toolFilter']
       needsApproval?: MCPClientOptions['needsApproval']
+      toolName?: MCPClientOptions['toolName']
+      requestOptions?: MCPClientOptions['requestOptions']
     }
   >
   /** Close every client. */
@@ -79,7 +81,7 @@ export async function createMCPClients<
       // default prefix = config key; `prefix: ''` disables; explicit string wins
       const prefix = opts.prefix === undefined ? name : opts.prefix || undefined
       const client = await createMCPClient({ ...opts, prefix })
-      return [name, client] as const
+      return [name, client] as readonly [string, MCPClient<ServerDescriptor>]
     }),
   )
 
@@ -160,6 +162,8 @@ export async function createMCPClients<
         clientOptions?: ClientOptions
         toolFilter?: MCPClientOptions['toolFilter']
         needsApproval?: MCPClientOptions['needsApproval']
+        toolName?: MCPClientOptions['toolName']
+        requestOptions?: MCPClientOptions['requestOptions']
       }
     > {
       // Keyed by config key (serverId / default prefix). Read each underlying

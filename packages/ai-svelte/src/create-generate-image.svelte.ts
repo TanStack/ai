@@ -10,7 +10,6 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   ImageGenerateInput,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
@@ -88,6 +87,7 @@ export interface CreateGenerateImageReturn<
  *   import { createGenerateImage, fetchServerSentEvents } from '@tanstack/ai-svelte'
  *
  *   const imageGen = createGenerateImage({
+ *     threadId: 'hero-image',
  *     connection: fetchServerSentEvents('/api/generate/image'),
  *   })
  * </script>
@@ -111,12 +111,9 @@ export interface CreateGenerateImageReturn<
  * ```
  */
 export function createGenerateImage<TTransformed = void>(
-  options: Omit<
-    CreateGenerateImageOptions,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<CreateGenerateImageOptions, 'onResult'> & {
     onResult?: (result: ImageGenerationResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ): CreateGenerateImageReturn<
   InferGenerationOutputFromReturn<ImageGenerationResult, TTransformed>
 > {

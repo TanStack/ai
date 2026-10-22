@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { chatParamsFromRequestBody } from '@tanstack/ai'
 import { EventType } from '@tanstack/ai/client'
 import {
   fetchHttpStream,
@@ -9,7 +10,9 @@ import {
   stream,
 } from '../src/connection-adapters'
 import { UnsupportedResponseStreamError } from '../src'
-import type { StreamChunk } from '@tanstack/ai/client'
+import type { RunAgentInput, StreamChunk } from '@tanstack/ai/client'
+
+const RUN_CONTEXT = { threadId: 'thread-1', runId: 'run-1' }
 
 describe('connection-adapters', () => {
   let originalFetch: typeof fetch
@@ -157,9 +160,12 @@ describe('connection-adapters', () => {
       const adapter = fetchServerSentEvents('/api/chat')
       const chunks: Array<StreamChunk> = []
 
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         chunks.push(chunk)
       }
 
@@ -197,9 +203,12 @@ describe('connection-adapters', () => {
       const adapter = fetchServerSentEvents('/api/chat')
       const chunks: Array<StreamChunk> = []
 
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         chunks.push(chunk)
       }
 
@@ -245,9 +254,12 @@ describe('connection-adapters', () => {
 
       const adapter = fetchServerSentEvents('/api/chat')
       const chunks: Array<StreamChunk> = []
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         chunks.push(chunk)
       }
 
@@ -288,47 +300,16 @@ describe('connection-adapters', () => {
       const adapter = fetchServerSentEvents('/api/chat')
       const chunks: Array<StreamChunk> = []
 
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         chunks.push(chunk)
       }
 
       expect(chunks).toHaveLength(1)
-    })
-
-    it('should synthesize RUN_FINISHED on [DONE] and stop reading', async () => {
-      const mockReader = {
-        read: vi
-          .fn()
-          .mockResolvedValueOnce({
-            done: false,
-            value: new TextEncoder().encode('data: [DONE]\n\n'),
-          })
-          .mockResolvedValueOnce({ done: true, value: undefined }),
-        releaseLock: vi.fn(),
-      }
-
-      const mockResponse = {
-        ok: true,
-        body: {
-          getReader: () => mockReader,
-        },
-      }
-
-      fetchMock.mockResolvedValue(mockResponse as any)
-
-      const adapter = fetchServerSentEvents('/api/chat')
-      const chunks: Array<StreamChunk> = []
-
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
-        chunks.push(chunk)
-      }
-
-      expect(chunks).toHaveLength(1)
-      expect(chunks[0]!.type).toBe('RUN_FINISHED')
     })
 
     it('should throw a SyntaxError on malformed JSON', async () => {
@@ -356,9 +337,12 @@ describe('connection-adapters', () => {
 
       await expect(
         (async () => {
-          for await (const _ of adapter.connect([
-            { role: 'user', content: 'Hello' },
-          ])) {
+          for await (const _ of adapter.connect(
+            [{ role: 'user', content: 'Hello' }],
+            undefined,
+            undefined,
+            RUN_CONTEXT,
+          )) {
             // Consume
           }
         })(),
@@ -378,9 +362,12 @@ describe('connection-adapters', () => {
 
       await expect(
         (async () => {
-          for await (const _ of adapter.connect([
-            { role: 'user', content: 'Hello' },
-          ])) {
+          for await (const _ of adapter.connect(
+            [{ role: 'user', content: 'Hello' }],
+            undefined,
+            undefined,
+            RUN_CONTEXT,
+          )) {
             // Consume
           }
         })(),
@@ -399,9 +386,12 @@ describe('connection-adapters', () => {
 
       await expect(
         (async () => {
-          for await (const _ of adapter.connect([
-            { role: 'user', content: 'Hello' },
-          ])) {
+          for await (const _ of adapter.connect(
+            [{ role: 'user', content: 'Hello' }],
+            undefined,
+            undefined,
+            RUN_CONTEXT,
+          )) {
             // Consume
           }
         })(),
@@ -423,9 +413,12 @@ describe('connection-adapters', () => {
 
       await expect(
         (async () => {
-          for await (const _ of adapter.connect([
-            { role: 'user', content: 'Hello' },
-          ])) {
+          for await (const _ of adapter.connect(
+            [{ role: 'user', content: 'Hello' }],
+            undefined,
+            undefined,
+            RUN_CONTEXT,
+          )) {
             // Consume
           }
         })(),
@@ -448,9 +441,12 @@ describe('connection-adapters', () => {
 
       const adapter = fetchServerSentEvents('/api/chat')
       const consume = async () => {
-        for await (const _ of adapter.connect([
-          { role: 'user', content: 'Hello' },
-        ])) {
+        for await (const _ of adapter.connect(
+          [{ role: 'user', content: 'Hello' }],
+          undefined,
+          undefined,
+          RUN_CONTEXT,
+        )) {
           // Consume
         }
       }
@@ -482,9 +478,12 @@ describe('connection-adapters', () => {
         headers: { Authorization: 'Bearer token' },
       })
 
-      for await (const _ of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         // Consume
       }
 
@@ -516,9 +515,12 @@ describe('connection-adapters', () => {
 
       const adapter = fetchServerSentEvents('/api/chat', { headers })
 
-      for await (const _ of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         // Consume
       }
 
@@ -559,6 +561,8 @@ describe('connection-adapters', () => {
       for await (const _ of adapter.connect(
         [{ role: 'user', content: 'Hello' }],
         { key: 'value' },
+        undefined,
+        RUN_CONTEXT,
       )) {
         // Consume
       }
@@ -567,35 +571,6 @@ describe('connection-adapters', () => {
       const call = fetchMock.mock.calls[0]
       const body = JSON.parse(call?.[1]?.body as string)
       expect(body.forwardedProps).toMatchObject({ key: 'value' })
-    })
-
-    it('should mirror forwardedProps under legacy `data` field for backward-compat', async () => {
-      const mockReader = {
-        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
-        releaseLock: vi.fn(),
-      }
-      const mockResponse = {
-        ok: true,
-        body: { getReader: () => mockReader },
-      }
-      fetchMock.mockResolvedValue(mockResponse as any)
-
-      const adapter = fetchServerSentEvents('/api/chat')
-
-      for await (const _ of adapter.connect(
-        [{ role: 'user', content: 'Hello' }],
-        { provider: 'openai', model: 'gpt-4o' },
-      )) {
-        // Consume
-      }
-
-      const call = fetchMock.mock.calls[0]
-      const body = JSON.parse(call?.[1]?.body as string)
-      // Legacy server code reads `body.data.X`; new server code reads
-      // `body.forwardedProps.X`. Both must contain the same content
-      // until the legacy `body` client option is removed.
-      expect(body.data).toEqual(body.forwardedProps)
-      expect(body.data).toMatchObject({ provider: 'openai', model: 'gpt-4o' })
     })
 
     it('should use custom fetchClient when provided', async () => {
@@ -614,9 +589,12 @@ describe('connection-adapters', () => {
         fetchClient: customFetch,
       })
 
-      for await (const _ of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         // Consume
       }
 
@@ -639,9 +617,12 @@ describe('connection-adapters', () => {
 
       const adapter = fetchServerSentEvents(() => '/api/dynamic')
 
-      for await (const _ of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         // Consume
       }
 
@@ -665,9 +646,12 @@ describe('connection-adapters', () => {
         headers: { 'X-Custom': 'dynamic' },
       }))
 
-      for await (const _ of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         // Consume
       }
 
@@ -692,9 +676,12 @@ describe('connection-adapters', () => {
         headers: { 'X-Async': 'token' },
       }))
 
-      for await (const _ of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         // Consume
       }
 
@@ -722,6 +709,8 @@ describe('connection-adapters', () => {
       for await (const _ of adapter.connect(
         [{ role: 'user', content: 'Hello' }],
         { key: 'value' },
+        undefined,
+        RUN_CONTEXT,
       )) {
         // Consume
       }
@@ -771,7 +760,12 @@ describe('connection-adapters', () => {
       const adapter = fetchServerSentEvents('/api/generate')
       const chunks: Array<StreamChunk> = []
 
-      for await (const chunk of adapter.connect([], { prompt: 'test' })) {
+      for await (const chunk of adapter.connect(
+        [],
+        { prompt: 'test' },
+        undefined,
+        RUN_CONTEXT,
+      )) {
         chunks.push(chunk)
       }
 
@@ -881,9 +875,12 @@ describe('connection-adapters', () => {
       const adapter = fetchHttpStream('/api/chat')
       const chunks: Array<StreamChunk> = []
 
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         chunks.push(chunk)
       }
 
@@ -915,9 +912,12 @@ describe('connection-adapters', () => {
 
       await expect(
         (async () => {
-          for await (const _ of adapter.connect([
-            { role: 'user', content: 'Hello' },
-          ])) {
+          for await (const _ of adapter.connect(
+            [{ role: 'user', content: 'Hello' }],
+            undefined,
+            undefined,
+            RUN_CONTEXT,
+          )) {
             // Consume
           }
         })(),
@@ -937,9 +937,12 @@ describe('connection-adapters', () => {
 
       await expect(
         (async () => {
-          for await (const _ of adapter.connect([
-            { role: 'user', content: 'Hello' },
-          ])) {
+          for await (const _ of adapter.connect(
+            [{ role: 'user', content: 'Hello' }],
+            undefined,
+            undefined,
+            RUN_CONTEXT,
+          )) {
             // Consume
           }
         })(),
@@ -962,9 +965,12 @@ describe('connection-adapters', () => {
         fetchClient: customFetch,
       })
 
-      for await (const _ of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         // Consume
       }
 
@@ -984,9 +990,12 @@ describe('connection-adapters', () => {
 
       await expect(
         (async () => {
-          for await (const _ of adapter.connect([
-            { role: 'user', content: 'Hello' },
-          ])) {
+          for await (const _ of adapter.connect(
+            [{ role: 'user', content: 'Hello' }],
+            undefined,
+            undefined,
+            RUN_CONTEXT,
+          )) {
             // Consume
           }
         })(),
@@ -1018,9 +1027,12 @@ describe('connection-adapters', () => {
       try {
         await expect(
           (async () => {
-            for await (const _ of adapter.connect([
-              { role: 'user', content: 'Hello' },
-            ])) {
+            for await (const _ of adapter.connect(
+              [{ role: 'user', content: 'Hello' }],
+              undefined,
+              undefined,
+              RUN_CONTEXT,
+            )) {
               // Consume
             }
           })(),
@@ -1051,9 +1063,12 @@ describe('connection-adapters', () => {
         headers: { Authorization: 'Bearer token' },
       })
 
-      for await (const _ of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         // Consume
       }
 
@@ -1082,6 +1097,8 @@ describe('connection-adapters', () => {
       for await (const _ of adapter.connect(
         [{ role: 'user', content: 'Hello' }],
         { key: 'value' },
+        undefined,
+        RUN_CONTEXT,
       )) {
         // Consume
       }
@@ -1106,9 +1123,12 @@ describe('connection-adapters', () => {
 
       const adapter = fetchHttpStream(() => '/api/dynamic')
 
-      for await (const _ of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         // Consume
       }
 
@@ -1151,7 +1171,12 @@ describe('connection-adapters', () => {
       const adapter = fetchHttpStream('/api/generate')
       const chunks: Array<StreamChunk> = []
 
-      for await (const chunk of adapter.connect([], { prompt: 'test' })) {
+      for await (const chunk of adapter.connect(
+        [],
+        { prompt: 'test' },
+        undefined,
+        RUN_CONTEXT,
+      )) {
         chunks.push(chunk)
       }
 
@@ -1163,6 +1188,32 @@ describe('connection-adapters', () => {
   })
 
   describe('stream', () => {
+    it('passes a run input that chatParamsFromRequestBody reads', async () => {
+      let input: RunAgentInput | undefined
+      const adapter = stream((_messages, _data, _signal, runInput) => {
+        input = runInput
+        return (async function* () {})()
+      })
+      const resume = [{ interruptId: 'int-1', status: 'resolved' as const }]
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        { model: 'gpt-5.5' },
+        undefined,
+        { ...RUN_CONTEXT, resume },
+      )) {
+        // Consume
+      }
+
+      const params = await chatParamsFromRequestBody(input)
+      expect(params).toMatchObject({
+        threadId: 'thread-1',
+        runId: 'run-1',
+        resume,
+        forwardedProps: { model: 'gpt-5.5' },
+      })
+      expect(params.messages).toHaveLength(1)
+    })
     it('should delegate to stream factory', async () => {
       const streamFactory = vi.fn().mockImplementation(function* () {
         yield {
@@ -1178,9 +1229,12 @@ describe('connection-adapters', () => {
       const adapter = stream(streamFactory)
       const chunks: Array<StreamChunk> = []
 
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         chunks.push(chunk)
       }
 
@@ -1206,6 +1260,8 @@ describe('connection-adapters', () => {
       for await (const _ of adapter.connect(
         [{ role: 'user', content: 'Hello' }],
         data,
+        undefined,
+        RUN_CONTEXT,
       )) {
         // Consume
       }
@@ -1214,6 +1270,7 @@ describe('connection-adapters', () => {
         expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
         data,
         undefined,
+        expect.objectContaining({ threadId: 'thread-1', runId: 'run-1' }),
       )
     })
 
@@ -1371,7 +1428,12 @@ describe('connection-adapters', () => {
       })()
 
       await expect(
-        adapter.send([{ role: 'user', content: 'Hello' }]),
+        adapter.send(
+          [{ role: 'user', content: 'Hello' }],
+          undefined,
+          undefined,
+          RUN_CONTEXT,
+        ),
       ).rejects.toThrow('connect exploded')
       const received = await receivedPromise
 
@@ -1384,6 +1446,32 @@ describe('connection-adapters', () => {
   })
 
   describe('rpcStream', () => {
+    it('passes a run input that chatParamsFromRequestBody reads', async () => {
+      let input: RunAgentInput | undefined
+      const adapter = rpcStream((_messages, _data, _signal, runInput) => {
+        input = runInput
+        return (async function* () {})()
+      })
+      const resume = [{ interruptId: 'int-1', status: 'resolved' as const }]
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        { model: 'gpt-5.5' },
+        undefined,
+        { ...RUN_CONTEXT, resume },
+      )) {
+        // Consume
+      }
+
+      const params = await chatParamsFromRequestBody(input)
+      expect(params).toMatchObject({
+        threadId: 'thread-1',
+        runId: 'run-1',
+        resume,
+        forwardedProps: { model: 'gpt-5.5' },
+      })
+      expect(params.messages).toHaveLength(1)
+    })
     it('should delegate to RPC call', async () => {
       const rpcCall = vi.fn().mockImplementation(function* () {
         yield {
@@ -1399,9 +1487,12 @@ describe('connection-adapters', () => {
       const adapter = rpcStream(rpcCall)
       const chunks: Array<StreamChunk> = []
 
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         chunks.push(chunk)
       }
 
@@ -1431,6 +1522,8 @@ describe('connection-adapters', () => {
       for await (const _ of adapter.connect(
         [{ role: 'user', content: 'Hello' }],
         data,
+        undefined,
+        RUN_CONTEXT,
       )) {
         // Consume
       }
@@ -1439,6 +1532,7 @@ describe('connection-adapters', () => {
         expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
         data,
         undefined,
+        expect.objectContaining({ threadId: 'thread-1', runId: 'run-1' }),
       )
     })
 

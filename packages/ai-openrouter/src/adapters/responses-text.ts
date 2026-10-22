@@ -19,6 +19,10 @@ import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
 import { clientForCall } from '../internal/wrap-fetch'
 import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
+import {
+  openRouterUsesJsonObject,
+  withJsonModePrompt,
+} from '../internal/json-object-mode'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import {
   convertFunctionToolToResponsesFormat,
@@ -84,6 +88,7 @@ interface StreamedFunctionCallMetadata {
   index: number
   itemId: string
   name: string
+  namespace?: string
   started: boolean
   ended?: boolean
   pendingArguments?: string
@@ -195,7 +200,7 @@ export class OpenRouterResponsesTextAdapter<
     // AG-UI lifecycle tracking
     const aguiState = {
       runId: generateId(this.name),
-      threadId: options.threadId ?? generateId(this.name),
+      threadId: options.threadId,
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,
     }
@@ -279,12 +284,14 @@ export class OpenRouterResponsesTextAdapter<
     options: StructuredOutputOptions<OpenRouterResponsesTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
-    const responsesRequest = this.mapOptionsToRequest(chatOptions)
-
-    const jsonSchema = this.makeStructuredOutputCompatible(
-      outputSchema,
-      outputSchema.required,
+    const jsonMode = openRouterUsesJsonObject(
+      chatOptions.model || this.model,
+      chatOptions.modelOptions,
     )
+    const responsesRequest = this.mapOptionsToRequest(
+      jsonMode ? withJsonModePrompt(chatOptions, outputSchema) : chatOptions,
+    )
+    const textFormat = this.structuredTextFormat(jsonMode, outputSchema)
 
     try {
       chatOptions.logger.request(
@@ -302,12 +309,7 @@ export class OpenRouterResponsesTextAdapter<
             ...responsesRequest,
             stream: false,
             text: {
-              format: {
-                type: 'json_schema',
-                name: 'structured_output',
-                schema: jsonSchema,
-                strict: true,
-              },
+              format: textFormat,
             },
           },
         },
@@ -360,6 +362,7 @@ export class OpenRouterResponsesTextAdapter<
             promptTokens: usage.inputTokens ?? 0,
             completionTokens: usage.outputTokens ?? 0,
             totalTokens: usage.totalTokens ?? 0,
+            ...cachedTokensDetails(usage),
             ...cost,
           },
         }),
@@ -409,16 +412,18 @@ export class OpenRouterResponsesTextAdapter<
     options: StructuredOutputOptions<OpenRouterResponsesTextProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
-    const responsesRequest = this.mapOptionsToRequest(chatOptions)
-
-    const jsonSchema = this.makeStructuredOutputCompatible(
-      outputSchema,
-      outputSchema.required,
+    const jsonMode = openRouterUsesJsonObject(
+      chatOptions.model || this.model,
+      chatOptions.modelOptions,
     )
+    const responsesRequest = this.mapOptionsToRequest(
+      jsonMode ? withJsonModePrompt(chatOptions, outputSchema) : chatOptions,
+    )
+    const textFormat = this.structuredTextFormat(jsonMode, outputSchema)
 
     const aguiState = {
       runId: generateId(this.name),
-      threadId: chatOptions.threadId ?? generateId(this.name),
+      threadId: chatOptions.threadId,
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,
     }
@@ -427,7 +432,6 @@ export class OpenRouterResponsesTextAdapter<
     let accumulatedReasoning = ''
     let hasEmittedTextMessageStart = false
     let reasoningMessageId: string | undefined
-    let stepId: string | undefined
     let hasClosedReasoning = false
     let model: string = chatOptions.model
     let responseId: string | undefined
@@ -435,6 +439,7 @@ export class OpenRouterResponsesTextAdapter<
     let usage:
       | {
           inputTokens?: number
+          inputTokensDetails?: { cachedTokens?: number }
           outputTokens?: number
           totalTokens?: number
         }
@@ -458,18 +463,7 @@ export class OpenRouterResponsesTextAdapter<
           model,
           timestamp: Date.now(),
         }
-        if (stepId) {
-          yield {
-            type: EventType.STEP_FINISHED,
-            stepName: stepId,
-            stepId,
-            model,
-            timestamp: Date.now(),
-            content: accumulatedReasoning,
-          }
-        }
         reasoningMessageId = undefined
-        stepId = undefined
         hasClosedReasoning = false
       }
     }.bind(this)
@@ -479,7 +473,6 @@ export class OpenRouterResponsesTextAdapter<
     }): Generator<AdapterYieldChunk> {
       if (reasoningMessageId) return
       reasoningMessageId = generateId(this.name)
-      stepId = generateId(this.name)
       yield {
         type: EventType.REASONING_START,
         messageId: reasoningMessageId,
@@ -492,14 +485,6 @@ export class OpenRouterResponsesTextAdapter<
         role: 'reasoning' as const,
         model,
         timestamp: Date.now(),
-      }
-      yield {
-        type: EventType.STEP_STARTED,
-        stepName: stepId,
-        stepId,
-        model,
-        timestamp: Date.now(),
-        stepType: 'thinking',
       }
     }.bind(this)
 
@@ -519,12 +504,7 @@ export class OpenRouterResponsesTextAdapter<
             ...responsesRequest,
             stream: true,
             text: {
-              format: {
-                type: 'json_schema',
-                name: 'structured_output',
-                schema: jsonSchema,
-                strict: true,
-              },
+              format: textFormat,
             },
           },
         },
@@ -790,6 +770,7 @@ export class OpenRouterResponsesTextAdapter<
             promptTokens: usage.inputTokens ?? 0,
             completionTokens: usage.outputTokens ?? 0,
             totalTokens: usage.totalTokens ?? 0,
+            ...cachedTokensDetails(usage),
             ...extractUsageCost(usage),
           },
         }),
@@ -874,7 +855,10 @@ export class OpenRouterResponsesTextAdapter<
     const observedItemTypes = new Set<string>()
 
     for (const rawItem of response.output) {
-      const item = rawItem as { type: string; content?: ReadonlyArray<unknown> }
+      const item = camelCaseOutputItem(rawItem) as {
+        type: string
+        content?: ReadonlyArray<unknown>
+      }
       observedItemTypes.add(item.type)
       if (item.type === 'message') {
         sawMessageItem = true
@@ -948,7 +932,6 @@ export class OpenRouterResponsesTextAdapter<
       this.makeStructuredOutputCompatible.bind(this),
     )
     let accumulatedContent = ''
-    let accumulatedReasoning = ''
 
     let hasStreamedContentDeltas = false
     let hasStreamedReasoningDeltas = false
@@ -957,7 +940,6 @@ export class OpenRouterResponsesTextAdapter<
     let responseId: string | undefined
     let reportedModel: string | undefined
 
-    let stepId: string | null = null
     let hasEmittedTextMessageStart = false
     let reasoningMessageId: string | undefined
     let hasClosedReasoning = false
@@ -969,7 +951,6 @@ export class OpenRouterResponsesTextAdapter<
     const openReasoning = function* (): Generator<AdapterYieldChunk> {
       if (reasoningMessageId) return
       reasoningMessageId = generateId(adapterName)
-      stepId = generateId(adapterName)
       const timestamp = Date.now()
       const currentModel = emitModel()
       yield {
@@ -984,14 +965,6 @@ export class OpenRouterResponsesTextAdapter<
         role: 'reasoning' as const,
         model: currentModel,
         timestamp,
-      }
-      yield {
-        type: EventType.STEP_STARTED,
-        stepName: stepId,
-        stepId,
-        model: currentModel,
-        timestamp,
-        stepType: 'thinking',
       }
     }
 
@@ -1012,20 +985,8 @@ export class OpenRouterResponsesTextAdapter<
         model: currentModel,
         timestamp,
       }
-      if (stepId) {
-        yield {
-          type: EventType.STEP_FINISHED,
-          stepName: stepId,
-          stepId,
-          model: currentModel,
-          timestamp,
-          content: accumulatedReasoning,
-        }
-      }
       reasoningMessageId = undefined
-      stepId = null
       hasClosedReasoning = false
-      accumulatedReasoning = ''
     }
 
     const emitReasoningDelta = function* (
@@ -1034,7 +995,6 @@ export class OpenRouterResponsesTextAdapter<
       if (!text) return
       yield* openReasoning()
       if (!reasoningMessageId) return
-      accumulatedReasoning += text
       hasStreamedReasoningDeltas = true
       yield {
         type: EventType.REASONING_MESSAGE_CONTENT,
@@ -1131,9 +1091,7 @@ export class OpenRouterResponsesTextAdapter<
           hasEmittedTextMessageStart = false
           reasoningMessageId = undefined
           hasClosedReasoning = false
-          stepId = null
           accumulatedContent = ''
-          accumulatedReasoning = ''
         }
 
         // response.failed and response.incomplete are TERMINAL events.
@@ -1360,25 +1318,27 @@ export class OpenRouterResponsesTextAdapter<
                 index: chunk.outputIndex ?? 0,
                 itemId: item.id,
                 name: item.name || '',
+                ...(item.namespace && { namespace: item.namespace }),
                 started: false,
               }
               toolCallMetadata.set(item.id, metadata)
             } else {
               if (item.callId) metadata.callId = item.callId
               if (!metadata.name && item.name) metadata.name = item.name
+              if (item.namespace) metadata.namespace = item.namespace
             }
             if (!metadata.started && metadata.name) {
               yield {
                 type: EventType.TOOL_CALL_START,
                 toolCallId: metadata.callId,
                 toolCallName: metadata.name,
-                toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: chunk.outputIndex ?? 0,
                 metadata: {
                   itemId: metadata.itemId,
+                  ...(metadata.namespace && { namespace: metadata.namespace }),
                 } satisfies OpenRouterResponsesToolCallMetadata,
               }
               metadata.started = true
@@ -1461,7 +1421,7 @@ export class OpenRouterResponsesTextAdapter<
                   rawArguments: chunk.arguments,
                 },
               )
-              parsedInput = {}
+              parsedInput = undefined
             }
           }
 
@@ -1469,10 +1429,10 @@ export class OpenRouterResponsesTextAdapter<
             type: EventType.TOOL_CALL_END,
             toolCallId: metadata.callId,
             toolCallName: name,
-            toolName: name,
             model: model || options.model,
             timestamp: Date.now(),
-            input: parsedInput,
+            args: chunk.arguments,
+            ...(parsedInput !== undefined && { input: parsedInput }),
           }
         }
 
@@ -1486,6 +1446,7 @@ export class OpenRouterResponsesTextAdapter<
               index: chunk.outputIndex ?? 0,
               itemId: item.id,
               name: item.name || '',
+              ...(item.namespace && { namespace: item.namespace }),
               started: false,
             }
             if (!toolCallMetadata.has(item.id)) {
@@ -1493,19 +1454,20 @@ export class OpenRouterResponsesTextAdapter<
             } else {
               if (item.callId) metadata.callId = item.callId
               if (!metadata.name && item.name) metadata.name = item.name
+              if (item.namespace) metadata.namespace = item.namespace
             }
             if (!metadata.started && metadata.name) {
               yield {
                 type: EventType.TOOL_CALL_START,
                 toolCallId: metadata.callId,
                 toolCallName: metadata.name,
-                toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: metadata.index,
                 metadata: {
                   itemId: metadata.itemId,
+                  ...(metadata.namespace && { namespace: metadata.namespace }),
                 } satisfies OpenRouterResponsesToolCallMetadata,
               }
               metadata.started = true
@@ -1539,17 +1501,17 @@ export class OpenRouterResponsesTextAdapter<
                       rawArguments: rawArgs,
                     },
                   )
-                  parsedInput = {}
+                  parsedInput = undefined
                 }
               }
               yield {
                 type: EventType.TOOL_CALL_END,
                 toolCallId: metadata.callId,
                 toolCallName: name,
-                toolName: name,
                 model: model || options.model,
                 timestamp: Date.now(),
-                input: parsedInput,
+                args: rawArgs,
+                ...(parsedInput !== undefined && { input: parsedInput }),
               }
               metadata.ended = true
               metadata.pendingArguments = undefined
@@ -1610,6 +1572,7 @@ export class OpenRouterResponsesTextAdapter<
               index: 0,
               itemId: item.id,
               name: item.name || '',
+              ...(item.namespace && { namespace: item.namespace }),
               started: false,
             }
             if (!toolCallMetadata.has(item.id)) {
@@ -1617,19 +1580,20 @@ export class OpenRouterResponsesTextAdapter<
             } else {
               if (item.callId) metadata.callId = item.callId
               if (!metadata.name && item.name) metadata.name = item.name
+              if (item.namespace) metadata.namespace = item.namespace
             }
             if (!metadata.started && metadata.name) {
               yield {
                 type: EventType.TOOL_CALL_START,
                 toolCallId: metadata.callId,
                 toolCallName: metadata.name,
-                toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: metadata.index,
                 metadata: {
                   itemId: metadata.itemId,
+                  ...(metadata.namespace && { namespace: metadata.namespace }),
                 } satisfies OpenRouterResponsesToolCallMetadata,
               }
               metadata.started = true
@@ -1663,17 +1627,17 @@ export class OpenRouterResponsesTextAdapter<
                       rawArguments: rawArgs,
                     },
                   )
-                  parsedInput = {}
+                  parsedInput = undefined
                 }
               }
               yield {
                 type: EventType.TOOL_CALL_END,
                 toolCallId: metadata.callId,
                 toolCallName: name,
-                toolName: name,
                 model: model || options.model,
                 timestamp: Date.now(),
-                input: parsedInput,
+                args: rawArgs,
+                ...(parsedInput !== undefined && { input: parsedInput }),
               }
               metadata.ended = true
               metadata.pendingArguments = undefined
@@ -1724,6 +1688,7 @@ export class OpenRouterResponsesTextAdapter<
               promptTokens: responseObj.usage?.inputTokens || 0,
               completionTokens: responseObj.usage?.outputTokens || 0,
               totalTokens: responseObj.usage?.totalTokens || 0,
+              ...cachedTokensDetails(responseObj.usage),
               ...extractUsageCost(responseObj.usage),
             },
             finishReason,
@@ -1846,8 +1811,9 @@ export class OpenRouterResponsesTextAdapter<
         )
       : undefined
 
-    // Attach text.format json_schema only when outputSchema is set and every
-    // routed model is in the combined-capable set.
+    // Attach text.format json_schema only when outputSchema is set and the
+    // combined gate passes (every routed model is combined-capable, and not
+    // JSON mode).
     const combinedOutputSchema: JSONSchema | undefined = options.outputSchema
     const combinedSchema =
       combinedOutputSchema &&
@@ -1940,13 +1906,43 @@ export class OpenRouterResponsesTextAdapter<
 
   /**
    * Combined mode is safe only when this model and every `modelOptions.models`
-   * fallback are in `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`.
-   * `:variant` suffixes are routing directives and do not change the gate.
+   * fallback are in `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`. JSON mode
+   * is never combined: the schema goes in a system prompt on a separate
+   * structured-output request, not on the tool-calling turns.
    */
   supportsCombinedToolsAndSchema(
     modelOptions?: OpenRouterResponsesTextProviderOptions,
   ): boolean {
-    return openRouterSupportsCombinedToolsAndSchema(this.model, modelOptions)
+    return (
+      !openRouterUsesJsonObject(this.model, modelOptions) &&
+      openRouterSupportsCombinedToolsAndSchema(this.model, modelOptions)
+    )
+  }
+
+  /** `json_object` in JSON mode, else strict `json_schema` from `outputSchema`. */
+  private structuredTextFormat(
+    jsonMode: boolean,
+    outputSchema: JSONSchema,
+  ):
+    | { type: 'json_object' }
+    | {
+        type: 'json_schema'
+        name: 'structured_output'
+        schema: Record<string, any>
+        strict: true
+      } {
+    if (jsonMode) {
+      return { type: 'json_object' }
+    }
+    return {
+      type: 'json_schema',
+      name: 'structured_output',
+      schema: this.makeStructuredOutputCompatible(
+        outputSchema,
+        outputSchema.required,
+      ),
+      strict: true,
+    }
   }
 
   /**
@@ -2082,19 +2078,20 @@ export class OpenRouterResponsesTextAdapter<
               typeof toolCall.function.arguments === 'string'
                 ? toolCall.function.arguments
                 : JSON.stringify(toolCall.function.arguments)
-            const itemId = (
-              toolCall.metadata as
-                | OpenRouterResponsesToolCallMetadata
-                | undefined
-            )?.itemId
+            const metadata = toolCall.metadata as
+              | OpenRouterResponsesToolCallMetadata
+              | undefined
             result.push({
               type: 'function_call',
               callId: callIdFor(toolCall.id),
               id: normalizedCompositeIds.has(toolCall.id)
                 ? (toolCall.id.split('|')[1] ?? toolCall.id)
-                : itemId || toolCall.id,
+                : metadata?.itemId || toolCall.id,
               name: toolCall.function.name,
               arguments: argumentsString,
+              // Without its namespace, the API cannot find a tool of a
+              // namespace tool group.
+              ...(metadata?.namespace && { namespace: metadata.namespace }),
             })
           }
         }
@@ -2319,7 +2316,8 @@ interface NormalizedStreamEvent {
  * snake_case keys to camelCase for those unknown events so the rest of the
  * processor reads a uniform shape.
  *
- * Known events already have camelCase fields and are passed through.
+ * Known events already have camelCase fields. Their output items can still
+ * be the SDK's `UNKNOWN` fallback, so those are read from the raw item.
  */
 function normalizeStreamEvent(event: StreamEvents): NormalizedStreamEvent {
   const e = event as {
@@ -2360,8 +2358,21 @@ function normalizeStreamEvent(event: StreamEvents): NormalizedStreamEvent {
     return out as unknown as NormalizedStreamEvent
   }
 
+  // The SDK falls back to the raw item for an output item that fails its
+  // schema, inside a known event too.
+  if (!e.item && !e.response) {
+    // oxlint-disable-next-line eslint-js/no-restricted-syntax -- NormalizedStreamEvent is a discriminated union; the upstream `event` is a passthrough whose variant TS can't infer here.
+    return event as unknown as NormalizedStreamEvent
+  }
+  const out: Record<string, unknown> = { ...e }
+  if (e.item && typeof e.item === 'object') {
+    out.item = camelCaseOutputItem(e.item as Record<string, unknown>)
+  }
+  if (e.response && typeof e.response === 'object') {
+    out.response = camelCaseResponseShape(e.response as Record<string, unknown>)
+  }
   // oxlint-disable-next-line eslint-js/no-restricted-syntax -- NormalizedStreamEvent is a discriminated union; the upstream `event` is a passthrough whose variant TS can't infer here.
-  return event as unknown as NormalizedStreamEvent
+  return out as unknown as NormalizedStreamEvent
 }
 
 /** Translate snake_case keys in a `response` payload to camelCase for the
@@ -2387,6 +2398,12 @@ function camelCaseResponseShape(
       ...('input_tokens' in u && { inputTokens: u.input_tokens }),
       ...('output_tokens' in u && { outputTokens: u.output_tokens }),
       ...('total_tokens' in u && { totalTokens: u.total_tokens }),
+      ...(isRecord(u.input_tokens_details) &&
+        typeof u.input_tokens_details.cached_tokens === 'number' && {
+          inputTokensDetails: {
+            cachedTokens: u.input_tokens_details.cached_tokens,
+          },
+        }),
     }
   }
   if (Array.isArray(src.output)) {
@@ -2399,13 +2416,28 @@ function camelCaseResponseShape(
   return out
 }
 
-/** Translate snake_case keys in an output item to camelCase. */
+/** Translate snake_case keys in an output item to camelCase. An item the
+ *  SDK could not parse (`{ raw, type: 'UNKNOWN', isUnknown: true }`) is read
+ *  from its raw wire shape. */
 function camelCaseOutputItem(
-  src: Record<string, unknown>,
+  item: Record<string, unknown>,
 ): Record<string, unknown> {
+  const src = item.isUnknown === true && isRecord(item.raw) ? item.raw : item
   const out: Record<string, unknown> = { ...src }
   if ('call_id' in src) out.callId = src.call_id
   return out
+}
+
+/** `promptTokensDetails` with the cached input tokens, when there are any. */
+function cachedTokensDetails(
+  usage: { inputTokensDetails?: { cachedTokens?: number } } | null | undefined,
+) {
+  const cachedTokens = usage?.inputTokensDetails?.cachedTokens
+  return cachedTokens ? { promptTokensDetails: { cachedTokens } } : {}
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** Normalize an `error.code` to the string slot our RUN_ERROR event reads. */

@@ -3,7 +3,7 @@ id: ChatResult
 title: ChatResult
 ---
 
-Defined in: [packages/ai/src/stream-to-response.ts:33](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L33)
+Defined in: packages/ai/src/stream-to-response.ts:33
 
 The result of a run that was read to the end, such as `chat({ stream: false })`.
 
@@ -15,7 +15,7 @@ The result of a run that was read to the end, such as `chat({ stream: false })`.
 chunks: AGUIEvent[];
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:37](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L37)
+Defined in: packages/ai/src/stream-to-response.ts:37
 
 Every chunk the run produced, in order.
 
@@ -27,6 +27,6 @@ Every chunk the run produced, in order.
 text: string;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:35](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L35)
+Defined in: packages/ai/src/stream-to-response.ts:35
 
 Concatenated TEXT_MESSAGE_CONTENT deltas.

@@ -33,12 +33,16 @@ export const Route = createFileRoute('/api/transcribe')({
           )
         }
 
+        if (!params.threadId) {
+          return new Response('threadId is required.', { status: 400 })
+        }
+
         const stream = generateTranscription({
           adapter: createOpenaiTranscription('gpt-4o-transcribe', apiKey),
           ...params.input,
           stream: true,
-          ...(params.threadId ? { threadId: params.threadId } : {}),
-          ...(params.runId ? { runId: params.runId } : {}),
+          threadId: params.threadId,
+          runId: params.runId,
         })
 
         return toServerSentEventsResponse(stream)

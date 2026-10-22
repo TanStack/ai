@@ -70,6 +70,7 @@ async function run(options: {
   let messages: Array<ModelMessage> = []
   await collectChunks(
     chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'go' }],
       tools: options.tools,
@@ -301,6 +302,7 @@ describe('chat() mid-conversation changes', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: history,
         tools,
@@ -309,6 +311,7 @@ describe('chat() mid-conversation changes', () => {
     )
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: history,
         tools,
@@ -368,6 +371,7 @@ describe('chat() mid-conversation changes', () => {
     }
     let messages: Array<ModelMessage> = []
     await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         { role: 'user', content: 'q1' },

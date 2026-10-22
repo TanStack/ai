@@ -1,7 +1,7 @@
 ---
 title: Evaluate a ticket
 id: evaluate-tutorial
-description: "Build a TanStack Start route that asks typed questions about a support ticket and returns a queue, urgency, and refund flag."
+description: "Build a TanStack Start route that asks typed questions about a support ticket and returns a queue, an urgency, and a refund flag your code can branch on."
 keywords:
   - tanstack ai
   - evaluate
@@ -12,8 +12,9 @@ keywords:
   - start
 ---
 
-You have support tickets and you need to route them in code.
-This tutorial builds a server route that returns a queue, an urgency, and a refund flag.
+This tutorial routes a support ticket with `decide()`. The result is a typed value the code can branch on.
+
+`decide()` asks typed questions about the ticket and gives back typed answers. In this tutorial, a server route returns a queue, an urgency, and a refund flag. It takes about 10 minutes.
 
 ## 1. Install
 
@@ -32,7 +33,7 @@ octane: @tanstack/ai @tanstack/ai-typesafe
 
 ## 2. Set your key
 
-Get a key from [TypeSafe](https://typesafe.ai). Then set it in the environment:
+Get a key from [TypeSafe](https://typesafe.ai). Set it in the server environment:
 
 ```bash
 TYPESAFE_API_KEY=your-typesafe-api-key
@@ -40,12 +41,12 @@ TYPESAFE_API_KEY=your-typesafe-api-key
 
 Keep the key on the server. Do not send it to the browser.
 
-## 3. Call `decide()` on the server
+## 3. Ask the questions on the server
 
-Add a POST handler. Create the adapter once. Then ask three questions about the ticket.
+Create `src/lib/evaluate-ticket.ts`. It asks three questions about the ticket. `POST` is a plain Web handler: it takes a `Request` and returns a `Response`.
 
 ```typescript
-import { decide, choice, score, boolean } from '@tanstack/ai'
+import { boolean, choice, decide, score } from '@tanstack/ai'
 import { typesafeDecider } from '@tanstack/ai-typesafe'
 
 type Ticket = {
@@ -53,14 +54,11 @@ type Ticket = {
   body: string
 }
 
-const ADAPTER = typesafeDecider('jev-latest')
+const adapter = typesafeDecider('jev-latest')
 
-export async function POST(request: Request) {
-  const body = (await request.json()) as { ticket: Ticket }
-  const ticket = body.ticket
-
-  const result = await decide({
-    adapter: ADAPTER,
+export function evaluateTicket(ticket: Ticket) {
+  return decide({
+    adapter,
     state: ticket,
     questions: {
       queue: choice({
@@ -80,37 +78,70 @@ export async function POST(request: Request) {
       }),
     },
   })
+}
 
-  return Response.json(result)
+export type TicketResult = Awaited<ReturnType<typeof evaluateTicket>>
+
+function readTicket(body: unknown): Ticket | null {
+  if (typeof body !== 'object' || body === null || !('ticket' in body)) {
+    return null
+  }
+  const ticket = body.ticket
+  if (typeof ticket !== 'object' || ticket === null) return null
+  if (!('subject' in ticket) || !('body' in ticket)) return null
+  if (typeof ticket.subject !== 'string' || typeof ticket.body !== 'string') {
+    return null
+  }
+  return { subject: ticket.subject, body: ticket.body }
+}
+
+export async function POST(request: Request) {
+  const ticket = readTicket(await request.json())
+  if (ticket === null) {
+    return new Response('Send { ticket: { subject, body } }.', {
+      status: 400,
+    })
+  }
+  return Response.json(await evaluateTicket(ticket))
 }
 ```
 
-In TanStack Start, put this in `src/routes/api.evaluate.ts`. Start maps that file to `/api/evaluate`.
+## 4. Mount the route
 
-## 4. Read the answers
+Create `src/routes/api.evaluate.ts`. Start maps this file name to the `/api/evaluate` path.
 
-Call the route. Then branch on the typed fields.
+```typescript ignore
+import { createFileRoute } from '@tanstack/react-router'
+import { POST } from '@/lib/evaluate-ticket'
 
-```typescript
-type Ticket = {
-  subject: string
-  body: string
-}
+export const Route = createFileRoute('/api/evaluate')({
+  server: {
+    handlers: {
+      POST: ({ request }) => POST(request),
+    },
+  },
+})
+```
 
-async function evaluateTicket(ticket: Ticket) {
+## 5. Branch on the answers
+
+Call the route from the client. `TicketResult` gives the answers their types, so `queue.value` is `'billing' | 'tech' | 'sales'`.
+
+```typescript ignore
+import type { TicketResult } from '@/lib/evaluate-ticket'
+
+async function postTicket(ticket: { subject: string; body: string }) {
   const res = await fetch('/api/evaluate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ticket }),
   })
-  return res.json() as Promise<{
-    queue: { value: string; probability: number; confidence: number }
-    urgency: { value: string; probability: number; score: number }
-    refund: { value: boolean; probability: number }
-  }>
+  if (!res.ok) throw new Error(`Evaluate failed with ${res.status}`)
+  const result: TicketResult = await res.json()
+  return result
 }
 
-const result = await evaluateTicket({
+const result = await postTicket({
   subject: 'Charged twice for the same invoice',
   body: 'Please refund the extra payment.',
 })
@@ -122,19 +153,13 @@ if (result.refund.value) {
 }
 ```
 
-You now have a queue, an urgency, and a refund flag. Try a POST with that ticket.
-
-## 5. Swap the adapter
-
-The `decide()` call stays the same. Only the adapter changes.
-
-- OpenRouter: `openRouterDecider('~typesafe/jev-latest')` and `OPENROUTER_API_KEY`
-- Vercel AI Gateway: `vercelGatewayDecider('typesafe-ai/jev')` and `AI_GATEWAY_API_KEY`
-- Cloudflare: `cloudflareDecider('typesafe/jev')` and a Worker binding, or `CLOUDFLARE_ACCOUNT_ID` plus `CLOUDFLARE_API_TOKEN`
+Send that ticket. You get a queue, an urgency, and a refund flag, and your code branches on them.
 
 ## 6. Try it
 
-Run the app. Paste a ticket. Pick a provider. Click Submit.
+1. Run the app.
+2. Paste a ticket.
+3. Pick a provider and click Submit.
 
 The same app is on the Examples tab at `/ai/latest/docs/framework/react/examples/evaluate`.
 
@@ -142,4 +167,22 @@ The same app is on the Examples tab at `/ai/latest/docs/framework/react/examples
 
 The full example is on GitHub: [TanStack/ai `examples/react/evaluate`](https://github.com/TanStack/ai/tree/main/examples/react/evaluate).
 
-See the [Evaluate guide](../evaluate/evaluate) for abort, middleware, and the full result shape.
+## How it works
+
+`decide()` sends the ticket as `state` and asks every question about it. Each helper gives a different answer shape:
+
+- `choice`: `value` is one option key. You also get `probability` and `confidence`.
+- `score`: `value` is the nearest level label. `score` holds the raw number, and you also get `probability`.
+- `boolean`: `value` is `true` when the probability of yes is 0.5 or more. You also get `probability`.
+
+The result also has a `meta` field with the model and the usage.
+
+## Swap the provider
+
+The `decide()` call stays the same. Only the adapter changes:
+
+- **OpenRouter**: `openRouterDecider('~typesafe/jev-latest')` with `OPENROUTER_API_KEY`.
+- **Vercel AI Gateway**: `vercelGatewayDecider('typesafe-ai/jev')` with `AI_GATEWAY_API_KEY`.
+- **Cloudflare**: `cloudflareDecider('typesafe/jev')` with a Worker binding, or with `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`.
+
+For abort, middleware, and the full result shape, open the [Evaluate guide](../evaluate/evaluate).

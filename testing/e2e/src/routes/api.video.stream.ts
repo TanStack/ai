@@ -11,7 +11,7 @@ export const Route = createFileRoute('/api/video/stream')({
         await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
         const abortController = new AbortController()
         const body = await request.json()
-        const data = body.forwardedProps ?? body.data ?? body
+        const data = body.forwardedProps ?? body
         const { prompt, provider, testId, aimockPort, feature } = data as {
           prompt: MediaPrompt
           provider: Provider
@@ -30,6 +30,7 @@ export const Route = createFileRoute('/api/video/stream')({
         try {
           const stream = generateVideo({
             adapter,
+            threadId: body.threadId,
             prompt,
             stream: true,
             pollingInterval: 500,

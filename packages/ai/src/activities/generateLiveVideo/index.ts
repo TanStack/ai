@@ -95,8 +95,8 @@ export interface LiveVideoActivityOptions<
    * `GenerationMiddleware` contract for a custom backend.
    */
   middleware?: Array<GenerationMiddleware>
-  /** Stable conversation/thread id for correlating this run when persisted. */
-  threadId?: string
+  /** Stable conversation/thread id. It is the AG-UI thread id and the persistence key. */
+  threadId: string
   /** Stable run id for correlating this run when persisted. */
   runId?: string
   /**

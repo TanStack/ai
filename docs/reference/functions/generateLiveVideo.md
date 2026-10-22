@@ -7,7 +7,7 @@ title: generateLiveVideo
 function generateLiveVideo<TAdapter, TStream>(options): LiveVideoActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/generateLiveVideo/index.ts:155](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateLiveVideo/index.ts#L155)
+Defined in: packages/ai/src/activities/generateLiveVideo/index.ts:155
 
 **`Experimental`**
 

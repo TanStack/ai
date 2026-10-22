@@ -16,6 +16,7 @@ test.describe('elevenlabs -- tts formats', () => {
     aimockPort,
   }) => {
     const result = await generateSpeech({
+      threadId: testId,
       adapter: createElevenLabsSpeech('eleven_v3', 'e2e-dummy', {
         baseURL: `http://127.0.0.1:${aimockPort}`,
         defaultHeaders: { 'X-Test-Id': testId },
@@ -46,6 +47,7 @@ test.describe('elevenlabs -- tts formats', () => {
     test(`rejects unsupported ${format}`, async ({ testId, aimockPort }) => {
       await expect(
         generateSpeech({
+          threadId: testId,
           adapter: createElevenLabsSpeech('eleven_v3', 'e2e-dummy', {
             baseURL: `http://127.0.0.1:${aimockPort}`,
             defaultHeaders: { 'X-Test-Id': testId },

@@ -1271,7 +1271,6 @@ describe('Grok Video Adapter', () => {
           completionTokens: 0,
           totalTokens: 0,
           billed: { quantity: 5, unit: 'seconds' },
-          unitsBilled: 5,
           cost: 0.25,
         },
       })

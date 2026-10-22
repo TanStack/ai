@@ -7,7 +7,6 @@ import type {
   GenerationClientOptions,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   GenerationRestoredResult,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
@@ -54,11 +53,10 @@ export interface CreateGenerationOptions<TInput, TResult, TOutput = TResult> {
    * `` `video-${videoId}-start-frame` ``). It is also sent as the AG-UI thread
    * id on the wire, which the protocol requires.
    *
-   * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations. If
-   * omitted, the client mints a wire id after mount.
+   * Required. A generated id would change on every reload, so persistence
+   * would restore nothing.
    */
-  threadId?: string
+  threadId: string
   /**
    * Server-driven hydration handler for `persistence: true` when the
    * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
@@ -148,6 +146,7 @@ export interface CreateGenerationReturn<
  *   import { createGeneration, fetchServerSentEvents } from '@tanstack/ai-svelte'
  *
  *   const gen = createGeneration({
+ *     threadId: 'custom-gen',
  *     connection: fetchServerSentEvents('/api/generate/custom'),
  *   })
  * </script>
@@ -174,12 +173,9 @@ export function createGeneration<
   TResult,
   TTransformed = void,
 >(
-  options: Omit<
-    CreateGenerationOptions<TInput, TResult>,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<CreateGenerationOptions<TInput, TResult>, 'onResult'> & {
     onResult?: (result: TResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ): CreateGenerationReturn<
   InferGenerationOutputFromReturn<TResult, TTransformed>,
   TInput
@@ -198,10 +194,9 @@ export function createGeneration<
   // `exactOptionalPropertyTypes`. Assigning `undefined` directly would be
   // rejected — the optional caller `options.body` may be undefined, in which
   // case we want the key to be absent.
-  const clientOptions: Omit<
-    GenerationClientOptions<TInput, TResult, TOutput>,
-    'persistence' | 'threadId'
-  > = {
+  const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
+    persistence: options.persistence,
+    threadId: options.threadId,
     body: options.body,
     ...(options.hydrateGeneration !== undefined && {
       hydrateGeneration: options.hydrateGeneration,
@@ -233,52 +228,18 @@ export function createGeneration<
     onChunk: (c: StreamChunk) => {
       if (!disposed) options.onChunk?.(c)
     },
-    onResultChange: (r: TOutput | null) => {
-      if (disposed) return
-      result = r
-    },
-    onLoadingChange: (l: boolean) => {
-      if (disposed) return
-      isLoading = l
-    },
-    onErrorChange: (e: Error | undefined) => {
-      if (disposed) return
-      error = e
-    },
-    onStatusChange: (s: GenerationClientState) => {
-      if (disposed) return
-      status = s
-    },
-    onResumeStateChange: (rs) => {
-      if (disposed) return
-      runId = rs?.runId ?? null
-    },
   }
-
-  const persistenceProps =
-    typeof options.threadId === 'string' && options.persistence
-      ? {
-          persistence: options.persistence,
-          threadId: options.threadId,
-        }
-      : {
-          ...(options.threadId !== undefined && {
-            threadId: options.threadId,
-          }),
-        }
 
   let client: GenerationClient<TInput, TResult, TOutput>
 
   if (options.connection) {
     client = new GenerationClient<TInput, TResult, TOutput>({
       ...clientOptions,
-      ...persistenceProps,
       connection: options.connection,
     })
   } else if (options.fetcher) {
     client = new GenerationClient<TInput, TResult, TOutput>({
       ...clientOptions,
-      ...persistenceProps,
       fetcher: options.fetcher,
     })
   } else {
@@ -286,6 +247,17 @@ export function createGeneration<
       'createGeneration requires either a connection or fetcher option',
     )
   }
+
+  const applySnapshot = () => {
+    const next = client.getSnapshot()
+    result = next.result
+    isLoading = next.isLoading
+    error = next.error
+    status = next.status
+    runId = next.runId
+  }
+  applySnapshot()
+  let unsubscribeSnapshot = client.subscribe(applySnapshot)
 
   // Mount devtools only. Generation runs are never auto-started on setup —
   // persisted state is read-only for display.
@@ -301,7 +273,11 @@ export function createGeneration<
     // frameworks revive via mountDevtools() in their mount effects), so an
     // explicit generate() after dispose() is the Svelte revive path: bring
     // the client and the reactive bindings back together.
-    disposed = false
+    if (disposed) {
+      disposed = false
+      applySnapshot()
+      unsubscribeSnapshot = client.subscribe(applySnapshot)
+    }
     client.mountDevtools()
     await client.generate(input)
   }
@@ -316,6 +292,8 @@ export function createGeneration<
 
   const dispose = () => {
     disposed = true
+    unsubscribeSnapshot()
+    unsubscribeSnapshot = () => {}
     client.dispose()
   }
 

@@ -236,15 +236,13 @@ export type VideoCreateOptions<
    */
   runId?: string
   /**
-   * Stable conversation/thread id for correlating this run when persisted.
+   * Stable conversation/thread id. Required.
    *
-   * Also the `threadId` stamped on the emitted `RUN_STARTED` / `RUN_FINISHED`
-   * chunks; when omitted a throwaway id is minted for those chunks only, and
-   * the persisted run record carries NO thread link rather than a fabricated
-   * one. Pass it whenever persistence is on — it is the slot a reloading client
-   * hydrates by, so a run stored without it can only be fetched by run id.
+   * It is the `threadId` on the emitted `RUN_STARTED` / `RUN_FINISHED`
+   * chunks, and the slot a reloading client hydrates by when persistence is
+   * on.
    */
-  threadId?: string
+  threadId: string
   /**
    * Enable debug logging. Pass `true` to enable all categories, `false` to
    * silence everything including errors, or a `DebugConfig` object for granular
@@ -393,7 +391,8 @@ export type VideoActivityResult<
  * // Start a video generation job
  * const { jobId } = await generateVideo({
  *   adapter: openaiVideo('sora-2'),
- *   prompt: 'A cat chasing a dog in a sunny park'
+ *   prompt: 'A cat chasing a dog in a sunny park',
+ *   threadId,
  * })
  *
  * console.log('Job started:', jobId)
@@ -404,6 +403,7 @@ export type VideoActivityResult<
  * const status = await getVideoJobStatus({
  *   adapter: openaiVideo('sora-2'),
  *   jobId,
+ *   threadId,
  * })
  * ```
  *
@@ -415,6 +415,7 @@ export type VideoActivityResult<
  * const stream = generateVideo({
  *   adapter: openaiVideo('sora-2'),
  *   prompt: 'A cat chasing a dog in a sunny park',
+ *   threadId,
  *   stream: true,
  *   pollingInterval: 3000,
  * })
@@ -511,10 +512,6 @@ async function runCreateVideoJob<
       provider: adapter.name,
       model,
       modelOptions,
-      // Deliberately the CALLER's `threadId` — no minted fallback. A thread id
-      // nobody else knows would file the run in a slot no client could hydrate,
-      // which is worse than no link because it looks like one. Mirrors the
-      // streaming path.
       threadId: options.threadId,
       runId,
       artifactInputs: { prompt },
@@ -634,15 +631,12 @@ async function* runStreamingVideoGeneration<
     (adapter as { name?: string }).name ??
     'unknown'
 
-  // The wire needs a thread id on every RUN_* chunk, so one is minted when the
-  // caller passes none — matching `streamGenerationResult`, which the other
-  // activities stream through.
-  const wireThreadId = options.threadId ?? createId('thread')
+  const threadId = options.threadId
 
   yield {
     type: 'RUN_STARTED',
     runId,
-    threadId: wireThreadId,
+    threadId,
     timestamp: Date.now(),
   } as StreamChunk
 
@@ -655,12 +649,7 @@ async function* runStreamingVideoGeneration<
     // Identity has to reach the middleware, not just the chunks: persistence
     // keys the run record on these, and without them it falls back to the
     // internal `requestId` and records no thread link at all.
-    //
-    // Deliberately the CALLER's `threadId`, never `wireThreadId`: a minted id is
-    // known to nobody, so persisting it would file the run in a slot no client
-    // could ever hydrate — worse than recording no link, because it looks like
-    // one. This mirrors `generateImage`.
-    threadId: options.threadId,
+    threadId,
     runId,
     artifactInputs: { prompt },
     createId,
@@ -722,8 +711,7 @@ async function* runStreamingVideoGeneration<
       }
 
       if (statusResult.status === 'completed') {
-        const video = await (adapter.getVideo?.(jobResult.jobId) ??
-          adapter.getVideoUrl(jobResult.jobId))
+        const video = await adapter.getVideo(jobResult.jobId)
 
         logger.output(
           `activity=generateVideo jobId=${jobResult.jobId} status=completed`,
@@ -772,7 +760,7 @@ async function* runStreamingVideoGeneration<
         yield* normalizeStreamChunk({
           type: 'RUN_FINISHED',
           runId,
-          threadId: wireThreadId,
+          threadId,
           finishReason: 'stop',
           timestamp: Date.now(),
         } as AdapterYieldChunk)
@@ -812,7 +800,7 @@ async function* runStreamingVideoGeneration<
     yield* normalizeStreamChunk({
       type: 'RUN_ERROR',
       runId,
-      threadId: wireThreadId,
+      threadId,
       message: payload.message,
       ...(payload.code !== undefined ? { code: payload.code } : {}),
       timestamp: Date.now(),
@@ -837,8 +825,8 @@ async function* runStreamingVideoGeneration<
  *
  * The run this poll finishes is identified by `adapter` + `jobId` alone — the
  * same pair the submitting `generateVideo()` call derived it from — so there is
- * no run id to thread through. Pass the submission's `threadId` and the same
- * `middleware`.
+ * no run id to thread through. With middleware, pass the submission's
+ * `threadId` and the same `middleware`.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
@@ -850,10 +838,9 @@ export interface VideoJobStatusOptions<
   /** The job ID to check status for */
   jobId: string
   /**
-   * The scope the run is filed under. Must match the submission's `threadId` —
-   * generation persistence REFUSES a run without a scope (a run filed under
-   * none can never be hydrated by one), so omitting it throws rather than
-   * quietly filing the finished video somewhere unreachable.
+   * The scope the run is filed under. Must match the submission's `threadId`.
+   * Only middleware reads it. Generation persistence throws without it,
+   * unless you set its own `threadId` option. A plain status poll can omit it.
    */
   threadId?: string
   /**
@@ -993,7 +980,7 @@ export async function getVideoJobStatus<
     // surface as itself, not be relabelled "failed to get video URL" and then
     // re-reported to the very middleware that threw.
     try {
-      video = await (adapter.getVideo?.(jobId) ?? adapter.getVideoUrl(jobId))
+      video = await adapter.getVideo(jobId)
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Failed to get video URL'

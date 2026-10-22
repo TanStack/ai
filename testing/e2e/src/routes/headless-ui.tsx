@@ -258,7 +258,7 @@ const UI = createChatUI(chatOptions, {
 })
 
 function HeadlessUIPage() {
-  const chat = useChat(chatOptions)
+  const chat = useChat({ ...chatOptions, threadId: 'headless-ui' })
   return <UI.Chat chat={chat} />
 }
 

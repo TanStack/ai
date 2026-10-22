@@ -5,6 +5,7 @@ const messages = [{ role: 'user' as const, content: 'hi' }]
 const config = { resourceName: 'resource', deploymentName: 'prod-chat' }
 
 chat({
+  threadId: 'thread-1',
   adapter: createAzureOpenaiText('gpt-5.5', 'key', config),
   messages,
   reasoning: 'high',

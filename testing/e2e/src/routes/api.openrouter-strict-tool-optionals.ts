@@ -206,6 +206,7 @@ export const Route = createFileRoute('/api/openrouter-strict-tool-optionals')({
 
         try {
           for await (const chunk of chat({
+            threadId: 'openrouter-strict-tool-optionals',
             ...createChatOptions({ adapter }),
             messages: [{ role: 'user', content: 'Hello' }],
             tools: [recommendGuitar],

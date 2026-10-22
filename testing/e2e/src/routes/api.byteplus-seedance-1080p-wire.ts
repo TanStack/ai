@@ -45,6 +45,7 @@ export const Route = createFileRoute('/api/byteplus-seedance-1080p-wire')({
 
         try {
           const result = await generateVideo({
+            threadId: 'byteplus-seedance-1080p-wire',
             adapter,
             prompt: 'a guitar being played in a store',
             size: '16:9_1080p',

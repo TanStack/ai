@@ -10,8 +10,9 @@ export const Route = createFileRoute('/server-fn-chat')({
 
 function ServerFnChat() {
   const { messages, sendMessage, isLoading, error, stop } = useChat({
-    fetcher: ({ messages }, { signal }) =>
-      chatFn({ data: { messages }, signal }),
+    threadId: 'server-fn-chat',
+    fetcher: ({ messages, threadId }, { signal }) =>
+      chatFn({ data: { messages, threadId }, signal }),
   })
   const [input, setInput] = useState('')
 
@@ -28,8 +29,9 @@ function ServerFnChat() {
         <h2 className="text-lg font-semibold">Chat via server function</h2>
         <p className="text-xs text-gray-400 mt-1">
           <code className="text-cyan-400">
-            useChat(&#123; fetcher: ({'{'}messages{'}'}, {'{'}signal{'}'}) =&gt;
-            chatFn({'{'} data: {'{'} messages {'}'}, signal {'}'}) &#125;)
+            useChat(&#123; fetcher: ({'{'}messages, threadId{'}'}, {'{'}signal
+            {'}'}) =&gt; chatFn({'{'} data: {'{'} messages, threadId {'}'},
+            signal {'}'}) &#125;)
           </code>{' '}
           — the server function returns an SSE{' '}
           <code className="text-cyan-400">Response</code>; the chat client

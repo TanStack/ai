@@ -70,11 +70,9 @@ export { timingSafeBearerEqualWeb } from './web-crypto'
 // `InMemoryRunEventLog` is the single-process reference implementation.
 //
 // The vocabulary is core's: statuses, `RunError`, and `isTerminalRunStatus`
-// come from `@tanstack/ai` (the pre-1.0 `Legacy*`-prefixed types are gone —
-// see the CONVERGED VOCABULARY note in `./run-log` for the storage
-// migration). `RunLogRecord` is core's `RunRecord` plus the log's own
-// `lastSeq` cursor and `updatedAt` activity clock.
-export { InMemoryRunEventLog, migrateStoredRunRecord } from './run-log'
+// come from `@tanstack/ai`. `RunLogRecord` is core's `RunRecord` plus the
+// log's own `lastSeq` cursor and `updatedAt` activity clock.
+export { InMemoryRunEventLog } from './run-log'
 export type {
   RunEventLog,
   RunEvent,

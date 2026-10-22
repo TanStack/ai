@@ -116,6 +116,7 @@ async function send(
   const transport = captureTransport()
   const result = await make(transport.fetch).structuredOutput({
     chatOptions: {
+      threadId: 'thread-1',
       model: 'claude-sonnet-5',
       messages: [{ role: 'user', content: 'Hello' }],
       modelOptions: { max_tokens: 128 },
@@ -175,6 +176,7 @@ describe('createAnthropicChat', () => {
     await expect(
       createAnthropicChat('claude-sonnet-5', '', { fetch }).structuredOutput({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'claude-sonnet-5',
           messages: [{ role: 'user', content: 'Hello' }],
           modelOptions: { max_tokens: 128 },
@@ -263,6 +265,7 @@ describe('createAnthropicChat', () => {
     })
     const content = []
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'claude-sonnet-5',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: createSilentLogger(),
@@ -376,6 +379,7 @@ describe('summarize factories', () => {
       'sk-ant-oat-summary',
       { fetch },
     ).summarize({
+      threadId: 'thread-1',
       model: 'claude-sonnet-5',
       text: 'Article',
       modelOptions: { max_tokens: 128 },
@@ -396,6 +400,7 @@ describe('summarize factories', () => {
     const result = await anthropicSummarize('claude-sonnet-5', {
       fetch,
     }).summarize({
+      threadId: 'thread-1',
       model: 'claude-sonnet-5',
       text: 'Article',
       modelOptions: { max_tokens: 128 },
@@ -427,6 +432,7 @@ describe('summarize factories', () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'summarize-key')
     const { fetch, requests } = captureTransport()
     await anthropicSummarize('claude-sonnet-5', { fetch }).summarize({
+      threadId: 'thread-1',
       model: 'claude-sonnet-5',
       text: 'Article',
       modelOptions: { max_tokens: 128 },
@@ -474,7 +480,7 @@ describe('files factories', () => {
       authorization: null,
       xApiKey: 'files-key',
       xApp: null,
-      anthropicBeta: 'files-api-2025-04-14,files-api-2025-04-14',
+      anthropicBeta: 'files-api-2025-04-14',
     })
     expect(file).toEqual(FILE)
   })

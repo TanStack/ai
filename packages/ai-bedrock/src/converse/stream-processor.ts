@@ -36,11 +36,10 @@ export function throwIfConverseStreamError(ev: ConverseStreamOutput): void {
 export async function* processConverseStream(
   stream: AsyncIterable<ConverseStreamOutput>,
   newMessageId: () => string,
-  lifecycle: { threadId?: string; parentRunId?: string; model?: string } = {},
+  lifecycle: { threadId: string; parentRunId?: string; model?: string },
 ): AsyncIterable<AdapterYieldChunk> {
   const runId = newMessageId()
-  const threadId = lifecycle.threadId ?? newMessageId()
-  const { parentRunId, model } = lifecycle
+  const { threadId, parentRunId, model } = lifecycle
   const messageId = newMessageId()
 
   let hasEmittedRunStarted = false
@@ -54,7 +53,6 @@ export async function* processConverseStream(
     number,
     {
       id: string
-      text: string
       signature: string
       bytes: Array<Uint8Array>
       redacted: boolean
@@ -72,6 +70,7 @@ export async function* processConverseStream(
       id: string
       name: string
       started: boolean
+      arguments: string
     }
   >()
 
@@ -110,11 +109,6 @@ export async function* processConverseStream(
       entityId: reasoning.id,
       subtype: 'message',
       encryptedValue: encrypted,
-      ...(reasoning.redacted && {
-        stepId: reasoning.id.startsWith('redacted_thinking-')
-          ? reasoning.id
-          : 'redacted_thinking-' + reasoning.id,
-      }),
       timestamp: Date.now(),
     }
   }
@@ -125,14 +119,6 @@ export async function* processConverseStream(
       yield* encryptedReasoning(blockIndex)
       if (reasoning.closed) continue
       reasoning.closed = true
-      yield {
-        type: EventType.STEP_FINISHED,
-        stepId: reasoning.id,
-        stepName: reasoning.id,
-        delta: '',
-        content: reasoning.text,
-        timestamp: Date.now(),
-      }
       yield {
         type: EventType.REASONING_MESSAGE_END,
         messageId: reasoning.id,
@@ -167,12 +153,12 @@ export async function* processConverseStream(
           id,
           name,
           started: true,
+          arguments: '',
         })
         yield {
           type: EventType.TOOL_CALL_START,
           toolCallId: id,
           toolCallName: name,
-          toolName: name,
           timestamp: Date.now(),
           index,
         }
@@ -189,6 +175,7 @@ export async function* processConverseStream(
       if (delta && 'toolUse' in delta && delta.toolUse?.input !== undefined) {
         const toolCall = toolCallsByIndex.get(index)
         if (toolCall?.started) {
+          toolCall.arguments += delta.toolUse.input
           yield {
             type: EventType.TOOL_CALL_ARGS,
             toolCallId: toolCall.id,
@@ -208,20 +195,12 @@ export async function* processConverseStream(
             (fragment.redactedContent?.length ?? 0) > 0
           reasoning = {
             id: (redacted ? 'redacted_thinking-' : '') + newMessageId(),
-            text: '',
             signature: '',
             bytes: [],
             redacted,
             closed: false,
           }
           reasoningByIndex.set(index, reasoning)
-          yield {
-            type: EventType.STEP_STARTED,
-            stepId: reasoning.id,
-            stepName: reasoning.id,
-            stepType: 'thinking',
-            timestamp: Date.now(),
-          }
           yield {
             type: EventType.REASONING_MESSAGE_START,
             messageId: reasoning.id,
@@ -234,7 +213,6 @@ export async function* processConverseStream(
           'text' in fragment &&
           fragment.text !== undefined
         ) {
-          reasoning.text += fragment.text
           yield {
             type: EventType.REASONING_MESSAGE_CONTENT,
             messageId: reasoning.id,
@@ -255,7 +233,6 @@ export async function* processConverseStream(
         ) {
           if (!reasoning.redacted) reasoning.encrypted = undefined
           reasoning.redacted = true
-          reasoning.text = ''
           reasoning.signature = ''
           reasoning.bytes.push(fragment.redactedContent)
           yield* encryptedReasoning(index)
@@ -295,8 +272,8 @@ export async function* processConverseStream(
         yield {
           type: EventType.TOOL_CALL_END,
           toolCallId: toolCall.id,
+          args: toolCall.arguments,
           toolCallName: toolCall.name,
-          toolName: toolCall.name,
           timestamp: Date.now(),
         }
         toolCallsByIndex.delete(stopIndex)
@@ -337,8 +314,8 @@ export async function* processConverseStream(
     yield {
       type: EventType.TOOL_CALL_END,
       toolCallId: toolCall.id,
+      args: toolCall.arguments,
       toolCallName: toolCall.name,
-      toolName: toolCall.name,
       timestamp: Date.now(),
     }
     toolCallsByIndex.delete(index)

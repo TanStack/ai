@@ -26,6 +26,7 @@ async function runToolCall(tool: Tool, middleware: Array<ChatMiddleware>) {
   })
   const chunks = await collectChunks(
     chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       tools: [tool],

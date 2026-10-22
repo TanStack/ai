@@ -19,7 +19,7 @@ export interface ModelOption {
 
 export const MODEL_OPTIONS: Array<ModelOption> = [
   // OpenAI
-  { provider: 'openai', model: 'gpt-5.6', label: 'OpenAI - GPT-5.6' },
+  { provider: 'openai', model: 'gpt-6.1-sol', label: 'OpenAI - GPT-6.1 Sol' },
   { provider: 'openai', model: 'gpt-5.6-sol', label: 'OpenAI - GPT-5.6 Sol' },
   {
     provider: 'openai',
@@ -248,18 +248,8 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   },
   {
     provider: 'groq',
-    model: 'moonshotai/kimi-k2-instruct-0905',
-    label: 'Groq - Kimi K2 Instruct',
-  },
-  {
-    provider: 'groq',
-    model: 'meta-llama/llama-4-maverick-17b-128e-instruct',
-    label: 'Groq - Llama 4 Maverick',
-  },
-  {
-    provider: 'groq',
-    model: 'qwen/qwen3-32b',
-    label: 'Groq - Qwen3 32B',
+    model: 'qwen/qwen3.8-27b',
+    label: 'Groq - Qwen3.8 27B',
   },
 
   // Grok

@@ -30,8 +30,13 @@ import type {
   StructuredOutputCompatibility,
 } from '../utils/schema-converter'
 import { buildResponsesUsage } from '../usage'
+import {
+  explicitJsonObject,
+  withJsonModePrompt,
+} from '../utils/json-object-mode'
 import { toResponsesToolChoice } from '../tools/tool-choice'
 import { getOpenAIProviderToolKind } from '../tools/openai-provider-tool'
+import { resolveComputerUseTool } from '../tools/computer-use-tool'
 import { convertToolsToResponsesFormat } from './responses-tool-converter'
 import {
   hostedShellCallIds,
@@ -47,6 +52,7 @@ import type {
 } from '@tanstack/ai/adapters'
 import type {
   Response,
+  ResponseComputerToolCallOutputScreenshot,
   ResponseCreateParams,
   ResponseFunctionCallOutputItem,
   ResponseFunctionWebSearch,
@@ -67,7 +73,10 @@ import type {
   ProviderExecutedToolSource,
   ModelReasoning,
   ReasoningCapability,
+  TanStackMessageMetadata,
+  TextCompactOptions,
   TextOptions,
+  TokenUsage,
   AnyTool,
   NormalizedSystemPrompt,
 } from '@tanstack/ai'
@@ -149,6 +158,37 @@ function collectWebSearchSources(
   return [...sources.values()]
 }
 
+/**
+ * The saved answer items of a message as Responses input, one per text
+ * block, each with its item `id` and `phase`. `undefined` when the message
+ * has no items or its blocks do not match them: then it replays as plain
+ * text. Another model's message never gets here with its items: the caller
+ * rebuilds it as plain text.
+ */
+function answerItems(
+  message: ModelMessage,
+  text: string,
+): ResponseInput | undefined {
+  const items: TanStackMessageMetadata['responseItems'] =
+    message.metadata?.tanstack?.responseItems
+  const texts = orderedAssistantBlocks(message)?.flatMap((block) =>
+    block.type === 'text' ? [block.text] : [],
+  ) ?? [text]
+  if (!items || items.length !== texts.length) return undefined
+  return items.map((item, index) => ({
+    type: 'message',
+    role: 'assistant',
+    id: item.id,
+    status: 'completed',
+    content: [
+      { type: 'output_text', text: texts[index] ?? '', annotations: [] },
+    ],
+    ...(item.phase === 'commentary' || item.phase === 'final_answer'
+      ? { phase: item.phase }
+      : {}),
+  }))
+}
+
 function packResponsesReasoningSignature(
   id: string | undefined,
   encryptedContent: string | undefined,
@@ -197,6 +237,157 @@ function readReasoningItem(
   }
 }
 
+/** The compaction item packed in a thinking signature, or `undefined`. */
+function readCompactionSignature(
+  signature: string,
+): { type: 'compaction'; id?: string; encrypted_content: string } | undefined {
+  try {
+    const parsed: unknown = JSON.parse(signature)
+    if (
+      !isRecord(parsed) ||
+      parsed.type !== 'compaction' ||
+      typeof parsed.encrypted_content !== 'string'
+    )
+      return undefined
+    return {
+      type: 'compaction',
+      ...(typeof parsed.id === 'string' ? { id: parsed.id } : {}),
+      encrypted_content: parsed.encrypted_content,
+    }
+  } catch {
+    return undefined
+  }
+}
+
+/** The texts of a list of output parts. */
+function partTexts(content: Array<unknown>): Array<string> {
+  return content.flatMap((part) =>
+    isRecord(part) && typeof part.text === 'string' ? [part.text] : [],
+  )
+}
+
+/**
+ * Map one item of a `/responses/compact` output to a message. The
+ * compaction item and reasoning items go in thinking signatures, so they
+ * go back to the same model as they are.
+ */
+function fromCompactedItem(
+  item: unknown,
+  metadata: { tanstack: TanStackMessageMetadata },
+): ModelMessage {
+  if (isRecord(item) && item.type === 'compaction') {
+    return {
+      role: 'assistant',
+      content: null,
+      thinking: [
+        {
+          content: '',
+          redacted: true,
+          signature: JSON.stringify({
+            type: 'compaction',
+            id: item.id,
+            encrypted_content: item.encrypted_content,
+          }),
+        },
+      ],
+      metadata,
+    }
+  }
+  const reasoning = readReasoningItem(item)
+  if (reasoning && isRecord(item)) {
+    const summary = Array.isArray(item.summary) ? partTexts(item.summary) : []
+    return {
+      role: 'assistant',
+      content: null,
+      thinking: [
+        {
+          content: summary.join('\n'),
+          signature: packResponsesReasoningSignature(
+            reasoning.id,
+            reasoning.encrypted_content,
+          ),
+        },
+      ],
+      metadata,
+    }
+  }
+  if (
+    isRecord(item) &&
+    item.type === 'message' &&
+    Array.isArray(item.content) &&
+    (item.role === 'user' || item.role === 'assistant')
+  ) {
+    if (item.role === 'assistant') {
+      return {
+        role: 'assistant',
+        content: partTexts(item.content).join(''),
+        metadata,
+      }
+    }
+    return {
+      role: 'user',
+      content: item.content.map((part): ContentPart => {
+        if (isRecord(part) && typeof part.text === 'string')
+          return { type: 'text', content: part.text }
+        if (isRecord(part) && part.type === 'input_image') {
+          if (typeof part.image_url === 'string')
+            return {
+              type: 'image',
+              source: { type: 'url', value: part.image_url },
+            }
+          if (typeof part.file_id === 'string')
+            return {
+              type: 'image',
+              source: { type: 'file', value: part.file_id },
+            }
+        }
+        if (isRecord(part) && part.type === 'input_file') {
+          if (typeof part.file_id === 'string')
+            return {
+              type: 'document',
+              source: { type: 'file', value: part.file_id },
+            }
+          if (typeof part.file_url === 'string')
+            return {
+              type: 'document',
+              source: { type: 'url', value: part.file_url },
+            }
+          if (
+            typeof part.file_data === 'string' &&
+            typeof part.filename === 'string'
+          )
+            return {
+              type: 'document',
+              source: {
+                type: 'data',
+                value: part.file_data,
+                mimeType: 'application/pdf',
+              },
+              metadata: { filename: part.filename },
+            }
+          // Audio leaves as input_file with file_data and no filename.
+          if (typeof part.file_data === 'string')
+            return {
+              type: 'audio',
+              source: {
+                type: 'data',
+                value: part.file_data,
+                mimeType: 'application/octet-stream',
+              },
+            }
+        }
+        // ponytail: other item types still throw. A throw with no HTTP
+        // status does not latch. Pass an item through when a real compact
+        // result holds one.
+        throw new Error(
+          `Cannot map a compacted ${isRecord(part) ? String(part.type) : 'part'} part.`,
+        )
+      }),
+    }
+  }
+  throw new Error('Cannot map a compacted output item.')
+}
+
 /**
  * Provider-specific metadata that preserves the Responses API output item ID.
  *
@@ -212,7 +403,10 @@ export interface OpenAIResponsesToolCallMetadata extends ProviderExecutedToolMet
    * `additional_tools` has one, and the API needs it on the replayed call.
    */
   namespace?: string
-  /** Set for shell, local_shell, and apply_patch calls the app must run. */
+  /**
+   * Set for shell, local_shell, apply_patch, and computer calls the app must
+   * run.
+   */
   openaiUserTool?: OpenAIUserToolName
   /** Shell `action.max_output_length`, echoed on `shell_call_output`. */
   maxOutputLength?: number | null
@@ -282,6 +476,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   readonly name: string
   protected client: OpenAI
 
+  /**
+   * Token usage for a Responses result. `source` is the response that carried
+   * `usage`, so a subclass can read sibling fields such as provider metadata.
+   */
+  protected responsesTokenUsage(
+    usage: OpenAI.Responses.ResponseUsage | undefined | null,
+    _source?: unknown,
+  ): TokenUsage | undefined {
+    return buildResponsesUsage(usage)
+  }
+
   private sourceMetadata(
     model: string,
     stopReason?: 'error' | 'aborted',
@@ -326,20 +531,28 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   }
 
   async *chatStream(
-    options: TextOptions<TProviderOptions>,
+    chatOptions: TextOptions<TProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
+    // A portable computer tool becomes the native computer tool.
+    // The request and the stream both read the native tool.
+    const options = chatOptions.tools
+      ? {
+          ...chatOptions,
+          tools: chatOptions.tools.map((tool) => resolveComputerUseTool(tool)),
+        }
+      : chatOptions
     // Key streamed state by output item ID because argument deltas reference
     // `item_id`. The state separately retains `call_id`, which is the public
     // tool-call ID and the correlation key for function_call_output.
     const toolCallMetadata = new Map<string, StreamedFunctionCallMetadata>()
 
-    // AG-UI lifecycle tracking. Honor a caller-supplied `runId` (as `threadId`
-    // already does) so the emitted RUN_STARTED matches the id the caller keys
+    // AG-UI lifecycle tracking. Honor a caller-supplied `runId` so the
+    // emitted RUN_STARTED matches the id the caller keys
     // durability by — e.g. a summarize run threading the client's runId through
     // for mid-run reload resumability. Falls back to a generated id.
     const aguiState = {
       runId: options.runId ?? generateId(this.name),
-      threadId: options.threadId ?? generateId(this.name),
+      threadId: options.threadId,
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,
     }
@@ -444,13 +657,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
-    const requestParams = this.mapOptionsToRequest(chatOptions)
-
-    // Apply provider-specific transformations for structured output compatibility
-    const jsonSchema = this.makeStructuredOutputCompatible(
-      outputSchema,
-      outputSchema.required,
+    const jsonMode = this.usesJsonObject(chatOptions)
+    const requestParams = this.mapOptionsToRequest(
+      jsonMode ? withJsonModePrompt(chatOptions, outputSchema) : chatOptions,
     )
+    const textFormat = this.responsesStructuredFormat(jsonMode, outputSchema)
 
     try {
       // Strip streaming-only fields a subclass override of mapOptionsToRequest
@@ -476,14 +687,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         {
           ...(cleanParams as Omit<ResponseCreateParams, 'stream'>),
           stream: false,
-          // Configure structured output via text.format
           text: {
-            format: {
-              type: 'json_schema',
-              name: 'structured_output',
-              schema: jsonSchema,
-              strict: true,
-            },
+            format: textFormat,
           },
         },
         extractRequestOptions(chatOptions.request),
@@ -521,7 +726,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
       // Surface usage so non-stream structured paths (and
       // fallbackStructuredOutputStream) can forward tokens to middleware.
-      const usage = buildResponsesUsage(response.usage)
+      const usage = this.responsesTokenUsage(response.usage, response)
       return {
         data: transformed,
         rawText,
@@ -558,16 +763,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     options: StructuredOutputOptions<TProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
-    const requestParams = this.mapOptionsToRequest(chatOptions)
-
-    const jsonSchema = this.makeStructuredOutputCompatible(
-      outputSchema,
-      outputSchema.required,
+    const jsonMode = this.usesJsonObject(chatOptions)
+    const requestParams = this.mapOptionsToRequest(
+      jsonMode ? withJsonModePrompt(chatOptions, outputSchema) : chatOptions,
     )
+    const textFormat = this.responsesStructuredFormat(jsonMode, outputSchema)
 
     const aguiState = {
       runId: generateId(this.name),
-      threadId: chatOptions.threadId ?? generateId(this.name),
+      threadId: chatOptions.threadId,
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,
     }
@@ -576,11 +780,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     let accumulatedReasoning = ''
     let hasEmittedTextMessageStart = false
     let reasoningMessageId: string | undefined
-    let stepId: string | undefined
     let hasClosedReasoning = false
     let model: string = chatOptions.model
     let responseId: string | undefined
     let usage: OpenAI.Responses.Response['usage'] | undefined
+    let usageSource: unknown
     let responseCompleted = false
 
     const closeReasoning = function* (this: {
@@ -600,18 +804,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           model,
           timestamp: Date.now(),
         }
-        if (stepId) {
-          yield {
-            type: EventType.STEP_FINISHED,
-            stepName: stepId,
-            stepId,
-            model,
-            timestamp: Date.now(),
-            content: accumulatedReasoning,
-          }
-        }
         reasoningMessageId = undefined
-        stepId = undefined
         hasClosedReasoning = false
       }
     }.bind(this)
@@ -621,7 +814,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     }): Generator<AdapterYieldChunk> {
       if (reasoningMessageId) return
       reasoningMessageId = generateId(this.name)
-      stepId = generateId(this.name)
       yield {
         type: EventType.REASONING_START,
         messageId: reasoningMessageId,
@@ -634,14 +826,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         role: 'reasoning' as const,
         model,
         timestamp: Date.now(),
-      }
-      yield {
-        type: EventType.STEP_STARTED,
-        stepName: stepId,
-        stepId,
-        model,
-        timestamp: Date.now(),
-        stepType: 'thinking',
       }
     }.bind(this)
 
@@ -663,12 +847,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           ...cleanParams,
           stream: true,
           text: {
-            format: {
-              type: 'json_schema',
-              name: 'structured_output',
-              schema: jsonSchema,
-              strict: true,
-            },
+            format: textFormat,
           },
         },
         extractRequestOptions(chatOptions.request),
@@ -785,7 +964,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           responseCompleted = true
           const response = chunk.response
           if (response.id) responseId = response.id
-          if (response.usage) usage = response.usage
+          if (response.usage) {
+            usage = response.usage
+            usageSource = response
+          }
           if (response.model) model = response.model
           // Terminal event: do not wait for the HTTP body to close (#1445).
           break
@@ -905,7 +1087,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         timestamp: Date.now(),
         finishReason: 'stop',
         ...(usage && {
-          usage: buildResponsesUsage(usage),
+          usage: this.responsesTokenUsage(usage, usageSource),
         }),
       }
     } catch (error: unknown) {
@@ -955,6 +1137,43 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         source: `${this.name}.structuredOutputStream`,
       })
     }
+  }
+
+  /**
+   * Compact the history with `POST /responses/compact`. The result holds
+   * the user messages and one encrypted compaction item. A result with no
+   * compaction item throws.
+   */
+  async compact(options: TextCompactOptions): Promise<Array<ModelMessage>> {
+    const prompts = normalizeSystemPrompts(options.systemPrompts)
+    const response = await clientFor(
+      this.client,
+      options,
+      this.baseFetch,
+      (fetch) => this.withFetch(fetch),
+    ).responses.compact(
+      {
+        model: options.model,
+        input: this.convertMessagesToInput(options.messages, options.model),
+        ...(prompts.length > 0 && {
+          instructions: prompts.map((p) => p.content).join('\n'),
+        }),
+      },
+      options.signal ? { signal: options.signal } : {},
+    )
+    if (!response.output.some((item) => item.type === 'compaction')) {
+      throw new Error('The compact result has no compaction item.')
+    }
+    const metadata = {
+      tanstack: {
+        source: {
+          provider: this.provider ?? this.name,
+          api: this.api,
+          model: options.model,
+        },
+      },
+    }
+    return response.output.map((item) => fromCompactedItem(item, metadata))
   }
 
   /**
@@ -1020,6 +1239,52 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   ): Record<string, any> {
     return this.makeStructuredOutputCompatibleWithMap(schema, originalRequired)
       .schema
+  }
+
+  /**
+   * `true` when this model takes `json_object` and rejects strict
+   * `json_schema`. Subclasses answer from their model catalog. Default `false`.
+   */
+  protected modelPrefersJsonObject(_model: string): boolean {
+    return false
+  }
+
+  /** JSON mode when `modelOptions` sets it or the model catalog needs it. */
+  protected usesJsonObject(options: {
+    model: string
+    modelOptions?: unknown
+  }): boolean {
+    return (
+      explicitJsonObject(options.modelOptions) ||
+      this.modelPrefersJsonObject(options.model)
+    )
+  }
+
+  protected responsesStructuredFormat(
+    jsonMode: boolean,
+    schema: Record<string, any>,
+  ):
+    | { type: 'json_object' }
+    | {
+        type: 'json_schema'
+        name: string
+        schema: Record<string, any>
+        strict: true
+      } {
+    if (jsonMode) {
+      return { type: 'json_object' }
+    }
+    return {
+      type: 'json_schema',
+      name: 'structured_output',
+      schema: this.makeStructuredOutputCompatible(
+        schema,
+        Array.isArray(schema.required)
+          ? (schema.required as Array<string>)
+          : undefined,
+      ),
+      strict: true,
+    }
   }
 
   /**
@@ -1136,7 +1401,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         this.makeStructuredOutputCompatibleWithMap(schema, required),
     )
     let accumulatedContent = ''
-    let accumulatedReasoning = ''
 
     // Track if we've been streaming deltas to avoid duplicating content from done events
     let hasStreamedContentDeltas = false
@@ -1147,7 +1411,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     let responseId: string | undefined
 
     // AG-UI lifecycle tracking
-    let stepId: string | null = null
     let hasEmittedTextMessageStart = false
     let reasoningMessageId: string | undefined
     let reasoningItemId: string | undefined
@@ -1227,7 +1490,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           type: EventType.TOOL_CALL_START,
           toolCallId: entry.item.id,
           toolCallName: 'web_search',
-          toolName: 'web_search',
           parentMessageId: aguiState.messageId,
           model: emitModel(),
           timestamp: Date.now(),
@@ -1238,7 +1500,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           type: EventType.TOOL_CALL_END,
           toolCallId: entry.item.id,
           toolCallName: 'web_search',
-          toolName: 'web_search',
           model: emitModel(),
           timestamp: Date.now(),
           input: entry.item.action,
@@ -1249,7 +1510,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     const openReasoning = function* (): Generator<AdapterYieldChunk> {
       if (reasoningMessageId) return
       reasoningMessageId = generateId(adapterName)
-      stepId = generateId(adapterName)
       const timestamp = Date.now()
       const currentModel = emitModel()
       yield {
@@ -1264,14 +1524,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         role: 'reasoning' as const,
         model: currentModel,
         timestamp,
-      }
-      yield {
-        type: EventType.STEP_STARTED,
-        stepName: stepId,
-        stepId,
-        model: currentModel,
-        timestamp,
-        stepType: 'thinking',
       }
     }
 
@@ -1305,35 +1557,23 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         model: currentModel,
         timestamp,
       }
-      if (stepId) {
-        closedReasoningMessageId = reasoningMessageId
+      closedReasoningMessageId = reasoningMessageId
+      // The signature belongs to the reasoning message, so an AG-UI client
+      // finds that message by `entityId`.
+      if (signature) {
         yield {
-          type: EventType.STEP_FINISHED,
-          stepName: stepId,
-          stepId,
+          type: EventType.REASONING_ENCRYPTED_VALUE,
+          subtype: 'message' as const,
+          entityId: reasoningMessageId,
+          encryptedValue: signature,
           model: currentModel,
           timestamp,
-          content: accumulatedReasoning,
-        }
-        // The signature belongs to the reasoning message, not the step, so
-        // an AG-UI client finds that message by `entityId`.
-        if (signature) {
-          yield {
-            type: EventType.REASONING_ENCRYPTED_VALUE,
-            subtype: 'message' as const,
-            entityId: reasoningMessageId,
-            encryptedValue: signature,
-            model: currentModel,
-            timestamp,
-          }
         }
       }
       reasoningMessageId = undefined
       reasoningItemId = undefined
       reasoningEncryptedContent = undefined
-      stepId = null
       hasClosedReasoning = false
-      accumulatedReasoning = ''
     }
 
     // A stateless stream (the ChatGPT plan route) can stream a tool call, then
@@ -1385,7 +1625,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           type: EventType.TOOL_CALL_START,
           toolCallId: call.callId,
           toolCallName: call.name,
-          toolName: call.name,
           parentMessageId: aguiState.messageId,
           model: modelName,
           timestamp,
@@ -1396,7 +1635,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           type: EventType.TOOL_CALL_END,
           toolCallId: call.callId,
           toolCallName: call.name,
-          toolName: call.name,
           model: modelName,
           timestamp,
           input: call.input,
@@ -1410,7 +1648,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       if (!text) return
       yield* openReasoning()
       if (!reasoningMessageId) return
-      accumulatedReasoning += text
       hasStreamedReasoningDeltas = true
       yield {
         type: EventType.REASONING_MESSAGE_CONTENT,
@@ -1497,9 +1734,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           hasEmittedTextMessageStart = false
           reasoningMessageId = undefined
           hasClosedReasoning = false
-          stepId = null
           accumulatedContent = ''
-          accumulatedReasoning = ''
         }
 
         // response.failed and response.incomplete are TERMINAL events for
@@ -1779,7 +2014,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 type: EventType.TOOL_CALL_START,
                 toolCallId: metadata.callId,
                 toolCallName: metadata.name,
-                toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
@@ -1892,7 +2126,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                   rawArguments: chunk.arguments,
                 },
               )
-              parsedInput = {}
+              parsedInput = undefined
             }
           }
 
@@ -1900,10 +2134,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             type: EventType.TOOL_CALL_END,
             toolCallId: metadata.callId,
             toolCallName: name,
-            toolName: name,
             model: model || options.model,
             timestamp: Date.now(),
-            input: parsedInput,
+            args: chunk.arguments,
+            ...(parsedInput !== undefined && { input: parsedInput }),
           }
         }
 
@@ -1948,7 +2182,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 type: EventType.TOOL_CALL_START,
                 toolCallId: metadata.callId,
                 toolCallName: metadata.name,
-                toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
@@ -1989,17 +2222,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                       rawArguments: rawArgs,
                     },
                   )
-                  parsedInput = {}
+                  parsedInput = undefined
                 }
               }
               yield {
                 type: EventType.TOOL_CALL_END,
                 toolCallId: metadata.callId,
                 toolCallName: name,
-                toolName: name,
                 model: model || options.model,
                 timestamp: Date.now(),
-                input: parsedInput,
+                args: rawArgs,
+                ...(parsedInput !== undefined && { input: parsedInput }),
               }
               metadata.ended = true
               metadata.pendingArguments = undefined
@@ -2121,7 +2354,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 type: EventType.TOOL_CALL_START,
                 toolCallId: metadata.callId,
                 toolCallName: metadata.name,
-                toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
@@ -2160,17 +2392,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                       rawArguments: rawArgs,
                     },
                   )
-                  parsedInput = {}
+                  parsedInput = undefined
                 }
               }
               yield {
                 type: EventType.TOOL_CALL_END,
                 toolCallId: metadata.callId,
                 toolCallName: name,
-                toolName: name,
                 model: model || options.model,
                 timestamp: Date.now(),
-                input: parsedInput,
+                args: rawArgs,
+                ...(parsedInput !== undefined && { input: parsedInput }),
               }
               metadata.ended = true
               metadata.pendingArguments = undefined
@@ -2238,9 +2470,23 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 ? 'content_filter'
                 : 'stop'
 
+          // Each answer item's id and phase, for a same-model replay. Only a
+          // model that sends a phase gets them: an OpenAI-compatible server
+          // keeps the plain-text replay.
+          const answers = responseOutput.flatMap((item) =>
+            item.type === 'message' && item.id
+              ? [{ id: item.id, ...(item.phase ? { phase: item.phase } : {}) }]
+              : [],
+          )
+          const responseItems = answers.some((item) => item.phase)
+            ? answers
+            : []
           yield {
             type: EventType.RUN_FINISHED,
             ...(responseId ? { responseId } : {}),
+            ...(responseItems.length > 0
+              ? { metadata: { tanstack: { responseItems } } }
+              : {}),
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: model || options.model,
@@ -2248,7 +2494,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             // Omit usage entirely when the provider reported none rather than
             // emitting fabricated zeros (also satisfies exactOptionalPropertyTypes).
             ...(chunk.response.usage && {
-              usage: buildResponsesUsage(chunk.response.usage),
+              usage: this.responsesTokenUsage(
+                chunk.response.usage,
+                chunk.response,
+              ),
             }),
             finishReason,
           }
@@ -2380,23 +2629,16 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     // (pre-converted at the activity boundary). Wire it into `text.format`
     // alongside any `tools` — the Responses API supports both together and
     // emits the schema-constrained text on the natural final turn.
-    const combinedSchema = options.outputSchema as
-      | Record<string, unknown>
-      | undefined
+    // JSON mode is never combined (see `supportsCombinedToolsAndSchema`).
+    // A caller's own `json_object` reaches the request through the
+    // `modelOptions` spread.
+    const combinedSchema = this.usesJsonObject(options)
+      ? undefined
+      : (options.outputSchema as Record<string, unknown> | undefined)
     const textFormat = combinedSchema
       ? {
           text: {
-            format: {
-              type: 'json_schema' as const,
-              name: 'structured_output',
-              schema: this.makeStructuredOutputCompatible(
-                combinedSchema,
-                Array.isArray(combinedSchema.required)
-                  ? (combinedSchema.required as Array<string>)
-                  : undefined,
-              ),
-              strict: true,
-            },
+            format: this.responsesStructuredFormat(false, combinedSchema),
           },
         }
       : undefined
@@ -2523,8 +2765,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
    * together in a single streaming request (per issue #605). Subclasses
    * that route to providers without this capability should override.
    */
-  supportsCombinedToolsAndSchema(): boolean {
-    return true
+  supportsCombinedToolsAndSchema(modelOptions?: unknown): boolean {
+    // JSON mode sends the schema as a system prompt on a separate
+    // structured-output request, not on the tool-calling turns.
+    return !this.usesJsonObject({ model: this.model, modelOptions })
   }
 
   /**
@@ -2635,16 +2879,41 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         metadata?: unknown
       }
     >()
+    // A failed computer call has no screenshot of its own, so it sends the
+    // newest one. A computer call output has no text, so the failure reasons
+    // go in one user message after the call outputs.
+    let lastScreenshot: ResponseComputerToolCallOutputScreenshot | undefined
+    const failures: Array<string> = []
+    const pushFailures = () => {
+      if (failures.length === 0) return
+      result.push({
+        type: 'message',
+        role: 'user',
+        content: [{ type: 'input_text', text: failures.splice(0).join('\n') }],
+      })
+    }
 
     for (const [index, message] of messages.entries()) {
+      if (message.role !== 'tool') pushFailures()
       result.push(...(insertBefore?.get(index) ?? []))
       // Handle tool messages - convert to FunctionToolCallOutput
       if (message.role === 'tool') {
         const owner = message.toolCallId
           ? userToolCalls.get(message.toolCallId)
           : undefined
+        const error = message.error
         const userOutput = owner
-          ? userToolResultItem(owner, message.content)
+          ? userToolResultItem(owner, message.content, {
+              screenshot: () => {
+                if (error !== undefined) {
+                  failures.push(`Computer call ${owner.id} failed: ${error}`)
+                  return lastScreenshot ?? { type: 'computer_screenshot' }
+                }
+                lastScreenshot = this.screenshotOf(message.content)
+                return lastScreenshot
+              },
+              failed: error !== undefined,
+            })
           : null
         if (userOutput) {
           result.push(userOutput)
@@ -2692,6 +2961,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         if (message.thinking) {
           for (const thinking of message.thinking) {
             if (!thinking.signature) continue
+            const compaction = readCompactionSignature(thinking.signature)
+            if (compaction) {
+              result.push(compaction)
+              continue
+            }
             const packed = unpackResponsesReasoningSignature(thinking.signature)
             if (!packed?.id) continue
             reasoningCandidates++
@@ -2730,6 +3004,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         const canPairReasoning =
           reasoningCandidates === 0 ||
           (reasoningCandidates === 1 && emittedReasoning === 1)
+        const firstCall = result.length
 
         // If the assistant message has tool calls, add them as FunctionToolCall objects
         // Responses API expects arguments as a string (JSON string)
@@ -2797,13 +3072,22 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         } else if (message.content) {
           // Add the assistant's text message if there is content
           const contentStr = this.extractTextContent(message.content)
-          if (contentStr) {
-            result.push({
-              type: 'message',
-              role: 'assistant',
-              content: contentStr,
-            })
-          }
+          const items =
+            contentStr && canPairReasoning
+              ? answerItems(message, contentStr)
+              : undefined
+          // The model writes an answer item before its calls, so it goes
+          // back right after this message's reasoning.
+          if (items) result.splice(firstCall, 0, ...items)
+          else if (contentStr)
+            // Text must not sit between a call and its output (DeepSeek
+            // rejects that, #1792). With calls, it goes before this message's
+            // reasoning, so the reasoning stays directly before its calls.
+            result.splice(
+              result.length > firstCall ? firstItem : result.length,
+              0,
+              { type: 'message', role: 'assistant', content: contentStr },
+            )
         }
 
         // Another model's answer: plain text and calls in the order the
@@ -2864,8 +3148,37 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       })
     }
 
+    pushFailures()
     result.push(...(insertBefore?.get(messages.length) ?? []))
     return result
+  }
+
+  /**
+   * The first image of a tool result, as a computer screenshot. It goes out
+   * with `detail: 'original'`, as in OpenAI's computer use guide, so the
+   * model sees the screen at full size. The SDK type has no `detail` yet.
+   *
+   * @throws Error when the result has no image. A computer call output
+   *   needs a screenshot.
+   */
+  private screenshotOf(
+    content: ModelMessage['content'],
+  ): ResponseComputerToolCallOutputScreenshot & { detail?: 'original' } {
+    const image = Array.isArray(content)
+      ? content.find((part) => part.type === 'image')
+      : undefined
+    const input = image ? this.convertContentPartToInput(image) : undefined
+    if (input?.type !== 'input_image' || (!input.image_url && !input.file_id)) {
+      throw new Error(
+        'The computer tool result has no screenshot. Return an image part from the computer tool.',
+      )
+    }
+    return {
+      type: 'computer_screenshot',
+      ...(input.image_url ? { image_url: input.image_url } : {}),
+      ...(input.file_id ? { file_id: input.file_id } : {}),
+      detail: 'original',
+    }
   }
 
   /**

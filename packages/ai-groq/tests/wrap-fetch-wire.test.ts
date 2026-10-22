@@ -4,7 +4,7 @@ import { createGroqText } from '../src/adapters/text'
 import type { FetchWrapper } from '@tanstack/ai'
 
 const logger = resolveDebugOption(false)
-const model = 'llama-3.3-70b-versatile'
+const model = 'openai/gpt-oss-120b'
 const messages = [{ role: 'user' as const, content: 'Hi' }]
 
 /** A wrapper that adds one header, then calls the next fetch. */
@@ -24,6 +24,7 @@ const adapters = [
     adapter: 'Chat Completions',
     send: (fetch, wrapFetch) =>
       createGroqText(model, 'test-key', { fetch }).chatStream({
+        threadId: 'thread-1',
         logger,
         model,
         messages,

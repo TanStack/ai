@@ -237,7 +237,6 @@ export async function* translateSdkStream(
         type: EventType.TOOL_CALL_END,
         toolCallId: toolCall.id,
         toolCallName: toolCall.name,
-        toolName: toolCall.name,
         model,
         timestamp: now(),
         input,
@@ -297,7 +296,6 @@ export async function* translateSdkStream(
       type: EventType.TOOL_CALL_START,
       toolCallId: block.id,
       toolCallName,
-      toolName: toolCallName,
       model,
       timestamp: now(),
     }
@@ -313,7 +311,6 @@ export async function* translateSdkStream(
       type: EventType.TOOL_CALL_END,
       toolCallId: block.id,
       toolCallName,
-      toolName: toolCallName,
       model,
       timestamp: now(),
       input: block.input ?? {},
@@ -563,7 +560,6 @@ export async function* translateSdkStream(
           type: EventType.TOOL_CALL_START,
           toolCallId: block.id,
           toolCallName: name,
-          toolName: name,
           model,
           timestamp: now(),
           ...(partialMessageId !== null && {

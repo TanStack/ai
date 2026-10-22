@@ -14,7 +14,6 @@ import {
   createTranscription,
   createPageWebMCPTools,
   createRegisterWebMCPTools,
-  createWebMCPTools,
 } from '../src/index'
 
 describe('package exports', () => {
@@ -33,6 +32,5 @@ describe('package exports', () => {
     expect(createAudioRecorder).toBeTypeOf('function')
     expect(createRegisterWebMCPTools).toBeTypeOf('function')
     expect(createPageWebMCPTools).toBeTypeOf('function')
-    expect(createWebMCPTools).toBeTypeOf('function')
   })
 })

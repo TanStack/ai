@@ -75,8 +75,10 @@ export function TranscriptionUI({
     }
   }
 
-  const { generate, result, isLoading, error, status } =
-    useTranscription(connectionOptions())
+  const { generate, result, isLoading, error, status } = useTranscription({
+    threadId: testId ?? 'transcription',
+    ...connectionOptions(),
+  })
 
   return (
     <div className="p-4 space-y-4">

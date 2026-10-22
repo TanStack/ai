@@ -51,7 +51,7 @@ describe('useChat() return type', () => {
       type R = UseChatReturn<any, PersonSchema>
       expectTypeOf<R['sendMessage']>().toBeFunction()
       expectTypeOf<R['isLoading']>().toBeBoolean()
-      expectTypeOf<R['messages']>().toBeArray()
+      expectTypeOf<R['messages']>().toExtend<ReadonlyArray<unknown>>()
     })
 
     it('options accept outputSchema with the schema type', () => {
@@ -81,14 +81,13 @@ describe('useChat() return type', () => {
 
     it('exposes queue, runId, and interrupt controls', () => {
       type R = UseChatReturn<any>
-      expectTypeOf<R['queue']>().toEqualTypeOf<Array<QueuedMessage>>()
+      expectTypeOf<R['queue']>().toEqualTypeOf<ReadonlyArray<QueuedMessage>>()
       expectTypeOf<R['cancelQueued']>().toEqualTypeOf<(id: string) => void>()
       expectTypeOf<R['runId']>().toEqualTypeOf<string | null>()
       expectTypeOf<R['resuming']>().toBeBoolean()
       expectTypeOf<R['resolveInterrupts']>().toBeFunction()
       expectTypeOf<R['cancelInterrupts']>().toBeFunction()
       expectTypeOf<R['retryInterrupts']>().toBeFunction()
-      expectTypeOf<R['resumeInterrupts']>().toBeFunction()
       expectTypeOf<R['resumeInterruptsUnsafe']>().toBeFunction()
       expectTypeOf<R['sendMessage']>().toMatchTypeOf<
         (content: string, options?: SendMessageOptions) => Promise<void>
@@ -97,7 +96,7 @@ describe('useChat() return type', () => {
 
     it('uses threadId as hook identity, not id', () => {
       type O = UseChatOptions<any>
-      expectTypeOf<O['threadId']>().toEqualTypeOf<string | undefined>()
+      expectTypeOf<O['threadId']>().toEqualTypeOf<string>()
       // @ts-expect-error - identity is threadId; hook-level `id` was dropped
       type _Id = O['id']
     })
@@ -116,6 +115,7 @@ describe('useChat() return type', () => {
         }).client(() => ({ ok: true }))
 
         const { messages } = useChat({
+          threadId: 'thread-1',
           connection: { connect: async function* () {} },
           tools: [guitarTool, cartTool],
         })
@@ -145,6 +145,7 @@ describe('useChat() return type', () => {
 
         const tools = [guitarTool, cartTool]
         const { messages } = useChat({
+          threadId: 'thread-1',
           connection: { connect: async function* () {} },
           tools,
         })
@@ -178,6 +179,7 @@ describe('useChat() return type', () => {
         }).client(() => ({ deleted: true }))
 
         const { messages } = useChat({
+          threadId: 'thread-1',
           connection: { connect: async function* () {} },
           tools: [guitarTool, approvalTool],
         })
@@ -227,6 +229,7 @@ describe('useChat() return type', () => {
         }).client(() => ({ deleted: true }))
 
         const { messages } = useChat({
+          threadId: 'thread-1',
           connection: { connect: async function* () {} },
           tools: [regularTool, approvalTool],
         })

@@ -1,5 +1,14 @@
 # @tanstack/ai-sandbox-daytona
 
+## 0.3.5
+
+### Patch Changes
+
+- [#1837](https://github.com/TanStack/ai/pull/1837) [`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325) - A background process from `spawn()` no longer crashes Node with an unhandled rejection when its status poll fails, for example after `destroy()`. `wait()` still rejects with the error.
+
+- Updated dependencies [[`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325)]:
+  - @tanstack/ai-sandbox@0.5.25
+
 ## 0.3.4
 
 ### Patch Changes

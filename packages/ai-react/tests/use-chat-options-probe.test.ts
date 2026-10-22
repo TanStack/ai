@@ -10,9 +10,13 @@ describe('UseChatOptions XOR', () => {
     // Accept connection only
     expectTypeOf<{
       connection: ConnectionAdapter
+      threadId: string
     }>().toMatchTypeOf<UseChatOptions>()
     // Accept fetcher only
-    expectTypeOf<{ fetcher: ChatFetcher }>().toMatchTypeOf<UseChatOptions>()
+    expectTypeOf<{
+      fetcher: ChatFetcher
+      threadId: string
+    }>().toMatchTypeOf<UseChatOptions>()
     // Reject empty
     expectTypeOf<{}>().not.toMatchTypeOf<UseChatOptions>()
     // Reject both

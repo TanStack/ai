@@ -9,7 +9,11 @@ import rehypeSanitize from 'rehype-sanitize'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
 import { MessageSquare, Plus, Square, Trash2 } from 'lucide-react'
-import type { ChatClientPersistence, UIMessage } from '@tanstack/ai-client'
+import type {
+  ChatClientPersistence,
+  ChatPersistedState,
+  UIMessage,
+} from '@tanstack/ai-client'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
 import {
   addToCartToolDef,
@@ -100,20 +104,21 @@ const threadPersistence: ChatClientPersistence = {
     if (!raw) return null
     // `UIMessage.createdAt` is a Date that JSON.stringify turned into a string —
     // revive it on read.
-    return (JSON.parse(raw) as Array<UIMessage>).map((message) => ({
-      ...message,
-      createdAt:
-        typeof message.createdAt === 'string'
-          ? new Date(message.createdAt)
-          : message.createdAt,
-    }))
+    const state = JSON.parse(raw) as ChatPersistedState
+    return {
+      ...state,
+      messages: state.messages.map((message) => ({
+        ...message,
+        createdAt:
+          typeof message.createdAt === 'string'
+            ? new Date(message.createdAt)
+            : message.createdAt,
+      })),
+    }
   },
-  setItem: (id, messages) => {
+  setItem: (id, state) => {
     if (!hasWindow()) return
-    window.localStorage.setItem(
-      THREAD_KEY_PREFIX + id,
-      JSON.stringify(messages),
-    )
+    window.localStorage.setItem(THREAD_KEY_PREFIX + id, JSON.stringify(state))
   },
   removeItem: (id) => {
     if (!hasWindow()) return
@@ -426,7 +431,7 @@ function ThreadChat({
     connection: fetchServerSentEvents('/api/tanchat'),
     persistence: threadPersistence,
     tools,
-    body: CHAT_BODY,
+    forwardedProps: CHAT_BODY,
     onFinish: () => onActivity(),
   })
   const [input, setInput] = useState('')

@@ -19,8 +19,8 @@ export interface UseSummarizeOptions<TOutput = SummarizationResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for summarization */
   fetcher?: GenerationFetcher<SummarizeGenerateInput, SummarizationResult>
-  /** Unique identifier for this generation instance */
-  id?: string
+  /** Stable scope for this generation. Also the wire and DevTools identity. */
+  threadId: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
@@ -73,6 +73,7 @@ export interface UseSummarizeReturn<TOutput = SummarizationResult> {
  *
  * function Summarizer() {
  *   const { generate, result, isLoading } = useSummarize({
+ *     threadId: 'article-summary',
  *     connection: fetchServerSentEvents('/api/summarize'),
  *   })
  *

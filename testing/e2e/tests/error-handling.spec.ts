@@ -17,6 +17,7 @@ test.describe('Error Handling', () => {
       )
     })
     const client = new GenerationClient({
+      threadId: 'thread-generation-run-error',
       fetcher: async (_input, { signal }) => {
         const address = server.address()
         if (!address || typeof address === 'string')

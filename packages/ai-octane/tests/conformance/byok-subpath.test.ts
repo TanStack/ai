@@ -1,5 +1,5 @@
-import { defineByok, memoryStorage } from '../../src/byok.ts'
-import { ChatClient } from '../../src/index.ts'
+import { defineByok, memoryStorage } from '../../src/byok'
+import { ChatClient } from '../../src/index'
 import { describe, expect, it } from 'vitest'
 
 describe('client re-exports', () => {

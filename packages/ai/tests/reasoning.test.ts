@@ -88,6 +88,7 @@ describe('chat({ reasoning })', () => {
   it('passes the normalized request to the adapter', async () => {
     const { adapter, calls } = createMockAdapter({ iterations: [done] })
     await chat({
+      threadId: 'thread-1',
       adapter,
       reasoning: 'high',
       messages: [{ role: 'user', content: 'hi' }],
@@ -99,6 +100,7 @@ describe('chat({ reasoning })', () => {
   it('sends no reasoning when the option is not set', async () => {
     const { adapter, calls } = createMockAdapter({ iterations: [done] })
     await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       stream: false,
@@ -109,6 +111,7 @@ describe('chat({ reasoning })', () => {
   it('lets a middleware change it in onConfig', async () => {
     const { adapter, calls } = createMockAdapter({ iterations: [done] })
     await chat({
+      threadId: 'thread-1',
       adapter,
       reasoning: 'low',
       middleware: [

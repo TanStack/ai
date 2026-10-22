@@ -133,6 +133,7 @@ describe('Type Safety Tests for chat() function', () => {
     describe('mock-full provider options', () => {
       it('should allow all option groups on mock-full', () => {
         chat({
+          threadId: 'thread-1',
           adapter: mockText('mock-full'),
           messages: [{ role: 'user', content: 'hi' }],
           modelOptions: {
@@ -148,6 +149,7 @@ describe('Type Safety Tests for chat() function', () => {
 
       it('should NOT allow unknown options on mock-full', () => {
         chat({
+          threadId: 'thread-1',
           adapter: mockText('mock-full'),
           messages: [{ role: 'user', content: 'hi' }],
           modelOptions: {
@@ -161,6 +163,7 @@ describe('Type Safety Tests for chat() function', () => {
     describe('mock-reasoning provider options', () => {
       it('should allow reasoning + tools options', () => {
         chat({
+          threadId: 'thread-1',
           adapter: mockText('mock-reasoning'),
           messages: [{ role: 'user', content: 'hi' }],
           modelOptions: {
@@ -174,6 +177,7 @@ describe('Type Safety Tests for chat() function', () => {
 
       it('should NOT allow structured output options on mock-reasoning', () => {
         chat({
+          threadId: 'thread-1',
           adapter: mockText('mock-reasoning'),
           messages: [{ role: 'user', content: 'hi' }],
           modelOptions: {
@@ -185,6 +189,7 @@ describe('Type Safety Tests for chat() function', () => {
 
       it('should NOT allow streaming options on mock-reasoning', () => {
         chat({
+          threadId: 'thread-1',
           adapter: mockText('mock-reasoning'),
           messages: [{ role: 'user', content: 'hi' }],
           modelOptions: {
@@ -198,6 +203,7 @@ describe('Type Safety Tests for chat() function', () => {
     describe('mock-tools-only provider options', () => {
       it('should allow tools + streaming options', () => {
         chat({
+          threadId: 'thread-1',
           adapter: mockText('mock-tools-only'),
           messages: [{ role: 'user', content: 'hi' }],
           modelOptions: {
@@ -211,6 +217,7 @@ describe('Type Safety Tests for chat() function', () => {
 
       it('should NOT allow reasoning option on mock-tools-only', () => {
         chat({
+          threadId: 'thread-1',
           adapter: mockText('mock-tools-only'),
           messages: [{ role: 'user', content: 'hi' }],
           modelOptions: {
@@ -222,6 +229,7 @@ describe('Type Safety Tests for chat() function', () => {
 
       it('should NOT allow structured output option on mock-tools-only', () => {
         chat({
+          threadId: 'thread-1',
           adapter: mockText('mock-tools-only'),
           messages: [{ role: 'user', content: 'hi' }],
           modelOptions: {
@@ -235,6 +243,7 @@ describe('Type Safety Tests for chat() function', () => {
     describe('mock-bare provider options', () => {
       it('should allow only the base option', () => {
         chat({
+          threadId: 'thread-1',
           adapter: mockText('mock-bare'),
           messages: [{ role: 'user', content: 'hi' }],
           modelOptions: { user: 'user-1' },
@@ -243,6 +252,7 @@ describe('Type Safety Tests for chat() function', () => {
 
       it('should NOT allow reasoning on mock-bare', () => {
         chat({
+          threadId: 'thread-1',
           adapter: mockText('mock-bare'),
           messages: [{ role: 'user', content: 'hi' }],
           modelOptions: {
@@ -254,6 +264,7 @@ describe('Type Safety Tests for chat() function', () => {
 
       it('should NOT allow tools options on mock-bare', () => {
         chat({
+          threadId: 'thread-1',
           adapter: mockText('mock-bare'),
           messages: [{ role: 'user', content: 'hi' }],
           modelOptions: {
@@ -265,6 +276,7 @@ describe('Type Safety Tests for chat() function', () => {
 
       it('should NOT allow streaming options on mock-bare', () => {
         chat({
+          threadId: 'thread-1',
           adapter: mockText('mock-bare'),
           messages: [{ role: 'user', content: 'hi' }],
           modelOptions: {
@@ -276,6 +288,7 @@ describe('Type Safety Tests for chat() function', () => {
 
       it('should NOT allow structured output on mock-bare', () => {
         chat({
+          threadId: 'thread-1',
           adapter: mockText('mock-bare'),
           messages: [{ role: 'user', content: 'hi' }],
           modelOptions: {
@@ -308,6 +321,7 @@ describe('Type Safety Tests for chat() function', () => {
   describe('Cross-model option leakage guards', () => {
     it('mock-bare: should error with mock-full reasoning option', () => {
       chat({
+        threadId: 'thread-1',
         adapter: mockText('mock-bare'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -319,6 +333,7 @@ describe('Type Safety Tests for chat() function', () => {
 
     it('mock-bare: should error with mock-full structured-output option', () => {
       chat({
+        threadId: 'thread-1',
         adapter: mockText('mock-bare'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -330,6 +345,7 @@ describe('Type Safety Tests for chat() function', () => {
 
     it('mock-reasoning: should accept reasoning but reject streaming options', () => {
       chat({
+        threadId: 'thread-1',
         adapter: mockText('mock-reasoning'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {

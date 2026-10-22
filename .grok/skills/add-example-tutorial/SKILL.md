@@ -41,7 +41,7 @@ Add other files only when this tutorial needs them (a key form, a tool, a store)
 
 ## 3. Tutorial page
 
-Load `docs`. Run its persona and tone gates unless this conversation already chose them.
+Load `docs`. State the readers and the tone it picks, then keep going.
 
 Open with the problem the reader has, why it matters, and how this tutorial solves it (one short block). Then walk through steps. Each step teaches one piece of that solution and says why that piece exists.
 

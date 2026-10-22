@@ -7,7 +7,7 @@ title: AnySummarizeAdapter
 type AnySummarizeAdapter = SummarizeAdapter<any, any>;
 ```
 
-Defined in: [packages/ai/src/activities/summarize/adapter.ts:67](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/summarize/adapter.ts#L67)
+Defined in: packages/ai/src/activities/summarize/adapter.ts:67
 
 A SummarizeAdapter with any/unknown type parameters.
 Useful as a constraint in generic functions and interfaces.

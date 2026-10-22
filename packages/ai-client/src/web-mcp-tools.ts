@@ -14,7 +14,10 @@ interface WebMCPTool {
   description: string
   inputSchema?: object
   annotations?: WebMCPToolAnnotations
-  execute: (input: object, options: { signal: AbortSignal }) => Promise<unknown>
+  execute: (
+    input: object,
+    options?: { signal?: AbortSignal },
+  ) => Promise<unknown>
 }
 
 interface WebMCPModelContext {

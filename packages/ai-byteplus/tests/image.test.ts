@@ -502,7 +502,6 @@ describe('response mapping', () => {
       completionTokens: 3888,
       totalTokens: 3888,
       billed: { quantity: 1, unit: 'images' },
-      unitsBilled: 1,
     })
   })
 
@@ -543,7 +542,6 @@ describe('response mapping', () => {
       { url: 'https://example.com/1.png' },
       { b64Json: 'QUJD' },
     ])
-    expect(result.usage?.unitsBilled).toBe(2)
     expect(result.usage?.billed).toEqual({ quantity: 2, unit: 'images' })
   })
 
@@ -824,6 +822,7 @@ describe('core generateImage() integration', () => {
   it('drives the adapter through the core entry point', async () => {
     const fetchMock = mockFetch(() => jsonResponse(successBody))
     const result = await generateImage({
+      threadId: 'thread-1',
       adapter: adapterWithFetch(fetchMock),
       // Reference images are part of the prompt at the call site: the
       // adapter's modality map has to admit image parts for this to compile.

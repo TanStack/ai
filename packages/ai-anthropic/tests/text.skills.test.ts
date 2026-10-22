@@ -43,7 +43,7 @@ describe('anthropic skills → container', () => {
     const req = adapter.mapCommonOptionsToAnthropic(
       baseOptions({
         tools: [tool],
-        modelOptions: { container: { id: 'ctr_1', skills: null } },
+        modelOptions: { container: { id: 'ctr_1' } },
       }),
     )
     expect(req.container?.id).toBe('ctr_1')

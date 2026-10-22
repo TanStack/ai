@@ -136,7 +136,7 @@ function ToolCallDisplay({
 }
 
 // Messages component for chat transcript
-function Messages({ messages }: { messages: Array<UIMessage> }) {
+function Messages({ messages }: { messages: ReadonlyArray<UIMessage> }) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -332,8 +332,9 @@ function BankingDemoPage() {
   }, [])
 
   const { messages, sendMessage, isLoading } = useChat({
+    threadId: 'banking-demo',
     connection: fetchServerSentEvents('/api/banking-demo'),
-    body,
+    forwardedProps: body,
     onCustomEvent: handleCustomEvent,
   })
 

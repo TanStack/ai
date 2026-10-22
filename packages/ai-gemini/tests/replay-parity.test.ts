@@ -58,7 +58,12 @@ const answer = () =>
 const options = (
   messages: Array<ModelMessage>,
   model = 'gemini-3.7-flash',
-): TextOptions => ({ model, messages, logger: resolveDebugOption(false) })
+): TextOptions => ({
+  threadId: 'thread-1',
+  model,
+  messages,
+  logger: resolveDebugOption(false),
+})
 const signed = (origin?: MessageSource): ModelMessage => ({
   role: 'assistant',
   content: 'Answer',
@@ -333,6 +338,7 @@ describe('Gemini replay parity', () => {
       try {
         const chunks = await collect(
           chat({
+            threadId: 'thread-1',
             adapter: new GeminiTextAdapter(
               { apiKey: 'key' },
               'gemini-3.7-flash',
@@ -687,6 +693,7 @@ describe('Gemini replay parity', () => {
     ]
     const chunks = await collect(
       chat({
+        threadId: 'thread-1',
         adapter: new GeminiTextAdapter({ apiKey: 'key' }, 'gemini-3.7-flash'),
         messages,
       }),
@@ -721,6 +728,46 @@ describe('Gemini replay parity', () => {
         chunks.find((chunk) => chunk.type === EventType.RUN_FINISHED),
       )?.responseId,
     ).toBe('interaction-real')
+  })
+
+  it('replays malformed tool arguments to the agentic API as {}', async () => {
+    mocks.interactions.mockResolvedValue({ id: 'i', output_text: 'ok' })
+    await collect(
+      chat({
+        threadId: 'thread-1',
+        adapter: new GeminiTextAdapter({ apiKey: 'key' }, 'gemini-3.7-flash'),
+        messages: [
+          {
+            role: 'assistant',
+            content: null,
+            toolCalls: [
+              {
+                id: 'call-1',
+                type: 'function',
+                function: { name: 'check', arguments: '{"a":' },
+              },
+            ],
+          },
+          { role: 'tool', toolCallId: 'call-1', content: 'bad arguments' },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'video',
+                source: { type: 'url', value: 'u', mimeType: 'video/mp4' },
+                metadata: { processing: 'agentic' },
+              },
+            ],
+          },
+        ],
+      }),
+    )
+    expect(mocks.interactions.mock.calls[0]?.[0].input).toContainEqual({
+      type: 'function_call',
+      id: 'call-1',
+      name: 'check',
+      arguments: {},
+    })
   })
 
   it('keeps API source independent across concurrent calls on one adapter', async () => {

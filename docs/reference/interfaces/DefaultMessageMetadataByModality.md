@@ -3,7 +3,7 @@ id: DefaultMessageMetadataByModality
 title: DefaultMessageMetadataByModality
 ---
 
-Defined in: [packages/ai/src/types.ts:3165](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3165)
+Defined in: packages/ai/src/types.ts:3340
 
 Default metadata type for adapters that don't define custom metadata.
 Uses unknown for all modalities.
@@ -16,7 +16,7 @@ Uses unknown for all modalities.
 audio: unknown;
 ```
 
-Defined in: [packages/ai/src/types.ts:3168](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3168)
+Defined in: packages/ai/src/types.ts:3343
 
 ***
 
@@ -26,7 +26,7 @@ Defined in: [packages/ai/src/types.ts:3168](https://github.com/TanStack/ai/blob/
 document: unknown;
 ```
 
-Defined in: [packages/ai/src/types.ts:3170](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3170)
+Defined in: packages/ai/src/types.ts:3345
 
 ***
 
@@ -36,7 +36,7 @@ Defined in: [packages/ai/src/types.ts:3170](https://github.com/TanStack/ai/blob/
 image: unknown;
 ```
 
-Defined in: [packages/ai/src/types.ts:3167](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3167)
+Defined in: packages/ai/src/types.ts:3342
 
 ***
 
@@ -46,7 +46,7 @@ Defined in: [packages/ai/src/types.ts:3167](https://github.com/TanStack/ai/blob/
 text: unknown;
 ```
 
-Defined in: [packages/ai/src/types.ts:3166](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3166)
+Defined in: packages/ai/src/types.ts:3341
 
 ***
 
@@ -56,4 +56,4 @@ Defined in: [packages/ai/src/types.ts:3166](https://github.com/TanStack/ai/blob/
 video: unknown;
 ```
 
-Defined in: [packages/ai/src/types.ts:3169](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3169)
+Defined in: packages/ai/src/types.ts:3344

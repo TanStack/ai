@@ -54,14 +54,14 @@ test.describe('anthropic — webFetchTool() streaming (#604)', () => {
     expect(toolCallStarts).toHaveLength(2)
     expect(byId(toolCallStarts, 'toolu_client_weather')).toMatchObject({
       toolCallId: 'toolu_client_weather',
-      toolName: 'lookup_weather',
+      toolCallName: 'lookup_weather',
     })
 
     // The web_fetch start is flagged provider-executed (in metadata) and
     // carries the raw server tool result the adapter replays verbatim.
     expect(byId(toolCallStarts, 'srvtoolu_web_fetch')).toMatchObject({
       toolCallId: 'srvtoolu_web_fetch',
-      toolName: 'web_fetch',
+      toolCallName: 'web_fetch',
       metadata: {
         providerExecuted: true,
         anthropic: { resultBlockType: 'web_fetch_tool_result' },

@@ -160,8 +160,7 @@ expectTypeOf<BoundInterrupts<Tools>>().toEqualTypeOf<
 
 declare const client: ChatClient<Tools>
 client.updateOptions({
-  onInterruptStateChange: (state, context) => {
-    expectTypeOf(state.interrupts).toEqualTypeOf(state.pendingInterrupts)
+  onInterruptStateChange: (_state, context) => {
     expectTypeOf(context.source).toEqualTypeOf<'hydrate' | 'live'>()
   },
 })

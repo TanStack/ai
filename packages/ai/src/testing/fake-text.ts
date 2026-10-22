@@ -224,7 +224,7 @@ export class FakeTextAdapter<
     // chat() passes the run's signal as `request.signal`.
     const signal = options.request?.signal ?? options.abortController?.signal
     const runId = options.runId ?? `fake-run-${this.state.callCount + 1}`
-    const threadId = options.threadId ?? 'fake-thread'
+    const threadId = options.threadId
     const model = this.model
     const response = await this.nextResponse(options)
     yield {
@@ -312,7 +312,6 @@ export class FakeTextAdapter<
         type: EventType.TOOL_CALL_START,
         toolCallId,
         toolCallName: call.name,
-        toolName: call.name,
         model,
         timestamp: Date.now(),
         index,

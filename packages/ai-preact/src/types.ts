@@ -54,7 +54,7 @@ export type {
  * All other callbacks (onResponse, onChunk, onFinish, onError) are
  * passed through to the underlying ChatClient and can be used for side effects.
  *
- * Note: Connection and body changes will recreate the ChatClient instance.
+ * Note: Connection changes will recreate the ChatClient instance.
  * To update these options, remount the component or use a key prop.
  */
 export type UseChatOptions<
@@ -98,7 +98,7 @@ export interface UseChatReturn<
   /**
    * Current messages in the conversation
    */
-  messages: Array<UIMessage<TTools>>
+  messages: ReadonlyArray<UIMessage<TTools>>
 
   /**
    * Send a message and get a response.
@@ -114,7 +114,7 @@ export interface UseChatReturn<
   /**
    * Pending messages queued while a stream is in flight.
    */
-  queue: Array<QueuedMessage>
+  queue: ReadonlyArray<QueuedMessage>
 
   /**
    * Cancel a queued message before it drains. No-op if already sent.
@@ -138,14 +138,6 @@ export interface UseChatReturn<
   }) => Promise<void>
 
   /**
-   * Respond to a tool approval request
-   */
-  addToolApprovalResponse: (response: {
-    id: string // approval.id, not toolCallId
-    approved: boolean
-  }) => Promise<void>
-
-  /**
    * The id of the run this client has in flight — one it started or rejoined —
    * or `null` when there is none (including while a run sits paused on an
    * interrupt, waiting on approval).
@@ -158,8 +150,6 @@ export interface UseChatReturn<
    */
   runId: string | null
   interrupts: BoundInterrupts<TTools, TInterrupts>
-  /** @deprecated Use `interrupts`. */
-  pendingInterrupts: BoundInterrupts<TTools, TInterrupts>
   interruptErrors: ChatInterruptState<TTools, TInterrupts>['interruptErrors']
   resuming: boolean
   resolveInterrupts: {
@@ -173,11 +163,6 @@ export interface UseChatReturn<
   cancelInterrupts: () => void
   retryInterrupts: () => void
   resumeInterruptsUnsafe: (
-    resume: Array<RunAgentResumeItem>,
-    state?: ChatResumeState,
-  ) => Promise<boolean>
-  /** @deprecated Use bound interrupt methods or `resumeInterruptsUnsafe`. */
-  resumeInterrupts: (
     resume: Array<RunAgentResumeItem>,
     state?: ChatResumeState,
   ) => Promise<boolean>
@@ -215,7 +200,7 @@ export interface UseChatReturn<
   /**
    * Set messages manually
    */
-  setMessages: (messages: Array<UIMessage<TTools>>) => void
+  setMessages: (messages: ReadonlyArray<UIMessage<TTools>>) => void
 
   /**
    * Clear all messages

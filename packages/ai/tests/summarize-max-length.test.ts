@@ -40,6 +40,7 @@ describe('ChatStreamSummarizeAdapter — maxLength reaches the wrapped adapter u
     )
 
     await adapter.summarize({
+      threadId: 'thread-1',
       model: 'gpt-4o-mini',
       text: 'hi',
       maxLength: 128,
@@ -64,6 +65,7 @@ describe('ChatStreamSummarizeAdapter — maxLength reaches the wrapped adapter u
     )
 
     await adapter.summarize({
+      threadId: 'thread-1',
       model: 'claude-sonnet-4-5',
       text: 'hi',
       maxLength: 200,
@@ -79,12 +81,13 @@ describe('ChatStreamSummarizeAdapter — maxLength reaches the wrapped adapter u
     const { textAdapter, lastModelOptions } = createRecordingTextAdapter()
     const adapter = new ChatStreamSummarizeAdapter(
       textAdapter,
-      'llama-3.3-70b-versatile',
+      'openai/gpt-oss-120b',
       'groq',
     )
 
     await adapter.summarize({
-      model: 'llama-3.3-70b-versatile',
+      threadId: 'thread-1',
+      model: 'openai/gpt-oss-120b',
       text: 'hi',
       maxLength: 256,
       logger,
@@ -104,6 +107,7 @@ describe('ChatStreamSummarizeAdapter — maxLength reaches the wrapped adapter u
     )
 
     await adapter.summarize({
+      threadId: 'thread-1',
       model: 'mistral',
       text: 'hi',
       maxLength: 64,
@@ -129,6 +133,7 @@ describe('ChatStreamSummarizeAdapter — maxLength reaches the wrapped adapter u
     )
 
     await adapter.summarize({
+      threadId: 'thread-1',
       model: 'gpt-4o-mini',
       text: 'hi',
       maxLength: 128,
@@ -179,6 +184,7 @@ describe('ChatStreamSummarizeAdapter — maxLength reaches the wrapped adapter u
     })
 
     await adapter.summarize({
+      threadId: 'thread-1',
       model: 'some-model',
       text: 'hi',
       maxLength: 128,
@@ -211,6 +217,7 @@ describe('ChatStreamSummarizeAdapter — maxLength reaches the wrapped adapter u
           maxLength: 73,
           modelOptions,
           logger,
+          threadId: 'thread-1',
         }
 
         if (stream) {

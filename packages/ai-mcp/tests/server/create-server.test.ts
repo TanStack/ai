@@ -3,7 +3,10 @@ import {
   StreamableHTTPClientTransport,
 } from '@modelcontextprotocol/client'
 import { OAuthError, OAuthErrorCode } from '@modelcontextprotocol/server'
-import type { OAuthTokenVerifier } from '@modelcontextprotocol/server'
+import type {
+  McpServer,
+  OAuthTokenVerifier,
+} from '@modelcontextprotocol/server'
 import { toolDefinition } from '@tanstack/ai'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
@@ -1314,6 +1317,152 @@ describe('createMCPServer', () => {
     )
   })
 
+  it('serves an extension that setup registers, on spec 2026 and spec 2025', async () => {
+    const cases = [
+      { era: '2026', sessions: 'stateless' },
+      { era: '2025', sessions: 'stateless' },
+      { era: '2025', sessions: 'memory' },
+    ] as const
+    for (const { era, sessions } of cases) {
+      const server = createMCPServer({
+        name: 'greeter',
+        version: '1.0.0',
+        sessions,
+        tools: [echoTool()],
+        setup: (built) => {
+          built.server.registerCapabilities({
+            extensions: { 'com.example/greetings': {} },
+          })
+          built.server.setRequestHandler(
+            'greetings/get',
+            { params: z.object({ name: z.string() }) },
+            ({ name }) => ({ text: `Hello, ${name}` }),
+          )
+        },
+      })
+      await withClient(server, { era }, async (client) => {
+        expect(client.getServerCapabilities()?.extensions).toEqual({
+          'com.example/greetings': {},
+        })
+        const greet = () =>
+          client.request(
+            { method: 'greetings/get', params: { name: 'Ada' } },
+            z.object({ text: z.string() }),
+          )
+        expect(await greet()).toEqual({ text: 'Hello, Ada' })
+        // A memory session answers the second call from the same server.
+        expect(await greet()).toEqual({ text: 'Hello, Ada' })
+        const listed = await client.listTools()
+        expect(listed.tools.map((tool) => tool.name)).toEqual(['echo'])
+      })
+    }
+  })
+
+  it('reports a setup that throws or is async to onerror, in every session mode', async () => {
+    const setups = [
+      () => {
+        throw new Error('setup failed')
+      },
+      async () => {},
+    ]
+    for (const setup of setups) {
+      for (const sessions of ['stateless', 'memory'] as const) {
+        const onerror = vi.fn()
+        const server = createMCPServer({
+          name: 'broken',
+          version: '1.0.0',
+          sessions,
+          onerror,
+          setup,
+        })
+
+        const response = await server.fetch(initializeRequest('any'))
+        expect(response.status).toBe(500)
+        expect(onerror).toHaveBeenCalledWith(expect.any(Error))
+      }
+    }
+  })
+
+  it('gives setup the context of the request that builds the server', async () => {
+    const server = createMCPServer({
+      name: 'tenants',
+      version: '1.0.0',
+      sessions: 'stateless',
+      setup: (built, context) => {
+        built.server.registerCapabilities({
+          extensions: { 'com.example/tenant': {} },
+        })
+        built.server.setRequestHandler(
+          'tenant/get',
+          { params: z.object({}) },
+          () => ({ tenant: context?.tenant }),
+        )
+      },
+    })
+    const tenantResult = z.object({ tenant: z.string() })
+    for (const tenant of ['acme', 'globex']) {
+      await withClient(
+        server,
+        { era: '2026', handleOptions: { context: { tenant } } },
+        async (client) => {
+          const answer = await client.request(
+            { method: 'tenant/get', params: {} },
+            tenantResult,
+          )
+          expect(answer).toEqual({ tenant })
+        },
+      )
+    }
+  })
+
+  it('keeps the opening context on a spec 2025 memory session', async () => {
+    const setup = vi.fn(
+      (built: McpServer, context: Record<string, unknown> | undefined) => {
+        built.server.registerCapabilities({
+          extensions: { 'com.example/tenant': {} },
+        })
+        built.server.setRequestHandler(
+          'tenant/get',
+          { params: z.object({}) },
+          () => ({ tenant: context?.tenant }),
+        )
+      },
+    )
+    const server = createMCPServer({
+      name: 'tenants',
+      version: '1.0.0',
+      sessions: 'memory',
+      tools: [
+        toolDefinition({
+          name: 'tenant',
+          description: 'Reports the tenant',
+          inputSchema: z.object({}),
+        }).server<MCPToolContext<{ tenant: string }>>(
+          async (_args, ctx) => ctx.context.tenant,
+        ),
+      ],
+      setup,
+    })
+    const handleOptions: MCPHandleOptions = { context: { tenant: 'acme' } }
+    await withClient(server, { era: '2025', handleOptions }, async (client) => {
+      const opened = await client.request(
+        { method: 'tenant/get', params: {} },
+        z.object({ tenant: z.string() }),
+      )
+      expect(opened).toEqual({ tenant: 'acme' })
+      handleOptions.context = { tenant: 'globex' }
+      const resumed = await client.request(
+        { method: 'tenant/get', params: {} },
+        z.object({ tenant: z.string() }),
+      )
+      expect(resumed).toEqual({ tenant: 'acme' })
+      const called = await client.callTool({ name: 'tenant', arguments: {} })
+      expect(called.content).toEqual([{ type: 'text', text: 'globex' }])
+    })
+    expect(setup).toHaveBeenCalledTimes(1)
+    expect(setup).toHaveBeenCalledWith(expect.anything(), { tenant: 'acme' })
+  })
+
   it('reports SDK errors to onerror', async () => {
     const onerror = vi.fn()
     const server = createMCPServer({
@@ -1588,6 +1737,33 @@ describe('createMCPServer', () => {
         },
       )
     }
+  })
+
+  it('reads a uri template with its variables and the MIME type of the body', async () => {
+    const server = createMCPServer({
+      name: 'files',
+      version: '1.0.0',
+      resources: [
+        resourceDefinition({
+          uriTemplate: 'media://{folder}/{id}',
+          name: 'media',
+          mimeType: 'application/octet-stream',
+          argsSchema: z.object({ folder: z.string(), id: z.string() }),
+        }).read(async (_uri, { folder, id }) => ({
+          blob: btoa(`${folder}/${id}`),
+          mimeType: 'image/png',
+        })),
+      ],
+    })
+
+    await withClient(server, { era: '2026' }, async (client) => {
+      const read = await client.readResource({ uri: 'media://cats/7' })
+      expect(read.contents[0]).toEqual({
+        uri: 'media://cats/7',
+        mimeType: 'image/png',
+        blob: btoa('cats/7'),
+      })
+    })
   })
 
   it('keeps assistant prompt messages and drops invalid ones', async () => {

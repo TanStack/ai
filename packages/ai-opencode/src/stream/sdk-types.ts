@@ -56,17 +56,30 @@ export type OpencodeToolState =
  * the `is*Part` type guards, so those kinds simply match no guard.
  */
 export type OpencodePart =
-  | { id: string; sessionID?: string; type: 'text'; text: string }
-  | { id: string; sessionID?: string; type: 'reasoning'; text: string }
   | {
       id: string
       sessionID?: string
+      messageID: string
+      type: 'text'
+      text: string
+    }
+  | {
+      id: string
+      sessionID?: string
+      messageID: string
+      type: 'reasoning'
+      text: string
+    }
+  | {
+      id: string
+      sessionID?: string
+      messageID: string
       type: 'tool'
       callID: string
       tool: string
       state: OpencodeToolState
     }
-  | { id: string; sessionID?: string; type: string }
+  | { id: string; sessionID?: string; messageID: string; type: string }
 
 /**
  * The OpenCode events the translator understands. This is a closed
@@ -81,7 +94,9 @@ export type OpencodeEvent =
     }
   | {
       type: 'message.updated'
-      properties: { info: { sessionID?: string } }
+      properties: {
+        info: { id: string; sessionID?: string; role: 'user' | 'assistant' }
+      }
     }
   | { type: 'session.idle'; properties: { sessionID: string } }
   | {

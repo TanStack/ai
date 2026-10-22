@@ -49,6 +49,7 @@ function WebMCPPageToolsPage() {
     },
   })
   const { messages, sendMessage } = useChat({
+    threadId: 'web-mcp-page-tools',
     connection,
     tools: pageTools,
     forwardedProps: { testId },

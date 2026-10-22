@@ -1,5 +1,6 @@
 import { test, expect } from './fixtures'
 import {
+  collectHydrationErrors,
   sendMessage,
   waitForResponse,
   getLastAssistantMessage,
@@ -281,6 +282,8 @@ test.describe('openai chat persistence', () => {
       'Fender Stratocaster',
     )
 
+    const hydrationErrors = collectHydrationErrors(page)
+
     await page.reload()
 
     await expect(page.getByTestId('user-message')).toContainText(
@@ -289,6 +292,7 @@ test.describe('openai chat persistence', () => {
     await expect(page.getByTestId('assistant-message')).toContainText(
       'Fender Stratocaster',
     )
+    expect(hydrationErrors).toEqual([])
   })
 
   test('clear() removes the persisted conversation so a reload starts empty', async ({
@@ -316,6 +320,36 @@ test.describe('openai chat persistence', () => {
     await expect(page.getByTestId('message-list')).toBeVisible()
     await expect(page.getByTestId('user-message')).toHaveCount(0)
     await expect(page.getByTestId('assistant-message')).toHaveCount(0)
+  })
+
+  test('setMessages() takes the frozen messages back and the chat keeps working', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await page.goto(
+      `${featureUrl('openai', 'chat', testId, aimockPort)}&persistence=localStorage`,
+    )
+    const pageErrors: Array<string> = []
+    page.on('pageerror', (error) => pageErrors.push(error.message))
+
+    await sendMessage(page, '[chat] recommend a guitar')
+    await waitForResponse(page)
+
+    // Pass the hook's own frozen `messages` array straight back in.
+    await page.getByTestId('set-messages-button').click()
+    await expect(page.getByTestId('user-message')).toHaveCount(1)
+    await expect(page.getByTestId('assistant-message')).toContainText(
+      'Fender Stratocaster',
+    )
+
+    await sendMessage(page, '[per-call-body] send with per-call body')
+    await waitForResponse(page)
+    await expect(page.getByTestId('user-message')).toHaveCount(2)
+    await expect(page.getByTestId('assistant-message').last()).toContainText(
+      'Acknowledged the per-call body send.',
+    )
+    expect(pageErrors).toEqual([])
   })
 
   test('switches per-thread history when the chat id changes in place', async ({

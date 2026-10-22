@@ -1,12 +1,13 @@
 import { act, renderHook } from '@octanejs/testing-library'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
+  RealtimeAdapter,
+  RealtimeConnection,
   RealtimeEvent,
   RealtimeEventPayloads,
   RealtimeToken,
   UsageInfo,
 } from '@tanstack/ai'
-import type { RealtimeAdapter, RealtimeConnection } from '@tanstack/ai-client'
 import { useRealtimeChat } from '../../src/use-realtime-chat.tsrx'
 import type { UseRealtimeChatOptions } from '../../src/realtime-types'
 

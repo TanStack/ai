@@ -70,10 +70,6 @@ fn sseEvent(allocator: std.mem.Allocator, payload: anytype) ![]u8 {
     return std.fmt.allocPrint(allocator, "data: {s}\n\n", .{json});
 }
 
-pub fn sseDone(allocator: std.mem.Allocator) ![]u8 {
-    return try allocator.dupe(u8, "data: [DONE]\n\n");
-}
-
 pub fn runStarted(allocator: std.mem.Allocator, thread_id: []const u8, run_id: []const u8) ![]u8 {
     return sseEvent(allocator, .{
         .type = "RUN_STARTED",

@@ -4,6 +4,7 @@ import { createMistralText } from '../src'
 const messages = [{ role: 'user' as const, content: 'hi' }]
 
 chat({
+  threadId: 'thread-1',
   adapter: createMistralText('mistral-small-latest', 'k'),
   messages,
   reasoning: 'off',

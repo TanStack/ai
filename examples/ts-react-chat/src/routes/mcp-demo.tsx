@@ -135,7 +135,7 @@ function ToolResultView({ part }: { part: ToolResultPart }) {
   )
 }
 
-function Messages({ messages }: { messages: Array<UIMessage> }) {
+function Messages({ messages }: { messages: ReadonlyArray<UIMessage> }) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
   const visibleMessages = messages.filter((message) =>
@@ -255,7 +255,7 @@ function ChatSurface({
     connection: fetchServerSentEvents(endpoint),
     // `provider` is forwarded to the route (AG-UI forwardedProps); the route
     // resolves it to the matching text adapter. MCP works the same regardless.
-    body: { provider },
+    forwardedProps: { provider },
   })
 
   const [input, setInput] = useState('')

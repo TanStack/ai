@@ -338,7 +338,7 @@ export class MistralTextAdapter<
 
     const aguiState = {
       runId: options.runId ?? generateId(this.name),
-      threadId: options.threadId ?? generateId(this.name),
+      threadId: options.threadId,
       messageId: generateId(this.name),
       timestamp,
       hasEmittedRunStarted: false,
@@ -695,7 +695,6 @@ export class MistralTextAdapter<
                 type: 'TOOL_CALL_START',
                 toolCallId: toolCall.id,
                 toolCallName: toolCall.name,
-                toolName: toolCall.name,
                 model: chunkModel,
                 timestamp,
                 index,
@@ -747,9 +746,9 @@ export class MistralTextAdapter<
                 type: 'TOOL_CALL_END',
                 toolCallId: toolCall.id,
                 toolCallName: toolCall.name,
-                toolName: toolCall.name,
                 model: chunkModel,
                 timestamp,
+                args: toolCall.arguments,
                 input: parsedInput,
               })
             }
@@ -834,16 +833,19 @@ export class MistralTextAdapter<
         }
         for (const [, toolCall] of toolCallsInProgress) {
           if (toolCall.started && !toolCall.ended) {
+            // Parse before marking ended, so a parse error still lets the
+            // catch below send TOOL_CALL_END with the raw args.
+            const parsedInput = parseToolCallInput(toolCall, normalizeToolInput)
             toolCall.ended = true
             hasEmittedToolCall = true
             yield asChunk({
               type: 'TOOL_CALL_END',
               toolCallId: toolCall.id,
               toolCallName: toolCall.name,
-              toolName: toolCall.name,
               model: lastChunkModel,
               timestamp,
-              input: parseToolCallInput(toolCall, normalizeToolInput),
+              args: toolCall.arguments,
+              input: parsedInput,
             })
           }
         }
@@ -900,9 +902,9 @@ export class MistralTextAdapter<
       for (const [, toolCall] of toolCallsInProgress) {
         if (toolCall.started && !toolCall.ended) {
           toolCall.ended = true
-          // Best-effort parse for the partial args; if invalid, surface
-          // empty input rather than throwing inside the cleanup path.
-          let partialInput: unknown = {}
+          // Best-effort parse for the partial args. If invalid, leave input
+          // out and send the raw args, so core reports the parse error.
+          let partialInput: unknown
           try {
             partialInput = toolCall.arguments
               ? normalizeToolInput(
@@ -911,16 +913,16 @@ export class MistralTextAdapter<
                 )
               : {}
           } catch {
-            partialInput = {}
+            partialInput = undefined
           }
           yield asChunk({
             type: 'TOOL_CALL_END',
             toolCallId: toolCall.id,
             toolCallName: toolCall.name,
-            toolName: toolCall.name,
             model: lastChunkModel,
             timestamp,
-            input: partialInput,
+            args: toolCall.arguments,
+            ...(partialInput !== undefined && { input: partialInput }),
           })
         }
       }

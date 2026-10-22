@@ -5,6 +5,7 @@ const messages = [{ role: 'user' as const, content: 'hi' }]
 const config = { accountId: 'a', apiKey: 'k' }
 
 chat({
+  threadId: 'thread-1',
   adapter: createCloudflareText('@cf/zai-org/glm-5.3', config),
   messages,
   reasoning: 'max',

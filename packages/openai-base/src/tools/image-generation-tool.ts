@@ -9,9 +9,6 @@ type ImageGenerationToolConfig = SDKTool.ImageGeneration
 
 export type { ImageGenerationToolConfig }
 
-/** @deprecated Renamed to `ImageGenerationToolConfig`. Will be removed in a future release. */
-export type ImageGenerationTool = ImageGenerationToolConfig
-
 const validatePartialImages = (value: number | undefined) => {
   if (value !== undefined && (value < 0 || value > 3)) {
     throw new Error('partial_images must be between 0 and 3')

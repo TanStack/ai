@@ -3,7 +3,7 @@ id: ChunkStrategy
 title: ChunkStrategy
 ---
 
-Defined in: [packages/ai/src/activities/chat/stream/types.ts:38](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/types.ts#L38)
+Defined in: packages/ai/src/activities/chat/stream/types.ts:38
 
 Strategy for determining when to emit text updates
 
@@ -15,7 +15,7 @@ Strategy for determining when to emit text updates
 optional reset?: () => void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/types.ts:50](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/types.ts#L50)
+Defined in: packages/ai/src/activities/chat/stream/types.ts:50
 
 Optional: Reset strategy state (called when streaming starts)
 
@@ -31,7 +31,7 @@ Optional: Reset strategy state (called when streaming starts)
 shouldEmit: (chunk, accumulated) => boolean;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/types.ts:45](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/types.ts#L45)
+Defined in: packages/ai/src/activities/chat/stream/types.ts:45
 
 Called for each text chunk received
 

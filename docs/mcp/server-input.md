@@ -2,7 +2,7 @@
 title: Ask for Input
 id: mcp-server-input
 order: 13
-description: "Ask the user for a value inside an MCP server tool with requestInput."
+description: "Ask the user for a value inside an MCP server tool with requestInput, for example a yes before a delete."
 keywords:
   - tanstack ai
   - mcp
@@ -13,9 +13,17 @@ keywords:
   - MCPToolContext
 ---
 
-Before your tool deletes a file, your tool must get a confirmation from the user. Call `requestInput` on `ctx.context` for that confirmation.
+An MCP tool can stop and ask the user before it runs. Use that when the tool deletes a file or sends data.
 
-`ctx` is the second argument of the function you pass to `.server()`. Give `.server()` the type `MCPToolContext`, so `ctx.context.requestInput` type-checks.
+Call `ctx.context.requestInput` inside the tool. The host shows your message to the user, and the call returns the answer.
+
+## Quick setup
+
+You need an MCP server first. If you do not have one, start with [Serve Tools over HTTP](./server).
+
+1. Give `.server()` the type `MCPToolContext`, so `ctx.context.requestInput` type-checks.
+2. Call `requestInput` with the message for the user.
+3. Act on the answer.
 
 ```ts
 import { toolDefinition } from '@tanstack/ai'
@@ -52,22 +60,33 @@ export function fetch(request: Request) {
 }
 ```
 
-`requestInput` returns the string that the user sends.
+If the user sends `yes`, the tool returns `Deleted` plus the file path. Any other answer returns `Kept` plus the path.
 
-If the user declines or cancels, `requestInput` throws an Error. The tool call then ends with a tool error.
+## How it works
 
-## Spec 2025 and spec 2026
+- `ctx` is the second argument of the function that you pass to `.server()`.
+- `requestInput` returns the string that the user sends.
+- If the user declines or cancels, `requestInput` throws an Error. The tool call then ends with a tool error.
 
-On spec 2025, `requestInput` needs `sessions: 'memory'`. It waits on the open session, and the same tool call then continues with the answer. Without a session, it throws. See [MCP Server Sessions](./server-sessions).
+A TanStack `chat()` host pauses on the request and shows it to the user. [MCP Client Input](../tools/mcp-input) shows how the user answers.
 
-On spec 2026, the handler returns `input_required`. Then the client runs the tool again with the answer. On spec 2026, the code before `requestInput` runs on each call, so it can run more than once.
+## Advanced
 
-If the work must run once, put that work after `requestInput` returns.
+### Spec 2025 and spec 2026
 
-On spec 2026, a tool asks one question per call. A second `requestInput` in the same call throws an Error. To ask two questions, use two tools.
+The two MCP spec versions ask for input in different ways.
 
-A TanStack `chat()` host pauses on `input_required` and shows the request to the user. [MCP Client Input](../tools/mcp-input) shows how the user answers.
+On spec 2025:
+
+- `requestInput` needs `sessions: 'memory'`. Without a session, it throws. See [MCP Server Sessions](./server-sessions).
+- `requestInput` waits on the open session. The same tool call then continues with the answer.
+
+On spec 2026:
+
+- The handler returns `input_required`. Then the client runs the tool again with the answer.
+- The code before `requestInput` runs on each call, so it can run more than once. If work must run once, put it after `requestInput` returns.
+- A tool asks one question per call. A second `requestInput` in the same call throws an Error. To ask two questions, use two tools.
+
+### Task tools
 
 `requestInput` does not work in an `execution: 'task'` tool. [MCP Server Tasks](./server-tasks) has the details.
-
-If the user sends `yes`, the tool returns `Deleted` plus the file path.

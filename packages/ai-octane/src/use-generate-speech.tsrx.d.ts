@@ -18,8 +18,8 @@ export interface UseGenerateSpeechOptions<TOutput = TTSResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for speech generation */
   fetcher?: GenerationFetcher<SpeechGenerateInput, TTSResult>
-  /** Unique identifier for this generation instance */
-  id?: string
+  /** Stable scope for this generation. Also the wire and DevTools identity. */
+  threadId: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
@@ -70,6 +70,7 @@ export interface UseGenerateSpeechReturn<TOutput = TTSResult> {
  *
  * function SpeechGenerator() {
  *   const { generate, result, isLoading } = useGenerateSpeech({
+ *     threadId: 'welcome-speech',
  *     connection: fetchServerSentEvents('/api/generate/speech'),
  *   })
  *

@@ -2,7 +2,7 @@
 title: Chat UI recipes
 id: ui-recipes
 order: 0
-description: "Five small React chat UIs, each one thing at a time: a plain chat box, a formatted tool, an approval, a custom interrupt, and per-request context."
+description: "Five small React chat UIs that each add one thing: a plain chat box, a formatted tool, an approval, a custom question, and per-request context."
 keywords:
   - tanstack ai
   - createChatHook
@@ -10,16 +10,19 @@ keywords:
   - examples
 ---
 
-Five short examples. Each one adds a single thing to the one before it.
+Each recipe is one complete example. Each one adds a single piece to the recipe before it.
 
-Start with the first if you have not built a chat here yet.
+If you have not built a chat UI here yet, start with the first one.
 
-1. [A chat box with no tools](./basic-chat). A layout, a message, and a text part. Nothing else.
-2. [Make a tool look right](./format-a-tool). Register one tool and branch on its state, so it never shows raw JSON.
-3. [Ask before a tool runs](./tool-approval). Gate a tool behind a yes or no, next to the tool or in a list.
-4. [Ask the user your own question](./custom-interrupt). Define an interrupt with your own schemas and render it.
-5. [Send the current user to the server](./request-context). Pass a tenant or user id per request, out of the prompt.
+1. [A chat box with no tools](./basic-chat): a layout, a message, and a text part.
+2. [Make a tool look right](./format-a-tool): one tool that shows progress, never raw JSON.
+3. [Ask before a tool runs](./tool-approval): a yes or no gate, next to the tool or in a list.
+4. [Ask the user your own question](./custom-interrupt): an interrupt with your own schemas.
+5. [Send the current user to the server](./request-context): a tenant or user id on each request, kept out of the prompt.
 
-The code is React. The [Solid](../solid), [Vue](../vue), [Svelte](../svelte), and [Remix](../remix) guides use the same option groups and the same component names, so each example maps across with only the framework syntax changing.
+The code is React. The other framework pages use the same option names and component names. Only the framework syntax changes:
 
-For the full component map in one place, see the [React guide](../react).
+- [Solid](../solid), [Vue](../vue), [Svelte](../svelte)
+- [Preact](../preact), [Octane](../octane), [Remix](../remix), [Angular](../angular)
+
+For every widget slot in one table, read [Every widget slot](../react#every-widget-slot).

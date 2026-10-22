@@ -40,10 +40,14 @@ async function drain(iterable: AsyncIterable<unknown>) {
 describe('anthropic file content source', () => {
   it('maps an anthropic file handle to a file_id source and sends the Files beta', async () => {
     mockEmptyStream()
-    const adapter = new AnthropicTextAdapter({ apiKey: 'k' }, 'claude-opus-4-1')
+    const adapter = new AnthropicTextAdapter(
+      { apiKey: 'k' },
+      'claude-sonnet-4-5',
+    )
 
     await drain(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           {
@@ -76,10 +80,14 @@ describe('anthropic file content source', () => {
 
   it('errors when a foreign provider file handle reaches the anthropic adapter', async () => {
     mockEmptyStream()
-    const adapter = new AnthropicTextAdapter({ apiKey: 'k' }, 'claude-opus-4-1')
+    const adapter = new AnthropicTextAdapter(
+      { apiKey: 'k' },
+      'claude-sonnet-4-5',
+    )
 
     const chunks: Array<StreamChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {

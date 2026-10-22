@@ -6,7 +6,6 @@ import {
   useChat,
   usePageWebMCPTools,
   useRegisterWebMCPTools,
-  useWebMCPTools,
 } from '../src/index'
 import { createMockConnectionAdapter } from './test-utils'
 import type { UseRegisterWebMCPToolsOptions } from '../src/index'
@@ -144,12 +143,6 @@ describe('useRegisterWebMCPTools (Solid)', () => {
   })
 })
 
-describe('useWebMCPTools (Solid)', () => {
-  it('is a deprecated alias of useRegisterWebMCPTools', () => {
-    expect(useWebMCPTools).toBe(useRegisterWebMCPTools)
-  })
-})
-
 function installPageTools(names: Array<string>) {
   const target = new EventTarget()
   const modelContext = {
@@ -184,6 +177,7 @@ describe('usePageWebMCPTools (Solid)', () => {
         filter: (tool) => tool.name !== 'blocked',
       })
       const chat = useChat({
+        threadId: 'thread-1',
         connection: createMockConnectionAdapter(),
         get tools() {
           return pageTools()

@@ -7,7 +7,7 @@ title: resumeWebSocketStream
 function resumeWebSocketStream<TOffset>(socket, options): void;
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:307](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L307)
+Defined in: packages/ai/src/stream-to-websocket.ts:307
 
 Read-only replay of a run's durability log over a socket (mirrors
 `resumeServerSentEventsResponse`). The adapter captures the offset from the

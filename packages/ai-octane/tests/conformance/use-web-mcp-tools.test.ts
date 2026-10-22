@@ -5,7 +5,6 @@ import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import {
   usePageWebMCPTools,
   useRegisterWebMCPTools,
-  useWebMCPTools,
 } from '../../src/use-web-mcp-tools.tsrx'
 import type { AnyClientTool } from '@tanstack/ai/client'
 import type { UseRegisterWebMCPToolsOptions } from '../../src/use-web-mcp-tools.tsrx'
@@ -201,12 +200,6 @@ describe('useRegisterWebMCPTools', () => {
       })
     }
     void checkCalls
-  })
-})
-
-describe('useWebMCPTools', () => {
-  it('is a deprecated alias of useRegisterWebMCPTools', () => {
-    expect(useWebMCPTools).toBe(useRegisterWebMCPTools)
   })
 })
 

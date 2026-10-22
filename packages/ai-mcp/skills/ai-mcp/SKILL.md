@@ -11,12 +11,14 @@ library: tanstack-ai
 library_version: '0.2.5'
 sources:
   - 'TanStack/ai:docs/tools/mcp.md'
+  - 'TanStack/ai:docs/tools/mcp-events.md'
   - 'TanStack/ai:packages/ai-mcp/src/client.ts'
   - 'TanStack/ai:packages/ai-mcp/src/pool.ts'
   - 'TanStack/ai:packages/ai-mcp/src/resources.ts'
   - 'TanStack/ai:packages/ai-mcp/src/transport.ts'
   - 'TanStack/ai:packages/ai-mcp/src/server/create-server.ts'
   - 'TanStack/ai:packages/ai-mcp/src/server/stdio.ts'
+  - 'TanStack/ai:packages/ai-mcp/src/events/index.ts'
 ---
 
 # `@tanstack/ai-mcp`
@@ -54,6 +56,7 @@ The package has these subpaths:
 - `./server` exports `createMCPServer`.
 - `./server/stdio` exports `serveMCPStdio`.
 - `./apps` exports `createMcpAppCallHandler`.
+- `./events` exports `createMCPEventWebhook`, `inMemoryMCPEventStore`, and `createMCPEventSecret` (experimental MCP Events / SEP-3415).
 
 Import `./stdio` and `./server/stdio` only from Node code.
 Those entries use Node I/O.
@@ -236,6 +239,7 @@ Use the MCP names: `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWor
 A host skips its confirmation for a tool with `readOnlyHint: true`.
 Set `metadata._meta` to send the MCP tool `_meta`, for example `{ ui: { resourceUri: 'ui://view' } }` for an MCP Apps view.
 Pass `onerror` to `createMCPServer` to log transport and protocol errors from the SDK. `serveMCPStdio` also sends its transport errors there.
+Pass `setup: (server, context) => {}` to `createMCPServer` to change each SDK `McpServer` before it connects. It must be synchronous. `context` is the `handle` context of the request that builds the server. A spec 2025 session with `sessions: 'memory'` keeps the context of the request that opened the session. Serve an MCP extension there: `server.server.registerCapabilities({ extensions: { [id]: {} } })`, then `server.server.setRequestHandler(method, { params }, handler)` for each method.
 
 A tool with no `outputSchema` can return an MCP `CallToolResult`.
 The server sends it as is: its content blocks, its `structuredContent`, and its `isError`.
@@ -297,6 +301,31 @@ If the server does not support that spec, the client uses the 2025 initialize ha
 The client keeps negotiation mode `auto`.
 `client.instructions` holds the server's instructions from the handshake, or `undefined` when the server sends none.
 Put them in the system prompt: `systemPrompts: client.instructions ? [client.instructions] : []`.
+`client.request` takes the same arguments as the SDK `Client.request`, with the client's `requestOptions`. Use it for an MCP extension method: check `client.capabilities.extensions`, then pass the request and a result schema.
+`client.getDiscoverResult()` returns the protocol `2026-07-28` `server/discover` result. Pass it back as `prior: { kind: 'modern', discover }` to `createMCPClient` to skip that request. Key the saved result by user or token, and expire it yourself. With `prior`, connect sends no request, so auth and reachability errors show up on the first call.
+
+Two more client options:
+
+- `toolName: (tool) => string` sets the name the model sees. It wins over
+  `prefix`. `metadata.mcp.serverToolName` keeps the server's name, so
+  `callTool()` and MCP Apps widget calls still reach the tool. Two tools with
+  the same final name throw `DuplicateToolNameError`.
+- `requestOptions: { timeout, resetTimeoutOnProgress }` is sent with the
+  connect handshake, tool lists, tool calls, resource requests, and prompt
+  requests. The `subscriptions/listen` stream and task status polls keep
+  the SDK defaults. `timeout` is in milliseconds (SDK default 60,000). A
+  spec 2026 `tools/call` gets no progress notifications, so there only
+  `timeout` applies.
+
+```typescript
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const client = await createMCPClient({
+  transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+  toolName: (tool) => `mcp__weather__${tool.name}`,
+  requestOptions: { timeout: 120_000, resetTimeoutOnProgress: true },
+})
+```
 
 ### Transports
 
@@ -396,7 +425,10 @@ Import `StreamableHTTPClientTransport` from `@modelcontextprotocol/client`.
 ### Mode 1 — Auto-discovery (no types needed)
 
 `client.tools()` lists every tool the server exposes. Args are typed `unknown`
-at compile time but the tool's JSON Schema is forwarded to the LLM.
+at compile time but the tool's JSON Schema is forwarded to the LLM. A schema
+without `properties` gets `properties: {}`, and a schema without `type` gets
+`type: 'object'`. `tool.metadata.mcp.annotations` is a frozen copy of the
+server's annotations.
 
 ```typescript
 import { chat } from '@tanstack/ai'
@@ -413,6 +445,7 @@ const tools = await client.tools()
 const stream = chat({
   adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'What is the weather in Paris?' }],
+  threadId: 'thread-1',
   tools,
 })
 ```
@@ -470,8 +503,9 @@ See the "Codegen CLI" section below for details.
 
 By default every server tool reaches the model and runs without approval.
 Set a policy on the client. It applies in `tools()`, in `chat({ mcp })`, and
-per server in `createMCPClients`. Both callbacks receive the raw MCP tool
-definition (native unprefixed `name`, `title`, `annotations`).
+per server in `createMCPClients`. A `toolFilter` function and `needsApproval`
+receive the raw MCP tool definition (native unprefixed `name`, `title`,
+`annotations`).
 
 ```typescript
 import { createMCPClient } from '@tanstack/ai-mcp'
@@ -485,6 +519,26 @@ const mcp = await createMCPClient({
 })
 ```
 
+`toolFilter` also takes a list of server tool names. The list is strict:
+
+```typescript
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+  // Exactly these tools, in this order.
+  toolFilter: ['search_issues', 'get_issue'],
+})
+```
+
+- A name the server does not have, or a repeated name, throws
+  `MCPToolFilterError` (`missing`, `repeated`, `available`).
+- A listed task-required tool on a server without task support throws
+  `MCPTaskRequiredToolError`.
+- An empty list keeps no tools.
+
+These rules apply to both `toolFilter` forms and to `needsApproval`:
+
 - `toolFilter` also applies to `tools([defs])`: a hidden definition throws
   `MCPToolNotFoundError`. MCP Apps widget calls also honor it. It does not
   apply to `callTool()`.
@@ -492,8 +546,8 @@ const mcp = await createMCPClient({
   its own `needsApproval`.
 - MCP Apps widget calls have no approval step, so the call handler refuses a
   tool that `needsApproval` marks (`{ ok: false, error: 'Tool needs approval: <name>' }`).
-- Annotations are server-declared hints. For an untrusted server, filter by
-  `tool.name` instead.
+- Annotations are server-declared hints. For an untrusted server, use a
+  `toolFilter` list of names instead.
 
 ## Lifecycle
 
@@ -513,13 +567,14 @@ import { createMCPClient } from '@tanstack/ai-mcp'
 
 // Option 1: middleware terminal hooks (streaming route handlers)
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
   const client = await createMCPClient({
     transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
   })
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages,
+    threadId,
     tools: await client.tools(),
     middleware: [
       {
@@ -534,7 +589,10 @@ export async function POST(request: Request) {
 }
 
 // Option 2: explicit close after in-scope consumption
-export async function runToCompletion(messages: Array<ModelMessage>) {
+export async function runToCompletion(
+  messages: Array<ModelMessage>,
+  threadId: string,
+) {
   const client = await createMCPClient({
     transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
   })
@@ -542,6 +600,7 @@ export async function runToCompletion(messages: Array<ModelMessage>) {
     const stream = chat({
       adapter: openaiText('gpt-5.5'),
       messages,
+      threadId,
       tools: await client.tools(),
     })
     for await (const chunk of stream) {
@@ -554,13 +613,17 @@ export async function runToCompletion(messages: Array<ModelMessage>) {
 
 // Option 3: await using (TypeScript 5.2+ with Symbol.asyncDispose) —
 // same rule: consume the stream before the scope exits.
-export async function runWithUsing(messages: Array<ModelMessage>) {
+export async function runWithUsing(
+  messages: Array<ModelMessage>,
+  threadId: string,
+) {
   await using client = await createMCPClient({
     transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
   })
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages,
+    threadId,
     tools: await client.tools(),
   })
   for await (const chunk of stream) {
@@ -620,11 +683,12 @@ const mcpClient = await createMCPClient({
 })
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
 
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages,
+    threadId,
     mcp: {
       clients: [mcpClient],
       connection: 'keep-alive', // chat() won't close it — reuse across requests
@@ -653,11 +717,12 @@ const pool = await createMCPClients({
 })
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
 
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages,
+    threadId,
     mcp: { clients: [pool], connection: 'keep-alive' },
   })
 
@@ -692,6 +757,7 @@ try {
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages: [{ role: 'user', content: 'What is the weather in Paris?' }],
+    threadId: 'thread-1',
     tools: await client.tools(),
   })
 
@@ -846,6 +912,7 @@ const stream = chat({
       ],
     },
   ],
+  threadId: 'thread-1',
 })
 ```
 
@@ -873,6 +940,7 @@ const messages = mcpPromptToMessages(prompt)
 const stream = chat({
   adapter: openaiText('gpt-5.5'),
   messages: [...messages, { role: 'user', content: 'Review src/index.ts.' }],
+  threadId: 'thread-1',
 })
 ```
 
@@ -998,6 +1066,7 @@ function ChatPage() {
   const threadId = 'weather-chat'
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId,
   })
 
   const bridge = useMcpAppBridge({
@@ -1087,19 +1156,77 @@ const pool = await createMCPClients<MCPServers>({
 Codegen deps (`json-schema-to-typescript`, `jiti`) are bundled into the CLI bin
 and do NOT appear in the library's runtime dependency graph.
 
+## MCP Events (experimental)
+
+Webhook push from an MCP server (SEP-3415). Import the receiver from
+`@tanstack/ai-mcp/events`. The client option is `experimental_events`.
+
+```typescript
+import { createMCPClient } from '@tanstack/ai-mcp'
+import {
+  createMCPEventWebhook,
+  inMemoryMCPEventStore,
+} from '@tanstack/ai-mcp/events'
+import { queue } from './queue'
+
+const store = inMemoryMCPEventStore()
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+  experimental_events: { store },
+})
+await mcp.experimental_events.subscribe({
+  name: 'incident.created',
+  delivery: {
+    mode: 'webhook',
+    url: 'https://app.example.com/api/mcp-events',
+  },
+})
+
+const webhook = createMCPEventWebhook({
+  store,
+  onEvent: async ({ event, messageId }) => {
+    await queue.send({ messageId, eventId: event.eventId, data: event.data })
+  },
+})
+```
+
+Gotchas:
+
+- Verify the signature on the **raw body**. Re-serializing JSON yields 401.
+- Keep the `mcp_event_subscription` query parameter. The receiver routes with it.
+- The store is server-only. It holds HMAC secrets.
+- The SDK does not auto-renew. Call `refresh({ key })` from a cron over `store.list?.()`.
+- Dedupe deliveries on `messageId`. A 503 after `onEvent` succeeded is retried.
+
+Capability check: `extensions["io.modelcontextprotocol/events"]` only.
+With `experimental_events` set, HTTP/SSE transports add `Mcp-Name` for
+`events/subscribe` and `events/unsubscribe` (Base64 sentinel when the
+name is not printable ASCII). A failed subscribe deletes its `pending`
+record. Deliveries must send `X-MCP-Subscription-Id`.
+
 ## Error classes
 
 - `MCPConnectionError` — thrown when a server connection fails or when calling
   methods after `close()`.
 - `MCPToolNotFoundError` — thrown from `client.tools([defs])` when a definition's
   `name` is not exposed by the server, or the client's `toolFilter` hides it.
+- `MCPToolFilterError`: thrown from `client.tools()` when a `toolFilter`
+  list names a tool the server does not have, or names a tool twice. Its
+  `missing`, `repeated`, and `available` fields name the tools.
 - `MCPTaskRequiredToolError` — thrown when a task-required tool is bound via
   `tools([defs])` or called via `callTool()` and the server does not declare
-  the tasks capability for `tools/call`. Auto-discovery skips those tools
+  the tasks capability for `tools/call`. It is also thrown when a `toolFilter`
+  list names such a tool. Auto-discovery without a list skips those tools
   instead of throwing.
 - `DuplicateToolNameError` — thrown by a single pool's own `tools()` when two
   tools within that pool share the same name (same server or pool clients with no
   prefix). Exported from `@tanstack/ai-mcp`.
+- `MCPEventsUnsupportedError` — the server did not advertise Events, or
+  `events/list` returned method-not-found.
+- `MCPEventConfigError` — bad `experimental_events` options or subscribe input.
+- `MCPUnknownEventError` — the event name is missing, or it has no webhook delivery.
+- `MCPEventRequestError` — JSON-RPC error from `events/*` (`kind` + `code`).
+- `MCPEventSubscriptionNotFoundError` — `refresh` / `unsubscribe` key or id is not in the store.
 - `MCPDuplicateToolNameError` — thrown by `chat()` when tools from separate
   `mcp.clients` entries collide after merging. Exported from `@tanstack/ai`
   (not `@tanstack/ai-mcp`), so users can `instanceof` it at the `chat()` call site.
@@ -1109,6 +1236,7 @@ import {
   MCPConnectionError,
   MCPToolNotFoundError,
   MCPTaskRequiredToolError,
+  MCPToolFilterError,
   DuplicateToolNameError,
 } from '@tanstack/ai-mcp'
 
@@ -1125,7 +1253,7 @@ import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClients } from '@tanstack/ai-mcp'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
 
   const pool = await createMCPClients({
     github: {
@@ -1145,6 +1273,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages,
+    threadId,
     tools: await pool.tools(),
     // Close after the run ends — tools execute while the response streams,
     // so `await using` / try-finally would close the pool too early here.
@@ -1178,12 +1307,17 @@ import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
   const client = await createMCPClient({
     transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
   })
   const tools = await client.tools()
-  const stream = chat({ adapter: openaiText('gpt-5.5'), messages, tools })
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    threadId,
+    tools,
+  })
   await client.close() // closes before the stream runs tools
   return toServerSentEventsResponse(stream)
 }
@@ -1202,7 +1336,7 @@ import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
   const client = await createMCPClient({
     transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
   })
@@ -1210,6 +1344,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages,
+    threadId,
     tools: await client.tools(),
     middleware: [
       {

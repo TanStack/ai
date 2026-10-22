@@ -3,7 +3,7 @@ id: ArtifactCreatedPayload
 title: ArtifactCreatedPayload
 ---
 
-Defined in: [packages/ai/src/custom-events.ts:69](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L69)
+Defined in: packages/ai/src/custom-events.ts:69
 
 ## Properties
 
@@ -13,7 +13,7 @@ Defined in: [packages/ai/src/custom-events.ts:69](https://github.com/TanStack/ai
 artifactId: string;
 ```
 
-Defined in: [packages/ai/src/custom-events.ts:70](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L70)
+Defined in: packages/ai/src/custom-events.ts:70
 
 ***
 
@@ -23,7 +23,7 @@ Defined in: [packages/ai/src/custom-events.ts:70](https://github.com/TanStack/ai
 mimeType: string;
 ```
 
-Defined in: [packages/ai/src/custom-events.ts:72](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L72)
+Defined in: packages/ai/src/custom-events.ts:72
 
 ***
 
@@ -33,7 +33,7 @@ Defined in: [packages/ai/src/custom-events.ts:72](https://github.com/TanStack/ai
 name: string;
 ```
 
-Defined in: [packages/ai/src/custom-events.ts:71](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L71)
+Defined in: packages/ai/src/custom-events.ts:71
 
 ***
 
@@ -43,4 +43,4 @@ Defined in: [packages/ai/src/custom-events.ts:71](https://github.com/TanStack/ai
 size: number;
 ```
 
-Defined in: [packages/ai/src/custom-events.ts:73](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L73)
+Defined in: packages/ai/src/custom-events.ts:73

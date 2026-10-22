@@ -3,6 +3,7 @@ import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import {
   GROQ_MODEL_INPUT_MODALITIES,
   GROQ_MODEL_REASONING,
+  groqModelPrefersJsonObject,
 } from '../model-meta'
 import { getGroqApiKeyFromEnv, withGroqDefaults } from '../utils/client'
 import { makeGroqStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
@@ -196,6 +197,10 @@ export class GroqTextAdapter<
   override supportsCombinedToolsAndSchema(): boolean {
     return false
   }
+
+  protected override modelPrefersJsonObject(model: string): boolean {
+    return groqModelPrefersJsonObject(model)
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -227,7 +232,7 @@ async function* promoteGroqUsage(
  *
  * @example
  * ```typescript
- * const adapter = createGroqText('llama-3.3-70b-versatile', "gsk_...");
+ * const adapter = createGroqText('openai/gpt-oss-120b', "gsk_...");
  * ```
  */
 export function createGroqText<
@@ -245,7 +250,7 @@ export function createGroqText<
  *
  * @example
  * ```typescript
- * const adapter = groqText('llama-3.3-70b-versatile');
+ * const adapter = groqText('openai/gpt-oss-120b');
  * ```
  */
 export function groqText<TModel extends (typeof GROQ_CHAT_MODELS)[number]>(

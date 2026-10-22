@@ -3,6 +3,8 @@ import type {
   JSONSchema,
   MidConversationChannels,
   Modality,
+  ModelMessage,
+  TextCompactOptions,
   TextOptions,
   TokenUsage,
 } from '../../types'
@@ -121,9 +123,10 @@ export interface TextAdapter<
    * The mid-conversation channels of the model: tools and system prompts
    * added between model calls can go out with no change to the cached prompt
    * prefix. `chat()` passes `TextOptions.midConversationChanges` only when a
-   * channel is on. `undefined` means no channels.
+   * channel is on. `undefined` means no channels. `| undefined` keeps the
+   * base class assignable under `exactOptionalPropertyTypes`.
    */
-  readonly midConversationChannels?: MidConversationChannels
+  readonly midConversationChannels?: MidConversationChannels | undefined
 
   /**
    * @internal Type-only properties for inference. Not assigned at runtime.
@@ -180,6 +183,14 @@ export interface TextAdapter<
   structuredOutputStream?: (
     options: StructuredOutputOptions<TProviderOptions>,
   ) => AsyncIterable<AdapterYieldChunk>
+
+  /**
+   * Compact the history with the provider's own compaction endpoint.
+   * Resolves to the history to send from the next call on. It can hold
+   * provider items that only this provider reads. Optional: adapters
+   * without native compaction omit it.
+   */
+  compact?: (options: TextCompactOptions) => Promise<Array<ModelMessage>>
 
   /**
    * Declares whether the adapter supports combining `tools` and a

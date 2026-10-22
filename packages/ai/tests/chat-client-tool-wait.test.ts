@@ -87,6 +87,7 @@ describe('client-tool wait lifecycle', () => {
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Ask the client' }],
         tools: [clientTool('ask_client')],
@@ -109,6 +110,7 @@ describe('client-tool wait lifecycle', () => {
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           { role: 'user', content: 'Ask the client' },
@@ -157,6 +159,7 @@ describe('client-tool wait lifecycle', () => {
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           { role: 'user', content: 'Ask the client' },
@@ -202,6 +205,7 @@ describe('client-tool wait lifecycle', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Ask the client' }],
         tools: [clientTool('ask_client')],
@@ -214,7 +218,11 @@ describe('client-tool wait lifecycle', () => {
       }),
     )
 
-    expect(fakeTracer.spans).toHaveLength(2)
+    // The client runs the tool, so the server records no execute_tool span.
+    expect(fakeTracer.spans.map((span) => span.name)).toEqual([
+      'chat test-model',
+      'chat test-model #0',
+    ])
     expect(fakeTracer.spans.every((span) => span.ended)).toBe(true)
     expect(
       fakeMeter.records.filter(
@@ -244,6 +252,7 @@ describe('client-tool wait with structured output', () => {
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Ask the client' }],
         tools: [clientTool('ask_client')],
@@ -271,6 +280,7 @@ describe('client-tool wait with structured output', () => {
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Ask the client' }],
         tools: [clientTool('ask_client')],
@@ -293,6 +303,7 @@ describe('client-tool wait with structured output', () => {
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           { role: 'user', content: 'Ask the client' },

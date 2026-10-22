@@ -9,6 +9,7 @@ function TablePage() {
   const [input, setInput] = useState('')
   const { sendMessage, isLoading, error, stop, partial, final } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'structured-table',
     byok,
     outputSchema: tableSchema,
   })

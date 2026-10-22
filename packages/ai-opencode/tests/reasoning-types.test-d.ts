@@ -4,6 +4,7 @@ import { opencodeText } from '../src'
 const messages = [{ role: 'user' as const, content: 'hi' }]
 
 chat({
+  threadId: 'thread-1',
   adapter: opencodeText('anthropic/claude-sonnet-4-5'),
   messages,
   reasoning: { level: 'high', budgetTokens: 4000 },
