@@ -75,32 +75,12 @@ type TextPart = Extract<OpencodePart, { type: 'text' }>
 type ReasoningPart = Extract<OpencodePart, { type: 'reasoning' }>
 type ToolPart = Extract<OpencodePart, { type: 'tool' }>
 
-type PendingPart =
-  | {
-      kind: 'text'
-      part: Omit<TextPart, 'text'>
-      delta: string
-      snapshot?: string
-    }
-  | {
-      kind: 'reasoning'
-      part: Omit<ReasoningPart, 'text'>
-      delta: string
-      snapshot?: string
-    }
-  | { kind: 'other'; part: OpencodePart; delta?: string }
-
 const isTextPart = (part: OpencodePart): part is TextPart =>
   part.type === 'text'
 const isReasoningPart = (part: OpencodePart): part is ReasoningPart =>
   part.type === 'reasoning'
 const isToolPart = (part: OpencodePart): part is ToolPart =>
   part.type === 'tool'
-
-function copyString(value: string): string {
-  // Keep a delta from retaining its much larger cumulative source snapshot.
-  return Array.from(value).join('')
-}
 
 function messageError(
   message: OpencodeAssistantMessage,
@@ -146,9 +126,10 @@ export async function* translateOpencodeStream(
   /** Message roles from message.updated events, keyed by message id. */
   const messageRoles = new Map<string, 'user' | 'assistant'>()
   /** Parts held until their parent message role arrives. */
-  const pendingParts = new Map<string, Array<PendingPart>>()
-  /** Latest full-text snapshots used to derive deltas while a role is unknown. */
-  const pendingTextSnapshots = new Map<string, Map<string, string>>()
+  const pendingParts = new Map<
+    string,
+    Array<{ part: OpencodePart; delta?: string }>
+  >()
 
   /** Accumulated text per text-part id, for delta derivation. */
   const textAccumulators = new Map<string, string>()
@@ -213,27 +194,18 @@ export async function* translateOpencodeStream(
   }
 
   function* handleTextPart(
-    part: Pick<TextPart, 'id'> & Partial<Pick<TextPart, 'text'>>,
+    part: Extract<OpencodePart, { type: 'text' }>,
     delta: string | undefined,
-    snapshot?: string,
   ): Generator<AdapterYieldChunk> {
     yield* closeReasoning()
 
     const prev = textAccumulators.get(part.id) ?? ''
     let deltaText: string
-    if (snapshot !== undefined) {
-      deltaText = snapshot.startsWith(prev)
-        ? snapshot.slice(prev.length)
-        : snapshot
-      textAccumulators.set(part.id, snapshot)
-    } else if (typeof delta === 'string' && delta !== '') {
+    if (typeof delta === 'string' && delta !== '') {
       deltaText = delta
       textAccumulators.set(part.id, prev + delta)
     } else {
       const full = part.text
-      if (full === undefined) {
-        throw new Error(`OpenCode text part "${part.id}" has no text.`)
-      }
       deltaText = full.startsWith(prev) ? full.slice(prev.length) : full
       textAccumulators.set(part.id, full)
     }
@@ -261,27 +233,18 @@ export async function* translateOpencodeStream(
   }
 
   function* handleReasoningPart(
-    part: Pick<ReasoningPart, 'id'> & Partial<Pick<ReasoningPart, 'text'>>,
+    part: Extract<OpencodePart, { type: 'reasoning' }>,
     delta: string | undefined,
-    snapshot?: string,
   ): Generator<AdapterYieldChunk> {
     yield* closeText()
 
     const prev = textAccumulators.get(part.id) ?? ''
     let deltaText: string
-    if (snapshot !== undefined) {
-      deltaText = snapshot.startsWith(prev)
-        ? snapshot.slice(prev.length)
-        : snapshot
-      textAccumulators.set(part.id, snapshot)
-    } else if (typeof delta === 'string' && delta !== '') {
+    if (typeof delta === 'string' && delta !== '') {
       deltaText = delta
       textAccumulators.set(part.id, prev + delta)
     } else {
       const full = part.text
-      if (full === undefined) {
-        throw new Error(`OpenCode reasoning part "${part.id}" has no text.`)
-      }
       deltaText = full.startsWith(prev) ? full.slice(prev.length) : full
       textAccumulators.set(part.id, full)
     }
@@ -389,30 +352,6 @@ export async function* translateOpencodeStream(
     // state the chunk stream needs.
   }
 
-  function* handlePendingPart(
-    pending: PendingPart,
-  ): Generator<AdapterYieldChunk> {
-    if (pending.kind === 'text') {
-      if (pending.snapshot !== undefined) {
-        yield* handleTextPart(pending.part, undefined, pending.snapshot)
-      } else if (pending.delta === '') {
-        yield* closeReasoning()
-      } else {
-        yield* handleTextPart(pending.part, pending.delta)
-      }
-    } else if (pending.kind === 'reasoning') {
-      if (pending.snapshot !== undefined) {
-        yield* handleReasoningPart(pending.part, undefined, pending.snapshot)
-      } else if (pending.delta === '') {
-        yield* closeText()
-      } else {
-        yield* handleReasoningPart(pending.part, pending.delta)
-      }
-    } else {
-      yield* handlePart(pending.part, pending.delta)
-    }
-  }
-
   function* setMessageRole(
     messageId: string,
     role: 'user' | 'assistant',
@@ -421,63 +360,8 @@ export async function* translateOpencodeStream(
     const parts = pendingParts.get(messageId)
     if (parts === undefined) return
     pendingParts.delete(messageId)
-    pendingTextSnapshots.delete(messageId)
     if (role === 'user') return
-    for (const part of parts) yield* handlePendingPart(part)
-  }
-
-  function bufferPart(
-    messageId: string,
-    part: OpencodePart,
-    delta: string | undefined,
-  ): void {
-    const parts = pendingParts.get(messageId) ?? []
-    if (isTextPart(part) || isReasoningPart(part)) {
-      const snapshots = pendingTextSnapshots.get(messageId) ?? new Map()
-      const previous = snapshots.get(part.id) ?? ''
-      const hasIncrementalDelta = typeof delta === 'string' && delta !== ''
-      const derivedDelta = hasIncrementalDelta
-        ? copyString(delta)
-        : part.text.startsWith(previous)
-          ? copyString(part.text.slice(previous.length))
-          : undefined
-
-      snapshots.set(part.id, part.text)
-      pendingTextSnapshots.set(messageId, snapshots)
-
-      if (isTextPart(part)) {
-        parts.push({
-          kind: 'text',
-          part: {
-            id: part.id,
-            sessionID: part.sessionID,
-            messageID: part.messageID,
-            type: part.type,
-          },
-          delta: derivedDelta ?? '',
-          ...(derivedDelta === undefined && {
-            snapshot: copyString(part.text),
-          }),
-        })
-      } else {
-        parts.push({
-          kind: 'reasoning',
-          part: {
-            id: part.id,
-            sessionID: part.sessionID,
-            messageID: part.messageID,
-            type: part.type,
-          },
-          delta: derivedDelta ?? '',
-          ...(derivedDelta === undefined && {
-            snapshot: copyString(part.text),
-          }),
-        })
-      }
-    } else {
-      parts.push({ kind: 'other', part, delta })
-    }
-    pendingParts.set(messageId, parts)
+    for (const { part, delta } of parts) yield* handlePart(part, delta)
   }
 
   function* handleEvent(event: OpencodeEvent): Generator<AdapterYieldChunk> {
@@ -490,7 +374,15 @@ export async function* translateOpencodeStream(
       const { part, delta } = event.properties
       const role = messageRoles.get(part.messageID)
       if (role === undefined) {
-        bufferPart(part.messageID, part, delta)
+        const parts = pendingParts.get(part.messageID) ?? []
+        // A text or reasoning part carries its full text, so keep only its
+        // latest update. Keeping each update holds every snapshot in memory.
+        const index = isToolPart(part)
+          ? -1
+          : parts.findIndex((pending) => pending.part.id === part.id)
+        if (index === -1) parts.push({ part, delta })
+        else parts[index] = { part }
+        pendingParts.set(part.messageID, parts)
       } else if (role === 'assistant') {
         yield* handlePart(part, delta)
       }
@@ -515,8 +407,6 @@ export async function* translateOpencodeStream(
     // its message.updated. OpenCode sends message.updated when it creates a
     // message, so parts of any other message still waiting here are dropped.
     yield* setMessageRole(message.id, 'assistant')
-    pendingParts.clear()
-    pendingTextSnapshots.clear()
     yield* closeText()
     yield* closeReasoning()
     yield* synthesizeUnresolvedResults()
