@@ -45,8 +45,6 @@ Devtools show each tool call, interrupt, memory recall, and finish reason, on th
 
 - **Your app already speaks the AI SDK stream protocol.** For example, your UI uses `@ai-sdk/react` or AI Elements, or a backend that you do not control emits the UI Message Stream. TanStack AI does not read or write that protocol.
 - **You need a first-party package for a provider that TanStack AI does not cover.** Many providers are also available through [OpenRouter](../adapters/openrouter), [Vercel AI Gateway](../adapters/vercel-gateway), or [`openaiCompatible`](../adapters/openai-compatible).
-- **You want one reusable agent object.** The AI SDK `ToolLoopAgent` class holds the model, tools, instructions, and loop settings. TanStack AI sets these per `chat()` call.
-- **You build with React Server Components** through `@ai-sdk/rsc` (experimental).
 
 Vercel AI Gateway is not a reason to stay. TanStack AI has a native [Vercel AI Gateway adapter](../adapters/vercel-gateway) for chat, embeddings, and images.
 
@@ -169,7 +167,7 @@ Versions: TanStack AI 1.0 and Vercel AI SDK `ai@7.x`.
 | Tools | One `toolDefinition()`, with `.server()` and `.client()` | `tool()` on the server. Client tools through `onToolCall` |
 | Tool approval | Per-tool `needsApproval`, with batched approvals and interrupts | Per-tool `needsApproval` |
 | Lazy tool discovery | Any provider, in your own agent loop | Anthropic tool search only (`deferLoading`) |
-| Agent loop | Strategy functions `(state) => boolean` | `stopWhen` conditions and the `ToolLoopAgent` class |
+| Agent loop | Strategy functions `(state) => boolean`. Share the config with `createChatOptions` | `stopWhen` conditions and the `ToolLoopAgent` class |
 | Middleware | Named hooks across the whole run: config, chunks, tool calls, usage, finish | `wrapLanguageModel()` around the model |
 | Structured output | Typed message part, streamed with tools and kept in the history | Per call (`Output`, `generateObject()`, `streamObject()`) |
 | Chat persistence | `withPersistence` middleware, server or browser stores | A pattern: you write `saveChat` and `loadChat` |
