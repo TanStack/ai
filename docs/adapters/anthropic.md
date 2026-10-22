@@ -297,7 +297,8 @@ What this does:
 
 - `"default"` uses the model that Anthropic recommends for the refusal category. A list, such as `[{ model: "claude-opus-4-8" }]`, names up to three models to try in order.
 - The adapter adds the `server-side-fallback-2026-07-01` beta header for you.
-- The fallback answer streams like any other answer. Events before the `fallback` block name the model that declined. That includes `RUN_STARTED` and the first text segment. Events after the block name `to.model`.
+- The fallback answer streams like any other answer. When text has already started, events before the `fallback` block name the model that declined. That includes `RUN_STARTED` and that first text segment. Events after the block name `to.model`.
+- When the classifier declines before any output, `message_start` already names the fallback model. `RUN_STARTED` uses that name too.
 - The types accept `fallbacks` on `claude-fable-5`, `claude-fable-5-1`, `claude-opus-5`, `claude-opus-5-5`, and `claude-sonnet-5-5`.
 
 Some refusals still stand. For example, a category can have no recommended model, or the fallback model can be busy. Then the run ends with `finishReason: "content_filter"`, not with an error. The `rawEvent` of that `RUN_FINISHED` holds the Anthropic `stop_details`, with `category` and `explanation`.

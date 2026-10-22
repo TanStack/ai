@@ -322,6 +322,32 @@ describe('Anthropic per-model chat reasoning gating', () => {
 })
 
 describe('Anthropic provider options shape assertions', () => {
+  describe('fallbacks', () => {
+    it('is accepted on the five Claude 5 models that support it', () => {
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-fable-5']
+      >().toHaveProperty('fallbacks')
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-fable-5-1']
+      >().toHaveProperty('fallbacks')
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-opus-5']
+      >().toHaveProperty('fallbacks')
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-opus-5-5']
+      >().toHaveProperty('fallbacks')
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-sonnet-5-5']
+      >().toHaveProperty('fallbacks')
+    })
+
+    it('is rejected on claude-haiku-5-5', () => {
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-haiku-5-5']
+      >().not.toHaveProperty('fallbacks')
+    })
+  })
+
   describe('claude-opus-4-6 — full feature set', () => {
     type Options = AnthropicChatModelProviderOptionsByName['claude-opus-4-6']
 

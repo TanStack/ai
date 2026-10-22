@@ -1650,8 +1650,10 @@ export class AnthropicTextAdapter<
         } else if (event.type === 'content_block_start') {
           currentBlockType = event.content_block.type
           if (currentBlockType === 'fallback') {
-            // Server-side fallback handoff. message_start named the declining
-            // model; the rest of the stream comes from `to.model`.
+            // Server-side fallback handoff. The rest of the stream comes from
+            // `to.model`. message_start names the declining model only after
+            // output has started. Before any output, message_start already
+            // names the fallback model.
             const block: unknown = event.content_block
             const to =
               block && typeof block === 'object' && 'to' in block
