@@ -410,7 +410,7 @@ To give the host a tracer, see [Trace runs and report operations](./deploy#trace
 
 A harness adds its own events to the stream as AG-UI `CUSTOM` events. `name` is the event name, and `value` has the fields below. Ignore a name that you do not know. A later version can add names.
 
-In TypeScript, `HarnessEventValues` from `@tanstack/ai-harness` maps each name to its value type, and `HARNESS_EVENTS` has the names. `harness.plugin.warning` is the only name that is in neither.
+In TypeScript, `HarnessEventValues` from `@tanstack/ai-harness` maps each name to its value type, and `HARNESS_EVENTS` has the names. A browser client imports `HARNESS_EVENTS` from `@tanstack/ai-harness/client`. `harness.plugin.warning` is the only name that is in neither.
 
 ### Runs
 
