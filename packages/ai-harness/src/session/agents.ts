@@ -490,10 +490,13 @@ export abstract class SessionAgents<
     const plugins = turn?.plugins ? { plugins: turn.plugins } : {}
     // The child runs as a background agent of this session, and its end
     // starts a new turn. Core does not pass `start` to nested children.
+    // Without `start`, core offers no `background` field.
+    const startable =
+      this.harness.subagents?.background === false ? undefined : agents
     const start: SubagentBinding['start'] =
-      agents &&
+      startable &&
       (async (call, startOptions) => {
-        const agent = agents.find((entry) => entry.name === call.agent)
+        const agent = startable.find((entry) => entry.name === call.agent)
         if (!agent) throw new Error(`Unknown agent "${call.agent}".`)
         const subagentRunId = createSubagentId()
         // The next host continues the run after a stop, with the same id.

@@ -36,7 +36,14 @@ import type {
 export type HarnessSubagents<TSubagents extends ReadonlyArray<AnyAgent>> = Omit<
   SubagentsBag<TSubagents>,
   'binding' | 'keys'
->
+> & {
+  /**
+   * `false`: the agent tools offer the model no `background` field, so
+   * every child the model calls ends inside the turn that called it.
+   * Default: `true`.
+   */
+  background?: boolean
+}
 
 /**
  * What `routing.router` gets: the fields of the `subagents.router` context,
