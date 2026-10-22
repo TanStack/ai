@@ -2332,14 +2332,15 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       }
       // The agent tools read stored children through this, to continue
       // one by `sessionId`. Only the children of this chat can load.
-      provideLoadChild(ctx, (subagentRunId) =>
-        subagentRuns.loadChild(subagentRunId, {
+      // With a parent, the caller is that child. `loadChild` then proves
+      // that the nested child belongs to it.
+      provideLoadChild(ctx, (subagentRunId, nested) => {
+        const caller = nested?.parentSubagentRunId ?? ctx.subagentRunId
+        return subagentRuns.loadChild(subagentRunId, {
           threadId: ctx.threadId,
-          ...(ctx.subagentRunId !== undefined && {
-            subagentRunId: ctx.subagentRunId,
-          }),
-        }),
-      )
+          ...(caller !== undefined && { subagentRunId: caller }),
+        })
+      })
 
       let resolveCompletion: () => void = () => undefined
       let rejectCompletion: (error: unknown) => void = () => undefined

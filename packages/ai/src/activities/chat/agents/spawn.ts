@@ -44,6 +44,7 @@ import type {
   StreamChunk,
   SubagentErrorEvent,
   SubagentFinishedEvent,
+  SubagentPart,
   SubagentStartedEvent,
   TokenUsage,
   Tool,
@@ -62,6 +63,11 @@ import type {
   SubagentRunInput,
 } from './define-agent'
 import type { ChatMiddleware } from '../middleware/types'
+import { subagentCards } from './turn'
+import {
+  convertMessagesToModelMessages,
+  modelMessagesToUIMessages,
+} from '../messages'
 import type { SubagentTurn } from './turn'
 
 export const SUBAGENT_STARTED = EventType.SUBAGENT_STARTED
@@ -1232,6 +1238,91 @@ function readCall(
   }
 }
 
+function toolCallIds(messages: ReadonlyArray<UIMessage | ModelMessage>) {
+  return new Set(
+    messages.flatMap((message) =>
+      'parts' in message
+        ? message.parts.flatMap((part) =>
+            part.type === 'tool-call' ? [part.id] : [],
+          )
+        : (message.toolCalls ?? []).map((call) => call.id),
+    ),
+  )
+}
+
+/** `messages` as UI messages, each card on the message that holds its tool call. */
+function withCards(
+  messages: Array<UIMessage | ModelMessage>,
+  cards: ReadonlyArray<SubagentPart>,
+): Array<UIMessage> {
+  return modelMessagesToUIMessages(
+    convertMessagesToModelMessages(messages),
+  ).map((message) => {
+    const own = cards.filter((part) =>
+      message.parts.some(
+        (entry) =>
+          entry.type === 'tool-call' &&
+          entry.id === part.subagent.parentToolCallId,
+      ),
+    )
+    return own.length > 0
+      ? { ...message, parts: [...message.parts, ...own] }
+      : message
+  })
+}
+
+/**
+ * The cards of the waiting nested children of a waiting child. The store
+ * keeps a nested child in its own transcript, so the stored `pending` of the
+ * child has no card for it. Each card is rebuilt from the store: the client
+ * `card` gives only the id. A forged card cannot change the nested messages,
+ * and can name only a child that this child started from a tool call in
+ * `pending`.
+ */
+async function storedNestedCards(
+  card: ReadonlyArray<UIMessage | ModelMessage>,
+  pending: ReadonlyArray<UIMessage | ModelMessage>,
+  parentSubagentRunId: string,
+  load: LoadChild,
+): Promise<Array<SubagentPart>> {
+  const waiting = subagentCards(card).filter(
+    (child) => child.status === 'suspended',
+  )
+  if (waiting.length === 0) return []
+  const calls = toolCallIds(pending)
+  return Promise.all(
+    waiting.map(async (child): Promise<SubagentPart> => {
+      const id = child.subagentRunId
+      const stored = await load(id, { parentSubagentRunId })
+      const parentToolCallId = stored?.parentToolCallId
+      if (
+        !stored?.pending ||
+        parentToolCallId === undefined ||
+        !calls.has(parentToolCallId)
+      ) {
+        throw new Error(`Subagent run "${id}" is not waiting in this thread.`)
+      }
+      const nested = await storedNestedCards(
+        child.messages,
+        stored.pending,
+        id,
+        load,
+      )
+      return {
+        type: 'subagent',
+        subagent: {
+          id,
+          name: stored.agent ?? child.name,
+          status: 'suspended',
+          interruptIds: stored.interruptIds ?? [],
+          parentToolCallId,
+          messages: withCards(stored.pending, nested),
+        },
+      }
+    }),
+  )
+}
+
 export function createSyntheticSubagentTools(
   bag: SubagentsBag,
   parent: {
@@ -1278,15 +1369,26 @@ export function createSyntheticSubagentTools(
     // came from the client, which could change a tool call before it answers
     // the interrupt of that call.
     const load = parent.childLoader?.()
-    const pending =
+    const stored =
       suspended && load
         ? (await load(suspended.subagentRunId))?.pending
         : undefined
-    if (suspended && load && !pending) {
+    if (suspended && load && !stored) {
       throw new Error(
         `Subagent run "${suspended.subagentRunId}" is not waiting in this thread.`,
       )
     }
+    const nested =
+      suspended && load && stored
+        ? await storedNestedCards(
+            suspended.messages,
+            stored,
+            suspended.subagentRunId,
+            load,
+          )
+        : []
+    const pending =
+      stored && nested.length > 0 ? withCards(stored, nested) : stored
     const entry: SpawnEntry = {
       ...child,
       ...(suspended && {
