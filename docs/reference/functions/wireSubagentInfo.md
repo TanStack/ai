@@ -7,7 +7,7 @@ title: wireSubagentInfo
 function wireSubagentInfo(message): SubagentWireInfo | undefined;
 ```
 
-Defined in: [packages/ai/src/utilities/subagent-wire.ts:43](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/subagent-wire.ts#L43)
+Defined in: [packages/ai/src/utilities/subagent-wire.ts:55](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/subagent-wire.ts#L55)
 
 ## Parameters
 

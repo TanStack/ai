@@ -1,5 +1,129 @@
 # @tanstack/ai
 
+## 0.71.0
+
+### Minor Changes
+
+- [#1837](https://github.com/TanStack/ai/pull/1837) [`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325) - Add computer use that runs the same code on OpenAI and on Anthropic. A driver controls the machine. The Playwright and sandbox drivers give each thread its own machine.
+
+  New packages:
+  - `@tanstack/ai-computer-use` adds `createComputerUse()`. It returns `tools`, a middleware, a safety-check interrupt, and `close`. Each `threadId` gets its own machine, action queue, and approvals. A thread that stays idle for `idleTimeout` (10 minutes by default) closes.
+  - `@tanstack/ai-computer-playwright` adds `playwrightComputer()`, which opens one browser page for each thread. `createPlaywrightComputerDriver()` controls one page that you give it. Both add a `navigate` tool that opens `http:` and `https:` URLs.
+  - `@tanstack/ai-computer-sandbox` adds `sandboxComputer()`, which creates one Linux desktop sandbox for each thread from any `@tanstack/ai-sandbox` provider, like `e2bSandbox({ template: 'desktop' })`. `createSandboxComputerDriver()` controls one sandbox that you give it.
+  - `@tanstack/ai-computer-local` adds `localComputer()`, which lets the model use the mouse, keyboard, and main screen of the machine that runs `chat()`. It works on Windows, macOS, and Linux with `@jitsi/robotjs`.
+
+  Changes in existing packages:
+  - `@tanstack/ai` adds `threadId` to `ToolExecutionContext`. It also adds the computer tool metadata reader in `@tanstack/ai/adapter-internals`.
+  - `@tanstack/ai-anthropic` and `@tanstack/openai-base` send the generic computer tool to the model as the native computer tool of the provider.
+  - `@tanstack/ai-openai` marks the models that support the `computer` tool.
+
+  ```ts
+  const computerUse = createComputerUse({
+    driver: playwrightComputer({ startUrl: 'https://tanstack.com' }),
+  })
+
+  chat({
+    adapter,
+    messages,
+    threadId,
+    tools: computerUse.tools,
+    middleware: [computerUse.middleware],
+    interrupts: [computerUse.interrupt],
+  })
+
+  await computerUse.close(threadId) // one thread
+  await computerUse.close() // every thread, and the browser
+  ```
+
+  The `ai-core` agent skill routes computer use to `@tanstack/ai-computer-use` and its three drivers.
+
+## 0.70.0
+
+### Minor Changes
+
+- [#1723](https://github.com/TanStack/ai/pull/1723) [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555) - Subagent limits, and provider keys for agents.
+  - **`subagents.limits`**: `maxDepth`, `maxConcurrent`, `maxCalls`, and `timeoutMs` for the whole tree of children the model starts through tools. The tree shares one budget (`SubagentBudget`), which a child's `ctx.chat({ subagents })` passes on, so a child cannot reset it. A refused start reaches the model as a tool error.
+  - **`subagents.keys`** and **`ctx.keys`** (`ProviderKeys`: `get`, `require`, and `adapter`). Pass an object by provider id, for example `{ openai: userKey }`, or a function, for example `(provider) => getByokKey(request, provider)`. An agent builds a `keyedAdapter` with `await ctx.keys.adapter(adapter)`. A missing key falls back to the provider's `env` names. When there is no key at all, the call throws an error that names the env var. A child's `ctx.chat({ subagents })` passes the keys on to its own children. Keys that the child sets itself win for those providers.
+
+- [#1723](https://github.com/TanStack/ai/pull/1723) [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555) - A subagent can now return a plain value and call any activity.
+  - `defineAgent`'s `run` can return a promise of any value, such as an image result. The value arrives on `SUBAGENT_FINISHED.result`, and the parent model gets it as the tool result. A very long string inside an object result (for example a base64 image) reaches the parent model as a short note (`compactForModel`). A string result also streams as the child's text. The result of `ctx.chat({ stream: false })` streams like the chat stream.
+  - `run` gets the activities on `ctx` (`ctx.chat`, `ctx.generateImage`, `ctx.generateVideo`, and the rest), which fill in the thread id, a run id, and the abort signal. `ctx.forward` holds the fields for a plain `chat()` call. The optional `produces` field says what an agent makes.
+  - A host can set `subagents.binding` (`SubagentBinding`) to add chat and generation middleware to every activity call of a child. A child's `ctx.chat({ subagents })` passes it down to its own children.
+  - Children inherit the prompt cache retention of the parent call.
+  - The chat middleware context has `subagentName` and `parentSubagentRunId`. `chat()` takes both as options.
+  - `RunRecord` gets optional fields for host sessions (`kind`, `activity`, `agent`, `result`, `artifacts`, `principal`, `leaseOwner`, `leaseExpiresAt`, `checkpoint`). The memory run stores keep them.
+
+- [#1750](https://github.com/TanStack/ai/pull/1750) [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b) - Check a raw JSON Schema tool input before the tool runs. This covers plain JSON Schema tools and every MCP tool.
+
+  Behavior change:
+  - A tool with a JSON Schema `inputSchema` now gets a tool error (state `output-error`) when the input does not fit the schema. The tool does not run. Before, any input ran.
+  - The check runs at the same place as the Standard Schema check: after approval edits and middleware `onBeforeToolCall`.
+  - The draft comes from `$schema` (draft-04, draft-07, 2019-09, 2020-12). With no `$schema`, the check uses 2020-12. `format` is not checked.
+  - OpenAPI 3.0 schemas work: `nullable: true` lets the field be `null`, and a boolean `exclusiveMinimum` or `exclusiveMaximum` works in every draft.
+  - The error names each failed location (up to 10) and shows the received arguments: `Input validation failed for tool <name>: #/count: ...`.
+  - A schema that the check cannot use, such as one with a remote `$ref`, gives a tool error on each call.
+  - The check uses `@cfworker/json-schema`. It does not compile code, so it runs on Cloudflare Workers.
+
+  Migration: if a JSON Schema tool must accept input that its schema rejects, widen the schema.
+
+- [#1728](https://github.com/TanStack/ai/pull/1728) [`3292bad`](https://github.com/TanStack/ai/commit/3292bad7b26990c5aa4676cc9d9fe33b1741fc1a) - Add the `onModelError` middleware hook and `ctx.retry()`. When a model call fails before it streams output, `onModelError` gets the `RUN_ERROR`. Call `ctx.retry()` there to drop the failed call, run `onConfig` again, and call the model again. A model call retries at most 2 times this way. `ctx.retry()` throws in any other hook.
+
+- [#1750](https://github.com/TanStack/ai/pull/1750) [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b) - Keep the provider's raw tool argument string for replay.
+  - Adapters now send the raw argument string as `args` on `TOOL_CALL_END`.
+  - The tool call in the history keeps that exact string when it is the same JSON value as the parsed input, so the next request sends the provider's own bytes back (for example `1.50`, or an id past `Number.MAX_SAFE_INTEGER`). When the parsed input differs, only the changed values are written again.
+  - The `TOOL_CALL_END` that reaches the client carries the same string in `metadata.tanstack.args`, so the client history matches the server history. It no longer also carries `metadata.tanstack.input`: in-process `chat()` and `StreamProcessor` parse `input` from `args`. Run the client and the server on the same release: an older client ignores `args`, so it builds the tool input from the streamed deltas only, and a tool call with no deltas (for example an Anthropic server tool) gets no input.
+  - History converters for Bedrock and the Gemini Interactions API send malformed tool arguments as `{}` instead of failing the request.
+  - Gemini Interactions: the initial `step.arguments` snapshot goes out as a `TOOL_CALL_ARGS` delta only when no argument deltas follow, so the deltas always add up to the final arguments.
+  - Malformed tool arguments are no longer turned into `{}` by an adapter. The tool gets a "Failed to parse tool arguments as JSON" error that the model can repair. Mistral still ends the run with an error on malformed arguments, as before.
+
+- [#1723](https://github.com/TanStack/ai/pull/1723) [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555) - Continue a child. With `withPersistence` on the parent `chat()`, an agent tool result gives the model the child's `subagentRunId`, and a later call of the same agent tool with `sessionId` continues that child from its stored transcript. With a host that sets `subagents.binding.start`, `background: true` starts the child and returns at once. These fields sit next to the agent's own fields, and each agent tool has them only when the run can use them. When the run uses `sessionId` or `background`, that name is reserved: `chat()` throws when an agent's `inputSchema` uses it. An agent without `inputSchema` takes the task as text in `prompt`, and the child gets it as the last user message. Agent tools also support the `detach` field of the tool context.
+
+  The card keeps the checked input of an agent with `inputSchema`. On the client, `part.subagent.input` has it, typed from `inputSchema` when the agent declaration goes to `useChat({ subagents })`.
+
+  `@tanstack/ai` adds `LoadChildCapability`, `getLoadChild`, and `provideLoadChild`, so a persistence middleware can load a stored child. A provider lists `LoadChildCapability` in `provides`. `withPersistence` in `@tanstack/ai-persistence` provides it: it stores the task of each child's first call and the thread that started it, and loads only the children of the calling thread.
+
+- [#1750](https://github.com/TanStack/ai/pull/1750) [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b) - Repair common model mistakes in a tool input before the final input check.
+  - When a JSON Schema tool's input (and every MCP tool's input) fails the check, it is repaired and checked again: `"5"` as `5` (decimal text only), `"true"` as `true`, `5` as `"5"` for a string, and `null` as `""`, `0`, or `false` for a required field. A `null` for an optional field that does not allow `null` is removed. The repair follows unions, `$ref`, `if`/`then`/`else`, `prefixItems`, `patternProperties`, and `additionalProperties`.
+  - A Standard Schema runs first as written. When it fails and the schema can export JSON Schema (Zod, ArkType, Valibot), the input is repaired and the schema runs again. A failure reports the issues of the first run.
+  - The received arguments do not change. The tool gets the repaired copy.
+  - New `chat({ repairToolInput })` option. `false` turns the repair off. A function replaces the built-in repair: it gets `{ tool, toolCall, input, error }` and returns the input to check again, or `undefined` to send the validation error to the model.
+
+  Behavior change: a call that failed the check only because of these mistakes now runs with the repaired input.
+
+- [#1750](https://github.com/TanStack/ai/pull/1750) [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b) - Check a tool input at the last moment, just before the tool runs or the client gets the call.
+
+  Behavior change:
+  - The tool's Standard Schema `inputSchema` now checks the input after approval `editedArgs` and after middleware `onBeforeToolCall`. Before, a `transformArgs` value reached `execute` or the client without a check. An input that does not fit the schema now becomes a tool error (state `output-error`), and the tool does not run. An approval edit is also still checked when the run resumes.
+  - `onBeforeToolCall` gets the parsed input before the schema check. It has no schema defaults or transforms yet, and it can be invalid.
+  - Async Standard Schema input validators are awaited. Before, every call to such a tool failed with an input validation error.
+  - `onBeforeToolCall` now also runs for a client tool before the server sends the call to the client. This includes a client request at an interrupt boundary. It does not run while a call waits for approval or for a denied call. When the client result comes back, the result is kept, with no second hook run and no second check. `otelMiddleware` records no `execute_tool` span for a client tool, because the server does not run it.
+  - A validation error after the hook runs `onAfterToolCall` with `ok: false`.
+  - The tool error that the model sees now also shows the arguments that the model sent. When an approval edit or middleware changed them, the error says so.
+  - While a call waits for approval, an approved client tool in the same batch is now sent to the client. Before, it waited for the next round trip.
+  - When the only call that waits for approval fails its input check, the other calls of the batch now run. Before, they got no result.
+
+  Migration:
+  - If a middleware `transformArgs` or an approval edit sends a value that the schema rejects, make the value fit the schema, or widen the schema.
+  - If `onBeforeToolCall` reads `hookCtx.args`, check its shape first. Do not expect schema defaults there.
+  - If a middleware counts or blocks calls in `onBeforeToolCall` and must see only server tools, return early when `hookCtx.tool?.execute` is missing.
+
+### Patch Changes
+
+- [#1742](https://github.com/TanStack/ai/pull/1742) [`5f95dbd`](https://github.com/TanStack/ai/commit/5f95dbd08f2780442000ac52074ea747d1b44187) - `decide()` now reports token usage when the provider answered but the answers cannot be mapped, for example when an answer is missing, has the wrong type, or has no probability for its value. Before, `decide()` threw without reporting the usage that the provider already billed. The `onUsage` middleware hook and the `evaluate:usage` event now get that usage once, before `onError` runs. `onFinish` still does not run for a failed call, and `decide()` throws the mapping error. If an `onUsage` hook throws, that error is thrown instead, as it is for a successful call. The mapping error is still logged.
+
+- [#1789](https://github.com/TanStack/ai/pull/1789) [`4298480`](https://github.com/TanStack/ai/commit/429848047c8c514f29855f8a99a7260253eb5d5b) - Keep custom metadata from `REASONING_MESSAGE_START` on the assistant `UIMessage`. The thinking text was already kept. Metadata that arrived only on the start event was dropped.
+
+- [#1776](https://github.com/TanStack/ai/pull/1776) [`f68da51`](https://github.com/TanStack/ai/commit/f68da51f63f999b70ac7aaf5aebc0109a7e9daf7) - File each model call on its own assistant message. Reasoning that arrives before the call's text id, a tool call whose parent id is new, and a signature that names an earlier step stay on the message that owns them.
+
+- [#1786](https://github.com/TanStack/ai/pull/1786) [`30fa651`](https://github.com/TanStack/ai/commit/30fa651d173e519db8de50c9f888ded71b951640) - Fix subagent limit and continue edges.
+  - A background `start` that throws gives the `maxCalls` slot back. `maxConcurrent` counts that child until `done` settles. `start` now returns `done`.
+  - A schema result that is not an object does not drop `sessionId` or `background`. A top-level `anyOf` schema still shows those fields.
+  - A suspended child with no stored `base` keeps its transcript.
+  - When the parent deadline is already past, the model gets `subagent limit reached (no time left)`.
+
+- Updated dependencies [[`85c2956`](https://github.com/TanStack/ai/commit/85c2956c68f3226ef409b3a4e54d5be82198931e)]:
+  - @tanstack/ai-utils@0.5.0
+
 ## 0.69.0
 
 ### Minor Changes

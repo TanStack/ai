@@ -15,6 +15,7 @@ describe('buildProviderSupportsBody', () => {
     expect(body).toContain("'file_search'")
     expect(body).toContain("'code_interpreter'")
     expect(body).toContain("'mcp'")
+    expect(body).toContain("'computer_use', 'computer'")
     expect(body).toContain("endpoints: ['chat', 'chat-completions']")
     expect(body).toContain('function_calling')
     expect(body).toContain('structured_outputs')
@@ -27,6 +28,7 @@ describe('buildProviderSupportsBody', () => {
       supportedParameters: ['temperature'],
     })
     expect(body).toContain('tools: []')
+    expect(body).not.toContain("'computer'")
   })
 
   it('lists Anthropic server tools and budget-thinking flags', () => {
@@ -38,7 +40,8 @@ describe('buildProviderSupportsBody', () => {
     expect(body).toContain("'web_search'")
     expect(body).toContain("'web_fetch'")
     expect(body).toContain("'code_execution'")
-    expect(body).toContain("'computer_use'")
+    expect(body).toContain("'computer', 'computer_toolset'")
+    expect(body).not.toContain("'computer_use'")
     expect(body).toContain('extended_thinking: true')
     expect(body).toContain('priority_tier: true')
     expect(body).not.toContain('adaptive_thinking')

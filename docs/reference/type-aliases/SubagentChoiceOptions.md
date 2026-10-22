@@ -7,7 +7,7 @@ title: SubagentChoiceOptions
 type SubagentChoiceOptions<TAgents> = object & { [K in TAgents[number]["name"]]: string };
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:92](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L92)
+Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:143](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L143)
 
 Choice options for a `decide()` router. `main` is required plus every agent name.
 

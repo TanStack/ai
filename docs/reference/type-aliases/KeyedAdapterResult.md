@@ -7,7 +7,7 @@ title: KeyedAdapterResult
 type KeyedAdapterResult<T> = T extends KeyedAdapter<infer A> ? A : never;
 ```
 
-Defined in: [packages/ai/src/byok/keyed.ts:71](https://github.com/TanStack/ai/blob/main/packages/ai/src/byok/keyed.ts#L71)
+Defined in: [packages/ai/src/byok/keyed.ts:90](https://github.com/TanStack/ai/blob/main/packages/ai/src/byok/keyed.ts#L90)
 
 The adapter type that a [KeyedAdapter](../interfaces/KeyedAdapter.md) builds.
 

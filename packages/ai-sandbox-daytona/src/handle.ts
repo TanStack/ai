@@ -428,6 +428,10 @@ export class DaytonaHandle implements SandboxHandle {
         await this.sandbox.process.deleteSession(sessionId).catch(() => {})
       }
     })()
+    // A caller that never calls `wait()` (a background Xvfb, say) must not
+    // crash the process when the poll fails, like after `destroy()`.
+    // `wait()` still rejects with the error.
+    pump.catch(() => undefined)
 
     return {
       pid: -1, // Daytona session commands do not surface a host-visible pid.

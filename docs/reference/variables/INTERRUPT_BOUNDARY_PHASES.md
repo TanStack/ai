@@ -7,4 +7,4 @@ title: INTERRUPT_BOUNDARY_PHASES
 const INTERRUPT_BOUNDARY_PHASES: readonly ["beforeModel", "afterModel", "beforeTools", "afterTools"];
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:103](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L103)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:104](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L104)

@@ -12,6 +12,7 @@ Choose an example based on your use case:
 - **Want typed ticket routing?** → [Evaluate](#evaluate)
 - **Want a blog desk with three agents?** → [Subagents](#subagents)
 - **Want your own MCP server?** → [MCP server](#mcp-server)
+- **Want the model to use a web page?** → [Computer Use](#computer-use)
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
 - **Need a live world stream?** → [World generation (ts-react-media)](#world-generation-ts-react-media)
 - **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
@@ -143,6 +144,25 @@ pnpm --filter mcp-server dev
 Open http://localhost:3100. Click Call the server.
 
 📖 [Full Documentation](react/mcp-server/README.md)
+
+---
+
+### Computer Use
+
+A slim TanStack Start app. The model opens tanstack.com in Chromium and finds the computer use docs. One provider (OpenAI). Each screenshot shows in the chat.
+
+**Path:** `examples/react/computer-use`
+
+**Getting Started:**
+
+```bash
+pnpm --filter computer-use exec playwright-core install chromium
+pnpm --filter computer-use dev
+```
+
+Set `OPENAI_API_KEY` in `.env.local`. Open http://localhost:3100. Click Send.
+
+📖 [Full Documentation](react/computer-use/README.md)
 
 ---
 

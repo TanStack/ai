@@ -664,6 +664,7 @@ interface Tool<TContext = unknown> {
 ```typescript ignore
 type ToolExecutionContext<TContext = unknown> = {
   toolCallId?: string;
+  threadId?: string;
   emitCustomEvent: (
     eventName: string,
     value: Record<string, any>,
@@ -673,6 +674,8 @@ type ToolExecutionContext<TContext = unknown> = {
 ```
 
 `context` is the runtime value from `chat({ context })` for server tools, or from `ChatClient` / framework hook options for client tools. It is required when a tool declares a concrete `TContext` and optional for untyped tools where the context type is `unknown`.
+
+`threadId` is the thread id of the chat run. `chat()` sets it to the same value as `ctx.threadId` in middleware. A tool can use it to keep its own state for each conversation.
 
 ### `ChatMiddleware<TContext>`
 
