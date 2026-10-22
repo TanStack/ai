@@ -431,4 +431,44 @@ describe('OpenAI adapter option mapping', () => {
     expect(payload.top_p).toBe(0.9)
     expect(payload.max_output_tokens).toBe(256)
   })
+
+  it('drops temperature and top_p on gpt-6 reasoning models and asks for encrypted reasoning', async () => {
+    const mockStream = createMockChatCompletionsStream([
+      {
+        type: 'response.created',
+        response: {
+          id: 'resp-gpt6-sampling',
+          model: 'gpt-6.1-sol',
+          status: 'in_progress',
+          created_at: 1234567890,
+        },
+      },
+      {
+        type: 'response.completed',
+        response: {
+          id: 'resp-gpt6-sampling',
+          status: 'completed',
+          usage: { input_tokens: 1, output_tokens: 0 },
+        },
+      },
+    ])
+
+    const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
+    const adapter = new OpenAITextAdapter({ apiKey: 'test-key' }, 'gpt-6.1-sol')
+    ;(adapter as any).client = { responses: { create: responsesCreate } }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      modelOptions: { temperature: 0.7, top_p: 0.9, max_output_tokens: 256 },
+    })) {
+      // consume stream
+    }
+
+    const [payload] = responsesCreate.mock.calls[0]!
+    expect(payload.temperature).toBeUndefined()
+    expect(payload.top_p).toBeUndefined()
+    expect(payload.max_output_tokens).toBe(256)
+    expect(payload.include).toEqual(['reasoning.encrypted_content'])
+  })
 })
