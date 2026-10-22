@@ -122,6 +122,7 @@ describe('toServerSentEventsResponse with durability', () => {
       })
       const stream = chat({
         adapter,
+        threadId: 'thread-1',
         messages: [{ role: 'user' as const, content: 'Look twice' }],
         tools: [
           toolDefinition({

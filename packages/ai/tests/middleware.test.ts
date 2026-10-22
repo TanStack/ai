@@ -1402,6 +1402,7 @@ describe('chat() middleware', () => {
 
       const stream = chat({
         adapter,
+        threadId: 'thread-1',
         messages: [{ role: 'user', content: 'Send it' }],
         tools: [serverTool('sendEmail', execute)],
         middleware: [
