@@ -372,9 +372,27 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
-import { withSandbox } from '@tanstack/ai-sandbox'
+import {
+  createSecrets,
+  defineSandbox,
+  defineWorkspace,
+  githubRepo,
+  withSandbox,
+} from '@tanstack/ai-sandbox'
+import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 import { z } from 'zod'
-import { sandbox } from './sandbox'
+
+const sandbox = defineSandbox({
+  id: 'repo-report',
+  provider: dockerSandbox({ image: 'node:22' }),
+  workspace: defineWorkspace({
+    source: githubRepo({ repo: 'owner/app' }),
+    setup: ['npm install -g @anthropic-ai/claude-code --include=optional'],
+    secrets: createSecrets({
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
+    }),
+  }),
+})
 
 const ReportSchema = z.object({
   name: z.string(),

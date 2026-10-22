@@ -292,8 +292,13 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openRouterVideo } from '@tanstack/ai-openrouter'
-import { withGenerationPersistence } from '@tanstack/ai-persistence'
-import { persistence } from './persistence'
+import {
+  memoryPersistence,
+  withGenerationPersistence,
+} from '@tanstack/ai-persistence'
+
+// Swap for a database and blob store in production.
+const persistence = memoryPersistence()
 
 export async function POST(request: Request) {
   const { input, threadId } = await generationParamsFromRequest('video', request)
@@ -321,7 +326,7 @@ export async function POST(request: Request) {
 }
 ```
 
-`./persistence` is your persistence object. It needs the `generationRuns`, `artifacts`, and `blobs` stores. [Keep generated files](../persistence/keep-generated-files) shows how to build it, and how to write the route that serves the bytes.
+`memoryPersistence()` has the `generationRuns`, `artifacts`, and `blobs` stores this needs. [Keep generated files](../persistence/keep-generated-files) shows how to use a real store, and how to write the route that serves the bytes.
 
 The hook needs no change. `result.url` is now a URL on your own origin, so `<video src={result.url} />` plays it.
 
