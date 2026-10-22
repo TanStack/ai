@@ -587,6 +587,53 @@ describe('interrupt persistence', () => {
     expect(await persistence.stores.interrupts!.listPending('t1')).toEqual([])
   })
 
+  it('resolves the approval of a tool that a later middleware adds in onConfig', async () => {
+    const persistence = memoryPersistence()
+    const execute = vi.fn(async () => ({ ok: true }))
+    // The tool is not in `tools`: a middleware after persistence adds it.
+    const addsTool = defineChatMiddleware({
+      name: 'adds-tool',
+      onConfig: () => ({
+        tools: [{ ...approvalClientTool('clientSearch'), execute }],
+      }),
+    })
+    await collect(
+      chat({
+        adapter: mockAdapter([toolCallChunks()]).adapter,
+        messages: [{ role: 'user', content: 'hi' }],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence), addsTool],
+      }) as AsyncIterable<StreamChunk>,
+    )
+    expect(
+      (await persistence.stores.interrupts!.get('approval_tool-call-1'))
+        ?.status,
+    ).toBe('pending')
+
+    const chunks = await collect(
+      chat({
+        adapter: mockAdapter([[runStarted(), text('done'), runFinished('r1')]])
+          .adapter,
+        messages: [],
+        runId: 'r1',
+        threadId: 't1',
+        resume: [
+          {
+            interruptId: 'approval_tool-call-1',
+            status: 'resolved',
+            payload: { approved: true },
+          },
+        ],
+        middleware: [withPersistence(persistence), addsTool],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(chunks.find((c) => c.type === EventType.RUN_ERROR)).toBeUndefined()
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(chunks).toContainEqual(expect.objectContaining({ delta: 'done' }))
+  })
+
   it('preserves failed client-tool resumes from persisted state', async () => {
     const persistence = memoryPersistence()
     await persistClientToolTurn(persistence, [clientTool('clientSearch')])

@@ -5,7 +5,7 @@
     "@aws-sdk/client-bedrock",
     "@typescript/typescript6"
   ],
-  "ignoreBinaries": ["taskkill"],
+  "ignoreBinaries": ["taskkill", "ps"],
   "ignoreWorkspaces": [
     "examples/**",
     "testing/**",

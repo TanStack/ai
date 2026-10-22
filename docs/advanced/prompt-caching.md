@@ -83,9 +83,10 @@ From the second call of a conversation, most of the input comes from the cache.
   2. The `threadId` that you pass to `chat()`.
   3. No key. Claude does not need one. OpenAI uses the key to route requests, so a stable `threadId` gives more cache hits.
 - A request reads the cache only up to the first token that is different. Text that changes on each call, such as the current time in the system prompt, ends the match there.
-- `usage.promptTokens` is the full input. Two fields split it:
+- `usage.promptTokens` is the full input. These fields split it:
   - `usage.promptTokensDetails.cachedTokens`: tokens read from the cache.
   - `usage.promptTokensDetails.cacheWriteTokens`: tokens written to the cache. Claude reports this field.
+  - `usage.promptTokensDetails.cacheWrite1hTokens`: the part of `cacheWriteTokens` that is kept for 1 hour. Claude reports this field. A 1-hour write costs more than a 5-minute write.
 
 ## Advanced
 

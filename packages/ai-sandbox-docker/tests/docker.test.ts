@@ -1,6 +1,14 @@
+import { execFileSync } from 'node:child_process'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import Dockerode from 'dockerode'
-import { defineSandbox, defineWorkspace } from '@tanstack/ai-sandbox'
+import {
+  defineSandbox,
+  defineWorkspace,
+  localSource,
+} from '@tanstack/ai-sandbox'
 import { dockerSandbox } from '../src/index'
 import { dockerDaemonAvailable } from './docker-daemon'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
@@ -441,6 +449,48 @@ describe.skipIf(!dockerAvailable)(
         await def.destroy(ctx)
       }
     }, 120_000)
+
+    it('copies a localSource repository, so git status in the container matches the host', async () => {
+      const repo = await mkdtemp(join(tmpdir(), 'docker-local-source-'))
+      const git = (...args: Array<string>) =>
+        execFileSync('git', args, { cwd: repo, encoding: 'utf8' })
+      // The copy sets up git in the container, so the image needs git.
+      const provider = dockerSandbox({ image: 'node:24' })
+      let sbx: SandboxHandle | undefined
+      try {
+        git('init', '-q', '-b', 'main')
+        git('config', 'user.email', 't@t.test')
+        git('config', 'user.name', 't')
+        await writeFile(join(repo, '.gitignore'), 'secret.env\n')
+        await writeFile(join(repo, 'README.md'), 'hi\n')
+        await writeFile(join(repo, 'gone.txt'), 'x\n')
+        git('add', '.')
+        git('commit', '-q', '-m', 'init')
+        await writeFile(join(repo, 'README.md'), 'changed\n')
+        await rm(join(repo, 'gone.txt'))
+        await writeFile(join(repo, 'notes.txt'), 'untracked\n')
+        await writeFile(join(repo, 'secret.env'), 'TOKEN=1\n')
+        // Guard the guard: the host has the changes that the copy must keep.
+        expect(git('status', '--porcelain')).toBe(
+          ' M README.md\n D gone.txt\n?? notes.txt\n',
+        )
+
+        sbx = await provider.create({
+          workspace: defineWorkspace({ source: localSource(repo) }),
+        })
+
+        const status = await sbx.process.exec('git status --porcelain')
+        expect(status.exitCode).toBe(0)
+        expect(status.stdout).toBe(git('status', '--porcelain'))
+        const head = await sbx.process.exec('git rev-parse HEAD')
+        expect(head.stdout).toBe(git('rev-parse', 'HEAD'))
+        // The ignored file stays on the host.
+        expect(await sbx.fs.exists('/workspace/secret.env')).toBe(false)
+      } finally {
+        await sbx?.destroy()
+        await rm(repo, { recursive: true, force: true })
+      }
+    }, 300_000)
 
     it('reassembles a multi-byte character split across spawn stdout chunk boundaries', async () => {
       const provider = dockerSandbox({ image: IMAGE })

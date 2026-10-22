@@ -105,23 +105,44 @@ export interface SandboxProcess {
   spawn: (command: string, options?: ProcessOptions) => Promise<SpawnHandle>
 }
 
+/**
+ * The options of a `SandboxFs` call. When `signal` is aborted, the call
+ * rejects. A provider gives the signal to its SDK when the SDK takes one.
+ * Otherwise it checks the signal before the call.
+ */
+export interface SandboxFsOptions {
+  signal?: AbortSignal
+}
+
 /** Common, portable filesystem operations every provider implements. */
 export interface SandboxFs {
-  read: (path: string) => Promise<string>
-  readBytes: (path: string) => Promise<Uint8Array>
-  write: (path: string, data: string | Uint8Array) => Promise<void>
+  read: (path: string, options?: SandboxFsOptions) => Promise<string>
+  readBytes: (path: string, options?: SandboxFsOptions) => Promise<Uint8Array>
+  write: (
+    path: string,
+    data: string | Uint8Array,
+    options?: SandboxFsOptions,
+  ) => Promise<void>
   list: (
     path: string,
+    options?: SandboxFsOptions,
   ) => Promise<Array<{ name: string; path: string; type: 'file' | 'dir' }>>
-  mkdir: (path: string) => Promise<void>
-  remove: (path: string) => Promise<void>
-  rename: (from: string, to: string) => Promise<void>
-  exists: (path: string) => Promise<boolean>
+  mkdir: (path: string, options?: SandboxFsOptions) => Promise<void>
+  remove: (path: string, options?: SandboxFsOptions) => Promise<void>
+  rename: (
+    from: string,
+    to: string,
+    options?: SandboxFsOptions,
+  ) => Promise<void>
+  exists: (path: string, options?: SandboxFsOptions) => Promise<boolean>
   /**
    * Optional metadata lookup. Implementations must not follow symlinks.
    * Returns undefined only for a confirmed missing path. All other errors reject.
    */
-  lstat?: (path: string) => Promise<SandboxFsStat | undefined>
+  lstat?: (
+    path: string,
+    options?: SandboxFsOptions,
+  ) => Promise<SandboxFsStat | undefined>
   /** Optional — present only when `capabilities.fs` providers advertise watch. */
   watch?: (
     path: string,

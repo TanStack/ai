@@ -1,0 +1,27 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[harness-retry-after] say hello",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "error": {
+          "message": "Rate limit exceeded",
+          "type": "rate_limit_error"
+        },
+        "status": 429,
+        "retryAfter": 1
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-retry-after] say hello",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Hello after the wait"
+      }
+    }
+  ]
+}

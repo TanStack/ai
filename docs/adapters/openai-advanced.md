@@ -374,6 +374,8 @@ OpenAI gives each answer item an `id` and a `phase`: `commentary` for text befor
 
 When the same model gets that message again, for example on the next turn, the adapter sends each item back with its `id` and `phase`. Another model gets the plain text.
 
+When the model call also sent a reasoning item, the adapter sets `metadata.tanstack.reasoningItem`. If a stored message lost that reasoning item, the adapter sends the text and tool calls without their item ids. OpenAI refuses a `msg_` or `fc_` item without the reasoning item that made it.
+
 ## Transcription options
 
 ```typescript

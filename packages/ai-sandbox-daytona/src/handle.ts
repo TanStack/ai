@@ -190,16 +190,20 @@ export class DaytonaHandle implements SandboxHandle {
       spawn: (command, opts) => this.spawnProcess(command, opts),
     }
 
+    // The native file calls take no abort signal, so each call checks it first.
     this.fs = {
-      read: async (p) => {
+      read: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const buf = await this.sandbox.fs.downloadFile(this.abs(p))
         return buf.toString('utf8')
       },
-      readBytes: async (p) => {
+      readBytes: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const buf = await this.sandbox.fs.downloadFile(this.abs(p))
         return new Uint8Array(buf)
       },
-      write: async (p, data) => {
+      write: async (p, data, o) => {
+        o?.signal?.throwIfAborted()
         const abs = this.abs(p)
         const parent = abs.replace(/\/[^/]*$/, '') || '/'
         await this.sandbox.fs.createFolder(parent, '755')
@@ -209,7 +213,8 @@ export class DaytonaHandle implements SandboxHandle {
             : Buffer.from(data)
         await this.sandbox.fs.uploadFile(buf, abs)
       },
-      list: async (p) => {
+      list: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const entries = await this.sandbox.fs.listFiles(this.abs(p))
         return entries.map((entry) => ({
           name: entry.name,
@@ -217,17 +222,24 @@ export class DaytonaHandle implements SandboxHandle {
           type: entry.isDir ? ('dir' as const) : ('file' as const),
         }))
       },
-      lstat: async (p) => this.lstat(this.abs(p)),
-      mkdir: async (p) => {
+      lstat: async (p, o) => {
+        o?.signal?.throwIfAborted()
+        return this.lstat(this.abs(p))
+      },
+      mkdir: async (p, o) => {
+        o?.signal?.throwIfAborted()
         await this.sandbox.fs.createFolder(this.abs(p), '755')
       },
-      remove: async (p) => {
+      remove: async (p, o) => {
+        o?.signal?.throwIfAborted()
         await this.sandbox.fs.deleteFile(this.abs(p), true)
       },
-      rename: async (from, to) => {
+      rename: async (from, to, o) => {
+        o?.signal?.throwIfAborted()
         await this.sandbox.fs.moveFiles(this.abs(from), this.abs(to))
       },
-      exists: async (p) => {
+      exists: async (p, o) => {
+        o?.signal?.throwIfAborted()
         try {
           await this.sandbox.fs.getFileDetails(this.abs(p))
           return true

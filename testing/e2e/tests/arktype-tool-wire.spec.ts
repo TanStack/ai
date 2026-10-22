@@ -15,12 +15,6 @@ import { test, expect } from './fixtures'
  * mock mount because aimock normalizes Gemini function declarations.
  */
 test.describe('arktype — tool schema wire format', () => {
-  test.beforeEach(async ({ request, aimockPort }) => {
-    // Clear the aimock journal so we only assert against this test's request —
-    // adjacent specs share the same aimock instance.
-    await request.delete(`http://127.0.0.1:${aimockPort}/v1/_requests`)
-  })
-
   test('ArkType inputSchema is converted to JSON Schema on the wire', async ({
     request,
     aimockPort,
@@ -37,6 +31,7 @@ test.describe('arktype — tool schema wire format', () => {
       `http://127.0.0.1:${aimockPort}/v1/_requests`,
     )
     const entries = (await journalRes.json()) as Array<{
+      headers?: Record<string, string>
       body: {
         tools?: Array<{
           type?: string
@@ -45,9 +40,11 @@ test.describe('arktype — tool schema wire format', () => {
       } | null
     }>
 
-    const captured = entries[0]?.body?.tools?.find(
-      (t) => t.function?.name === 'get_arktype_weather',
-    )
+    // Other specs run at the same time against the same aimock, so the
+    // journal has their requests too. Read only this test's request.
+    const captured = entries
+      .find((entry) => entry.headers?.['x-test-id'] === testId)
+      ?.body?.tools?.find((t) => t.function?.name === 'get_arktype_weather')
 
     // Before the fix `parameters` was `{}` (the ArkType validator function was
     // passed through unconverted and dropped by JSON serialization). After the
