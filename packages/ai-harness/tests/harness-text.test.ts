@@ -132,7 +132,7 @@ describe('harnessText', () => {
     await host.close()
   })
 
-  it('opens one session per call without a thread id, as the user, and closes it', async () => {
+  it('opens the inner thread of the outer thread, as the user, and closes it', async () => {
     const inner = mockAdapter([() => text('one'), () => text('two')])
     const seen: Array<{ threadId: string; user: unknown }> = []
     const watch = definePlugin({
@@ -170,7 +170,8 @@ describe('harnessText', () => {
       }
     }
     expect(seen).toHaveLength(2)
-    expect(seen[0]?.threadId).not.toBe(seen[1]?.threadId)
+    expect(seen[0]?.threadId).toBe('thread-1/inner/test/inner')
+    expect(seen[1]?.threadId).toBe(seen[0]?.threadId)
     expect(seen.map((entry) => entry.user)).toEqual([
       { id: 'u-1' },
       { id: 'u-1' },

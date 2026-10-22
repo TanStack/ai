@@ -2017,10 +2017,13 @@ export abstract class SessionState<
             previous.handoff
               ? { handoff: previous.handoff }
               : {}),
+            // An older interrupted record has no sender. The input of that
+            // run still has one. A record that names no user, and an input
+            // that names no user, stay with no user.
             ...storedUser(
-              previous !== undefined && previous.runId === runId
+              (previous !== undefined && previous.runId === runId
                 ? previous.user
-                : savedInput?.user,
+                : undefined) ?? savedInput?.user,
             ),
             ...(context !== undefined ? { context } : {}),
           }
