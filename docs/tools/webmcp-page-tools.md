@@ -16,7 +16,7 @@ keywords:
 
 Read the WebMCP tools already registered on `document.modelContext` and pass those same tools to the in-page chat.
 
-The page tools API reads those tools and gives them to your chat as client tools. When the model calls one, the chat runs it through WebMCP.
+The chat gets them as client tools. When the model calls one, the chat runs it through WebMCP.
 
 > [!WARNING]
 > WebMCP is experimental. During SSR, in an insecure context, or in a browser without WebMCP, the tool list stays empty.

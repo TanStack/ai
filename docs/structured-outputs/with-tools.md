@@ -15,7 +15,7 @@ keywords:
 
 The model can call tools, then return an object that matches `outputSchema`. The tool result is available before the object is filled.
 
-Pass `tools` and `outputSchema` to the same `chat()` call. The agent loop runs the tools first. Then the model returns the typed object.
+Pass `tools` and `outputSchema` to the same `chat()` call.
 
 New to tools? Read [Server Tools](../tools/server-tools) first.
 

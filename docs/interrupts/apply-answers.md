@@ -14,8 +14,7 @@ keywords:
 
 Read the user's answer in `onInterruptResolution`, then apply it in `onConfig`. A no stops the run.
 
-Read the answer in `onInterruptResolution`, keep it on a middleware capability,
-and apply it in `onConfig`.
+Keep the answer on a middleware capability between the two hooks.
 
 This page assumes that you have the `reviewPlan` definition from
 [Generic Interrupts](./generic).

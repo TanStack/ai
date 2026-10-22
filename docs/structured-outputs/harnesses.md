@@ -17,7 +17,7 @@ keywords:
 
 Pass `outputSchema` to a coding-agent `chat()` call. The agent still streams tool calls, and the run ends with a typed object.
 
-Pass `outputSchema` on the same `chat()` call. The agent runs its native tools in the sandbox. Then you get a validated object from `await chat()` or from `useChat().final`.
+The agent runs its native tools in the sandbox. Read the validated object from `await chat()` or from `useChat().final`.
 
 This page is for the sandbox harness adapters:
 

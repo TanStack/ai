@@ -14,8 +14,6 @@ keywords:
 
 The files API uploads a file once and sends the file id on later turns. Each request then skips a fresh base64 upload of the same PDF.
 
-Upload the file to the Files API of the provider one time. You get a small handle back. Put that handle in each message instead of the bytes.
-
 ## Quick setup
 
 This setup uploads a PDF to Anthropic and asks Claude about it. It takes about 10 minutes. Set `ANTHROPIC_API_KEY` on the server first.

@@ -16,7 +16,7 @@ keywords:
 
 `webSocket()` keeps one socket open for the conversation. A durable run reconnects on that socket.
 
-A WebSocket connection keeps one socket open for the whole conversation. Every turn goes over it, and it resumes after a drop without a second model call.
+Every turn goes over the socket, and a resume after a drop does not call the model again.
 
 ## Quick setup
 

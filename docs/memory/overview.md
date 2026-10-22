@@ -16,7 +16,7 @@ keywords:
 
 Memory stores facts from earlier turns and puts them back into the next request. The model then keeps the user's name, stack, and preferences.
 
-`memoryMiddleware` fixes this. It finds the memory that matters for each new message, adds it to the prompt, and saves each finished turn for later.
+`memoryMiddleware` finds the memory that matters for each new message, adds it to the prompt, and saves each finished turn for later.
 
 ## Quick setup
 

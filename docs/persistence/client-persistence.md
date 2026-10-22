@@ -5,7 +5,7 @@ id: client-persistence
 
 Client persistence writes `useChat` messages to storage in the browser. A reload keeps the conversation and a reply that was still streaming.
 
-The `persistence` option fixes this from the browser side. On reload, it shows the transcript again, brings back a pending approval, and rejoins a reply that was still streaming.
+On reload, the `persistence` option also brings back a pending approval.
 
 ## Quick setup
 

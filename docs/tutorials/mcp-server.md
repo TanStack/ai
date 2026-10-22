@@ -17,7 +17,7 @@ keywords:
 
 This tutorial serves a tool, a file, and a prompt with `createMCPServer` on a TanStack Start route.
 
-`createMCPServer` serves all three from one TanStack Start route. In this tutorial, a page in the same app calls the server with a typed client and shows the three results. It takes about 10 minutes, and you do not need a model key.
+A page in the same app calls the server with a typed client and shows the three results. It takes about 10 minutes, and you do not need a model key.
 
 This tutorial uses React and Start. For the short guide, open [Serve Tools over HTTP](../mcp/server).
 

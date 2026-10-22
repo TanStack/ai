@@ -13,7 +13,7 @@ keywords:
 
 `createChatHook` from `@tanstack/ai-remix/ui` binds your chat options and components once. Tool calls and approvals stay typed.
 
-`createChatHook` from `@tanstack/ai-remix/ui` Each screen then creates a chat with `createAppChat(handle, { threadId })` and renders it with `ui.Chat`. Each widget is a Remix setup function that reads `handle.props`. You supply every visible component. There is no default markup or style.
+Each screen then creates a chat with `createAppChat(handle, { threadId })` and renders it with `ui.Chat`. Each widget is a Remix setup function that reads `handle.props`. You supply every visible component. There is no default markup or style.
 
 ## Quick setup
 

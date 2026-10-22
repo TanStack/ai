@@ -13,7 +13,7 @@ keywords:
 
 `createChatHook` from `@tanstack/ai-vue/ui` binds your chat options and components once. Tool calls and approvals stay typed.
 
-`createChatHook` from `@tanstack/ai-vue/ui` Each screen then creates a chat with `useAppChat()` and renders it with `UIChat`. You supply every visible component. There is no default markup or style.
+Each screen then creates a chat with `useAppChat()` and renders it with `UIChat`. You supply every visible component. There is no default markup or style.
 
 > [!NOTE]
 > Upgrading from `@tanstack/ai-vue-ui`? Read [Upgrade to 1.0](../migration/v1#chat-ui-components).

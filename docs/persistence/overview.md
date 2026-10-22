@@ -13,7 +13,7 @@ keywords:
 
 Persistence stores the conversation outside process memory. A reload, or the same user on another device, then loads that conversation.
 
-Persistence fixes this. The server saves each thread, and `useChat` loads it back when the page opens.
+The server saves each thread, and `useChat` loads it back when the page opens.
 
 ## Quick setup
 

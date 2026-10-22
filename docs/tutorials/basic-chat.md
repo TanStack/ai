@@ -15,7 +15,7 @@ keywords:
 
 This tutorial builds a chat that streams tokens. The provider key stays in the browser for the demo.
 
-In this tutorial, the user pastes an OpenRouter key in the browser. `useChat` sends it to a server route, and the route streams the reply back. It takes about 10 minutes.
+The user pastes an OpenRouter key, and `useChat` sends it to a server route. It takes about 10 minutes.
 
 This tutorial uses React and TanStack Start. For other frameworks, open [Quick Start](../getting-started/quick-start). To skip the setup, paste a key in the sandbox in step 5.
 

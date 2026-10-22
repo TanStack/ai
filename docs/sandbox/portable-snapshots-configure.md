@@ -7,7 +7,7 @@ description: "Wire portable snapshots so a later run rebuilds completed sandbox 
 
 Configure portable snapshots on a sandbox chat. The next run restores the files the agent wrote after the provider sandbox is gone.
 
-Portable snapshots save those files after each successful run. A later run restores the latest checkpoint into a new private sandbox. At the end of this page, `chat()` writes and restores those checkpoints.
+Portable snapshots save those files after each successful run, and restore the latest checkpoint into a new private sandbox.
 
 The rules for every setup:
 

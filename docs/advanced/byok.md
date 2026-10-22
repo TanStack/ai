@@ -13,7 +13,7 @@ keywords:
 
 `defineByok` keeps each user's provider key in the browser. The server reads one key with `getByokKey` and does not store it.
 
-With BYOK, each user pastes their own key. The key stays in the browser. Each send puts it on an `x-byok-*` header, and your server uses it for that one call.
+Each send puts the key on an `x-byok-*` header.
 
 ## Quick setup
 

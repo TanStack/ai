@@ -13,7 +13,7 @@ keywords:
 
 `createChatHook` from `@tanstack/ai-solid/ui` binds your chat options and components once. Tool calls and approvals stay typed.
 
-`createChatHook` from `@tanstack/ai-solid/ui` Each screen then renders the chat with one hook call. You supply every visible component. There is no default markup or style.
+Each screen then renders the chat with one hook call. You supply every visible component. There is no default markup or style.
 
 > [!NOTE]
 > Upgrading from `@tanstack/ai-solid-ui`? Read [Upgrade to 1.0](../migration/v1#chat-ui-components).

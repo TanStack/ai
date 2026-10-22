@@ -14,7 +14,7 @@ keywords:
 
 Compaction shortens a transcript before it passes the model context limit. A long chat or agent loop otherwise fails on the next call.
 
-Add `withCompaction` to your `chat()` call. Before each model call, it shrinks the messages that the model sees, so the chat keeps working.
+Add `withCompaction` to your `chat()` call. It runs before each model call.
 
 ## Quick setup
 

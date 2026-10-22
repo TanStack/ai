@@ -15,8 +15,6 @@ keywords:
 
 `chat()` with `outputSchema` returns one typed object from text. It does not stream, store history, or run tools.
 
-Call `chat()` with an `outputSchema` and await it. You get one validated object back.
-
 ## Quick setup
 
 ### 1. Define the schema

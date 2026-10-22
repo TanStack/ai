@@ -15,7 +15,7 @@ keywords:
 
 `extendAdapter` adds your model ids to an existing text adapter. `openaiText('my-fine-tuned-model')` type-checks after you register that id.
 
-`extendAdapter` adds your model names to an adapter factory. The built-in models keep their types, and your models get the types that you declare.
+The built-in models keep their types, and your models get the types that you declare.
 
 ## Quick setup
 

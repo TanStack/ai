@@ -13,7 +13,7 @@ keywords:
 
 Register a tool component under `toolsComponents` and branch on `part.state`. `part.input` and `part.output` are typed from the tool schemas.
 
-Register a component for the tool under `toolsComponents`, and branch on `part.state`. The key is the tool name. `part.input` and `part.output` are typed from the tool schemas, with no casts.
+The key is the tool name. You need no casts.
 
 This page covers the UI. To run the tool, read [Server tools](../../tools/server-tools) or [Client tools](../../tools/client-tools).
 

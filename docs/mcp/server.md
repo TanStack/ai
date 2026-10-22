@@ -15,7 +15,7 @@ keywords:
 
 `createMCPServer` exposes your TanStack server tools over MCP. A host such as Claude Desktop or Cursor can then call them.
 
-`createMCPServer` turns your tools into an MCP server. Your route returns `server.fetch(request)`, and the host connects to that URL.
+Your route returns `server.fetch(request)`, and the host connects to that URL.
 
 ## Quick setup
 

@@ -16,7 +16,7 @@ keywords:
 
 The run journal writes each agent event to disk. A new server can read that log after the process that held the pipe exits.
 
-The run journal fixes this. The agent writes its output to a file inside the sandbox, and your server reads that file. Any server with the sandbox handle and the run id can read the whole run again, from the first byte.
+Any server with the sandbox handle and the run id can read the whole run again, from the first byte.
 
 ## Turn on the journal
 

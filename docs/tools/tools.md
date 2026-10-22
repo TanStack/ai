@@ -16,7 +16,7 @@ keywords:
 
 A tool is a function the model can call, such as a weather lookup or an order query. `chat()` runs the function and sends the result back.
 
-A tool fixes this. A tool is a function that the model can call. You describe the function and its input. The model decides when to call it. TanStack AI runs it and gives the result back to the model.
+You describe the function and its input. The model decides when to call it.
 
 ## Add your first tool
 

@@ -15,7 +15,7 @@ keywords:
 
 Code Mode lets the model write one program that calls several tools. One sandbox run replaces one round trip per tool.
 
-Code Mode gives the model one tool, `execute_typescript`. The model writes a short TypeScript program that calls your tools, and a sandbox runs it. You get one result back.
+The model gets one tool, `execute_typescript`, and you get one result back.
 
 ## Quick setup
 

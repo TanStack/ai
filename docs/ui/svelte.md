@@ -13,7 +13,7 @@ keywords:
 
 `createChatHook` from `@tanstack/ai-svelte/ui` binds your chat options and components once. Tool calls and approvals stay typed.
 
-`createChatHook` from `@tanstack/ai-svelte/ui` Each screen then creates a chat with `createAppChat()` and renders it with `UIChat`. You supply every visible component. There is no default markup or style.
+Each screen then creates a chat with `createAppChat()` and renders it with `UIChat`. You supply every visible component. There is no default markup or style.
 
 ## Quick setup
 

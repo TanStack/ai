@@ -13,7 +13,7 @@ keywords:
 
 `createChatHook` from `@tanstack/ai-octane/ui` binds your chat options and components once. Tool calls and approvals stay typed.
 
-`createChatHook` from `@tanstack/ai-octane/ui` Each screen then renders the chat with one hook call. The API is the same as [React](./react). Widgets are Octane components. You supply every visible component. There is no default markup or style.
+Each screen then renders the chat with one hook call. The API is the same as [React](./react). Widgets are Octane components. You supply every visible component. There is no default markup or style.
 
 ## Quick setup
 

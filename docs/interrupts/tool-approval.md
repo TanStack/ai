@@ -13,8 +13,7 @@ keywords:
 
 Set `needsApproval: true` on a tool. The model can plan the call. The tool runs after a person approves it.
 
-Mark the tool `needsApproval: true`. Each call then pauses the run, shows an
-approve or reject prompt in the chat, and continues with the decision.
+The chat shows an approve or reject prompt, and the run continues with the decision.
 
 ## Quick setup
 

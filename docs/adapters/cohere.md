@@ -18,7 +18,7 @@ keywords:
 
 The Cohere adapter embeds text and images, and it reranks documents for a query. This package has no `chat()`, `summarize()`, or media generation.
 
-Cohere has no `chat()`, `summarize()`, or media generation in this package. For those, use [OpenAI](./openai), [Anthropic](./anthropic), or [Gemini](./gemini). The adapter calls the HTTP API of Cohere with `fetch`, with no SDK dependency.
+For those, use [OpenAI](./openai), [Anthropic](./anthropic), or [Gemini](./gemini). The adapter calls the HTTP API of Cohere with `fetch`, with no SDK dependency.
 
 ## 1. Install
 

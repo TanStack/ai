@@ -16,7 +16,7 @@ keywords:
 
 This tutorial builds a prompt box that returns an image. The provider key stays in the browser for the demo.
 
-In this tutorial, the user pastes an OpenRouter key in the browser. `useGenerateImage` sends the prompt to a server route, and the route runs `generateImage`. It takes about 10 minutes.
+The user pastes an OpenRouter key. `useGenerateImage` sends the prompt to a server route, and the route runs `generateImage`. It takes about 10 minutes.
 
 This tutorial uses React and TanStack Start. For other frameworks, open [Quick Start](../getting-started/quick-start). For sizes and other providers, open [Image Generation](../media/image-generation). To skip the setup, paste a key in the sandbox in step 5.
 

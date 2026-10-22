@@ -16,7 +16,7 @@ keywords:
 
 `sample` lets an MCP tool call a model for a draft, such as a short note. The tool itself has no model.
 
-Call `ctx.context.sample` inside the tool. It sends messages to a model and returns the result.
+Call it as `ctx.context.sample` inside the tool.
 
 ## Quick setup
 

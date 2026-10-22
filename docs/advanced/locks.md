@@ -18,7 +18,7 @@ keywords:
 
 A lock makes one worker create the sandbox for a thread. A second run for that thread waits, then uses the same sandbox.
 
-A lock fixes this. Only one caller at a time runs the critical section for a key. The next caller waits until the first one is done.
+Only one caller at a time runs the critical section for a key.
 
 ## Quick setup
 

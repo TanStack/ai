@@ -14,7 +14,7 @@ keywords:
 
 A server tool runs on your server. Use it for a database row, a secret, or an environment variable. That code never runs in the browser.
 
-A server tool fixes this. You write the function with `.server()`, and `chat()` runs it on your server each time the model calls it. The browser never sees the code or the keys.
+Write the function with `.server()`, and `chat()` runs it each time the model calls it.
 
 ## Add a server tool
 

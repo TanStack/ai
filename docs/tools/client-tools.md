@@ -15,7 +15,7 @@ keywords:
 
 A client tool runs in the browser. Use it for a notification, `localStorage`, the clipboard, or navigation.
 
-A client tool fixes this. The server tells the model that the tool exists. When the model calls it, the browser runs your `.client()` function and sends the result back. Then the model continues.
+The server tells the model that the tool exists. When the model calls it, the browser runs your `.client()` function and sends the result back. Then the model continues.
 
 Good jobs for a client tool:
 

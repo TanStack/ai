@@ -5,7 +5,7 @@ id: chat-persistence
 
 `withPersistence` writes the transcript and a waiting approval outside the request. A process restart then keeps both.
 
-`withPersistence` is a chat middleware that fixes this. It writes each thread to a store you choose, so the server keeps the true copy of every conversation.
+`withPersistence` is a chat middleware. You choose the store, and the server keeps the true copy of every conversation.
 
 ## Quick setup
 

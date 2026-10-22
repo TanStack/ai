@@ -14,7 +14,7 @@ keywords:
 
 A resumable stream keeps the reply log when the connection drops. A refresh continues that reply and does not call the model again.
 
-A resumable stream fixes this. The server records every chunk in a log, and the client reconnects and gets only the chunks it missed. The model does not run again.
+The server records every chunk in a log. The client reconnects and gets only the chunks it missed.
 
 ## Quick setup
 

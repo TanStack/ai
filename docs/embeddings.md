@@ -22,7 +22,7 @@ keywords:
 
 `embed()` turns text into a vector. Search, RAG, and clustering then compare those vectors.
 
-`embed()` turns text (and images, for multimodal models) into those vectors. One call, any provider.
+Multimodal models also embed images.
 
 ## Quick setup
 

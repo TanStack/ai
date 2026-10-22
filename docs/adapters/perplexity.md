@@ -17,7 +17,7 @@ Want Sonar, the Perplexity chat model, instead? See [Chat with Sonar](#chat-with
 
 ## 1. Install
 
-This page uses OpenAI for the chat. Any adapter that calls tools works.
+This page uses OpenAI for the chat.
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
