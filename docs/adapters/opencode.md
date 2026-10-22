@@ -190,11 +190,11 @@ Sessions live on the server that ran them, so resuming only works against the sa
 
 Two kinds of tools flow through this adapter:
 
-OpenCode can send a tool part with `pending` state before it provides tool input. The adapter waits for a non-pending update before it streams the tool call and its arguments.
-
 1. **Built-in harness tools** are executed by OpenCode itself and stream back as tool-call events with results already attached: `bash`, `edit`, `write`, `read`, `grep`, and the agent's running todo plan (surfaced as an `opencode.todo` custom event). Your code never executes them.
 
 2. **Your TanStack tools** are bridged *into* the harness: the adapter starts a short-lived Streamable-HTTP MCP server on `127.0.0.1` for the duration of the turn and registers it with OpenCode. Define tools as usual with `toolDefinition().server()`; tool-call events come back under the names you registered (OpenCode prefixes MCP tools `tanstack_…` internally, which the adapter strips).
+
+OpenCode can send a tool part in `pending` state before the tool input is ready. The adapter waits for the next update, so a tool call always streams with its arguments.
 
 ```typescript group=tools
 import { z } from "zod";

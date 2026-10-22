@@ -374,11 +374,6 @@ export async function* translateOpencodeStream(
       )
     } else if (event.type === 'message.part.updated') {
       const { part, delta } = event.properties
-      if (!part.messageID) {
-        throw new Error(
-          `OpenCode message part "${part.id}" is missing its messageID.`,
-        )
-      }
       const role = messageRoles.get(part.messageID)
       if (role === undefined) {
         const parts = pendingParts.get(part.messageID) ?? []
@@ -396,18 +391,18 @@ export async function* translateOpencodeStream(
         value: { todos: event.properties.todos },
       }
     }
-    // session.idle / session.status / message.updated are redundant with the
-    // terminal `done` event and are ignored.
+    // session.idle / session.error are redundant with the terminal `done`
+    // event and are ignored.
   }
 
   function* finish(
     message: OpencodeAssistantMessage,
   ): Generator<AdapterYieldChunk> {
     yield* startRun()
-    if (!messageRoles.has(message.id)) {
-      yield* setMessageRole(message.id, 'assistant')
-    }
-    pendingParts.clear()
+    // The final message is the assistant reply, so flush any parts that beat
+    // its message.updated. OpenCode sends message.updated when it creates a
+    // message, so parts of any other message still waiting here are dropped.
+    yield* setMessageRole(message.id, 'assistant')
     yield* closeText()
     yield* closeReasoning()
     yield* synthesizeUnresolvedResults()

@@ -53,7 +53,6 @@ Deterministic scenarios covering tool execution flows:
 | `tests/tools-test/client-tool.spec.ts`            | 5     | Single, sequential, parallel, triple, server+client      |
 | `tests/tools-test/race-conditions.spec.ts`        | 8     | No blocking, no deadlocks, timing, mixed flows           |
 | `tests/tools-test/server-client-sequence.spec.ts` | 5     | Server→client, parallel server, ordering                 |
-| `tests/tools-test/opencode-stream.spec.ts`        | 1     | OpenCode message roles and pending tool input            |
 
 ### Interrupt playground
 

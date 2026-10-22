@@ -3867,9 +3867,6 @@ importers:
       '@tanstack/ai-mcp':
         specifier: workspace:*
         version: link:../../packages/ai-mcp
-      '@tanstack/ai-opencode':
-        specifier: workspace:*
-        version: link:../../packages/ai-opencode
       '@tanstack/ai-memory':
         specifier: workspace:*
         version: link:../../packages/ai-memory

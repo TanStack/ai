@@ -55,21 +55,29 @@ function textPart(
   id: string,
   text: string,
   delta?: string,
+  messageID = 'msg-1',
 ): OpencodeStreamEvent {
   return {
     kind: 'event',
     event: {
       type: 'message.part.updated',
       properties: {
-        part: {
-          id,
-          sessionID: 'sess-1',
-          messageID: 'msg-1',
-          type: 'text',
-          text,
-        },
+        part: { id, sessionID: 'sess-1', messageID, type: 'text', text },
         ...(delta !== undefined && { delta }),
       },
+    },
+  }
+}
+
+function messageUpdated(
+  id: string,
+  role: 'user' | 'assistant',
+): OpencodeStreamEvent {
+  return {
+    kind: 'event',
+    event: {
+      type: 'message.updated',
+      properties: { info: { id, sessionID: 'sess-1', role } },
     },
   }
 }
@@ -101,61 +109,12 @@ describe('translateOpencodeStream', () => {
   it('does not expose user message parts as assistant output', async () => {
     const chunks = await collect([
       session,
-      {
-        kind: 'event',
-        event: {
-          type: 'message.part.updated',
-          properties: {
-            part: {
-              id: 'user-part',
-              sessionID: 'sess-1',
-              messageID: 'user-message',
-              type: 'text',
-              text: 'user prompt',
-            },
-            delta: 'user prompt',
-          },
-        },
-      },
-      {
-        kind: 'event',
-        event: {
-          type: 'message.updated',
-          properties: {
-            info: { id: 'user-message', sessionID: 'sess-1', role: 'user' },
-          },
-        },
-      },
-      {
-        kind: 'event',
-        event: {
-          type: 'message.part.updated',
-          properties: {
-            part: {
-              id: 'assistant-part',
-              sessionID: 'sess-1',
-              messageID: 'assistant-message',
-              type: 'text',
-              text: 'assistant answer',
-            },
-            delta: 'assistant answer',
-          },
-        },
-      },
-      {
-        kind: 'event',
-        event: {
-          type: 'message.updated',
-          properties: {
-            info: {
-              id: 'assistant-message',
-              sessionID: 'sess-1',
-              role: 'assistant',
-            },
-          },
-        },
-      },
-      done(),
+      textPart('user-part', 'user prompt', 'user prompt', 'user-message'),
+      messageUpdated('user-message', 'user'),
+      textPart('late-user-part', 'more', 'more', 'user-message'),
+      textPart('a-part', 'assistant answer', 'assistant answer', 'a-message'),
+      messageUpdated('a-message', 'assistant'),
+      done({ id: 'a-message' }),
     ])
 
     expect(
@@ -165,25 +124,22 @@ describe('translateOpencodeStream', () => {
     ])
   })
 
-  it('rejects a message part without a message id', async () => {
-    const missingMessageId = {
-      kind: 'event',
-      event: {
-        type: 'message.part.updated',
-        properties: {
-          part: {
-            id: 'orphan-part',
-            sessionID: 'sess-1',
-            type: 'text',
-            text: 'orphan',
-          },
-          delta: 'orphan',
-        },
-      },
-    } as unknown as OpencodeStreamEvent
+  it('streams parts as they arrive once the assistant role is known', async () => {
+    const log: Array<string> = []
+    async function* source(): AsyncIterable<OpencodeStreamEvent> {
+      yield session
+      yield messageUpdated('msg-1', 'assistant')
+      yield textPart('part-1', 'hi', 'hi')
+      log.push('done-pulled')
+      yield done()
+    }
 
-    await expect(collect([session, missingMessageId])).rejects.toThrow(
-      'OpenCode message part "orphan-part" is missing its messageID.',
+    for await (const chunk of translateOpencodeStream(source(), makeCtx())) {
+      log.push(chunk.type)
+    }
+
+    expect(log.indexOf('TEXT_MESSAGE_CONTENT')).toBeLessThan(
+      log.indexOf('done-pulled'),
     )
   })
 
@@ -475,19 +431,7 @@ describe('translateOpencodeStream', () => {
   it('synthesizes results then rethrows when the source stream throws', async () => {
     async function* failing(): AsyncIterable<OpencodeStreamEvent> {
       yield session
-      yield {
-        kind: 'event',
-        event: {
-          type: 'message.updated',
-          properties: {
-            info: {
-              id: 'msg-1',
-              sessionID: 'sess-1',
-              role: 'assistant',
-            },
-          },
-        },
-      }
+      yield messageUpdated('msg-1', 'assistant')
       yield {
         kind: 'event',
         event: {

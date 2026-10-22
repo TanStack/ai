@@ -37,7 +37,6 @@
     "@tanstack/ai-llmgateway": "workspace:*",
     "@tanstack/ai-lovable": "workspace:*",
     "@tanstack/ai-mcp": "workspace:*",
-    "@tanstack/ai-opencode": "workspace:*",
     "@tanstack/ai-memory": "workspace:*",
     "@tanstack/ai-mistral": "workspace:*",
     "@tanstack/ai-ollama": "workspace:*",
