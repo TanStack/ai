@@ -1314,6 +1314,72 @@ describe('createMCPServer', () => {
     )
   })
 
+  it('serves an extension that setup registers, on spec 2026 and spec 2025', async () => {
+    const cases = [
+      { era: '2026', sessions: 'stateless' },
+      { era: '2025', sessions: 'stateless' },
+      { era: '2025', sessions: 'memory' },
+    ] as const
+    for (const { era, sessions } of cases) {
+      const server = createMCPServer({
+        name: 'greeter',
+        version: '1.0.0',
+        sessions,
+        tools: [echoTool()],
+        setup: (built) => {
+          built.server.registerCapabilities({
+            extensions: { 'com.example/greetings': {} },
+          })
+          built.server.setRequestHandler(
+            'greetings/get',
+            { params: z.object({ name: z.string() }) },
+            ({ name }) => ({ text: `Hello, ${name}` }),
+          )
+        },
+      })
+      await withClient(server, { era }, async (client) => {
+        expect(client.getServerCapabilities()?.extensions).toEqual({
+          'com.example/greetings': {},
+        })
+        const greet = () =>
+          client.request(
+            { method: 'greetings/get', params: { name: 'Ada' } },
+            z.object({ text: z.string() }),
+          )
+        expect(await greet()).toEqual({ text: 'Hello, Ada' })
+        // A memory session answers the second call from the same server.
+        expect(await greet()).toEqual({ text: 'Hello, Ada' })
+        const listed = await client.listTools()
+        expect(listed.tools.map((tool) => tool.name)).toEqual(['echo'])
+      })
+    }
+  })
+
+  it('reports a setup that throws or is async to onerror, in every session mode', async () => {
+    const setups = [
+      () => {
+        throw new Error('setup failed')
+      },
+      async () => {},
+    ]
+    for (const setup of setups) {
+      for (const sessions of ['stateless', 'memory'] as const) {
+        const onerror = vi.fn()
+        const server = createMCPServer({
+          name: 'broken',
+          version: '1.0.0',
+          sessions,
+          onerror,
+          setup,
+        })
+
+        const response = await server.fetch(initializeRequest('any'))
+        expect(response.status).toBe(500)
+        expect(onerror).toHaveBeenCalledWith(expect.any(Error))
+      }
+    }
+  })
+
   it('reports SDK errors to onerror', async () => {
     const onerror = vi.fn()
     const server = createMCPServer({

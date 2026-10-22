@@ -909,6 +909,7 @@ Every hook receives a `ChatMiddlewareContext` as its first argument. It provides
 | `phase` | `ChatMiddlewarePhase` | Current lifecycle phase |
 | `iteration` | `number` | Agent loop iteration (0-indexed) |
 | `chunkIndex` | `number` | Running count of chunks yielded |
+| `callMetadata` | `Readonly<TanStackMessageMetadata>` | The `metadata.tanstack` of the current model call (`source`, `stopReason`, `responseId`, and so on). It changes as chunks arrive. Each assistant message of the call gets a copy. |
 | `signal` | `AbortSignal \| undefined` | External abort signal |
 | `abort(reason?)` | `function` | Abort the run from within middleware |
 | `retry()` | `function` | Call the model again. Works only in [`onModelError`](#onmodelerror) |

@@ -8,6 +8,7 @@ import {
 import { createMCPClient } from '@tanstack/ai-mcp'
 import type { StreamChunk } from '@tanstack/ai'
 import type { DescriptorFromServer, MCPClient } from '@tanstack/ai-mcp'
+import { z } from 'zod'
 import { createTextAdapter } from '@/lib/providers'
 import type { typedServer } from '@/lib/mcp-typed-server'
 
@@ -43,12 +44,35 @@ async function* closeMcpOnDrain(
  *
  * - GET returns the discovered tools, so a test can read `outputSchema`.
  *   It also calls `forecast` with the typed `callTool`.
+ * - GET `?extension` calls the `notes/count` extension method of the
+ *   stateless server with `request`.
  * - POST runs chat() with those tools.
  */
 export const Route = createFileRoute('/api/mcp-typed-test')({
   server: {
     handlers: {
       GET: async ({ request }) => {
+        const url = new URL(request.url)
+        if (url.searchParams.has('extension')) {
+          const notes = await createMCPClient({
+            transport: {
+              type: 'http',
+              url: `${url.origin}/api/mcp-typed-server?stateless`,
+            },
+          })
+          try {
+            const counted = await notes.request(
+              { method: 'notes/count', params: {} },
+              z.object({ count: z.number() }),
+            )
+            return Response.json({
+              extensions: notes.capabilities.extensions ?? null,
+              counted,
+            })
+          } finally {
+            await notes.close()
+          }
+        }
         const mcp = await connect(request, 'alice')
         try {
           const tools = await mcp.tools()

@@ -136,6 +136,18 @@ export type MCPServerOptions = {
   onerror?: (error: Error) => void
   sample?: (request: SampleRequest) => Promise<unknown>
   waitUntil?: (promise: Promise<unknown>) => void
+  /**
+   * Runs on every SDK `McpServer` this server builds, after the tools,
+   * resources, and prompts are registered and before the server connects.
+   * Declare more capabilities with `server.server.registerCapabilities` and
+   * add request handlers with `server.server.setRequestHandler`, for example
+   * to serve an MCP extension. Leave the methods this server already
+   * handles alone.
+   *
+   * It must be synchronous. The server connects as soon as it returns, so
+   * an async `setup` throws a `TypeError`.
+   */
+  setup?: (server: McpServer) => void
 }
 
 /**
@@ -201,6 +213,8 @@ type LegacySessions = Map<string, LegacySession>
  * A spec 2025 client gets no session unless `options.sessions` is `'memory'`.
  * `options.sample` is the model adapter for `ctx.context.sample` on spec 2026.
  * `options.waitUntil` receives the task promise so a worker can stay alive.
+ * `options.setup` gets each SDK `McpServer` before it connects, so it can add
+ * capabilities and request handlers, such as an MCP extension.
  *
  * The result has `fetch(request)`, `handle(request, options)`, `tools`,
  * `resources`, and `prompts`. `handle` takes a token your own middleware
@@ -335,6 +349,7 @@ export function createMCPServer<
               owner,
               authInfo,
               context,
+              onerror: options.onerror,
               build: (appContext) =>
                 buildMcpServer({
                   options,
@@ -480,6 +495,10 @@ function buildMcpServer(input: {
   }
   if (input.era === '2025') {
     registerLegacyTaskMethods(server, input.taskStore, input.owner)
+  }
+  const setupResult: unknown = input.options.setup?.(server)
+  if (setupResult instanceof Promise) {
+    throw new TypeError('createMCPServer: setup must be synchronous')
   }
   return server
 }
@@ -983,14 +1002,22 @@ async function openLegacySession(
     owner: string | undefined
     authInfo: AuthInfo | undefined
     context: Record<string, unknown> | undefined
+    onerror: ((error: Error) => void) | undefined
     build: (appContext: AppContext) => McpServer
   },
 ) {
   // Before the session exists, the opening request's context applies.
   let session: LegacySession | undefined
-  const server = input.build(() =>
-    session === undefined ? input.context : session.context,
-  )
+  let server: McpServer
+  try {
+    server = input.build(() =>
+      session === undefined ? input.context : session.context,
+    )
+  } catch (error) {
+    // `setup` runs in build. Answer the way the SDK does on the other paths.
+    input.onerror?.(error instanceof Error ? error : new Error(String(error)))
+    return internalError()
+  }
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: () => crypto.randomUUID(),
     enableJsonResponse: true,
@@ -1018,6 +1045,17 @@ async function openLegacySession(
     // A request that never opens a session must not keep the server.
     if (transport.sessionId === undefined) await server.close()
   }
+}
+
+function internalError() {
+  return Response.json(
+    {
+      jsonrpc: '2.0',
+      id: null,
+      error: { code: -32603, message: 'Internal server error' },
+    },
+    { status: 500 },
+  )
 }
 
 function sessionNotFound() {

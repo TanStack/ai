@@ -114,4 +114,39 @@ test.describe('AG-UI activity reconstruct', () => {
       },
     ])
   })
+
+  test('reconstructChat restores activity that middleware added', async ({
+    request,
+  }) => {
+    const threadId = `activity-${crypto.randomUUID()}`
+    const run = await request.post(
+      '/api/activity-test?mode=persist-middleware',
+      { data: { threadId, runId: crypto.randomUUID() } },
+    )
+    expect(run.ok()).toBe(true)
+
+    const hydration = await request.get(
+      `/api/activity-test?threadId=${threadId}`,
+    )
+    expect(hydration.ok()).toBe(true)
+    const body = (await hydration.json()) as {
+      messages: Array<{
+        role: string
+        parts: Array<Record<string, unknown>>
+      }>
+    }
+    expect(body.messages.map((message) => message.role)).toEqual([
+      'user',
+      'activity',
+      'activity',
+      'assistant',
+    ])
+    expect(body.messages[2]?.parts).toEqual([
+      {
+        type: 'activity',
+        activityType: 'NOTICE',
+        content: { text: 'from middleware' },
+      },
+    ])
+  })
 })

@@ -102,6 +102,41 @@ const stream = chat({
 
 In a [multi-server pool](./mcp#per-server-access), each client has its own value: `pool.clients.github!.instructions`.
 
+## Extension methods
+
+A server can serve an [MCP extension](https://modelcontextprotocol.io/extensions/overview), with methods that `MCPClient` has no helper for. Call them with `mcp.request`. It takes the same arguments as the SDK `Client.request`, and it uses the client's `requestOptions`.
+
+1. Declare the extension in `clientOptions.capabilities.extensions`. The spec asks both sides to list the extensions they support, and a server can change what it sends based on this list.
+2. After connect, look for the extension in `mcp.capabilities.extensions`.
+3. Call the method. For a method that is not in the MCP spec, pass a result schema as the second argument.
+
+```ts
+import { createMCPClient } from '@tanstack/ai-mcp'
+import { z } from 'zod'
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: process.env.MCP_URL! },
+  clientOptions: {
+    capabilities: { extensions: { 'com.example/notes': {} } },
+  },
+})
+
+const extensions = mcp.capabilities.extensions
+if (
+  typeof extensions === 'object' &&
+  extensions !== null &&
+  'com.example/notes' in extensions
+) {
+  const notes = await mcp.request(
+    { method: 'notes/count', params: {} },
+    z.object({ count: z.number() }),
+  )
+  console.log(notes.count)
+}
+```
+
+To serve an extension, see [Serve an MCP extension](../mcp/server#serve-an-mcp-extension).
+
 ## Resources
 
 MCP resources are context documents (files, database records, web pages) the server exposes. Fetch them and inject them into `chat()` as content parts.

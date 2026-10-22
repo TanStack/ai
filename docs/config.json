@@ -170,7 +170,7 @@
           "label": "Subagents",
           "to": "chat/subagents",
           "addedAt": "2026-09-21",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Agentic Cycle",
@@ -364,7 +364,7 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Built-in Middleware",
@@ -566,7 +566,7 @@
           "label": "Manual MCP",
           "to": "tools/mcp-manual",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-09-29"
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "MCP Type Generation",
@@ -589,7 +589,7 @@
           "label": "Serve Tools over HTTP",
           "to": "mcp/server",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-10-06"
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "Serve Resources and Prompts",
