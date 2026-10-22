@@ -93,12 +93,14 @@ interface GenerationCallbacks<TResult, TOutput> {
  * // With streaming connection adapter
  * const client = new GenerationClient<ImageGenerateInput, ImageGenerationResult>({
  *   connection: fetchServerSentEvents('/api/generate/image'),
+ *   threadId,
  *   onResultChange: setResult,
  *   onLoadingChange: setIsLoading,
  * })
  *
  * // With fetcher (direct)
  * const client = new GenerationClient<ImageGenerateInput, ImageGenerationResult>({
+ *   threadId,
  *   fetcher: async (input) => {
  *     const res = await fetch('/api/generate/image', {
  *       method: 'POST',

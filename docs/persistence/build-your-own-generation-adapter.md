@@ -103,6 +103,7 @@ function toGenerationRunStatus(value: unknown): GenerationRunStatus {
     case 'completed':
     case 'failed':
     case 'interrupted':
+    case 'aborted':
       return value
     default:
       throw new TypeError(`Unexpected generation run status: ${String(value)}`)

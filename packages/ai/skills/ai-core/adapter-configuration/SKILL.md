@@ -160,6 +160,8 @@ function isKnownProviderModel(key: string): key is keyof typeof adapters {
 export function handleChat(
   providerModel: string,
   messages: Array<ModelMessage>,
+  // The conversation id from the request. Never share one across users.
+  threadId: string,
 ) {
   if (!isKnownProviderModel(providerModel)) {
     throw new Error(`Unknown provider/model: ${providerModel}`)
@@ -168,7 +170,7 @@ export function handleChat(
   const stream = chat({
     adapter: adapters[providerModel](),
     messages,
-    threadId: 'thread-1',
+    threadId,
   })
 
   return toServerSentEventsResponse(stream)

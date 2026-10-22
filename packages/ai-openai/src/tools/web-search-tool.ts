@@ -10,7 +10,7 @@ export {
 export type OpenAIWebSearchTool = ProviderTool<'openai', 'web_search'>
 
 /**
- * Creates a standard Tool from WebSearchTool parameters, branded as an OpenAI
+ * Creates a standard Tool from WebSearchToolConfig parameters, branded as an OpenAI
  * provider tool.
  */
 export function webSearchTool(

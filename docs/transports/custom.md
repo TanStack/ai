@@ -40,17 +40,17 @@ export const myAdapter: ConnectConnectionAdapter = {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...runContext?.headers,
+        ...runContext.headers,
       },
       body: JSON.stringify({
-        threadId: runContext?.threadId ?? crypto.randomUUID(),
-        runId: runContext?.runId ?? crypto.randomUUID(),
-        ...(runContext?.resume ? { resume: runContext.resume } : {}),
+        threadId: runContext.threadId,
+        runId: runContext.runId,
+        ...(runContext.resume ? { resume: runContext.resume } : {}),
         state: {},
         messages: uiMessagesToWire(messages),
-        tools: runContext?.clientTools ?? [],
+        tools: runContext.clientTools ?? [],
         context: [],
-        forwardedProps: { ...runContext?.forwardedProps, ...data },
+        forwardedProps: { ...runContext.forwardedProps, ...data },
       }),
       ...(abortSignal ? { signal: abortSignal } : {}),
     });
@@ -134,7 +134,7 @@ A WebSocket, a BroadcastChannel, postMessage between iframes, or a shared worker
 For a resumable WebSocket, use the built-in [`webSocket()`](./websockets) transport. For other persistent channels, implement `SubscribeConnectionAdapter`:
 
 - **`subscribe(abortSignal?)`**: the `ChatClient` calls it once. It returns a long-lived async iterable of every chunk that the channel produces.
-- **`send(messages, data?, abortSignal?, runContext?)`**: the `ChatClient` calls it once per user message, to put a request frame on the channel. It returns when the frame is written. The chunks arrive separately through `subscribe()`.
+- **`send(messages, data, abortSignal, runContext)`**: the `ChatClient` calls it once per user message, to put a request frame on the channel. It returns when the frame is written. The chunks arrive separately through `subscribe()`.
 
 The runtime connects the two. The chunks that arrive between `send()` and the next terminal event (`RUN_FINISHED` or `RUN_ERROR`) belong to that run.
 
@@ -208,8 +208,8 @@ function websocketConnection(url: string): SubscribeConnectionAdapter {
       await ready;
       ws.send(
         JSON.stringify({
-          threadId: runContext?.threadId,
-          runId: runContext?.runId,
+          threadId: runContext.threadId,
+          runId: runContext.runId,
           messages,
           data,
         }),
@@ -291,9 +291,9 @@ export interface RunAgentInputContext {
 export interface ConnectConnectionAdapter {
   connect(
     messages: UIMessage[] | ModelMessage[],
-    data?: Record<string, any>,
-    abortSignal?: AbortSignal,
-    runContext?: RunAgentInputContext,
+    data: Record<string, any> | undefined,
+    abortSignal: AbortSignal | undefined,
+    runContext: RunAgentInputContext,
   ): AsyncIterable<StreamChunk>;
 }
 
@@ -301,9 +301,9 @@ export interface SubscribeConnectionAdapter {
   subscribe(abortSignal?: AbortSignal): AsyncIterable<StreamChunk>;
   send(
     messages: UIMessage[] | ModelMessage[],
-    data?: Record<string, any>,
-    abortSignal?: AbortSignal,
-    runContext?: RunAgentInputContext,
+    data: Record<string, any> | undefined,
+    abortSignal: AbortSignal | undefined,
+    runContext: RunAgentInputContext,
   ): Promise<void>;
 }
 

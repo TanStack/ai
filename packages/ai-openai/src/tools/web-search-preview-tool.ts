@@ -13,7 +13,7 @@ export type OpenAIWebSearchPreviewTool = ProviderTool<
 >
 
 /**
- * Creates a standard Tool from WebSearchPreviewTool parameters, branded as an
+ * Creates a standard Tool from WebSearchPreviewToolConfig parameters, branded as an
  * OpenAI provider tool.
  */
 export function webSearchPreviewTool(

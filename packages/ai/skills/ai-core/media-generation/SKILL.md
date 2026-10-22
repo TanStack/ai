@@ -43,18 +43,32 @@ client.
 
 ```typescript
 // routes/api/generate/image.ts
-import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  generateImage,
+  generationParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 export async function POST(req: Request) {
-  const { prompt, size, numberOfImages, threadId } = await req.json()
+  // The hook posts an AG-UI RunAgentInput envelope: the input is in
+  // `forwardedProps`, and `threadId` / `runId` are at the top.
+  const { input, threadId, runId } = await generationParamsFromRequest(
+    'image',
+    req,
+  )
+  if (!threadId) return new Response('Send a threadId.', { status: 400 })
+  if (typeof input.prompt !== 'string') {
+    return new Response('Send a text prompt.', { status: 400 })
+  }
 
   const stream = generateImage({
     adapter: openaiImage('gpt-image-1'),
     threadId,
-    prompt,
-    size,
-    numberOfImages,
+    runId,
+    prompt: input.prompt,
+    size: '1024x1024',
+    numberOfImages: input.numberOfImages,
     stream: true,
   })
 
@@ -615,19 +629,27 @@ gpt-4o-mini-transcribe, gpt-4o-transcribe-diarize) and `byteplusTranscription`
 
 ```typescript
 // routes/api/transcribe.ts
-import { generateTranscription, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  generateTranscription,
+  generationParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { openaiTranscription } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
-  // The client hook below posts { data: { audio: dataUrl, language } }
-  const body = await request.json()
-  const { audio, language } = body.data
+  // The hook posts { threadId, runId, forwardedProps: { audio, language } }
+  const { input, threadId, runId } = await generationParamsFromRequest(
+    'transcription',
+    request,
+  )
+  if (!threadId) return new Response('Send a threadId.', { status: 400 })
 
   const stream = generateTranscription({
     adapter: openaiTranscription('whisper-1'),
-    threadId: body.threadId,
-    audio, // File, Blob, base64 string, or data URL
-    language,
+    threadId,
+    runId,
+    audio: input.audio, // File, Blob, base64 string, or data URL
+    language: input.language,
     responseFormat: 'verbose_json',
     modelOptions: {
       timestamp_granularities: ['word', 'segment'],
@@ -708,6 +730,7 @@ export async function pollVideo(jobId: string, threadId: string) {
 ```typescript
 import {
   generateVideo,
+  generationParamsFromRequest,
   getVideoJobStatus,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
@@ -730,11 +753,19 @@ while (status.status !== 'completed' && status.status !== 'failed') {
 
 // Streaming: server handles polling, client gets real-time updates
 export async function POST(request: Request) {
-  const { prompt, threadId } = await request.json()
+  const { input, threadId, runId } = await generationParamsFromRequest(
+    'video',
+    request,
+  )
+  if (!threadId) return new Response('Send a threadId.', { status: 400 })
+  if (typeof input.prompt !== 'string') {
+    return new Response('Send a text prompt.', { status: 400 })
+  }
   const stream = generateVideo({
     adapter: openaiVideo('sora-2'),
     threadId,
-    prompt,
+    runId,
+    prompt: input.prompt,
     stream: true,
     pollingInterval: 3000,
     maxDuration: 600_000,
@@ -919,7 +950,11 @@ at blob key `artifacts/<runId>/<artifactId>` with an `ArtifactRecord` per file.
 `memoryPersistence()` ships all three for dev/tests.
 
 ```typescript
-import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  generateImage,
+  generationParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 import {
   withGenerationPersistence,
@@ -932,12 +967,20 @@ import {
 const persistence = memoryPersistence() // swap for your DB/object-store adapter
 
 export async function POST(req: Request) {
-  const { prompt, threadId } = await req.json()
+  const { input, threadId, runId } = await generationParamsFromRequest(
+    'image',
+    req,
+  )
+  if (!threadId) return new Response('Send a threadId.', { status: 400 })
+  if (typeof input.prompt !== 'string') {
+    return new Response('Send a text prompt.', { status: 400 })
+  }
   return toServerSentEventsResponse(
     generateImage({
       adapter: openaiImage('gpt-image-1'),
-      prompt,
+      prompt: input.prompt,
       threadId, // the slot recorded on the job + artifacts
+      runId,
       stream: true,
       middleware: [
         withGenerationPersistence(persistence, {

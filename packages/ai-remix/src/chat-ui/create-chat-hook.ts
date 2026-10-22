@@ -28,9 +28,9 @@ type ChatInstanceOverrides<TOptions> = {
  * Bind chat options and UI widgets once at module scope.
  *
  * Returns a bound `createAppChat`, the UI kit (`ui`), and `useChatContext`.
- * Call `createAppChat(handle)` in a Remix setup function. Render
- * `<ui.Chat chat={chat} />`. Pass `threadId` and other instance overrides
- * into `createAppChat(handle, overrides)`.
+ * Call `createAppChat(handle, { threadId })` in a Remix setup function.
+ * The overrides argument is required and must carry `threadId`. Render
+ * `<ui.Chat chat={chat} />`.
  */
 export function createChatHook<const TOptions>({
   options,

@@ -210,7 +210,8 @@ function createId(prefix: string): string {
  *
  * const result = await generateImage({
  *   adapter: openaiImage('dall-e-3'),
- *   prompt: 'A serene mountain landscape at sunset'
+ *   prompt: 'A serene mountain landscape at sunset',
+ *   threadId,
  * })
  *
  * console.log(result.images[0].url)
@@ -221,6 +222,7 @@ function createId(prefix: string): string {
  * const result = await generateImage({
  *   adapter: openaiImage('dall-e-2'),
  *   prompt: 'A cute robot mascot',
+ *   threadId,
  *   numberOfImages: 4,
  *   size: '512x512'
  * })
@@ -235,6 +237,7 @@ function createId(prefix: string): string {
  * const result = await generateImage({
  *   adapter: openaiImage('dall-e-3'),
  *   prompt: 'A professional headshot photo',
+ *   threadId,
  *   size: '1024x1024',
  *   modelOptions: {
  *     quality: 'hd',

@@ -265,7 +265,8 @@ const chat = createChat({
   threadId: 'support-chat',
 })
 
-function handleSubmit() {
+function handleSubmit(event: SubmitEvent) {
+  event.preventDefault()
   if (input.trim() && !chat.isLoading) {
     chat.sendMessage(input)
     input = ''

@@ -10,7 +10,7 @@ export {
 export type OpenAIFileSearchTool = ProviderTool<'openai', 'file_search'>
 
 /**
- * Creates a standard Tool from FileSearchTool parameters, branded as an
+ * Creates a standard Tool from FileSearchToolConfig parameters, branded as an
  * OpenAI provider tool.
  */
 export function fileSearchTool(

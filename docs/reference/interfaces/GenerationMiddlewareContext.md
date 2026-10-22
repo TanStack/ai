@@ -186,4 +186,4 @@ optional threadId?: string;
 
 Defined in: packages/ai/src/activities/middleware/types.ts:74
 
-Stable conversation/thread id, when supplied by the caller.
+Stable conversation/thread id. Always set, except for `getVideoJobStatus` polls.

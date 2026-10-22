@@ -72,16 +72,27 @@ You get a URL to the image in `result.images[0]?.url`. You pick the Mynth model 
 Return the generation from a route with `stream: true`:
 
 ```ts
-import { generateImage, toServerSentEventsResponse } from "@tanstack/ai";
+import {
+  generateImage,
+  generationParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
 import { mynthImage } from "@mynthio/tanstack-ai-adapter";
 
 export async function POST(request: Request) {
-  const { prompt, model, threadId } = await request.json();
+  const { input, threadId, runId } = await generationParamsFromRequest(
+    "image",
+    request,
+  );
+  if (!threadId) {
+    return new Response("Send a threadId.", { status: 400 });
+  }
 
   const stream = generateImage({
-    adapter: mynthImage(model ?? "auto"),
-    prompt,
+    adapter: mynthImage("auto"),
+    prompt: input.prompt,
     threadId,
+    runId,
     numberOfImages: 1,
     stream: true,
   });

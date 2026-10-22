@@ -98,12 +98,14 @@ interface VideoCallbacks<TOutput> {
  * // With streaming connection adapter (server-driven polling)
  * const client = new VideoGenerationClient({
  *   connection: fetchServerSentEvents('/api/generate/video'),
+ *   threadId,
  *   onResultChange: setResult,
  *   onVideoStatusChange: setVideoStatus,
  * })
  *
  * // With fetcher (direct result)
  * const client = new VideoGenerationClient({
+ *   threadId,
  *   fetcher: async (input) => {
  *     const res = await fetch('/api/video/generate', {
  *       method: 'POST',

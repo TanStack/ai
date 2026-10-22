@@ -151,16 +151,20 @@ Return any async iterable that yields `StreamChunk` objects: a generator, the ou
 import { useChat, rpcStream } from "@tanstack/ai-react";
 import { api } from "./rpc-client";
 
+const threadId = "support-chat";
+
 // `api.chat.stream` is your RPC method. It must return an AsyncIterable<StreamChunk>.
 export function useRpcChat() {
   return useChat({
     connection: rpcStream((messages, data) =>
-      api.chat.stream({ messages, ...data }),
+      api.chat.stream({ messages, ...data, threadId }),
     ),
-    threadId: "support-chat",
+    threadId,
   });
 }
 ```
+
+The factory does not get the `threadId`, so pass the same value that you give `useChat`. Your server method passes it on to `chat()`.
 
 ## Advanced
 

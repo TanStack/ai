@@ -13,7 +13,7 @@ keywords:
 
 You have a streaming chat and you want it to look like your Remix 3 app. You also want tool calls and approvals typed, with no casts.
 
-`createChatHook` from `@tanstack/ai-remix/ui` binds your chat options and your components once. Each screen then creates a chat with `createAppChat(handle)` and renders it with `ui.Chat`. Each widget is a Remix setup function that reads `handle.props`. You supply every visible component. There is no default markup or style.
+`createChatHook` from `@tanstack/ai-remix/ui` binds your chat options and your components once. Each screen then creates a chat with `createAppChat(handle, { threadId })` and renders it with `ui.Chat`. Each widget is a Remix setup function that reads `handle.props`. You supply every visible component. There is no default markup or style.
 
 ## Quick setup
 

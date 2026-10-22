@@ -7,7 +7,7 @@ title: createChatOptions
 function createChatOptions<TAdapter, TSchema, TStream, TTools, TInterrupts, TContext, TMiddleware>(options): Omit<TextActivityOptions<TAdapter, TSchema, TStream, InferredContext<TTools, TMiddleware>, readonly DefinedAgent<string, readonly SubagentTool[], SchemaInput | undefined, readonly InterruptDefinition<any, any, any, any, any>[], any, unknown, AgentProduces | undefined>[]>, "middleware" | "tools" | "threadId" | "interrupts" | "context"> & object & RuntimeContextOption<TTools, TMiddleware, TContext>;
 ```
 
-Defined in: packages/ai/src/activities/chat/index.ts:831
+Defined in: packages/ai/src/activities/chat/index.ts:834
 
 Create typed options for the chat() function without executing.
 This is useful for pre-defining configurations with full type inference.
@@ -72,7 +72,7 @@ call.
 
 ```ts
 const chatOptions = createChatOptions({
-  adapter: anthropicText('claude-sonnet-4-5'),
+  adapter: anthropicText('claude-sonnet-5-5'),
 })
 
 const stream = chat({ ...chatOptions, messages, threadId })

@@ -289,7 +289,7 @@ The words are core's too:
 - The record is core's `RunRecord`, plus the log's own `lastSeq` cursor (`RunLogRecord`).
 - `GET /runs/:id` and the WebSocket's final `status` frame use these status strings and field names.
 
-A record stored with `done` or `error` statuses and `createdAt` / `updatedAt` fields is converted in place on first read. You run nothing.
+1.0 does not read 0.x run records (`done` or `error` statuses, `createdAt` / `updatedAt` fields). Reading one throws an error. Before you upgrade, let in-flight runs finish or delete them, then clear the old `rec:` keys from the Durable Object storage.
 
 The [journal](./journal) keeps its job on the driver side: warm reattach, and the driver's resume position. The rule is the portable one: **the log wins for what clients see, and the journal wins for where the driver resumes.**
 

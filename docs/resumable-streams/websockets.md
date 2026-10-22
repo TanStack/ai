@@ -90,7 +90,7 @@ export function Chat() {
 
 Everything else stays the same: `messages`, `sendMessage`, `stop()`, tool calls, and persistence work as with any other connection.
 
-Send a message, drop the network for a moment during the reply, and the reply continues.
+If the network drops during a reply, the server stops that reply. The client keeps the part it already got. See [Producer vs. socket lifecycle](#producer-vs-socket-lifecycle).
 
 ## How it works
 
@@ -275,6 +275,12 @@ function handleChatSocket(socket: WebSocketLike, request: Request) {
 
 ### Producer vs. socket lifecycle
 
-The same limit as for SSE and NDJSON applies here. With `memoryStream`, the producer of the run and the delivery socket live in the same process. If the socket drops, the `chat()` call behind it aborts too. So a reconnect replays only what was already logged. It does not resume a run that still produces.
+On a WebSocket, the producer is tied to the socket. When the socket closes or errors, `toWebSocketStream` aborts every turn on it. That abort stops the `chat()` call behind each turn. This is true with `memoryStream` and with `durableStream`.
 
-`durableStream` separates the two. The producer writes to a backend, not to the socket of the client. So after a drop, the client can reconnect to a run that still produces. See [memoryStream in production](./advanced#memorystream-in-production) for the full explanation. It applies to WebSockets without change.
+So after a drop:
+
+1. The server stops the reply.
+2. The durability log keeps the chunks produced up to the drop, then ends with an abort `RUN_ERROR`.
+3. A reconnect replays that partial reply. It does not continue the run.
+
+To keep a reply going across a dropped connection, use SSE or NDJSON with `durableStream`. There the producer does not stop when the client goes away. See [memoryStream in production](./advanced#memorystream-in-production).

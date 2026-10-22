@@ -44,7 +44,7 @@ export const sandbox = defineSandbox({
 })
 ```
 
-Every run that uses this sandbox now follows the policy, including the [workspace](./workspace) setup commands and the bridged [tools](./tools).
+Every run that uses this sandbox now follows the policy, including the bridged [tools](./tools). The policy does not check the [workspace](./workspace) `setup` commands. They come from your own config and run as written.
 
 ## Decisions
 

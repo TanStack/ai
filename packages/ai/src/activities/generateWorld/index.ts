@@ -145,6 +145,7 @@ function createId(prefix: string): string {
  *
  * const world = await generateWorld({
  *   adapter: reactorWorld('visko-orbis-stable'),
+ *   threadId: 'world-1',
  *   prompt: 'A neon cyberpunk city at night, slow aerial drift',
  * })
  *

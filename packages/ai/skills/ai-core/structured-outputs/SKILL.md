@@ -366,7 +366,11 @@ Dedicated harness adapters honor `chat({ outputSchema })` on the same turn. Nati
 A UI endpoint must pass `stream: true`. Without it, `chat()` returns a `Promise`, not SSE.
 
 ```typescript
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { withSandbox } from '@tanstack/ai-sandbox'
 import { z } from 'zod'
@@ -378,19 +382,13 @@ const ReportSchema = z.object({
 })
 
 export async function POST(request: Request) {
-  const body: unknown = await request.json()
-  const messages =
-    typeof body === 'object' &&
-    body !== null &&
-    'messages' in body &&
-    Array.isArray(body.messages)
-      ? body.messages
-      : []
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
 
   const stream = chat({
     adapter: claudeCodeText('claude-opus-4-8'),
     messages,
-    threadId: 'thread-1',
+    threadId,
+    runId,
     outputSchema: ReportSchema,
     stream: true,
     middleware: [withSandbox(sandbox)],

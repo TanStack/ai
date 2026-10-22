@@ -214,7 +214,7 @@ A WebSocket stays open for the whole conversation, so some things are different 
 - **An abort frame stops one turn.** `{ type: 'abort', runId }` aborts only that turn's `onRun`. Closing the socket aborts every turn in flight on it.
 - **Hosting depends on the runtime.** On Cloudflare Workers or Durable Objects, `toWebSocketResponse` uses the global `WebSocketPair`. On Node, you upgrade the connection yourself (for example with `ws`'s `WebSocketServer({ noServer: true })`) and pass the socket to `toWebSocketStream` or `resumeWebSocketStream`.
 
-With `memoryStream`, a dropped WebSocket aborts the `chat()` call behind it. A reconnect then replays the log. It does not resume a model call that still runs. `durableStream` keeps the producer and the socket apart, the same as for SSE and NDJSON.
+A dropped WebSocket aborts the `chat()` call behind it, with `memoryStream` and with `durableStream`. A reconnect then replays the log up to the drop. It does not resume the model call. To keep a reply going across a drop, use SSE or NDJSON with `durableStream`.
 
 ### Offset ownership
 

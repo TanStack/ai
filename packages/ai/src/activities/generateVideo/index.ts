@@ -391,7 +391,8 @@ export type VideoActivityResult<
  * // Start a video generation job
  * const { jobId } = await generateVideo({
  *   adapter: openaiVideo('sora-2'),
- *   prompt: 'A cat chasing a dog in a sunny park'
+ *   prompt: 'A cat chasing a dog in a sunny park',
+ *   threadId,
  * })
  *
  * console.log('Job started:', jobId)
@@ -402,6 +403,7 @@ export type VideoActivityResult<
  * const status = await getVideoJobStatus({
  *   adapter: openaiVideo('sora-2'),
  *   jobId,
+ *   threadId,
  * })
  * ```
  *
@@ -413,6 +415,7 @@ export type VideoActivityResult<
  * const stream = generateVideo({
  *   adapter: openaiVideo('sora-2'),
  *   prompt: 'A cat chasing a dog in a sunny park',
+ *   threadId,
  *   stream: true,
  *   pollingInterval: 3000,
  * })

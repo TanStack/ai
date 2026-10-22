@@ -335,7 +335,47 @@ export function Summarizer() {
 | `focus` | `Array<string>` | Topics to focus on |
 | `modelOptions` | `Record<string, any>` | Model-specific options |
 
-On the server, call `summarize()` with `stream: true` and return `toServerSentEventsResponse()`, the same as the other routes.
+On the server, call `summarize()` with `stream: true` and return `toServerSentEventsResponse()`. `generationParamsFromRequest` has no `summarize` kind, so read the envelope yourself. The hook sends its input in `forwardedProps`, and `threadId` and `runId` at the top of the body:
+
+```typescript
+import { summarize, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiSummarize } from '@tanstack/ai-openai'
+
+export async function POST(request: Request) {
+  const body: unknown = await request.json()
+  if (
+    typeof body !== 'object' ||
+    body === null ||
+    !('threadId' in body) ||
+    !('forwardedProps' in body)
+  ) {
+    return new Response('Bad request', { status: 400 })
+  }
+  const { threadId, forwardedProps } = body
+  if (
+    typeof threadId !== 'string' ||
+    typeof forwardedProps !== 'object' ||
+    forwardedProps === null ||
+    !('text' in forwardedProps) ||
+    typeof forwardedProps.text !== 'string'
+  ) {
+    return new Response('Bad request', { status: 400 })
+  }
+  const runId =
+    'runId' in body && typeof body.runId === 'string' ? body.runId : undefined
+
+  const stream = summarize({
+    adapter: openaiSummarize('gpt-5.5'),
+    text: forwardedProps.text,
+    style: 'bullet-points',
+    maxLength: 200,
+    threadId,
+    runId,
+    stream: true,
+  })
+  return toServerSentEventsResponse(stream)
+}
+```
 
 ### useGenerateVideo
 

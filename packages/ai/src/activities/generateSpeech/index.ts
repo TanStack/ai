@@ -235,7 +235,8 @@ function resolveSpeechText(
  * const result = await generateSpeech({
  *   adapter: openaiSpeech('tts-1-hd'),
  *   text: 'Hello, welcome to TanStack AI!',
- *   voice: 'nova'
+ *   voice: 'nova',
+ *   threadId,
  * })
  *
  * console.log(result.audio) // base64-encoded audio
@@ -247,6 +248,7 @@ function resolveSpeechText(
  *   adapter: openaiSpeech('tts-1'),
  *   text: 'This is slower speech.',
  *   voice: 'alloy',
+ *   threadId,
  *   format: 'wav',
  *   speed: 0.8
  * })

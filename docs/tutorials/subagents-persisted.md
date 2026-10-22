@@ -43,15 +43,30 @@ In `src/chat-ui.tsx`, replace `chatOptions` with this object. Keep the rest of t
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { blogAgents } from '@/lib/blog-agents'
 import { byok } from '@/lib/byok'
-import { THREAD_ID } from '@/lib/thread'
 
 export const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
   byok,
-  threadId: THREAD_ID,
   persistence: true,
   subagents: blogAgents,
 }
+```
+
+In `src/routes/index.tsx`, pass `THREAD_ID` to `useAppChat()`:
+
+```tsx ignore
+import { createFileRoute } from '@tanstack/react-router'
+import { useAppChat } from '@/chat-ui'
+import { THREAD_ID } from '@/lib/thread'
+
+function ChatPage() {
+  const chat = useAppChat({ threadId: THREAD_ID })
+  return <chat.AppChat />
+}
+
+export const Route = createFileRoute('/')({
+  component: ChatPage,
+})
 ```
 
 In the layout, change the heading to `Saved blog desk`. Under the heading, add two sentences: "A refresh keeps this chat. A refresh during a run continues the stream."

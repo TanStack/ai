@@ -662,7 +662,7 @@ export interface TextActivityOptions<
    *
    * @example
    * ```ts
-   * chat({ adapter, messages, retry: { maxRetries: 3 } })
+   * chat({ adapter, messages, threadId, retry: { maxRetries: 3 } })
    * ```
    */
   retry?: TextOptions['retry']
@@ -685,7 +685,7 @@ export interface TextActivityOptions<
    *
    * @example
    * ```ts
-   * chat({ adapter, messages, tools, toolChoice: 'required' })
+   * chat({ adapter, messages, threadId, tools, toolChoice: 'required' })
    * ```
    */
   toolChoice?: ToolChoice
@@ -697,7 +697,7 @@ export interface TextActivityOptions<
    * @example
    * ```ts
    * chat({ adapter, messages, threadId, promptCache: 'long' })
-   * chat({ adapter, messages, promptCache: { retention: 'long', key: 'k-1' } })
+   * chat({ adapter, messages, threadId, promptCache: { retention: 'long', key: 'k-1' } })
    * ```
    */
   promptCache?: PromptCacheOptions
@@ -709,7 +709,7 @@ export interface TextActivityOptions<
    *
    * @example
    * ```ts
-   * chat({ adapter, messages, wrapFetch: (next) => (input, init) => next(input, init) })
+   * chat({ adapter, messages, threadId, wrapFetch: (next) => (input, init) => next(input, init) })
    * ```
    */
   wrapFetch?: FetchWrapper
@@ -749,6 +749,7 @@ export interface TextActivityOptions<
    * const result = await chat({
    *   adapter: openaiText('gpt-5.5'),
    *   messages: [{ role: 'user', content: 'Generate a person' }],
+   *   threadId,
    *   outputSchema: z.object({ name: z.string(), age: z.number() })
    * })
    * // result is { name: string, age: number }
@@ -771,6 +772,7 @@ export interface TextActivityOptions<
    * const { text } = await chat({
    *   adapter: openaiText('gpt-5.5'),
    *   messages: [{ role: 'user', content: 'Hello!' }],
+   *   threadId,
    *   stream: false
    * })
    * // text is a string with the full response
@@ -786,6 +788,7 @@ export interface TextActivityOptions<
    * const stream = chat({
    *   adapter: openaiText('gpt-5.5'),
    *   messages: [...],
+   *   threadId,
    *   middleware: [loggingMiddleware, redactionMiddleware],
    * })
    * ```
@@ -822,7 +825,7 @@ export interface TextActivityOptions<
  * @example
  * ```ts
  * const chatOptions = createChatOptions({
- *   adapter: anthropicText('claude-sonnet-4-5'),
+ *   adapter: anthropicText('claude-sonnet-5-5'),
  * })
  *
  * const stream = chat({ ...chatOptions, messages, threadId })
@@ -5809,6 +5812,7 @@ class TextEngine<
  * for await (const chunk of chat({
  *   adapter: openaiText('gpt-5.5'),
  *   messages: [{ role: 'user', content: 'What is the weather?' }],
+ *   threadId,
  *   tools: [weatherTool]
  * })) {
  *   if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
@@ -5821,7 +5825,8 @@ class TextEngine<
  * ```ts
  * for await (const chunk of chat({
  *   adapter: openaiText('gpt-5.5'),
- *   messages: [{ role: 'user', content: 'Hello!' }]
+ *   messages: [{ role: 'user', content: 'Hello!' }],
+ *   threadId,
  * })) {
  *   console.log(chunk)
  * }
@@ -5832,6 +5837,7 @@ class TextEngine<
  * const { text, chunks } = await chat({
  *   adapter: openaiText('gpt-5.5'),
  *   messages: [{ role: 'user', content: 'Hello!' }],
+ *   threadId,
  *   stream: false
  * })
  * // text is a string with the full response
@@ -5845,6 +5851,7 @@ class TextEngine<
  * const result = await chat({
  *   adapter: openaiText('gpt-5.5'),
  *   messages: [{ role: 'user', content: 'Research and summarize the topic' }],
+ *   threadId,
  *   tools: [researchTool, analyzeTool],
  *   outputSchema: z.object({
  *     summary: z.string(),

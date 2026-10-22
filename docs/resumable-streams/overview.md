@@ -187,7 +187,7 @@ export function Chat() {
 }
 ```
 
-The socket resumes like SSE and NDJSON: a dropped connection opens again with the last offset and replays only what is missing. [WebSockets](./websockets) covers the wire protocol, reconnects, and hosting.
+A dropped socket opens again with the last offset and replays only what is missing. But closing the socket stops the run on the server, so the replay ends at the drop. The reply does not continue. [WebSockets](./websockets) covers the wire protocol, reconnects, and hosting.
 
 ## Let another host take over a sandbox run
 

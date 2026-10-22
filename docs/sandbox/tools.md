@@ -82,7 +82,7 @@ The bridge is an HTTP endpoint that the sandbox calls back to. So the sandbox mu
 | Local process | `localhost` | None. |
 | Docker container (`dockerSandbox`) | `host.docker.internal` | None. |
 | Docker Sandboxes (`sbxSandbox`) | `host.docker.internal` | A deny or ask allowlist must include `localhost`. `sbxSandbox()` adds it when it writes a real allowlist. |
-| Deployed server (production) | Your public host, from the request | None. |
+| Deployed server (production) | A URL your provisioner advertises | Provide a bridge provisioner. |
 | Cloud sandbox, driven from your laptop | Your laptop, which has no public URL | Tunnel the bridge with `withNgrokBridge`. |
 
 ### Local process and Docker container
@@ -95,7 +95,11 @@ The guest still calls `host.docker.internal`. The host HTTP proxy changes that h
 
 ### A deployed server (production)
 
-A deployed server already has a public URL, so the sandbox can reach the bridge. The provisioner sends your public host (taken from the incoming request) and not `localhost`. Every call still needs the bearer token for the run, so a public endpoint is safe. The edge setup uses the same path. See [Cloudflare](./cloudflare).
+The default provisioner (`nodeHttpBridgeProvisioner`) binds loopback and tells the sandbox to call `127.0.0.1` (`host.docker.internal` for Docker). It does not read your public host from the request. So a remote sandbox cannot reach it, even from a deployed server.
+
+Provide your own `ToolBridgeProvisioner` from a chat middleware with `provideToolBridgeProvisioner(ctx, provisioner)`. Its `provision()` returns the bridge with a `url` the sandbox can reach, for example your server's public URL. `withNgrokBridge` from `@tanstack/ai-sandbox/ngrok` is a working example. Every call still needs the bearer token for the run, so a public endpoint is safe.
+
+The Cloudflare package ships its own provisioner, so the edge setup needs no extra step. See [Cloudflare](./cloudflare).
 
 ### A cloud sandbox, driven from your laptop
 

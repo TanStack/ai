@@ -92,7 +92,7 @@ For a full TanStack Start app that fills a table from `partial.rows`, open [Stre
 - `final` is `T | null`. It is `null` until the run completes. Then it holds the full object from the `structured-output.complete` event.
 - The schema on `useChat` gives you types. The streaming path does not validate the object with your schema. If you need validation, do it in your own code.
 
-Some adapters cannot stream the JSON. Anthropic, Gemini, and Ollama send the object as one event. Harness agents also send it at the end (see [Harness Agents](./harnesses)). In these cases `partial` stays `{}` until `final` is set. Your client code does not change.
+Some adapters cannot stream the JSON. Anthropic and Ollama send the object as one event. Harness agents also send it at the end (see [Harness Agents](./harnesses)). In these cases `partial` stays `{}` until `final` is set. Your client code does not change.
 
 If you leave out `outputSchema`, `useChat` returns its normal shape with no `partial` or `final`.
 
@@ -216,7 +216,8 @@ Streaming structured output works with every adapter. Only some send the JSON as
 | `@tanstack/ai-llmgateway` | Native stream in one request (Chat Completions, `response_format: json_schema`) |
 | `@tanstack/ai-cloudflare` | Native stream in one request (Chat Completions, `response_format: json_schema`) |
 | `@tanstack/ai-lovable` | Native stream in one request (Responses or Chat Completions) |
-| Other adapters (Anthropic, Gemini, Ollama, and more) | Runs `structuredOutput` without streaming, then emits the object as one `structured-output.complete` event |
+| `@tanstack/ai-gemini` | Native stream in one request (`generateContentStream`, `responseSchema`) |
+| Other adapters (Anthropic, Ollama, and more) | Runs `structuredOutput` without streaming, then emits the object as one `structured-output.complete` event |
 
 Your client code is the same on all adapters. You see deltas only when the adapter implements `structuredOutputStream`.
 

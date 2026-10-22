@@ -343,7 +343,10 @@ const stream = chat({
 });
 ```
 
-- OpenAI rejects `temperature` and `top_p` on the reasoning models: the `o` models, and the `gpt-5` and later models except `-chat-latest`. `openaiText` drops the two options for these models.
+- OpenAI rejects `temperature` and `top_p` on the reasoning models. `openaiText` drops the two options for these model ids:
+  - The `o` models (`o1`, `o3`, `o4-mini`, and so on).
+  - Every id that starts with `gpt-5`, except ids that end in `-chat-latest`.
+  - `codex-mini-latest`.
 - With `openaiChatCompletions`, the token limit is `max_tokens`.
 - Sampling options do not go at the root of `chat()`. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 

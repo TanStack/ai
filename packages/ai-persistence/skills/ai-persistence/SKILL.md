@@ -70,7 +70,8 @@ receives `{ artifactId, runId, threadId, role, activity, path, mimeType, name }`
 and returns the key. Server-side only (a browser-supplied key is path traversal +
 cross-tenant writes). The resolved key is recorded on `ArtifactRecord.blobKey`
 because it is no longer derivable; read `record.blobKey`, never recompute it.
-`blobKey` is required: a record without it does not load. A non-unique key
+`blobKey` is required. 0.x records without it are not supported, and nothing
+checks for them; backfill `blob_key` before upgrading. A non-unique key
 overwrites, so include `artifactId` unless that is intended.
 
 **Byte storage stores generated output, not prompt URLs.** Provider result URLs

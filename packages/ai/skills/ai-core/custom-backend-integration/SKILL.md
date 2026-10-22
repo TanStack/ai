@@ -191,7 +191,7 @@ import type { ConnectConnectionAdapter } from '@tanstack/ai-react'
 import type { StreamChunk } from '@tanstack/ai'
 
 const websocketAdapter: ConnectConnectionAdapter = {
-  async *connect(messages, data, abortSignal) {
+  async *connect(messages, data, abortSignal, runContext) {
     const ws = new WebSocket('wss://my-api.com/chat')
 
     // Wait for connection
@@ -201,7 +201,15 @@ const websocketAdapter: ConnectConnectionAdapter = {
     })
 
     // Send messages
-    ws.send(JSON.stringify({ messages, ...data }))
+    // Send the run ids the client made. Never make up your own.
+    ws.send(
+      JSON.stringify({
+        threadId: runContext.threadId,
+        runId: runContext.runId,
+        messages,
+        ...data,
+      }),
+    )
 
     // Create an async queue to bridge WebSocket events to an async iterable
     const queue: Array<StreamChunk> = []
@@ -300,10 +308,17 @@ const pushAdapter: SubscribeConnectionAdapter = {
     }
   },
 
-  async send(messages, data) {
+  async send(messages, data, _abortSignal, runContext) {
     // Dispatch messages; chunks arrive through subscribe()
     await ready
-    ws.send(JSON.stringify({ messages, ...data }))
+    ws.send(
+      JSON.stringify({
+        threadId: runContext.threadId,
+        runId: runContext.runId,
+        messages,
+        ...data,
+      }),
+    )
   },
 }
 
@@ -324,11 +339,15 @@ a shorthand for creating a `ConnectConnectionAdapter` from an async generator:
 import { useChat, stream } from '@tanstack/ai-react'
 import type { StreamChunk } from '@tanstack/ai'
 
+// The stream() factory does not get the run context, so pass the threadId
+// you give useChat yourself. The server makes the runId.
+const threadId = 'support-42'
+
 const directAdapter = stream(async function* (messages, data) {
   const response = await fetch('https://my-api.com/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages, ...data }),
+    body: JSON.stringify({ threadId, messages, ...data }),
   })
 
   const reader = response.body!.getReader()
@@ -354,7 +373,7 @@ const directAdapter = stream(async function* (messages, data) {
 
 const { messages, sendMessage } = useChat({
   connection: directAdapter,
-  threadId: 'support-42',
+  threadId,
 })
 ```
 
@@ -401,8 +420,16 @@ const pushAdapter: SubscribeConnectionAdapter = {
   subscribe(abortSignal) {
     return channel.chunks(abortSignal)
   },
-  async send(messages, data, abortSignal) {
-    await channel.send({ messages, ...data }, abortSignal)
+  async send(messages, data, abortSignal, runContext) {
+    await channel.send(
+      {
+        threadId: runContext.threadId,
+        runId: runContext.runId,
+        messages,
+        ...data,
+      },
+      abortSignal,
+    )
   },
 }
 ```
@@ -442,7 +469,7 @@ import type { ConnectConnectionAdapter } from '@tanstack/ai-react'
 import type { StreamChunk } from '@tanstack/ai'
 
 const resilientAdapter: ConnectConnectionAdapter = {
-  async *connect(messages, data, abortSignal) {
+  async *connect(messages, data, abortSignal, runContext) {
     const maxRetries = 3
     let attempt = 0
 
@@ -451,7 +478,12 @@ const resilientAdapter: ConnectConnectionAdapter = {
         const response = await fetch('https://my-api.com/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages, ...data }),
+          body: JSON.stringify({
+            threadId: runContext.threadId,
+            runId: runContext.runId,
+            messages,
+            ...data,
+          }),
           signal: abortSignal,
         })
 

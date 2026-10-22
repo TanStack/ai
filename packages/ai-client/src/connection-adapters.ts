@@ -1403,8 +1403,8 @@ export function fetchServerSentEvents(
       // Build AG-UI RunAgentInput payload.
       //
       // Precedence (later spreads win): static adapter `body` is the base,
-      // overridden by `runContext.forwardedProps` (constructor body /
-      // forwardedProps options), overridden by per-message `data` passed
+      // overridden by `runContext.forwardedProps` (the
+      // forwardedProps option), overridden by per-message `data` passed
       // to `connection.send`. Runtime values win over static config —
       // this matches the documented "forwardedProps wins" semantic.
       const requestBody = buildRunAgentInputBody(
@@ -1563,8 +1563,8 @@ export function fetchHttpStream(
       // Build AG-UI RunAgentInput payload.
       //
       // Precedence (later spreads win): static adapter `body` is the base,
-      // overridden by `runContext.forwardedProps` (constructor body /
-      // forwardedProps options), overridden by per-message `data` passed
+      // overridden by `runContext.forwardedProps` (the
+      // forwardedProps option), overridden by per-message `data` passed
       // to `connection.send`. Runtime values win over static config —
       // this matches the documented "forwardedProps wins" semantic.
       const requestBody = buildRunAgentInputBody(
@@ -2778,7 +2778,7 @@ export interface StreamConnectionHandlers {
  * // With TanStack Start server function
  * const connection = stream(() => serverFunction({ messages }));
  *
- * const client = new ChatClient({ connection });
+ * const client = new ChatClient({ connection, threadId });
  *
  * // With generation persistence over server functions
  * const connection = stream(
@@ -2908,7 +2908,7 @@ async function* abortableIterable<T>(
  *   api.streamMurfResponse(messages, data)
  * );
  *
- * const client = new ChatClient({ connection });
+ * const client = new ChatClient({ connection, threadId });
  *
  * // With generation persistence over RPC
  * const connection = rpcStream(

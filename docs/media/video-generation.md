@@ -296,7 +296,10 @@ import { withGenerationPersistence } from '@tanstack/ai-persistence'
 import { persistence } from './persistence'
 
 export async function POST(request: Request) {
-  const { input } = await generationParamsFromRequest('video', request)
+  const { input, threadId } = await generationParamsFromRequest('video', request)
+  if (!threadId) {
+    return new Response('Send a threadId.', { status: 400 })
+  }
   if (typeof input.prompt !== 'string') {
     return new Response('Send a text prompt.', { status: 400 })
   }
@@ -305,7 +308,7 @@ export async function POST(request: Request) {
     adapter: openRouterVideo('google/veo-3.1'),
     prompt: input.prompt,
     stream: true,
-    threadId: 'videos',
+    threadId,
     middleware: [
       withGenerationPersistence(persistence, {
         // The URL of your route that serves the stored bytes.

@@ -30,8 +30,8 @@ AgentLoopStrategy that continues only if all strategies agree
 
 ```typescript
 const stream = chat({
-  adapter: openaiText(),
-  model: "gpt-4o",
+  adapter: openaiText("gpt-6.1-sol"),
+  threadId: "thread-1",
   messages: [...],
   tools: [weatherTool],
   agentLoopStrategy: combineStrategies([

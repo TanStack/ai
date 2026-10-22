@@ -199,7 +199,7 @@ Rules for `reason`:
 
 - A tool can set another string, for example `auth_required`.
 - An empty reason stays `mcp_input`.
-- These reasons also stay `mcp_input`: `approval_required`, `client_tool_input`, and `tanstack:client_tool_execution`.
+- The reserved reason `tanstack:client_tool_execution` also stays `mcp_input`.
 
 ### Answers on the resumed tool
 

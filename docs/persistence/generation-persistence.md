@@ -49,7 +49,10 @@ const persistence = memoryPersistence()
 
 export async function POST(request: Request) {
   const durability = memoryStream(request)
-  const { input, threadId } = await generationParamsFromRequest('image', request)
+  const { input, threadId, runId } = await generationParamsFromRequest(
+    'image',
+    request,
+  )
 
   if (typeof input.prompt !== 'string') {
     throw new Error('This endpoint accepts text image prompts only.')
@@ -66,6 +69,8 @@ export async function POST(request: Request) {
     prompt: input.prompt,
     // The same slot the GET below finds the last run for.
     threadId,
+    // The client's run id. `memoryStream` stores the stream under it.
+    runId,
     stream: true,
     // `artifactUrl` is optional. It makes the restored media load from your
     // own origin. See Keep generated files for the route it points at.
@@ -180,13 +185,13 @@ stateDiagram-v2
     [*] --> running : generation starts (idempotent createOrResume)
     running --> completed : finish, result metadata saved
     running --> failed : error
-    running --> interrupted : abort
+    running --> aborted : abort
     completed --> [*]
     failed --> [*]
-    interrupted --> [*]
+    aborted --> [*]
 ```
 
-A restored `interrupted` run shows in the hook as an error. You cannot resume an aborted generation. You can only run it again.
+A restored `aborted` run shows in the hook as an error. You cannot resume an aborted generation. You can only run it again.
 
 This is the flow on mount:
 

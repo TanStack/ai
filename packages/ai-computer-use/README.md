@@ -102,7 +102,7 @@ await computerUse.close() // every thread, then the browser
 
 ## What your application owns
 
-- **A stable thread id.** If `chat()` gets no `threadId`, each request gets a new thread. A driver factory then makes a new machine for that thread.
+- **A stable thread id.** `chat()` requires a `threadId`, and nothing makes one for you. Pass the same id on each request of a conversation. A new id starts a new thread, and a driver factory then makes a new machine for that thread.
 - **The idle time.** A thread that stays idle for `idleTimeout` closes. The default is 10 minutes. `false` keeps every thread until `close`.
 - **One server process.** The machines live in the memory of one process.
 - **The network.** The browser can open every address that your server can reach. Run it where that is safe.

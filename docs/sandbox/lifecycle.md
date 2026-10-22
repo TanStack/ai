@@ -74,7 +74,7 @@ A sandbox is found by a compound key:
 sandboxInstanceKey = hash(threadId + sandbox.id + provider + workspaceHash + tenant?)
 ```
 
-The key includes the workspace hash, the provider, and an optional tenant. So if you change the repo, the `setup` steps, the provider image, or the tenant, you get a different key. That starts a **fresh** sandbox, and you never resume a stale one that does not match your config. Keep those inputs the same across runs to keep hitting the same warm sandbox.
+The key includes the workspace hash, the provider name, and an optional tenant. So if you change the repo, the `setup` steps, the provider, or the tenant, you get a different key. Provider options such as the image are not in the key. If you change the image, also change `sandbox.id` to get a fresh sandbox. That starts a **fresh** sandbox, and you never resume a stale one that does not match your config. Keep those inputs the same across runs to keep hitting the same warm sandbox.
 
 Providers without a durable disk or snapshots (for example ephemeral containers) keep the same key. But every run pays the bootstrap cost, because there is nothing durable to resume.
 

@@ -306,6 +306,7 @@ export interface ChatFetcherOptions {
  * @example
  * ```ts
  * useChat({
+ *   threadId,
  *   fetcher: ({ messages }, { signal }) =>
  *     chatFn({ data: { messages }, signal }),
  * })
@@ -1263,6 +1264,7 @@ export function clientTools<const T extends Array<AnyClientTool>>(
  *
  * const chatOptions = createChatClientOptions({
  *   connection: fetchServerSentEvents('/api/chat'),
+ *   threadId,
  *   tools,
  * })
  *
@@ -1288,6 +1290,7 @@ export function createChatClientOptions<
  * ```ts
  * const chatOptions = createChatClientOptions({
  *   connection: fetchServerSentEvents('/api/chat'),
+ *   threadId,
  *   tools: [myTool1, myTool2],
  * })
  *

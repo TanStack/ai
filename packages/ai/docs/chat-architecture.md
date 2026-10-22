@@ -372,27 +372,34 @@ If an adapter incorrectly includes `result`, the processor will store it as a to
 
 ## Client Tools and Approval Flows
 
-These are handled via `CUSTOM` events emitted by the TextEngine (not the adapter).
-
-### Client tool flow
+The TextEngine (not the adapter) pauses the run with an interrupt. It ends the run with one terminal chunk:
 
 ```
-CUSTOM { name: "tool-input-available", data: { toolCallId, toolName, input } }
+RUN_FINISHED { outcome: { type: "interrupt", interrupts: [...] } }
 ```
 
-Processor action: Fires `onToolCall` callback. Client calls `addToolResult(toolCallId, output)`.
+Each interrupt carries `toolCallId` and a binding in `metadata` that says what it is for.
 
-### Approval flow
+### Approval interrupt
 
 ```
-CUSTOM { name: "approval-requested", data: { toolCallId, toolName, input, approval: { id, needsApproval: true } } }
+{ id: approvalId, reason: "tool_call", toolCallId,
+  metadata: { kind: "approval", toolName, input, <binding kind: "tool-approval"> } }
 ```
 
-Processor action:
-1. `updateToolCallApproval()` -- Sets `state: "approval-requested"` and adds `approval` metadata to tool-call part.
-2. Fires `onApprovalRequest` callback.
-3. Client calls `resolveInterrupt(true/false)` on the bound `tool-approval` interrupt.
-4. `updateToolCallApprovalResponse()` -- Sets `state: "approval-responded"` and `approval.approved`.
+Processor action (`handleInterrupts()`):
+1. `updateToolCallApproval()` sets `state: "approval-requested"` and adds `approval` metadata to the tool-call part.
+2. Fires `onApprovalRequest`.
+3. The client calls `resolveInterrupt(true/false)` on the bound `tool-approval` interrupt, which resumes the run.
+
+### Client tool interrupt
+
+```
+{ id: "client_tool_<toolCallId>", reason: "tanstack:client_tool_execution", toolCallId,
+  metadata: { kind: "client_tool", toolName, input, <binding kind: "client-tool-execution"> } }
+```
+
+Processor action: fires `onToolCall`. The client runs the tool. Its result (`addToolResult`) answers the bound interrupt, which resumes the run.
 
 ---
 

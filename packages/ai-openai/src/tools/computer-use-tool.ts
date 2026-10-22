@@ -16,7 +16,7 @@ export {
 export type OpenAIComputerUseTool = ProviderTool<'openai', 'computer_use'>
 
 /**
- * Creates a standard Tool from ComputerUseTool parameters, branded as an
+ * Creates a standard Tool from ComputerUseToolConfig parameters, branded as an
  * OpenAI provider tool.
  */
 export function computerUseTool(

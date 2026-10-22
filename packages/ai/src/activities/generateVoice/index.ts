@@ -159,6 +159,7 @@ function createId(prefix: string): string {
  *
  * const designed = await generateVoice({
  *   adapter: elevenlabsVoiceDesign('eleven_ttv_v3'),
+ *   threadId: 'narrator',
  *   prompt: 'A warm, gravelly narrator in his sixties with a slight Irish lilt',
  * })
  *
@@ -167,6 +168,7 @@ function createId(prefix: string): string {
  *
  * const speech = await generateSpeech({
  *   adapter: elevenlabsSpeech('eleven_v4'),
+ *   threadId: 'narrator',
  *   text: 'Once upon a time...',
  *   voice: preview.voiceId,
  * })
@@ -176,6 +178,7 @@ function createId(prefix: string): string {
  * ```ts
  * const saved = await generateVoice({
  *   adapter: elevenlabsVoiceDesign('eleven_ttv_v3'),
+ *   threadId: 'demo-host',
  *   prompt: 'A bright, upbeat product demo host',
  *   name: 'Demo Host',
  *   description: 'Bright, upbeat, mid-30s',

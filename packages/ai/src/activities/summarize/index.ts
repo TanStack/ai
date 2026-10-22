@@ -165,7 +165,8 @@ function createId(prefix: string): string {
  *
  * const result = await summarize({
  *   adapter: openaiSummarize('gpt-4o-mini'),
- *   text: 'Long article text here...'
+ *   text: 'Long article text here...',
+ *   threadId,
  * })
  *
  * console.log(result.summary)
@@ -176,6 +177,7 @@ function createId(prefix: string): string {
  * const result = await summarize({
  *   adapter: openaiSummarize('gpt-4o-mini'),
  *   text: 'Long article text here...',
+ *   threadId,
  *   style: 'bullet-points',
  *   maxLength: 100
  * })
@@ -186,6 +188,7 @@ function createId(prefix: string): string {
  * const result = await summarize({
  *   adapter: openaiSummarize('gpt-4o-mini'),
  *   text: 'Long technical document...',
+ *   threadId,
  *   focus: ['key findings', 'methodology']
  * })
  * ```
@@ -195,6 +198,7 @@ function createId(prefix: string): string {
  * for await (const chunk of summarize({
  *   adapter: openaiSummarize('gpt-4o-mini'),
  *   text: 'Long article text here...',
+ *   threadId,
  *   stream: true
  * })) {
  *   if (chunk.type === 'content') {

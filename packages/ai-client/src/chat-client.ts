@@ -2379,8 +2379,9 @@ export class ChatClient<
    * @param content - The message content. Can be:
    *   - A simple string for text-only messages
    *   - A MultimodalContent object with content array and optional custom ID
-   * @param body - Optional body parameters to merge with the client's base body for this request.
-   *               Uses shallow merge with per-message body taking priority.
+   * @param body - Optional body parameters to merge into this request's
+   *               forwardedProps, over the forwardedProps option. Uses
+   *               shallow merge with per-message body taking priority.
    * @param sendOptions - Per-call overrides. `{ whenBusy }` overrides the
    *                      queue policy for this one send. `{ body }`
    *                      shallow-merges with `body` and with the chat-level

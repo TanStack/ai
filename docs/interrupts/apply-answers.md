@@ -62,7 +62,8 @@ export const reviewMiddleware: ChatMiddleware<unknown, typeof reviewPlan> = {
   onInterruptResolution(ctx, resumed) {
     const [result] = resumed.for(reviewPlan)
     if (result?.status !== 'resolved') return
-    provideReviewNote(ctx, { note: result.response.note })
+    // setup() already provided the value. Change it, do not provide it again.
+    getReviewNote(ctx).note = result.response.note
     if (!result.response.approved) {
       return { toolResume: 'stop' }
     }
@@ -230,7 +231,8 @@ on `ctx` for this `chat()` call:
 - Two `chat()` calls that run at the same time do not share the value.
 - A capability in `provides` must be provided in `setup`. The answer is not
   there yet, so `setup` provides an empty object. `onInterruptResolution`
-  writes the answer later.
+  writes the answer into that object later. A second provide logs a
+  duplicate-capability warning.
 
 A later middleware can read the same note:
 

@@ -495,11 +495,14 @@ By default the discovery-tool catalog lists only bare names (`'none'`). Pass
 
 ```typescript group=lazy-tools
 // Same tools as the route above, with a richer discovery catalog:
-export function chatWithCatalog(messages: Array<ModelMessage>) {
+export function chatWithCatalog(
+  messages: Array<ModelMessage>,
+  threadId: string,
+) {
   return chat({
     adapter: openaiText('gpt-5.5'),
     messages,
-    threadId: 'thread-1',
+    threadId,
     tools: [getProducts, compareProducts],
     agentLoopStrategy: maxIterations(20),
     lazyToolsConfig: { includeDescription: 'first-sentence' },

@@ -156,7 +156,8 @@ function createId(prefix: string): string {
  * const result = await generateTranscription({
  *   adapter: openaiTranscription('whisper-1'),
  *   audio: audioFile, // File, Blob, or base64 string
- *   language: 'en'
+ *   language: 'en',
+ *   threadId,
  * })
  *
  * console.log(result.text)
@@ -167,7 +168,8 @@ function createId(prefix: string): string {
  * const result = await generateTranscription({
  *   adapter: openaiTranscription('whisper-1'),
  *   audio: audioFile,
- *   responseFormat: 'verbose_json'
+ *   responseFormat: 'verbose_json',
+ *   threadId,
  * })
  *
  * result.segments?.forEach(segment => {
@@ -180,6 +182,7 @@ function createId(prefix: string): string {
  * for await (const chunk of generateTranscription({
  *   adapter: openaiTranscription('whisper-1'),
  *   audio: audioFile,
+ *   threadId,
  *   stream: true
  * })) {
  *   console.log(chunk)

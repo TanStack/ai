@@ -181,7 +181,7 @@ import { sandbox } from "./sandbox";
 export async function POST(request: Request) {
   const params = await chatParamsFromRequest(request);
 
-  // Extra fields the client puts in the connection `body` arrive here.
+  // The client sends the id in `forwardedProps`.
   const sessionId =
     typeof params.forwardedProps.sessionId === "string"
       ? params.forwardedProps.sessionId
@@ -200,7 +200,7 @@ export async function POST(request: Request) {
 }
 ```
 
-On the client, keep the id from the custom event and send it with each request:
+On the client, keep the id from the custom event and pass it to `forwardedProps`. `useChat` sends the latest value with each request:
 
 ```tsx
 import { useState } from "react";
@@ -210,9 +210,8 @@ export function useCodingAgent() {
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
 
   return useChat({
-    connection: fetchServerSentEvents("/api/agent", () => ({
-      body: { sessionId },
-    })),
+    connection: fetchServerSentEvents("/api/agent"),
+    forwardedProps: { sessionId },
     threadId: "support-chat",
     onCustomEvent: (name, value) => {
       if (

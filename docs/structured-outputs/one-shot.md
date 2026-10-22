@@ -178,7 +178,7 @@ What you get from the hook:
 - `partial`: `DeepPartial<T>`. The same object as it fills in. You can ignore it for a one-shot UI. [Streaming UIs](./streaming) shows how to use it.
 - The schema on `useChat` gives the client its types and parses `partial`. The server does not validate on the streaming path. See [Where validation runs](./overview#where-validation-runs).
 
-Anthropic, Gemini, and Ollama send the object as one event. `partial` stays `{}`, and `final` arrives in one step. Your client code does not change.
+Anthropic and Ollama send the object as one event. `partial` stays `{}`, and `final` arrives in one step. Your client code does not change.
 
 To keep the awaited object on the server and still use `useChat`, send it with `toJsonResponse(person)`. See [Send a structured output](../transports/json#send-a-structured-output).
 

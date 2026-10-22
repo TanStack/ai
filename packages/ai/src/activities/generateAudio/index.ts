@@ -145,7 +145,8 @@ function createId(prefix: string): string {
  * const result = await generateAudio({
  *   adapter: falAudio('fal-ai/diffrhythm'),
  *   prompt: 'An upbeat electronic track with synths',
- *   duration: 10
+ *   duration: 10,
+ *   threadId,
  * })
  *
  * console.log(result.audio.url) // URL to generated audio
