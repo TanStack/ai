@@ -114,7 +114,7 @@ On a host with `access`, pass the `user` of the request. The thread needs the `r
 What the view reads for the chat:
 
 - `transcript()`: the saved messages.
-- `snapshot()`: the status and the waiting approvals. When the session is open on this host, it also has the running operations.
+- `snapshot()`: the status and the waiting approvals. When the session is open on this host, it also has the running operations. The status is `running` only on the host that runs the turn, so on another host it can be `idle` while a turn runs.
 - `events({ from, signal })`: the events of the thread after a cursor.
 - `agentTranscript({ subagentRunId })`: the messages of one child agent run.
 - `settled({ inputId, signal })`: how an input ended. It waits until the input ends, also when another host runs it.

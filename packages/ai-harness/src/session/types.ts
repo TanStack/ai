@@ -304,8 +304,10 @@ export interface JobInfo {
 export interface SessionSnapshot {
   threadId: string
   /**
-   * `running`: a chat turn runs. `requires_action`: the last turn stopped for
-   * outside input. `idle`: ready for a prompt (agents may still run).
+   * `running`: a chat turn runs on this host. `requires_action`: the last
+   * turn stopped for outside input. `idle`: no chat turn runs on this host
+   * (agents may still run). Only the host that owns the log runs turns, so
+   * on another host `idle` does not mean that the thread is free.
    */
   status: 'idle' | 'running' | 'requires_action'
   activeOperations: Array<{
