@@ -25,6 +25,7 @@ export const Route = createFileRoute('/api/neon-wire')({
           })
           const options = {
             adapter,
+            threadId: 'neon-wire',
             text: '[summarize] The Fender Stratocaster is a versatile electric guitar',
             maxLength: 73,
             modelOptions: { max_output_tokens: 91 },

@@ -210,6 +210,7 @@ import { neonSummarize } from "@tanstack/ai-neon"
 
 const result = await summarize({
   adapter: neonSummarize("gpt-6-1-sol"),
+  threadId: "thread-1",
   text: "The Fender Stratocaster is a versatile electric guitar.",
   maxLength: 60,
 })
