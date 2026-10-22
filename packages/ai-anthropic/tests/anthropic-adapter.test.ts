@@ -639,6 +639,7 @@ describe('Anthropic adapter option mapping', () => {
 
     for await (const _ of chat({
       adapter,
+      threadId: 'thread-1',
       messages: [{ role: 'user', content: 'Hi' }],
       // Escape the per-model options type: temperature is rejected at the
       // type level on this model, but the wire layer must still strip it.
@@ -666,7 +667,7 @@ describe('Anthropic adapter option mapping', () => {
   })
 
   it('keeps supportsSamplingTemperature true on sampling models', () => {
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
     expect(adapter.supportsSamplingTemperature).toBe(true)
   })
 

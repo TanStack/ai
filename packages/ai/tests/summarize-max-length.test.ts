@@ -158,6 +158,7 @@ describe('ChatStreamSummarizeAdapter — maxLength reaches the wrapped adapter u
 
     await adapter.summarize({
       model: 'claude-sonnet-5-5',
+      threadId: 'thread-1',
       text: 'hi',
       maxLength: 200,
       logger,

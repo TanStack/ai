@@ -265,6 +265,7 @@ describe('Anthropic per-model chat modelOptions gating', () => {
     it('accepts max_tokens and the base options', () => {
       chat({
         adapter: anthropicText('claude-opus-5-5'),
+        threadId: 'thread-1',
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
           service_tier: 'auto',
