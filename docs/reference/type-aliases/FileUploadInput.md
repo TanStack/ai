@@ -13,7 +13,7 @@ type FileUploadInput =
 };
 ```
 
-Defined in: [packages/ai/src/activities/files/adapter.ts:20](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/files/adapter.ts#L20)
+Defined in: packages/ai/src/activities/files/adapter.ts:20
 
 Input to [FilesAdapter.upload](../interfaces/FilesAdapter.md#upload). Either a `Blob` (memory-efficient,
 preferred for large assets) or base64 `data` plus its `mimeType`.

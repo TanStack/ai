@@ -1,4 +1,3 @@
-import { resolveArtifactBlobKey } from '@tanstack/ai-persistence'
 import { uploadBlobPrefix } from './media'
 import type { ArtifactStore, BlobStore } from '@tanstack/ai-persistence'
 import type { HarnessPersistence } from './host'
@@ -24,7 +23,7 @@ export async function purgeThreadData({
   // Uploads and generated media are both artifacts of the thread.
   const records = await media.artifacts.listForThread(storeId)
   for (const record of records) {
-    await media.blobs.delete(resolveArtifactBlobKey(record))
+    await media.blobs.delete(record.blobKey)
     await media.artifacts.delete(record.artifactId)
   }
   // Upload bytes with no record: a put that failed after the bytes.

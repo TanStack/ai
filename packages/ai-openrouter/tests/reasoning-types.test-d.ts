@@ -5,6 +5,7 @@ import { createOpenRouterResponsesText } from '../src/adapters/responses-text'
 const messages = [{ role: 'user' as const, content: 'hi' }]
 
 chat({
+  threadId: 'thread-1',
   adapter: createOpenRouterText('openai/gpt-5.5', 'k'),
   messages,
   reasoning: 'xhigh',
@@ -26,6 +27,7 @@ chat({
 
 // The Responses API takes the budget.
 chat({
+  threadId: 'thread-1',
   adapter: createOpenRouterResponsesText('google/gemini-2.5-pro', 'k'),
   messages,
   reasoning: { level: 'high', budgetTokens: 4000 },

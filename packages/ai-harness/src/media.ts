@@ -566,6 +566,7 @@ export function mediaMiddleware({
     if (!bytes) return textPart(`[${record.kind} not found: ${record.name}]`)
     const transcript = await generateTranscription({
       adapter: transcriber,
+      threadId: ctx.threadId,
       audio: new Blob([bytes], { type: record.mimeType }),
       ...(ctx.signal ? { abortSignal: ctx.signal } : {}),
     })

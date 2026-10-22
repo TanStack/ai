@@ -53,6 +53,7 @@ export const Route = createFileRoute('/api/anthropic-auth-wire')({
         let text = ''
         try {
           for await (const chunk of chat({
+            threadId: 'anthropic-auth-wire',
             adapter,
             messages: [{ role: 'user', content: '[anthropic-auth] say hello' }],
           })) {

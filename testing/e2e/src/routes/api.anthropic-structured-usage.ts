@@ -46,6 +46,7 @@ export const Route = createFileRoute('/api/anthropic-structured-usage')({
         const timestamps: Record<string, number> = {}
         try {
           for await (const chunk of chat({
+            threadId: 'anthropic-structured-usage',
             ...options,
             messages: [{ role: 'user', content: 'recommend a guitar as json' }],
           })) {

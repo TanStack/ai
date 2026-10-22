@@ -11,6 +11,7 @@ function options(
   reasoning: ReasoningRequest | undefined,
 ): TextOptions {
   return {
+    threadId: 'thread-1',
     model,
     logger,
     messages: [{ role: 'user', content: 'hi' }],

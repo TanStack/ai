@@ -3,7 +3,7 @@ id: ToolResultPart
 title: ToolResultPart
 ---
 
-Defined in: [packages/ai/src/types.ts:524](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L524)
+Defined in: packages/ai/src/types.ts:524
 
 ## Properties
 
@@ -15,7 +15,7 @@ content:
   | ContentPart<unknown, unknown, unknown, unknown, unknown>[];
 ```
 
-Defined in: [packages/ai/src/types.ts:529](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L529)
+Defined in: packages/ai/src/types.ts:529
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [packages/ai/src/types.ts:529](https://github.com/TanStack/ai/blob/m
 optional createdAt?: Date;
 ```
 
-Defined in: [packages/ai/src/types.ts:535](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L535)
+Defined in: packages/ai/src/types.ts:535
 
 ***
 
@@ -35,7 +35,7 @@ Defined in: [packages/ai/src/types.ts:535](https://github.com/TanStack/ai/blob/m
 optional error?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:533](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L533)
+Defined in: packages/ai/src/types.ts:533
 
 ***
 
@@ -45,7 +45,7 @@ Defined in: [packages/ai/src/types.ts:533](https://github.com/TanStack/ai/blob/m
 optional id?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:526](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L526)
+Defined in: packages/ai/src/types.ts:526
 
 ***
 
@@ -55,7 +55,7 @@ Defined in: [packages/ai/src/types.ts:526](https://github.com/TanStack/ai/blob/m
 optional metadata?: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/types.ts:534](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L534)
+Defined in: packages/ai/src/types.ts:534
 
 ***
 
@@ -65,7 +65,7 @@ Defined in: [packages/ai/src/types.ts:534](https://github.com/TanStack/ai/blob/m
 optional name?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:527](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L527)
+Defined in: packages/ai/src/types.ts:527
 
 ***
 
@@ -75,7 +75,7 @@ Defined in: [packages/ai/src/types.ts:527](https://github.com/TanStack/ai/blob/m
 optional outcome?: ToolResultOutcome;
 ```
 
-Defined in: [packages/ai/src/types.ts:532](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L532)
+Defined in: packages/ai/src/types.ts:532
 
 Set when the user or middleware cancelled or denied the tool call; state remains `error`.
 
@@ -87,7 +87,7 @@ Set when the user or middleware cancelled or denied the tool call; state remains
 state: ToolResultState;
 ```
 
-Defined in: [packages/ai/src/types.ts:530](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L530)
+Defined in: packages/ai/src/types.ts:530
 
 ***
 
@@ -97,7 +97,7 @@ Defined in: [packages/ai/src/types.ts:530](https://github.com/TanStack/ai/blob/m
 toolCallId: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:528](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L528)
+Defined in: packages/ai/src/types.ts:528
 
 ***
 
@@ -107,4 +107,4 @@ Defined in: [packages/ai/src/types.ts:528](https://github.com/TanStack/ai/blob/m
 type: "tool-result";
 ```
 
-Defined in: [packages/ai/src/types.ts:525](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L525)
+Defined in: packages/ai/src/types.ts:525

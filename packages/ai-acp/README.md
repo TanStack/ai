@@ -98,6 +98,7 @@ const stream = chat({
   messages: [
     { role: 'user', content: 'Add a health check route and run the tests.' },
   ],
+  threadId: 'thread-1',
   middleware: [
     withSandbox(
       defineSandbox({

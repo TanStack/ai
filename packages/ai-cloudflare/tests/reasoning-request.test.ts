@@ -9,6 +9,7 @@ const model = '@cf/deepseek-ai/deepseek-v4-flash-0731'
 class Probe extends CloudflareTextAdapter<typeof model> {
   request(reasoning: ReasoningRequest | undefined) {
     return this.mapOptionsToRequest({
+      threadId: 'thread-1',
       model,
       logger,
       messages: [{ role: 'user', content: 'hi' }],

@@ -10,7 +10,6 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   InferGenerationOutputFromReturn,
   TranscriptionGenerateInput,
 } from '@tanstack/ai-client'
@@ -88,6 +87,7 @@ export interface CreateTranscriptionReturn<
  *   import { createTranscription, fetchServerSentEvents } from '@tanstack/ai-svelte'
  *
  *   const transcription = createTranscription({
+ *     threadId: 'meeting-transcript',
  *     connection: fetchServerSentEvents('/api/transcribe'),
  *   })
  *
@@ -115,12 +115,9 @@ export interface CreateTranscriptionReturn<
  * ```
  */
 export function createTranscription<TTransformed = void>(
-  options: Omit<
-    CreateTranscriptionOptions,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<CreateTranscriptionOptions, 'onResult'> & {
     onResult?: (result: TranscriptionResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ): CreateTranscriptionReturn<
   InferGenerationOutputFromReturn<TranscriptionResult, TTransformed>
 > {

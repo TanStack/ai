@@ -48,16 +48,13 @@ export const Route = createFileRoute('/api/memory-chat')({
         const abortController = new AbortController()
         const body = await request.json()
         const messages = body.messages
-        const data = body.data || {}
+        const data = body.forwardedProps || {}
 
         const provider: Provider = data.provider || 'openai'
         const model: string | undefined = data.model
-        // threadId may come from the client for multi-thread demo UX; user and
+        // threadId comes from the client for multi-thread demo UX; user and
         // tenant are always server-side constants (see panelMemoryScope).
-        const threadId: string =
-          typeof data.threadId === 'string' && data.threadId.length > 0
-            ? data.threadId
-            : 'panel-default-thread'
+        const threadId: string = body.threadId
         const scope = panelMemoryScope(threadId)
 
         try {
@@ -105,6 +102,7 @@ export const Route = createFileRoute('/api/memory-chat')({
 
           const stream = chat({
             ...options,
+            threadId,
             adapter,
             tools: [],
             systemPrompts: [SYSTEM_PROMPT],

@@ -704,7 +704,7 @@ function CodeModePanel({
   const { messages, sendMessage, isLoading, stop } = useChat({
     threadId: 'product-codemode',
     connection: fetchServerSentEvents('/api/product-codemode'),
-    body,
+    forwardedProps: body,
     onCustomEvent: handleCustomEvent,
   })
 
@@ -1002,7 +1002,7 @@ function RegularToolsPanel({
   const { messages, sendMessage, isLoading, stop } = useChat({
     threadId: 'product-regular',
     connection: fetchServerSentEvents('/api/product-regular'),
-    body,
+    forwardedProps: body,
     onCustomEvent: handleCustomEvent,
   })
 

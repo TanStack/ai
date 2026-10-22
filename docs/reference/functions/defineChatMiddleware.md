@@ -7,7 +7,7 @@ title: defineChatMiddleware
 function defineChatMiddleware<TContext, TRequires, TProvides, TInterruptDefinitions>(middleware): DefinedChatMiddleware<TContext, TRequires, TProvides, TInterruptDefinitions>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/define.ts:27](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/define.ts#L27)
+Defined in: packages/ai/src/activities/chat/middleware/define.ts:27
 
 Identity helper for authoring middleware with precise capability inference.
 Returns the middleware unchanged at runtime; only sharpens its type so the

@@ -1,5 +1,83 @@
 # @tanstack/openai-base
 
+## 0.16.0
+
+### Minor Changes
+
+- [#1837](https://github.com/TanStack/ai/pull/1837) [`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325) - Add computer use that runs the same code on OpenAI and on Anthropic. A driver controls the machine. The Playwright and sandbox drivers give each thread its own machine.
+
+  New packages:
+  - `@tanstack/ai-computer-use` adds `createComputerUse()`. It returns `tools`, a middleware, a safety-check interrupt, and `close`. Each `threadId` gets its own machine, action queue, and approvals. A thread that stays idle for `idleTimeout` (10 minutes by default) closes.
+  - `@tanstack/ai-computer-playwright` adds `playwrightComputer()`, which opens one browser page for each thread. `createPlaywrightComputerDriver()` controls one page that you give it. Both add a `navigate` tool that opens `http:` and `https:` URLs.
+  - `@tanstack/ai-computer-sandbox` adds `sandboxComputer()`, which creates one Linux desktop sandbox for each thread from any `@tanstack/ai-sandbox` provider, like `e2bSandbox({ template: 'desktop' })`. `createSandboxComputerDriver()` controls one sandbox that you give it.
+  - `@tanstack/ai-computer-local` adds `localComputer()`, which lets the model use the mouse, keyboard, and main screen of the machine that runs `chat()`. It works on Windows, macOS, and Linux with `@jitsi/robotjs`.
+
+  Changes in existing packages:
+  - `@tanstack/ai` adds `threadId` to `ToolExecutionContext`. It also adds the computer tool metadata reader in `@tanstack/ai/adapter-internals`.
+  - `@tanstack/ai-anthropic` and `@tanstack/openai-base` send the generic computer tool to the model as the native computer tool of the provider.
+  - `@tanstack/ai-openai` marks the models that support the `computer` tool.
+
+  ```ts
+  const computerUse = createComputerUse({
+    driver: playwrightComputer({ startUrl: 'https://tanstack.com' }),
+  })
+
+  chat({
+    adapter,
+    messages,
+    threadId,
+    tools: computerUse.tools,
+    middleware: [computerUse.middleware],
+    interrupts: [computerUse.interrupt],
+  })
+
+  await computerUse.close(threadId) // one thread
+  await computerUse.close() // every thread, and the browser
+  ```
+
+  The `ai-core` agent skill routes computer use to `@tanstack/ai-computer-use` and its three drivers.
+
+- [#1837](https://github.com/TanStack/ai/pull/1837) [`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325) - `computerUseTool({ type: 'computer' })` adds the computer tool of the newer OpenAI models, for example `gpt-6.1-sol`. The tool name is `computer`. Each call has the batched `actions` of the model and the `pending_safety_checks`, and the replay sends the actions back as they came. `computerUseTool({ type: 'computer_use_preview', ... })` for the `computer-use-preview` model works as before. The Responses tool choice type also accepts `computer`. Computer screenshots now go out with `detail: 'original'`, as in OpenAI's computer use guide.
+
+### Patch Changes
+
+- [#1837](https://github.com/TanStack/ai/pull/1837) [`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325) - The computer use loop of `computerUseTool()` runs. A `computer_call` from the model is now a tool call to `computer_use_preview`, with the `action` and the `pending_safety_checks` as its input. The tool result goes back as `computer_call_output`, with the first image of the result as the screenshot. When the call does not fail, the output acknowledges the safety checks of the call.
+
+  A failed computer call sends the newest screenshot of the conversation, because the failed call has no screenshot of its own. A computer call output has no text, so the reason for the failure goes to the model in a user message after the call outputs.
+
+  A computer tool result with no image fails the run with an error. Before, the adapter sent an empty screenshot.
+
+- Updated dependencies [[`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325)]:
+  - @tanstack/ai@0.71.0
+
+## 0.15.0
+
+### Minor Changes
+
+- [#1775](https://github.com/TanStack/ai/pull/1775) [`85c2956`](https://github.com/TanStack/ai/commit/85c2956c68f3226ef409b3a4e54d5be82198931e) - Structured output sends `response_format: { type: "json_object" }` for OpenRouter and Groq models that declare a response format without strict structured outputs. These models reject strict `json_schema`. In JSON mode the adapter adds the schema as a system prompt. `await chat({ outputSchema })` checks the reply when the schema is a Standard Schema, such as Zod. Other models keep strict `json_schema`.
+
+  `modelOptions` can set `json_object` for any model. On the OpenAI-base adapters (OpenAI, Grok, Groq and others), a `json_object` in `modelOptions` was replaced by strict `json_schema`. It is now sent as given, with the schema in a system prompt. In JSON mode, `supportsCombinedToolsAndSchema()` returns `false`. Tools and the schema then go out in separate requests, so the tool-calling turns do not get the schema prompt.
+
+  OpenRouter catalog ids with a `:variant`, such as `google/gemma-4-26b-a4b-it:free`, now match their own catalog entry. Before, only the id without the variant was checked.
+
+### Patch Changes
+
+- [#1787](https://github.com/TanStack/ai/pull/1787) [`ee374b4`](https://github.com/TanStack/ai/commit/ee374b4753adfc2ae305edad03f1ac9a588321fa) - A failed native `compact` is not saved as the checkpoint or the durable compaction record. The next process calls `compact` again. A compact result keeps image files, documents, and audio, and sends those parts back on the next request.
+
+- [#1750](https://github.com/TanStack/ai/pull/1750) [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b) - Keep the provider's raw tool argument string for replay.
+  - Adapters now send the raw argument string as `args` on `TOOL_CALL_END`.
+  - The tool call in the history keeps that exact string when it is the same JSON value as the parsed input, so the next request sends the provider's own bytes back (for example `1.50`, or an id past `Number.MAX_SAFE_INTEGER`). When the parsed input differs, only the changed values are written again.
+  - The `TOOL_CALL_END` that reaches the client carries the same string in `metadata.tanstack.args`, so the client history matches the server history. It no longer also carries `metadata.tanstack.input`: in-process `chat()` and `StreamProcessor` parse `input` from `args`. Run the client and the server on the same release: an older client ignores `args`, so it builds the tool input from the streamed deltas only, and a tool call with no deltas (for example an Anthropic server tool) gets no input.
+  - History converters for Bedrock and the Gemini Interactions API send malformed tool arguments as `{}` instead of failing the request.
+  - Gemini Interactions: the initial `step.arguments` snapshot goes out as a `TOOL_CALL_ARGS` delta only when no argument deltas follow, so the deltas always add up to the final arguments.
+  - Malformed tool arguments are no longer turned into `{}` by an adapter. The tool gets a "Failed to parse tool arguments as JSON" error that the model can repair. Mistral still ends the run with an error on malformed arguments, as before.
+
+- [#1774](https://github.com/TanStack/ai/pull/1774) [`761a652`](https://github.com/TanStack/ai/commit/761a652a3d3f8d31017e11034a4844c8c81af0f6) - Responses API usage now reports `promptTokensDetails.cacheWriteTokens` from `input_tokens_details.cache_write_tokens`, the same as the Chat Completions path.
+
+- Updated dependencies [[`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`5f95dbd`](https://github.com/TanStack/ai/commit/5f95dbd08f2780442000ac52074ea747d1b44187), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`3292bad`](https://github.com/TanStack/ai/commit/3292bad7b26990c5aa4676cc9d9fe33b1741fc1a), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`4298480`](https://github.com/TanStack/ai/commit/429848047c8c514f29855f8a99a7260253eb5d5b), [`f68da51`](https://github.com/TanStack/ai/commit/f68da51f63f999b70ac7aaf5aebc0109a7e9daf7), [`85c2956`](https://github.com/TanStack/ai/commit/85c2956c68f3226ef409b3a4e54d5be82198931e), [`30fa651`](https://github.com/TanStack/ai/commit/30fa651d173e519db8de50c9f888ded71b951640), [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b)]:
+  - @tanstack/ai@0.70.0
+  - @tanstack/ai-utils@0.5.0
+
 ## 0.14.0
 
 ### Minor Changes

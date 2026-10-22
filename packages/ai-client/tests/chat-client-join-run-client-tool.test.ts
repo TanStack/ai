@@ -88,7 +88,6 @@ describe('joinRun client-tool continuation (issue #1058)', () => {
         type: EventType.TOOL_CALL_START,
         toolCallId: 'tool-call-1',
         toolCallName: 'lookup',
-        toolName: 'lookup',
         timestamp: 2,
       },
       {

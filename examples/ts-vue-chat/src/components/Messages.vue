@@ -10,10 +10,6 @@ const props = defineProps<{
   messages: readonly any[]
 }>()
 
-const emit = defineEmits<{
-  approve: [{ id: string; approved: boolean }]
-}>()
-
 const containerRef = ref<HTMLDivElement>()
 
 // Auto-scroll to bottom when messages change
@@ -85,43 +81,6 @@ const isThinkingComplete = (message: UIMessage, partIndex: number) => {
               class="text-white prose max-w-none"
               v-html="renderMarkdown(part.content)"
             />
-
-            <!-- Approval UI -->
-            <div
-              v-else-if="
-                part.type === 'tool-call' &&
-                part.state === 'approval-requested' &&
-                part.approval
-              "
-              class="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg mt-2"
-            >
-              <p class="text-white font-medium mb-2">
-                🔒 Approval Required: {{ part.name }}
-              </p>
-              <div class="text-gray-300 text-sm mb-3">
-                <pre class="bg-gray-800 p-2 rounded text-xs overflow-x-auto">{{
-                  JSON.stringify(JSON.parse(part.arguments), null, 2)
-                }}</pre>
-              </div>
-              <div class="flex gap-2">
-                <button
-                  @click="
-                    emit('approve', { id: part.approval!.id, approved: true })
-                  "
-                  class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
-                >
-                  ✓ Approve
-                </button>
-                <button
-                  @click="
-                    emit('approve', { id: part.approval!.id, approved: false })
-                  "
-                  class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
-                >
-                  ✗ Deny
-                </button>
-              </div>
-            </div>
 
             <!-- Guitar recommendation -->
             <div

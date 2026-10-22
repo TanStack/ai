@@ -295,23 +295,6 @@ export abstract class ChatClientEventEmitter {
   }
 
   /**
-   * Emit tool approval responded event
-   */
-  toolApprovalResponded(
-    approvalId: string,
-    toolCallId: string,
-    approved: boolean,
-    context?: ChatClientRunEventContext,
-  ): void {
-    this.emitEvent('tools:approval:responded', {
-      approvalId,
-      toolCallId,
-      approved,
-      ...context,
-    })
-  }
-
-  /**
    * Emit tool fixture applied event.
    */
   toolFixtureApplied(fixture: ChatClientToolFixtureAppliedEvent): void {

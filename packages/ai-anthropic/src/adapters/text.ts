@@ -17,6 +17,14 @@ import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { getAnthropicProviderToolKind } from '../tools/anthropic-provider-tool'
 import {
+  COMPUTER_TOOL_NAME,
+  convertComputerUseToolToAdapterFormat,
+  isComputerToolset,
+  joinComputerToolsetCall,
+  resolveComputerUseTool,
+  splitComputerToolsetCall,
+} from '../tools/computer-use-tool'
+import {
   readCodeExecutionConfig,
   readCodeExecutionSkills,
 } from '../tools/code-execution-tool'
@@ -105,6 +113,7 @@ import type {
   AnthropicClientConfig,
   AnthropicMessagesClient,
 } from '../utils/client'
+import type { ComputerUseSingleToolConfig } from '../tools/computer-use-tool'
 
 /**
  * The block type carried by an Anthropic provider-executed (server) tool's
@@ -211,11 +220,20 @@ function toAnthropicToolChoice(
   return { type: 'tool' as const, name: choice.name }
 }
 
+/** The beta header of each single `computer` tool version. */
+const COMPUTER_USE_BETAS = {
+  computer_20241022: 'computer-use-2024-10-22',
+  computer_20250124: 'computer-use-2025-01-24',
+  computer_20251124: 'computer-use-2025-11-24',
+} as const satisfies Record<ComputerUseSingleToolConfig['type'], AnthropicBeta>
+
 /**
  * Computes the `betas` array for a Messages request. Unions:
  * - `interleaved-thinking-2025-05-14` when interleaved thinking is enabled,
  * - `code-execution-2025-08-25` when a `code_execution` tool is present,
  * - `skills-2025-10-02` when that tool carries skills,
+ * - the `computer-use-*` beta of a single `computer` tool version (the
+ *   computer toolset needs none),
  * - `context-management-2025-06-27` when `context_management` is set,
  * - `files-api-2025-04-14` when a message references an uploaded file handle,
  * - `mid-conversation-tool-changes-2026-07-01` in mid-conversation tool mode.
@@ -291,6 +309,17 @@ export function computeAnthropicBetas(
   )
   if (hasSkills) betas.add('skills-2025-10-02')
 
+  // Each computer use version needs its own beta header.
+  const computerTool = tools?.find(
+    (tool) => getAnthropicProviderToolKind(tool) === 'computer_use',
+  )
+  if (computerTool) {
+    const { type } = convertComputerUseToolToAdapterFormat(computerTool)
+    if (type !== 'computer_toolset_20260801') {
+      betas.add(COMPUTER_USE_BETAS[type])
+    }
+  }
+
   return betas.size > 0 ? Array.from(betas) : undefined
 }
 
@@ -305,18 +334,6 @@ const DEFERRED_TOOL_PLACEHOLDER: BetaTool = {
   description: 'Reserved placeholder. Never available. Never call this.',
   input_schema: { type: 'object', properties: {}, required: [] },
   defer_loading: true,
-}
-
-/**
- * A mid-conversation `system` message. SDK 0.97.1 types only `user` and
- * `assistant` messages and has no `tool_addition` block, so this type is local.
- */
-interface AnthropicMidConversationSystemMessage {
-  role: 'system'
-  content: Array<
-    | TextBlockParam
-    | { type: 'tool_addition'; tool: { type: 'tool_reference'; name: string } }
-  >
 }
 
 /**
@@ -569,10 +586,18 @@ export class AnthropicTextAdapter<
   }
 
   async *chatStream(
-    options: TextOptions<TProviderOptions>,
+    chatOptions: TextOptions<TProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
+    let options = chatOptions
     const { logger } = options
     try {
+      // The rest of the request sees the native computer tool.
+      options = {
+        ...options,
+        tools: options.tools?.map((tool) =>
+          resolveComputerUseTool(tool, this.model),
+        ),
+      }
       const requestParams = this.mapCommonOptionsToAnthropic(options)
 
       logger.request(
@@ -591,7 +616,8 @@ export class AnthropicTextAdapter<
           messagesHaveFileSource(options.messages),
           // Mid-conversation tool mode puts the deferred placeholder in `tools`.
           requestParams.tools?.some(
-            (tool) => tool.name === DEFERRED_TOOL_PLACEHOLDER.name,
+            (tool) =>
+              'name' in tool && tool.name === DEFERRED_TOOL_PLACEHOLDER.name,
           ),
         ),
       )
@@ -667,7 +693,14 @@ export class AnthropicTextAdapter<
   async structuredOutput(
     options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
-    const { chatOptions, outputSchema } = options
+    const { outputSchema } = options
+    // The betas and the history see the native computer tool.
+    const chatOptions = {
+      ...options.chatOptions,
+      tools: options.chatOptions.tools?.map((tool) =>
+        resolveComputerUseTool(tool, this.model),
+      ),
+    }
     const { logger } = chatOptions
 
     // `structuredOutput()` issues a non-streaming `messages.create({ stream:
@@ -805,6 +838,7 @@ export class AnthropicTextAdapter<
     const formattedMessages = this.formatMessages(
       replay.messages,
       mid?.systemMessages,
+      options.tools?.some(isComputerToolset) ?? false,
     )
     const tools = options.tools
       ? (mid?.tools ?? convertToolsToProviderFormat(options.tools))
@@ -952,8 +986,7 @@ export class AnthropicTextAdapter<
 
     // Lift skills attached to a `code_execution` tool into the top-level
     // `container.skills` request param (Anthropic's required shape). Preserve any
-    // `container.id` supplied via modelOptions for container reuse. This is the
-    // canonical path for skills; `modelOptions.container.skills` is deprecated.
+    // `container.id` supplied via modelOptions for container reuse.
     const toolSkills = options.tools
       ?.map((tool) =>
         getAnthropicProviderToolKind(tool) === 'code_execution'
@@ -1048,7 +1081,7 @@ export class AnthropicTextAdapter<
       )
     const systemMessages = new Map<number, BetaMessageParam>()
     for (const [before, change] of split.at) {
-      const content: AnthropicMidConversationSystemMessage['content'] = [
+      const content: Array<BetaContentBlockParam> = [
         ...(channels.systemPrompts
           ? change.systemPrompts.map(
               (p): TextBlockParam => ({ type: 'text', text: p.content }),
@@ -1062,12 +1095,7 @@ export class AnthropicTextAdapter<
           : []),
       ]
       if (content.length === 0) continue
-      const message: AnthropicMidConversationSystemMessage = {
-        role: 'system',
-        content,
-      }
-      // oxlint-disable-next-line eslint-js/no-restricted-syntax -- SDK 0.97.1 types no `system` message in `messages`; the models in the channel map accept one (pi 0.87.1).
-      systemMessages.set(before, message as unknown as BetaMessageParam)
+      systemMessages.set(before, { role: 'system', content })
     }
     return {
       ...(channels.systemPrompts && {
@@ -1202,8 +1230,12 @@ export class AnthropicTextAdapter<
     messages: Array<ModelMessage>,
     /** Mid-conversation `system` messages by message index (`before`). */
     systemMessages?: ReadonlyMap<number, BetaMessageParam>,
+    /** The tools have the computer toolset, so `computer` calls are its calls. */
+    computerToolset = false,
   ): InternalTextProviderOptions['messages'] {
     const formattedMessages: InternalTextProviderOptions['messages'] = []
+    // The ids of the computer toolset calls. Their results name the toolset.
+    const toolsetCalls = computerToolset ? new Set<string>() : undefined
     // A system message waits for the next assistant message (or the end),
     // so a `tool_result` still follows its `tool_use` directly.
     const pendingSystemMessages: InternalTextProviderOptions['messages'] = []
@@ -1224,6 +1256,9 @@ export class AnthropicTextAdapter<
             {
               type: 'tool_result',
               tool_use_id: message.toolCallId,
+              ...(toolsetCalls?.has(message.toolCallId) && {
+                toolset_name: COMPUTER_TOOL_NAME,
+              }),
               content: Array.isArray(toolContent)
                 ? toolContent.map((part) =>
                     this.convertContentPartToAnthropic(part),
@@ -1248,7 +1283,11 @@ export class AnthropicTextAdapter<
           if (block.type === 'thinking') {
             this.appendThinkingBlocks(contentBlocks, [block.thinking])
           } else if (block.type === 'tool-call') {
-            this.appendToolCallBlocks(contentBlocks, block.toolCall)
+            this.appendToolCallBlocks(
+              contentBlocks,
+              block.toolCall,
+              toolsetCalls,
+            )
           } else {
             contentBlocks.push({ type: 'text', text: block.text })
           }
@@ -1276,7 +1315,7 @@ export class AnthropicTextAdapter<
         }
 
         for (const toolCall of message.toolCalls) {
-          this.appendToolCallBlocks(contentBlocks, toolCall)
+          this.appendToolCallBlocks(contentBlocks, toolCall, toolsetCalls)
         }
 
         formattedMessages.push({
@@ -1373,10 +1412,15 @@ export class AnthropicTextAdapter<
     }
   }
 
-  /** A tool call as a `tool_use` block, or a server tool as its two blocks. */
+  /**
+   * A tool call as a `tool_use` block, or a server tool as its two blocks.
+   * With `toolsetCalls`, a `computer` call goes back as the computer toolset
+   * call that the model sent, and its id goes in `toolsetCalls`.
+   */
   private appendToolCallBlocks(
     contentBlocks: Array<BetaContentBlockParam>,
     toolCall: ToolCall,
+    toolsetCalls?: Set<string>,
   ): void {
     let parsedInput: unknown = {}
     try {
@@ -1402,6 +1446,25 @@ export class AnthropicTextAdapter<
       }
       contentBlocks.push(serverToolUseBlock)
       contentBlocks.push(buildServerToolResultBlock(toolCall.id, serverMeta))
+      return
+    }
+
+    const member =
+      toolsetCalls &&
+      toolCall.function.name === COMPUTER_TOOL_NAME &&
+      typeof parsedInput === 'object' &&
+      parsedInput !== null
+        ? splitComputerToolsetCall(parsedInput)
+        : undefined
+    if (member) {
+      toolsetCalls?.add(toolCall.id)
+      contentBlocks.push({
+        type: 'tool_use',
+        id: toolCall.id,
+        name: member.name,
+        toolset_name: COMPUTER_TOOL_NAME,
+        input: member.input,
+      })
       return
     }
 
@@ -1508,7 +1571,6 @@ export class AnthropicTextAdapter<
       model: options.model,
     }
     let accumulatedContent = ''
-    let accumulatedThinking = ''
     let accumulatedSignature = ''
     const toolCallsMap = new Map<
       number,
@@ -1518,6 +1580,8 @@ export class AnthropicTextAdapter<
         input: string
         started: boolean
         hasInputDelta: boolean
+        /** The action of a computer toolset call (`left_click`, …). */
+        member?: string
       }
     >()
     let currentToolIndex = -1
@@ -1537,9 +1601,8 @@ export class AnthropicTextAdapter<
 
     // AG-UI lifecycle tracking
     const runId = options.runId ?? genId()
-    const threadId = options.threadId ?? genId()
+    const threadId = options.threadId
     const messageId = genId()
-    let stepId: string | null = null
     let reasoningMessageId: string | null = null
     let hasClosedReasoning = false
     let hasEmittedRunStarted = false
@@ -1580,9 +1643,16 @@ export class AnthropicTextAdapter<
           currentBlockType = event.content_block.type
           if (event.content_block.type === 'tool_use') {
             currentToolIndex++
+            // A computer toolset call names its action. It runs as one
+            // `computer` call with the action in `input.action`.
+            const isComputerCall =
+              event.content_block.toolset_name === COMPUTER_TOOL_NAME
             toolCallsMap.set(currentToolIndex, {
               id: event.content_block.id,
-              name: event.content_block.name,
+              name: isComputerCall
+                ? COMPUTER_TOOL_NAME
+                : event.content_block.name,
+              ...(isComputerCall && { member: event.content_block.name }),
               // The initial input snapshot. The first `input_json_delta`
               // replaces it.
               input: JSON.stringify(event.content_block.input) ?? '',
@@ -1657,7 +1727,6 @@ export class AnthropicTextAdapter<
                 type: EventType.TOOL_CALL_START,
                 toolCallId: serverTool.id,
                 toolCallName: serverTool.name,
-                toolName: serverTool.name,
                 parentMessageId: messageId,
                 model,
                 timestamp: Date.now(),
@@ -1668,7 +1737,6 @@ export class AnthropicTextAdapter<
                 type: EventType.TOOL_CALL_END,
                 toolCallId: serverTool.id,
                 toolCallName: serverTool.name,
-                toolName: serverTool.name,
                 model,
                 timestamp: Date.now(),
                 input: parsedInput,
@@ -1678,11 +1746,9 @@ export class AnthropicTextAdapter<
               hasEmittedTextMessageStart = false
             }
           } else if (event.content_block.type === 'thinking') {
-            accumulatedThinking = ''
             accumulatedSignature = ''
             hasClosedReasoning = false
-            // Emit REASONING and STEP_STARTED for thinking
-            stepId = genId()
+            // Emit REASONING events for thinking
             reasoningMessageId = genId()
 
             // Spec REASONING events
@@ -1699,22 +1765,11 @@ export class AnthropicTextAdapter<
               model,
               timestamp: Date.now(),
             }
-
-            // Legacy STEP events (kept during transition)
-            yield {
-              type: EventType.STEP_STARTED,
-              stepName: stepId,
-              stepId,
-              model,
-              timestamp: Date.now(),
-              stepType: 'thinking',
-            }
           } else if (event.content_block.type === 'redacted_thinking') {
             // Encrypted thinking: no text, and its data must go back to
             // Anthropic unchanged. It gets its own reasoning message, and the
             // encrypted value names that message. The id prefix marks the
-            // data as a redacted block, not a signature. The step reuses the
-            // id so the stream processor sees the prefix too.
+            // data as a redacted block, not a signature.
             const redactedId = `${REDACTED_THINKING_ID_PREFIX}${genId()}`
             yield {
               type: EventType.REASONING_START,
@@ -1728,23 +1783,6 @@ export class AnthropicTextAdapter<
               role: 'reasoning' as const,
               model,
               timestamp: Date.now(),
-            }
-            yield {
-              type: EventType.STEP_STARTED,
-              stepName: redactedId,
-              stepId: redactedId,
-              model,
-              timestamp: Date.now(),
-              stepType: 'thinking',
-            }
-            yield {
-              type: EventType.STEP_FINISHED,
-              stepName: redactedId,
-              stepId: redactedId,
-              model,
-              timestamp: Date.now(),
-              delta: '',
-              content: '',
             }
             yield {
               type: EventType.REASONING_ENCRYPTED_VALUE,
@@ -1813,7 +1851,6 @@ export class AnthropicTextAdapter<
             reasoningMessageId
           ) {
             const delta = event.delta.thinking
-            accumulatedThinking += delta
 
             // Spec REASONING content event
             yield {
@@ -1822,17 +1859,6 @@ export class AnthropicTextAdapter<
               delta,
               model,
               timestamp: Date.now(),
-            }
-
-            // Legacy STEP event
-            yield {
-              type: EventType.STEP_FINISHED,
-              stepName: stepId || genId(),
-              stepId: stepId || genId(),
-              model,
-              timestamp: Date.now(),
-              delta,
-              content: accumulatedThinking,
             }
           } else if (
             (event.delta as { type: string }).type === 'signature_delta'
@@ -1844,7 +1870,14 @@ export class AnthropicTextAdapter<
             // never appends onto the prior client tool's buffer.
             if (currentBlockType === 'tool_use') {
               const existing = toolCallsMap.get(currentToolIndex)
-              if (existing) {
+              // A computer toolset call sends its joined arguments at the end.
+              if (existing?.member !== undefined) {
+                if (!existing.hasInputDelta) {
+                  existing.input = ''
+                  existing.hasInputDelta = true
+                }
+                existing.input += event.delta.partial_json
+              } else if (existing) {
                 // Emit TOOL_CALL_START on first args delta
                 if (!existing.started) {
                   existing.started = true
@@ -1852,7 +1885,6 @@ export class AnthropicTextAdapter<
                     type: EventType.TOOL_CALL_START,
                     toolCallId: existing.id,
                     toolCallName: existing.name,
-                    toolName: existing.name,
                     parentMessageId: messageId,
                     model,
                     timestamp: Date.now(),
@@ -1889,18 +1921,9 @@ export class AnthropicTextAdapter<
         } else if (event.type === 'content_block_stop') {
           if (currentBlockType === 'thinking') {
             // Emit signature so it can be replayed in multi-turn context.
-            // It belongs to the reasoning message, not the step, so an AG-UI
-            // client finds that message by `entityId`.
-            if (accumulatedSignature && stepId && reasoningMessageId) {
-              yield {
-                type: EventType.STEP_FINISHED,
-                stepName: stepId,
-                stepId,
-                model,
-                timestamp: Date.now(),
-                delta: '',
-                content: accumulatedThinking,
-              }
+            // It belongs to the reasoning message, so an AG-UI client finds that
+            // message by `entityId`.
+            if (accumulatedSignature && reasoningMessageId) {
               yield {
                 type: EventType.REASONING_ENCRYPTED_VALUE,
                 subtype: 'message' as const,
@@ -1937,7 +1960,6 @@ export class AnthropicTextAdapter<
                   type: EventType.TOOL_CALL_START,
                   toolCallId: existing.id,
                   toolCallName: existing.name,
-                  toolName: existing.name,
                   parentMessageId: messageId,
                   model,
                   timestamp: Date.now(),
@@ -1955,11 +1977,30 @@ export class AnthropicTextAdapter<
                 // Keep `parsedInput` undefined for the tool error.
               }
 
+              if (
+                existing.member !== undefined &&
+                typeof parsedInput === 'object' &&
+                parsedInput !== null
+              ) {
+                parsedInput = joinComputerToolsetCall(
+                  existing.member,
+                  parsedInput,
+                )
+                existing.input = JSON.stringify(parsedInput)
+                yield {
+                  type: EventType.TOOL_CALL_ARGS,
+                  toolCallId: existing.id,
+                  model,
+                  timestamp: Date.now(),
+                  delta: existing.input,
+                  args: existing.input,
+                }
+              }
+
               yield {
                 type: EventType.TOOL_CALL_END,
                 toolCallId: existing.id,
                 toolCallName: existing.name,
-                toolName: existing.name,
                 model,
                 timestamp: Date.now(),
                 args: existing.input,

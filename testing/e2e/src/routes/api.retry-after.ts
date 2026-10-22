@@ -43,6 +43,7 @@ async function retryThenAnswer(testId: string | undefined) {
   const types: Array<string> = []
   let text = ''
   for await (const chunk of chat({
+    threadId: 'retry-after',
     adapter,
     messages: [{ role: 'user', content: '[chat-retry] say hello' }],
     retry: { maxRetries: 1 },
@@ -79,6 +80,7 @@ export const Route = createFileRoute('/api/retry-after')({
         let runError: Record<string, unknown> | undefined
         try {
           for await (const chunk of chat({
+            threadId: 'retry-after',
             adapter: adapters[api](),
             messages: [{ role: 'user', content: '[retry-after] say hello' }],
           })) {

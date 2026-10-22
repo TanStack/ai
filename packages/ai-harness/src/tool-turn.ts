@@ -62,7 +62,6 @@ export class ToolTurnAdapter extends BaseTextAdapter<
         type: EventType.TOOL_CALL_START,
         toolCallId,
         toolCallName: name,
-        toolName: name,
         model,
         timestamp: now,
         index: 0,

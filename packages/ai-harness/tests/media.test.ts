@@ -414,6 +414,7 @@ describe('mediaCapture', () => {
     const onError = vi.fn()
     const result = await generateImage({
       adapter: imageAdapter(),
+      threadId: 'thread-1',
       prompt: 'a cat',
       runId: 'op-chat-1:subagent-1:image-1',
       middleware: mediaCapture({
@@ -438,6 +439,7 @@ describe('mediaCapture', () => {
     const publish = vi.fn()
     const result = await generateImage({
       adapter: imageAdapter(),
+      threadId: 'thread-1',
       prompt: 'a cat',
       runId: 'op-chat-1:subagent-1:image-1',
       middleware: mediaCapture({

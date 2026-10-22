@@ -2,7 +2,7 @@
 title: Evaluate
 id: evaluate
 order: 1
-description: "Ask typed choice, score, and boolean questions about shared state with decide()."
+description: "Ask typed choice, score, and yes-or-no questions about a ticket, a record, or a log with decide(). Branch on the answers in plain TypeScript."
 keywords:
   - tanstack ai
   - evaluate
@@ -17,68 +17,34 @@ keywords:
   - laya
 ---
 
-You have a ticket, a record, or a log, and you need answers your code can branch on.
-A queue name. An urgency level. A yes or no.
-By the end of this guide you call `decide()` once and read typed fields like `result.queue.value`.
+`decide()` returns a typed value your code can branch on, such as a queue name, an urgency level, or a yes or no.
 
-`decide()` takes an adapter, a state, and a map of questions. There is no stream.
+`decide()` asks a decision model typed questions about your data. You read the answers as typed fields, like `result.queue.value`. There is no stream.
 
-## Providers
+## Quick setup
 
-Evaluate talks to a decision model through six adapters:
-
-- **[Ollaya](../adapters/ollaya)** (`@tanstack/ai-ollaya`): `ollayaDecider('laya:latest')`. Local server at `http://127.0.0.1:11435`. No API key.
-- **TypeSafe** (`@tanstack/ai-typesafe`): `typesafeDecider('jev-latest')`. Reads `TYPESAFE_API_KEY`.
-- **OpenRouter** (`@tanstack/ai-openrouter`): `openRouterDecider('~typesafe/jev-latest')`. Reads `OPENROUTER_API_KEY`.
-- **Vercel AI Gateway** (`@tanstack/ai-vercel-gateway`): `vercelGatewayDecider('typesafe-ai/jev')`. Reads `AI_GATEWAY_API_KEY`.
-- **Cloudflare** (`@tanstack/ai-cloudflare`): `cloudflareDecider('typesafe/jev')`. Uses a Worker binding, or `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`.
-- **[OpenAI](../adapters/openai#evaluate)** (`@tanstack/ai-openai`): `openaiDecider('gpt-6-luna')`. Reads `OPENAI_API_KEY`.
-
-All six implement the same `evaluate` activity. Swap the adapter. Keep the `decide()` call.
-
-## Installation
-
-TypeSafe:
+1. Install the core package and the TypeSafe adapter:
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
-react: @tanstack/ai-typesafe
-vue: @tanstack/ai-typesafe
-solid: @tanstack/ai-typesafe
-svelte: @tanstack/ai-typesafe
-preact: @tanstack/ai-typesafe
-angular: @tanstack/ai-typesafe
-vanilla: @tanstack/ai-typesafe
-octane: @tanstack/ai-typesafe
+react: @tanstack/ai @tanstack/ai-typesafe
+vue: @tanstack/ai @tanstack/ai-typesafe
+solid: @tanstack/ai @tanstack/ai-typesafe
+svelte: @tanstack/ai @tanstack/ai-typesafe
+preact: @tanstack/ai @tanstack/ai-typesafe
+angular: @tanstack/ai @tanstack/ai-typesafe
+vanilla: @tanstack/ai @tanstack/ai-typesafe
+octane: @tanstack/ai @tanstack/ai-typesafe
 
 <!-- ::end:tabs -->
 
-Peer dependency:
+2. Put your key on the server. The adapter reads it at runtime:
 
-<!-- ::start:tabs variant="package-manager" mode="install" -->
+```bash
+TYPESAFE_API_KEY=your-typesafe-api-key
+```
 
-react: @tanstack/ai
-vue: @tanstack/ai
-solid: @tanstack/ai
-svelte: @tanstack/ai
-preact: @tanstack/ai
-angular: @tanstack/ai
-vanilla: @tanstack/ai
-octane: @tanstack/ai
-
-<!-- ::end:tabs -->
-
-Other adapters:
-
-- [Ollaya](../adapters/ollaya): `@tanstack/ai-ollaya`
-- OpenRouter: `@tanstack/ai-openrouter`
-- Vercel AI Gateway: `@tanstack/ai-vercel-gateway`
-- Cloudflare: `@tanstack/ai-cloudflare`
-- [OpenAI](../adapters/openai#evaluate): `@tanstack/ai-openai`
-
-## Basic Usage
-
-Call `decide()` with an `adapter`, a `state`, and a map of `questions`.
+3. Call `decide()` on the server with a `state` and a map of `questions`:
 
 ```typescript
 import { decide, choice, score, boolean } from '@tanstack/ai'
@@ -111,65 +77,25 @@ const result = await decide({
   },
 })
 
-console.log(result.queue.value)
-console.log(result.queue.probability)
-console.log(result.queue.confidence)
-console.log(result.meta.usage)
-```
-
-`decide()` is async. `typesafeDecider` reads `TYPESAFE_API_KEY` from the environment.
-To pass a key yourself, use `createTypesafeDecider('jev-latest', 'ts-...')`.
-
-To evaluate through OpenRouter, swap the adapter. Everything else stays the same:
-
-```typescript
-import { decide, choice, score, boolean } from '@tanstack/ai'
-import { openRouterDecider } from '@tanstack/ai-openrouter'
-
-const ticket = {
-  subject: 'Charged twice for the same invoice',
-  body: 'Please refund the extra payment.',
+if (result.queue.value === 'billing' && result.refund.value) {
+  console.log('Send to billing as a refund, urgency:', result.urgency.value)
 }
-
-const result = await decide({
-  adapter: openRouterDecider('~typesafe/jev-latest'),
-  state: ticket,
-  questions: {
-    queue: choice({
-      instructions: 'Which team should handle this ticket?',
-      options: {
-        billing: 'Payments, invoices, refunds',
-        tech: 'Bugs, outages, integrations',
-        sales: 'Pricing, upgrades, new accounts',
-      },
-    }),
-    urgency: score({
-      instructions: 'How urgent is this ticket?',
-      levels: ['low', 'medium', 'high'],
-    }),
-    refund: boolean({
-      instructions: 'Is the customer asking for a refund?',
-    }),
-  },
-})
-
-console.log(result.queue.value)
 ```
 
-`openRouterDecider` reads `OPENROUTER_API_KEY` from the environment.
+`result.queue.value` has the type `'billing' | 'tech' | 'sales'`. TypeScript knows every answer.
 
-## Questions
+## How it works
 
-Pass a map of questions. Each key becomes a property on the result.
-The key `meta` is reserved.
+- `state` is the data that every question judges. It can be a string, an object, or an array. An array is one state, not a batch.
+- Each key in `questions` becomes a property on the result.
+- The key `meta` is reserved. `result.meta` holds the model and the token usage.
+- Every evaluate adapter uses the same `decide()` call. To change provider, change the adapter.
 
-`state` and `instructions` can be a string, an object, or an array.
-An array is one state, not a batch.
+## The three question types
 
 ### `choice()`
 
-The model picks one key from `options`. Option keys become the union on `.value`.
-When a key needs no extra description, use `null`.
+The model picks one key from `options`. The option keys become the union type of `.value`. If a key needs no description, use `null`.
 
 ```typescript
 import { choice } from '@tanstack/ai'
@@ -186,8 +112,7 @@ const queue = choice({
 
 ### `score()`
 
-The model rates `state` on ordered `levels`. You must pass at least two levels.
-`.value` is the nearest level label. `.score` is the raw fraction.
+The model rates `state` on ordered `levels`, lowest first. You must pass at least two levels. `.value` is the nearest level label. `.score` is the raw fraction.
 
 ```typescript
 import { score } from '@tanstack/ai'
@@ -200,22 +125,133 @@ const urgency = score({
 
 ### `boolean()`
 
-A yes or no question. When `probability` is 0.5 or more, `.value` is `true`.
-There is no `.confidence`. On the TypeSafe wire, this type is named `noul`.
+A yes or no question. If the probability of `true` is 0.5 or more, `.value` is `true`. There is no `.confidence`.
 
 ```typescript
 import { boolean } from '@tanstack/ai'
 
 const refund = boolean({
   instructions: 'Is the customer asking for a refund?',
+  criteria: {
+    true: 'The customer asks for money back',
+    false: 'The customer asks for something else',
+  },
 })
 ```
 
-You can pass `criteria: { true: '...', false: '...' }` to describe each side.
+`criteria` is optional. Use it to describe each side.
 
-## Result Shape
+## Pick a provider
 
-Each question key is a top-level answer. Usage and the resolved model sit on `meta`.
+| Provider          | Adapter                                                | Key                                                                      |
+| ----------------- | ------------------------------------------------------ | ------------------------------------------------------------------------ |
+| [Ollaya](../adapters/ollaya) | `ollayaDecider('laya:latest')` (`@tanstack/ai-ollaya`) | No key. Local server at `http://127.0.0.1:11435`.          |
+| [TypeSafe](../adapters/typesafe) | `typesafeDecider('jev-latest')` (`@tanstack/ai-typesafe`) | `TYPESAFE_API_KEY`                                 |
+| [OpenRouter](../adapters/openrouter) | `openRouterDecider('~typesafe/jev-latest')` (`@tanstack/ai-openrouter`) | `OPENROUTER_API_KEY`                 |
+| [Vercel AI Gateway](../adapters/vercel-gateway) | `vercelGatewayDecider('typesafe-ai/jev')` (`@tanstack/ai-vercel-gateway`) | `AI_GATEWAY_API_KEY` (or `VERCEL_OIDC_TOKEN`) |
+| [Cloudflare](../adapters/cloudflare) | `cloudflareDecider('typesafe/jev')` (`@tanstack/ai-cloudflare`) | A Worker binding, or `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` |
+| [OpenAI](../adapters/openai#evaluate) | `openaiDecider('gpt-6-luna')` (`@tanstack/ai-openai`) | `OPENAI_API_KEY`                                     |
+
+You only need the key for the adapter you pick. To use OpenRouter, install `@tanstack/ai-openrouter` and swap the adapter:
+
+```typescript
+import { decide, boolean } from '@tanstack/ai'
+import { openRouterDecider } from '@tanstack/ai-openrouter'
+
+const result = await decide({
+  adapter: openRouterDecider('~typesafe/jev-latest'),
+  state: 'Please refund the extra payment.',
+  questions: {
+    refund: boolean({
+      instructions: 'Is the customer asking for a refund?',
+    }),
+  },
+})
+
+console.log(result.refund.value)
+```
+
+## Call it from the browser
+
+`decide()` needs your API key, so it runs on the server. Put it in a route and call the route from the client.
+
+Server route:
+
+```typescript
+import { decide, choice, score, boolean } from '@tanstack/ai'
+import { typesafeDecider } from '@tanstack/ai-typesafe'
+
+export async function POST(request: Request) {
+  const body: unknown = await request.json()
+  if (
+    typeof body !== 'object' ||
+    body === null ||
+    !('ticket' in body) ||
+    typeof body.ticket !== 'object' ||
+    body.ticket === null
+  ) {
+    return new Response('Invalid request body', { status: 400 })
+  }
+
+  const result = await decide({
+    adapter: typesafeDecider('jev-latest'),
+    state: body.ticket,
+    questions: {
+      queue: choice({
+        instructions: 'Which team should handle this ticket?',
+        options: {
+          billing: 'Payments, invoices, refunds',
+          tech: 'Bugs, outages, integrations',
+          sales: 'Pricing, upgrades, new accounts',
+        },
+      }),
+      urgency: score({
+        instructions: 'How urgent is this ticket?',
+        levels: ['low', 'medium', 'high'],
+      }),
+      refund: boolean({
+        instructions: 'Is the customer asking for a refund?',
+      }),
+    },
+  })
+
+  return Response.json(result)
+}
+```
+
+Client:
+
+```typescript
+export async function evaluateTicket(ticket: { subject: string; body: string }) {
+  const res = await fetch('/api/evaluate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ticket }),
+  })
+  return res.json()
+}
+```
+
+For a full Start route, see the tutorial [Evaluate a ticket](../tutorials/evaluate).
+
+## Try the example
+
+`examples/react/evaluate` is a small TanStack Start app. Paste a support ticket and the UI shows queue, urgency, and refund. A dropdown lists five adapters, and every one runs the same questions.
+
+1. Copy `.env.example` to `.env`.
+2. If you pick a hosted adapter, add its key in `.env`.
+3. If you pick Ollaya, run `ollaya serve`, then `ollaya pull laya:latest`. Ollaya needs no API key.
+4. Run the dev server:
+
+```bash
+pnpm --filter evaluate dev
+```
+
+Open http://localhost:3100 and paste a ticket.
+
+## Advanced
+
+### Result fields
 
 ```typescript
 import { decide, choice, score, boolean } from '@tanstack/ai'
@@ -261,95 +297,35 @@ console.log(result.meta.model)
 console.log(result.meta.usage)
 ```
 
-- **choice**: `.value` is the selected option key. `.probability` is P(selected). `.probabilities` is the full map.
-- **score**: `.value` is the nearest level. `.score` is the raw fraction. `.probability` is P(that level). `.legend` maps each level index to its label. `.probabilities` is the full map, keyed by level index.
-- **boolean**: When P(true) is 0.5 or more, `.value` is `true`. `.probability` is P(true). No `.confidence`.
+| Question  | Fields                                                                                                                                                                                 |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `choice`  | `.value` is the selected option key. `.probability` is P(selected). `.probabilities` is the full map. `.confidence` is also present.                                                    |
+| `score`   | `.value` is the nearest level. `.score` is the raw fraction. `.probability` is P(that level). `.legend` maps each level index to its label. `.probabilities` is the full map, keyed by level index. |
+| `boolean` | `.value` is `true` when P(true) is 0.5 or more. `.probability` is P(true). No `.confidence`.                                                                                           |
 
-## Options
+On the TypeSafe wire, the `boolean` question type is named `noul`.
 
-### `decide()`
+### `decide()` options
 
 | Option         | Type                          | Description                                                  |
 | -------------- | ----------------------------- | ------------------------------------------------------------ |
-| `adapter`      | `EvaluateAdapter`             | An evaluate adapter created with a model (required)          |
-| `state`        | `string \| object \| array`   | Shared content every question judges (required)              |
-| `questions`    | `Record<string, Question>`    | Map of `choice`, `score`, and `boolean` questions (required) |
-| `abortSignal`  | `AbortSignal`                 | Cancel the in-flight request                                 |
+| `adapter`      | `EvaluateAdapter`             | An evaluate adapter with a model. Required.                  |
+| `state`        | `string \| object \| array`   | The data that every question judges. Required.               |
+| `questions`    | `Record<string, Question>`    | Map of `choice`, `score`, and `boolean` questions. Required. |
+| `abortSignal`  | `AbortSignal`                 | Cancel the request                                           |
 | `modelOptions` | provider options              | Provider-specific options                                    |
 | `middleware`   | `Array<GenerationMiddleware>` | Observe-only lifecycle hooks (usage, finish, error, abort)   |
 | `debug`        | `DebugOption`                 | Debug logging                                                |
 
-## Server Endpoint
+`instructions` on each question can also be a string, an object, or an array.
 
-Evaluate runs on the server. The call needs your API key. Wrap it in an API
-route. Call it from the client over `fetch`:
+### API keys in code
 
-```typescript ignore
-// routes/api/evaluate.ts
-import { decide, choice, score, boolean } from '@tanstack/ai'
-import { typesafeDecider } from '@tanstack/ai-typesafe'
-import { createFileRoute } from '@tanstack/react-router'
+`typesafeDecider` reads `TYPESAFE_API_KEY`. To pass a key in code, use `createTypesafeDecider('jev-latest', 'ts-...')`.
 
-const ADAPTER = typesafeDecider('jev-latest')
+### Cancel a request
 
-export const Route = createFileRoute('/api/evaluate')({
-  server: {
-    handlers: {
-      POST: async ({ request }) => {
-        const body: unknown = await request.json()
-        if (
-          typeof body !== 'object' ||
-          body === null ||
-          !('ticket' in body)
-        ) {
-          return new Response('Invalid request body', { status: 400 })
-        }
-        const { ticket } = body
-
-        const result = await decide({
-          adapter: ADAPTER,
-          state: ticket,
-          questions: {
-            queue: choice({
-              instructions: 'Which team should handle this ticket?',
-              options: {
-                billing: 'Payments, invoices, refunds',
-                tech: 'Bugs, outages, integrations',
-                sales: 'Pricing, upgrades, new accounts',
-              },
-            }),
-            urgency: score({
-              instructions: 'How urgent is this ticket?',
-              levels: ['low', 'medium', 'high'],
-            }),
-            refund: boolean({
-              instructions: 'Is the customer asking for a refund?',
-            }),
-          },
-        })
-
-        return Response.json(result)
-      },
-    },
-  },
-})
-```
-
-```typescript ignore
-// client.ts
-async function evaluateTicket(ticket: { subject: string; body: string }) {
-  const res = await fetch('/api/evaluate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ticket }),
-  })
-  return res.json()
-}
-```
-
-## Cancellation
-
-Pass an `abortSignal` to cancel an in-flight request:
+Pass an `abortSignal`:
 
 ```typescript
 import { decide, boolean } from '@tanstack/ai'
@@ -372,11 +348,9 @@ const result = await decide({
 console.log(result.refund.value)
 ```
 
-## Observability
+### Track usage
 
-Attach observe-only middleware to track usage, completion, errors, and
-cancellation. This is the same `GenerationMiddleware` contract the media
-activities use:
+Add observe-only middleware to track usage, completion, errors, and cancellation. It is the same `GenerationMiddleware` contract that the media activities use. See [Middleware](../advanced/middleware).
 
 ```typescript
 import { decide, boolean } from '@tanstack/ai'
@@ -403,21 +377,18 @@ const result = await decide({
 console.log(result.refund.value)
 ```
 
-> **Tip:** Pass `otelMiddleware()` to emit OpenTelemetry spans for evaluate
-> calls. See [OpenTelemetry](../advanced/otel).
+> [!TIP]
+> Pass `otelMiddleware()` to emit OpenTelemetry spans for evaluate calls. See [OpenTelemetry](../advanced/otel).
 
-## Environment Variables
+### Errors
 
-Each adapter reads its own key:
+`decide()` throws in these cases:
 
-- TypeSafe: `TYPESAFE_API_KEY`
-- OpenRouter: `OPENROUTER_API_KEY`
-- Vercel AI Gateway: `AI_GATEWAY_API_KEY` (or `VERCEL_OIDC_TOKEN`)
-- Cloudflare REST: `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`
+- `questions` is empty. It throws before any request.
+- A question key is `meta`. It throws before any request.
+- The provider answers, but `decide()` cannot map an answer. For example, an answer is missing, has the wrong type, or has no probability for its value.
 
-You only need the key for the adapter you pick.
-
-## Error Handling
+In the last case, `onUsage` and the `evaluate:usage` event still get the token usage of that call, before `onError` runs. `onFinish` does not run.
 
 ```typescript
 import { decide, boolean } from '@tanstack/ai'
@@ -440,44 +411,3 @@ try {
   }
 }
 ```
-
-If `questions` is empty, `decide()` throws before any request.
-If a question key is `meta`, `decide()` throws.
-If the provider answers but `decide()` cannot map an answer, `decide()` throws.
-For example, an answer is missing, has the wrong type, or has no probability
-for its value. `onUsage` and the `evaluate:usage` event still get the token
-usage of that call, before `onError` runs. `onFinish` does not run.
-
-## Runnable Example
-
-`examples/react/evaluate` is a small TanStack Start app that runs this page.
-Paste a support ticket. The UI shows queue, urgency, and refund.
-The dropdown lists five adapters. Each call to `decide()` uses the same questions.
-
-1. Copy `.env.example` to `.env`.
-2. If you pick a hosted adapter, add its key in `.env`.
-3. If you pick Ollaya, run `ollaya serve`.
-4. If you pick Ollaya, run `ollaya pull laya:latest`.
-5. Run the dev server with the command below.
-
-Ollaya does not need an API key.
-
-```bash
-pnpm --filter evaluate dev
-```
-
-Open http://localhost:3100.
-
-## Next Steps
-
-Local:
-
-- [Ollaya Adapter](../adapters/ollaya) - Local `laya` decisions. No API key.
-- [TypeSafe Adapter](../adapters/typesafe) - Direct Jev, models, and explicit API keys
-- [Evaluate a ticket](../tutorials/evaluate) - Build a Start route that routes a ticket
-
-Hosted:
-
-- [OpenRouter Adapter](../adapters/openrouter) - Evaluate through your OpenRouter key
-- [Vercel AI Gateway](../adapters/vercel-gateway) - Evaluate through the Gateway
-- [Cloudflare Adapter](../adapters/cloudflare) - Evaluate from a Worker or REST

@@ -4,6 +4,7 @@ import { createLovableText } from '../src'
 const messages = [{ role: 'user' as const, content: 'hi' }]
 
 chat({
+  threadId: 'thread-1',
   adapter: createLovableText('openai/gpt-5', 'k'),
   messages,
   reasoning: 'minimal',

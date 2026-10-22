@@ -97,6 +97,24 @@ const ev = {
     chunk(EventType.STEP_STARTED, { stepName }),
   stepFinished: (_delta: string, stepName = 'step-1') =>
     chunk(EventType.STEP_FINISHED, { stepName }),
+  approvalInterrupt: (toolCallId: string, toolName: string, id: string) =>
+    chunk(EventType.RUN_FINISHED, {
+      runId: 'run-1',
+      threadId: 'thread-1',
+      outcome: {
+        type: 'interrupt',
+        interrupts: [
+          {
+            id,
+            reason: 'tool_call',
+            toolCallId,
+            metadata: { kind: 'approval', toolName, input: {} },
+          },
+        ],
+      },
+    }),
+  reasoningStart: (messageId: string) =>
+    chunk(EventType.REASONING_MESSAGE_START, { messageId, role: 'reasoning' }),
   reasoningContent: (delta: string, messageId = 'r-1') =>
     chunk(EventType.REASONING_MESSAGE_CONTENT, { messageId, delta }),
   toolResult: (toolCallId: string, content: string, messageId?: string) =>
@@ -1667,12 +1685,12 @@ describe('StreamProcessor', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
 
-      processor.processChunk(ev.stepStarted('step-1'))
-      processor.processChunk(ev.reasoningContent('First thought'))
-      processor.processChunk(ev.reasoningContent(' continued'))
+      processor.processChunk(ev.reasoningStart('step-1'))
+      processor.processChunk(ev.reasoningContent('First thought', 'step-1'))
+      processor.processChunk(ev.reasoningContent(' continued', 'step-1'))
 
-      processor.processChunk(ev.stepStarted('step-2'))
-      processor.processChunk(ev.reasoningContent('Second thought'))
+      processor.processChunk(ev.reasoningStart('step-2'))
+      processor.processChunk(ev.reasoningContent('Second thought', 'step-2'))
 
       const parts = processor.getMessages()[0]!.parts
       const thinkingParts = parts.filter((p) => p.type === 'thinking')
@@ -1683,7 +1701,7 @@ describe('StreamProcessor', () => {
       expect((thinkingParts[1] as any).stepId).toBe('step-2')
     })
 
-    it('should handle REASONING_MESSAGE_CONTENT without prior STEP_STARTED', () => {
+    it('should use the reasoning message id as the step id', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
 
@@ -1715,42 +1733,6 @@ describe('StreamProcessor', () => {
       const state = processor.getState()
       expect(state.thinking).toBe('First. Second.')
       expect(state.content).toBe('Answer')
-    })
-
-    it('should clear pendingThinkingStepId when a later STEP_STARTED arrives with an active message', () => {
-      const processor = new StreamProcessor()
-
-      // 1. STEP_STARTED arrives before any assistant message exists →
-      //    pendingThinkingStepId = 'step-a'
-      processor.processChunk(ev.stepStarted('step-a'))
-
-      // 2. Assistant message gets created by TEXT_MESSAGE_START (note:
-      //    prepareAssistantMessage() would reset stream state, which we
-      //    don't want here — we want to expose the leak across the
-      //    no-active → active transition).
-      processor.processChunk(ev.textStart())
-
-      // 3. STEP_STARTED arrives again — takes active-id branch. It MUST
-      //    clear pendingThinkingStepId, otherwise the stale 'step-a'
-      //    value will be consumed by the next REASONING_MESSAGE_CONTENT.
-      processor.processChunk(ev.stepStarted('step-b'))
-
-      // 4. REASONING_MESSAGE_CONTENT for step-b. If pendingThinkingStepId
-      //    still held 'step-a', consumePendingThinkingStep would promote it
-      //    and attribute 'contentB' to step-a.
-      processor.processChunk(ev.reasoningContent('contentB'))
-
-      const parts = processor.getMessages()[0]!.parts
-      const thinkingParts = parts.filter((p) => p.type === 'thinking')
-
-      // Only step-b should have produced a ThinkingPart with contentB.
-      // No phantom step-a part should exist.
-      expect(thinkingParts.some((p) => (p as any).stepId === 'step-a')).toBe(
-        false,
-      )
-      expect(thinkingParts).toHaveLength(1)
-      expect((thinkingParts[0] as any).stepId).toBe('step-b')
-      expect((thinkingParts[0] as any).content).toBe('contentB')
     })
   })
 
@@ -1900,43 +1882,6 @@ describe('StreamProcessor', () => {
   // Client tools (CUSTOM events)
   // ==========================================================================
   describe('client tools (CUSTOM events)', () => {
-    it('should fire onToolCall when tool-input-available CUSTOM event arrives', () => {
-      const events = spyEvents()
-      const processor = new StreamProcessor({ events })
-      processor.prepareAssistantMessage()
-
-      // Create a tool call first
-      processor.processChunk(ev.toolStart('tc-1', 'clientTool'))
-      processor.processChunk(
-        ev.toolEnd('tc-1', 'clientTool', { input: { query: 'test' } }),
-      )
-
-      processor.processChunk(
-        ev.custom('tool-input-available', {
-          toolCallId: 'tc-1',
-          toolName: 'clientTool',
-          input: { query: 'test' },
-        }),
-      )
-
-      expect(events.onToolCall).toHaveBeenCalledTimes(1)
-      expect(events.onToolCall).toHaveBeenCalledWith({
-        toolCallId: 'tc-1',
-        toolName: 'clientTool',
-        input: { query: 'test' },
-      })
-    })
-
-    it('should not fire onToolCall for CUSTOM events with no data', () => {
-      const events = spyEvents()
-      const processor = new StreamProcessor({ events })
-      processor.prepareAssistantMessage()
-
-      processor.processChunk(ev.custom('tool-input-available'))
-
-      expect(events.onToolCall).not.toHaveBeenCalled()
-    })
-
     it('should not fire onToolCall for unrelated CUSTOM events', () => {
       const events = spyEvents()
       const processor = new StreamProcessor({ events })
@@ -2040,36 +1985,6 @@ describe('StreamProcessor', () => {
       )
 
       expect(events.onToolCall).not.toHaveBeenCalled()
-    })
-
-    it('skips a call that waits for approval', () => {
-      const { events } = run(
-        ...toolCall('tc-1'),
-        ev.custom('approval-requested', {
-          toolCallId: 'tc-1',
-          toolName: 'ping',
-          input: {},
-          approval: { id: 'approval-1', needsApproval: true },
-        }),
-        finished(),
-      )
-
-      expect(events.onApprovalRequest).toHaveBeenCalledTimes(1)
-      expect(events.onToolCall).not.toHaveBeenCalled()
-    })
-
-    it('does not fire a call that tool-input-available already sent', () => {
-      const { events } = run(
-        ...toolCall('tc-1'),
-        ev.custom('tool-input-available', {
-          toolCallId: 'tc-1',
-          toolName: 'ping',
-          input: {},
-        }),
-        finished(),
-      )
-
-      expect(events.onToolCall).toHaveBeenCalledTimes(1)
     })
 
     const clientToolInterrupt = {
@@ -2205,16 +2120,7 @@ describe('StreamProcessor', () => {
     })
 
     it('runs a reused call id again in a later run', () => {
-      const legacyRun = [
-        ...toolCall('call_0'),
-        ev.custom('tool-input-available', {
-          toolCallId: 'call_0',
-          toolName: 'ping',
-          input: {},
-        }),
-        finished(),
-      ]
-      const { events, processor } = run(...legacyRun)
+      const { events, processor } = run(...toolCall('call_0'), finished())
       processor.clearMessages()
       for (const c of [ev.runStarted(), ...toolCall('call_0'), finished()]) {
         processor.processChunk(c)
@@ -2324,46 +2230,6 @@ describe('StreamProcessor', () => {
   // Approval flow
   // ==========================================================================
   describe('approval flow', () => {
-    it('should handle approval-requested CUSTOM event', () => {
-      const events = spyEvents()
-      const processor = new StreamProcessor({ events })
-      processor.prepareAssistantMessage()
-
-      // Create a tool call
-      processor.processChunk(ev.toolStart('tc-1', 'dangerousTool'))
-      processor.processChunk(
-        ev.toolEnd('tc-1', 'dangerousTool', { input: { action: 'delete' } }),
-      )
-
-      // Fire approval request
-      processor.processChunk(
-        ev.custom('approval-requested', {
-          toolCallId: 'tc-1',
-          toolName: 'dangerousTool',
-          input: { action: 'delete' },
-          approval: { id: 'approval-1', needsApproval: true },
-        }),
-      )
-
-      // Check that tool-call part has approval state
-      const toolCallPart = processor
-        .getMessages()[0]!
-        .parts.find((p) => p.type === 'tool-call') as ToolCallPart
-      expect(toolCallPart.state).toBe('approval-requested')
-      expect(toolCallPart.approval).toEqual({
-        id: 'approval-1',
-        needsApproval: true,
-      })
-
-      // Check callback was fired
-      expect(events.onApprovalRequest).toHaveBeenCalledWith({
-        toolCallId: 'tc-1',
-        toolName: 'dangerousTool',
-        input: { action: 'delete' },
-        approvalId: 'approval-1',
-      })
-    })
-
     it('should handle approval interrupts on RUN_FINISHED', () => {
       const events = spyEvents()
       const processor = new StreamProcessor({ events })
@@ -2511,6 +2377,7 @@ describe('StreamProcessor', () => {
         ],
       })
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Search and notify' }],
         tools: [
@@ -2540,12 +2407,7 @@ describe('StreamProcessor', () => {
       processor.processChunk(ev.toolStart('tc-1', 'dangerousTool'))
       processor.processChunk(ev.toolEnd('tc-1', 'dangerousTool', { input: {} }))
       processor.processChunk(
-        ev.custom('approval-requested', {
-          toolCallId: 'tc-1',
-          toolName: 'dangerousTool',
-          input: {},
-          approval: { id: 'approval-1', needsApproval: true },
-        }),
+        ev.approvalInterrupt('tc-1', 'dangerousTool', 'approval-1'),
       )
 
       events.onMessagesChange.mockClear()
@@ -2566,12 +2428,7 @@ describe('StreamProcessor', () => {
       processor.processChunk(ev.toolStart('tc-1', 'dangerousTool'))
       processor.processChunk(ev.toolEnd('tc-1', 'dangerousTool', { input: {} }))
       processor.processChunk(
-        ev.custom('approval-requested', {
-          toolCallId: 'tc-1',
-          toolName: 'dangerousTool',
-          input: {},
-          approval: { id: 'approval-1', needsApproval: true },
-        }),
+        ev.approvalInterrupt('tc-1', 'dangerousTool', 'approval-1'),
       )
 
       processor.addToolApprovalResponse('approval-1', false)
@@ -2581,15 +2438,6 @@ describe('StreamProcessor', () => {
         .parts.find((p) => p.type === 'tool-call') as ToolCallPart
       expect(toolCallPart.state).toBe('approval-responded')
       expect(toolCallPart.approval?.approved).toBe(false)
-    })
-
-    it('should not fire onApprovalRequest for approval-requested without data', () => {
-      const events = spyEvents()
-      const processor = new StreamProcessor({ events })
-      processor.prepareAssistantMessage()
-
-      processor.processChunk(ev.custom('approval-requested'))
-      expect(events.onApprovalRequest).not.toHaveBeenCalled()
     })
   })
 
@@ -2640,51 +2488,6 @@ describe('StreamProcessor', () => {
         undefined,
         { toolCallId: undefined },
       )
-    })
-
-    it('should NOT forward system custom events (tool-input-available) to onCustomEvent', () => {
-      const events = spyEvents()
-      const processor = new StreamProcessor({ events })
-      processor.prepareAssistantMessage()
-
-      // Create a tool call first
-      processor.processChunk(ev.toolStart('tc-1', 'clientTool'))
-      processor.processChunk(ev.toolEnd('tc-1', 'clientTool', { input: {} }))
-
-      processor.processChunk(
-        ev.custom('tool-input-available', {
-          toolCallId: 'tc-1',
-          toolName: 'clientTool',
-          input: {},
-        }),
-      )
-
-      // Should fire onToolCall but NOT onCustomEvent
-      expect(events.onToolCall).toHaveBeenCalledTimes(1)
-      expect(events.onCustomEvent).not.toHaveBeenCalled()
-    })
-
-    it('should NOT forward system custom events (approval-requested) to onCustomEvent', () => {
-      const events = spyEvents()
-      const processor = new StreamProcessor({ events })
-      processor.prepareAssistantMessage()
-
-      // Create a tool call first
-      processor.processChunk(ev.toolStart('tc-1', 'dangerousTool'))
-      processor.processChunk(ev.toolEnd('tc-1', 'dangerousTool', { input: {} }))
-
-      processor.processChunk(
-        ev.custom('approval-requested', {
-          toolCallId: 'tc-1',
-          toolName: 'dangerousTool',
-          input: {},
-          approval: { id: 'approval-1', needsApproval: true },
-        }),
-      )
-
-      // Should fire onApprovalRequest but NOT onCustomEvent
-      expect(events.onApprovalRequest).toHaveBeenCalledTimes(1)
-      expect(events.onCustomEvent).not.toHaveBeenCalled()
     })
 
     it('should work when onCustomEvent handler is not provided', () => {
@@ -2785,12 +2588,7 @@ describe('StreamProcessor', () => {
       processor.processChunk(ev.toolStart('tc-1', 'dangerousTool'))
       processor.processChunk(ev.toolEnd('tc-1', 'dangerousTool', { input: {} }))
       processor.processChunk(
-        ev.custom('approval-requested', {
-          toolCallId: 'tc-1',
-          toolName: 'dangerousTool',
-          input: {},
-          approval: { id: 'a1', needsApproval: true },
-        }),
+        ev.approvalInterrupt('tc-1', 'dangerousTool', 'a1'),
       )
       processor.addToolApprovalResponse('a1', true)
 
@@ -2905,15 +2703,6 @@ describe('StreamProcessor', () => {
 
       expect(processor.getMessages()).toHaveLength(2)
       expect(processor.getMessages()[1]?.role).toBe('assistant')
-    })
-
-    it('should support deprecated startAssistantMessage for backwards compatibility', () => {
-      const processor = new StreamProcessor()
-      const messageId = processor.startAssistantMessage()
-
-      expect(messageId).toBeTruthy()
-      expect(processor.getMessages()).toHaveLength(1)
-      expect(processor.getMessages()[0]?.id).toBe(messageId)
     })
   })
 
@@ -3241,9 +3030,8 @@ describe('StreamProcessor', () => {
       const processor = new StreamProcessor({ events })
       processor.prepareAssistantMessage()
 
-      processor.processChunk(ev.stepStarted('step-1'))
-      processor.processChunk(ev.reasoningContent('Thinking'))
-      processor.processChunk(ev.reasoningContent(' more'))
+      processor.processChunk(ev.reasoningContent('Thinking', 'step-1'))
+      processor.processChunk(ev.reasoningContent(' more', 'step-1'))
 
       const msgId = processor.getCurrentAssistantMessageId()!
       expect(events.onThinkingUpdate).toHaveBeenCalledTimes(2)
@@ -3364,51 +3152,6 @@ describe('StreamProcessor', () => {
 
       await StreamProcessor.replay(recording, { events })
       expect(events.onStreamEnd).toHaveBeenCalledTimes(1)
-    })
-
-    it('replay should consume legacy approval-requested CUSTOM chunks after RUN_FINISHED', async () => {
-      const events = spyEvents()
-      const recording = {
-        version: '1.0' as const,
-        timestamp: Date.now(),
-        chunks: [
-          { chunk: ev.runStarted(), timestamp: Date.now(), index: 0 },
-          {
-            chunk: ev.toolStart('tc-1', 'dangerousTool'),
-            timestamp: Date.now(),
-            index: 1,
-          },
-          {
-            chunk: ev.toolArgs('tc-1', '{"action":"delete"}'),
-            timestamp: Date.now(),
-            index: 2,
-          },
-          {
-            chunk: ev.runFinished('tool_calls'),
-            timestamp: Date.now(),
-            index: 3,
-          },
-          {
-            chunk: ev.custom('approval-requested', {
-              toolCallId: 'tc-1',
-              toolName: 'dangerousTool',
-              input: { action: 'delete' },
-              approval: { id: 'approval-1', needsApproval: true },
-            }),
-            timestamp: Date.now(),
-            index: 4,
-          },
-        ],
-      }
-
-      await StreamProcessor.replay(recording, { events })
-
-      expect(events.onApprovalRequest).toHaveBeenCalledWith({
-        toolCallId: 'tc-1',
-        toolName: 'dangerousTool',
-        input: { action: 'delete' },
-        approvalId: 'approval-1',
-      })
     })
   })
 
@@ -3830,62 +3573,8 @@ describe('StreamProcessor', () => {
     })
   })
 
-  describe('startAssistantMessage + TEXT_MESSAGE_START dedup', () => {
-    it('should associate TEXT_MESSAGE_START with pending manual message (different ID)', () => {
-      const processor = new StreamProcessor()
-      processor.startAssistantMessage()
-
-      // Server sends TEXT_MESSAGE_START with a different ID
-      processor.processChunk({
-        type: 'TEXT_MESSAGE_START',
-        messageId: 'server-msg-1',
-        role: 'assistant',
-        timestamp: Date.now(),
-      } as StreamChunk)
-
-      // Should have only one message (not two)
-      const messages = processor.getMessages()
-      expect(messages).toHaveLength(1)
-
-      // The message should have been updated to the server's ID
-      expect(messages[0]?.id).toBe('server-msg-1')
-      expect(messages[0]?.role).toBe('assistant')
-
-      // Content should route to the correct message
-      processor.processChunk({
-        type: 'TEXT_MESSAGE_CONTENT',
-        messageId: 'server-msg-1',
-        delta: 'Hello',
-        timestamp: Date.now(),
-      } as StreamChunk)
-
-      processor.finalizeStream()
-
-      expect(processor.getMessages()[0]?.parts[0]).toEqual({
-        type: 'text',
-        content: 'Hello',
-      })
-    })
-
-    it('should associate TEXT_MESSAGE_START with pending manual message (same ID)', () => {
-      const processor = new StreamProcessor()
-      processor.startAssistantMessage('my-msg-id')
-
-      // Server sends TEXT_MESSAGE_START with the same ID
-      processor.processChunk({
-        type: 'TEXT_MESSAGE_START',
-        messageId: 'my-msg-id',
-        role: 'assistant',
-        timestamp: Date.now(),
-      } as StreamChunk)
-
-      // Should still have only one message
-      const messages = processor.getMessages()
-      expect(messages).toHaveLength(1)
-      expect(messages[0]?.id).toBe('my-msg-id')
-    })
-
-    it('should work when TEXT_MESSAGE_START arrives without startAssistantMessage', () => {
+  describe('TEXT_MESSAGE_START without a placeholder', () => {
+    it('should work when TEXT_MESSAGE_START arrives first', () => {
       const onStreamStart = vi.fn()
       const processor = new StreamProcessor({
         events: { onStreamStart },
@@ -3930,7 +3619,7 @@ describe('StreamProcessor', () => {
         events: { onStreamStart },
       })
 
-      // No TEXT_MESSAGE_START or startAssistantMessage — content arrives directly
+      // No TEXT_MESSAGE_START — content arrives directly
       processor.processChunk({
         type: 'TEXT_MESSAGE_CONTENT',
         messageId: 'auto-msg',
@@ -4033,37 +3722,6 @@ describe('StreamProcessor', () => {
       ['m1', ['call_1']],
       ['m2', ['call_2']],
     ])
-  })
-
-  describe('backward compat: startAssistantMessage without TEXT_MESSAGE_START', () => {
-    it('should still work when only startAssistantMessage is used', () => {
-      const processor = new StreamProcessor()
-      const msgId = processor.startAssistantMessage()
-
-      processor.processChunk({
-        type: 'TEXT_MESSAGE_CONTENT',
-        messageId: 'some-other-id',
-        delta: 'Hello',
-        timestamp: Date.now(),
-      } as StreamChunk)
-
-      processor.processChunk({
-        type: 'TEXT_MESSAGE_CONTENT',
-        messageId: 'some-other-id',
-        delta: ' world',
-        timestamp: Date.now(),
-      } as StreamChunk)
-
-      processor.finalizeStream()
-
-      const messages = processor.getMessages()
-      expect(messages).toHaveLength(1)
-      expect(messages[0]?.id).toBe(msgId)
-      expect(messages[0]?.parts[0]).toEqual({
-        type: 'text',
-        content: 'Hello world',
-      })
-    })
   })
 
   describe('MESSAGES_SNAPSHOT', () => {
@@ -4685,7 +4343,6 @@ describe('StreamProcessor', () => {
         type: 'TOOL_CALL_START',
         toolCallId: 'tc-1',
         toolCallName: 'myTool',
-        toolName: 'myTool',
         parentMessageId: 'msg-a',
         timestamp: Date.now(),
       } as StreamChunk)
@@ -4726,7 +4383,6 @@ describe('StreamProcessor', () => {
         chunk(EventType.TOOL_CALL_START, {
           toolCallId: 'tc-1',
           toolCallName: 'lookupWeather',
-          toolName: 'lookupWeather',
           parentMessageId: 'anthropic-msg-1',
         }),
       )
@@ -4774,7 +4430,6 @@ describe('StreamProcessor', () => {
         chunk(EventType.TOOL_CALL_START, {
           toolCallId: 'tc-1',
           toolCallName: 'lookupWeather',
-          toolName: 'lookupWeather',
           parentMessageId: 'anthropic-msg-1',
         }),
       )
@@ -4807,7 +4462,6 @@ describe('StreamProcessor', () => {
         chunk(EventType.TOOL_CALL_START, {
           toolCallId: 'tc-1',
           toolCallName: 'lookupWeather',
-          toolName: 'lookupWeather',
           parentMessageId: 'msg-1',
         }),
       )
@@ -5190,7 +4844,6 @@ describe('StreamProcessor', () => {
         type: 'TOOL_CALL_START',
         toolCallId: 'tc-old',
         toolCallName: 'oldTool',
-        toolName: 'oldTool',
         parentMessageId: 'msg-old',
         timestamp: Date.now(),
       } as StreamChunk)
@@ -5352,7 +5005,7 @@ describe('StreamProcessor', () => {
       // RUN_FINISHED between calls. Later calls do not send RUN_STARTED.
       const processor = new StreamProcessor()
       processor.processChunk(ev.runStarted('run-1'))
-      processor.processChunk(ev.stepStarted('step-a'))
+      processor.processChunk(ev.reasoningStart('rs_A'))
       processor.processChunk(ev.reasoningContent('think A', 'rs_A'))
       processor.processChunk(ev.textStart('msg-1'))
       processor.processChunk(ev.textContent('hello', 'msg-1'))
@@ -5380,7 +5033,7 @@ describe('StreamProcessor', () => {
       processor.processChunk(ev.runFinished('tool_calls', 'run-2'))
       processor.processChunk(ev.toolResult('call_G', '{"ok":true}'))
 
-      processor.processChunk(ev.stepStarted('step-b'))
+      processor.processChunk(ev.reasoningStart('rs_B'))
       processor.processChunk(ev.reasoningContent('think B', 'rs_B'))
       processor.processChunk(ev.textStart('msg-3'))
       processor.processChunk(ev.textContent('bye', 'msg-3'))
@@ -5414,17 +5067,17 @@ describe('StreamProcessor', () => {
         return part
       }
       expect(thinking(0).content).toBe('think A')
-      expect(thinking(0).stepId).toBe('step-a')
+      expect(thinking(0).stepId).toBe('rs_A')
       expect(thinking(2).content).toBe('think B')
-      expect(thinking(2).stepId).toBe('step-b')
+      expect(thinking(2).stepId).toBe('rs_B')
     })
 
     it('puts a signature on the step it names, not the active step (#1533)', () => {
       const processor = new StreamProcessor()
       processor.processChunk(ev.runStarted())
-      processor.processChunk(ev.stepStarted('step-1'))
+      processor.processChunk(ev.reasoningStart('rs_A'))
       processor.processChunk(ev.reasoningContent('first', 'rs_A'))
-      processor.processChunk(ev.stepStarted('step-2'))
+      processor.processChunk(ev.reasoningStart('rs_B'))
       processor.processChunk(ev.reasoningContent('second', 'rs_B'))
       processor.processChunk(
         chunk(EventType.REASONING_ENCRYPTED_VALUE, {
@@ -5455,10 +5108,10 @@ describe('StreamProcessor', () => {
         {
           type: 'thinking',
           content: 'first',
-          stepId: 'step-1',
+          stepId: 'rs_A',
           signature: 'sig-a-late',
         },
-        { type: 'thinking', content: 'second', stepId: 'step-2' },
+        { type: 'thinking', content: 'second', stepId: 'rs_B' },
       ])
       expect(second).toEqual([
         { type: 'thinking', content: 'next', stepId: 'rs_C' },
@@ -6203,36 +5856,6 @@ describe('StreamProcessor', () => {
       const textPart = assistantMsg!.parts.find((p) => p.type === 'text')
       expect(textPart).toBeDefined()
       expect(textPart!.content).toBe('Answer')
-    })
-
-    it('should attribute reasoning content to pending STEP_STARTED stepId', () => {
-      const processor = new StreamProcessor()
-
-      processor.processChunk(ev.runStarted())
-      processor.processChunk(
-        chunk(EventType.REASONING_START, { messageId: 'r-1' }),
-      )
-      processor.processChunk(
-        chunk(EventType.REASONING_MESSAGE_START, {
-          messageId: 'r-1',
-          role: 'reasoning',
-        }),
-      )
-      processor.processChunk(ev.stepStarted('step-1'))
-      processor.processChunk(
-        chunk(EventType.REASONING_MESSAGE_CONTENT, {
-          messageId: 'r-1',
-          delta: 'Thinking...',
-        }),
-      )
-
-      const thinkingParts = processor
-        .getMessages()[0]!
-        .parts.filter((p) => p.type === 'thinking')
-
-      expect(thinkingParts).toHaveLength(1)
-      expect((thinkingParts[0] as any).stepId).toBe('step-1')
-      expect((thinkingParts[0] as any).content).toBe('Thinking...')
     })
 
     it('should handle REASONING events without errors when no matching message', () => {

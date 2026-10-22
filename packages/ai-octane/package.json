@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-octane",
-  "version": "0.8.0",
+  "version": "0.9.1",
   "description": "Octane bindings for TanStack AI streaming chat, structured outputs, and media generation.",
   "author": "Dominic Gannaway",
   "license": "MIT",
@@ -56,7 +56,7 @@
     "test:types": "tsc && tsc -p typetests/tsconfig.json"
   },
   "dependencies": {
-    "@tanstack/ai-client": "workspace:*"
+    "@tanstack/ai-client": "workspace:^"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",

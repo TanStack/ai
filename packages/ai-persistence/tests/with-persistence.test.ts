@@ -297,7 +297,6 @@ describe('withPersistence (state-only)', () => {
           type: EventType.TOOL_CALL_START,
           toolCallId: 'call_1',
           toolCallName: 'search',
-          toolName: 'search',
           parentMessageId: 'agent-tool',
           timestamp: 1,
         },
@@ -319,7 +318,6 @@ describe('withPersistence (state-only)', () => {
             totalTokens: 12,
             promptTokensDetails: { cachedTokens: 3 },
             billed: { quantity: 2, unit: 'units' },
-            unitsBilled: 2,
             cost: 1,
           },
         },
@@ -340,7 +338,6 @@ describe('withPersistence (state-only)', () => {
           completionTokensDetails: { reasoningTokens: 2 },
           providerUsageDetails: { requestId: 'final' },
           billed: { quantity: 1, unit: 'units' },
-          unitsBilled: 1,
           cost: 2,
         }),
       ],
@@ -365,7 +362,6 @@ describe('withPersistence (state-only)', () => {
       completionTokensDetails: { reasoningTokens: 2 },
       providerUsageDetails: { requestId: 'final' },
       billed: { quantity: 3, unit: 'units' },
-      unitsBilled: 3,
       cost: 3,
     })
   })
@@ -472,7 +468,6 @@ describe('withPersistence (state-only)', () => {
             type: EventType.TOOL_CALL_START,
             toolCallId: 'call_1',
             toolCallName: 'search',
-            toolName: 'search',
             parentMessageId: 'stream-assistant',
             timestamp: 1,
           }
@@ -530,7 +525,6 @@ describe('withPersistence (state-only)', () => {
               type: EventType.TOOL_CALL_START,
               toolCallId: 'call_1',
               toolCallName: 'search',
-              toolName: 'search',
               parentMessageId: 'assistant-turn-1',
               timestamp: 1,
             }
@@ -652,7 +646,6 @@ describe('withPersistence (state-only)', () => {
           type: EventType.TOOL_CALL_START,
           toolCallId: 'call_1',
           toolCallName: 'search',
-          toolName: 'search',
           parentMessageId: 'stream-assistant',
           timestamp: 1,
         },
@@ -730,7 +723,6 @@ describe('withPersistence (state-only)', () => {
           type: EventType.TOOL_CALL_START,
           toolCallId: 'call_1',
           toolCallName: 'search',
-          toolName: 'search',
           parentMessageId: 'stream-tool',
           timestamp: 1,
         },
@@ -801,7 +793,6 @@ describe('withPersistence (state-only)', () => {
                 type: EventType.TOOL_CALL_START,
                 toolCallId: 'call_1',
                 toolCallName: 'search',
-                toolName: 'search',
                 parentMessageId: 'stream-assistant',
                 timestamp: 1,
               } satisfies AdapterYieldChunk
@@ -1104,8 +1095,9 @@ describe('withPersistence (state-only)', () => {
           timestamp: 1,
         },
         {
-          type: EventType.STEP_STARTED,
-          stepName: 'think-1',
+          type: EventType.REASONING_MESSAGE_START,
+          messageId: 'reasoning-1',
+          role: 'reasoning',
           timestamp: 1,
         },
         {
@@ -1115,8 +1107,8 @@ describe('withPersistence (state-only)', () => {
           timestamp: 1,
         },
         {
-          type: EventType.STEP_FINISHED,
-          stepName: 'think-1',
+          type: EventType.REASONING_MESSAGE_END,
+          messageId: 'reasoning-1',
           timestamp: 1,
         },
         ev.text('Ada'),
@@ -1195,7 +1187,6 @@ describe('withPersistence (state-only)', () => {
           type: EventType.TOOL_CALL_START,
           toolCallId: 'call_1',
           toolCallName: 'search',
-          toolName: 'search',
           parentMessageId: 'agent-tool',
           timestamp: 1,
         },
@@ -1570,6 +1561,72 @@ describe('withPersistence (state-only)', () => {
         true,
       )
     }
+  })
+
+  it('saves activity that middleware adds and reconstructs it (#1803)', async () => {
+    const persistence = memoryPersistence()
+    const { adapter } = mockAdapter([
+      [ev.runStarted(), ev.text('hello'), ev.runFinished()],
+    ])
+    const searchProgress: ChatMiddleware = {
+      name: 'search-progress',
+      onChunk(_ctx, chunk) {
+        if (chunk.type === EventType.RUN_STARTED) {
+          return [
+            chunk,
+            {
+              type: EventType.ACTIVITY_SNAPSHOT,
+              messageId: 'act-1',
+              activityType: 'SEARCH',
+              content: { hits: 0 },
+              timestamp: 1,
+            },
+          ]
+        }
+        if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
+          return [
+            {
+              type: EventType.ACTIVITY_DELTA,
+              messageId: 'act-1',
+              activityType: 'SEARCH',
+              patch: [{ op: 'replace', path: '/hits', value: 3 }],
+              timestamp: 1,
+            },
+            chunk,
+          ]
+        }
+        return [chunk]
+      },
+    }
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'hi' }],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence), searchProgress],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(await persistence.stores.activities!.loadActivities('t1')).toEqual([
+      expect.objectContaining({
+        id: 'act-1',
+        activityType: 'SEARCH',
+        content: { hits: 3 },
+      }),
+    ])
+    const reconstructed = (await (
+      await reconstructChat(
+        persistence,
+        new Request('http://example.test/api/chat?threadId=t1'),
+      )
+    ).json()) as { messages: Array<{ role: string }> }
+    expect(reconstructed.messages.map((message) => message.role)).toEqual([
+      'user',
+      'activity',
+      'assistant',
+    ])
   })
 
   it('keeps activity metadata from the stream and from inbound rows', async () => {

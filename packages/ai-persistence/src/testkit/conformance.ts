@@ -1041,9 +1041,9 @@ export function runPersistenceConformance(
     })
 
     describe('generationRuns', () => {
-      it('creates, resumes idempotently, updates, and gets', async () => {
+      it('creates, resumes idempotently, updates, and gets', async (ctx) => {
         const store = resolveStore('generationRuns')
-        if (!store) return
+        if (!store) return ctx.skip('store not provided')
 
         expect(await store.get('gen-missing')).toBeNull()
 
@@ -1143,9 +1143,9 @@ export function runPersistenceConformance(
       // `findLatestForThread` is REQUIRED: `reconstructGeneration` hydrates a
       // server-driven client from the stable thread id alone, so a backend that
       // always answers `null` silently restores nothing rather than degrading.
-      it('findLatestForThread returns the most recently started linked run', async () => {
+      it('findLatestForThread returns the most recently started linked run', async (ctx) => {
         const store = resolveStore('generationRuns')
-        if (!store) return
+        if (!store) return ctx.skip('store not provided')
 
         const thread = 'thread-gen-latest'
         expect(await store.findLatestForThread(thread)).toBeNull()
@@ -1201,6 +1201,7 @@ export function runPersistenceConformance(
       ): ArtifactRecord => ({
         runId: 'run-art',
         threadId: 'thread-art',
+        blobKey: 'artifacts/run-art/default',
         name: 'image.png',
         mimeType: 'image/png',
         size: 3,
@@ -1208,9 +1209,9 @@ export function runPersistenceConformance(
         ...overrides,
       })
 
-      it('saves as an upsert, gets, and lists by run', async () => {
+      it('saves as an upsert, gets, and lists by run', async (ctx) => {
         const store = resolveStore('artifacts')
-        if (!store) return
+        if (!store) return ctx.skip('store not provided')
 
         expect(await store.get('art-missing')).toBeNull()
         expect(await store.list('run-unknown')).toEqual([])
@@ -1258,16 +1259,16 @@ export function runPersistenceConformance(
         )
         const updated = await store.get('\u{10000}')
         expect(updated).toMatchObject({ name: 'renamed.png', size: 9 })
-        expect(updated?.blobKey).toBeUndefined()
+        expect(updated?.blobKey).toBe('artifacts/run-art/default')
         expect((await store.list('run-art')).map((r) => r.artifactId)).toEqual([
           '\u{e000}',
           '\u{10000}',
         ])
       })
 
-      it('lists a thread in deterministic createdAt and artifactId order', async () => {
+      it('lists a thread in deterministic createdAt and artifactId order', async (ctx) => {
         const store = resolveStore('artifacts')
-        if (!store) return
+        if (!store) return ctx.skip('store not provided')
 
         await store.save(
           artifact({
@@ -1303,9 +1304,9 @@ export function runPersistenceConformance(
         ).toEqual(['thread-early', 'thread-a', 'thread-b'])
       })
 
-      it('orders artifact IDs by UTF-8 bytes after createdAt', async () => {
+      it('orders artifact IDs by UTF-8 bytes after createdAt', async (ctx) => {
         const store = resolveStore('artifacts')
-        if (!store) return
+        if (!store) return ctx.skip('store not provided')
 
         await store.save(
           artifact({
@@ -1330,9 +1331,9 @@ export function runPersistenceConformance(
         ).toEqual(['a', '\u{e000}', '\u{10000}'])
       })
 
-      it('deletes one artifact and every artifact for a run', async () => {
+      it('deletes one artifact and every artifact for a run', async (ctx) => {
         const store = resolveStore('artifacts')
-        if (!store) return
+        if (!store) return ctx.skip('store not provided')
 
         await store.save(artifact({ artifactId: 'art-d1', runId: 'run-del' }))
         await store.save(artifact({ artifactId: 'art-d2', runId: 'run-del' }))
@@ -1362,9 +1363,9 @@ export function runPersistenceConformance(
     })
 
     describe('blobs', () => {
-      it('round-trips bytes and metadata through put/get/head', async () => {
+      it('round-trips bytes and metadata through put/get/head', async (ctx) => {
         const store = resolveStore('blobs')
-        if (!store) return
+        if (!store) return ctx.skip('store not provided')
 
         expect(await store.get('blob-missing')).toBeNull()
         expect(await store.head('blob-missing')).toBeNull()
@@ -1406,9 +1407,9 @@ export function runPersistenceConformance(
         )
       })
 
-      it('accepts a stream body with no declared length', async () => {
+      it('accepts a stream body with no declared length', async (ctx) => {
         const store = resolveStore('blobs')
-        if (!store) return
+        if (!store) return ctx.skip('store not provided')
 
         // A TransformStream's readable side carries no declared length —
         // exactly what a fetch-based producer hands the store when the origin
@@ -1431,9 +1432,9 @@ export function runPersistenceConformance(
         expect(object.size).toBe(bytes.byteLength)
       })
 
-      it('accepts expectedLength as an advisory hint for a stream body', async () => {
+      it('accepts expectedLength as an advisory hint for a stream body', async (ctx) => {
         const store = resolveStore('blobs')
-        if (!store) return
+        if (!store) return ctx.skip('store not provided')
 
         // The real-world combination: a length-less stream PLUS the hint —
         // which is what the artifact middleware sends when the origin declared
@@ -1458,9 +1459,9 @@ export function runPersistenceConformance(
         expect(object.size).toBe(bytes.byteLength)
       })
 
-      it('serves a byte range and reports the slice it served', async () => {
+      it('serves a byte range and reports the slice it served', async (ctx) => {
         const store = resolveStore('blobs')
-        if (!store) return
+        if (!store) return ctx.skip('store not provided')
 
         // Range reads are what a serve route turns into `206` +
         // `Content-Range` — the shape `<video>` seeking is built on. `size`
@@ -1516,9 +1517,9 @@ export function runPersistenceConformance(
         expect(whole.range).toBeUndefined()
       })
 
-      it('overwrites an existing key and deletes silently', async () => {
+      it('overwrites an existing key and deletes silently', async (ctx) => {
         const store = resolveStore('blobs')
-        if (!store) return
+        if (!store) return ctx.skip('store not provided')
 
         const first = await store.put('blob/over', new Uint8Array([1]), {
           contentType: 'text/plain',
@@ -1550,9 +1551,9 @@ export function runPersistenceConformance(
         await store.delete('blob/over')
       })
 
-      it('lists by literal prefix in ascending key order', async () => {
+      it('lists by literal prefix in ascending key order', async (ctx) => {
         const store = resolveStore('blobs')
-        if (!store) return
+        if (!store) return ctx.skip('store not provided')
 
         // `_` and `%` are LIKE metacharacters: a SQL backend that forgets to
         // escape them would match `list-x/…` here. And SQLite's LIKE is
@@ -1576,9 +1577,9 @@ export function runPersistenceConformance(
         ).toEqual([])
       })
 
-      it('pages with a cursor and returns an empty page for limit 0', async () => {
+      it('pages with a cursor and returns an empty page for limit 0', async (ctx) => {
         const store = resolveStore('blobs')
-        if (!store) return
+        if (!store) return ctx.skip('store not provided')
 
         for (const key of ['page/a', 'page/b', 'page/c', 'page/d', 'page/e']) {
           await store.put(key, new Uint8Array([1]))

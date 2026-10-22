@@ -5,22 +5,22 @@ order: 11
 description: "Wire portable snapshots so a later run rebuilds completed sandbox files from your persistence."
 ---
 
-You have a sandbox chat. The agent writes files. The provider sandbox then goes
-away. The next run starts empty.
+Configure portable snapshots on a sandbox chat. The next run restores the files the agent wrote after the provider sandbox is gone.
 
-Portable snapshots save those files after each successful terminal run. A later
-run restores the latest checkpoint into a new private sandbox. By the end of
-this page, `chat()` writes and restores those checkpoints.
+Portable snapshots save those files after each successful run, and restore the latest checkpoint into a new private sandbox.
 
-Create one persistence value. Pass that exact value to `withPersistence` and to
-the snapshots object. Put `withPersistence` before `withSandbox`.
+The rules for every setup:
 
-This page is enough for automatic save and restore. When you need a named
-version, a fork, a download, or a file policy, add
-[Save a Named Version](./portable-snapshots-save),
-[Branch From a Version](./portable-snapshots-fork),
-[Send a Frozen File](./portable-snapshots-artifacts), or
-[Pick Which Files to Keep](./portable-snapshots-files).
+1. Create one persistence value.
+2. Pass that same value to `withPersistence` and to the snapshots object.
+3. Put `withPersistence` before `withSandbox`.
+
+This page is enough for automatic save and restore. Add these pages only when you need them:
+
+- A named version: [Save a Named Version](./portable-snapshots-save).
+- A fork: [Branch From a Version](./portable-snapshots-fork).
+- A download: [Send a Frozen File](./portable-snapshots-artifacts).
+- A file policy: [Pick Which Files to Keep](./portable-snapshots-files).
 
 ## Create new persistence
 
@@ -28,11 +28,14 @@ Use `memorySandboxSnapshots` for local development. It creates persistence, a
 checkpoint store, and the snapshot methods as one object. It does not load
 `@tanstack/ai-persistence` at runtime.
 
+Docker must be running, and `XAI_API_KEY` must be set.
+
 ```ts
 import { chat } from '@tanstack/ai'
-import { grokBuildText } from '@tanstack/ai-grok-build'
+import { GROK_CLI_INSTALL_COMMAND, grokBuildText } from '@tanstack/ai-grok-build'
 import { withPersistence } from '@tanstack/ai-persistence'
 import {
+  createSecrets,
   defineSandbox,
   defineWorkspace,
   InMemorySandboxInstanceStore,
@@ -47,7 +50,11 @@ const userId = 'user-123'
 const sandbox = defineSandbox({
   id: 'app-builder',
   provider: dockerSandbox({ image: 'node:22' }),
-  workspace: defineWorkspace({ source: { type: 'none' } }),
+  workspace: defineWorkspace({
+    source: { type: 'none' },
+    setup: [GROK_CLI_INSTALL_COMMAND],
+    secrets: createSecrets({ XAI_API_KEY: process.env.XAI_API_KEY ?? '' }),
+  }),
   lifecycle: { reuse: 'thread' },
 })
 
@@ -137,31 +144,6 @@ const result = chat({
 void result
 ```
 
-## Use durable stores in production
-
-`memorySandboxSnapshots` is for local development and tests. Production needs
-durable message, artifact, and blob stores, plus a durable checkpoint store.
-
-The React chat example exports `sqliteSandboxSnapshots()` for a Node 22.5+
-server. That function is an example adapter. It is not a package export.
-
-Use one SQLite transaction for every checkpoint write, head update, and blob
-reference count update. Use one transaction for a fork. The fork transaction
-must also copy the source conversation. It must reject a destination thread
-that already has persisted state.
-
-## Writer leases
-
-Each thread has one checkpoint writer lease.
-
-- A second run for the same thread gets a writer conflict while the lease is
-  active.
-- The middleware renews the lease while the run is active.
-- Pause and detach paths release the lease. They do not publish a partial
-  checkpoint.
-- If the writer loses the lease, the middleware does not publish the
-  checkpoint. A later successful run can create a new checkpoint.
-
 ## What happens on the next run
 
 A later run restores the latest checkpoint only into a new private sandbox. A
@@ -177,3 +159,30 @@ only some files, or one file, see
 [Pick Which Files to Keep](./portable-snapshots-files). Read
 [What a Snapshot Stores](./portable-snapshots-safety) for secrets and restore
 safety.
+
+## Advanced
+
+### Use durable stores in production
+
+`memorySandboxSnapshots` is for local development and tests. Production needs
+durable message, artifact, and blob stores, plus a durable checkpoint store.
+
+The React chat example exports `sqliteSandboxSnapshots()` for a Node 22.5+
+server. That function is an example adapter. It is not a package export.
+
+Use one SQLite transaction for every checkpoint write, head update, and blob
+reference count update. Use one transaction for a fork. The fork transaction
+must also copy the source conversation. It must reject a destination thread
+that already has persisted state.
+
+### Writer leases
+
+Each thread has one checkpoint writer lease.
+
+- A second run for the same thread gets a writer conflict while the lease is
+  active.
+- The middleware renews the lease while the run is active.
+- Pause and detach paths release the lease. They do not publish a partial
+  checkpoint.
+- If the writer loses the lease, the middleware does not publish the
+  checkpoint. A later successful run can create a new checkpoint.

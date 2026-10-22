@@ -56,12 +56,13 @@ async function callChunks(
     onChunk?: (chunk: StreamChunk) => void
   } = {},
 ) {
-  const { signal, onChunk, ...ids } = options
+  const { signal, onChunk, threadId = 'thread-1', ...ids } = options
   const chunks: Array<StreamChunk> = []
   for await (const chunk of adapter.chatStream({
     model: adapter.model,
     messages: [{ role: 'user', content: 'hello' }],
     logger: resolveDebugOption(false),
+    threadId,
     ...ids,
     ...(signal && { request: { signal } }),
   })) {
@@ -162,6 +163,7 @@ describe('harnessText', () => {
     for (const content of ['hello', 'again']) {
       for await (const _chunk of chat({
         adapter,
+        threadId: 'thread-1',
         messages: [{ role: 'user', content }],
       })) {
         // drain

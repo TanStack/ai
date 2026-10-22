@@ -37,6 +37,7 @@ export const Route = createFileRoute('/api/openrouter-reasoning-wire')({
 
         try {
           for await (const _ of chat({
+            threadId: 'openrouter-reasoning-wire',
             ...createChatOptions({ adapter }),
             messages: [
               {

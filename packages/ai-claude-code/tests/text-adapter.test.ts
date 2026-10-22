@@ -87,6 +87,7 @@ describe('claude-code in-sandbox adapter', () => {
 
     const chunks = await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: 'haiku',
         messages: [{ role: 'user', content: 'say pong' }],
         logger: noopLogger,
@@ -128,6 +129,7 @@ describe('claude-code in-sandbox adapter', () => {
     const adapter = claudeCodeText('haiku', { emitDiff: false })
     const chunks = await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: 'haiku',
         messages: [{ role: 'user', content: 'hi' }],
         logger: noopLogger,
@@ -151,6 +153,7 @@ describe('claude-code in-sandbox adapter', () => {
     // passing tools no longer errors and the bridge lifecycle is clean.
     const chunks = await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: 'haiku',
         messages: [{ role: 'user', content: 'say pong' }],
         logger: noopLogger,
@@ -196,6 +199,7 @@ describe('claude-code in-sandbox adapter', () => {
 
     const chunks = await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: 'haiku',
         messages: [{ role: 'user', content: 'summarize' }],
         logger: noopLogger,
@@ -254,6 +258,7 @@ describe('claude-code in-sandbox adapter', () => {
       })
       await collect(
         adapter.chatStream({
+          threadId: 'thread-1',
           model: 'haiku',
           messages: [{ role: 'user', content: 'hi' }],
           logger: noopLogger,
@@ -295,6 +300,7 @@ describe('claude-code in-sandbox adapter', () => {
       })
       const chunks = await collect(
         adapter.chatStream({
+          threadId: 'thread-1',
           model: 'haiku',
           messages: [{ role: 'user', content: 'hi' }],
           logger: noopLogger,

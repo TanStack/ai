@@ -141,7 +141,7 @@ function videoAdapter(url: string, expiresAt?: Date): VideoAdapter<string> {
       jobId: 'video-job-1',
       status: 'completed' as const,
     })),
-    getVideoUrl: vi.fn(async () => ({ jobId: 'video-job-1', url, expiresAt })),
+    getVideo: vi.fn(async () => ({ jobId: 'video-job-1', url, expiresAt })),
     availableDurations: () => ({ kind: 'none' }),
     snapDuration: () => undefined,
   }
@@ -266,6 +266,28 @@ describe('withGenerationPersistence generation artifacts', () => {
     expect(await retrieveBlob(persistence, 'missing')).toBeNull()
   })
 
+  it('retrieveBlob throws a clear error for a 0.x record with no blobKey', async () => {
+    const persistence = memoryPersistence()
+    const legacy = {
+      artifactId: 'art-legacy',
+      runId: 'run-legacy',
+      threadId: 'thread-legacy',
+      name: 'old.png',
+      mimeType: 'image/png',
+      size: 1,
+      createdAt: 0,
+    }
+    await persistence.stores.artifacts!.save(
+      legacy as unknown as Parameters<
+        NonNullable<AIPersistence['stores']['artifacts']>['save']
+      >[0],
+    )
+
+    await expect(retrieveBlob(persistence, 'art-legacy')).rejects.toThrow(
+      'Artifact art-legacy has no blobKey. Records written by 0.x need blob_key backfilled',
+    )
+  })
+
   it('writes bytes under a custom storageKey and reads them back via blobKey', async () => {
     const persistence = memoryPersistence()
 
@@ -301,30 +323,6 @@ describe('withGenerationPersistence generation artifacts', () => {
     expect(record?.blobKey).toBe(expectedKey)
     await expect(
       (await retrieveBlob(persistence, artifactId))?.text(),
-    ).resolves.toBe('output-image')
-  })
-
-  it('resolves a record written before blobKey existed via the default convention', async () => {
-    const persistence = memoryPersistence()
-
-    await generateImage({
-      adapter: imageAdapter(),
-      prompt: 'make an image',
-      threadId: 'thread-legacy',
-      runId: 'run-legacy',
-      middleware: [
-        withGenerationPersistence(persistence, { threadId: 'thread-legacy' }),
-      ],
-    })
-    const stored = (await persistence.stores.artifacts!.list('run-legacy'))[0]!
-
-    // Simulate a row saved before the column existed: no blobKey at all.
-    const { blobKey: _dropped, ...legacy } = stored
-    await persistence.stores.artifacts!.save(legacy)
-
-    // Still readable — the fallback is what makes blobKey a non-breaking add.
-    await expect(
-      (await retrieveBlob(persistence, legacy.artifactId))?.text(),
     ).resolves.toBe('output-image')
   })
 
@@ -642,6 +640,7 @@ describe('withGenerationPersistence generation artifacts', () => {
 
     const chunks = await collect(
       generateImage<ImageAdapter<string>, true>({
+        threadId: 'thread-1',
         adapter: imageAdapter(),
         prompt: 'make an image',
         stream: true,
@@ -940,10 +939,11 @@ describe('withGenerationPersistence generation artifacts', () => {
 
     await expect(
       generateImage({
+        // An empty threadId names no scope, and the options name none either.
+        threadId: '',
         adapter: imageAdapter(),
         prompt: 'make an image',
         runId: 'run-unscoped',
-        // Neither the activity nor the options names a scope.
         middleware: [withGenerationPersistence(persistence)],
       }),
     ).rejects.toThrow(/Generation persistence requires a `threadId`/)

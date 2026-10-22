@@ -243,6 +243,7 @@ Use the MCP names: `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWor
 A host skips its confirmation for a tool with `readOnlyHint: true`.
 Set `metadata._meta` to send the MCP tool `_meta`, for example `{ ui: { resourceUri: 'ui://view' } }` for an MCP Apps view.
 Pass `onerror` to `createMCPServer` to log transport and protocol errors from the SDK. `serveMCPStdio` also sends its transport errors there.
+Pass `setup: (server, context) => {}` to `createMCPServer` to change each SDK `McpServer` before it connects. It must be synchronous. `context` is the `handle` context of the request that builds the server. A spec 2025 session with `sessions: 'memory'` keeps the context of the request that opened the session. Serve an MCP extension there: `server.server.registerCapabilities({ extensions: { [id]: {} } })`, then `server.server.setRequestHandler(method, { params }, handler)` for each method.
 
 A tool with no `outputSchema` can return an MCP `CallToolResult`.
 The server sends it as is: its content blocks, its `structuredContent`, and its `isError`.
@@ -304,6 +305,8 @@ If the server does not support that spec, the client uses the 2025 initialize ha
 The client keeps negotiation mode `auto`.
 `client.instructions` holds the server's instructions from the handshake, or `undefined` when the server sends none.
 Put them in the system prompt: `systemPrompts: client.instructions ? [client.instructions] : []`.
+`client.request` takes the same arguments as the SDK `Client.request`, with the client's `requestOptions`. Use it for an MCP extension method: check `client.capabilities.extensions`, then pass the request and a result schema.
+`client.getDiscoverResult()` returns the protocol `2026-07-28` `server/discover` result. Pass it back as `prior: { kind: 'modern', discover }` to `createMCPClient` to skip that request. Key the saved result by user or token, and expire it yourself. With `prior`, connect sends no request, so auth and reachability errors show up on the first call.
 
 Two more client options:
 
@@ -446,6 +449,7 @@ const tools = await client.tools()
 const stream = chat({
   adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'What is the weather in Paris?' }],
+  threadId: 'thread-1',
   tools,
 })
 ```
@@ -567,13 +571,14 @@ import { createMCPClient } from '@tanstack/ai-mcp'
 
 // Option 1: middleware terminal hooks (streaming route handlers)
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
   const client = await createMCPClient({
     transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
   })
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages,
+    threadId,
     tools: await client.tools(),
     middleware: [
       {
@@ -588,7 +593,10 @@ export async function POST(request: Request) {
 }
 
 // Option 2: explicit close after in-scope consumption
-export async function runToCompletion(messages: Array<ModelMessage>) {
+export async function runToCompletion(
+  messages: Array<ModelMessage>,
+  threadId: string,
+) {
   const client = await createMCPClient({
     transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
   })
@@ -596,6 +604,7 @@ export async function runToCompletion(messages: Array<ModelMessage>) {
     const stream = chat({
       adapter: openaiText('gpt-5.5'),
       messages,
+      threadId,
       tools: await client.tools(),
     })
     for await (const chunk of stream) {
@@ -608,13 +617,17 @@ export async function runToCompletion(messages: Array<ModelMessage>) {
 
 // Option 3: await using (TypeScript 5.2+ with Symbol.asyncDispose) —
 // same rule: consume the stream before the scope exits.
-export async function runWithUsing(messages: Array<ModelMessage>) {
+export async function runWithUsing(
+  messages: Array<ModelMessage>,
+  threadId: string,
+) {
   await using client = await createMCPClient({
     transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
   })
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages,
+    threadId,
     tools: await client.tools(),
   })
   for await (const chunk of stream) {
@@ -674,11 +687,12 @@ const mcpClient = await createMCPClient({
 })
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
 
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages,
+    threadId,
     mcp: {
       clients: [mcpClient],
       connection: 'keep-alive', // chat() won't close it — reuse across requests
@@ -707,11 +721,12 @@ const pool = await createMCPClients({
 })
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
 
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages,
+    threadId,
     mcp: { clients: [pool], connection: 'keep-alive' },
   })
 
@@ -746,6 +761,7 @@ try {
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages: [{ role: 'user', content: 'What is the weather in Paris?' }],
+    threadId: 'thread-1',
     tools: await client.tools(),
   })
 
@@ -967,6 +983,7 @@ const stream = chat({
       ],
     },
   ],
+  threadId: 'thread-1',
 })
 ```
 
@@ -994,6 +1011,7 @@ const messages = mcpPromptToMessages(prompt)
 const stream = chat({
   adapter: openaiText('gpt-5.5'),
   messages: [...messages, { role: 'user', content: 'Review src/index.ts.' }],
+  threadId: 'thread-1',
 })
 ```
 
@@ -1119,6 +1137,7 @@ function ChatPage() {
   const threadId = 'weather-chat'
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId,
   })
 
   const bridge = useMcpAppBridge({
@@ -1251,7 +1270,7 @@ import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClients } from '@tanstack/ai-mcp'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
 
   const pool = await createMCPClients({
     github: {
@@ -1271,6 +1290,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages,
+    threadId,
     tools: await pool.tools(),
     // Close after the run ends — tools execute while the response streams,
     // so `await using` / try-finally would close the pool too early here.
@@ -1304,12 +1324,17 @@ import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
   const client = await createMCPClient({
     transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
   })
   const tools = await client.tools()
-  const stream = chat({ adapter: openaiText('gpt-5.5'), messages, tools })
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    threadId,
+    tools,
+  })
   await client.close() // closes before the stream runs tools
   return toServerSentEventsResponse(stream)
 }
@@ -1328,7 +1353,7 @@ import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
   const client = await createMCPClient({
     transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
   })
@@ -1336,6 +1361,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages,
+    threadId,
     tools: await client.tools(),
     middleware: [
       {

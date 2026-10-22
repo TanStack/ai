@@ -23,6 +23,7 @@ describe('Anthropic per-model chat modelOptions gating', () => {
   describe('claude-opus-4-6 — priority tier + all option groups', () => {
     it('accepts every option group', () => {
       chat({
+        threadId: 'thread-1',
         adapter: anthropicText('claude-opus-4-6'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -39,6 +40,7 @@ describe('Anthropic per-model chat modelOptions gating', () => {
 
     it('rejects unknown options', () => {
       chat({
+        threadId: 'thread-1',
         adapter: anthropicText('claude-opus-4-6'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -50,6 +52,7 @@ describe('Anthropic per-model chat modelOptions gating', () => {
 
     it('rejects thinking in modelOptions (chat({ reasoning }) owns it)', () => {
       chat({
+        threadId: 'thread-1',
         adapter: anthropicText('claude-opus-4-6'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -63,6 +66,7 @@ describe('Anthropic per-model chat modelOptions gating', () => {
   describe('claude-haiku-4-5 — priority tier', () => {
     it('accepts service_tier + tools options', () => {
       chat({
+        threadId: 'thread-1',
         adapter: anthropicText('claude-haiku-4-5'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -76,6 +80,7 @@ describe('Anthropic per-model chat modelOptions gating', () => {
   describe('claude-opus-4-8 — no sampling', () => {
     it('accepts the base options', () => {
       chat({
+        threadId: 'thread-1',
         adapter: anthropicText('claude-opus-4-8'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -89,6 +94,7 @@ describe('Anthropic per-model chat modelOptions gating', () => {
 
     it('rejects sampling parameters', () => {
       chat({
+        threadId: 'thread-1',
         adapter: anthropicText('claude-opus-4-8'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -102,6 +108,7 @@ describe('Anthropic per-model chat modelOptions gating', () => {
   describe('claude-sonnet-5 — no sampling', () => {
     it('rejects sampling parameters', () => {
       chat({
+        threadId: 'thread-1',
         adapter: anthropicText('claude-sonnet-5'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -110,6 +117,7 @@ describe('Anthropic per-model chat modelOptions gating', () => {
         },
       })
       chat({
+        threadId: 'thread-1',
         adapter: anthropicText('claude-sonnet-5'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -123,6 +131,7 @@ describe('Anthropic per-model chat modelOptions gating', () => {
   describe('claude-fable-5 — no sampling', () => {
     it('rejects sampling parameters', () => {
       chat({
+        threadId: 'thread-1',
         adapter: anthropicText('claude-fable-5'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -131,6 +140,7 @@ describe('Anthropic per-model chat modelOptions gating', () => {
         },
       })
       chat({
+        threadId: 'thread-1',
         adapter: anthropicText('claude-fable-5'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -145,6 +155,7 @@ describe('Anthropic per-model chat modelOptions gating', () => {
   describe('claude-sonnet-5-5 — max_tokens, no sampling', () => {
     it('accepts max_tokens and the base options', () => {
       chat({
+        threadId: 'thread-1',
         adapter: anthropicText('claude-sonnet-5-5'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -158,6 +169,7 @@ describe('Anthropic per-model chat modelOptions gating', () => {
 
     it('rejects sampling parameters', () => {
       chat({
+        threadId: 'thread-1',
         adapter: anthropicText('claude-sonnet-5-5'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -166,6 +178,7 @@ describe('Anthropic per-model chat modelOptions gating', () => {
         },
       })
       chat({
+        threadId: 'thread-1',
         adapter: anthropicText('claude-sonnet-5-5'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -179,6 +192,7 @@ describe('Anthropic per-model chat modelOptions gating', () => {
   describe('claude-haiku-5-5 — max_tokens, no sampling', () => {
     it('accepts max_tokens, a forced tool, and the base options', () => {
       chat({
+        threadId: 'thread-1',
         adapter: anthropicText('claude-haiku-5-5'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -192,16 +206,19 @@ describe('Anthropic per-model chat modelOptions gating', () => {
 
     it('takes reasoning from off to max, but no token budget', () => {
       chat({
+        threadId: 'thread-1',
         adapter: anthropicText('claude-haiku-5-5'),
         messages: [{ role: 'user', content: 'hi' }],
         reasoning: 'xhigh',
       })
       chat({
+        threadId: 'thread-1',
         adapter: anthropicText('claude-haiku-5-5'),
         messages: [{ role: 'user', content: 'hi' }],
         reasoning: 'off',
       })
       chat({
+        threadId: 'thread-1',
         adapter: anthropicText('claude-haiku-5-5'),
         messages: [{ role: 'user', content: 'hi' }],
         // @ts-expect-error - budget_tokens thinking returns a 400 on claude-haiku-5-5
@@ -211,6 +228,7 @@ describe('Anthropic per-model chat modelOptions gating', () => {
 
     it('rejects thinking in modelOptions', () => {
       chat({
+        threadId: 'thread-1',
         adapter: anthropicText('claude-haiku-5-5'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -222,6 +240,7 @@ describe('Anthropic per-model chat modelOptions gating', () => {
 
     it('rejects sampling parameters', () => {
       chat({
+        threadId: 'thread-1',
         adapter: anthropicText('claude-haiku-5-5'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -230,6 +249,7 @@ describe('Anthropic per-model chat modelOptions gating', () => {
         },
       })
       chat({
+        threadId: 'thread-1',
         adapter: anthropicText('claude-haiku-5-5'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
@@ -251,11 +271,13 @@ describe('Anthropic per-model chat modelOptions gating', () => {
 describe('Anthropic per-model chat reasoning gating', () => {
   it('budget models take a level, off, and budgetTokens', () => {
     chat({
+      threadId: 'thread-1',
       adapter: anthropicText('claude-haiku-4-5'),
       messages: [{ role: 'user', content: 'hi' }],
       reasoning: { level: 'low', budgetTokens: 2048, summary: true },
     })
     chat({
+      threadId: 'thread-1',
       adapter: anthropicText('claude-haiku-4-5'),
       messages: [{ role: 'user', content: 'hi' }],
       reasoning: 'off',
@@ -264,11 +286,13 @@ describe('Anthropic per-model chat reasoning gating', () => {
 
   it('adaptive-era models take effort levels up to max', () => {
     chat({
+      threadId: 'thread-1',
       adapter: anthropicText('claude-opus-4-8'),
       messages: [{ role: 'user', content: 'hi' }],
       reasoning: 'xhigh',
     })
     chat({
+      threadId: 'thread-1',
       adapter: anthropicText('claude-opus-4-8'),
       messages: [{ role: 'user', content: 'hi' }],
       // @ts-expect-error - claude-opus-4-8 takes no token budget
@@ -278,6 +302,7 @@ describe('Anthropic per-model chat reasoning gating', () => {
 
   it('budget models stop at high', () => {
     chat({
+      threadId: 'thread-1',
       adapter: anthropicText('claude-haiku-4-5'),
       messages: [{ role: 'user', content: 'hi' }],
       // @ts-expect-error - claude-haiku-4-5 has no max level
@@ -287,6 +312,7 @@ describe('Anthropic per-model chat reasoning gating', () => {
 
   it('claude-fable-5 cannot turn thinking off', () => {
     chat({
+      threadId: 'thread-1',
       adapter: anthropicText('claude-fable-5'),
       messages: [{ role: 'user', content: 'hi' }],
       // @ts-expect-error - thinking cannot be disabled on claude-fable-5

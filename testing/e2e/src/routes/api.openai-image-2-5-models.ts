@@ -23,6 +23,7 @@ export const Route = createFileRoute('/api/openai-image-2-5-models')({
         ] as const) {
           try {
             const result = await generateImage({
+              threadId: 'openai-image-2-5-models',
               adapter: createOpenaiImage(model, DUMMY_KEY, {
                 baseURL: `${LLMOCK_DEFAULT_BASE}/v1`,
               }),

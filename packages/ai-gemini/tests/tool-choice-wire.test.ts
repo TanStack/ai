@@ -45,6 +45,7 @@ async function sentBody(options: CallOptions, config: { vertexai?: boolean }) {
   try {
     const adapter = createGeminiChat(model, 'test-key', config)
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       logger,
       model,
       messages: [{ role: 'user', content: 'Weather in Paris?' }],

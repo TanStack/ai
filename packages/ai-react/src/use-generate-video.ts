@@ -3,7 +3,6 @@ import { createVideoDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import {
   useCallback,
   useEffect,
-  useId,
   useMemo,
   useRef,
   useSyncExternalStore,
@@ -14,7 +13,6 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   InferGenerationOutputFromReturn,
   VideoGenerateInput,
   VideoGenerateResult,
@@ -58,11 +56,10 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
    * `` `video-${videoId}-start-frame` ``). It is also sent as the AG-UI thread
    * id on the wire, which the protocol requires.
    *
-   * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations. If
-   * omitted, the client mints a wire id after mount.
+   * Required. A generated id would change on every reload, so persistence
+   * would restore nothing.
    */
-  threadId?: string
+  threadId: string
   /**
    * Server-driven hydration handler for `persistence: true` when the
    * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
@@ -143,6 +140,7 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
  *
  * function VideoGenerator() {
  *   const { generate, result, videoStatus, isLoading } = useGenerateVideo({
+ *     threadId: 'intro-video',
  *     connection: fetchServerSentEvents('/api/generate/video'),
  *     onStatusUpdate: (status) => console.log(`Progress: ${status.progress}%`),
  *   })
@@ -165,12 +163,9 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
 // parameter is typed as `VideoGenerateResult` and `result` narrows to the
 // transform's return. See issue #848.
 export function useGenerateVideo<TTransformed = void>(
-  options: Omit<
-    UseGenerateVideoOptions,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<UseGenerateVideoOptions, 'onResult'> & {
     onResult?: (result: VideoGenerateResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ): UseGenerateVideoReturn<
   InferGenerationOutputFromReturn<VideoGenerateResult, TTransformed>
 > {
@@ -178,10 +173,6 @@ export function useGenerateVideo<TTransformed = void>(
     VideoGenerateResult,
     TTransformed
   >
-  const hookId = useId()
-  // The hook identity is `threadId`. `hookId` is only a React recreation key.
-  const clientIdentity = options.threadId ?? hookId
-
   const optionsRef = useRef(options)
   optionsRef.current = options
   const disposedRef = useRef(false)
@@ -194,10 +185,9 @@ export function useGenerateVideo<TTransformed = void>(
     // `?.()`'s implicit `undefined` doesn't widen the function
     // return type (which `exactOptionalPropertyTypes` rejects
     // against the strict-optional target).
-    const baseOptions: Omit<
-      VideoGenerationClientOptions<TOutput>,
-      'persistence' | 'threadId'
-    > = {
+    const baseOptions: VideoGenerationClientOptions<TOutput> = {
+      persistence: opts.persistence,
+      threadId: opts.threadId,
       body: opts.body,
       ...(opts.hydrateGeneration !== undefined && {
         hydrateGeneration: opts.hydrateGeneration,
@@ -236,20 +226,9 @@ export function useGenerateVideo<TTransformed = void>(
       },
     }
 
-    const persistenceProps =
-      typeof opts.threadId === 'string' && opts.persistence
-        ? {
-            persistence: opts.persistence,
-            threadId: opts.threadId,
-          }
-        : {
-            ...(opts.threadId !== undefined && { threadId: opts.threadId }),
-          }
-
     if (opts.connection) {
       return new VideoGenerationClient<TOutput>({
         ...baseOptions,
-        ...persistenceProps,
         connection: opts.connection,
       })
     }
@@ -257,7 +236,6 @@ export function useGenerateVideo<TTransformed = void>(
     if (opts.fetcher) {
       return new VideoGenerationClient<TOutput>({
         ...baseOptions,
-        ...persistenceProps,
         fetcher: opts.fetcher,
       })
     }
@@ -265,7 +243,7 @@ export function useGenerateVideo<TTransformed = void>(
     throw new Error(
       'useGenerateVideo requires either a connection or fetcher option',
     )
-  }, [clientIdentity, hookId])
+  }, [options.threadId])
 
   const snapshot = useSyncExternalStore(
     client.subscribe,

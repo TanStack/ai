@@ -3,7 +3,7 @@ id: InterruptDefinition
 title: InterruptDefinition
 ---
 
-Defined in: [packages/ai/src/interrupt-definition.ts:202](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L202)
+Defined in: packages/ai/src/interrupt-definition.ts:202
 
 ## Type Parameters
 
@@ -35,7 +35,7 @@ Defined in: [packages/ai/src/interrupt-definition.ts:202](https://github.com/Tan
 readonly id: TId;
 ```
 
-Defined in: [packages/ai/src/interrupt-definition.ts:209](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L209)
+Defined in: packages/ai/src/interrupt-definition.ts:209
 
 ***
 
@@ -45,7 +45,7 @@ Defined in: [packages/ai/src/interrupt-definition.ts:209](https://github.com/Tan
 interrupt: <TInput>(input) => GenericInterruptRequestFor<InterruptDefinition<TId, TPayloadSchema, TResponseSchema, TPayload, TPayloadInput>, TPayloadSchema, TPayload>;
 ```
 
-Defined in: [packages/ai/src/interrupt-definition.ts:212](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L212)
+Defined in: packages/ai/src/interrupt-definition.ts:212
 
 #### Type Parameters
 
@@ -71,7 +71,7 @@ Defined in: [packages/ai/src/interrupt-definition.ts:212](https://github.com/Tan
 readonly payloadSchema: TPayloadSchema;
 ```
 
-Defined in: [packages/ai/src/interrupt-definition.ts:210](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L210)
+Defined in: packages/ai/src/interrupt-definition.ts:210
 
 ***
 
@@ -81,4 +81,4 @@ Defined in: [packages/ai/src/interrupt-definition.ts:210](https://github.com/Tan
 readonly responseSchema: TResponseSchema;
 ```
 
-Defined in: [packages/ai/src/interrupt-definition.ts:211](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L211)
+Defined in: packages/ai/src/interrupt-definition.ts:211

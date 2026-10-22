@@ -1,0 +1,23 @@
+{
+  "name": "@tanstack/ai-computer-sandbox-smoke",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "smoke": "node smoke.ts",
+    "build:image": "docker build -t tanstack-desktop-smoke .",
+    "test:types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tanstack/ai-computer-sandbox": "workspace:*",
+    "@tanstack/ai-sandbox": "workspace:*",
+    "@tanstack/ai-sandbox-blaxel": "workspace:*",
+    "@tanstack/ai-sandbox-boxd": "workspace:*",
+    "@tanstack/ai-sandbox-daytona": "workspace:*",
+    "@tanstack/ai-sandbox-docker": "workspace:*",
+    "@tanstack/ai-sandbox-e2b": "workspace:*",
+    "@tanstack/ai-sandbox-railway": "workspace:*",
+    "@tanstack/ai-sandbox-sprites": "workspace:*",
+    "@tanstack/ai-sandbox-upstash-box": "workspace:*",
+    "@tanstack/ai-sandbox-vercel": "workspace:*"
+  }
+}

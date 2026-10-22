@@ -42,6 +42,7 @@ describe('Reactor world adapter', () => {
     )
 
     const result = await generateWorld({
+      threadId: 'thread-1',
       adapter: reactorWorld('visko-orbis-stable', {
         apiKey: 'rk_test',
         fetch: fetchImpl,
@@ -67,6 +68,7 @@ describe('Reactor world adapter', () => {
     )
 
     await generateWorld({
+      threadId: 'thread-1',
       adapter: createReactorWorld('visko-orbis-dynamic', 'rk_explicit', {
         fetch: fetchImpl,
       }),
@@ -97,6 +99,7 @@ describe('Reactor world adapter', () => {
 
     await expect(
       generateWorld({
+        threadId: 'thread-1',
         adapter: reactorWorld('helios', {
           apiKey: 'rk_test',
           fetch: fetchImpl,
@@ -116,6 +119,7 @@ describe('Reactor world adapter', () => {
 
     await expect(
       generateWorld({
+        threadId: 'thread-1',
         adapter: reactorWorld('visko-orbis-stable', {
           apiKey: 'rk_test',
           fetch: fetchImpl,
@@ -131,6 +135,7 @@ describe('Reactor world adapter', () => {
 
     await expect(
       generateWorld({
+        threadId: 'thread-1',
         adapter: reactorWorld('lingbot', {
           apiKey: 'rk_test',
           fetch: fetchImpl,

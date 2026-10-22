@@ -38,6 +38,7 @@ export const Route = createFileRoute('/api/openrouter-json-object-wire')({
 
         try {
           const result = await chat({
+            threadId: 'openrouter-json-object-wire',
             ...createChatOptions({ adapter }),
             messages: [
               {

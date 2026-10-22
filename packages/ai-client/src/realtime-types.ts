@@ -8,12 +8,6 @@ import type {
 } from '@tanstack/ai/client'
 import type { UsageInfo } from '@tanstack/ai'
 
-// The realtime adapter contract lives in `@tanstack/ai` (the shared layer both
-// providers and this client depend on) so provider packages don't need to
-// depend on `@tanstack/ai-client`. Re-exported here for backwards compatibility
-// — `import { RealtimeAdapter } from '@tanstack/ai-client'` keeps working.
-export type { RealtimeAdapter, RealtimeConnection } from '@tanstack/ai/client'
-
 // ============================================================================
 // Client Options
 // ============================================================================

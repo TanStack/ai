@@ -7,7 +7,7 @@ title: AnyTranscriptionAdapter
 type AnyTranscriptionAdapter = TranscriptionAdapter<any, any>;
 ```
 
-Defined in: [packages/ai/src/activities/generateTranscription/adapter.ts:54](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateTranscription/adapter.ts#L54)
+Defined in: packages/ai/src/activities/generateTranscription/adapter.ts:54
 
 A TranscriptionAdapter with any/unknown type parameters.
 Useful as a constraint in generic functions and interfaces.

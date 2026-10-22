@@ -17,7 +17,19 @@ import { chat } from '@tanstack/ai'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { defineSandbox, withSandbox } from '@tanstack/ai-sandbox'
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
-import type { StreamChunk } from '@tanstack/ai'
+import type {
+  StreamChunk,
+  ToolCallArgsEvent,
+  ToolCallEndEvent,
+  ToolCallStartEvent,
+} from '@tanstack/ai'
+
+const isToolCallStart = (chunk: StreamChunk): chunk is ToolCallStartEvent =>
+  chunk.type === 'TOOL_CALL_START'
+const isToolCallArgs = (chunk: StreamChunk): chunk is ToolCallArgsEvent =>
+  chunk.type === 'TOOL_CALL_ARGS'
+const isToolCallEnd = (chunk: StreamChunk): chunk is ToolCallEndEvent =>
+  chunk.type === 'TOOL_CALL_END'
 
 const sandbox = defineSandbox({
   id: 'claude-code-e2e',
@@ -48,6 +60,7 @@ test.describe('claude-code harness (gated live smoke)', () => {
         disallowedTools: ['Bash', 'Write', 'Edit'],
       }),
       middleware: [withSandbox(sandbox)],
+      threadId: 'thread-claude-code-pong',
       messages: [
         {
           role: 'user',
@@ -99,6 +112,7 @@ test.describe('claude-code harness (gated live smoke)', () => {
         disallowedTools: ['Bash', 'Write', 'Edit'],
       }),
       middleware: [withSandbox(sandbox)],
+      threadId: 'thread-claude-code-read',
       messages: [
         {
           role: 'user',
@@ -109,25 +123,20 @@ test.describe('claude-code harness (gated live smoke)', () => {
 
     for await (const chunk of stream) chunks.push(chunk)
 
-    const start = chunks.find(
-      (chunk) =>
-        chunk.type === 'TOOL_CALL_START' && chunk.toolCallName === 'Read',
-    )
+    const start = chunks
+      .filter(isToolCallStart)
+      .find((chunk) => chunk.toolCallName === 'Read')
     expect(start).toBeDefined()
 
-    const args = chunks.filter(
-      (chunk) =>
-        chunk.type === 'TOOL_CALL_ARGS' &&
-        chunk.toolCallId === start?.toolCallId,
-    )
+    const args = chunks
+      .filter(isToolCallArgs)
+      .filter((chunk) => chunk.toolCallId === start?.toolCallId)
     expect(args.length).toBeGreaterThan(0)
     expect(args.every((chunk) => !('args' in chunk))).toBe(true)
     expect(args.map((chunk) => chunk.delta).join('')).toContain(filePath)
 
     const endIndex = chunks.findIndex(
-      (chunk) =>
-        chunk.type === 'TOOL_CALL_END' &&
-        chunk.toolCallId === start?.toolCallId,
+      (chunk) => isToolCallEnd(chunk) && chunk.toolCallId === start?.toolCallId,
     )
     expect(endIndex).toBeGreaterThan(chunks.indexOf(args[0]))
   })

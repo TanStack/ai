@@ -222,7 +222,6 @@ export async function* translateThreadEvents(
       type: EventType.TOOL_CALL_START,
       toolCallId: item.id,
       toolCallName,
-      toolName: toolCallName,
       model,
       timestamp: now(),
     }
@@ -238,7 +237,6 @@ export async function* translateThreadEvents(
       type: EventType.TOOL_CALL_END,
       toolCallId: item.id,
       toolCallName,
-      toolName: toolCallName,
       model,
       timestamp: now(),
       input,

@@ -355,6 +355,7 @@ export const Route = createFileRoute('/api/tanchat')({
           switch (provider) {
             case 'anthropic':
               return createChatOptions({
+                threadId: params.threadId,
                 adapter: createAnthropicChat(
                   model,
                   requireApiKey(apiKey),
@@ -363,16 +364,19 @@ export const Route = createFileRoute('/api/tanchat')({
               })
             case 'openrouter':
               return createChatOptions({
+                threadId: params.threadId,
                 adapter: createOpenRouterText(model, requireApiKey(apiKey)),
                 reasoning: 'medium',
               })
             case 'gemini':
               return createChatOptions({
+                threadId: params.threadId,
                 adapter: createGeminiChat(model, requireApiKey(apiKey)),
                 reasoning: 'high',
               })
             case 'gemini-interactions':
               return createChatOptions({
+                threadId: params.threadId,
                 adapter: createGeminiTextInteractions(
                   model,
                   requireApiKey(apiKey),
@@ -384,11 +388,13 @@ export const Route = createFileRoute('/api/tanchat')({
               })
             case 'grok':
               return createChatOptions({
+                threadId: params.threadId,
                 adapter: createGrokText(model, requireApiKey(apiKey)),
                 modelOptions: {},
               })
             case 'groq':
               return createChatOptions({
+                threadId: params.threadId,
                 adapter: createGroqText(
                   model,
                   requireApiKey(apiKey),
@@ -397,6 +403,7 @@ export const Route = createFileRoute('/api/tanchat')({
               })
             case 'bedrock':
               return createChatOptions({
+                threadId: params.threadId,
                 // Default Converse API. Auth is 'auto' (BEDROCK_API_KEY /
                 // AWS_BEARER_TOKEN_BEDROCK, then the SigV4 credential chain) unless
                 // BEDROCK_AUTH=sigv4 forces SigV4 via the AWS credential chain
@@ -410,12 +417,14 @@ export const Route = createFileRoute('/api/tanchat')({
               })
             case 'byteplus':
               return createChatOptions({
+                threadId: params.threadId,
                 // BytePlus ModelArk. Keys are region-isolated — an EU key will
                 // not work against the Asia-Pacific host.
                 adapter: createBytePlusText(model, requireApiKey(apiKey)),
               })
             case 'cloudflare':
               return createChatOptions({
+                threadId: params.threadId,
                 // Workers AI over REST. Account id and token both come from
                 // BYOK, with CLOUDFLARE_ACCOUNT_ID / CLOUDFLARE_API_TOKEN as
                 // the env fallback. With CLOUDFLARE_AI_GATEWAY_ID set,
@@ -431,12 +440,14 @@ export const Route = createFileRoute('/api/tanchat')({
               })
             case 'ollama':
               return createChatOptions({
+                threadId: params.threadId,
                 adapter: ollamaText(model),
                 modelOptions: { options: { top_k: 1 } },
                 reasoning: 'low',
               })
             case 'openai':
               return createChatOptions({
+                threadId: params.threadId,
                 adapter: createOpenaiChat(
                   model,
                   requireApiKey(apiKey),

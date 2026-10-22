@@ -40,7 +40,7 @@ async function sentBody(
     },
   })
   const config = { apiKey: 'test-key', httpClient }
-  const options = { logger, model, messages, ...request }
+  const options = { threadId: 'thread-1', logger, model, messages, ...request }
   const stream =
     api === 'chat'
       ? new OpenRouterTextAdapter(config, model).chatStream(options)

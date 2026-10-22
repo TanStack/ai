@@ -93,11 +93,10 @@ export class JournalReplayDivergedError extends Error {
  * The replay reproduced the stored chunk EXACTLY except for its `threadId`.
  *
  * A distinct diagnosis because the cause and the fix are entirely different from
- * a real divergence. The adapters resolve `threadId` as
- * `options.threadId ?? this.generateId()`, and that id lands in every emitted
- * chunk — so an attach route that drives a run without passing the run record's
- * `threadId` mints a fresh one, and the very first chunk (`RUN_STARTED`) fails
- * alignment. The agent behaved identically; only the id moved. Reported as a
+ * a real divergence. The caller's `threadId` lands in every emitted chunk — so
+ * an attach route that passes a different `threadId` than the run record's
+ * fails alignment at the very first chunk (`RUN_STARTED`). The agent behaved
+ * identically; only the id moved. Reported as a
  * generic divergence, that sends the reader hunting for non-determinism in the
  * translator, which is the wrong place entirely.
  *
@@ -119,9 +118,9 @@ export class JournalReplayThreadIdMismatchError extends JournalReplayDivergedErr
     this.name = 'JournalReplayThreadIdMismatchError'
     this.message =
       `journal replay diverged at index ${index} ONLY by threadId: stored ${JSON.stringify(storedThreadId)} but replayed ${JSON.stringify(replayedThreadId)}. ` +
-      `Every other field of the chunk is identical, so the agent did NOT behave differently — the attaching run generated a new threadId instead of reusing the run record's. ` +
+      `Every other field of the chunk is identical, so the agent did NOT behave differently — the attaching run used a different threadId than the run record's. ` +
       `Pass the run record's threadId (RunRecord.threadId, which sandboxRunDriver hands to drive({ runId, threadId, signal })) into chat() on the attach route; ` +
-      `without it the adapter falls back to generateId() and every chunk carries an id the stored log cannot match.`
+      `with any other id, every chunk carries an id the stored log cannot match.`
   }
 }
 

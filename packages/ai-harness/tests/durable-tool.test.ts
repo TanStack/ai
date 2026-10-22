@@ -59,6 +59,7 @@ describe('durableTool', () => {
     const results: Array<unknown> = []
     for await (const chunk of chat({
       adapter,
+      threadId: 'thread-1',
       messages: [{ role: 'user', content: 'bill it' }],
       tools: [tool],
     })) {

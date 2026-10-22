@@ -3,7 +3,6 @@ import {
   sendMessage,
   waitForResponse,
   getToolCalls,
-  getLastAssistantMessage,
   waitForAssistantText,
   featureUrl,
 } from './helpers'

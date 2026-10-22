@@ -3,7 +3,7 @@ id: WorldAdapter
 title: WorldAdapter
 ---
 
-Defined in: [packages/ai/src/activities/generateWorld/adapter.ts:28](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateWorld/adapter.ts#L28)
+Defined in: packages/ai/src/activities/generateWorld/adapter.ts:28
 
 **`Experimental`**
 
@@ -36,7 +36,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [packages/ai/src/activities/generateWorld/adapter.ts:42](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateWorld/adapter.ts#L42)
+Defined in: packages/ai/src/activities/generateWorld/adapter.ts:42
 
 **`Internal`**
 
@@ -56,7 +56,7 @@ providerOptions: TProviderOptions;
 createWorld: (options) => Promise<WorldGenerationResult>;
 ```
 
-Defined in: [packages/ai/src/activities/generateWorld/adapter.ts:54](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateWorld/adapter.ts#L54)
+Defined in: packages/ai/src/activities/generateWorld/adapter.ts:54
 
 **`Experimental`**
 
@@ -85,7 +85,7 @@ id while the job is still running).
 readonly kind: "world";
 ```
 
-Defined in: [packages/ai/src/activities/generateWorld/adapter.ts:33](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateWorld/adapter.ts#L33)
+Defined in: packages/ai/src/activities/generateWorld/adapter.ts:33
 
 **`Experimental`**
 
@@ -99,7 +99,7 @@ Discriminator for adapter kind - used to determine API shape
 readonly model: TModel;
 ```
 
-Defined in: [packages/ai/src/activities/generateWorld/adapter.ts:37](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateWorld/adapter.ts#L37)
+Defined in: packages/ai/src/activities/generateWorld/adapter.ts:37
 
 **`Experimental`**
 
@@ -113,7 +113,7 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: [packages/ai/src/activities/generateWorld/adapter.ts:35](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateWorld/adapter.ts#L35)
+Defined in: packages/ai/src/activities/generateWorld/adapter.ts:35
 
 **`Experimental`**
 

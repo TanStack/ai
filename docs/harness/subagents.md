@@ -634,7 +634,7 @@ export const studio = defineHarness({
   adapter: openaiText('gpt-6.1-sol'),
   agents: [writer, pricer],
   routing: {
-    router: async ({ agents, messages, adapter }) => {
+    router: async ({ agents, messages, adapter, session }) => {
       const route = subagentRoute(agents)
       const result = await decide({
         adapter: typesafeDecider('jev-latest'),
@@ -645,7 +645,12 @@ export const studio = defineHarness({
         await Promise.all(
           route.needsInput(result).map(async ({ name, inputSchema }) => [
             name,
-            await chat({ adapter, messages, outputSchema: inputSchema }),
+            await chat({
+              adapter,
+              threadId: session.threadId,
+              messages,
+              outputSchema: inputSchema,
+            }),
           ]),
         ),
       )

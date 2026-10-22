@@ -21,6 +21,7 @@ describe('OpenRouter video duration type-safety', () => {
     const check = () => {
       const adapter = openRouterVideo('bytedance/seedance-2.0') // 4..15
       return generateVideo({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A timelapse of clouds',
         size: '1280x720',

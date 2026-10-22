@@ -123,6 +123,13 @@ export async function* translateOpencodeStream(
   const openedToolCalls = new Set<string>()
   /** Tool call ids that already emitted a TOOL_CALL_RESULT. */
   const resolvedToolCalls = new Set<string>()
+  /** Message roles from message.updated events, keyed by message id. */
+  const messageRoles = new Map<string, 'user' | 'assistant'>()
+  /** Parts held until their parent message role arrives. */
+  const pendingParts = new Map<
+    string,
+    Array<{ part: OpencodePart; delta?: string }>
+  >()
 
   /** Accumulated text per text-part id, for delta derivation. */
   const textAccumulators = new Map<string, string>()
@@ -281,7 +288,6 @@ export async function* translateOpencodeStream(
       type: EventType.TOOL_CALL_START,
       toolCallId: part.callID,
       toolCallName,
-      toolName: toolCallName,
       model,
       timestamp: now(),
     }
@@ -297,7 +303,6 @@ export async function* translateOpencodeStream(
       type: EventType.TOOL_CALL_END,
       toolCallId: part.callID,
       toolCallName,
-      toolName: toolCallName,
       model,
       timestamp: now(),
       input,
@@ -308,6 +313,8 @@ export async function* translateOpencodeStream(
   function* handleToolPart(
     part: Extract<OpencodePart, { type: 'tool' }>,
   ): Generator<AdapterYieldChunk> {
+    if (part.state.status === 'pending') return
+
     yield* closeText()
     yield* closeReasoning()
     yield* openToolCall(part)
@@ -330,18 +337,49 @@ export async function* translateOpencodeStream(
     }
   }
 
+  function* handlePart(
+    part: OpencodePart,
+    delta: string | undefined,
+  ): Generator<AdapterYieldChunk> {
+    if (isTextPart(part)) {
+      yield* handleTextPart(part, delta)
+    } else if (isReasoningPart(part)) {
+      yield* handleReasoningPart(part, delta)
+    } else if (isToolPart(part)) {
+      yield* handleToolPart(part)
+    }
+    // Other part kinds (file, step-start/finish, snapshot, ...) carry no
+    // state the chunk stream needs.
+  }
+
+  function* setMessageRole(
+    messageId: string,
+    role: 'user' | 'assistant',
+  ): Generator<AdapterYieldChunk> {
+    messageRoles.set(messageId, role)
+    const parts = pendingParts.get(messageId)
+    if (parts === undefined) return
+    pendingParts.delete(messageId)
+    if (role === 'user') return
+    for (const { part, delta } of parts) yield* handlePart(part, delta)
+  }
+
   function* handleEvent(event: OpencodeEvent): Generator<AdapterYieldChunk> {
-    if (event.type === 'message.part.updated') {
+    if (event.type === 'message.updated') {
+      yield* setMessageRole(
+        event.properties.info.id,
+        event.properties.info.role,
+      )
+    } else if (event.type === 'message.part.updated') {
       const { part, delta } = event.properties
-      if (isTextPart(part)) {
-        yield* handleTextPart(part, delta)
-      } else if (isReasoningPart(part)) {
-        yield* handleReasoningPart(part, delta)
-      } else if (isToolPart(part)) {
-        yield* handleToolPart(part)
+      const role = messageRoles.get(part.messageID)
+      if (role === undefined) {
+        const parts = pendingParts.get(part.messageID) ?? []
+        parts.push({ part, delta })
+        pendingParts.set(part.messageID, parts)
+      } else if (role === 'assistant') {
+        yield* handlePart(part, delta)
       }
-      // Other part kinds (file, step-start/finish, snapshot, ...) carry no
-      // state the chunk stream needs.
     } else if (event.type === 'todo.updated') {
       yield {
         type: EventType.CUSTOM,
@@ -351,14 +389,18 @@ export async function* translateOpencodeStream(
         value: { todos: event.properties.todos },
       }
     }
-    // session.idle / session.status / message.updated are redundant with the
-    // terminal `done` event and are ignored.
+    // session.idle / session.error are redundant with the terminal `done`
+    // event and are ignored.
   }
 
   function* finish(
     message: OpencodeAssistantMessage,
   ): Generator<AdapterYieldChunk> {
     yield* startRun()
+    // The final message is the assistant reply, so flush any parts that beat
+    // its message.updated. OpenCode sends message.updated when it creates a
+    // message, so parts of any other message still waiting here are dropped.
+    yield* setMessageRole(message.id, 'assistant')
     yield* closeText()
     yield* closeReasoning()
     yield* synthesizeUnresolvedResults()

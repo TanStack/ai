@@ -71,6 +71,7 @@ export const Route = createFileRoute('/api/responses-answer-items-wire')({
           const client = new StreamProcessor({})
           client.addUserMessage('Hi')
           for await (const chunk of chat({
+            threadId: 'responses-answer-items-wire',
             ...createChatOptions({ adapter: sameModel }),
             messages: [{ role: 'user', content: 'Hi' }],
             stream: true,
@@ -92,6 +93,7 @@ export const Route = createFileRoute('/api/responses-answer-items-wire')({
           })
           for (const adapter of [sameModel, otherModel]) {
             for await (const _ of chat({
+              threadId: 'responses-answer-items-wire',
               ...createChatOptions({ adapter }),
               messages: params.messages,
               stream: true,

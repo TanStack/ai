@@ -44,6 +44,7 @@ describe('anthropic on GitHub Copilot', () => {
       fetch: baseFetch,
     })
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       logger,
       model,
       messages: [{ role: 'user', content: 'Hi' }],

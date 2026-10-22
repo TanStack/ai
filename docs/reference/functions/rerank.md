@@ -7,7 +7,7 @@ title: rerank
 function rerank<TAdapter, TDocument>(options): Promise<RerankResult<TDocument>>;
 ```
 
-Defined in: [packages/ai/src/activities/rerank/index.ts:152](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/rerank/index.ts#L152)
+Defined in: packages/ai/src/activities/rerank/index.ts:152
 
 Rerank activity - reorders documents by relevance to a query.
 

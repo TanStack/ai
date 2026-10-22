@@ -124,6 +124,7 @@ describe('OpenRouter adapter option mapping', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       systemPrompts: ['Stay concise'],
       messages: [
@@ -198,6 +199,7 @@ describe('OpenRouter adapter option mapping', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
       tools: [
@@ -235,6 +237,7 @@ describe('OpenRouter adapter option mapping', () => {
     const adapter = createAdapter()
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       systemPrompts: [
@@ -277,6 +280,7 @@ describe('OpenRouter adapter option mapping', () => {
     const adapter = createOpenRouterText('anthropic/claude-sonnet-4.5', 'k')
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       systemPrompts: [
@@ -335,6 +339,7 @@ describe('OpenRouter adapter option mapping', () => {
     const adapter = createOpenRouterText('anthropic/claude-sonnet-4.5', 'k')
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       systemPrompts: [
@@ -409,6 +414,7 @@ describe('OpenRouter adapter option mapping', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Say hello' }],
     })) {
@@ -503,6 +509,7 @@ describe('OpenRouter adapter option mapping', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
       tools: [weatherTool],
@@ -517,7 +524,7 @@ describe('OpenRouter adapter option mapping', () => {
 
     const toolCallEndChunk = toolCallEndChunks[0]
     if (toolCallEndChunk?.type === 'TOOL_CALL_END') {
-      expect(toolCallEndChunk.toolName).toBe('lookup_weather')
+      expect(toolCallEndChunk.toolCallName).toBe('lookup_weather')
       expect(toolCallEndChunk.input).toEqual({ location: 'Berlin' })
     }
   })
@@ -555,6 +562,7 @@ describe('OpenRouter adapter option mapping', () => {
 
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of createAdapter().chatStream({
+        threadId: 'thread-1',
         model: 'openai/gpt-4o-mini',
         messages: [{ role: 'user', content: 'Weather?' }],
         tools: [weatherTool],
@@ -616,6 +624,7 @@ describe('OpenRouter adapter option mapping', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
       tools: [weatherTool],
@@ -657,6 +666,7 @@ describe('OpenRouter adapter option mapping', () => {
     const adapter = createAdapter()
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {
@@ -697,6 +707,7 @@ describe('OpenRouter adapter option mapping', () => {
     ])
     const adapter = createAdapter()
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [
         {
@@ -740,6 +751,7 @@ describe('OpenRouter adapter option mapping', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
@@ -797,6 +809,7 @@ describe('OpenRouter AG-UI event emission', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
@@ -845,6 +858,7 @@ describe('OpenRouter AG-UI event emission', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
@@ -904,6 +918,7 @@ describe('OpenRouter AG-UI event emission', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
@@ -995,6 +1010,7 @@ describe('OpenRouter AG-UI event emission', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'Weather in Berlin?' }],
       tools: [weatherTool],
@@ -1008,7 +1024,7 @@ describe('OpenRouter AG-UI event emission', () => {
     expect(toolStartChunk).toBeDefined()
     if (toolStartChunk?.type === 'TOOL_CALL_START') {
       expect(toolStartChunk.toolCallId).toBe('call_abc123')
-      expect(toolStartChunk.toolName).toBe('lookup_weather')
+      expect(toolStartChunk.toolCallName).toBe('lookup_weather')
     }
 
     const toolArgsChunks = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
@@ -1018,7 +1034,7 @@ describe('OpenRouter AG-UI event emission', () => {
     expect(toolEndChunk).toBeDefined()
     if (toolEndChunk?.type === 'TOOL_CALL_END') {
       expect(toolEndChunk.toolCallId).toBe('call_abc123')
-      expect(toolEndChunk.toolName).toBe('lookup_weather')
+      expect(toolEndChunk.toolCallName).toBe('lookup_weather')
       expect(toolEndChunk.input).toEqual({ location: 'Berlin' })
     }
 
@@ -1036,6 +1052,7 @@ describe('OpenRouter AG-UI event emission', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
@@ -1089,6 +1106,7 @@ describe('OpenRouter AG-UI event emission', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
@@ -1137,6 +1155,7 @@ describe('OpenRouter AG-UI event emission', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
@@ -1178,6 +1197,7 @@ describe('OpenRouter AG-UI event emission', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'anthropic/claude-sonnet-4.6',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
@@ -1209,6 +1229,7 @@ describe('OpenRouter AG-UI event emission', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -1220,82 +1241,6 @@ describe('OpenRouter AG-UI event emission', () => {
     if (runErr?.type === 'RUN_ERROR') {
       expect(runErr.error?.message).toBe('weird')
       expect(runErr.error?.code).toBeUndefined()
-    }
-  })
-
-  it('emits STEP_STARTED and STEP_FINISHED for reasoning content', async () => {
-    const streamChunks = [
-      {
-        id: 'chatcmpl-123',
-        model: 'openai/o1-preview',
-        choices: [
-          {
-            delta: {
-              reasoningDetails: [
-                {
-                  type: 'reasoning.text',
-                  text: 'Let me think about this...',
-                },
-              ],
-            },
-            finishReason: null,
-          },
-        ],
-      },
-      {
-        id: 'chatcmpl-123',
-        model: 'openai/o1-preview',
-        choices: [
-          {
-            delta: { content: 'The answer is 42.' },
-            finishReason: null,
-          },
-        ],
-      },
-      {
-        id: 'chatcmpl-123',
-        model: 'openai/o1-preview',
-        choices: [
-          {
-            delta: {},
-            finishReason: 'stop',
-          },
-        ],
-        usage: {
-          promptTokens: 10,
-          completionTokens: 20,
-          totalTokens: 30,
-        },
-      },
-    ]
-
-    setupMockSdkClient(streamChunks)
-    const adapter = createAdapter()
-    const chunks: Array<AdapterYieldChunk> = []
-
-    for await (const chunk of adapter.chatStream({
-      model: 'openai/o1-preview',
-      messages: [{ role: 'user', content: 'What is the meaning of life?' }],
-      logger: testLogger,
-    })) {
-      chunks.push(chunk)
-    }
-
-    // Check for STEP_STARTED event
-    const stepStartedChunk = chunks.find((c) => c.type === 'STEP_STARTED')
-    expect(stepStartedChunk).toBeDefined()
-    if (stepStartedChunk?.type === 'STEP_STARTED') {
-      expect(stepStartedChunk.stepId).toBeDefined()
-      expect(stepStartedChunk.stepType).toBe('thinking')
-    }
-
-    // Check for STEP_FINISHED event — emitted once when reasoning closes
-    const stepFinishedChunks = chunks.filter((c) => c.type === 'STEP_FINISHED')
-    expect(stepFinishedChunks).toHaveLength(1)
-    const stepFinishedChunk = stepFinishedChunks[0]
-    if (stepFinishedChunk?.type === 'STEP_FINISHED') {
-      expect(stepFinishedChunk.stepId).toBeDefined()
-      expect(stepFinishedChunk.content).toBe('Let me think about this...')
     }
   })
 })
@@ -1330,6 +1275,7 @@ describe('OpenRouter structured output', () => {
 
     const result = await adapter.structuredOutput({
       chatOptions: {
+        threadId: 'thread-1',
         model: 'openai/gpt-4o-mini',
         messages: [{ role: 'user', content: 'Give me a person' }],
         logger: testLogger,
@@ -1377,6 +1323,7 @@ describe('OpenRouter structured output', () => {
     await expect(
       adapter.structuredOutput({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'openai/gpt-4o-mini',
           messages: [
             { role: 'user', content: 'Return a short title as JSON.' },
@@ -1412,6 +1359,7 @@ describe('OpenRouter structured output', () => {
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.structuredOutputStream({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'openai/gpt-4o-mini',
           messages: [{ role: 'user', content: 'Return a title as JSON.' }],
           logger: testLogger,
@@ -1446,6 +1394,7 @@ describe('OpenRouter structured output', () => {
     await expect(
       adapter.structuredOutput({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'openai/gpt-4o-mini',
           messages: [
             { role: 'user', content: 'Return a short title as JSON.' },
@@ -1487,6 +1436,7 @@ describe('OpenRouter structured output', () => {
 
     const result = await adapter.structuredOutput({
       chatOptions: {
+        threadId: 'thread-1',
         model: 'openai/gpt-4o-mini',
         messages: [{ role: 'user', content: 'Return a short title as JSON.' }],
         logger: testLogger,
@@ -1516,6 +1466,7 @@ describe('OpenRouter structured output', () => {
 
     const result = await adapter.structuredOutput({
       chatOptions: {
+        threadId: 'thread-1',
         model: 'openai/gpt-4o-mini',
         messages: [{ role: 'user', content: 'title' }],
         logger: testLogger,
@@ -1544,6 +1495,7 @@ describe('OpenRouter structured output', () => {
 
     const result = await adapter.structuredOutput({
       chatOptions: {
+        threadId: 'thread-1',
         model: 'openai/gpt-4o-mini',
         messages: [{ role: 'user', content: 'Give me a person as json' }],
         logger: testLogger,
@@ -1606,6 +1558,7 @@ describe('OpenRouter structured output', () => {
 
     await adapter.structuredOutput({
       chatOptions: {
+        threadId: 'thread-1',
         model: 'openai/gpt-4o-mini',
         messages: [{ role: 'user', content: 'Generate' }],
         logger: testLogger,
@@ -1660,6 +1613,7 @@ describe('OpenRouter structured output', () => {
 
     await adapter.structuredOutput({
       chatOptions: {
+        threadId: 'thread-1',
         model: 'openai/gpt-4o-mini',
         messages: [{ role: 'user', content: 'Generate' }],
         logger: testLogger,
@@ -1707,6 +1661,7 @@ describe('OpenRouter structured output', () => {
     const adapter = createAdapter()
 
     const result = await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Give me a person' }],
       outputSchema,
@@ -1749,6 +1704,7 @@ describe('OpenRouter structured output', () => {
     const adapter = createAdapter()
 
     const result = await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Give me a person as json' }],
       modelOptions: {
@@ -1788,6 +1744,7 @@ describe('OpenRouter structured output', () => {
     const adapter = createOpenRouterText('qwen/qwen3.7-flash', 'test-key')
 
     const result = await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Give me a person as json' }],
       outputSchema: {
@@ -1829,6 +1786,7 @@ describe('OpenRouter structured output', () => {
     const adapter = createAdapter()
 
     await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Give me a person as json' }],
       outputSchema: {
@@ -1856,6 +1814,7 @@ describe('OpenRouter structured output', () => {
     const adapter = createAdapter()
 
     await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Respond with ok' }],
       modelOptions: { streamOptions: { includeUsage: false } },
@@ -1895,6 +1854,7 @@ describe('OpenRouter structured output', () => {
 
     const result = await adapter.structuredOutput({
       chatOptions: {
+        threadId: 'thread-1',
         model: 'openai/gpt-4o-mini',
         messages: [{ role: 'user', content: 'List items' }],
         logger: testLogger,
@@ -1922,6 +1882,7 @@ describe('OpenRouter structured output', () => {
     await expect(
       adapter.structuredOutput({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'openai/gpt-4o-mini',
           messages: [{ role: 'user', content: 'Give me data' }],
           logger: testLogger,
@@ -1942,6 +1903,7 @@ describe('OpenRouter structured output', () => {
     await expect(
       adapter.structuredOutput({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'openai/gpt-4o-mini',
           messages: [{ role: 'user', content: 'Give me data' }],
           logger: testLogger,
@@ -1971,6 +1933,7 @@ describe('OpenRouter structured output', () => {
     await expect(
       adapter.structuredOutput({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'openai/gpt-4o-mini',
           messages: [{ role: 'user', content: 'Give me data' }],
           logger: testLogger,
@@ -2017,6 +1980,7 @@ describe('OpenRouter modelOptions pass-through', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'test' }],
       modelOptions,
@@ -2051,6 +2015,7 @@ describe('OpenRouter modelOptions pass-through', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'test' }],
       modelOptions,
@@ -2070,6 +2035,7 @@ describe('OpenRouter modelOptions pass-through', () => {
     const adapter = createOpenRouterText('deepseek/deepseek-v3.2', 'test-key')
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'test' }],
       reasoning: 'off',
@@ -2090,6 +2056,7 @@ describe('OpenRouter modelOptions pass-through', () => {
     const adapter = createOpenRouterText('openai/gpt-5.5', 'test-key')
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'test' }],
       reasoning: 'xhigh',
@@ -2106,6 +2073,7 @@ describe('OpenRouter modelOptions pass-through', () => {
     const adapter = createAdapter()
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'test' }],
     })) {
@@ -2125,6 +2093,7 @@ describe('OpenRouter modelOptions pass-through', () => {
     const adapter = createAdapter()
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'test' }],
       modelOptions: {
@@ -2158,6 +2127,7 @@ describe('OpenRouter modelOptions pass-through', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'test' }],
       modelOptions,
@@ -2183,6 +2153,7 @@ describe('OpenRouter modelOptions pass-through', () => {
     const adapter = createAdapter()
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'test' }],
       // Root sampling fields no longer exist on TextOptions — only the
@@ -2208,6 +2179,7 @@ describe('OpenRouter modelOptions pass-through', () => {
     const adapter = createAdapter()
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'test' }],
       // Root `metadata` is observability-only (middleware, devtools, event
@@ -2229,6 +2201,7 @@ describe('OpenRouter modelOptions pass-through', () => {
     const adapter = createAdapter()
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'test' }],
       metadata: { observationName: 'my-call' },
@@ -2250,6 +2223,7 @@ describe('OpenRouter modelOptions pass-through', () => {
     const adapter = createAdapter()
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'test' }],
       modelOptions: { variant: 'free' } as OpenRouterTextModelOptions,
@@ -2271,6 +2245,7 @@ describe('OpenRouter modelOptions pass-through', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'test' }],
       tools: [weatherTool],
@@ -2318,6 +2293,7 @@ describe('OpenRouter duplicate event prevention', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
@@ -2354,6 +2330,7 @@ describe('OpenRouter duplicate event prevention', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
@@ -2393,6 +2370,7 @@ describe('OpenRouter duplicate event prevention', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'Hi' }],
       logger: testLogger,
@@ -2436,6 +2414,7 @@ describe('OpenRouter duplicate event prevention', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,
@@ -2453,79 +2432,14 @@ describe('OpenRouter duplicate event prevention', () => {
   })
 })
 
-describe('OpenRouter STEP event consistency', () => {
+describe('OpenRouter reasoning event consistency', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('every STEP_FINISHED has a preceding STEP_STARTED', async () => {
-    const streamChunks = [
-      {
-        id: 'chatcmpl-step',
-        model: 'openai/o1-preview',
-        choices: [
-          {
-            delta: {
-              reasoningDetails: [
-                { type: 'reasoning.text', text: 'Thinking...' },
-              ],
-            },
-            finishReason: null,
-          },
-        ],
-      },
-      {
-        id: 'chatcmpl-step',
-        model: 'openai/o1-preview',
-        choices: [
-          {
-            delta: { content: 'Answer: 42' },
-            finishReason: null,
-          },
-        ],
-      },
-      {
-        id: 'chatcmpl-step',
-        model: 'openai/o1-preview',
-        choices: [{ delta: {}, finishReason: 'stop' }],
-        usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 },
-      },
-    ]
-
-    setupMockSdkClient(streamChunks)
-    const adapter = createAdapter()
-    const chunks: Array<AdapterYieldChunk> = []
-
-    for await (const chunk of adapter.chatStream({
-      model: 'openai/o1-preview',
-      messages: [{ role: 'user', content: 'What is the meaning of life?' }],
-      logger: testLogger,
-    })) {
-      chunks.push(chunk)
-    }
-
-    const eventTypes = chunks.map((c) => c.type)
-    const stepFinishedIndices = eventTypes
-      .map((t, i) => (t === 'STEP_FINISHED' ? i : -1))
-      .filter((i) => i !== -1)
-    const stepStartedIndices = eventTypes
-      .map((t, i) => (t === 'STEP_STARTED' ? i : -1))
-      .filter((i) => i !== -1)
-
-    // Every STEP_FINISHED must have a STEP_STARTED before it
-    expect(stepStartedIndices.length).toBeGreaterThan(0)
-    for (const finIdx of stepFinishedIndices) {
-      const hasMatchingStart = stepStartedIndices.some(
-        (startIdx) => startIdx < finIdx,
-      )
-      expect(hasMatchingStart).toBe(true)
-    }
-  })
-
-  it('emits exactly one STEP_STARTED and one STEP_FINISHED for multi-delta reasoning', async () => {
+  it('emits exactly one REASONING_START and one REASONING_END for multi-delta reasoning', async () => {
     // When multiple reasoning deltas arrive, the adapter should emit a
-    // single STEP_STARTED/STEP_FINISHED pair — not one STEP_FINISHED per
-    // delta.  A 1:N ratio causes verifiers to report orphan STEP_FINISHED.
+    // single REASONING_START/REASONING_END pair — not one pair per delta.
     const streamChunks = [
       {
         id: 'chatcmpl-multi',
@@ -2588,6 +2502,7 @@ describe('OpenRouter STEP event consistency', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/o1-preview',
       messages: [{ role: 'user', content: 'What is the meaning of life?' }],
       logger: testLogger,
@@ -2595,19 +2510,16 @@ describe('OpenRouter STEP event consistency', () => {
       chunks.push(chunk)
     }
 
-    const stepStarted = chunks.filter((c) => c.type === 'STEP_STARTED')
-    const stepFinished = chunks.filter((c) => c.type === 'STEP_FINISHED')
+    const reasoningStart = chunks.filter((c) => c.type === 'REASONING_START')
+    const reasoningEnd = chunks.filter((c) => c.type === 'REASONING_END')
 
-    expect(stepStarted).toHaveLength(1)
-    expect(stepFinished).toHaveLength(1)
+    expect(reasoningStart).toHaveLength(1)
+    expect(reasoningEnd).toHaveLength(1)
   })
 
-  it('emits the spec REASONING_* lifecycle alongside the legacy STEP_* events', async () => {
-    // The base now exposes both the legacy STEP_STARTED/STEP_FINISHED pair
-    // (kept for backwards compatibility with consumers built against the
-    // pre-spec stream) AND the spec REASONING_START / REASONING_MESSAGE_* /
-    // REASONING_END events. Dropping any of the REASONING_* events would
-    // silently break consumers that migrated to the new shape.
+  it('emits the spec REASONING_* lifecycle', async () => {
+    // REASONING_START / REASONING_MESSAGE_* / REASONING_END are the only
+    // reasoning events. Dropping any of them would silently break consumers.
     const streamChunks = [
       {
         id: 'r-1',
@@ -2651,6 +2563,7 @@ describe('OpenRouter STEP event consistency', () => {
     const adapter = createAdapter()
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/o1-preview',
       messages: [{ role: 'user', content: 'q' }],
       logger: testLogger,
@@ -2674,8 +2587,7 @@ describe('OpenRouter STEP event consistency', () => {
     expect(reasoningEnd).toBeGreaterThan(reasoningMessageEnd)
 
     // Joining REASONING_MESSAGE_CONTENT deltas reproduces the full reasoning
-    // text — the migration leaves the new-spec event shape semantically
-    // equivalent to the legacy STEP_FINISHED accumulator without losing data.
+    // text.
     const reasoningDeltas = chunks
       .filter(
         (
@@ -2743,6 +2655,7 @@ describe('OpenRouter stream_options conversion', () => {
     const adapter = createAdapter()
 
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -2774,6 +2687,7 @@ describe('OpenRouter stream_options conversion', () => {
     const adapter = createAdapter()
 
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'anthropic/claude-sonnet-4.5',
       messages: [{ role: 'user', content: 'hi' }],
       modelOptions: { streamOptions: { includeUsage: false } },
@@ -2802,6 +2716,7 @@ describe('OpenRouter stream_options conversion', () => {
     const controller = new AbortController()
 
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -2832,6 +2747,7 @@ describe('OpenRouter stream_options conversion', () => {
     }
 
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -2863,6 +2779,7 @@ describe('OpenRouter stream_options conversion', () => {
     })
 
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -2884,6 +2801,7 @@ describe('OpenRouter stream_options conversion', () => {
 
     await adapter.structuredOutput({
       chatOptions: {
+        threadId: 'thread-1',
         model: 'openai/gpt-4o-mini',
         messages: [{ role: 'user', content: 'hi' }],
         logger: testLogger,
@@ -2909,6 +2827,7 @@ describe('OpenRouter stream_options conversion', () => {
 
     for await (const _ of adapter.structuredOutputStream({
       chatOptions: {
+        threadId: 'thread-1',
         model: 'openai/gpt-4o-mini',
         messages: [{ role: 'user', content: 'hi' }],
         logger: testLogger,
@@ -2933,6 +2852,7 @@ describe('OpenRouter stream_options conversion', () => {
     const adapter = createAdapter()
 
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -2953,6 +2873,7 @@ describe('OpenRouter stream_options conversion', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -2984,6 +2905,7 @@ describe('OpenRouter convertMessage fail-loud guards', () => {
     // paid request with an empty user message.
     const events: Array<AdapterYieldChunk> = []
     for await (const evt of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: '' }],
       logger: testLogger,
@@ -3009,6 +2931,7 @@ describe('OpenRouter convertMessage fail-loud guards', () => {
 
     const events: Array<AdapterYieldChunk> = []
     for await (const evt of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [
         {
@@ -3044,6 +2967,7 @@ describe('OpenRouter convertMessage fail-loud guards', () => {
     const adapter = createAdapter()
 
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [
         { role: 'user', content: 'hi' },
@@ -3090,6 +3014,7 @@ describe('OpenRouter convertMessage fail-loud guards', () => {
     const adapter = createAdapter()
 
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [
         { role: 'user', content: 'first' },
@@ -3129,6 +3054,7 @@ describe('OpenRouter convertMessage fail-loud guards', () => {
     const adapter = createAdapter()
 
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [
         { role: 'user', content: 'hi' },
@@ -3184,6 +3110,7 @@ describe('OpenRouter convertMessage fail-loud guards', () => {
     const adapter = createAdapter()
 
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [
         { role: 'user', content: 'hi' },
@@ -3249,6 +3176,7 @@ describe('OpenRouter cost tracking', () => {
     setupMockSdkClient(baseStream(usage))
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hi' }],
     })) {
@@ -3358,6 +3286,7 @@ describe('structured output usage on interrupted streams', () => {
         const chunks: Array<AdapterYieldChunk> = []
         for await (const chunk of createAdapter().structuredOutputStream({
           chatOptions: {
+            threadId: 'thread-1',
             model: 'openai/gpt-4o-mini',
             messages: [{ role: 'user', content: 'Return JSON.' }],
             logger: testLogger,
@@ -3407,6 +3336,7 @@ describe('OpenRouter finish reasons', () => {
     ])
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of createAdapter().chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: testLogger,

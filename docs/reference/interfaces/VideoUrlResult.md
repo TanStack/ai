@@ -3,7 +3,7 @@ id: VideoUrlResult
 title: VideoUrlResult
 ---
 
-Defined in: [packages/ai/src/types.ts:2654](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2654)
+Defined in: packages/ai/src/types.ts:2613
 
 **`Experimental`**
 
@@ -19,7 +19,7 @@ Result containing the URL to a generated video.
 optional artifacts?: PersistedArtifactRef[];
 ```
 
-Defined in: [packages/ai/src/types.ts:2668](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2668)
+Defined in: packages/ai/src/types.ts:2627
 
 **`Experimental`**
 
@@ -33,7 +33,7 @@ Persisted artifact references for generated assets, when available
 optional body?: undefined;
 ```
 
-Defined in: [packages/ai/src/types.ts:2669](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2669)
+Defined in: packages/ai/src/types.ts:2628
 
 **`Experimental`**
 
@@ -45,7 +45,7 @@ Defined in: [packages/ai/src/types.ts:2669](https://github.com/TanStack/ai/blob/
 optional expiresAt?: Date;
 ```
 
-Defined in: [packages/ai/src/types.ts:2660](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2660)
+Defined in: packages/ai/src/types.ts:2619
 
 **`Experimental`**
 
@@ -59,7 +59,7 @@ When the URL expires, if applicable
 jobId: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2656](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2656)
+Defined in: packages/ai/src/types.ts:2615
 
 **`Experimental`**
 
@@ -73,7 +73,7 @@ Job identifier
 url: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2658](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2658)
+Defined in: packages/ai/src/types.ts:2617
 
 **`Experimental`**
 
@@ -87,7 +87,7 @@ URL to the generated video
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:2666](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2666)
+Defined in: packages/ai/src/types.ts:2625
 
 **`Experimental`**
 

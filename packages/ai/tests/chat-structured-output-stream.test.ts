@@ -147,6 +147,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
@@ -188,6 +189,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
@@ -228,6 +230,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
@@ -269,6 +272,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
@@ -319,6 +323,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       })
 
       const error = await chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
@@ -375,6 +380,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       })
 
       const error = await chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
@@ -397,6 +403,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
@@ -445,6 +452,7 @@ describe('chat({ outputSchema, stream: true })', () => {
 
         const chunks = await collectChunks(
           chat({
+            threadId: 'thread-1',
             adapter,
             messages: [{ role: 'user', content: 'extract' }],
             outputSchema: PersonSchema,
@@ -491,6 +499,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
@@ -532,6 +541,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
@@ -563,6 +573,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
@@ -598,6 +609,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
@@ -645,6 +657,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
@@ -685,6 +698,7 @@ describe('chat({ outputSchema, stream: true })', () => {
 
         const chunks = await collectChunks(
           chat({
+            threadId: 'thread-1',
             adapter,
             messages: [{ role: 'user', content: 'extract' }],
             outputSchema: PersonSchema,
@@ -730,6 +744,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
@@ -776,6 +791,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       } as AnyTextAdapter
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,

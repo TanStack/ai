@@ -59,6 +59,7 @@ const needsSandbox = defineChatMiddleware({
 
 // OK: persistence required and provided within the array.
 chat({
+  threadId: 'thread-1',
   adapter: mockAdapter,
   messages: [],
   middleware: [providesPersistence, needsPersistence],
@@ -92,7 +93,12 @@ expectTypeOf(built).toMatchTypeOf<ReadonlyArray<unknown>>()
 createChatMiddleware().use(buConsumes)
 
 // The fully-built array satisfies chat()'s coverage check.
-chat({ adapter: mockAdapter, messages: [], middleware: built })
+chat({
+  threadId: 'thread-1',
+  adapter: mockAdapter,
+  messages: [],
+  middleware: built,
+})
 
 // ===========================
 // ctx.get / ctx.getOptional are typed by the capability identity passed

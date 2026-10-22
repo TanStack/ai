@@ -68,6 +68,7 @@ async function runTool(
   const generator = executeToolCalls(
     [call],
     [tool],
+    'thread-1',
     options.approvals,
     options.clientResults,
     undefined,
@@ -359,7 +360,7 @@ describe('a batch with an approval', () => {
     tools: Array<AnyTool>,
     approvals?: Map<string, ToolApprovalResolution>,
   ) {
-    const generator = executeToolCalls(calls, tools, approvals)
+    const generator = executeToolCalls(calls, tools, 'thread-1', approvals)
     while (true) {
       const next = await generator.next()
       if (next.done) return next.value
@@ -1157,11 +1158,19 @@ async function initial(
   const messages: Array<ModelMessage> = [{ role: 'user', content: 'check' }]
   if (!boundary) {
     return collectChunks(
-      chat({ adapter, messages, tools: [tool], middleware, repairToolInput }),
+      chat({
+        threadId: 'thread-1',
+        adapter,
+        messages,
+        tools: [tool],
+        middleware,
+        repairToolInput,
+      }),
     )
   }
   return collectChunks(
     chat({
+      threadId: 'thread-1',
       adapter,
       messages,
       tools: [tool],
@@ -1259,6 +1268,7 @@ describe('client tool input in chat()', () => {
     })
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         parentRunId: 'old',
         messages: history({ count: 1 }),
@@ -1291,6 +1301,7 @@ describe('client tool input in chat()', () => {
     let hooks = 0
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         parentRunId: 'old',
         messages: history({ count: 'wrong' }),
@@ -1406,6 +1417,7 @@ describe('repairToolInput', () => {
     })
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'check' }],
         tools: [tool],
@@ -1541,6 +1553,7 @@ describe('an approved edit in the transcript', () => {
     await collectChunks(
       chat({
         adapter,
+        threadId: 'thread-1',
         parentRunId: 'old',
         messages: history({ count: 1 }),
         tools: [

@@ -1,5 +1,39 @@
 # @tanstack/ai-compaction
 
+## 0.3.1
+
+### Patch Changes
+
+- Updated dependencies [[`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325)]:
+  - @tanstack/ai@0.71.0
+
+## 0.3.0
+
+### Minor Changes
+
+- [#1728](https://github.com/TanStack/ai/pull/1728) [`3292bad`](https://github.com/TanStack/ai/commit/3292bad7b26990c5aa4676cc9d9fe33b1741fc1a) - Prepare a compaction summary in the background with `withCompaction({ background: { atTokens } })`.
+  - When the count at a model call is over `atTokens` and not over `maxTokens`, the strategy runs on a copy of the messages. The model call does not wait for it.
+  - The result waits in the metadata store (namespace `@tanstack/ai-compaction:background`), or in memory without one. It applies at the first model call of the next run: as a `tanstack.compaction` record on a durable host, or as the checkpoint.
+  - A model call over `maxTokens` while the summary runs waits for it and applies it. It compacts inline only when the list is still over `maxTokens`.
+  - A result whose kept message is gone, because a newer compaction cut further, is dropped. `compaction:ended` and `onCompact` report it with `stale: true`. A failed summary is reported with `error` and applies nothing.
+  - `CompactionReason` has a new value, `'background'`. Setup throws when `atTokens` is not below `maxTokens`.
+
+- [#1728](https://github.com/TanStack/ai/pull/1728) [`3292bad`](https://github.com/TanStack/ai/commit/3292bad7b26990c5aa4676cc9d9fe33b1741fc1a) - Count with real usage, compact on demand, and keep compaction in a session log.
+  - `countTokens: 'usage'` counts with the usage the provider reported for the last call, plus an estimate of the newer messages.
+  - When a model call fails with `CONTEXT_OVERFLOW_CODE`, `withCompaction` compacts and calls the model again in the same run, once per model call.
+  - `compactNext(threadId)` compacts at the next model call. `auto: false` turns off compaction at `maxTokens` and keeps `compactNext`, the overflow retry, and the overflow check.
+  - `durable: true` writes a `tanstack.compaction` record through `LogRecordsCapability` when the host provides it. Fold the record into the messages with `projectCompaction`.
+  - With `countTokens: 'usage'` and `durable: true`, a run checks once more after its last model call. When the usage passed `maxTokens` or `contextWindow`, compaction runs right away. `contextWindow` also counts with `auto: false`.
+  - `compaction:ended` and `onCompact` report `reason`, the summary `usage`, and an `error`. `continueOnError` sends the full messages when the strategy fails.
+  - `summarizeOldest({ cut: 'turn' })` gives the start of a cut turn its own summary. `conversationSummarizer` writes a structured summary, updates the older summary, and takes a `details` hook. The summary message is now wrapped in an `<untrusted-conversation-summary>` tag, so a later compaction can find and update it.
+
+### Patch Changes
+
+- [#1787](https://github.com/TanStack/ai/pull/1787) [`ee374b4`](https://github.com/TanStack/ai/commit/ee374b4753adfc2ae305edad03f1ac9a588321fa) - A failed native `compact` is not saved as the checkpoint or the durable compaction record. The next process calls `compact` again. A compact result keeps image files, documents, and audio, and sends those parts back on the next request.
+
+- Updated dependencies [[`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`5f95dbd`](https://github.com/TanStack/ai/commit/5f95dbd08f2780442000ac52074ea747d1b44187), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`3292bad`](https://github.com/TanStack/ai/commit/3292bad7b26990c5aa4676cc9d9fe33b1741fc1a), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`4298480`](https://github.com/TanStack/ai/commit/429848047c8c514f29855f8a99a7260253eb5d5b), [`f68da51`](https://github.com/TanStack/ai/commit/f68da51f63f999b70ac7aaf5aebc0109a7e9daf7), [`30fa651`](https://github.com/TanStack/ai/commit/30fa651d173e519db8de50c9f888ded71b951640), [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b)]:
+  - @tanstack/ai@0.70.0
+
 ## 0.2.0
 
 ### Minor Changes

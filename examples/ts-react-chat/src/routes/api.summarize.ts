@@ -31,11 +31,11 @@ export const Route = createFileRoute('/api/summarize')({
     handlers: {
       POST: async ({ request }) => {
         const body = await request.json()
-        const { text, maxLength, style, model } = body.data
-        // The AG-UI envelope carries the run identity alongside `data`. It also
-        // rides the `X-Run-Id` header (which `memoryStream` keys the log by), so
-        // threading `runId` into `summarize()` keeps RUN_STARTED and the log in
-        // sync.
+        const { text, maxLength, style, model } = body.forwardedProps
+        // The AG-UI envelope carries the run identity alongside
+        // `forwardedProps`. It also rides the `X-Run-Id` header (which
+        // `memoryStream` keys the log by), so threading `runId` into
+        // `summarize()` keeps RUN_STARTED and the log in sync.
         const threadId =
           typeof body.threadId === 'string' ? body.threadId : undefined
         const runId = typeof body.runId === 'string' ? body.runId : undefined

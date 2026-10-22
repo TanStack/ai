@@ -99,7 +99,11 @@ describe('harnessText edges', () => {
     const model = harnessText(studio)
     const collect = async (messages: Array<any>) => {
       let out = ''
-      for await (const chunk of chat({ adapter: model, messages })) {
+      for await (const chunk of chat({
+        adapter: model,
+        threadId: 'thread-1',
+        messages,
+      })) {
         if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) out += chunk.delta
       }
       return out

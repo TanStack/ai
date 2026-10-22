@@ -301,19 +301,16 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
     logger: InternalLogger,
   ): AsyncIterable<AdapterYieldChunk> {
     let accumulatedContent = ''
-    let accumulatedReasoning = ''
     const toolCallsEmitted = new Set<string>()
 
     // AG-UI lifecycle tracking
     const runId = options.runId ?? generateId('run')
-    const threadId = options.threadId ?? generateId('thread')
+    const threadId = options.threadId
     const messageId = generateId('msg')
-    let stepId: string | null = null
     let reasoningMessageId: string | null = null
     let hasClosedReasoning = false
     let hasEmittedRunStarted = false
     let hasEmittedTextMessageStart = false
-    let hasEmittedStepStarted = false
 
     for await (const chunk of stream) {
       logger.provider(`provider=ollama`, { chunk })
@@ -346,7 +343,6 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
             type: EventType.TOOL_CALL_START,
             toolCallId,
             toolCallName: actualToolCall.function.name || '',
-            toolName: actualToolCall.function.name || '',
             parentMessageId: messageId,
             model: chunk.model,
             timestamp: Date.now(),
@@ -383,7 +379,6 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           type: EventType.TOOL_CALL_END,
           toolCallId,
           toolCallName: actualToolCall.function.name || '',
-          toolName: actualToolCall.function.name || '',
           model: chunk.model,
           timestamp: Date.now(),
           args: argsStr,
@@ -496,10 +491,8 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       }
 
       if (chunk.message.thinking) {
-        // Emit STEP_STARTED and REASONING events on first thinking content
-        if (!hasEmittedStepStarted) {
-          hasEmittedStepStarted = true
-          stepId = generateId('step')
+        // Emit REASONING start events on first thinking content
+        if (!reasoningMessageId) {
           reasoningMessageId = generateId('msg')
 
           // Spec REASONING events
@@ -516,41 +509,15 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
             model: chunk.model,
             timestamp: Date.now(),
           }
-
-          // Legacy STEP events (kept during transition)
-          yield {
-            type: EventType.STEP_STARTED,
-            stepName: stepId,
-            stepId,
-            model: chunk.model,
-            timestamp: Date.now(),
-            stepType: 'thinking',
-          }
         }
 
-        accumulatedReasoning += chunk.message.thinking
-
-        // Spec REASONING content event — reasoningMessageId is set in the
-        // hasEmittedStepStarted block above (entered on the same `thinking` path)
-        if (reasoningMessageId) {
-          yield {
-            type: EventType.REASONING_MESSAGE_CONTENT,
-            messageId: reasoningMessageId,
-            delta: chunk.message.thinking,
-            model: chunk.model,
-            timestamp: Date.now(),
-          }
-        }
-
-        // Legacy STEP event
+        // Spec REASONING content event
         yield {
-          type: EventType.STEP_FINISHED,
-          stepName: stepId || generateId('step'),
-          stepId: stepId || generateId('step'),
+          type: EventType.REASONING_MESSAGE_CONTENT,
+          messageId: reasoningMessageId,
+          delta: chunk.message.thinking,
           model: chunk.model,
           timestamp: Date.now(),
-          delta: chunk.message.thinking,
-          content: accumulatedReasoning,
         }
       }
     }

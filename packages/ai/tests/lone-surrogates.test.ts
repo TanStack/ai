@@ -47,6 +47,7 @@ describe('lone UTF-16 surrogates in provider requests', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages,
         systemPrompts: [`${LONE}😀`, { content: LONE }],
@@ -66,6 +67,7 @@ describe('lone UTF-16 surrogates in provider requests', () => {
     })
 
     await chat({
+      threadId: 'thread-1',
       adapter,
       messages,
       systemPrompts: [`${LONE}😀`, { content: LONE }],
@@ -92,6 +94,7 @@ describe('lone UTF-16 surrogates in provider requests', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'hi' }, ordered],
       }) as AsyncIterable<StreamChunk>,

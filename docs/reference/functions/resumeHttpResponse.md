@@ -7,7 +7,7 @@ title: resumeHttpResponse
 function resumeHttpResponse<TOffset>(options): Response;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:1572](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1572)
+Defined in: packages/ai/src/stream-to-response.ts:1572
 
 Serve a resumable run from its durability log over NDJSON, without re-running
 the model. The NDJSON counterpart of [resumeServerSentEventsResponse](resumeServerSentEventsResponse.md);

@@ -179,6 +179,7 @@ describe('AG-UI interrupt protocol types', () => {
       model: 'test-model',
       messages: [],
       logger: undefined as never,
+      threadId: 'thread-1',
       resume,
     } satisfies TextOptions
 

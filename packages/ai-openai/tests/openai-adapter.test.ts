@@ -52,6 +52,7 @@ describe('strict fallback warning (#1213)', () => {
 
     for (let i = 0; i < 2; i++) {
       for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
         logger,
         model: 'gpt-4o-mini',
         messages: [{ role: 'user', content: 'hi' }],
@@ -91,6 +92,7 @@ describe('strict fallback warning (#1213)', () => {
     }
 
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       logger,
       model: 'gpt-4o-mini',
       messages: [{ role: 'user', content: 'hi' }],
@@ -163,6 +165,7 @@ describe('OpenAI adapter option mapping', () => {
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       systemPrompts: ['Stay concise'],
       messages: [
@@ -241,6 +244,7 @@ describe('OpenAI adapter option mapping', () => {
     }
 
     for await (const _chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
     })) {
@@ -280,6 +284,7 @@ describe('OpenAI adapter option mapping', () => {
     }
 
     for await (const _chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Search the web.' }],
       tools: [webSearchTool({ type: 'web_search' })],
@@ -325,6 +330,7 @@ describe('OpenAI adapter option mapping', () => {
     }
 
     for await (const _chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       modelOptions: { include: [] },
@@ -362,6 +368,7 @@ describe('OpenAI adapter option mapping', () => {
     ;(adapter as any).client = { responses: { create: responsesCreate } }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       systemPrompts: [
         'Plain string.',
@@ -411,6 +418,7 @@ describe('OpenAI adapter option mapping', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       modelOptions,

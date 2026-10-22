@@ -25,8 +25,9 @@ const showNotification = toolDefinition({
     message: z.string(),
     type: z.enum(['info', 'warning', 'error']),
   }),
-  outputSchema: z.object({ displayed: z.boolean() }),
-}).client(() => ({ displayed: true }))
+  // Same outputSchema as the server definition in `tools-test-tools.ts`.
+  outputSchema: z.object({ displayed: z.boolean(), timestamp: z.number() }),
+}).client(() => ({ displayed: true, timestamp: Date.now() }))
 
 // Client stub for the server `delete_file` tool. `needsApproval` makes the
 // pause hydrate as a tool approval, so ChatUI renders Approve / Deny.
@@ -74,7 +75,7 @@ function JsonTransportPage() {
     connection,
     persistence: true,
     tools,
-    body: { testId, aimockPort, structured },
+    forwardedProps: { testId, aimockPort, structured },
   })
 
   return (

@@ -3,7 +3,7 @@ id: TTSCapabilities
 title: TTSCapabilities
 ---
 
-Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:14](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L14)
+Defined in: packages/ai/src/activities/generateSpeech/adapter.ts:14
 
 What a TTS adapter can do beyond a single voice reading a single string.
 
@@ -18,7 +18,7 @@ before it reaches the provider, instead of surfacing a provider 422.
 optional maxSpeakers?: number;
 ```
 
-Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:20](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L20)
+Defined in: packages/ai/src/activities/generateSpeech/adapter.ts:20
 
 Maximum number of distinct voices accepted across `turns`
 (ElevenLabs 10, Gemini 2). Omit it when the adapter has no dialogue
@@ -32,6 +32,6 @@ endpoint — then `turns` is rejected outright.
 optional timestamps?: boolean;
 ```
 
-Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:22](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L22)
+Defined in: packages/ai/src/activities/generateSpeech/adapter.ts:22
 
 Set when the adapter can honour `timestamps: true`.

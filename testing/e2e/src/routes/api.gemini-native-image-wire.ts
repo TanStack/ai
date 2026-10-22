@@ -24,6 +24,7 @@ export const Route = createFileRoute('/api/gemini-native-image-wire')({
 
         try {
           const first = await generateImage({
+            threadId: 'gemini-native-image-wire',
             adapter,
             prompt: 'a guitar in a music store',
             stream: false,
@@ -38,6 +39,7 @@ export const Route = createFileRoute('/api/gemini-native-image-wire')({
             },
           })
           const edit = await generateImage({
+            threadId: 'gemini-native-image-wire',
             adapter,
             prompt: 'Make the guitar red',
             stream: false,

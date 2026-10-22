@@ -7,7 +7,7 @@ title: INTERRUPT_CONTINUATION_METADATA_KEY
 const INTERRUPT_CONTINUATION_METADATA_KEY: "tanstack:interruptContinuation";
 ```
 
-Defined in: [packages/ai/src/generic-interrupt-continuation.ts:11](https://github.com/TanStack/ai/blob/main/packages/ai/src/generic-interrupt-continuation.ts#L11)
+Defined in: packages/ai/src/generic-interrupt-continuation.ts:11
 
 `ResumeEntry.metadata` key for a first-party generic request.
 

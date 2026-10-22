@@ -2,7 +2,7 @@
 title: "@tanstack/ai-react"
 slug: /api/ai-react
 order: 3
-description: "API reference for @tanstack/ai-react — React hooks including useChat for streaming chat with full type safety in React apps."
+description: "API reference for @tanstack/ai-react: the useChat hook, generation hooks, and React bindings for the headless TanStack AI client."
 keywords:
   - tanstack ai
   - "@tanstack/ai-react"
@@ -12,15 +12,7 @@ keywords:
   - api reference
 ---
 
-React hooks for TanStack AI, providing convenient React bindings for the headless client.
-
-For a typed headless chat UI, see [React Chat UI](../ui/react).
-For React Native, the documented support surface is narrow: `useChat` with chat
-connection adapters. React DOM-specific UI packages and TanStack AI devtools UI
-are not part of the React Native support surface.
-
-For a complete native journey, see
-[Quick Start: React Native](../getting-started/quick-start-react-native).
+React hooks for TanStack AI. To build your first chat, start with the [Quick Start](../getting-started/quick-start). For a typed chat layout, see [React Chat UI](../ui/react).
 
 ## Installation
 
@@ -30,39 +22,287 @@ react: @tanstack/ai-react
 
 <!-- ::end:tabs -->
 
-## `useRegisterWebMCPTools(tools, options?)`
+The package works in React Native and Expo, but only `useChat` with chat connection adapters is supported there. See [Quick Start: React Native](../getting-started/quick-start-react-native).
 
-Register executable client tools after the React component mounts. React removes them on cleanup and replaces them when `tools` or `options` change.
+## `useChat(options)`
 
-For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
+Holds the messages and the run state of one chat, and talks to your server route.
 
 ```tsx
-import {
-  useRegisterWebMCPTools,
-  type UseRegisterWebMCPToolsOptions,
-} from "@tanstack/ai-react";
+import { useState } from "react";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+export function Chat() {
+  const [input, setInput] = useState("");
+  const { messages, sendMessage, isLoading } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
+  });
+
+  return (
+    <div>
+      {messages.map((message) => (
+        <div key={message.id}>
+          <strong>{message.role}:</strong>
+          {message.parts.map((part, idx) =>
+            part.type === "text" ? <span key={idx}>{part.content}</span> : null,
+          )}
+        </div>
+      ))}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (input.trim() && !isLoading) {
+            sendMessage(input);
+            setInput("");
+          }
+        }}
+      >
+        <input value={input} onChange={(e) => setInput(e.target.value)} />
+        <button type="submit" disabled={isLoading}>
+          Send
+        </button>
+      </form>
+    </div>
+  );
+}
+```
+
+### Options
+
+You must pass `threadId`. You must also pass `connection` or `fetcher`, not both.
+
+| Option | What it does |
+| --- | --- |
+| `connection` | Connection adapter, for example `fetchServerSentEvents("/api/chat")`. See [Transports](../transports/overview). |
+| `fetcher` | A function that returns a `Response` or a stream. Use it with server functions. |
+| `tools` | Client tools from `.client()`. They run when the model calls them. See [Client Tools](../tools/client-tools). |
+| `threadId` | Required. The id of this chat. Use a stable id for each conversation, for example the id from your route. |
+| `initialMessages` | The messages to show first. |
+| `forwardedProps` | JSON sent to the server in the AG-UI `forwardedProps` field, for example `{ model: "gpt-6.1-sol" }`. |
+| `persistence` | `true` to load the thread from the server, or a storage adapter. See [Chat Persistence](../persistence/chat-persistence). |
+| `outputSchema` | A Standard Schema. Adds typed `partial` and `final` to the return value. See [Streaming structured output](../structured-outputs/streaming). |
+| `context` | Client-only runtime context for client tools. It is not sent to the server. |
+| `live` | Subscribe on mount and unsubscribe on unmount. |
+| `queue` | What `sendMessage` does while a run is busy. Default: queue the message. See [Queueing](../chat/queueing). |
+| `interrupts` | Definitions from `defineInterrupt()`. See [Interrupts](../interrupts/overview). |
+| `subagents` | Agents from `defineAgent()`, for types only. See [Subagents](../chat/subagents). |
+| `byok`, `byokProvider` | A keyring from `defineByok()`. See [Bring Your Own Key](../advanced/byok). |
+| `devtools` | Display options for TanStack AI Devtools. |
+
+The hook also takes the `ChatClient` callbacks (`onResponse`, `onChunk`, `onFinish`, `onError`, `onInterruptStateChange`, `onCustomEvent`) and the other client options. See [`ChatClient` options](./ai-client#constructor-options).
+
+When `forwardedProps`, `tools`, `context`, or `queue` change, the hook updates the current chat.
+
+### Returns
+
+State values are plain React values. The hook renders again when they change.
+
+| Field | What it is |
+| --- | --- |
+| `messages` | The `UIMessage` array of the chat. |
+| `sendMessage(content, options?)` | Sends a user message. `content` is a string or `{ content, id?, metadata? }`. `options` takes `whenBusy` and `body`. |
+| `isLoading` | `true` while a response streams. |
+| `error` | The last error, or `undefined`. |
+| `status` | `"ready"`, `"submitted"`, `"streaming"`, or `"error"`. |
+| `stop()` | Stops the current response. |
+| `reload()` | Sends the last user message again. |
+| `append(message)` | Adds a `UIMessage` or `ModelMessage` and starts a run. |
+| `addToolResult(result)` | Gives the result of a client tool by hand: `{ toolCallId, tool, output, state?, errorText? }`. |
+| `setMessages(messages)`, `clear()` | Replace or clear the messages. |
+| `queue`, `cancelQueued(id)` | Messages that wait while a run is busy. See [Queueing](../chat/queueing). |
+| `runId` | The id of the run in flight, or `null`. |
+| `interrupts` | Pending interrupts. Each item has `resolveInterrupt(...)`. See [Interrupts](../interrupts/overview). |
+| `resolveInterrupts`, `cancelInterrupts`, `retryInterrupts`, `resumeInterruptsUnsafe` | Act on all pending interrupts at once. |
+| `interruptErrors`, `resuming` | Errors from the last resume, and `true` while a resume runs. |
+| `isHydrating` | `true` while the chat loads from persistence. |
+| `hasOlderMessages`, `loadOlderMessages()` | Page in older messages. See [Chat Persistence](../persistence/chat-persistence). |
+| `isSubscribed`, `connectionStatus`, `sessionGenerating` | State of the live subscription. |
+| `partial`, `final` | Structured output. Only when you pass `outputSchema`. |
+| `subagents` | Live child-agent runs. See [Subagents](../chat/subagents). |
+
+### Example: tool approval
+
+A tool with `needsApproval: true` pauses the run. The pending call shows up in `interrupts`.
+
+```tsx
+import { toolDefinition } from "@tanstack/ai";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { z } from "zod";
+
+const deleteFileTool = toolDefinition({
+  name: "delete_file",
+  description: "Delete a file",
+  needsApproval: true,
+  inputSchema: z.object({ path: z.string() }),
+});
+
+export function ChatWithApproval() {
+  const { interrupts } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
+    tools: [deleteFileTool],
+  });
+
+  return (
+    <div>
+      {interrupts.map((interrupt) =>
+        interrupt.kind === "tool-approval" ? (
+          <div key={interrupt.id}>
+            <p>Approve: {interrupt.toolName}</p>
+            <button onClick={() => interrupt.resolveInterrupt(true)}>
+              Approve
+            </button>
+            <button onClick={() => interrupt.resolveInterrupt(false)}>
+              Deny
+            </button>
+          </div>
+        ) : null,
+      )}
+    </div>
+  );
+}
+```
+
+See [Tool Approval](../interrupts/tool-approval) for the server side.
+
+## `createChatHook(options)`
+
+Binds chat options once at module scope and returns a `useChat` hook that uses them.
+
+```tsx
+import { createChatHook, fetchServerSentEvents } from "@tanstack/ai-react";
+
+const { useChat: useSupportChat } = createChatHook({
+  connection: fetchServerSentEvents("/api/chat"),
+});
+
+export function SupportScreen() {
+  const chat = useSupportChat({ threadId: "support-1" });
+  return <p>{chat.messages.length} messages</p>;
+}
+```
+
+The bound hook takes these per-call overrides: `threadId`, `initialMessages`, `live`, and `forwardedProps`. Keep `tools`, `interrupts`, and `outputSchema` on the factory options.
+
+`@tanstack/ai-react/ui` has its own `createChatHook` that also returns typed UI components. See [React Chat UI](../ui/react).
+
+## Generation hooks
+
+Each hook runs one generation request and keeps its result. See [Generation Hooks](../media/generation-hooks).
+
+| Hook | `generate()` input | `result` |
+| --- | --- | --- |
+| `useGenerateImage` | `ImageGenerateInput` | `ImageGenerationResult` |
+| `useGenerateAudio` | `AudioGenerateInput` | `AudioGenerationResult` |
+| `useGenerateSpeech` | `SpeechGenerateInput` | `TTSResult` |
+| `useTranscription` | `TranscriptionGenerateInput` | `TranscriptionResult` |
+| `useSummarize` | `SummarizeGenerateInput` | `SummarizationResult` |
+| `useGenerateVideo` | `VideoGenerateInput` | `VideoGenerateResult` |
+| `useGeneration` | Your own input type | Your own result type |
+
+```tsx
+import { useGenerateImage, fetchServerSentEvents } from "@tanstack/ai-react";
+
+export function ImageButton() {
+  const image = useGenerateImage({
+    connection: fetchServerSentEvents("/api/generate/image"),
+    threadId: "image-studio",
+  });
+
+  return (
+    <button
+      disabled={image.isLoading}
+      onClick={() => image.generate({ prompt: "A mountain at sunset" })}
+    >
+      Generate
+    </button>
+  );
+}
+```
+
+Options: `threadId` (required), `connection` or `fetcher`, `body`, `persistence`, `byok`, `byokProvider`, `devtools`, `onResult`, `onError`, `onProgress`, `onChunk`.
+
+Returns: `generate(input)`, `result`, `isLoading`, `error`, `status`, `stop()`, `reset()`, `runId`.
+
+`useGenerateVideo` also returns `jobId` and `videoStatus`, and takes `onJobCreated` and `onStatusUpdate`.
+
+## `useRealtimeChat(options)`
+
+Runs a voice conversation with a realtime model. Pass `getToken` and `adapter`. See [Realtime Chat](../media/realtime-chat).
+
+```tsx
+import { useRealtimeChat } from "@tanstack/ai-react";
+import { openaiRealtime } from "@tanstack/ai-openai";
+
+export function VoiceChat() {
+  const chat = useRealtimeChat({
+    getToken: () => fetch("/api/realtime-token").then((r) => r.json()),
+    adapter: openaiRealtime(),
+  });
+
+  return chat.status === "idle" ? (
+    <button onClick={() => chat.connect()}>Start</button>
+  ) : (
+    <button onClick={() => chat.disconnect()}>Stop</button>
+  );
+}
+```
+
+Returns `status`, `error`, `mode`, `messages`, `connect()`, `disconnect()`, `startListening()`, `stopListening()`, `interrupt()`, `sendText(text)`, `sendImage(data, mimeType)`, `updateSession(config)`, plus audio levels and frequency data for visualizers.
+
+## `useAudioRecorder(options?)`
+
+Records audio from the microphone. See [Audio Recording](../media/audio-recording).
+
+Returns `recording`, `isRecording`, `isSupported`, `start()`, `stop()`, and `cancel()`. Pass `onComplete` to transform the recording. Then `recording` and `stop()` use the transformed type.
+
+## `useByok(client)`
+
+Subscribes to a BYOK keyring and returns its snapshot. See [Bring Your Own Key](../advanced/byok).
+
+```tsx
+import { useByok } from "@tanstack/ai-react";
+import { byok } from "./byok";
+
+export function KeyStatus() {
+  const snapshot = useByok(byok);
+  const openai = snapshot.status.openai;
+  return <p>{openai && "masked" in openai ? openai.masked : "No key"}</p>;
+}
+```
+
+The snapshot has `status`, `locked`, `prompt`, and `storageError`. Save a key from your own UI with `byok.update(provider, value)`.
+
+## `useMcpAppBridge(options)`
+
+Returns a stable MCP App bridge for one thread. It always calls the latest `chat.sendMessage` and `onLink`. Options: `threadId`, `callEndpoint`, `chat`, `fetchImpl`, `onLink`. See [MCP Apps](../mcp/apps).
+
+The `MCPAppResource` component, which renders a `ui-resource` part, is on the `@tanstack/ai-react/mcp-apps` subpath.
+
+## `useRegisterWebMCPTools(tools, options?)`
+
+Exposes client tools to the browser WebMCP API while the component is mounted. See [WebMCP Tools](../tools/webmcp).
+
+```tsx
+import { useRegisterWebMCPTools } from "@tanstack/ai-react";
 import { searchProducts } from "./tools";
 
 const tools = [searchProducts];
-const options: UseRegisterWebMCPToolsOptions<typeof tools> = {
-  onError(error) {
-    console.error(error);
-  },
-};
 
-function ProductsPage() {
-  useRegisterWebMCPTools(tools, options);
+export function ProductsPage() {
+  useRegisterWebMCPTools(tools, {
+    onError: (error) => console.error(error),
+  });
   return null;
 }
 ```
 
-`UseRegisterWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The hook owns the registration signal.
-
-The `context` field is required when a tool declares a required runtime context. Keep `tools` and `options` stable when their values do not change.
+Options: `toolOptions`, `context`, and `onError`. `context` is required when a tool declares a required runtime context. The hook registers the tools again when `tools` or `options` change, so keep them stable.
 
 ## `usePageWebMCPTools(options?)`
 
-Read the WebMCP tools on the page as client tools. The array starts empty and updates when the page adds or removes a tool. Pass it to `useChat` as `tools`.
+Reads the WebMCP tools that the page registered, as client tools. The array starts empty and updates when the page adds or removes a tool. Pass it to `useChat` as `tools`. See [Page WebMCP Tools in Chat](../tools/webmcp-page-tools).
 
 ```tsx
 import { usePageWebMCPTools } from "@tanstack/ai-react";
@@ -74,423 +314,35 @@ export function useSameOriginPageTools() {
 }
 ```
 
-`filter` skips a tool when it returns `false`. `onError` gets a failed WebMCP read. For a complete guide, see [Page WebMCP Tools in Chat](../tools/webmcp-page-tools).
+Options: `filter` (return `false` to skip a tool) and `onError`.
 
-## `createChatHook(options)`
+## Re-exports from `@tanstack/ai-client`
 
-Bind `chatOptions` once at module scope. Call `useChat()` in the screen to create the instance. Per-call overrides may set `threadId`, `initialMessages`, `live`, and `forwardedProps`. They must not change `tools`, `interrupts`, or `outputSchema`.
+You can import these from `@tanstack/ai-react` directly. See [`@tanstack/ai-client`](./ai-client) for details.
 
-```tsx
-import { createChatHook, fetchServerSentEvents } from "@tanstack/ai-react";
+| Group | Exports |
+| --- | --- |
+| Connection adapters | `fetchServerSentEvents`, `fetchHttpStream`, `fetchJson`, `xhrServerSentEvents`, `xhrHttpStream`, `webSocket`, `stream`, `rpcStream` |
+| Typed options | `createChatClientOptions`, `clientTools` |
+| Persistence | `localStoragePersistence`, `sessionStoragePersistence`, `indexedDBPersistence` |
+| Clients | `ChatClient`, `GenerationClient`, `VideoGenerationClient`, `RealtimeClient`, `AudioRecorder`, `InterruptManager` |
+| WebMCP and MCP Apps | `registerWebMCPTools`, `getWebMCPTools`, `subscribeWebMCPTools`, `createMcpAppBridge` |
+| Errors | `UnsupportedResponseStreamError`, `StreamTruncatedError`, `DurableStreamIncompleteError`, `StreamReconnectLimitError`, `StorageUnavailableError` |
+| Stream helpers | `StreamProcessor`, chunk strategies, `parsePartialJSON`, message converters |
 
-const chatOptions = {
-  connection: fetchServerSentEvents("/api/chat"),
-};
+For React Native or Expo, use an absolute server URL and `xhrHttpStream()` with a route that returns `toHttpResponse()`. If the host cannot stream, use `fetchJson()` with `toJsonResponse()`. See [React Native](../transports/react-native).
 
-const { useChat } = createChatHook(chatOptions);
-
-function ChatScreen() {
-  const chat = useChat({ threadId: "support-1" });
-  return null;
-}
-```
-
-`useChat(chatOptions)` from this package still works when you want to pass the full object at the call site. Rename the bound hook if both are in one file: `const { useChat: useSupportChat } = createChatHook(chatOptions)`.
-
-## `useChat(options?)`
-
-Main hook for managing chat state in React with full type safety.
-
-```tsx
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-import { 
-  createChatClientOptions, 
-  type InferChatMessages 
-} from "@tanstack/ai-client";
-import { toolDefinition } from "@tanstack/ai";
-import { z } from "zod";
-import { useState } from "react";
-
-const updateUIDef = toolDefinition({
-  name: "updateUI",
-  description: "Update the UI with a notification",
-  inputSchema: z.object({
-    message: z.string(),
-  }),
-  outputSchema: z.object({ success: z.boolean() }),
-});
-
-function ChatComponent() {
-  const [notification, setNotification] = useState<string | null>(null);
-
-  // Create client tool implementations
-  const updateUI = updateUIDef.client((input) => {
-    setNotification(input.message);
-    return { success: true };
-  });
-
-  // Create typed tools array (no 'as const' needed!)
-  const tools = [updateUI];
-
-  const chatOptions = createChatClientOptions({
-    connection: fetchServerSentEvents("/api/chat"),
-    tools,
-  });
-
-  // Fully typed messages!
-  type ChatMessages = InferChatMessages<typeof chatOptions>;
-
-  const { messages, sendMessage, isLoading, error, addToolApprovalResponse } =
-    useChat(chatOptions);
-
-  return <div>{/* Chat UI with typed messages */}</div>;
-}
-```
-
-### Options
-
-Extends `ChatClientOptions` from `@tanstack/ai-client`:
-
-- `connection` - Connection adapter (required)
-- `tools?` - Array of client tool implementations (with `.client()` method)
-- `initialMessages?` - Initial messages array
-- `threadId?` - The only identity for this chat. Required when persistence is on. If omitted, minted after mount.
-- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (e.g., `{ provider: 'openai', model: 'gpt-5.5' }`)
-- `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire
-- `byok?` - Optional BYOK keyring from `defineByok`. On each send the client prepares the resolved provider and stamps `x-byok-*` request headers. Keys never go in the body
-- `byokProvider?` - Optional function that returns the provider slug for this chat. If it returns a slug, only that key is prepared and sent. Otherwise the merged `provider` from `forwardedProps`, `body`, and per-call `sendMessage` `body` is used. Later sources win. If no slug resolves, the send throws instead of attaching every stored key
-- `context?` - Typed client-local runtime context passed to client tool implementations. This value is not serialized to the server
-- `onResponse?` - Callback when response is received
-- `onChunk?` - Callback when stream chunk is received
-- `onFinish?` - Callback when response finishes
-- `onError?` - Callback when error occurs
-- `onInterruptStateChange?` - Callback when interrupt state changes; context source is `hydrate` for restored state and `live` for streamed or client-initiated updates
-- `streamProcessor?` - Stream processing configuration
-
-**Note:** Client tools are now automatically executed - no `onToolCall` callback needed!
-
-### Returns
-
-```typescript
-import type { UIMessage } from "@tanstack/ai-react";
-import type { ModelMessage } from "@tanstack/ai";
-import type {
-  MultimodalContent,
-  SendMessageOptions,
-} from "@tanstack/ai-client";
-
-interface UseChatReturn {
-  messages: ReadonlyArray<UIMessage>;
-  sendMessage: (
-    content: string | MultimodalContent,
-    options?: SendMessageOptions,
-  ) => Promise<void>;
-  append: (message: ModelMessage | UIMessage) => Promise<void>;
-  addToolResult: (result: {
-    toolCallId: string;
-    tool: string;
-    output: any;
-    state?: "output-available" | "output-error";
-    errorText?: string;
-  }) => Promise<void>;
-  addToolApprovalResponse: (response: {
-    id: string;
-    approved: boolean;
-  }) => Promise<void>;
-  reload: () => Promise<void>;
-  stop: () => void;
-  isLoading: boolean;
-  isHydrating: boolean;
-  error: Error | undefined;
-  setMessages: (messages: ReadonlyArray<UIMessage>) => void;
-  clear: () => void;
-}
-```
-
-## `useByok(client)`
-
-Subscribe to a `ByokClient` snapshot in React.
-
-```tsx
-import { useByok } from "@tanstack/ai-react";
-import { byok } from "./byok";
-
-export function KeyStatus() {
-  const snapshot = useByok(byok);
-  const openai = snapshot.status.openai;
-  const last4 = openai && "masked" in openai ? openai.masked : "No key";
-  return <p>{last4}</p>;
-}
-```
-
-`snapshot` has `status`, `locked`, and `prompt`. Call `byok.update(provider, value)` from your own UI to save a key. See [Bring Your Own Key](../advanced/byok).
-
-## Connection Adapters
-
-Re-exported from `@tanstack/ai-client` for convenience:
-
-```typescript
-import {
-  fetchServerSentEvents,
-  fetchHttpStream,
-  fetchJson,
-  xhrServerSentEvents,
-  xhrHttpStream,
-  stream,
-  type ConnectionAdapter,
-  type FetchConnectionOptions,
-  type FetchJsonOptions,
-  type XhrConnectionOptions,
-} from "@tanstack/ai-react";
-```
-
-For React Native or Expo chat screens, use an absolute server URL and prefer
-`xhrHttpStream()` with a server route that returns `toHttpResponse()`. Use
-`xhrServerSentEvents()` with `toServerSentEventsResponse()` when you want SSE.
-Use `fetchHttpStream()` only when the runtime supports streaming `fetch`,
-`Response.body.getReader()`, and `TextDecoder`; otherwise it throws
-`UnsupportedResponseStreamError`.
-
-If the host cannot stream at all, use `fetchJson()` with a server route that
-returns `toJsonResponse()`. See [JSON](../transports/json).
-
-XHR adapter options include `headers`, `withCredentials`, `signal`, `body`, and
-`xhrFactory`. Fetch adapter options include `headers`, `credentials`, `signal`,
-`body`, and `fetchClient`. `fetchJson()` also takes `pollIntervalMs`. Both option objects may be provided directly or as a
-function that resolves per request.
-
-For error narrowing, import `UnsupportedResponseStreamError` and
-`StreamTruncatedError` from `@tanstack/ai-client`.
-
-## Example: Basic Chat
-
-```tsx
-import { useState } from "react";
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-
-export function Chat() {
-  const [input, setInput] = useState("");
-
-  const { messages, sendMessage, isLoading } = useChat({
-    connection: fetchServerSentEvents("/api/chat"),
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (input.trim() && !isLoading) {
-      sendMessage(input);
-      setInput("");
-    }
-  };
-
-  return (
-    <div>
-      <div>
-        {messages.map((message) => (
-          <div key={message.id}>
-            <strong>{message.role}:</strong>
-            {message.parts.map((part, idx) => {
-              if (part.type === "thinking") {
-                return (
-                  <div key={idx} className="text-sm text-gray-500 italic">
-                    💭 Thinking: {part.content}
-                  </div>
-                );
-              }
-              if (part.type === "text") {
-                return <span key={idx}>{part.content}</span>;
-              }
-              return null;
-            })}
-          </div>
-        ))}
-      </div>
-      <form onSubmit={handleSubmit}>
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          disabled={isLoading}
-        />
-        <button type="submit" disabled={isLoading}>
-          Send
-        </button>
-      </form>
-    </div>
-  );
-}
-```
-
-## Example: Tool Approval
-
-```tsx
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-
-export function ChatWithApproval() {
-  const { messages, sendMessage, addToolApprovalResponse } = useChat({
-    connection: fetchServerSentEvents("/api/chat"),
-  });
-
-  return (
-    <div>
-      {messages.map((message) =>
-        message.parts.map((part) => {
-          if (
-            part.type === "tool-call" &&
-            part.state === "approval-requested" &&
-            part.approval
-          ) {
-            return (
-              <div key={part.id}>
-                <p>Approve: {part.name}</p>
-                <button
-                  onClick={() =>
-                    addToolApprovalResponse({
-                      id: part.approval!.id,
-                      approved: true,
-                    })
-                  }
-                >
-                  Approve
-                </button>
-                <button
-                  onClick={() =>
-                    addToolApprovalResponse({
-                      id: part.approval!.id,
-                      approved: false,
-                    })
-                  }
-                >
-                  Deny
-                </button>
-              </div>
-            );
-          }
-          return null;
-        })
-      )}
-    </div>
-  );
-}
-```
-
-## Example: Client Tools with Type Safety
-
-```tsx
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-import { 
-  createChatClientOptions, 
-  type InferChatMessages 
-} from "@tanstack/ai-client";
-import { toolDefinition } from "@tanstack/ai";
-import { z } from "zod";
-import { useState } from "react";
-
-const updateUIDef = toolDefinition({
-  name: "updateUI",
-  description: "Update the UI with a notification",
-  inputSchema: z.object({
-    message: z.string(),
-    type: z.string(),
-  }),
-  outputSchema: z.object({ success: z.boolean() }),
-});
-
-const saveToStorageDef = toolDefinition({
-  name: "saveToStorage",
-  description: "Save a value to storage",
-  inputSchema: z.object({
-    key: z.string(),
-    value: z.string(),
-  }),
-  outputSchema: z.object({ saved: z.boolean() }),
-});
-
-export function ChatWithClientTools() {
-  const [notification, setNotification] = useState<{ message: string; type: string } | null>(null);
-
-  // Create client implementations
-  const updateUI = updateUIDef.client((input) => {
-    // ✅ input is fully typed!
-    setNotification({ message: input.message, type: input.type });
-    return { success: true };
-  });
-
-  const saveToStorage = saveToStorageDef.client((input) => {
-    localStorage.setItem(input.key, input.value);
-    return { saved: true };
-  });
-
-  // Create typed tools array (no 'as const' needed!)
-  const tools = [updateUI, saveToStorage];
-
-  const { messages, sendMessage } = useChat({
-    connection: fetchServerSentEvents("/api/chat"),
-    tools, // ✅ Automatic execution, full type safety
-  });
-
-  return (
-    <div>
-      {messages.map((message) =>
-        message.parts.map((part) => {
-          if (part.type === "tool-call" && part.name === "updateUI") {
-            // ✅ part.input and part.output are fully typed!
-            return <div key={part.id}>Tool executed: {part.name}</div>;
-          }
-          return null;
-        })
-      )}
-    </div>
-  );
-}
-```
-
-## `createChatClientOptions(options)`
-
-Helper to create typed chat options (re-exported from `@tanstack/ai-client`).
-
-```typescript
-import { 
-  createChatClientOptions, 
-  fetchServerSentEvents,
-  type InferChatMessages 
-} from "@tanstack/ai-client";
-import { tool1, tool2 } from "./tools";
-
-// Create typed tools array (no 'as const' needed!)
-const tools = [tool1, tool2];
-
-const chatOptions = createChatClientOptions({
-  connection: fetchServerSentEvents("/api/chat"),
-  tools,
-});
-
-type Messages = InferChatMessages<typeof chatOptions>;
-```
+BYOK helpers (`defineByok`, `defaultByokStorage`, and more) are on the `@tanstack/ai-react/byok` subpath.
 
 ## Types
 
-Re-exported from `@tanstack/ai-client`:
+| Type | What it is |
+| --- | --- |
+| `UseChatOptions`, `UseChatReturn` | The options and return value of `useChat`. |
+| `UIMessage<TTools>` | A chat message with typed parts. |
+| `InferChatMessages<T>` | The message type for a `createChatClientOptions` result. |
+| `SendMessageOptions`, `WhenBusy`, `QueueOption`, `QueuedMessage` | Send and queue types. |
+| `DeepPartial<T>` | The type of `partial` while structured output streams. |
+| `Use<Hook>Options`, `Use<Hook>Return` | Options and return types for the generation, realtime, and recorder hooks. The WebMCP hooks export only an options type. |
 
-- `UIMessage<TTools>` - Message type with tool type parameter
-- `MessagePart<TTools>` - Message part with tool type parameter
-- `TextPart` - Text content part
-- `ThinkingPart` - Thinking content part
-- `ToolCallPart<TTools>` - Tool call part (discriminated union)
-- `ToolResultPart` - Tool result part
-- `ChatClientOptions<TTools, TContext>` - Chat client options with typed client runtime context
-- `ConnectionAdapter` - Connection adapter interface
-- `InferChatMessages<T>` - Extract message type from options
-
-Re-exported from `@tanstack/ai`:
-
-- `toolDefinition()` - Create isomorphic tool definition
-- `ToolDefinitionInstance` - Tool definition type
-- `ClientTool` - Client tool type
-- `ServerTool` - Server tool type
-
-## Next Steps
-
-- [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Bring Your Own Key](../advanced/byok) - Store keys and pass `byok` into `useChat`
-- [Tools Guide](../tools/tools) - Learn about the isomorphic tool system
-- [Client Tools](../tools/client-tools) - Learn about client-side tools
+Pass a plain tools array to `useChat` or `createChatClientOptions`. Tool names, inputs, and outputs stay typed without `as const`. Import `toolDefinition` from `@tanstack/ai`.

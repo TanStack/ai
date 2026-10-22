@@ -2,7 +2,7 @@
 title: Write a Skill Source
 id: writing-skill-sources
 order: 3
-description: "Back portable Agent Skills with your own store (S3, a database, a registry) by implementing SkillSource, and prove it with the shipped conformance suite."
+description: "Back portable Agent Skills with your own store (S3, a database, a registry) by implementing SkillSource, and prove it with the conformance suite that ships in the package."
 keywords:
   - tanstack ai
   - SkillSource
@@ -13,56 +13,149 @@ keywords:
   - database skills
 ---
 
-Your skills live in S3, a database, or a private registry, not on disk. To feed
-them to `withSkills`, implement a `SkillSource`. It is a small, bytes-only
-interface, so it works anywhere, including the edge.
+A skill source adapter loads skills from S3, a database, or a registry. `withSkills` then reads them through that adapter.
 
-This page shows the minimum source, then how to prove it is correct with the
-conformance suite that ships in the package.
+Write a `SkillSource` for your store. It is a small interface that returns bytes only, so it works anywhere, including the edge. Then prove it with the conformance suite.
 
-## The minimum source
+## Quick setup
 
-A source needs two methods: `list` returns the catalog, `load` returns one
-skill's `SKILL.md` body. Here is an S3-backed one.
+### 1. Write the source
 
-```ts ignore
+A source needs two methods:
+
+- `list` returns the catalog: a name and a description for each skill.
+- `load` returns the raw `SKILL.md` of one skill, frontmatter included. It throws when the name does not exist.
+
+This source reads from any store that you wrap in a `SkillStore`:
+
+```ts
+// db-skills.ts
 import type { SkillSource } from '@tanstack/ai-skills'
 
-export function s3Skills(bucket: S3Bucket): SkillSource {
+export interface SkillRow {
+  name: string
+  description: string
+  /** The raw SKILL.md, frontmatter included. */
+  body: string
+}
+
+export interface SkillStore {
+  listSkills: () => Promise<Array<SkillRow>>
+  getSkill: (name: string) => Promise<SkillRow | undefined>
+}
+
+export function dbSkills(store: SkillStore): SkillSource {
   return {
     async list() {
-      const index = await bucket.getJSON('skills/index.json')
-      return index.map((s) => ({ name: s.name, description: s.description }))
+      const rows = await store.listSkills()
+      return rows.map((row) => ({
+        name: row.name,
+        description: row.description,
+      }))
     },
     async load(name) {
-      return bucket.getText(`skills/${name}/SKILL.md`)
+      const row = await store.getSkill(name)
+      if (!row) {
+        throw new Error(`no skill named "${name}"`)
+      }
+      return row.body
     },
   }
 }
 ```
 
-Pass it straight to `withSkills(s3Skills(bucket))`. The middleware strips the
-frontmatter from what `load` returns, so return the raw `SKILL.md`.
-
-## Add resources and a revision
-
-Two optional methods make the source better:
-
-- `revision()` returns a stable string that changes only when content changes.
-  `withSkills` lists once per `chat()` call and does not cache on `revision()`.
-  Add it so combinators, your own cache, or a later catalog memo can key on it
-  (a bucket ETag, a content hash).
-- `listResources` and `readResource` expose a skill's bundled files so
-  `read_skill_resource` can read them.
+### 2. Pass it to `withSkills`
 
 ```ts ignore
+import { withSkills } from '@tanstack/ai-skills'
+import { dbSkills } from './db-skills'
+
+const skills = withSkills(dbSkills(yourStore))
+```
+
+Add `skills` to the `middleware` array of `chat()`, as in [Portable Agent Skills](./agent-skills). The middleware removes the frontmatter from what `load` returns.
+
+### 3. Run the conformance suite
+
+The package ships a Vitest suite at `@tanstack/ai-skills/testing`. Seed your source with the fixture that the suite expects:
+
+- A skill `alpha` with a description.
+- A skill `beta` with a description.
+
+```ts
+// db-skills.test.ts
+import { runSkillSourceConformance } from '@tanstack/ai-skills/testing'
+import { dbSkills } from './db-skills'
+import type { SkillRow } from './db-skills'
+
+function makeTestStore() {
+  const rows: Array<SkillRow> = [
+    {
+      name: 'alpha',
+      description: 'First test skill.',
+      body: '---\nname: alpha\ndescription: First test skill.\n---\n# Alpha',
+    },
+    {
+      name: 'beta',
+      description: 'Second test skill.',
+      body: '---\nname: beta\ndescription: Second test skill.\n---\n# Beta',
+    },
+  ]
+  return {
+    listSkills: async () => rows,
+    getSkill: async (name: string) => rows.find((row) => row.name === name),
+  }
+}
+
+runSkillSourceConformance(() => dbSkills(makeTestStore()), 'db')
+```
+
+Run your tests. When the suite passes, your source is safe to give to `withSkills`.
+
+## How it works
+
+`withSkills` calls `list()` once for each `chat()` call to build the catalog. When the model calls `load_skill`, the middleware calls `load(name)`.
+
+A source has no `path` field. It returns bytes, so a database or a registry works the same as a folder.
+
+The suite tests these rules:
+
+- A missing skill name throws. It does not return an empty string.
+- Two `list()` calls at the same time return the same skills.
+- `revision()`, if present, returns the same value for the same content.
+- Resources load, and a path like `../../etc/passwd` is rejected.
+- Script bytes come back unchanged.
+
+The suite skips the resource and script checks when your source does not have those methods.
+
+## Advanced
+
+### Optional methods
+
+| Method | Returns | Use it for |
+| --- | --- | --- |
+| `revision()` | `Promise<string>` | A stable value that changes only when the content changes, such as a bucket ETag or a content hash. |
+| `listResources(name)` | `Promise<Array<string>>` | Paths under `references/` and `assets/`, relative to the skill root. |
+| `readResource(name, path)` | `Promise<string \| Uint8Array>` | The content of one resource. `read_skill_resource` calls it. |
+| `listScripts(name)` | `Promise<Array<SkillScriptRef>>` | The scripts of a skill, listed but not run. |
+| `readScript(name, path)` | `Promise<Uint8Array>` | The bytes of one script. |
+
+`withSkills` does not cache on `revision()`. Add `revision()` so that combinators, your own cache, or a catalog memo can use it as a key.
+
+### Add resources and a revision
+
+This example reads from an S3-style bucket. Call `assertSafeResourcePath` before you read a path, so a path outside the skill root throws:
+
+```ts ignore
+import { assertSafeResourcePath } from '@tanstack/ai-skills'
 import type { SkillSource } from '@tanstack/ai-skills'
 
 export function s3Skills(bucket: S3Bucket): SkillSource {
   return {
     revision: () => bucket.getText('skills/index.etag'),
     async list() {
-      /* as above */
+      const index = await bucket.getJSON('skills/index.json')
+      return index.map((s) => ({ name: s.name, description: s.description }))
     },
     async load(name) {
       return bucket.getText(`skills/${name}/SKILL.md`)
@@ -71,46 +164,19 @@ export function s3Skills(bucket: S3Bucket): SkillSource {
       return bucket.listKeys(`skills/${name}/references/`)
     },
     async readResource(name, path) {
+      assertSafeResourcePath(path)
       return bucket.getBytes(`skills/${name}/${path}`)
     },
   }
 }
 ```
 
-The source is bytes only on purpose. There is no `path` field, so a database or
-registry source is a first-class citizen, not a second-class one bolted onto a
-filesystem assumption.
+### Full fixture for resources and scripts
 
-## Prove it with the conformance suite
+If your source has resource methods, the suite also expects this on `alpha`:
 
-Adapter code is easy to get subtly wrong (a missing skill that returns empty
-instead of throwing, a resource path that escapes the skill root). The package
-ships a conformance suite so you test behavior, not guesswork.
+- A resource `references/note.md` with the content `hello`.
 
-Seed your source with the fixture the suite expects (a skill `alpha` with a
-`references/note.md` resource whose contents are `hello`, and a skill `beta`),
-then run it:
+If your source has script methods, the suite also expects this on `alpha`:
 
-```ts ignore
-import { runSkillSourceConformance } from '@tanstack/ai-skills/testing'
-import { s3Skills } from './s3-skills'
-
-runSkillSourceConformance(() => s3Skills(makeTestBucket()), 's3')
-```
-
-The suite checks the things that break in production:
-
-- a missing skill name throws, it does not return empty
-- resources load, and a path like `../../etc/passwd` is rejected
-- `revision()` is stable across identical content
-- concurrent `list()` calls stay consistent
-- script bytes come back correctly (so your source keeps working when script
-  execution lands in a later release)
-
-If it passes, your source is safe to hand to `withSkills`.
-
-## Where to go next
-
-- [Skill sources](./skill-sources) — the built-in sources and the combinators.
-- [Portable Agent Skills](./agent-skills) — the middleware and the `load_skill`
-  flow your source feeds.
+- A script `scripts/run.py` whose bytes decode to `print(1)`, listed with `executable: false`.

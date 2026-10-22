@@ -124,7 +124,7 @@ export async function startProtectedServer(
           'echo',
           {
             description: 'Echo text',
-            inputSchema: { text: z.string() },
+            inputSchema: z.object({ text: z.string() }),
             annotations: { readOnlyHint: true },
           },
           async ({ text }) => ({

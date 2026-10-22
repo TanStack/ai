@@ -2,7 +2,7 @@
 title: Multimodal Content
 id: multimodal-content
 order: 4
-description: "Send images, audio, video, and documents alongside text in TanStack AI messages with typed ContentPart primitives for multimodal models."
+description: "Send images, audio, video, and PDFs with the text of a message. Build the parts in the browser, and the adapter sends them to the model."
 keywords:
   - tanstack ai
   - multimodal
@@ -15,101 +15,303 @@ keywords:
   - ImagePart
 ---
 
-TanStack AI supports multimodal content in messages, allowing you to send images, audio, video, and documents alongside text to AI models that support these modalities.
+A message part can carry an image, audio clip, video, or PDF. The model then answers about that file.
 
-When sending messages to AI models, you can include different types of content:
-- **Text** - Plain text messages
-- **Images** - JPEG, PNG, GIF, WebP images
-- **Audio** - Audio files (model-dependent support)
-- **Video** - Video files (model-dependent support)
-- **Documents** - PDFs and other document types
+Make the `content` of the message an array of parts. One part holds the text, and the other parts hold the image, audio, video, or document.
 
-## Content Parts
+## Quick setup
 
-Multimodal messages use the `ContentPart` type to represent different content types:
+This setup lets a user pick an image and ask about it. It takes about 5 minutes.
+
+### 1. Use a model that reads images
+
+Your chat route does not change. Pick a model that takes image input:
 
 ```typescript
-import type { ContentPart, ImagePart, TextPart } from '@tanstack/ai'
+// api/chat.ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
 
-// Text content
-const textPart: TextPart = {
-  type: 'text',
-  content: 'What do you see in this image?'
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
+
+  const stream = chat({
+    adapter: openaiText("gpt-6.1-sol"),
+    messages,
+    threadId,
+    runId,
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+### 2. Send the image from the browser
+
+Read the file as base64. Then send a text part and an image part together:
+
+```tsx
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+function readAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== "string") {
+        reject(new Error("Could not read the file"));
+        return;
+      }
+      // Remove the "data:image/png;base64," prefix.
+      resolve(result.slice(result.indexOf(",") + 1));
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }
 
-// Image from base64 data (mimeType is required for data sources)
+export function AskAboutImage() {
+  const { sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
+  });
+
+  async function send(file: File) {
+    const base64 = await readAsBase64(file);
+    await sendMessage({
+      content: [
+        { type: "text", content: "What is in this image?" },
+        {
+          type: "image",
+          source: { type: "data", value: base64, mimeType: file.type },
+        },
+      ],
+    });
+  }
+
+  return (
+    <input
+      type="file"
+      accept="image/*"
+      onChange={(event) => {
+        const file = event.target.files?.[0];
+        if (file) void send(file);
+      }}
+    />
+  );
+}
+```
+
+Pick an image, and the model describes it in the chat.
+
+## How it works
+
+- `content` is a string or an array of parts. A string is the same as one text part.
+- Each part has a `type`: `text`, `image`, `audio`, `video`, or `document`.
+- Each media part has a `source` that says where the bytes are. See [Source types](#source-types).
+- The adapter turns each part into the format of its provider.
+- The types of `chat()` allow only the input types that the selected model supports.
+
+## Advanced
+
+### Content parts
+
+The part types come from `@tanstack/ai`:
+
+```typescript
+import type { ImagePart, TextPart } from "@tanstack/ai";
+
+const textPart: TextPart = {
+  type: "text",
+  content: "What do you see in this image?",
+};
+
+// Image from base64 data. `mimeType` is required for data sources.
 const imagePart: ImagePart = {
-  type: 'image',
+  type: "image",
   source: {
-    type: 'data',
-    value: 'base64EncodedImageData...',
-    mimeType: 'image/jpeg' // Required for data sources
+    type: "data",
+    value: "base64EncodedImageData...",
+    mimeType: "image/jpeg",
   },
   metadata: {
-    // Provider-specific metadata
-    detail: 'high' // OpenAI detail level
-  }
-}
+    detail: "high", // OpenAI detail level
+  },
+};
 
-// Image from URL (mimeType is optional for URL sources)
+// Image from a URL. `mimeType` is optional for URL sources.
 const imageUrlPart: ImagePart = {
-  type: 'image',
+  type: "image",
   source: {
-    type: 'url',
-    value: 'https://example.com/image.jpg',
-    mimeType: 'image/jpeg' // Optional hint for URL sources
-  }
-}
+    type: "url",
+    value: "https://example.com/image.jpg",
+    mimeType: "image/jpeg",
+  },
+};
 ```
 
-## Using Multimodal Content in Messages
-
-Messages can have `content` as either a string or an array of `ContentPart`:
+All the part types:
 
 ```typescript
-import { chat } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
+import type {
+  AudioPart,
+  ContentPart,
+  DocumentPart,
+  ImagePart,
+  TextPart,
+  VideoPart,
+} from "@tanstack/ai";
 
-const response = await chat({
-  adapter: openaiText('gpt-5.5'),
-  messages: [
-    {
-      role: 'user',
-      content: [
-        { type: 'text', content: 'What is in this image?' },
-        {
-          type: 'image',
-          source: {
-            type: 'url',
-            value: 'https://example.com/photo.jpg'
-          }
-        }
-      ]
-    }
-  ]
-})
+// Metadata types for each provider
+import type { OpenAIImageMetadata } from "@tanstack/ai-openai";
+import type { AnthropicImageMetadata } from "@tanstack/ai-anthropic";
+import type { GeminiImageMetadata } from "@tanstack/ai-gemini";
 ```
 
-## Images in Tool Results
+On the server, you can build the same message in a `chat()` call:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openaiText("gpt-6.1-sol"),
+  messages: [
+    {
+      role: "user",
+      content: [
+        { type: "text", content: "What is in this image?" },
+        {
+          type: "image",
+          source: { type: "url", value: "https://example.com/photo.jpg" },
+        },
+      ],
+    },
+  ],
+  threadId: "thread-1",
+});
+```
+
+### Source types
+
+Each media part has one of three sources.
+
+#### Data (base64)
+
+Use `type: 'data'` for inline base64 bytes. The `mimeType` field is required, so the provider gets the correct content type:
+
+```typescript
+import type { AudioPart, ImagePart } from "@tanstack/ai";
+
+const imagePart: ImagePart = {
+  type: "image",
+  source: {
+    type: "data",
+    value: "iVBORw0KGgoAAAANSUhEUgAAAAUA...",
+    mimeType: "image/png",
+  },
+};
+
+const audioPart: AudioPart = {
+  type: "audio",
+  source: {
+    type: "data",
+    value: "base64AudioData...",
+    mimeType: "audio/mp3",
+  },
+};
+```
+
+Data is good for small files, or when the file is not on a public URL.
+
+#### URL
+
+Use `type: 'url'` for a file at a URL. The `mimeType` field is optional, because the provider can often find the type from the URL or the response headers:
+
+```typescript
+import type { ImagePart } from "@tanstack/ai";
+
+const imagePart: ImagePart = {
+  type: "image",
+  source: {
+    type: "url",
+    value: "https://example.com/image.jpg",
+    mimeType: "image/jpeg",
+  },
+};
+```
+
+A URL is good for large files that are already online. Not all providers accept a URL for all input types. Read the provider docs.
+
+#### File handle (Files API)
+
+Use `type: 'file'` for a file that you uploaded one time with the [Files API](./files-api) of a provider. The provider keeps the bytes, and each request sends a small reference. The source holds the opaque handle and the provider that issued it: `{ type: 'file', value: 'file-...', provider: 'openai' }`.
+
+```typescript
+import { chat, fileSourceFromHandle, uploadFile } from "@tanstack/ai";
+import { openaiFiles, openaiText } from "@tanstack/ai-openai";
+import { pdfBase64 } from "./pdf-data";
+
+// Upload one time.
+const handle = await uploadFile({
+  adapter: openaiFiles(),
+  input: { data: pdfBase64, mimeType: "application/pdf" },
+});
+
+// Then use the handle in as many requests as you want.
+const stream = chat({
+  adapter: openaiText("gpt-5.5"),
+  messages: [
+    {
+      role: "user",
+      content: [
+        { type: "text", content: "Summarize this document" },
+        { type: "document", source: fileSourceFromHandle(handle) },
+      ],
+    },
+  ],
+  threadId: "thread-1",
+});
+```
+
+What `fileSourceFromHandle(handle)` does:
+
+- It builds the `{ type: 'file', value, provider }` source.
+- It picks the handle URL for Gemini, fal, and Grok, and the opaque id for OpenAI and Anthropic.
+- Each adapter maps `value` to the native field of the provider (`file_id`, `fileData.fileUri`, or a URL).
+
+These cases throw an error:
+
+- A handle that you send to a different provider.
+- A handle that you send to an adapter with no Files API support. The adapter rejects it before it builds the request.
+- A handle that you send to an endpoint that needs the bytes, such as image edits or Veo.
+
+See [Files API](./files-api) to upload, get, and delete handles.
+
+### Images in tool results
 
 A tool can return an array of `ContentPart`. Use it to give the model a screenshot or a chart:
 
 ```typescript
-import { toolDefinition } from '@tanstack/ai'
-import type { ContentPart } from '@tanstack/ai'
-import { z } from 'zod'
+import { toolDefinition } from "@tanstack/ai";
+import type { ContentPart } from "@tanstack/ai";
+import { z } from "zod";
 
 const getScreenshot = toolDefinition({
-  name: 'get_screenshot',
-  description: 'Get a screenshot of the page',
+  name: "get_screenshot",
+  description: "Get a screenshot of the page",
   inputSchema: z.object({}),
 }).server(async (): Promise<Array<ContentPart>> => [
-  { type: 'text', content: 'Page screenshot' },
+  { type: "text", content: "Page screenshot" },
   {
-    type: 'image',
-    source: { type: 'data', value: 'iVBORw0KGgo...', mimeType: 'image/png' },
+    type: "image",
+    source: { type: "data", value: "iVBORw0KGgo...", mimeType: "image/png" },
   },
-])
+]);
 ```
 
 The adapter sends the image in the form that its API accepts:
@@ -117,487 +319,187 @@ The adapter sends the image in the form that its API accepts:
 - **Responses APIs** (`openaiText`, `openRouterResponsesText`): the image stays in the tool output.
 - **Chat Completions APIs** (`openRouterText`, `openaiChatCompletions`, and the other Chat Completions adapters built on `@tanstack/openai-base`): a tool message holds text only. The text goes in the tool message. The images go in one user message after the tool results. If a result has only images, its tool text is `(see attached image)`.
 
-When these adapters know that the model has no image input, they do not send the images. An adapter that does not know the input types of the model sends the images. A result with only images then has the text `(image omitted: this model has no image input)`.
+Some more rules:
 
-The Chat Completions adapters and `openRouterResponsesText` send only the text and the images of a result that has images. They do not send audio, video, or documents from it.
+- If these adapters know that the model has no image input, they do not send the images.
+- An adapter that does not know the input types of the model sends the images. A result with only images then has the text `(image omitted: this model has no image input)`.
+- The Chat Completions adapters and `openRouterResponsesText` send only the text and the images of a result that has images. They do not send audio, video, or documents from it.
+- When an adapter sends an image from a tool result, a `file` source is an error, except on `openaiText`. Use a `data` or `url` source.
 
-When an adapter sends an image, a `file` source is an error, except on `openaiText`. Use a `data` or `url` source.
+### Provider support
 
-## Provider Support
+| Provider | Adapter | Input besides text |
+| --- | --- | --- |
+| OpenAI | `openaiText` | Image on `gpt-6.1-sol` and most new models. Image and PDF document on `gpt-5.5`. Audio on `gpt-4o-audio`. |
+| Anthropic | `anthropicText` | Image and PDF document on all Claude models, for example `claude-sonnet-5-5`. |
+| Gemini | `geminiText` | Image, audio, video, and document, for example on `gemini-3.8-flash`. |
+| Ollama | `ollamaText` | Image on vision models, such as `llama3.2-vision`. Support changes by model. |
 
-### OpenAI
+For the full list of each model, read `supports.input` in the `model-meta.ts` file of the adapter package.
 
-OpenAI supports images, audio, and PDF documents in their vision, audio, and
-document-capable models:
+`ollamaText(model)` reads the host from the `OLLAMA_HOST` environment variable. The default is `http://localhost:11434`.
 
-```typescript
-import { openaiText } from '@tanstack/ai-openai'
-import { imageBase64, pdfBase64 } from './data'
+#### OpenAI image detail and PDF filename
 
-const adapter = openaiText('gpt-5.5')
+OpenAI reads two metadata fields:
 
-// Image with detail level metadata
-const message = {
-  role: 'user' ,
-  content: [
-    { type: 'text' , content: 'Describe this image' },
-    {
-      type: 'image' ,
-      source: { type: 'data' , value: imageBase64, mimeType: 'image/jpeg' },
-      metadata: { detail: 'high' } // 'auto' | 'low' | 'high'
-    }
-  ]
-}
-```
+- `detail` on an image: `'auto'`, `'low'`, or `'high'`.
+- `filename` on a document. The API needs a filename with inline data. The default is `document.pdf`.
 
 ```typescript
-import { pdfBase64 } from './data'
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { imageBase64, pdfBase64 } from "./data";
 
-// PDF document via base64 data (the API requires a filename alongside
-// inline data; defaults to "document.pdf" when omitted)
-const documentMessage = {
-  role: 'user',
-  content: [
-    { type: 'text', content: 'Summarize this document' },
-    {
-      type: 'document',
-      source: { type: 'data', value: pdfBase64, mimeType: 'application/pdf' },
-      metadata: { filename: 'report.pdf' }
-    }
-  ]
-}
-```
-
-**Supported modalities by model:**
-- `gpt-5.5`, `gpt-5.2`, `gpt-5-mini` (among others): text, image, PDF document
-- `gpt-4o-audio`: text, audio
-
-Check each model's `supports.input` in `@tanstack/ai-openai`'s `model-meta.ts` for the authoritative per-model list.
-
-### Anthropic
-
-Anthropic's Claude models support images and PDF documents:
-
-```typescript
-import { anthropicText } from '@tanstack/ai-anthropic'
-import { imageBase64, pdfBase64 } from './data'
-
-const adapter = anthropicText('claude-sonnet-4-6')
-
-// Image with mimeType in source
-const imageMessage = {
-  role: 'user' ,
-  content: [
-    { type: 'text' , content: 'What do you see?' },
-    {
-      type: 'image' ,
-      source: { type: 'data' , value: imageBase64, mimeType: 'image/jpeg' }
-    }
-  ]
-}
-
-// PDF document
-const docMessage = {
-  role: 'user',
-  content: [
-    { type: 'text', content: 'Summarize this document' },
-    {
-      type: 'document',
-      source: { type: 'data', value: pdfBase64, mimeType: 'application/pdf' }
-    }
-  ]
-}
-```
-
-**Supported modalities:**
-- All Claude models (e.g. `claude-haiku-4-5`, `claude-sonnet-5`, `claude-opus-4-8`, `claude-fable-5`): text, image, and document (PDF)
-
-Check each model's `supports.input` in `@tanstack/ai-anthropic`'s `model-meta.ts` for the authoritative per-model list.
-
-### Gemini
-
-Google's Gemini models support a wide range of modalities:
-
-```typescript
-import { geminiText } from '@tanstack/ai-gemini'
-import { imageBase64 } from './data'
-
-const adapter = geminiText('gemini-3-flash-preview')
-
-// Image with mimeType in source
-const message = {
-  role: 'user',
-  content: [
-    { type: 'text', content: 'Analyze this image' },
-    {
-      type: 'image',
-      source: { type: 'data', value: imageBase64, mimeType: 'image/png' }
-    }
-  ]
-}
-```
-
-**Supported modalities:**
-- `gemini-2.5-flash`: text, image, audio, video
-
-### Ollama
-
-Ollama supports images in compatible models:
-
-```typescript
-import { ollamaText } from '@tanstack/ai-ollama'
-import { imageBase64 } from './data'
-
-// `ollamaText(model)` takes a model name. The host is read from the
-// `OLLAMA_HOST` environment variable (defaults to http://localhost:11434).
-const adapter = ollamaText('llama3.2-vision')
-
-// Image as base64
-const message = {
-  role: 'user',
-  content: [
-    { type: 'text', content: 'What is in this image?' },
-    {
-      type: 'image',
-      source: { type: 'data', value: imageBase64, mimeType: 'image/jpeg' }
-    }
-  ]
-}
-```
-
-**Note:** Ollama support varies by model. Check the specific model documentation for multimodal capabilities.
-
-## Source Types
-
-Content can be provided as either inline data or a URL:
-
-### Data (Base64)
-
-Use `type: 'data'` for inline base64-encoded content. **The `mimeType` field is required** to ensure providers receive proper content type information:
-
-```typescript
-const imagePart = {
-  type: 'image',
-  source: {
-    type: 'data',
-    value: 'iVBORw0KGgoAAAANSUhEUgAAAAUA...', // Base64 string
-    mimeType: 'image/png' // Required for data sources
-  }
-}
-
-const audioPart = {
-  type: 'audio',
-  source: {
-    type: 'data',
-    value: 'base64AudioData...',
-    mimeType: 'audio/mp3' // Required for data sources
-  }
-}
-```
-
-### URL
-
-Use `type: 'url'` for content hosted at a URL. The `mimeType` field is **optional** as providers can often infer it from the URL or response headers:
-
-```typescript
-const imagePart = {
-  type: 'image' ,
-  source: {
-    type: 'url' ,
-    value: 'https://example.com/image.jpg',
-    mimeType: 'image/jpeg' // Optional hint
-  }
-}
-```
-
-**Note:** Not all providers support URL-based content for all modalities. Check provider documentation for specifics.
-
-### File Handle (Files API)
-
-Use `type: 'file'` to reference media you uploaded once via a provider's [Files API](./files-api.md) — the provider stores the bytes and you pass a lightweight reference instead of re-sending base64 or a public URL every request. The source carries the opaque handle and the provider that issued it (`{ type: 'file', value: 'file-…', provider: 'openai' }`). An adapter throws if a different provider issued the handle, and adapters without Files API support reject the source before any request is built.
-
-```typescript
-import { openaiFiles, openaiText } from '@tanstack/ai-openai'
-import { chat, fileSourceFromHandle, uploadFile } from '@tanstack/ai'
-import { pdfBase64 } from './pdf-data'
-
-// Upload once...
-const handle = await uploadFile({
-  adapter: openaiFiles(),
-  input: { data: pdfBase64, mimeType: 'application/pdf' },
-})
-
-// ...then reference the handle by id in as many requests as you like.
-for await (const chunk of chat({
-  adapter: openaiText('gpt-5.5'),
+const stream = chat({
+  adapter: openaiText("gpt-5.5"),
   messages: [
     {
-      role: 'user',
+      role: "user",
       content: [
-        { type: 'text', content: 'Summarize this document' },
-        { type: 'document', source: fileSourceFromHandle(handle) },
+        { type: "text", content: "Does the chart match the report?" },
+        {
+          type: "image",
+          source: { type: "data", value: imageBase64, mimeType: "image/jpeg" },
+          metadata: { detail: "high" },
+        },
+        {
+          type: "document",
+          source: { type: "data", value: pdfBase64, mimeType: "application/pdf" },
+          metadata: { filename: "report.pdf" },
+        },
       ],
     },
   ],
-})) {
-  // ...
-}
+  threadId: "thread-1",
+});
 ```
 
-`fileSourceFromHandle(handle)` builds the `{ type: 'file', value, provider }` source for you. It picks the handle URL for Gemini, fal, and Grok, or the opaque id for OpenAI and Anthropic. Each adapter maps `value` to the provider's native field (`file_id`, `fileData.fileUri`, or a URL). Sending the source to a different provider, or to an endpoint that requires raw bytes (image edits, Veo), throws a clear error. See [Files API](./files-api.md) for uploading, retrieving, and deleting handles.
+### Send any file type from the browser
 
-## Backward Compatibility
-
-String content continues to work as before:
-
-```typescript
-// This still works
-const message = {
-  role: 'user',
-  content: 'Hello, world!'
-}
-
-// And this works for multimodal
-const multimodalMessage = {
-  role: 'user',
-  content: [
-    { type: 'text', content: 'Hello, world!' },
-    { type: 'image', source: { type: 'url', value: '...' } }
-  ]
-}
-```
-
-## Type Safety
-
-The multimodal types are fully typed. Provider-specific metadata types are available:
-
-```typescript
-import type { 
-  ContentPart,
-  ImagePart,
-  DocumentPart,
-  AudioPart,
-  VideoPart,
-  TextPart 
-} from '@tanstack/ai'
-
-// Provider-specific metadata types
-import type { OpenAIImageMetadata } from '@tanstack/ai-openai'
-import type { AnthropicImageMetadata } from '@tanstack/ai-anthropic'
-import type { GeminiImageMetadata } from '@tanstack/ai-gemini'
-```
-
-### Validating Dynamic Messages
-
-When receiving messages from external sources (like `request.json()`), the data is typed as `any`. TanStack AI does not ship a runtime message validator — define a schema with your preferred Standard-Schema library (Zod, Valibot, ArkType, …) and parse the body before handing it to `chat()`.
-
-```typescript ignore
-import { chat } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
-import { z } from 'zod'
-
-const ContentPartSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('text'), content: z.string() }),
-  z.object({
-    type: z.literal('image'),
-    source: z.object({ type: z.enum(['url', 'data']), value: z.string() }),
-  }),
-])
-
-const MessageSchema = z.object({
-  // `ModelMessage.role` is 'user' | 'assistant' | 'tool' — there is no
-  // 'system' role. System instructions are passed separately via the
-  // `systemPrompts` option on `chat()`, not as messages.
-  role: z.enum(['user', 'assistant', 'tool']),
-  content: z.union([z.string(), z.array(ContentPartSchema)]),
-})
-
-const BodySchema = z.object({ messages: z.array(MessageSchema) })
-
-// In an API route handler
-const { messages } = BodySchema.parse(await request.json())
-
-const stream = chat({
-  adapter: openaiText('gpt-5.5'),
-  messages,
-})
-```
-
-The TypeScript types on `chat()` still constrain anything you append at the call site to the modalities supported by the selected model.
-
-## Best Practices
-
-1. **Use appropriate source type**: Use `data` for small content or when you need to include content inline. Use `url` for large files or when the content is already hosted.
-
-2. **Include metadata**: Provide relevant metadata (like `mimeType` or `detail`) to help the model process the content correctly.
-
-3. **Check model support**: Not all models support all modalities. Verify the model you're using supports the content types you want to send.
-
-4. **Handle errors gracefully**: When a model doesn't support a particular modality, it may throw an error. Handle these cases in your application.
-
-## Client-Side Multimodal Messages
-
-When using the `ChatClient` from `@tanstack/ai-client`, you can send multimodal messages directly from your UI using the `sendMessage` method.
-
-### Basic Usage
-
-The `sendMessage` method accepts either a simple string or a `MultimodalContent` object:
-
-```typescript
-import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
-
-const client = new ChatClient({
-  connection: fetchServerSentEvents('/api/chat'),
-})
-
-// Simple text message
-await client.sendMessage('Hello!')
-
-// Multimodal message with image
-await client.sendMessage({
-  content: [
-    { type: 'text', content: 'What is in this image?' },
-    {
-      type: 'image',
-      source: { type: 'url', value: 'https://example.com/photo.jpg' }
-    }
-  ]
-})
-```
-
-### Custom Message ID
-
-You can provide a custom ID for the message:
-
-```typescript
-import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
-
-const client = new ChatClient({
-  connection: fetchServerSentEvents('/api/chat'),
-})
-
-await client.sendMessage({
-  content: 'Hello!',
-  id: 'custom-message-id-123'
-})
-```
-
-### Per-Message Forwarded Props
-
-The second parameter allows you to pass additional `forwardedProps` for that specific request. These are shallow-merged with the client's base `forwardedProps` configuration, with per-message values taking priority:
-
-```typescript
-import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
-
-const client = new ChatClient({
-  connection: fetchServerSentEvents('/api/chat'),
-  forwardedProps: { model: 'gpt-5' }, // Base forwarded props
-})
-
-// Override model for this specific message
-await client.sendMessage('Analyze this complex problem', {
-  model: 'gpt-5',
-  temperature: 0.2,
-})
-```
-
-> **Note:** The legacy `body` constructor option is still supported but deprecated. New code should use `forwardedProps`. Both populate the same wire field.
-
-### React Example
-
-Here's how to use multimodal messages in a React component:
+This input accepts images, audio, video, and PDFs. It picks the part type from the MIME type of the file. It uses `readAsBase64` from the [quick setup](#2-send-the-image-from-the-browser):
 
 ```tsx
-import { useChat } from '@tanstack/ai-react'
-import { fetchServerSentEvents } from '@tanstack/ai-client'
-import { useState } from 'react'
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { readAsBase64 } from "./read-as-base64";
 
-function ChatWithImages() {
-  const [imageUrl, setImageUrl] = useState('')
-  const { sendMessage, messages } = useChat({
-    connection: fetchServerSentEvents('/api/chat'),
-  })
-
-  const handleSendWithImage = () => {
-    if (imageUrl) {
-      sendMessage({
-        content: [
-          { type: 'text', content: 'What do you see in this image?' },
-          { type: 'image', source: { type: 'url', value: imageUrl } }
-        ]
-      })
-    }
-  }
-
-  return (
-    <div>
-      <input
-        type="url"
-        placeholder="Image URL"
-        value={imageUrl}
-        onChange={(e) => setImageUrl(e.target.value)}
-      />
-      <button onClick={handleSendWithImage}>Send with Image</button>
-    </div>
-  )
-}
-```
-
-### File Upload Example
-
-Here's how to handle file uploads and send them as multimodal content:
-
-```tsx
-import { useChat } from '@tanstack/ai-react'
-import { fetchServerSentEvents } from '@tanstack/ai-client'
-
-function ChatWithFileUpload() {
+export function ChatWithFileUpload() {
   const { sendMessage } = useChat({
-    connection: fetchServerSentEvents('/api/chat'),
-  })
+    connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
+  });
 
-  const handleFileUpload = async (file: File) => {
-    // Convert file to base64
-    const base64 = await new Promise<string>((resolve) => {
-      const reader = new FileReader()
-      reader.onload = () => {
-        const result = reader.result as string
-        // Remove data URL prefix (e.g., "data:image/png;base64,")
-        resolve(result.split(',')[1]!)
-      }
-      reader.readAsDataURL(file)
-    })
+  async function handleFileUpload(file: File) {
+    const base64 = await readAsBase64(file);
 
-    // Determine content type based on file type
-    const type = file.type.startsWith('image/')
-      ? 'image'
-      : file.type.startsWith('audio/')
-        ? 'audio'
-        : file.type.startsWith('video/')
-          ? 'video'
-          : 'document'
+    const type = file.type.startsWith("image/")
+      ? "image"
+      : file.type.startsWith("audio/")
+        ? "audio"
+        : file.type.startsWith("video/")
+          ? "video"
+          : "document";
 
     await sendMessage({
       content: [
-        { type: 'text', content: `Please analyze this ${type}` },
+        { type: "text", content: `Please analyze this ${type}` },
         {
           type,
-          source: { type: 'data', value: base64, mimeType: file.type }
-        }
-      ]
-    })
+          source: { type: "data", value: base64, mimeType: file.type },
+        },
+      ],
+    });
   }
 
   return (
     <input
       type="file"
       accept="image/*,audio/*,video/*,.pdf"
-      onChange={(e) => {
-        const file = e.target.files?.[0]
-        if (file) handleFileUpload(file)
+      onChange={(event) => {
+        const file = event.target.files?.[0];
+        if (file) void handleFileUpload(file);
       }}
     />
-  )
+  );
 }
 ```
 
+The model on the server must accept each type that you allow here.
+
+### Message ID and per-message props
+
+`sendMessage` takes a string or a `MultimodalContent` object. These examples use `ChatClient` from `@tanstack/ai-client`. The `sendMessage` of `useChat` takes the same first argument. For per-message props, it takes `{ body }` as the second argument.
+
+Give the message your own ID:
+
+```typescript
+import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
+
+const client = new ChatClient({
+  connection: fetchServerSentEvents("/api/chat"),
+  threadId: "support-chat",
+});
+
+await client.sendMessage({
+  content: "Hello!",
+  id: "custom-message-id-123",
+});
+```
+
+The second argument adds `forwardedProps` for that one request. They are shallow-merged with the base `forwardedProps` of the client, and the values of the message win:
+
+```typescript
+import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
+
+const client = new ChatClient({
+  connection: fetchServerSentEvents("/api/chat"),
+  threadId: "support-chat",
+  forwardedProps: { model: "gpt-6.1-sol" },
+});
+
+await client.sendMessage("Analyze this complex problem", {
+  temperature: 0.2,
+});
+```
+
+### Validate messages from a request
+
+`request.json()` returns `any`. TanStack AI does not ship a runtime message validator. Define a schema with a Standard Schema library (Zod, Valibot, ArkType, and more), and parse the body before you give it to `chat()`:
+
+```typescript ignore
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
+const ContentPartSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("text"), content: z.string() }),
+  z.object({
+    type: z.literal("image"),
+    source: z.object({ type: z.enum(["url", "data"]), value: z.string() }),
+  }),
+]);
+
+const MessageSchema = z.object({
+  // `ModelMessage.role` is 'user' | 'assistant' | 'tool'. There is no
+  // 'system' role. Pass system instructions with the `systemPrompts`
+  // option of `chat()`.
+  role: z.enum(["user", "assistant", "tool"]),
+  content: z.union([z.string(), z.array(ContentPartSchema)]),
+});
+
+const BodySchema = z.object({
+  messages: z.array(MessageSchema),
+  threadId: z.string(),
+});
+
+// In an API route handler
+const { messages, threadId } = BodySchema.parse(await request.json());
+
+const stream = chat({
+  adapter: openaiText("gpt-6.1-sol"),
+  messages,
+  threadId,
+});
+```
+
+The types of `chat()` still limit anything that you add at the call site to the input types of the selected model.

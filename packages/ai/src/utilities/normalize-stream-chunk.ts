@@ -27,26 +27,6 @@ function encryptedValueExtras(chunk: AdapterYieldChunk): Array<StreamChunk> {
       ? chunk.timestamp
       : undefined
 
-  if (typeof chunk.signature === 'string' && chunk.signature !== '') {
-    const source = chunkFields(chunk)
-    const toolCallId = stringField(source.toolCallId)
-    const entityId =
-      stringField(chunk.stepId) ??
-      stringField(source.stepName) ??
-      stringField(source.messageId) ??
-      toolCallId
-    if (entityId !== undefined) {
-      extras.push(
-        reasoningEncryptedValue({
-          subtype: toolCallId && !chunk.stepId ? 'tool-call' : 'message',
-          entityId,
-          encryptedValue: chunk.signature,
-          timestamp,
-        }),
-      )
-    }
-  }
-
   if (chunk.type === EventType.TOOL_CALL_START) {
     const thoughtSignature = stringField(
       (chunk.metadata as { thoughtSignature?: unknown } | undefined)
@@ -79,21 +59,6 @@ export function normalizeStreamChunk(
   for (const key of Object.keys(chunk)) {
     if (specKeys.has(key)) {
       specChunk[key] = source[key]
-    }
-  }
-
-  if (chunk.type === EventType.TOOL_CALL_START) {
-    if (specChunk.toolCallName === undefined && chunk.toolName) {
-      specChunk.toolCallName = chunk.toolName
-    }
-  }
-
-  if (chunk.type === EventType.RUN_ERROR && chunk.error != null) {
-    if (specChunk.message === undefined && chunk.error.message) {
-      specChunk.message = chunk.error.message
-    }
-    if (specChunk.code === undefined && chunk.error.code !== undefined) {
-      specChunk.code = chunk.error.code
     }
   }
 
@@ -133,9 +98,6 @@ export function normalizeStreamChunk(
     skipLeftover.add('model')
     skipLeftover.add('content')
     skipLeftover.add('args')
-  }
-  if (chunk.type === EventType.TOOL_CALL_START) {
-    skipLeftover.add('toolName')
   }
   // A TOOL_CALL_END sends its arguments once, as `args` made to match
   // `input`. `restorePublicUsage` parses `input` back from it.

@@ -7,7 +7,7 @@ title: generateTranscription
 function generateTranscription<TAdapter, TStream>(options): TranscriptionActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/generateTranscription/index.ts:189](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateTranscription/index.ts#L189)
+Defined in: packages/ai/src/activities/generateTranscription/index.ts:192
 
 Transcription activity - converts audio to text.
 
@@ -44,7 +44,8 @@ import { openaiTranscription } from '@tanstack/ai-openai'
 const result = await generateTranscription({
   adapter: openaiTranscription('whisper-1'),
   audio: audioFile, // File, Blob, or base64 string
-  language: 'en'
+  language: 'en',
+  threadId,
 })
 
 console.log(result.text)
@@ -56,7 +57,8 @@ console.log(result.text)
 const result = await generateTranscription({
   adapter: openaiTranscription('whisper-1'),
   audio: audioFile,
-  responseFormat: 'verbose_json'
+  responseFormat: 'verbose_json',
+  threadId,
 })
 
 result.segments?.forEach(segment => {
@@ -70,6 +72,7 @@ result.segments?.forEach(segment => {
 for await (const chunk of generateTranscription({
   adapter: openaiTranscription('whisper-1'),
   audio: audioFile,
+  threadId,
   stream: true
 })) {
   console.log(chunk)

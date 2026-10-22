@@ -1,5 +1,71 @@
 # @tanstack/ai-anthropic
 
+## 0.23.0
+
+### Minor Changes
+
+- [#1837](https://github.com/TanStack/ai/pull/1837) [`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325) - Add computer use that runs the same code on OpenAI and on Anthropic. A driver controls the machine. The Playwright and sandbox drivers give each thread its own machine.
+
+  New packages:
+  - `@tanstack/ai-computer-use` adds `createComputerUse()`. It returns `tools`, a middleware, a safety-check interrupt, and `close`. Each `threadId` gets its own machine, action queue, and approvals. A thread that stays idle for `idleTimeout` (10 minutes by default) closes.
+  - `@tanstack/ai-computer-playwright` adds `playwrightComputer()`, which opens one browser page for each thread. `createPlaywrightComputerDriver()` controls one page that you give it. Both add a `navigate` tool that opens `http:` and `https:` URLs.
+  - `@tanstack/ai-computer-sandbox` adds `sandboxComputer()`, which creates one Linux desktop sandbox for each thread from any `@tanstack/ai-sandbox` provider, like `e2bSandbox({ template: 'desktop' })`. `createSandboxComputerDriver()` controls one sandbox that you give it.
+  - `@tanstack/ai-computer-local` adds `localComputer()`, which lets the model use the mouse, keyboard, and main screen of the machine that runs `chat()`. It works on Windows, macOS, and Linux with `@jitsi/robotjs`.
+
+  Changes in existing packages:
+  - `@tanstack/ai` adds `threadId` to `ToolExecutionContext`. It also adds the computer tool metadata reader in `@tanstack/ai/adapter-internals`.
+  - `@tanstack/ai-anthropic` and `@tanstack/openai-base` send the generic computer tool to the model as the native computer tool of the provider.
+  - `@tanstack/ai-openai` marks the models that support the `computer` tool.
+
+  ```ts
+  const computerUse = createComputerUse({
+    driver: playwrightComputer({ startUrl: 'https://tanstack.com' }),
+  })
+
+  chat({
+    adapter,
+    messages,
+    threadId,
+    tools: computerUse.tools,
+    middleware: [computerUse.middleware],
+    interrupts: [computerUse.interrupt],
+  })
+
+  await computerUse.close(threadId) // one thread
+  await computerUse.close() // every thread, and the browser
+  ```
+
+  The `ai-core` agent skill routes computer use to `@tanstack/ai-computer-use` and its three drivers.
+
+- [#1837](https://github.com/TanStack/ai/pull/1837) [`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325) - Run computer use on every Claude model that supports it.
+  - `computerUseTool()` takes `computer_toolset_20260801`, the only computer use version of Claude Opus 5.5, Sonnet 5.5, and Haiku 5.5. The model calls each action as its own tool. The adapter runs each call as one `computer` call with the action in `input.action`, and sends it back to Claude in the form that Claude sent. So one `execute` works for every version.
+  - `computerUseTool()` takes `computer_20251124`, with its `computer-use-2025-11-24` beta header.
+  - Each model now takes only the computer use versions that it supports. For example, `computer_20250124` on `claude-opus-4-6` is a type error, because Anthropic rejects that pair.
+  - `@anthropic-ai/sdk` is now `^0.135.0`.
+
+### Patch Changes
+
+- [#1837](https://github.com/TanStack/ai/pull/1837) [`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325) - Send the `anthropic-beta` header that `computerUseTool()` needs: `computer-use-2025-01-24` for `computer_20250124`, and `computer-use-2024-10-22` for `computer_20241022`. Before, a request with the tool had no computer use beta, so Anthropic rejected it.
+
+- Updated dependencies [[`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325)]:
+  - @tanstack/ai@0.71.0
+
+## 0.22.1
+
+### Patch Changes
+
+- [#1750](https://github.com/TanStack/ai/pull/1750) [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b) - Keep the provider's raw tool argument string for replay.
+  - Adapters now send the raw argument string as `args` on `TOOL_CALL_END`.
+  - The tool call in the history keeps that exact string when it is the same JSON value as the parsed input, so the next request sends the provider's own bytes back (for example `1.50`, or an id past `Number.MAX_SAFE_INTEGER`). When the parsed input differs, only the changed values are written again.
+  - The `TOOL_CALL_END` that reaches the client carries the same string in `metadata.tanstack.args`, so the client history matches the server history. It no longer also carries `metadata.tanstack.input`: in-process `chat()` and `StreamProcessor` parse `input` from `args`. Run the client and the server on the same release: an older client ignores `args`, so it builds the tool input from the streamed deltas only, and a tool call with no deltas (for example an Anthropic server tool) gets no input.
+  - History converters for Bedrock and the Gemini Interactions API send malformed tool arguments as `{}` instead of failing the request.
+  - Gemini Interactions: the initial `step.arguments` snapshot goes out as a `TOOL_CALL_ARGS` delta only when no argument deltas follow, so the deltas always add up to the final arguments.
+  - Malformed tool arguments are no longer turned into `{}` by an adapter. The tool gets a "Failed to parse tool arguments as JSON" error that the model can repair. Mistral still ends the run with an error on malformed arguments, as before.
+
+- Updated dependencies [[`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`5f95dbd`](https://github.com/TanStack/ai/commit/5f95dbd08f2780442000ac52074ea747d1b44187), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`3292bad`](https://github.com/TanStack/ai/commit/3292bad7b26990c5aa4676cc9d9fe33b1741fc1a), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`4298480`](https://github.com/TanStack/ai/commit/429848047c8c514f29855f8a99a7260253eb5d5b), [`f68da51`](https://github.com/TanStack/ai/commit/f68da51f63f999b70ac7aaf5aebc0109a7e9daf7), [`85c2956`](https://github.com/TanStack/ai/commit/85c2956c68f3226ef409b3a4e54d5be82198931e), [`30fa651`](https://github.com/TanStack/ai/commit/30fa651d173e519db8de50c9f888ded71b951640), [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b)]:
+  - @tanstack/ai@0.70.0
+  - @tanstack/ai-utils@0.5.0
+
 ## 0.22.0
 
 ### Minor Changes

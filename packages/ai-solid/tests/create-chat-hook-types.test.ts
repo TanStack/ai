@@ -20,8 +20,8 @@ it('bound useChat infers tool names from factory options', () => {
     }
 
     const { useChat } = createChatHook(chatOptions)
-    const fromHook = useChat()
-    const fromUseChat = useUnboundChat(chatOptions)
+    const fromHook = useChat({ threadId: 'thread-1' })
+    const fromUseChat = useUnboundChat({ ...chatOptions, threadId: 'thread-1' })
 
     expectTypeOf(fromHook).toEqualTypeOf(fromUseChat)
   }

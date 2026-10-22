@@ -30,7 +30,7 @@ describe('provider-only messages', () => {
         { role: 'user', content: 'retry' },
       ]
       const before = JSON.stringify(messages)
-      await collectChunks(chat({ adapter, messages }))
+      await collectChunks(chat({ threadId: 'thread-1', adapter, messages }))
       expect(calls[0]?.messages).toEqual([{ role: 'user', content: 'retry' }])
       expect(JSON.stringify(messages)).toBe(before)
     },
@@ -81,6 +81,7 @@ describe('provider-only messages', () => {
     }
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           signed,
@@ -133,6 +134,7 @@ describe('provider-only messages', () => {
     let finalMessages: Array<ModelMessage> = []
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [failed, { role: 'user', content: 'retry' }],
         middleware: [
@@ -168,7 +170,7 @@ describe('provider-only messages', () => {
       assistant,
       { role: 'user', content: 'continue' },
     ]
-    await collectChunks(chat({ adapter, messages }))
+    await collectChunks(chat({ threadId: 'thread-1', adapter, messages }))
     expect(calls[0]?.messages[1]).toEqual({
       role: 'tool',
       toolCallId: 'orphan',
@@ -205,6 +207,7 @@ describe('provider-only messages', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           { role: 'user', content: 'DROP_FROM_PROVIDER' },
@@ -256,6 +259,7 @@ describe('provider-only messages', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           { role: 'user', content: 'DROP_FROM_PROVIDER' },

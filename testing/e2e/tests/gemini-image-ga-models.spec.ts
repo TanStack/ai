@@ -9,7 +9,6 @@ interface GeminiImageGaModelsResponse {
   gaModelListed: boolean
   gaModel: StageResult
   nanoBanana21: StageResult
-  legacyModel: StageResult
 }
 
 /**
@@ -18,8 +17,8 @@ interface GeminiImageGaModelsResponse {
  * `geminiNativeImageMount` in `global-setup.ts` for the mock that makes it
  * possible — aimock's `/v1beta/interactions` handler streams text and has no
  * image branch, so this route/mount pair exists specifically to cover what
- * aimock alone cannot. The route runs both model calls as independent
- * stages, so each test below only depends on its own stage.
+ * aimock alone cannot. The route runs each model call as an independent
+ * stage, so each test below only depends on its own stage.
  */
 test.describe('gemini — GA image model ids and per-model sizes (#1104)', () => {
   test('gemini-3.1-flash-image is a listed GA id and generates an image', async ({
@@ -53,17 +52,5 @@ test.describe('gemini — GA image model ids and per-model sizes (#1104)', () =>
 
     expect(nanoBanana21.error ?? null).toBeNull()
     expect(nanoBanana21.imageCount).toBe(1)
-  })
-
-  test('gemini-2.5-flash-image sends aspect_ratio and omits image_size', async ({
-    request,
-  }) => {
-    const res = await request.post('/api/gemini-image-ga-models')
-    expect(res.ok()).toBe(true)
-
-    const { legacyModel } = (await res.json()) as GeminiImageGaModelsResponse
-
-    expect(legacyModel.error ?? null).toBeNull()
-    expect(legacyModel.imageCount).toBe(1)
   })
 })

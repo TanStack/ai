@@ -238,7 +238,6 @@ export class GrokThoughtRouter {
       type: EventType.TOOL_CALL_START,
       toolCallId: tool.id,
       toolCallName: tool.name,
-      toolName: tool.name,
       model: this.ctx.model,
       timestamp: this.ctx.now(),
     }
@@ -288,7 +287,6 @@ export class GrokThoughtRouter {
       type: EventType.TOOL_CALL_END,
       toolCallId: tool.id,
       toolCallName: tool.name,
-      toolName: tool.name,
       model: this.ctx.model,
       timestamp: this.ctx.now(),
       input,

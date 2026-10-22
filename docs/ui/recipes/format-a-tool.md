@@ -2,7 +2,7 @@
 title: Make a tool look right
 id: ui-recipe-format-a-tool
 order: 2
-description: "Register a component for one tool, and branch on the tool call state so it never shows raw JSON."
+description: "Give one tool its own component, and branch on the tool call state so it shows progress instead of raw JSON."
 keywords:
   - tanstack ai
   - toolsComponents
@@ -11,21 +11,11 @@ keywords:
   - example
 ---
 
-Register the tool under `toolsComponents`. The key is the tool name.
+Register a tool component under `toolsComponents` and branch on `part.state`. `part.input` and `part.output` are typed from the tool schemas.
 
-```tsx ignore
-toolsComponents: {
-  getWeather: ({ part }) => <p>{part.input?.city}</p>,
-}
-```
+The key is the tool name. You need no casts.
 
-`part.input` and `part.output` are typed from the tool's schemas. You do not cast them.
-
-## The problem with one line
-
-A tool call is not one event. It arrives in stages: the model names the tool, streams the arguments, then the result comes back. A component that only reads `part.output` renders nothing for most of that time.
-
-Branch on `part.state` instead.
+This page covers the UI. To run the tool, read [Server tools](../../tools/server-tools) or [Client tools](../../tools/client-tools).
 
 ## Full example
 
@@ -76,28 +66,30 @@ const { useAppChat } = createChatHook({
 })
 
 export function WeatherChat() {
-  const chat = useAppChat()
+  const chat = useAppChat({ threadId: 'support-chat' })
   return <chat.AppChat />
 }
 ```
 
 The tool now shows progress while it runs, and a definition list when it finishes.
 
-## The states you care about
+## How it works
 
-| `part.state` | What to show |
-| --- | --- |
-| `awaiting-input` | The call started. No arguments yet. |
-| `input-streaming` | The model is still writing the arguments. Show a spinner. |
-| `input-complete` | Arguments are final. `part.input` is safe to read. |
-| `complete` | The result arrived. `part.output` is safe to read. |
-| `error` | The call failed. Show your own copy. |
+`Parts` finds the tool-call part for `getWeather` and renders your component with that part. The part re-renders each time its state changes.
 
-Two more states apply only to tools that need approval: `approval-requested` and `approval-responded`. See [tool approval](./tool-approval).
+| `part.state`      | What to show                                         |
+| ----------------- | ---------------------------------------------------- |
+| `awaiting-input`  | The call started. No arguments yet.                  |
+| `input-streaming` | The model still writes the arguments. Show a spinner. |
+| `input-complete`  | The arguments are final. `part.input` is safe to read. |
+| `complete`        | The result arrived. `part.output` is safe to read.   |
+| `error`           | The call failed. Show your own copy.                 |
+
+Two more states apply only to tools that need approval: `approval-requested` and `approval-responded`. Read [Ask before a tool runs](./tool-approval).
 
 ## Move it to its own file
 
-A tool map grows fast. Type the props with `ToolProps` and the component lives anywhere.
+A tool map grows fast. Type the props with `ToolProps`, and the component can live in any file:
 
 ```tsx group=weather-tool
 import type { ToolProps } from '@tanstack/ai-react/ui'
@@ -110,9 +102,9 @@ export function WeatherTool({
 }
 ```
 
-The second type argument is the tool name. Pass it, and `part.input` and `part.output` narrow to that tool's schemas.
+The second type argument is the tool name. With it, `part.input` and `part.output` narrow to the schemas of that tool.
 
 ## Next
 
-- A tool that needs a yes or no first? See [tool approval](./tool-approval).
-- Formatting text, thinking, or images? Register them under `partsComponents`. See the [React guide](../react).
+- A tool that needs a yes or no first? Read [Ask before a tool runs](./tool-approval).
+- Text, thinking, or images? Register them under `partsComponents`. Read [Every widget slot](../react#every-widget-slot).

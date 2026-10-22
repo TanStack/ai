@@ -4,6 +4,7 @@ import { createLLMGatewayText } from '../src'
 const messages = [{ role: 'user' as const, content: 'hi' }]
 
 chat({
+  threadId: 'thread-1',
   adapter: createLLMGatewayText('gpt-5.5', 'k'),
   messages,
   reasoning: 'xhigh',

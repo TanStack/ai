@@ -1,7 +1,7 @@
 ---
 title: WebSockets
 id: websockets
-description: "Run resumable streams over one full-duplex WebSocket instead of a request per turn: toWebSocketStream/toWebSocketResponse on the server, webSocket() on the client, resume via a URL query, and hosting on Node or Cloudflare."
+description: "Run resumable streams over one WebSocket for the whole chat. Use toWebSocketStream or toWebSocketResponse on the server and webSocket() in the client. The socket resumes after a drop."
 keywords:
   - websocket transport
   - toWebSocketStream
@@ -14,43 +14,24 @@ keywords:
   - websocket heartbeat
 ---
 
-SSE and NDJSON open one connection per turn. A WebSocket is different: one
-socket stays open for the whole conversation, carries every turn, and lets the
-server push chunks without waiting on a request. Reach for it when you want a
-persistent channel instead of a request-per-message model: a WebSocket
-gateway you already run, a mobile client that wants to avoid repeated
-handshakes, or a UI that needs the server to push outside of a reply (this page
-only covers the request/reply case; server-initiated pushes need your own
-framing on top).
+`webSocket()` keeps one socket open for the conversation. A durable run reconnects on that socket.
 
-By the end of this page you can run a chat turn over a socket that resumes
-after a drop, without re-running the model.
+Every turn goes over the socket, and a resume after a drop does not call the model again.
 
-## The shape of it
+## Quick setup
 
-One socket, many turns:
+### 1. Handle a turn on the server
 
-1. The client opens the socket once.
-2. Each user message becomes one JSON frame sent over the socket (the same
-   shape as the SSE/NDJSON POST body).
-3. The server runs one `chat()` turn per frame and streams the chunks back
-   over the same socket.
-4. The socket stays open after `RUN_FINISHED` (waiting for the next frame)
-   until the client closes it, an idle timeout fires, or the process aborts.
-
-## Server: `onRun`
-
-Pair the socket you already accepted with `toWebSocketStream`. It decodes
-inbound frames, starts one `chat()` turn per frame through `onRun`, and pumps
-the resulting chunks back out:
+`toWebSocketStream` reads each frame from the client, starts one `chat()` turn through `onRun`, and sends the chunks back:
 
 ```ts
+// handle-chat-socket.ts
 import { chat, memoryStream, toWebSocketStream } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import type { WebSocketLike } from '@tanstack/ai'
 
-// Bridge the per-turn AbortSignal WsRunContext hands you into the
-// AbortController chat() expects.
+// Connect the per-turn AbortSignal from WsRunContext to the
+// AbortController that chat() expects.
 function abortControllerFromSignal(signal: AbortSignal): AbortController {
   const controller = new AbortController()
   if (signal.aborted) controller.abort(signal.reason)
@@ -61,17 +42,15 @@ function abortControllerFromSignal(signal: AbortSignal): AbortController {
   return controller
 }
 
-// `socket` is a WHATWG-shaped server socket you already accepted (see
-// "Hosting" below for where it comes from on Node vs Cloudflare) and
-// `request` is the original handshake request.
+// `socket` is a WHATWG-shaped server socket that you already accepted (see
+// step 2) and `request` is the original handshake request.
 export function handleChatSocket(socket: WebSocketLike, request: Request) {
   toWebSocketStream(socket, request, {
-    // Per-turn durability, keyed by the frame's runId (see "Durability is
-    // per turn" below).
+    // One durability log per turn, keyed by the runId of the frame.
     durability: (ctx) => memoryStream(ctx.request),
     onRun: ({ messages, threadId, runId, signal }) =>
       chat({
-        adapter: openaiText('gpt-5.5'),
+        adapter: openaiText('gpt-6.1-sol'),
         messages,
         threadId,
         runId,
@@ -81,26 +60,11 @@ export function handleChatSocket(socket: WebSocketLike, request: Request) {
 }
 ```
 
-`onRun` receives one `WsRunContext` per inbound frame:
+### 2. Accept the socket
 
-| Field | What it is |
-| --- | --- |
-| `messages` | The turn's `UIMessage[]` / `ModelMessage[]`, decoded from the frame. |
-| `threadId` / `runId` | The AG-UI identifiers for this turn. |
-| `forwardedProps` | Any extra data the client sent with the frame. |
-| `request` | A synthetic per-turn `Request` carrying `?runId=` in its URL, for keying a durability adapter. |
-| `signal` | Aborts when the socket closes, or when this turn receives an `abort` frame (see below). It does not abort other turns on the same socket. |
+How you accept the socket depends on where you host. See [Hosting on Node](#hosting-on-node) or [Hosting on Cloudflare](#hosting-on-cloudflare) below.
 
-Skip `durability` entirely for a socket that doesn't need to survive a drop.
-`toWebSocketStream` still pumps chunks, it just can't replay them on
-reconnect.
-
-## Client: `webSocket()`
-
-`webSocket()` is a `SubscribeConnectionAdapter` for `useChat` (also exported
-from `@tanstack/ai-solid`, `@tanstack/ai-vue`, `@tanstack/ai-svelte`, and
-`@tanstack/ai-angular`). It opens the socket lazily on the first
-`sendMessage`, and reuses it for every later turn in the conversation:
+### 3. Connect from the client
 
 ```tsx
 import { useChat, webSocket } from '@tanstack/ai-react'
@@ -108,123 +72,44 @@ import { useChat, webSocket } from '@tanstack/ai-react'
 const connection = webSocket('/api/chat-ws')
 
 export function Chat() {
-  const { messages, sendMessage } = useChat({ connection })
-
-  return <button onClick={() => void sendMessage('Hello')}>Send</button>
+  const { messages, sendMessage } = useChat({ connection, threadId: 'support-chat' })
+  return (
+    <div>
+      {messages.map((message) => (
+        <div key={message.id}>{message.role}</div>
+      ))}
+      <button type="button" onClick={() => void sendMessage('Hello')}>
+        Send
+      </button>
+    </div>
+  )
 }
 ```
 
-Nothing else changes: `messages`, `sendMessage`, `stop()`, tool calls, and
-persistence all work the same as with any other connection adapter. Options:
+`webSocket()` opens the socket on the first `sendMessage`, and uses it again for every later turn. The Solid, Vue, Svelte, and Angular packages export it too.
 
-| Option | What it does |
-| --- | --- |
-| `protocols` | WebSocket subprotocol(s), passed straight to the `WebSocket` constructor. |
-| `body` | Static extra fields merged into every outgoing `RunAgentInput` frame (same as the HTTP adapters' `body`). |
-| `reconnect` | Reconnect bounds (`maxAttempts`, `delayMs`), shared semantics with `fetchServerSentEvents` — see [Advanced](./advanced). |
-| `WebSocketImpl` | Override the `WebSocket` implementation (tests, non-browser runtimes). |
+Everything else stays the same: `messages`, `sendMessage`, `stop()`, tool calls, and persistence work as with any other connection.
 
-See [Transports](../transports/overview) for where `webSocket()`
-fits among the other adapters.
+If the network drops during a reply, the server stops that reply. The client keeps the part it already got. See [Producer vs. socket lifecycle](#producer-vs-socket-lifecycle).
 
-## Wire protocol
+## How it works
 
-| Direction | Frame | Meaning |
-| --- | --- | --- |
-| Client → server | A `RunAgentInput`-shaped JSON object (same shape as the SSE/NDJSON POST body) | Start one `chat()` turn. |
-| Client → server | `{ "type": "abort", "runId": "…" }` | Abort one in-flight turn (see below). |
-| Server → client | `{ "id": "…", "chunk": <StreamChunk> }` | One chunk, tagged with a durability offset (only when `durability` is configured). |
-| Server → client | A bare `StreamChunk` | One chunk, untagged (no `durability` configured). |
-| Server → client | `{ "type": "ping" }` | Heartbeat. `webSocket()` drops these automatically; a hand-rolled client should ignore anything with `type: "ping"`. |
+One socket carries many turns:
 
-The two server→client shapes are unambiguous: the envelope never has a
-top-level `type`, and every bare `StreamChunk` does.
+1. The client opens the socket once.
+2. Each user message becomes one JSON frame, with the same shape as the SSE or NDJSON `POST` body.
+3. The server runs one `chat()` turn for each frame, and streams the chunks back over the same socket.
+4. After `RUN_FINISHED`, the socket stays open for the next frame. It closes when the client closes it, an idle timeout fires, or the process aborts.
 
-## Resume rides in the URL, not a header
-
-SSE and NDJSON resume with the `Last-Event-ID` header, because a `fetch`/XHR
-request can set arbitrary headers before it opens. A browser's `WebSocket`
-constructor cannot set custom headers on the handshake, so the offset instead
-rides in the URL: `?runId=<id>&offset=<lastId>`.
-
-`webSocket()` handles this for you. If the socket drops before a run's
-terminal chunk (`RUN_FINISHED` / `RUN_ERROR`) and that run was durable
-(offset-tagged envelopes), it reopens at `?runId=&offset=` and de-dupes the
-replayed boundary, the same reconnect guarantee `fetchServerSentEvents` gives
-you, just carried differently on the wire. A run that never emitted an offset
-(no `durability` configured) has nothing to resume from: the drop surfaces as
-a connection error instead of retrying forever.
-
-On the server, a URL carrying `?offset=` is a resume, not a fresh turn. Route
-it to `resumeWebSocketStream`, a read-only replay of the durability log with
-no model call:
-
-```ts
-import { memoryStream, resumeWebSocketStream } from '@tanstack/ai'
-import type { WebSocketLike } from '@tanstack/ai'
-
-export function handleResumeSocket(socket: WebSocketLike, request: Request) {
-  resumeWebSocketStream(socket, { adapter: memoryStream(request) })
-}
-```
-
-`resumeWebSocketStream` closes the socket with code `1008` if the request
-carries no resume offset: there's nothing to replay.
-
-## Durability is per turn
-
-A conversation-scoped socket carries many turns, so its durability adapter
-can't be built once for the whole connection. Each turn needs its own log,
-keyed by that turn's `runId`. That's why `durability` in `toWebSocketStream`
-is a factory, not a value: it receives the per-turn `ctx` and reads
-`ctx.request`, whose URL already carries that turn's `?runId=`
-(`memoryStream`/`durableStream` key off it automatically).
-
-## Abort a turn
-
-An `{ type: 'abort', runId }` frame aborts only that turn's `onRun` iteration
-(`ctx.signal` fires); the socket itself stays open for the next turn. The
-built-in `webSocket()` client adapter sends this frame when the run's abort
-signal fires (`stop()` in `useChat`), so the server actually stops generating
-instead of running the model call to completion against a client that stopped
-listening. A hand-rolled client should send the same frame to cancel a turn.
-
-Closing the whole socket aborts every turn still in flight on it.
-
-## Heartbeat and idle timeout
-
-`toWebSocketStream` sends a `{ type: 'ping' }` frame every `heartbeatMs`
-(default 30 seconds) to keep the connection alive through proxies that drop
-idle sockets. It closes the socket if no inbound frame arrives for
-`idleTimeoutMs` (default 5 minutes); a heartbeat itself doesn't count as
-activity, only a client-sent frame does. The idle timeout never fires while a
-turn is still streaming, so a long single generation (an agentic loop, a
-turn longer than the timeout) is never cut off:
-
-```ts
-import { chat, toWebSocketStream } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
-import type { WebSocketLike } from '@tanstack/ai'
-
-function handleChatSocket(socket: WebSocketLike, request: Request) {
-  toWebSocketStream(socket, request, {
-    onRun: ({ messages, threadId, runId }) =>
-      chat({ adapter: openaiText('gpt-5.5'), messages, threadId, runId }),
-    heartbeatMs: 15_000,
-    idleTimeoutMs: 60_000,
-  })
-}
-```
+This page covers request and reply only. For pushes that the server starts by itself, you need your own framing on top.
 
 ## Hosting on Node
 
-Plain Node (and anywhere else without a global `WebSocketPair`) has no
-built-in way to accept a WebSocket upgrade, so you do it yourself and hand the
-result to `toWebSocketStream`. The pattern: hook the HTTP server's `upgrade`
-event, accept the socket with [`ws`](https://github.com/websockets/ws)'s
-`WebSocketServer({ noServer: true })`, and pass the resulting socket straight
-through. `ws`'s socket already implements the `send`/`close`/
-`addEventListener` surface `WebSocketLike` needs:
+Plain Node has no global `WebSocketPair`, so it cannot accept a WebSocket upgrade by itself. Accept the socket yourself, then give it to `toWebSocketStream`:
+
+1. Listen to the `upgrade` event of the HTTP server.
+2. Accept the socket with `new WebSocketServer({ noServer: true })` from [`ws`](https://github.com/websockets/ws).
+3. Pass the socket on. The `ws` socket already has the `send`, `close`, and `addEventListener` methods that `WebSocketLike` needs.
 
 ```ts ignore
 import { WebSocketServer } from 'ws'
@@ -246,8 +131,7 @@ export function webSocketChatPlugin(): Plugin {
         if (url.pathname !== WS_PATH) return
 
         wss.handleUpgrade(req, socket, head, (ws) => {
-          // `ws`'s socket satisfies WebSocketLike structurally — pass it
-          // straight through, no adapter needed.
+          // The `ws` socket satisfies WebSocketLike as it is. No adapter needed.
           const request = new Request(url)
           if (url.searchParams.get('offset') !== null) {
             resumeWebSocketStream(ws, { adapter: memoryStream(request) })
@@ -261,22 +145,16 @@ export function webSocketChatPlugin(): Plugin {
 }
 ```
 
-This is the same pattern used by the working
-[`examples/ts-react-chat`](https://github.com/TanStack/ai/blob/main/examples/ts-react-chat/src/lib/websocket-chat-plugin.ts)
-WebSocket example and by the e2e suite's
-[`durable-delivery-ws-plugin.ts`](https://github.com/TanStack/ai/blob/main/testing/e2e/src/lib/durable-delivery-ws-plugin.ts).
-The same wiring pattern applies elsewhere: accept the platform's socket, then
-call `toWebSocketStream` / `resumeWebSocketStream` with it. A socket from
-Deno's `Deno.upgradeWebSocket` is WHATWG-shaped and satisfies `WebSocketLike`
-directly; Bun's `ServerWebSocket` (handler-object API) needs a small adapter
-first.
+The [`examples/ts-react-chat`](https://github.com/TanStack/ai/blob/main/examples/ts-react-chat/src/lib/websocket-chat-plugin.ts) WebSocket example and the e2e suite's [`durable-delivery-ws-plugin.ts`](https://github.com/TanStack/ai/blob/main/testing/e2e/src/lib/durable-delivery-ws-plugin.ts) use the same pattern.
+
+Other runtimes follow the same steps: accept the socket of the platform, then call `toWebSocketStream` or `resumeWebSocketStream` with it.
+
+- A socket from `Deno.upgradeWebSocket` is WHATWG-shaped and satisfies `WebSocketLike` directly.
+- The Bun `ServerWebSocket` (handler-object API) needs a small adapter first.
 
 ## Hosting on Cloudflare
 
-Cloudflare Workers (and Durable Objects) expose a global `WebSocketPair`, so
-you don't upgrade anything by hand. `toWebSocketResponse` creates the pair,
-accepts the server half, wires it to `toWebSocketStream`, and returns the 101
-upgrade `Response` for you:
+Cloudflare Workers and Durable Objects have a global `WebSocketPair`, so you do not upgrade by hand. `toWebSocketResponse` creates the pair, accepts the server half, connects it to `toWebSocketStream`, and returns the `101` upgrade `Response`:
 
 ```ts
 import { chat, toWebSocketResponse } from '@tanstack/ai'
@@ -286,35 +164,123 @@ export default {
   fetch(request: Request): Response {
     return toWebSocketResponse(request, {
       onRun: ({ messages, threadId, runId }) =>
-        chat({ adapter: openaiText('gpt-5.5'), messages, threadId, runId }),
+        chat({ adapter: openaiText('gpt-6.1-sol'), messages, threadId, runId }),
     })
   },
 }
 ```
 
-`resumeWebSocketResponse({ adapter })` is the matching read-only wrapper for a
-`?offset=` resume. Both throw with a message pointing at their `*Stream`
-counterpart if called somewhere without `WebSocketPair` (Node, for instance),
-so there's no way to accidentally ship the Cloudflare wrapper to a runtime
-that can't upgrade a socket itself.
+`resumeWebSocketResponse({ adapter })` is the matching read-only wrapper for a `?offset=` resume.
 
-## Producer vs. socket lifecycle
+If you call either one in a runtime without `WebSocketPair` (Node, for example), it throws. The message points to its `*Stream` version. So you cannot ship the Cloudflare wrapper to a runtime that cannot upgrade a socket.
 
-The same caveat that applies to SSE and NDJSON applies here: with
-`memoryStream`, the run's producer and the delivery socket live in the same
-process. If that socket drops, the `chat()` call backing it aborts too, so
-reconnecting only replays what was already logged rather than resuming a run
-still in progress. `durableStream` decouples the two (the producer runs
-against a backend, not the client's socket), so a drop there can reconnect to
-a run that's still actively producing. See
-[memoryStream in production](./advanced#memorystream-in-production) for the
-full explanation. It applies to WebSockets exactly as written there.
+## Advanced
 
-## Next steps
+### The `onRun` context
 
-- [Overview](./overview): the durability adapter contract this transport
-  reuses.
-- [Advanced](./advanced): reconnection bounding, offset ownership, and
-  Cloudflare Durable Streams deployment, shared across every transport.
-- [Transports](../transports/overview): where `webSocket()`
-  fits among the other client adapters.
+`onRun` gets one `WsRunContext` for each frame from the client:
+
+| Field | What it is |
+| --- | --- |
+| `messages` | The `UIMessage[]` or `ModelMessage[]` of the turn, read from the frame. |
+| `threadId` / `runId` | The AG-UI ids for this turn. |
+| `forwardedProps` | Any extra data that the client sent with the frame. |
+| `request` | A synthetic `Request` for the turn, with `?runId=` in its URL. Use it to key a durability adapter. |
+| `signal` | Aborts when the socket closes, or when this turn gets an `abort` frame. It does not abort other turns on the same socket. |
+
+If a socket does not need to survive a drop, leave out `durability`. `toWebSocketStream` still sends the chunks, but it cannot replay them on reconnect.
+
+### Client options
+
+| Option | What it does |
+| --- | --- |
+| `protocols` | WebSocket subprotocols, passed to the `WebSocket` constructor as they are. |
+| `body` | Static extra fields added to every outgoing `RunAgentInput` frame. Same as `body` on the HTTP connections. |
+| `reconnect` | Reconnect limits (`maxAttempts`, `delayMs`). They work the same as on `fetchServerSentEvents`. See [Advanced](./advanced). |
+| `WebSocketImpl` | Your own `WebSocket` implementation, for tests and non-browser runtimes. |
+
+[Transports](../transports/overview) shows where `webSocket()` fits next to the other connections.
+
+### Wire protocol
+
+| Direction | Frame | Meaning |
+| --- | --- | --- |
+| Client to server | A `RunAgentInput`-shaped JSON object (same shape as the SSE or NDJSON `POST` body) | Start one `chat()` turn. |
+| Client to server | `{ "type": "abort", "runId": "..." }` | Abort one running turn. |
+| Server to client | `{ "id": "...", "chunk": <StreamChunk> }` | One chunk with a durability offset. Only when `durability` is set. |
+| Server to client | A bare `StreamChunk` | One chunk with no offset. When `durability` is not set. |
+| Server to client | `{ "type": "ping" }` | Heartbeat. `webSocket()` drops these. A hand-written client must ignore anything with `type: "ping"`. |
+
+The two chunk shapes from the server cannot be confused. The envelope never has a top-level `type`, and every bare `StreamChunk` has one.
+
+### Resume rides in the URL, not a header
+
+SSE and NDJSON resume with the `Last-Event-ID` header, because a `fetch` or XHR request can set headers. The browser `WebSocket` constructor cannot set custom headers on the handshake. So the offset goes in the URL: `?runId=<id>&offset=<lastId>`.
+
+`webSocket()` does this for you:
+
+- A durable run sends envelopes with offsets. If the socket drops before the terminal chunk of that run (`RUN_FINISHED` or `RUN_ERROR`), the client opens the socket again at `?runId=&offset=`. It also removes the duplicate at the replay boundary. This is the same reconnect guarantee as `fetchServerSentEvents`.
+- If a run never sent an offset (no `durability`), there is nothing to resume from. The drop shows as a connection error, and the client does not retry forever.
+
+On the server, a URL with `?offset=` is a resume, not a new turn. Send it to `resumeWebSocketStream`. It replays the durability log, read-only, with no model call:
+
+```ts
+import { memoryStream, resumeWebSocketStream } from '@tanstack/ai'
+import type { WebSocketLike } from '@tanstack/ai'
+
+export function handleResumeSocket(socket: WebSocketLike, request: Request) {
+  resumeWebSocketStream(socket, { adapter: memoryStream(request) })
+}
+```
+
+If the request has no resume offset, `resumeWebSocketStream` closes the socket with code `1008`, because there is nothing to replay.
+
+### Durability is per turn
+
+One socket carries many turns, so you cannot make one durability adapter for the whole connection. Each turn needs its own log, keyed by the `runId` of that turn.
+
+That is why `durability` in `toWebSocketStream` is a factory, not a value. It gets the per-turn `ctx` and reads `ctx.request`. The URL of that request already has the `?runId=` of the turn, and `memoryStream` and `durableStream` read it.
+
+### Abort a turn
+
+An `{ type: 'abort', runId }` frame aborts only the `onRun` work of that turn (`ctx.signal` fires). The socket stays open for the next turn.
+
+The built-in `webSocket()` connection sends this frame when the abort signal of the run fires, for example on `stop()` in `useChat`. So the server stops the generation, and does not run the model call to the end for a client that stopped listening. A hand-written client must send the same frame to cancel a turn.
+
+When the whole socket closes, every turn that still runs on it aborts.
+
+### Heartbeat and idle timeout
+
+`toWebSocketStream` sends a `{ type: 'ping' }` frame every `heartbeatMs` (default 30 seconds). This keeps the connection alive through proxies that drop idle sockets.
+
+It closes the socket if no frame arrives from the client for `idleTimeoutMs` (default 5 minutes).
+
+- A heartbeat does not count as activity. Only a frame from the client counts.
+- The idle timeout never fires while a turn still streams. So a long generation, such as an agent loop longer than the timeout, is never cut off.
+
+```ts
+import { chat, toWebSocketStream } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import type { WebSocketLike } from '@tanstack/ai'
+
+function handleChatSocket(socket: WebSocketLike, request: Request) {
+  toWebSocketStream(socket, request, {
+    onRun: ({ messages, threadId, runId }) =>
+      chat({ adapter: openaiText('gpt-6.1-sol'), messages, threadId, runId }),
+    heartbeatMs: 15_000,
+    idleTimeoutMs: 60_000,
+  })
+}
+```
+
+### Producer vs. socket lifecycle
+
+On a WebSocket, the producer is tied to the socket. When the socket closes or errors, `toWebSocketStream` aborts every turn on it. That abort stops the `chat()` call behind each turn. This is true with `memoryStream` and with `durableStream`.
+
+So after a drop:
+
+1. The server stops the reply.
+2. The durability log keeps the chunks produced up to the drop, then ends with an abort `RUN_ERROR`.
+3. A reconnect replays that partial reply. It does not continue the run.
+
+To keep a reply going across a dropped connection, use SSE or NDJSON with `durableStream`. There the producer does not stop when the client goes away. See [memoryStream in production](./advanced#memorystream-in-production).

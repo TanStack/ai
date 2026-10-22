@@ -70,6 +70,7 @@ const adapter = grokSummarize('grok-build-0.1')
 
 const result = await summarize({
   adapter,
+  threadId: 'thread-1',
   text: 'Long article text...',
   style: 'bullet-points',
 })

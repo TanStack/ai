@@ -42,12 +42,7 @@ export function useChat<
     InterruptDefinition<any, any, any, any>
   > = readonly [],
 >(
-  options: UseChatOptions<
-    TTools,
-    TSchema,
-    TContext,
-    TInterrupts
-  > = {} as UseChatOptions<TTools, TSchema, TContext, TInterrupts>,
+  options: UseChatOptions<TTools, TSchema, TContext, TInterrupts>,
 ): UseChatReturn<TTools, TSchema, TInterrupts> {
   // The hook's identity is its `threadId`. Reload with the same `threadId`
   // restores the same conversation.
@@ -79,28 +74,18 @@ export function useChat<
       ...(options.initialMessages !== undefined && {
         initialMessages: options.initialMessages,
       }),
-      ...(typeof options.threadId === 'string' && options.persistence === true
+      threadId: options.threadId,
+      ...(options.persistence === true
         ? {
             persistence: true,
-            threadId: options.threadId,
             ...(options.history !== undefined && {
               history: options.history,
             }),
           }
-        : typeof options.threadId === 'string' && options.persistence
-          ? {
-              persistence: options.persistence,
-              threadId: options.threadId,
-            }
-          : {
-              ...(options.threadId !== undefined && {
-                threadId: options.threadId,
-              }),
-            }),
+        : { persistence: options.persistence }),
       ...(options.initialResumeSnapshot !== undefined && {
         initialResumeSnapshot: options.initialResumeSnapshot,
       }),
-      body: options.body,
       ...(options.forwardedProps !== undefined && {
         forwardedProps: options.forwardedProps,
       }),
@@ -142,7 +127,7 @@ export function useChat<
     return instance
   }
   // Rebuild the client only when `threadId` changes. `on` runs `createClient`
-  // untracked, so a reactive `body` or `forwardedProps` change does not start a
+  // untracked, so a reactive `forwardedProps` change does not start a
   // new client and drop the transcript. The effects below sync those values.
   const client = createMemo(on(() => options.threadId, createClient))
 
@@ -159,14 +144,11 @@ export function useChat<
   const messages = pick('messages')
   const interruptState = pick('interruptState')
 
-  // Sync body / forwardedProps changes to the client.
-  // Both populate the same wire payload; `forwardedProps` is preferred
-  // and `body` is deprecated but still supported.
+  // Sync forwardedProps changes to the client.
   createEffect(() => {
     // Conditional spread: `updateOptions` declares strict-optional
     // fields and rejects explicit `undefined` under EOPT.
     client().updateOptions({
-      ...(options.body !== undefined && { body: options.body }),
       ...(options.forwardedProps !== undefined && {
         forwardedProps: options.forwardedProps,
       }),
@@ -271,21 +253,7 @@ export function useChat<
     await client().addToolResult(result)
   }
 
-  const addToolApprovalResponse = async (response: {
-    id: string
-    approved: boolean
-  }) => {
-    await client().addToolApprovalResponse(response)
-  }
-
   const cancelQueued = (id: string) => client().cancelQueued(id)
-
-  const resumeInterrupts = async (
-    resumeItems: Array<RunAgentResumeItem>,
-    state?: ChatResumeState,
-  ) => {
-    return await client().resumeInterrupts(resumeItems, state)
-  }
 
   const resolveInterrupts = (
     resolution:
@@ -315,7 +283,6 @@ export function useChat<
   ) => client().resumeInterruptsUnsafe(resumeItems, state)
 
   const interrupts = () => interruptState().interrupts
-  const pendingInterrupts = () => interruptState().pendingInterrupts
   const interruptErrors = () => interruptState().interruptErrors
   const resuming = () => interruptState().resuming
 
@@ -379,18 +346,15 @@ export function useChat<
     setMessages: setMessagesManually,
     clear,
     addToolResult,
-    addToolApprovalResponse,
     cancelQueued,
     runId: pick('runId'),
     interrupts,
-    pendingInterrupts,
     interruptErrors,
     resuming,
     resolveInterrupts,
     cancelInterrupts,
     retryInterrupts,
     resumeInterruptsUnsafe,
-    resumeInterrupts,
     partial,
     final,
   } as unknown as UseChatReturn<TTools, TSchema, TInterrupts>

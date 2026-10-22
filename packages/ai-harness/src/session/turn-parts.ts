@@ -790,6 +790,7 @@ export abstract class SessionTurnParts<
     const counted: Array<Promise<void>> = []
     try {
       const result = await chat({
+        threadId: this.threadId,
         ...options,
         adapter: await run.keys.adapter(model),
         stream: false,

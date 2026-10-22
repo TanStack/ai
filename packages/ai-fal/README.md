@@ -52,6 +52,7 @@ import { falImage } from '@tanstack/ai-fal'
 
 const result = await generateImage({
   adapter: falImage('fal-ai/flux/dev'),
+  threadId: 'thread-1',
   prompt: 'A futuristic cityscape at sunset',
   numberOfImages: 1,
 })
@@ -73,6 +74,7 @@ const adapter = falVideo('fal-ai/kling-video/v2.6/pro/text-to-video')
 
 const job = await generateVideo({
   adapter,
+  threadId: 'thread-1',
   prompt: 'A timelapse of a flower blooming',
   size: '16:9',
   duration: '5',
@@ -92,6 +94,7 @@ import { falSpeech } from '@tanstack/ai-fal'
 
 const result = await generateSpeech({
   adapter: falSpeech('fal-ai/kokoro/american-english'),
+  threadId: 'thread-1',
   text: 'Hello from fal!',
   voice: 'af_heart',
   speed: 1.0,
@@ -110,6 +113,7 @@ import { falTranscription } from '@tanstack/ai-fal'
 
 const result = await generateTranscription({
   adapter: falTranscription('fal-ai/whisper'),
+  threadId: 'thread-1',
   audio: 'https://example.com/recording.mp3',
   language: 'en',
 })
@@ -127,6 +131,7 @@ import { falAudio } from '@tanstack/ai-fal'
 
 const music = await generateAudio({
   adapter: falAudio('fal-ai/minimax-music/v2.6'),
+  threadId: 'thread-1',
   prompt: 'City Pop, 80s retro, groovy synth bass, warm female vocal, 104 BPM',
 })
 

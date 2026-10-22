@@ -10,12 +10,10 @@ import { OpenRouterKeyForm } from '@/components/open-router-key-form'
 import { Researcher, Seo, Writer } from '@/components/subagent-card'
 import { blogAgents } from '@/lib/blog-agents'
 import { byok } from '@/lib/byok'
-import { THREAD_ID } from '@/lib/thread'
 
 export const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
   byok,
-  threadId: THREAD_ID,
   persistence: true,
   subagents: blogAgents,
 }

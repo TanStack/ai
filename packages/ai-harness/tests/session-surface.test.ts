@@ -136,6 +136,7 @@ describe('ctx.harness in a run that a plain chat() starts', () => {
 
     for await (const _chunk of chat({
       adapter: mockAdapter([]).adapter,
+      threadId: 'thread-1',
       messages: [{ role: 'user', content: 'Go' }],
       subagents: { agents: [probe], router: () => 'probe' },
     })) {

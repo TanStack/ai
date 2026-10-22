@@ -15,8 +15,8 @@ import type { AgentLoopStrategy } from '../../types'
  * @example
  * ```typescript
  * const stream = chat({
- *   adapter: openaiText(),
- *   model: "gpt-4o",
+ *   adapter: openaiText("gpt-6.1-sol"),
+ *   threadId: "thread-1",
  *   messages: [...],
  *   tools: [weatherTool],
  *   agentLoopStrategy: maxIterations(3), // Max 3 model turns
@@ -36,8 +36,8 @@ export function maxIterations(max: number): AgentLoopStrategy {
  * @example
  * ```typescript
  * const stream = chat({
- *   adapter: openaiText(),
- *   model: "gpt-4o",
+ *   adapter: openaiText("gpt-6.1-sol"),
+ *   threadId: "thread-1",
  *   messages: [...],
  *   tools: [weatherTool],
  *   agentLoopStrategy: untilFinishReason(["stop", "length"]),
@@ -71,8 +71,8 @@ export function untilFinishReason(
  * @example
  * ```typescript
  * const stream = chat({
- *   adapter: openaiText(),
- *   model: "gpt-4o",
+ *   adapter: openaiText("gpt-6.1-sol"),
+ *   threadId: "thread-1",
  *   messages: [...],
  *   tools: [weatherTool],
  *   agentLoopStrategy: combineStrategies([

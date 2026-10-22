@@ -199,9 +199,9 @@ export class BytePlusTextAdapter<
 
   /**
    * Captures Ark's `encrypted_content` and sends it as a
-   * `REASONING_ENCRYPTED_VALUE` for the reasoning message, right after the
-   * reasoning step's `STEP_FINISHED`. Its `entityId` is the reasoning
-   * message id, so an AG-UI client finds that message.
+   * `REASONING_ENCRYPTED_VALUE` for the reasoning message, right before its
+   * `REASONING_MESSAGE_END`. Its `entityId` is the reasoning message id, so an
+   * AG-UI client finds that message.
    *
    * On a thinking-summary model Ark streams the whole blob as one dedicated
    * chunk (empty `content` and `reasoning_content`) sitting between the
@@ -242,12 +242,10 @@ export class BytePlusTextAdapter<
         reasoningMessageId = event.messageId
       }
       if (
-        event.type === EventType.STEP_FINISHED &&
+        event.type === EventType.REASONING_MESSAGE_END &&
         captured.encryptedContent !== undefined &&
-        event.signature === undefined &&
-        reasoningMessageId !== undefined
+        event.messageId === reasoningMessageId
       ) {
-        yield event
         yield {
           type: EventType.REASONING_ENCRYPTED_VALUE,
           subtype: 'message' as const,
@@ -256,7 +254,6 @@ export class BytePlusTextAdapter<
           model: event.model,
           timestamp: event.timestamp,
         }
-        continue
       }
       yield event
     }
@@ -414,7 +411,7 @@ export class BytePlusTextAdapter<
       yield {
         type: EventType.RUN_STARTED,
         runId,
-        threadId: options.chatOptions.threadId ?? generateId(this.name),
+        threadId: options.chatOptions.threadId,
         model: options.chatOptions.model,
         timestamp: Date.now(),
         parentRunId: options.chatOptions.parentRunId,

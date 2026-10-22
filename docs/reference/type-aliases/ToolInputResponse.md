@@ -14,7 +14,7 @@ type ToolInputResponse =
 };
 ```
 
-Defined in: [packages/ai/src/types.ts:862](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L862)
+Defined in: packages/ai/src/types.ts:864
 
 The user's answer to an `mcp_input` interrupt.
 `resolved` carries the `payload` from `resolveInterrupt`.

@@ -141,7 +141,7 @@ export class GeminiImageAdapter<
       if (resolved.images.length > 0) {
         throw new Error(
           `${this.name}: model "${model}" (Imagen) does not support image prompt parts. ` +
-            `Use a Gemini-native image model (e.g. gemini-2.5-flash-image, "nano-banana") for image-conditioned generation.`,
+            `Use a Gemini-native image model (e.g. gemini-3.1-flash-image) for image-conditioned generation.`,
         )
       }
 
@@ -475,18 +475,6 @@ export class GeminiImageAdapter<
   }
 }
 
-/** @deprecated Shut down 2026-06-25. Use `gemini-3.1-flash-image`. */
-export function createGeminiImage(
-  model: 'gemini-3.1-flash-image-preview',
-  apiKey: string,
-  config?: Omit<GeminiImageConfig, 'apiKey'>,
-): GeminiImageAdapter<'gemini-3.1-flash-image-preview'>
-/** @deprecated Shut down 2026-06-25. Use `gemini-3-pro-image`. */
-export function createGeminiImage(
-  model: 'gemini-3-pro-image-preview',
-  apiKey: string,
-  config?: Omit<GeminiImageConfig, 'apiKey'>,
-): GeminiImageAdapter<'gemini-3-pro-image-preview'>
 /**
  * Creates a Gemini image adapter with explicit API key.
  * Type resolution happens here at the call site.
@@ -510,25 +498,10 @@ export function createGeminiImage<TModel extends GeminiImageModel>(
   model: TModel,
   apiKey: string,
   config?: Omit<GeminiImageConfig, 'apiKey'>,
-): GeminiImageAdapter<TModel>
-export function createGeminiImage<TModel extends GeminiImageModel>(
-  model: TModel,
-  apiKey: string,
-  config?: Omit<GeminiImageConfig, 'apiKey'>,
 ): GeminiImageAdapter<TModel> {
   return new GeminiImageAdapter({ apiKey, ...config }, model)
 }
 
-/** @deprecated Shut down 2026-06-25. Use `gemini-3.1-flash-image`. */
-export function geminiImage(
-  model: 'gemini-3.1-flash-image-preview',
-  config?: Omit<GeminiImageConfig, 'apiKey'>,
-): GeminiImageAdapter<'gemini-3.1-flash-image-preview'>
-/** @deprecated Shut down 2026-06-25. Use `gemini-3-pro-image`. */
-export function geminiImage(
-  model: 'gemini-3-pro-image-preview',
-  config?: Omit<GeminiImageConfig, 'apiKey'>,
-): GeminiImageAdapter<'gemini-3-pro-image-preview'>
 /**
  * Creates a Gemini image adapter with automatic API key detection from environment variables.
  * Type resolution happens here at the call site.
@@ -553,10 +526,6 @@ export function geminiImage(
  * });
  * ```
  */
-export function geminiImage<TModel extends GeminiImageModel>(
-  model: TModel,
-  config?: Omit<GeminiImageConfig, 'apiKey'>,
-): GeminiImageAdapter<TModel>
 export function geminiImage<TModel extends GeminiImageModel>(
   model: TModel,
   config?: Omit<GeminiImageConfig, 'apiKey'>,

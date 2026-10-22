@@ -139,6 +139,7 @@ function ChatClientStreamProcessingPage() {
   const [hydrated, setHydrated] = useState(false)
   const [result, setResult] = useState<DrainResult>()
   const { isLoading, messages, sendMessage } = useChat({
+    threadId: 'stream-processing',
     connection,
     onChunk(chunk) {
       occupyMainThread()

@@ -2,7 +2,7 @@
 name: tanstack-ai-migration
 description: >
   Move an app to TanStack AI from the Vercel AI SDK or raw provider SDKs, or
-  move it off a deprecated TanStack AI API. Use when someone asks
+  upgrade it from TanStack AI 0.x to 1.0. Use when someone asks
   whether to switch AI libraries, when code mixes streamText, generateText,
   generateObject, createOpenAI, or @ai-sdk/* with TanStack AI, when an upgrade
   breaks, or when someone hits a renamed option, a deprecated -ui package, or an
@@ -47,13 +47,14 @@ npm view @tanstack/ai version
 
 Then read the guides for what changed:
 
+- https://tanstack.com/ai/latest/docs/migration/v1 (0.x to 1.0)
 - https://tanstack.com/ai/latest/docs/migration/migration
 - https://tanstack.com/ai/latest/docs/migration/ag-ui-compliance
 - https://tanstack.com/ai/latest/docs/migration/sampling-options-to-model-options
-- https://tanstack.com/ai/latest/docs/migration/create-ui
 
-Deprecated APIs keep working, so upgrade in steps rather than rewriting
-everything at once.
+1.0 removes every API that 0.x marked as deprecated. Each one has a
+replacement that already shipped in 0.x, so you can move to the replacements
+on 0.x first, then bump every `@tanstack/ai*` package to 1.0 together.
 
 ## Codemods
 

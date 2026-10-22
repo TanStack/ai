@@ -71,7 +71,10 @@ export function VideoGenUI({
   }
 
   const { generate, result, videoStatus, isLoading, error, status, runId } =
-    useGenerateVideo(connectionOptions())
+    useGenerateVideo({
+      threadId: testId ?? 'video-gen',
+      ...connectionOptions(),
+    })
   const activeTuple = useRef({ runId: '', status: 'idle', isLoading: false })
   if (runId && status === 'generating' && isLoading) {
     activeTuple.current = { runId, status, isLoading }

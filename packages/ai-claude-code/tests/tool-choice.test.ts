@@ -79,6 +79,7 @@ async function run(toolChoice: ToolChoice) {
     })
     const chunks = await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: 'haiku',
         messages: [{ role: 'user', content: 'hi' }],
         logger: loggerWith(() => {}),
@@ -128,6 +129,7 @@ describe('claude-code toolChoice', () => {
   ) {
     await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: 'haiku',
         messages: [{ role: 'user', content: 'hi' }],
         logger: loggerWith(warn),

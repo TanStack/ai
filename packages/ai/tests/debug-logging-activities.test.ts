@@ -46,6 +46,7 @@ describe('debug logging — non-chat activities', () => {
     }
 
     await summarize({
+      threadId: 'thread-1',
       adapter: adapter as any,
       text: 'long text to summarize',
       debug: { logger: logger as unknown as Logger },
@@ -67,6 +68,7 @@ describe('debug logging — non-chat activities', () => {
     }
 
     await generateImage({
+      threadId: 'thread-1',
       adapter: adapter as any,
       prompt: 'a sunset over the ocean',
       debug: { logger: logger as unknown as Logger },
@@ -90,6 +92,7 @@ describe('debug logging — non-chat activities', () => {
     }
 
     await generateSpeech({
+      threadId: 'thread-1',
       adapter: adapter as any,
       text: 'hello world',
       debug: { logger: logger as unknown as Logger },
@@ -112,6 +115,7 @@ describe('debug logging — non-chat activities', () => {
     }
 
     await generateTranscription({
+      threadId: 'thread-1',
       adapter: adapter as any,
       audio: 'base64-audio-data',
       debug: { logger: logger as unknown as Logger },
@@ -136,6 +140,7 @@ describe('debug logging — non-chat activities', () => {
     }
 
     await generateVideo({
+      threadId: 'thread-1',
       adapter: adapter as any,
       prompt: 'a cat walking across a table',
       debug: { logger: logger as unknown as Logger },
@@ -155,6 +160,7 @@ describe('debug logging — non-chat activities', () => {
     }
 
     await summarize({
+      threadId: 'thread-1',
       adapter: adapter as any,
       text: 'x',
       debug: { logger: logger as unknown as Logger },
@@ -178,7 +184,7 @@ describe('debug logging — non-chat activities', () => {
     }
 
     await expect(
-      summarize({ adapter: adapter as any, text: 'x' }),
+      summarize({ threadId: 'thread-1', adapter: adapter as any, text: 'x' }),
     ).rejects.toThrow('boom')
 
     const msgs = logPrefixes(errSpy.mock.calls)
@@ -198,6 +204,7 @@ describe('debug logging — non-chat activities', () => {
 
     await expect(
       generateImage({
+        threadId: 'thread-1',
         adapter: adapter as any,
         prompt: 'x',
         debug: { logger: logger as unknown as Logger },
@@ -221,6 +228,7 @@ describe('debug logging — non-chat activities', () => {
 
     await expect(
       summarize({
+        threadId: 'thread-1',
         adapter: adapter as any,
         text: 'x',
         debug: {

@@ -64,7 +64,6 @@ func handleChat(w http.ResponseWriter, r *http.Request) {
 	system, messages := toChatMessages(input.Messages)
 	if len(messages) == 0 {
 		_ = stream.finishError("no user or assistant messages to send")
-		stream.writeDone()
 		return
 	}
 
@@ -74,6 +73,5 @@ func handleChat(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("[go] chat error: %v", err)
 		_ = stream.finishError(err.Error())
-		stream.writeDone()
 	}
 }

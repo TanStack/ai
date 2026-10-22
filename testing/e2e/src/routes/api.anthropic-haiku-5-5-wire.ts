@@ -82,6 +82,7 @@ export const Route = createFileRoute('/api/anthropic-haiku-5-5-wire')({
 
         try {
           for await (const _ of chat({
+            threadId: 'anthropic-haiku-5-5-wire',
             adapter: createAnthropicChat('claude-haiku-5-5', DUMMY_KEY, {
               fetch: capturingFetch,
             }),

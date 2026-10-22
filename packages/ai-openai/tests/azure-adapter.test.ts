@@ -46,6 +46,7 @@ function transport() {
 async function drain(adapter: ReturnType<typeof azureOpenaiText>) {
   const chunks = []
   for await (const chunk of adapter.chatStream({
+    threadId: 'thread-1',
     logger,
     model: adapter.model,
     messages: [{ role: 'user', content: 'Go' }],
@@ -259,6 +260,7 @@ describe('Azure Responses factory', () => {
     })
     const result = await adapter.structuredOutput({
       chatOptions: {
+        threadId: 'thread-1',
         logger,
         model: adapter.model,
         messages: [{ role: 'user', content: 'Go' }],
@@ -284,6 +286,7 @@ describe('Azure chat({ reasoning })', () => {
       fetch: fetcher,
     })
     for await (const _chunk of adapter.chatStream({
+      threadId: 'thread-1',
       logger,
       model: adapter.model,
       messages: [{ role: 'user', content: 'Go' }],

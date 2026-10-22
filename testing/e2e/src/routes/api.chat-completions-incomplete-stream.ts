@@ -113,6 +113,7 @@ export const Route = createFileRoute('/api/chat-completions-incomplete-stream')(
             errorMessage: '',
           }
           for await (const event of chat({
+            threadId: 'chat-completions-incomplete-stream',
             adapter,
             messages: [{ role: 'user', content: 'Reply' }],
             debug: false,

@@ -434,15 +434,11 @@ export interface ArtifactRecord {
   runId: string
   threadId: string
   /**
-   * The blob-store key these bytes actually live under.
-   *
-   * Optional for backwards compatibility: records written before this existed
-   * resolve via the default `artifacts/<runId>/<artifactId>` convention. New
-   * records always carry it, which is what lets `storageKey` put bytes anywhere
-   * — a reader can no longer recompute the path, so it has to be remembered.
-   * Use `resolveArtifactBlobKey(record)` rather than reading it directly.
+   * The blob-store key these bytes actually live under. `storageKey` can put
+   * bytes anywhere, so a reader cannot recompute the path; it has to be
+   * remembered.
    */
-  blobKey?: string
+  blobKey: string
   name: string
   mimeType: string
   size: number
