@@ -122,6 +122,7 @@ async function run(
   for await (const chunk of adapter.chatStream({
     logger,
     model,
+    threadId: 'thread-1',
     messages: [{ role: 'user', content: 'Hi' }],
     modelOptions,
   })) {

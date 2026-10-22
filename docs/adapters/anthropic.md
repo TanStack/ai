@@ -285,6 +285,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: anthropicText("claude-opus-5-5"),
     messages,
+    threadId: "thread-1",
     modelOptions: { fallbacks: "default" },
   });
 
@@ -312,9 +313,17 @@ export function Chat() {
 
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
     onChunk: (chunk) => {
       if (chunk.type === "RUN_FINISHED" && chunk.finishReason === "content_filter") {
-        const category = chunk.rawEvent?.category ?? "unknown";
+        const details = chunk.rawEvent;
+        const category =
+          details &&
+          typeof details === "object" &&
+          "category" in details &&
+          typeof details.category === "string"
+            ? details.category
+            : "unknown";
         setRefusal(`Claude declined this request (category: ${category}).`);
       }
     },
