@@ -203,7 +203,7 @@ export class OpenRouterTextAdapter<
     // AG-UI lifecycle tracking (mutable state object for ESLint compatibility)
     const aguiState = {
       runId: generateId(this.name),
-      threadId: options.threadId ?? generateId(this.name),
+      threadId: options.threadId,
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,
     }
@@ -463,7 +463,7 @@ export class OpenRouterTextAdapter<
 
     const aguiState = {
       runId: generateId(this.name),
-      threadId: chatOptions.threadId ?? generateId(this.name),
+      threadId: chatOptions.threadId,
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,
     }
@@ -473,7 +473,6 @@ export class OpenRouterTextAdapter<
     let hasEmittedTextMessageStart = false
     let reasoningMessageId: string | undefined
     let hasClosedReasoning = false
-    let stepId: string | undefined
     let lastModel: string | undefined
     let responseId: string | undefined
     let finishReason: string | null | undefined
@@ -496,18 +495,7 @@ export class OpenRouterTextAdapter<
           model: lastModel || chatOptions.model,
           timestamp: Date.now(),
         }
-        if (stepId) {
-          yield {
-            type: EventType.STEP_FINISHED,
-            stepName: stepId,
-            stepId,
-            model: lastModel || chatOptions.model,
-            timestamp: Date.now(),
-            content: accumulatedReasoning,
-          }
-        }
         reasoningMessageId = undefined
-        stepId = undefined
         hasClosedReasoning = false
       }
     }.bind(this)
@@ -590,7 +578,6 @@ export class OpenRouterTextAdapter<
         if (reasoningText) {
           if (!reasoningMessageId) {
             reasoningMessageId = generateId(this.name)
-            stepId = generateId(this.name)
             yield {
               type: EventType.REASONING_START,
               messageId: reasoningMessageId,
@@ -603,14 +590,6 @@ export class OpenRouterTextAdapter<
               role: 'reasoning' as const,
               model: chunk.model || chatOptions.model,
               timestamp: Date.now(),
-            }
-            yield {
-              type: EventType.STEP_STARTED,
-              stepName: stepId,
-              stepId,
-              model: chunk.model || chatOptions.model,
-              timestamp: Date.now(),
-              stepType: 'thinking',
             }
           }
           accumulatedReasoning += reasoningText
@@ -897,11 +876,6 @@ export class OpenRouterTextAdapter<
     // Reasoning lifecycle (driven by inline reasoning extraction below).
     let reasoningMessageId: string | undefined
     let hasClosedReasoning = false
-    // Legacy STEP_STARTED/STEP_FINISHED pair emitted alongside REASONING_*
-    // for back-compat with consumers (UI, devtools) that haven't migrated
-    // to the spec REASONING_* events yet.
-    let stepId: string | undefined
-    let accumulatedReasoning = ''
     // Track whether ANY tool call lifecycle was actually completed across the
     // entire stream. Lets us downgrade a `tool_calls` finishReason to `stop`
     // when the upstream signalled tool calls but never produced a complete
@@ -988,7 +962,6 @@ export class OpenRouterTextAdapter<
         if (reasoningText) {
           if (!reasoningMessageId) {
             reasoningMessageId = generateId(this.name)
-            stepId = generateId(this.name)
             yield {
               type: EventType.REASONING_START,
               messageId: reasoningMessageId,
@@ -1002,18 +975,7 @@ export class OpenRouterTextAdapter<
               model: chunk.model || options.model,
               timestamp: Date.now(),
             }
-            // Legacy STEP_STARTED (single emission, paired with the
-            // STEP_FINISHED below when reasoning closes).
-            yield {
-              type: EventType.STEP_STARTED,
-              stepName: stepId,
-              stepId,
-              model: chunk.model || options.model,
-              timestamp: Date.now(),
-              stepType: 'thinking',
-            }
           }
-          accumulatedReasoning += reasoningText
           yield {
             type: EventType.REASONING_MESSAGE_CONTENT,
             messageId: reasoningMessageId,
@@ -1048,16 +1010,6 @@ export class OpenRouterTextAdapter<
               messageId: reasoningMessageId,
               model: chunk.model || options.model,
               timestamp: Date.now(),
-            }
-            if (stepId) {
-              yield {
-                type: EventType.STEP_FINISHED,
-                stepName: stepId,
-                stepId,
-                model: chunk.model || options.model,
-                timestamp: Date.now(),
-                content: accumulatedReasoning,
-              }
             }
           }
 
@@ -1121,7 +1073,6 @@ export class OpenRouterTextAdapter<
                 type: EventType.TOOL_CALL_START,
                 toolCallId: toolCall.id,
                 toolCallName: toolCall.name,
-                toolName: toolCall.name,
                 parentMessageId: aguiState.messageId,
                 model: chunk.model || options.model,
                 timestamp: Date.now(),
@@ -1192,7 +1143,6 @@ export class OpenRouterTextAdapter<
                 type: EventType.TOOL_CALL_END,
                 toolCallId: toolCall.id,
                 toolCallName: toolCall.name,
-                toolName: toolCall.name,
                 model: chunk.model || options.model,
                 timestamp: Date.now(),
                 args: toolCall.arguments,
@@ -1254,7 +1204,6 @@ export class OpenRouterTextAdapter<
             type: EventType.TOOL_CALL_END,
             toolCallId: toolCall.id,
             toolCallName: toolCall.name,
-            toolName: toolCall.name,
             model: lastModel || options.model,
             timestamp: Date.now(),
             args: toolCall.arguments,
@@ -1290,16 +1239,6 @@ export class OpenRouterTextAdapter<
             messageId: reasoningMessageId,
             model: lastModel || options.model,
             timestamp: Date.now(),
-          }
-          if (stepId) {
-            yield {
-              type: EventType.STEP_FINISHED,
-              stepName: stepId,
-              stepId,
-              model: lastModel || options.model,
-              timestamp: Date.now(),
-              content: accumulatedReasoning,
-            }
           }
         }
 

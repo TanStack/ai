@@ -10,7 +10,7 @@ describe('Mistral text adapter inputModalities', () => {
       new MistralTextAdapter(config, 'mistral-large-latest').inputModalities,
     ).toEqual(['text'])
     expect(
-      new MistralTextAdapter(config, 'pixtral-large-latest').inputModalities,
+      new MistralTextAdapter(config, 'mistral-medium-latest').inputModalities,
     ).toEqual(['text', 'image', 'document'])
   })
 

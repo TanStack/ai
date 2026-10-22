@@ -28,6 +28,7 @@ export const Route = createFileRoute('/api/own-key-schema-wire')({
         )
         try {
           for await (const _ of chat({
+            threadId: 'own-key-schema-wire',
             adapter,
             messages: [{ role: 'user', content: 'Inspect it.' }],
             debug: false,

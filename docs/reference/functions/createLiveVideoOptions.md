@@ -7,7 +7,7 @@ title: createLiveVideoOptions
 function createLiveVideoOptions<TAdapter, TStream>(options): LiveVideoActivityOptions<TAdapter, TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/generateLiveVideo/index.ts:324](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateLiveVideo/index.ts#L324)
+Defined in: packages/ai/src/activities/generateLiveVideo/index.ts:324
 
 Create typed options for the generateLiveVideo() function without executing.
 

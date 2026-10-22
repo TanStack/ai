@@ -31,6 +31,7 @@ import type {
  * Persist mode (`?mode=persist`) drains `chat()` through `withPersistence`
  * and GET `/api/activity-test?threadId=` returns `reconstructChat`.
  * `?mode=persist-middleware` also adds an activity from middleware `onChunk`.
+ * `?mode=persist-error` fails the run after the activity (issue #1804).
  *
  * Exempt from the aimock policy: a fixed AG-UI sequence, never an LLM provider.
  */
@@ -208,10 +209,26 @@ const middlewareActivity: ChatMiddleware = {
   },
 }
 
+/** Fails the run after the activity, before the assistant text (issue #1804). */
+const failAfterActivity: ChatMiddleware = {
+  name: 'fail-after-activity',
+  onChunk(_ctx, chunk) {
+    if (chunk.type === EventType.TEXT_MESSAGE_START) {
+      throw new Error('provider failed')
+    }
+  },
+}
+
+const persistMiddleware: Record<string, Array<ChatMiddleware> | undefined> = {
+  persist: [],
+  'persist-middleware': [middlewareActivity],
+  'persist-error': [failAfterActivity],
+}
+
 async function persistActivity(
   threadId: string,
   runId: string,
-  withMiddlewareActivity: boolean,
+  extra: Array<ChatMiddleware>,
 ) {
   const stream = chat({
     adapter,
@@ -219,12 +236,13 @@ async function persistActivity(
     stream: true,
     threadId,
     runId,
-    middleware: [
-      withPersistence(activityPersistence),
-      ...(withMiddlewareActivity ? [middlewareActivity] : []),
-    ],
+    middleware: [withPersistence(activityPersistence), ...extra],
   })
-  for await (const _ of stream) void _
+  try {
+    for await (const _ of stream) void _
+  } catch {
+    // persist-error fails the run on purpose.
+  }
   return { threadId, runId }
 }
 
@@ -233,17 +251,12 @@ export const Route = createFileRoute('/api/activity-test')({
     handlers: {
       POST: async ({ request }) => {
         const mode = new URL(request.url).searchParams.get('mode')
-        if (mode === 'persist' || mode === 'persist-middleware') {
+        const extra = mode ? persistMiddleware[mode] : undefined
+        if (extra) {
           const body: unknown = await request.json()
           const threadId = stringField(body, 'threadId') ?? crypto.randomUUID()
           const runId = stringField(body, 'runId') ?? crypto.randomUUID()
-          return Response.json(
-            await persistActivity(
-              threadId,
-              runId,
-              mode === 'persist-middleware',
-            ),
-          )
+          return Response.json(await persistActivity(threadId, runId, extra))
         }
 
         let params

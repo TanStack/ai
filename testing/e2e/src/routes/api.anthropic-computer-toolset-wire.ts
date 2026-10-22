@@ -141,6 +141,7 @@ export const Route = createFileRoute('/api/anthropic-computer-toolset-wire')({
 
         try {
           for await (const _ of chat({
+            threadId: 'anthropic-computer-toolset-wire',
             ...createChatOptions({ adapter }),
             messages: [{ role: 'user', content: 'Click the button.' }],
             tools: [computer],

@@ -189,7 +189,6 @@ function toolErrorRun(
       type: 'TOOL_CALL_START',
       toolCallId: 'call-status',
       toolCallName: 'check_status',
-      toolName: 'check_status',
       timestamp: Date.now(),
     } as StreamChunk
     yield {

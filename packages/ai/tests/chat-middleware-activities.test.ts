@@ -58,6 +58,7 @@ async function finalActivities(
     chat({
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
+      threadId: 'thread-1',
       middleware: [probe, ...middleware],
     }) as AsyncIterable<StreamChunk>,
   )

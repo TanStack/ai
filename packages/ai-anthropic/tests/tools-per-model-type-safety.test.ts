@@ -357,6 +357,6 @@ describe('Anthropic per-model tool gating', () => {
         : K
     }[keyof AnthropicChatModelToolCapabilitiesByName]
 
-    expectTypeOf<ModelsWithoutProviderTools>().toEqualTypeOf<'claude-opus-5-fast'>()
+    expectTypeOf<ModelsWithoutProviderTools>().toEqualTypeOf<never>()
   })
 })

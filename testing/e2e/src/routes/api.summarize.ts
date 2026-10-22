@@ -95,7 +95,7 @@ function createSummarizeAdapter(
       ),
     ollama: () => createOllamaSummarize('mistral', llmockBase(aimockPort)),
     groq: () =>
-      createGroqSummarize('llama-3.3-70b-versatile', DUMMY_KEY, {
+      createGroqSummarize('openai/gpt-oss-120b', DUMMY_KEY, {
         baseURL: `${llmockBase(aimockPort)}/openai/v1`,
         defaultHeaders: headers,
       }),
@@ -178,7 +178,7 @@ export const Route = createFileRoute('/api/summarize')({
       POST: async ({ request }) => {
         await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
         const body = await request.json()
-        const data = body.forwardedProps ?? body.data ?? body
+        const data = body.forwardedProps ?? body
         const {
           text,
           provider,
@@ -212,6 +212,7 @@ export const Route = createFileRoute('/api/summarize')({
           // check on the result variable.
           if (shouldStream === false) {
             const summary = await summarize({
+              threadId: body.threadId ?? 'summarize',
               adapter,
               text,
               maxLength,
@@ -221,7 +222,13 @@ export const Route = createFileRoute('/api/summarize')({
               headers: { 'Content-Type': 'application/json' },
             })
           }
-          const stream = summarize({ adapter, text, maxLength, stream: true })
+          const stream = summarize({
+            threadId: body.threadId ?? 'summarize',
+            adapter,
+            text,
+            maxLength,
+            stream: true,
+          })
           return toServerSentEventsResponse(stream)
         } catch (error) {
           console.error('[api.summarize] Error:', error)

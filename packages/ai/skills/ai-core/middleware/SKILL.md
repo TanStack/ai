@@ -27,11 +27,12 @@ import { openaiText } from '@tanstack/ai-openai'
 import { trackAnalytics, reportError } from './analytics'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
 
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages,
+    threadId,
     middleware: [
       {
         onStart: (ctx) => {
@@ -220,11 +221,12 @@ const analytics: ChatMiddleware = {
 }
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
 
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages,
+    threadId,
     middleware: [analytics],
   })
 
@@ -390,11 +392,12 @@ const configTransform: ChatMiddleware = {
 }
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
 
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages,
+    threadId,
     tools: [weatherTool, stockTool],
     middleware: [
       logging, // Runs first
@@ -472,11 +475,12 @@ function toolCallBudget(opts: {
 }
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
 
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages,
+    threadId,
     tools: [weatherTool],
     agentLoopStrategy: maxIterations(20),
     middleware: [toolCallBudget({ maxPerTurn: 10, max: 20 })],
@@ -503,11 +507,12 @@ const weatherTool = toolDefinition({
 }).server(async ({ city }) => ({ city, tempC: 21 }))
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
 
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages,
+    threadId,
     tools: [weatherTool],
     middleware: [
       toolCacheMiddleware({

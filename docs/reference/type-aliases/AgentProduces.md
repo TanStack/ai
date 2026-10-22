@@ -18,7 +18,7 @@ type AgentProduces =
   | string & object;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:75](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L75)
+Defined in: packages/ai/src/activities/chat/agents/define-agent.ts:75
 
 What an agent makes. Informative: a host can use it to find an agent by
 the kind of output it produces.

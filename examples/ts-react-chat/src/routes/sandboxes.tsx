@@ -383,8 +383,9 @@ function SandboxesPage() {
   const canUseSubscription = provider === 'local' && harness === 'claude-code'
 
   const { messages, sendMessage, isLoading, stop, error } = useChat({
+    threadId,
     connection: fetchServerSentEvents('/api/sandbox-triage'),
-    body: {
+    forwardedProps: {
       harness,
       provider,
       issueUrl,

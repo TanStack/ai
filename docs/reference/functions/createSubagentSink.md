@@ -7,7 +7,7 @@ title: createSubagentSink
 function createSubagentSink(): SubagentSink;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:213](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L213)
+Defined in: packages/ai/src/activities/chat/agents/spawn.ts:213
 
 ## Returns
 

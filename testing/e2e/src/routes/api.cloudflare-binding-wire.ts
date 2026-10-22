@@ -142,6 +142,7 @@ export const Route = createFileRoute('/api/cloudflare-binding-wire')({
 
           const claudeText = await answerText(
             chat({
+              threadId: 'cloudflare-binding-wire',
               adapter: createAnthropicChat(
                 'claude-opus-5-5',
                 'cloudflare-binding',
@@ -167,6 +168,7 @@ export const Route = createFileRoute('/api/cloudflare-binding-wire')({
 
           const gptText = await answerText(
             chat({
+              threadId: 'cloudflare-binding-wire',
               adapter: createOpenaiChat('gpt-6.1-sol', 'cloudflare-binding', {
                 fetch: cloudflareBindingFetch({ binding, vendor: 'openai' }),
               }),

@@ -7,7 +7,7 @@ title: defineAgent
 function defineAgent<TName, TTools, TSchema, TInterrupts, TInput, TResult, TProduces>(agent): DefinedAgent<TName, TTools, TSchema, TInterrupts, TInput, TResult, TProduces>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:171](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L171)
+Defined in: packages/ai/src/activities/chat/agents/define-agent.ts:171
 
 Define a named child agent. Pass the same object to `chat({ subagents })`.
 Pass the agents array to `useChat({ subagents })` when you render parts
@@ -61,7 +61,7 @@ const researcher = defineAgent({
   description: 'Looks up facts',
   run: (ctx) =>
     chat({
-      adapter: openaiText('gpt-5.6'),
+      adapter: openaiText('gpt-6.1-sol'),
       messages: ctx.messages,
       threadId: ctx.threadId,
       runId: ctx.runId,

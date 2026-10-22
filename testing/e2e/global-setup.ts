@@ -6,6 +6,11 @@ import { fileURLToPath } from 'url'
 import { EventStreamCodec } from '@smithy/eventstream-codec'
 import type { Mountable } from '@copilotkit/aimock'
 
+declare global {
+  // Read back by global-teardown.ts, which Playwright runs in the same process.
+  var __aimock: LLMock | undefined
+}
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
@@ -66,9 +71,9 @@ export default async function globalSetup() {
   // `chat({ reasoning })` wire check for Gemini: aimock's journal normalizes
   // the body, so this mount checks `generationConfig.thinkingConfig` itself.
   mock.mount('/reasoning-wire-gemini', geminiReasoningWireMount())
-  // Gemini Veo video generation. aimock 1.29 mocks Gemini's `:predict`
-  // (Imagen) endpoint but not the long-running `:predictLongRunning` +
-  // operations-polling pair Veo uses, so mount both here. Non-Veo paths
+  // Gemini Veo video generation. aimock does not mock the long-running
+  // `:predictLongRunning` + operations-polling pair Veo uses, so mount both
+  // here. Non-Veo paths
   // under /v1beta/models (chat, images) return false and fall through to
   // aimock's native Gemini handlers.
   mock.mount('/v1beta/models', geminiVeoMount())
@@ -170,16 +175,6 @@ export default async function globalSetup() {
   // Bedrock's cache usage counters; the companion spec asserts both.
   mock.mount('/bedrock-converse-cache', bedrockConverseCacheMount())
 
-  // Anthropic structured-output fallback usage (#758). The Anthropic text
-  // adapter has no native `structuredOutputStream`, so streaming structured
-  // output runs through the activity layer's `fallbackStructuredOutputStream`,
-  // which wraps the non-streaming `structuredOutput()`. aimock's native
-  // Anthropic helper doesn't synthesize a tool-forced `structured_output`
-  // response with usage, so this mount hand-crafts the non-streaming
-  // `/v1/messages` JSON the adapter expects. The companion spec asserts the
-  // `usage` survives onto `RUN_FINISHED.usage` on the fallback path.
-  mock.mount('/anthropic-structured-usage', anthropicStructuredUsageMount())
-
   // decide() usage on a failed answer mapping. aimock has no OpenAI Decisions
   // endpoint, so this mount hand-crafts a `/v1/decisions` response with valid
   // usage and a choice with no entry in `probabilities`. The companion spec
@@ -206,7 +201,7 @@ export default async function globalSetup() {
 
   await mock.start()
   console.log(`[aimock] started on port 4010`)
-  ;(globalThis as any).__aimock = mock
+  globalThis.__aimock = mock
 }
 
 function registerMediaFixtures(mock: LLMock) {
@@ -228,7 +223,6 @@ function registerMediaFixtures(mock: LLMock) {
   mock.onVideo('a guitar being played in a store', {
     video: {
       url: 'https://example.com/guitar-store.mp4',
-      duration: 10,
       id: 'video-job-e2e',
       status: 'completed',
     },
@@ -241,7 +235,6 @@ function registerMediaFixtures(mock: LLMock) {
   mock.onVideo('animate this product photo', {
     video: {
       url: 'https://example.com/product-animated.mp4',
-      duration: 5,
       id: 'video-job-i2v-e2e',
       status: 'completed',
     },
@@ -737,8 +730,7 @@ function rejectGeminiImageRequest(
 
 /**
  * Mounts Gemini native image calls on the Interactions API for
- * `gemini-3.1-flash-image`, `gemini-nano-banana-2.1` and
- * `gemini-2.5-flash-image`.
+ * `gemini-3.1-flash-image` and `gemini-nano-banana-2.1`.
  *
  * The adapter posts `POST /v1beta/interactions` with `response_format.type`
  * `image`. This mount reads that body so two specs can assert on the wire:
@@ -752,7 +744,6 @@ function geminiNativeImageMount(): Mountable {
   const NATIVE_IMAGE_MODELS = new Set([
     'gemini-3.1-flash-image',
     'gemini-nano-banana-2.1',
-    'gemini-2.5-flash-image',
   ])
 
   // Coupled to the `size` values in api.gemini-image-ga-models.ts.
@@ -761,7 +752,8 @@ function geminiNativeImageMount(): Mountable {
   const CREATE_ID = 'int_e2e_create'
   const EDIT_ID = 'int_e2e_edit'
 
-  // CamelCase generateContent / Imagen fields must never reach this body.
+  // The body takes Interactions fields only. These camelCase fields of the
+  // older generateContent and predict request shapes must never reach it.
   const ROOT_FORBIDDEN = [
     'personGeneration',
     'safetyFilterLevel',
@@ -883,15 +875,6 @@ function geminiNativeImageMount(): Mountable {
             'generation_config.thinking_level must be "low".',
           )
         }
-        if (
-          model === 'gemini-2.5-flash-image' &&
-          format.image_size !== undefined
-        ) {
-          return rejectGeminiImageRequest(
-            res,
-            `${model}: response_format.image_size must be absent.`,
-          )
-        }
       } else {
         const aspectRatio = format.aspect_ratio
         const imageSize = format.image_size
@@ -901,17 +884,10 @@ function geminiNativeImageMount(): Mountable {
             `${model}: response_format.aspect_ratio must be "${EXPECTED_ASPECT_RATIO}", got ${JSON.stringify(aspectRatio)}.`,
           )
         }
-        if (model !== 'gemini-2.5-flash-image') {
-          if (imageSize !== EXPECTED_FLASH_IMAGE_SIZE) {
-            return rejectGeminiImageRequest(
-              res,
-              `${model}: response_format.image_size must be "${EXPECTED_FLASH_IMAGE_SIZE}", got ${JSON.stringify(imageSize)}.`,
-            )
-          }
-        } else if (imageSize !== undefined) {
+        if (imageSize !== EXPECTED_FLASH_IMAGE_SIZE) {
           return rejectGeminiImageRequest(
             res,
-            `${model}: response_format.image_size must be absent.`,
+            `${model}: response_format.image_size must be "${EXPECTED_FLASH_IMAGE_SIZE}", got ${JSON.stringify(imageSize)}.`,
           )
         }
       }
@@ -2198,60 +2174,6 @@ function geminiProviderSearchMount(): Mountable {
             totalTokenCount: 2,
           },
         })}\n\n`,
-      )
-      return true
-    },
-  }
-}
-
-/**
- * Mounts the non-streaming Anthropic `/v1/messages` response the text adapter's
- * `structuredOutput()` expects: a tool-forced `structured_output` `tool_use`
- * block plus a `usage` object carrying `input_tokens` / `output_tokens` /
- * `cache_read_input_tokens`. `buildAnthropicUsage` normalizes those into
- * `promptTokens` / `completionTokens` / `promptTokensDetails.cachedTokens`.
- * Drives the #758 fallback-path usage regression.
- */
-function anthropicStructuredUsageMount(): Mountable {
-  return {
-    async handleRequest(
-      req: http.IncomingMessage,
-      res: http.ServerResponse,
-      // The mount prefix (/anthropic-structured-usage) is stripped before
-      // dispatch; the Anthropic SDK posts to <baseURL>/v1/messages and aimock
-      // strips the ?beta=... query string from `pathname`.
-      pathname: string,
-    ): Promise<boolean> {
-      if (req.method !== 'POST' || !pathname.startsWith('/v1/messages')) {
-        return false
-      }
-      // structuredOutput() makes a non-streaming request (stream: false), so
-      // respond with a single JSON message rather than an SSE stream.
-      await drainBody(req)
-      res.statusCode = 200
-      res.setHeader('Content-Type', 'application/json')
-      res.end(
-        JSON.stringify({
-          id: 'msg_structured_usage_e2e',
-          type: 'message',
-          role: 'assistant',
-          model: 'claude-opus-4-1',
-          content: [
-            {
-              type: 'tool_use',
-              id: 'toolu_structured_output',
-              name: 'structured_output',
-              input: { recommendation: 'Fender Stratocaster', price: 1299 },
-            },
-          ],
-          stop_reason: 'tool_use',
-          stop_sequence: null,
-          usage: {
-            input_tokens: 125,
-            output_tokens: 1346,
-            cache_read_input_tokens: 5760,
-          },
-        }),
       )
       return true
     },

@@ -7,6 +7,7 @@ const artifact = (
 ): ArtifactRecord => ({
   runId: 'run-1',
   threadId: 'thread-1',
+  blobKey: 'artifacts/run-1/file',
   name: 'file.txt',
   mimeType: 'text/plain',
   size: 1,

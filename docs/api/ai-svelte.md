@@ -2,7 +2,7 @@
 title: "@tanstack/ai-svelte"
 id: ai-svelte
 order: 6
-description: "API reference for @tanstack/ai-svelte — Svelte 5 reactive factory functions for streaming chat built on runes."
+description: "API reference for @tanstack/ai-svelte: the createChat factory, generation factories, and Svelte 5 rune bindings for the headless TanStack AI client."
 keywords:
   - tanstack ai
   - "@tanstack/ai-svelte"
@@ -13,9 +13,7 @@ keywords:
   - api reference
 ---
 
-Svelte 5 bindings for TanStack AI, providing reactive factory functions for the headless client using Svelte runes.
-
-For a typed headless chat UI, see [Svelte Chat UI](../ui/svelte).
+Svelte 5 factory functions for TanStack AI, built on runes. To build your first chat, start with the [Quick Start](../getting-started/quick-start). For a typed chat layout, see [Svelte Chat UI](../ui/svelte).
 
 ## Installation
 
@@ -25,38 +23,245 @@ svelte: @tanstack/ai-svelte
 
 <!-- ::end:tabs -->
 
-## `createRegisterWebMCPTools(tools, options?)`
+The factories are functions, not hooks, so their names start with `create`. Call them during component init.
 
-Register executable client tools during Svelte component initialization. Svelte removes them when the component is destroyed.
+## `createChat(options)`
 
-For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
+Holds the messages and the run state of one chat, and talks to your server route.
 
 ```svelte
 <script lang="ts">
-  import {
-    createRegisterWebMCPTools,
-    type CreateRegisterWebMCPToolsOptions,
-  } from "@tanstack/ai-svelte";
+  import { createChat, fetchServerSentEvents } from "@tanstack/ai-svelte";
+
+  let input = $state("");
+  const chat = createChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
+  });
+
+  const handleSubmit = (e: Event) => {
+    e.preventDefault();
+    if (input.trim() && !chat.isLoading) {
+      chat.sendMessage(input);
+      input = "";
+    }
+  };
+</script>
+
+{#each chat.messages as message (message.id)}
+  <div>
+    <strong>{message.role}:</strong>
+    {#each message.parts as part}
+      {#if part.type === "text"}<span>{part.content}</span>{/if}
+    {/each}
+  </div>
+{/each}
+<form onsubmit={handleSubmit}>
+  <input bind:value={input} />
+  <button type="submit" disabled={chat.isLoading}>Send</button>
+</form>
+```
+
+### Options
+
+You must pass `threadId`. You must also pass `connection` or `fetcher`, not both.
+
+| Option | What it does |
+| --- | --- |
+| `connection` | Connection adapter, for example `fetchServerSentEvents("/api/chat")`. See [Transports](../transports/overview). |
+| `fetcher` | A function that returns a `Response` or a stream. Use it with server functions. |
+| `tools` | Client tools from `.client()`. They run when the model calls them. Read reactive state in a `get tools()` getter to change them later. See [Client Tools](../tools/client-tools). |
+| `threadId` | Required. The id of this chat. Use a stable id for each conversation, for example the id from your route. |
+| `initialMessages` | The messages to show first. |
+| `forwardedProps` | JSON sent to the server in the AG-UI `forwardedProps` field, for example `{ model: "gpt-6.1-sol" }`. |
+| `persistence` | `true` to load the thread from the server, or a storage adapter. See [Chat Persistence](../persistence/chat-persistence). |
+| `outputSchema` | A Standard Schema. Adds typed `partial` and `final` to the return value. See [Streaming structured output](../structured-outputs/streaming). |
+| `context` | Client-only runtime context for client tools. It is not sent to the server. |
+| `live` | Subscribe when the chat is created. |
+| `queue` | What `sendMessage` does while a run is busy. Default: queue the message. See [Queueing](../chat/queueing). |
+| `interrupts` | Definitions from `defineInterrupt()`. See [Interrupts](../interrupts/overview). |
+| `byok`, `byokProvider` | A keyring from `defineByok()`. See [Bring Your Own Key](../advanced/byok). |
+| `devtools` | Display options for TanStack AI Devtools. |
+
+The factory also takes the `ChatClient` callbacks (`onResponse`, `onChunk`, `onFinish`, `onError`, `onInterruptStateChange`, `onCustomEvent`) and the other client options. See [`ChatClient` options](./ai-client#constructor-options).
+
+To change `forwardedProps` or `context` after the chat starts, call `chat.updateForwardedProps(value)` or `chat.updateContext(value)`.
+
+### Returns
+
+State fields are reactive getters backed by `$state`. Read them on the object, for example `chat.messages`. Do not destructure them, or you keep only the first value.
+
+| Field | What it is |
+| --- | --- |
+| `messages` | The `UIMessage` array of the chat. |
+| `sendMessage(content, options?)` | Sends a user message. `content` is a string or `{ content, id?, metadata? }`. `options` takes `whenBusy` and `body`. |
+| `isLoading` | `true` while a response streams. |
+| `error` | The last error, or `undefined`. |
+| `status` | `"ready"`, `"submitted"`, `"streaming"`, or `"error"`. |
+| `stop()` | Stops the current response. |
+| `reload()` | Runs the last user message again. |
+| `append(message)` | Adds a `UIMessage` or `ModelMessage` and starts a run. |
+| `addToolResult(result)` | Gives the result of a client tool by hand: `{ toolCallId, tool, output, state?, errorText? }`. |
+| `setMessages(messages)`, `clear()` | Replace or clear the messages. |
+| `queue`, `cancelQueued(id)` | Messages that wait while a run is busy. See [Queueing](../chat/queueing). |
+| `runId` | The id of the run in flight, or `null`. |
+| `interrupts` | Pending interrupts. Each item has `resolveInterrupt(...)`. See [Interrupts](../interrupts/overview). |
+| `resolveInterrupts`, `cancelInterrupts`, `retryInterrupts`, `resumeInterruptsUnsafe` | Act on all pending interrupts at once. |
+| `interruptErrors`, `resuming` | Errors from the last resume, and `true` while a resume runs. |
+| `isHydrating` | `true` while the chat loads from persistence. |
+| `hasOlderMessages`, `loadOlderMessages()` | Page in older messages. See [Chat Persistence](../persistence/chat-persistence). |
+| `isSubscribed`, `connectionStatus`, `sessionGenerating` | State of the live subscription. |
+| `partial`, `final` | Structured output. Only when you pass `outputSchema`. |
+| `updateForwardedProps(value)`, `updateContext(value)` | Change `forwardedProps` or `context` for the next sends. |
+| `dispose()` | Ends the chat client and releases devtools. |
+
+When the component is destroyed, the chat drops its connection and keeps its messages. When you are done with the chat, call `dispose()` yourself.
+
+### Example: tool approval
+
+A tool with `needsApproval: true` pauses the run. The pending call shows up in `interrupts`.
+
+```svelte
+<script lang="ts">
+  import { toolDefinition } from "@tanstack/ai";
+  import { createChat, fetchServerSentEvents } from "@tanstack/ai-svelte";
+  import { z } from "zod";
+
+  const deleteFileTool = toolDefinition({
+    name: "delete_file",
+    description: "Delete a file",
+    needsApproval: true,
+    inputSchema: z.object({ path: z.string() }),
+  });
+
+  const chat = createChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
+    tools: [deleteFileTool],
+  });
+</script>
+
+{#each chat.interrupts as interrupt (interrupt.id)}
+  {#if interrupt.kind === "tool-approval"}
+    <div>
+      <p>Approve: {interrupt.toolName}</p>
+      <button onclick={() => interrupt.resolveInterrupt(true)}>Approve</button>
+      <button onclick={() => interrupt.resolveInterrupt(false)}>Deny</button>
+    </div>
+  {/if}
+{/each}
+```
+
+See [Tool Approval](../interrupts/tool-approval) for the server side.
+
+## `createChatHook(options)`
+
+Binds chat options once at module scope and returns a `createChat` factory that uses them.
+
+```ts
+import { createChatHook, fetchServerSentEvents } from "@tanstack/ai-svelte";
+
+export const { createChat: createSupportChat } = createChatHook({
+  connection: fetchServerSentEvents("/api/chat"),
+});
+
+// In a component: const chat = createSupportChat({ threadId: "support-1" })
+```
+
+The bound factory takes these per-call overrides: `threadId`, `initialMessages`, `live`, and `forwardedProps`. Keep `tools`, `interrupts`, and `outputSchema` on the factory options.
+
+`@tanstack/ai-svelte/ui` has its own `createChatHook` that also returns typed UI components. See [Svelte Chat UI](../ui/svelte).
+
+## Generation hooks
+
+Each factory runs one generation request and keeps its result. See [Generation Hooks](../media/generation-hooks).
+
+| Factory | `generate()` input | `result` |
+| --- | --- | --- |
+| `createGenerateImage` | `ImageGenerateInput` | `ImageGenerationResult` |
+| `createGenerateAudio` | `AudioGenerateInput` | `AudioGenerationResult` |
+| `createGenerateSpeech` | `SpeechGenerateInput` | `TTSResult` |
+| `createTranscription` | `TranscriptionGenerateInput` | `TranscriptionResult` |
+| `createSummarize` | `SummarizeGenerateInput` | `SummarizationResult` |
+| `createGenerateVideo` | `VideoGenerateInput` | `VideoGenerateResult` |
+| `createGeneration` | Your own input type | Your own result type |
+
+```svelte
+<script lang="ts">
+  import { createGenerateImage, fetchServerSentEvents } from "@tanstack/ai-svelte";
+
+  const image = createGenerateImage({
+    connection: fetchServerSentEvents("/api/generate/image"),
+    threadId: "image-studio",
+  });
+</script>
+
+<button
+  disabled={image.isLoading}
+  onclick={() => image.generate({ prompt: "A mountain at sunset" })}
+>
+  Generate
+</button>
+```
+
+Options: `threadId` (required), `connection` or `fetcher`, `body`, `persistence`, `byok`, `byokProvider`, `devtools`, `onResult`, `onError`, `onProgress`, `onChunk`.
+
+Returns: `generate(input)`, `result`, `isLoading`, `error`, `status`, `stop()`, `reset()`, `runId`, `updateBody(body)`, and `dispose()`. The state fields are reactive getters. The factories do not clean up on their own. When you are done, call `dispose()`.
+
+`createGenerateVideo` also returns `jobId` and `videoStatus`, and takes `onJobCreated` and `onStatusUpdate`.
+
+## Realtime chat
+
+This package does not export a realtime factory. Use `RealtimeClient`, which this package re-exports. See [Realtime Chat](../media/realtime-chat).
+
+## `createAudioRecorder(options?)`
+
+Records audio from the microphone. See [Audio Recording](../media/audio-recording).
+
+Returns `recording`, `isRecording`, `isSupported` (reactive getters), `start()`, `stop()`, and `cancel()`. Pass `onComplete` to transform the recording. Then `recording` and `stop()` use the transformed type.
+
+## `createByok(client)`
+
+Subscribes to a BYOK keyring. The return value has a reactive `snapshot` getter. See [Bring Your Own Key](../advanced/byok).
+
+```svelte
+<script lang="ts">
+  import { createByok } from "@tanstack/ai-svelte";
+  import { byok } from "./byok";
+
+  const byokState = createByok(byok);
+  const openai = $derived(byokState.snapshot.status.openai);
+</script>
+
+<p>{openai && "masked" in openai ? openai.masked : "No key"}</p>
+```
+
+Keep the object and read `byokState.snapshot` in markup or `$derived`. If you destructure `snapshot`, you keep only the first value. The snapshot has `status`, `locked`, `prompt`, and `storageError`. Save a key from your own UI with `byok.update(provider, value)`.
+
+## MCP App bridge
+
+This package does not export a bridge factory. Use `createMcpAppBridge`, which this package re-exports. See [MCP Apps](../mcp/apps).
+
+## `createRegisterWebMCPTools(tools, options?)`
+
+Exposes client tools to the browser WebMCP API. Call it during component init. Svelte removes the tools when the component is destroyed. See [WebMCP Tools](../tools/webmcp).
+
+```svelte
+<script lang="ts">
+  import { createRegisterWebMCPTools } from "@tanstack/ai-svelte";
   import { searchProducts } from "./tools";
 
-  const tools = [searchProducts];
-  const options: CreateRegisterWebMCPToolsOptions<typeof tools> = {
-    onError(error) {
-      console.error(error);
-    },
-  };
-
-  createRegisterWebMCPTools(tools, options);
+  createRegisterWebMCPTools([searchProducts], {
+    onError: (error) => console.error(error),
+  });
 </script>
 ```
 
-`CreateRegisterWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The factory owns the registration signal.
-
-The `context` field is required when a tool declares a required runtime context.
+Options: `toolOptions`, `context`, and `onError`. `context` is required when a tool declares a required runtime context.
 
 ## `createPageWebMCPTools(options?)`
 
-Read the WebMCP tools on the page as client tools. The `tools` field starts empty and updates when the page adds or removes a tool. Read it in a `get tools()` getter on `createChat`.
+Reads the WebMCP tools that the page registered, as client tools. The `tools` field starts empty and updates when the page adds or removes a tool. Read it in a `get tools()` getter on `createChat`. See [Page WebMCP Tools in Chat](../tools/webmcp-page-tools).
 
 ```svelte
 <script lang="ts">
@@ -70,408 +275,33 @@ Read the WebMCP tools on the page as client tools. The `tools` field starts empt
 <p>{page.tools.length} page tools</p>
 ```
 
-`filter` skips a tool when it returns `false`. `onError` gets a failed WebMCP read. For a complete guide, see [Page WebMCP Tools in Chat](../tools/webmcp-page-tools).
-
-## `createChatHook(options)`
-
-Bind `chatOptions` once at module scope. Call `createChat()` to create the instance. Per-call overrides may set `threadId`, `initialMessages`, `live`, and `forwardedProps`. They must not change `tools`, `interrupts`, or `outputSchema`.
-
-```ts
-import { createChatHook, fetchServerSentEvents } from "@tanstack/ai-svelte";
-
-const chatOptions = {
-  connection: fetchServerSentEvents("/api/chat"),
-};
-
-const { createChat } = createChatHook(chatOptions);
-const chat = createChat({ threadId: "support-1" });
-```
-
-`createChat(chatOptions)` from this package still works when you want to pass the full object at the call site. Rename the bound factory if both are in one file: `const { createChat: createSupportChat } = createChatHook(chatOptions)`.
-
-## `createChat(options)`
-
-Factory function for managing chat state in Svelte 5 with full type safety.
-
-```typescript
-import { createChat, fetchServerSentEvents } from "@tanstack/ai-svelte";
-import {
-  createChatClientOptions,
-  type InferChatMessages,
-} from "@tanstack/ai-client";
-import { toolDefinition } from "@tanstack/ai";
-import { z } from "zod";
-
-const updateUIDef = toolDefinition({
-  name: "updateUI",
-  description: "Update the UI with a notification",
-  inputSchema: z.object({
-    message: z.string(),
-  }),
-  outputSchema: z.object({ success: z.boolean() }),
-});
-
-// In <script> block
-let notification = "";
-
-const updateUI = updateUIDef.client((input) => {
-  notification = input.message;
-  return { success: true };
-});
-
-const tools = [updateUI];
-
-const chatOptions = createChatClientOptions({
-  connection: fetchServerSentEvents("/api/chat"),
-  tools,
-});
-
-// Fully typed messages!
-type ChatMessages = InferChatMessages<typeof chatOptions>;
-
-const chat = createChat(chatOptions);
-// Access: chat.messages, chat.sendMessage, chat.isLoading, chat.error
-```
-
-### Options
-
-Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state callbacks):
-
-- `connection` - Connection adapter (required)
-- `tools?` - Array of client tool implementations (with `.client()` method). In a component, read reactive state in a `get tools()` getter to change the tools after the chat is created.
-- `initialMessages?` - Initial messages array
-- `threadId?` - The only identity for this chat. Required when persistence is on. If omitted, minted after mount.
-- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (e.g., `{ provider: 'openai', model: 'gpt-5.5' }`)
-- `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire
-- `byok?` - Optional BYOK keyring from `defineByok`. On each send the client prepares the resolved provider and stamps `x-byok-*` request headers. Keys never go in the body
-- `byokProvider?` - Optional function that returns the provider slug for this chat. If it returns a slug, only that key is prepared and sent. Otherwise the merged `provider` from `forwardedProps`, `body`, and per-call `sendMessage` `body` is used. Later sources win. If no slug resolves, the send throws instead of attaching every stored key
-- `context?` - Typed client-local runtime context passed to client tool implementations. This value is not serialized to the server
-- `live?` - Enable live subscription mode (subscribes on creation)
-- `onResponse?` - Callback when response is received
-- `onChunk?` - Callback when stream chunk is received
-- `onFinish?` - Callback when response finishes
-- `onError?` - Callback when error occurs
-- `onInterruptStateChange?` - Callback when interrupt state changes; context source is `hydrate` for restored state and `live` for streamed or client-initiated updates
-- `onCustomEvent?` - Callback for custom stream events
-- `streamProcessor?` - Stream processing configuration
-
-**Note:** Client tools are now automatically executed - no `onToolCall` callback needed!
-
-### Returns
-
-```typescript
-import type {
-  UIMessage,
-  MultimodalContent,
-  ChatClientState,
-  ConnectionStatus,
-  SendMessageOptions,
-} from "@tanstack/ai-client";
-import type { ModelMessage } from "@tanstack/ai";
-
-interface CreateChatReturn<TContext = unknown> {
-  readonly messages: ReadonlyArray<UIMessage>;
-  sendMessage: (
-    content: string | MultimodalContent,
-    options?: SendMessageOptions,
-  ) => Promise<void>;
-  append: (message: ModelMessage | UIMessage) => Promise<void>;
-  addToolResult: (result: {
-    toolCallId: string;
-    tool: string;
-    output: any;
-    state?: "output-available" | "output-error";
-    errorText?: string;
-  }) => Promise<void>;
-  addToolApprovalResponse: (response: {
-    id: string;
-    approved: boolean;
-  }) => Promise<void>;
-  reload: () => Promise<void>;
-  stop: () => void;
-  readonly isLoading: boolean;
-  readonly error: Error | undefined;
-  readonly status: ChatClientState;
-  readonly isSubscribed: boolean;
-  readonly connectionStatus: ConnectionStatus;
-  readonly sessionGenerating: boolean;
-  readonly isHydrating: boolean;
-  setMessages: (messages: ReadonlyArray<UIMessage>) => void;
-  clear: () => void;
-  /** @deprecated Use `updateForwardedProps` instead. */
-  updateBody: (body: Record<string, any>) => void;
-  updateForwardedProps: (forwardedProps: Record<string, any>) => void;
-  updateContext: (context: TContext) => void;
-}
-```
-
-**Key differences from React/Vue:**
-
-- **`create*` naming** -- factory functions, not hooks. Call outside of any lifecycle.
-- **Reactive getters** -- state properties (`messages`, `isLoading`, `error`, `status`, `isSubscribed`, `connectionStatus`, `sessionGenerating`, `isHydrating`) are Svelte 5 `$state` via getters. Access directly (e.g., `chat.messages`, not `chat.messages.value`).
-- **No automatic cleanup** -- unlike React/Vue/Solid, `createChat` does not auto-dispose. Call `chat.stop()` manually when the component unmounts (e.g., in `onDestroy` or an `$effect` return).
-- **`updateForwardedProps()`** -- update AG-UI `forwardedProps` dynamically (e.g., for model selection). In Vue, changes to the `forwardedProps` option are synced via `watch`; in Svelte, call this method explicitly. The legacy `updateBody()` is still available but deprecated.
-- **`.svelte.ts` files** -- source files use the `.svelte.ts` extension for Svelte 5 rune support.
-
-## `createByok(client)`
-
-Subscribe to a `ByokClient` snapshot in Svelte 5. Call it during component init.
-
-```typescript
-import { createByok } from "@tanstack/ai-svelte";
-import { byok } from "./byok";
-
-const byokState = createByok(byok);
-```
-
-Keep the object. `byokState.snapshot` is a reactive getter (`status`, `locked`, `prompt`). Destructuring `snapshot` freezes the first value. Read it in markup or `$derived`. Call `byok.update(provider, value)` from your own UI to save a key. See [Bring Your Own Key](../advanced/byok).
-
-## Connection Adapters
-
-Re-exported from `@tanstack/ai-client` for convenience:
-
-```typescript
-import {
-  fetchServerSentEvents,
-  fetchHttpStream,
-  fetchJson,
-  stream,
-  type ConnectionAdapter,
-} from "@tanstack/ai-svelte";
-```
-
-## Example: Basic Chat
-
-```svelte
-<script lang="ts">
-  import { createChat, fetchServerSentEvents } from "@tanstack/ai-svelte";
-
-  let input = $state("");
-
-  const chat = createChat({
-    connection: fetchServerSentEvents("/api/chat"),
-  });
-
-  const handleSubmit = (e: Event) => {
-    e.preventDefault();
-    if (input.trim() && !chat.isLoading) {
-      chat.sendMessage(input);
-      input = "";
-    }
-  };
-</script>
-
-<div>
-  <div>
-    {#each chat.messages as message (message.id)}
-      <div>
-        <strong>{message.role}:</strong>
-        {#each message.parts as part, idx}
-          {#if part.type === "thinking"}
-            <div class="text-sm text-gray-500 italic">
-              Thinking: {part.content}
-            </div>
-          {:else if part.type === "text"}
-            <span>{part.content}</span>
-          {/if}
-        {/each}
-      </div>
-    {/each}
-  </div>
-  <form onsubmit={handleSubmit}>
-    <input bind:value={input} disabled={chat.isLoading} />
-    <button type="submit" disabled={chat.isLoading}>Send</button>
-  </form>
-</div>
-```
-
-## Example: Tool Approval
-
-```svelte
-<script lang="ts">
-  import { createChat, fetchServerSentEvents } from "@tanstack/ai-svelte";
-
-  const chat = createChat({
-    connection: fetchServerSentEvents("/api/chat"),
-  });
-</script>
-
-<div>
-  {#each chat.messages as message (message.id)}
-    {#each message.parts as part}
-      {#if part.type === "tool-call" && part.state === "approval-requested" && part.approval}
-        <div>
-          <p>Approve: {part.name}</p>
-          <button
-            onclick={() =>
-              chat.addToolApprovalResponse({
-                id: part.approval.id,
-                approved: true,
-              })}
-          >
-            Approve
-          </button>
-          <button
-            onclick={() =>
-              chat.addToolApprovalResponse({
-                id: part.approval.id,
-                approved: false,
-              })}
-          >
-            Deny
-          </button>
-        </div>
-      {/if}
-    {/each}
-  {/each}
-</div>
-```
-
-## Example: Client Tools with Type Safety
-
-```svelte
-<script lang="ts">
-  import { createChat, fetchServerSentEvents } from "@tanstack/ai-svelte";
-  import {
-    createChatClientOptions,
-    type InferChatMessages,
-  } from "@tanstack/ai-client";
-  import { updateUIDef, saveToStorageDef } from "./tool-definitions";
-
-  let notification = $state(null);
-
-  // Create client implementations
-  const updateUI = updateUIDef.client((input) => {
-    // input is fully typed!
-    notification = { message: input.message, type: input.type };
-    return { success: true };
-  });
-
-  const saveToStorage = saveToStorageDef.client((input) => {
-    localStorage.setItem(input.key, input.value);
-    return { saved: true };
-  });
-
-  // Create typed tools array (no 'as const' needed!)
-  const tools = [updateUI, saveToStorage];
-
-  const chat = createChat({
-    connection: fetchServerSentEvents("/api/chat"),
-    tools, // Automatic execution, full type safety
-  });
-</script>
-
-<div>
-  {#each chat.messages as message (message.id)}
-    {#each message.parts as part}
-      {#if part.type === "tool-call" && part.name === "updateUI"}
-        <div>Tool executed: {part.name}</div>
-      {/if}
-    {/each}
-  {/each}
-</div>
-```
-
-## Generation Functions
-
-Factory functions for one-shot generation tasks (images, speech, transcription, summarization, video). All share the same pattern: provide a `connection` or `fetcher`, call `generate()`, and read reactive state.
-
-### `createGeneration(options)`
-
-Base factory for custom generation types. All specialized functions below are built on this.
-
-```typescript
-import { createGeneration, fetchServerSentEvents } from "@tanstack/ai-svelte";
-
-const gen = createGeneration({
-  connection: fetchServerSentEvents("/api/generate/custom"),
-});
-
-// gen.generate({ prompt: 'Hello' })
-// gen.result, gen.isLoading, gen.error, gen.status
-```
-
-**Options:** `connection?`, `fetcher?`, `threadId?`, `body?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
-
-**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `runId`, `updateBody` -- all state properties are reactive getters.
-
-### `createGenerateImage(options)`
-
-Image generation factory. `generate()` accepts `ImageGenerateInput`, result is `ImageGenerationResult`.
-
-### `createGenerateSpeech(options)`
-
-Text-to-speech factory. `generate()` accepts `SpeechGenerateInput`, result is `TTSResult`.
-
-### `createTranscription(options)`
-
-Audio transcription factory. `generate()` accepts `TranscriptionGenerateInput`, result is `TranscriptionResult`.
-
-### `createSummarize(options)`
-
-Text summarization factory. `generate()` accepts `SummarizeGenerateInput`, result is `SummarizationResult`.
-
-### `createGenerateVideo(options)`
-
-Video generation factory with job polling. Returns additional `jobId` and `videoStatus` reactive getters. Accepts extra `onJobCreated?` and `onStatusUpdate?` callbacks.
-
-No generation function includes automatic cleanup. Call `.stop()` manually when done.
-
-## `createChatClientOptions(options)`
-
-Helper to create typed chat options (re-exported from `@tanstack/ai-client`).
-
-```typescript
-import {
-  createChatClientOptions,
-  fetchServerSentEvents,
-  type InferChatMessages,
-} from "@tanstack/ai-client";
-import { tool1, tool2 } from "./tools";
-
-// Create typed tools array (no 'as const' needed!)
-const tools = [tool1, tool2];
-
-const chatOptions = createChatClientOptions({
-  connection: fetchServerSentEvents("/api/chat"),
-  tools,
-});
-
-type Messages = InferChatMessages<typeof chatOptions>;
-```
+Options: `filter` (return `false` to skip a tool) and `onError`.
+
+## Re-exports from `@tanstack/ai-client`
+
+You can import these from `@tanstack/ai-svelte` directly. See [`@tanstack/ai-client`](./ai-client) for details.
+
+| Group | Exports |
+| --- | --- |
+| Connection adapters | `fetchServerSentEvents`, `fetchHttpStream`, `fetchJson`, `xhrServerSentEvents`, `xhrHttpStream`, `webSocket`, `stream`, `rpcStream` |
+| Typed options | `createChatClientOptions`, `clientTools` |
+| Persistence | `localStoragePersistence`, `sessionStoragePersistence`, `indexedDBPersistence` |
+| Clients | `ChatClient`, `GenerationClient`, `VideoGenerationClient`, `RealtimeClient`, `AudioRecorder`, `InterruptManager` |
+| WebMCP and MCP Apps | `registerWebMCPTools`, `getWebMCPTools`, `subscribeWebMCPTools`, `createMcpAppBridge` |
+| Errors | `UnsupportedResponseStreamError`, `StreamTruncatedError`, `DurableStreamIncompleteError`, `StreamReconnectLimitError`, `StorageUnavailableError` |
+| Stream helpers | `StreamProcessor`, chunk strategies, `parsePartialJSON`, message converters |
+
+BYOK helpers (`defineByok`, `defaultByokStorage`, and more) are on the `@tanstack/ai-svelte/byok` subpath.
 
 ## Types
 
-Re-exported from `@tanstack/ai-client`:
+| Type | What it is |
+| --- | --- |
+| `CreateChatOptions`, `CreateChatReturn` | The options and return value of `createChat`. |
+| `UIMessage<TTools>` | A chat message with typed parts. |
+| `InferChatMessages<T>` | The message type for a `createChatClientOptions` result. |
+| `SendMessageOptions`, `WhenBusy`, `QueueOption`, `QueuedMessage` | Send and queue types. |
+| `DeepPartial<T>` | The type of `partial` while structured output streams. |
+| `Create<Factory>Options`, `Create<Factory>Return` | Options and return types for the generation and recorder factories. The WebMCP factories export only an options type. |
 
-- `UIMessage<TTools>` - Message type with tool type parameter
-- `MessagePart<TTools>` - Message part with tool type parameter
-- `TextPart` - Text content part
-- `ThinkingPart` - Thinking content part
-- `ToolCallPart<TTools>` - Tool call part (discriminated union)
-- `ToolResultPart` - Tool result part
-- `ChatClientOptions<TTools, TContext>` - Chat client options with typed client runtime context
-- `ConnectionAdapter` - Connection adapter interface
-- `InferChatMessages<T>` - Extract message type from options
-- `ChatRequestBody` - Request body type
-- `GenerationClientState` - Generation lifecycle state
-- `ImageGenerateInput` - Image generation input type
-- `SpeechGenerateInput` - Speech generation input type
-- `TranscriptionGenerateInput` - Transcription input type
-- `SummarizeGenerateInput` - Summarization input type
-- `VideoGenerateInput` - Video generation input type
-- `VideoGenerateResult` - Video generation result type
-- `VideoStatusInfo` - Video job status info
-
-Re-exported from `@tanstack/ai`:
-
-- `toolDefinition()` - Create isomorphic tool definition
-- `ToolDefinitionInstance` - Tool definition type
-- `ClientTool` - Client tool type
-- `ServerTool` - Server tool type
-
-## Next Steps
-
-- [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../tools/tools) - Learn about the isomorphic tool system
-- [Client Tools](../tools/client-tools) - Learn about client-side tools
+Pass a plain tools array to `createChat` or `createChatClientOptions`. Tool names, inputs, and outputs stay typed without `as const`. Import `toolDefinition` from `@tanstack/ai`.

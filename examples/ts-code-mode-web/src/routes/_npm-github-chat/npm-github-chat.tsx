@@ -679,8 +679,9 @@ function CodeModePage() {
   )
 
   const { messages, sendMessage, isLoading, stop } = useChat({
+    threadId: 'npm-github-chat',
     connection: fetchServerSentEvents('/api/codemode'),
-    body,
+    forwardedProps: body,
     onCustomEvent: handleCustomEvent,
     tools: [exportPdfClientTool],
   })

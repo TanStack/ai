@@ -38,6 +38,6 @@ type AGUIEvent =
   | SubagentErrorEvent;
 ```
 
-Defined in: [packages/ai/src/types.ts:2118](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2118)
+Defined in: packages/ai/src/types.ts:2038
 
 Union of all AG-UI events.

@@ -90,3 +90,91 @@ export class MCPToolFilterError extends Error {
     this.available = details.available
   }
 }
+
+/**
+ * The server did not advertise MCP Events, or it answered method not found.
+ *
+ * @experimental
+ */
+export class MCPEventsUnsupportedError extends Error {
+  constructor() {
+    super('The MCP server does not advertise the Events extension')
+    this.name = 'MCPEventsUnsupportedError'
+  }
+}
+
+/**
+ * Invalid MCP Events client options or subscribe arguments.
+ *
+ * @experimental
+ */
+export class MCPEventConfigError extends Error {
+  constructor(public readonly reason: string) {
+    super(reason)
+    this.name = 'MCPEventConfigError'
+  }
+}
+
+/**
+ * The event name is missing from `events/list`, or it has no webhook delivery.
+ *
+ * @experimental
+ */
+export class MCPUnknownEventError extends Error {
+  constructor(
+    public readonly eventName: string,
+    public readonly reason: 'not-found' | 'webhook-unsupported',
+  ) {
+    super(
+      reason === 'not-found'
+        ? `Unknown MCP event "${eventName}"`
+        : `MCP event "${eventName}" does not support webhook delivery`,
+    )
+    this.name = 'MCPUnknownEventError'
+  }
+}
+
+/**
+ * Kind of a JSON-RPC error from an `events/*` request.
+ *
+ * @experimental
+ */
+export type MCPEventRequestKind =
+  | 'invalid-params'
+  | 'not-found'
+  | 'forbidden'
+  | 'resource-exhausted'
+  | 'unsupported'
+  | 'callback-endpoint'
+  | 'unknown'
+
+/**
+ * The server returned a JSON-RPC error for an `events/*` request.
+ *
+ * @experimental
+ */
+export class MCPEventRequestError extends Error {
+  constructor(
+    message: string,
+    public readonly code: number,
+    public readonly kind: MCPEventRequestKind,
+    public readonly reason?: string,
+    public readonly data?: unknown,
+    public override readonly cause?: unknown,
+  ) {
+    super(message, cause === undefined ? undefined : { cause })
+    this.name = 'MCPEventRequestError'
+  }
+}
+
+/**
+ * `refresh` or `unsubscribe` was given a key or id that is not in the store.
+ *
+ * @experimental
+ */
+export class MCPEventSubscriptionNotFoundError extends Error {
+  constructor(public readonly ref: { key?: string; id?: string }) {
+    super('MCP event subscription was not found')
+    this.name = 'MCPEventSubscriptionNotFoundError'
+  }
+}

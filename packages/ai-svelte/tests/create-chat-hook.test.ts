@@ -17,7 +17,7 @@ describe('createChatHook', () => {
       initialMessages,
     })
 
-    const chat = createChat()
+    const chat = createChat({ threadId: 'thread-1' })
 
     expect(chat.messages).toEqual(initialMessages)
   })

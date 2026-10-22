@@ -515,7 +515,43 @@ type TextActivityOptionsWithContext<
 > = Omit<
   TextActivityOptions<TAdapter, TSchema, TStream, any, TAgents>,
   'tools' | 'middleware' | 'context' | 'interrupts' | 'toolChoice'
-> & {
+> &
+  TypedChatFields<TTools, TInterrupts, TContext, TMiddleware>
+
+/**
+ * The `chat()` options of `ctx.chat` on a subagent. `threadId` is optional:
+ * the child run fills it.
+ */
+export type BoundTextActivityOptions<
+  TAdapter extends AnyTextAdapter,
+  TSchema extends SchemaInput | undefined,
+  TStream extends boolean,
+  TTools extends TextActivityOptions<TAdapter, TSchema, TStream, any>['tools'],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    [],
+  TContext = unknown,
+  TMiddleware extends Array<unknown> | undefined = undefined,
+  TAgents extends ReadonlyArray<DefinedAgent> = ReadonlyArray<DefinedAgent>,
+> = WithOptionalThreadId<
+  Omit<
+    TextActivityOptions<TAdapter, TSchema, TStream, any, TAgents>,
+    'tools' | 'middleware' | 'context' | 'interrupts' | 'toolChoice'
+  >
+> &
+  TypedChatFields<TTools, TInterrupts, TContext, TMiddleware>
+
+/** Activity options with an optional `threadId`. */
+export type WithOptionalThreadId<T> = Omit<T, 'threadId'> & {
+  threadId?: string
+}
+
+/** The `chat()` fields whose types come from the tools and middleware. */
+type TypedChatFields<
+  TTools,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>,
+  TContext,
+  TMiddleware extends Array<unknown> | undefined,
+> = {
   tools?: TTools
   /** {@link TextActivityOptions.toolChoice}, with the names of `tools` as suggestions. */
   toolChoice?: ToolChoice<ToolNames<TTools>>
@@ -629,7 +665,7 @@ export interface TextActivityOptions<
    *
    * @example
    * ```ts
-   * chat({ adapter, messages, retry: { maxRetries: 3 } })
+   * chat({ adapter, messages, threadId, retry: { maxRetries: 3 } })
    * ```
    */
   retry?: TextOptions['retry']
@@ -639,10 +675,11 @@ export interface TextActivityOptions<
    * catalog. Optional — defaults to `{ includeDescription: 'none' }`.
    */
   lazyToolsConfig?: LazyToolsConfig
-  /** Unique conversation identifier for tracking */
-  conversationId?: TextOptions['conversationId']
-  /** Thread/conversation ID for AG-UI protocol. Auto-generated if not provided. */
-  threadId?: TextOptions['threadId']
+  /**
+   * Thread/conversation id for the AG-UI protocol. Required. Use a stable id
+   * for each conversation.
+   */
+  threadId: TextOptions['threadId']
   /**
    * How the model uses the tools: `'auto'`, `'none'`, `'required'`, or
    * `{ type: 'tool', name }`. It applies to every model call of this
@@ -651,19 +688,19 @@ export interface TextActivityOptions<
    *
    * @example
    * ```ts
-   * chat({ adapter, messages, tools, toolChoice: 'required' })
+   * chat({ adapter, messages, threadId, tools, toolChoice: 'required' })
    * ```
    */
   toolChoice?: ToolChoice
 
   /**
    * Automatic prompt caching. Default `'short'`. `'none'` turns it off.
-   * The key defaults to the `threadId` or `conversationId` that you give.
+   * The key defaults to the `threadId` that you give.
    *
    * @example
    * ```ts
    * chat({ adapter, messages, threadId, promptCache: 'long' })
-   * chat({ adapter, messages, promptCache: { retention: 'long', key: 'k-1' } })
+   * chat({ adapter, messages, threadId, promptCache: { retention: 'long', key: 'k-1' } })
    * ```
    */
   promptCache?: PromptCacheOptions
@@ -675,7 +712,7 @@ export interface TextActivityOptions<
    *
    * @example
    * ```ts
-   * chat({ adapter, messages, wrapFetch: (next) => (input, init) => next(input, init) })
+   * chat({ adapter, messages, threadId, wrapFetch: (next) => (input, init) => next(input, init) })
    * ```
    */
   wrapFetch?: FetchWrapper
@@ -715,6 +752,7 @@ export interface TextActivityOptions<
    * const result = await chat({
    *   adapter: openaiText('gpt-5.5'),
    *   messages: [{ role: 'user', content: 'Generate a person' }],
+   *   threadId,
    *   outputSchema: z.object({ name: z.string(), age: z.number() })
    * })
    * // result is { name: string, age: number }
@@ -737,6 +775,7 @@ export interface TextActivityOptions<
    * const { text } = await chat({
    *   adapter: openaiText('gpt-5.5'),
    *   messages: [{ role: 'user', content: 'Hello!' }],
+   *   threadId,
    *   stream: false
    * })
    * // text is a string with the full response
@@ -752,6 +791,7 @@ export interface TextActivityOptions<
    * const stream = chat({
    *   adapter: openaiText('gpt-5.5'),
    *   messages: [...],
+   *   threadId,
    *   middleware: [loggingMiddleware, redactionMiddleware],
    * })
    * ```
@@ -782,14 +822,16 @@ export interface TextActivityOptions<
 /**
  * Create typed options for the chat() function without executing.
  * This is useful for pre-defining configurations with full type inference.
+ * `threadId` is optional here. `chat()` still needs it, so pass it on the
+ * call.
  *
  * @example
  * ```ts
  * const chatOptions = createChatOptions({
- *   adapter: anthropicText('claude-sonnet-4-5'),
+ *   adapter: anthropicText('claude-sonnet-5-5'),
  * })
  *
- * const stream = chat({ ...chatOptions, messages })
+ * const stream = chat({ ...chatOptions, messages, threadId })
  * ```
  */
 export function createChatOptions<
@@ -808,7 +850,7 @@ export function createChatOptions<
   TContext = unknown,
   const TMiddleware extends Array<unknown> | undefined = undefined,
 >(
-  options: TextActivityOptionsWithContext<
+  options: BoundTextActivityOptions<
     TAdapter,
     TSchema,
     TStream,
@@ -817,14 +859,16 @@ export function createChatOptions<
     TContext,
     TMiddleware
   >,
-): Omit<
-  TextActivityOptions<
-    TAdapter,
-    TSchema,
-    TStream,
-    InferredContext<TTools, TMiddleware>
-  >,
-  'tools' | 'middleware' | 'interrupts' | 'context'
+): WithOptionalThreadId<
+  Omit<
+    TextActivityOptions<
+      TAdapter,
+      TSchema,
+      TStream,
+      InferredContext<TTools, TMiddleware>
+    >,
+    'tools' | 'middleware' | 'interrupts' | 'context'
+  >
 > & {
   tools?: TTools
   interrupts?: TInterrupts
@@ -1227,13 +1271,7 @@ class TextEngine<
       ? { signal: config.params.abortController.signal }
       : undefined
     this.effectiveSignal = config.params.abortController?.signal
-    // `conversationId` is the legacy alias of `threadId` — accept it
-    // as a fallback so `chat({ conversationId })` keeps working, with
-    // explicit `threadId` winning when both are set.
-    this.threadId =
-      config.params.threadId ||
-      config.params.conversationId ||
-      this.createId('thread')
+    this.threadId = config.params.threadId
     this.runIdOverride = config.params.runId
     this.parentRunIdOverride = config.params.parentRunId
     this.subagentRunIdOverride = config.params.subagentRunId
@@ -1262,9 +1300,6 @@ class TextEngine<
         config.params as { [CHILD_RESUME_IDS]?: ReadonlySet<string> }
       )[CHILD_RESUME_IDS],
       threadId: this.threadId,
-      // Legacy alias kept on the ctx so middleware that reads
-      // `ctx.conversationId` keeps working. Always equals `threadId`.
-      conversationId: this.threadId,
       phase: 'init',
       iteration: 0,
       chunkIndex: 0,
@@ -2170,11 +2205,9 @@ class TextEngine<
       case 'RUN_ERROR':
         this.handleRunErrorEvent(chunk)
         break
-      case 'STEP_STARTED':
-        this.handleStepStartedEvent()
-        break
-      case 'STEP_FINISHED':
-        this.handleStepFinishedEvent(chunk)
+      case 'REASONING_MESSAGE_START':
+        // A new reasoning message starts a new thinking step.
+        this.finalizeCurrentThinkingStep()
         break
 
       case 'REASONING_MESSAGE_CONTENT':
@@ -2186,7 +2219,6 @@ class TextEngine<
         break
 
       case 'REASONING_START':
-      case 'REASONING_MESSAGE_START':
       case 'REASONING_MESSAGE_END':
       case 'REASONING_END':
         // No special handling needed
@@ -2519,18 +2551,6 @@ class TextEngine<
     }
   }
 
-  private handleStepStartedEvent(): void {
-    this.finalizeCurrentThinkingStep()
-  }
-
-  private handleStepFinishedEvent(chunk: AdapterYieldChunk): void {
-    if (typeof chunk.signature === 'string' && chunk.signature !== '') {
-      this.noteThinkingStepPosition()
-      this.currentThinkingSignature = chunk.signature
-      this.currentThinkingRedacted = isRedactedThinkingId(chunk.stepId)
-    }
-  }
-
   private handleReasoningMessageContentEvent(
     chunk: Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }>,
   ): void {
@@ -2654,6 +2674,7 @@ class TextEngine<
     const generator = executeToolCalls(
       executablePendingCalls,
       this.resolveExecutableTools(executablePendingCalls),
+      this.threadId,
       approvals,
       clientToolResults,
       (eventName, data, options) =>
@@ -2664,7 +2685,6 @@ class TextEngine<
       this.toolResumeState(),
       this.params.toolExecution,
       this.params.repairToolInput,
-      this.threadId,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -2889,6 +2909,7 @@ class TextEngine<
     const generator = executeToolCalls(
       executableToolCalls,
       this.resolveExecutableTools(executableToolCalls),
+      this.threadId,
       approvals,
       clientToolResults,
       (eventName, data, options) =>
@@ -2899,7 +2920,6 @@ class TextEngine<
       this.toolResumeState(),
       this.params.toolExecution,
       this.params.repairToolInput,
-      this.threadId,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -3982,6 +4002,7 @@ class TextEngine<
     return executeToolCalls(
       pendingCalls,
       tools,
+      this.threadId,
       approvals,
       clientToolResults,
       undefined,
@@ -3991,7 +4012,6 @@ class TextEngine<
       this.toolResumeState(),
       undefined,
       this.params.repairToolInput,
-      this.threadId,
     )
   }
 
@@ -4099,7 +4119,6 @@ class TextEngine<
           timestamp: Date.now(),
           toolCallId: result.toolCallId,
           toolCallName: result.toolName,
-          toolName: result.toolName,
         })
 
         const args = argsMap.get(result.toolCallId) ?? '{}'
@@ -4779,7 +4798,7 @@ class TextEngine<
         //  - RUN_FINISHED would overwrite `finishedEvent` + `lastFinishReason`
         //    (finalization's 'stop' would overwrite the agent-loop's real
         //    finish reason)
-        //  - STEP_FINISHED would pollute `currentThinkingContent`
+        //  - REASONING_* events would pollute `currentThinkingContent`
         // Finalization is a separate phase from the agent loop; its state must
         // not cross-contaminate. The explicit branches below capture the only
         // bits we actually need from this stream.
@@ -5829,6 +5848,7 @@ class TextEngine<
  * for await (const chunk of chat({
  *   adapter: openaiText('gpt-5.5'),
  *   messages: [{ role: 'user', content: 'What is the weather?' }],
+ *   threadId,
  *   tools: [weatherTool]
  * })) {
  *   if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
@@ -5841,7 +5861,8 @@ class TextEngine<
  * ```ts
  * for await (const chunk of chat({
  *   adapter: openaiText('gpt-5.5'),
- *   messages: [{ role: 'user', content: 'Hello!' }]
+ *   messages: [{ role: 'user', content: 'Hello!' }],
+ *   threadId,
  * })) {
  *   console.log(chunk)
  * }
@@ -5852,6 +5873,7 @@ class TextEngine<
  * const { text, chunks } = await chat({
  *   adapter: openaiText('gpt-5.5'),
  *   messages: [{ role: 'user', content: 'Hello!' }],
+ *   threadId,
  *   stream: false
  * })
  * // text is a string with the full response
@@ -5865,6 +5887,7 @@ class TextEngine<
  * const result = await chat({
  *   adapter: openaiText('gpt-5.5'),
  *   messages: [{ role: 'user', content: 'Research and summarize the topic' }],
+ *   threadId,
  *   tools: [researchTool, analyzeTool],
  *   outputSchema: z.object({
  *     summary: z.string(),
@@ -5903,6 +5926,13 @@ export function chat<
     TAgents
   >,
 ): TextActivityResult<TSchema, TStream, TTools> {
+  // The type requires it, but JS callers and spreads of optional fields can
+  // still pass nothing. Persistence and resume key on it.
+  if (typeof options.threadId !== 'string' || options.threadId === '') {
+    throw new Error(
+      'chat() needs a threadId. Pass a non-empty string, for example the id of the conversation.',
+    )
+  }
   validateInterruptDefinitions(options.interrupts)
   validateCapabilities(
     readRuntimeMiddleware(options.middleware) ?? [],
@@ -5974,21 +6004,19 @@ type RuntimeTextActivityOptions<
 }
 
 /**
- * Resolve the `promptCache` option once, before chat() makes up any ids. The
- * key is the option key, else the caller's threadId or conversationId. A
- * made-up threadId is never the key: a random key splits OpenAI cache routing.
+ * Resolve the `promptCache` option once. The key is the option key, else the
+ * caller's threadId.
  */
 function resolvePromptCache(options: {
   promptCache?: PromptCacheOptions
-  threadId?: string
-  conversationId?: string
+  threadId: string
 }): ResolvedPromptCache {
   const option: Exclude<PromptCacheOptions, string> | undefined =
     typeof options.promptCache === 'string'
       ? { retention: options.promptCache }
       : options.promptCache
   // `||` on purpose: an empty string is no key.
-  const key = option?.key || options.threadId || options.conversationId
+  const key = option?.key || options.threadId
   return {
     retention: option?.retention ?? 'short',
     ...(key ? { key } : {}),
@@ -6193,7 +6221,7 @@ async function* streamTextChunks(
     return
   }
   if (bag && agents.length > 0) {
-    const threadId = options.threadId ?? `thread-${Date.now()}`
+    const threadId = options.threadId
     const runId = options.runId ?? `run-${Date.now()}`
     const messages = options.messages ?? []
     // A resume can answer a child's interrupts. Those entries go to the child
@@ -6268,7 +6296,7 @@ async function* runRoutedSubagents(
     yield* runChatEngine(options, engineRef)
     return
   }
-  const threadId = options.threadId ?? `thread-${Date.now()}`
+  const threadId = options.threadId
   const runId = options.runId ?? `run-${Date.now()}`
   const messages = options.messages ?? []
   const turn = readSubagentTurn(messages, options.resume)
@@ -6874,13 +6902,12 @@ async function* fallbackStructuredOutputStream(
   onAdapterError?: (err: unknown) => void,
 ): AsyncIterable<AdapterYieldChunk> {
   const { chatOptions } = options
-  // Synthesize run/thread/message IDs only when the caller didn't supply them.
+  // Synthesize run/message IDs. The run id only when the caller didn't supply one.
   // Prefix `fallback-` (not `mock-`) because this is production fallback code
   // used by adapters without native `structuredOutputStream`, not test fixtures.
   const fallbackRand = Math.random().toString(36).slice(2)
   const runId = chatOptions.runId ?? `fallback-${Date.now()}-${fallbackRand}`
-  const threadId =
-    chatOptions.threadId ?? `fallback-${Date.now()}-${fallbackRand}`
+  const threadId = chatOptions.threadId
   const messageId = `fallback-${Date.now()}-${fallbackRand}`
   const model = chatOptions.model
   const startedAt = Date.now()

@@ -44,6 +44,7 @@ async function run(content: unknown) {
   ])
   const chunks: Array<AdapterYieldChunk> = []
   for await (const chunk of adapter.chatStream({
+    threadId: 'thread-1',
     logger: testLogger,
     model: 'test-model',
     messages: [{ role: 'user', content: 'Look it up' }],

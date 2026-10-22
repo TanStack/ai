@@ -306,6 +306,7 @@ async function gpt(model: 'gpt-6-astra' | 'gpt-6.1-sol') {
   const wire = capture(gptToolCall, gptText)
   const errors = await errorsOf(
     chat({
+      threadId: 'mid-conversation-changes-wire',
       adapter: createOpenaiChat(model, OPENAI_KEY, {
         fetch: wire.fetchImpl,
         midConversationChannels: true,
@@ -328,6 +329,7 @@ async function claude(
   const wire = capture(claudeToolCall, claudeText)
   const errors = await errorsOf(
     chat({
+      threadId: 'mid-conversation-changes-wire',
       adapter: createAnthropicChat(model, ANTHROPIC_KEY, {
         fetch: wire.fetchImpl,
         ...options,

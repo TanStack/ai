@@ -54,6 +54,7 @@ import type {
   ModelReasoning,
   ReasoningCapability,
   TextOptions,
+  TokenUsage,
 } from '@tanstack/ai'
 
 type ChatStreamState = {
@@ -104,6 +105,21 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     }
   }
 
+  /**
+   * Token usage for a Chat Completions response. `source` is the response or
+   * chunk that carried `usage`, so a subclass can read sibling fields.
+   */
+  protected chatCompletionsTokenUsage(
+    usage:
+      | OpenAI.Chat.Completions.ChatCompletion['usage']
+      | OpenAI.Chat.Completions.ChatCompletionChunk['usage']
+      | undefined
+      | null,
+    _source?: unknown,
+  ): TokenUsage | undefined {
+    return buildChatCompletionsUsage(usage)
+  }
+
   /** See {@link OpenAIBaseTextAdapterOptions.strictFallbackWarning}. */
   protected readonly strictFallbackWarning: boolean
 
@@ -133,7 +149,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     // AG-UI lifecycle tracking (mutable state object for ESLint compatibility)
     const aguiState = {
       runId: generateId(this.name),
-      threadId: options.threadId ?? generateId(this.name),
+      threadId: options.threadId,
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,
     }
@@ -216,7 +232,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         type: EventType.TOOL_CALL_START,
         toolCallId,
         toolCallName: rejectedToolCall.toolName,
-        toolName: rejectedToolCall.toolName,
         parentMessageId: aguiState.messageId,
         model: options.model,
         timestamp: Date.now(),
@@ -233,7 +248,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         type: EventType.TOOL_CALL_END,
         toolCallId,
         toolCallName: rejectedToolCall.toolName,
-        toolName: rejectedToolCall.toolName,
         args: rejectedToolCall.arguments,
         ...(rejectedToolCall.input !== undefined && {
           input: rejectedToolCall.input,
@@ -386,7 +400,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
       // Surface usage so non-stream structured paths (and
       // fallbackStructuredOutputStream) can forward tokens to middleware.
-      const usage = buildChatCompletionsUsage(response.usage)
+      const usage = this.chatCompletionsTokenUsage(response.usage, response)
       return {
         data: transformed,
         rawText,
@@ -429,7 +443,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
     const aguiState = {
       runId: generateId(this.name),
-      threadId: chatOptions.threadId ?? generateId(this.name),
+      threadId: chatOptions.threadId,
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,
     }
@@ -439,13 +453,13 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     let hasEmittedTextMessageStart = false
     let reasoningMessageId: string | undefined
     let hasClosedReasoning = false
-    let stepId: string | undefined
     let lastModel: string | undefined
     let lastResponseId: string | undefined
     let finishReason: string | null = null
     let lastUsage:
       | OpenAI.Chat.Completions.ChatCompletionChunk['usage']
       | undefined
+    let lastUsageSource: unknown
 
     const closeReasoningLifecycle = function* (this: {
       name: string
@@ -464,18 +478,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           model: lastModel || chatOptions.model,
           timestamp: Date.now(),
         }
-        if (stepId) {
-          yield {
-            type: EventType.STEP_FINISHED,
-            stepName: stepId,
-            stepId,
-            model: lastModel || chatOptions.model,
-            timestamp: Date.now(),
-            content: accumulatedReasoning,
-          }
-        }
         reasoningMessageId = undefined
-        stepId = undefined
         hasClosedReasoning = false
       }
     }.bind(this)
@@ -528,7 +531,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         const usage =
           chunk.usage ??
           (chunk as { x_groq?: { usage?: typeof chunk.usage } }).x_groq?.usage
-        if (usage) lastUsage = usage
+        if (usage) {
+          lastUsage = usage
+          lastUsageSource = chunk
+        }
 
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
@@ -548,7 +554,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         if (reasoning && reasoning.text) {
           if (!reasoningMessageId) {
             reasoningMessageId = generateId(this.name)
-            stepId = generateId(this.name)
             yield {
               type: EventType.REASONING_START,
               messageId: reasoningMessageId,
@@ -561,14 +566,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
               role: 'reasoning' as const,
               model: chunk.model || chatOptions.model,
               timestamp: Date.now(),
-            }
-            yield {
-              type: EventType.STEP_STARTED,
-              stepName: stepId,
-              stepId,
-              model: chunk.model || chatOptions.model,
-              timestamp: Date.now(),
-              stepType: 'thinking',
             }
           }
           accumulatedReasoning += reasoning.text
@@ -704,7 +701,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         timestamp: Date.now(),
         finishReason: 'stop',
         ...(lastUsage && {
-          usage: buildChatCompletionsUsage(lastUsage),
+          usage: this.chatCompletionsTokenUsage(lastUsage, lastUsageSource),
         }),
       }
     } catch (error: unknown) {
@@ -925,6 +922,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     // therefore defer RUN_FINISHED until the iterator is exhausted so we can
     // pick up usage from the trailing chunk regardless of arrival order.
     let lastUsage: ChatCompletionChunk['usage'] | undefined
+    let lastUsageSource: unknown
     let endsWithUsageOnlyChunk = false
     let pendingFinishReason:
       | ChatCompletionChunk['choices'][number]['finish_reason']
@@ -940,17 +938,14 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         started: boolean // Track if TOOL_CALL_START has been emitted
       }
     >()
+    // Resolved index plus accumulated id and name. Used when a later delta omits index.
+    let latestToolCall: { index: number; id: string; name: string } | undefined
 
     // Reasoning lifecycle (driven by extractReasoning() hook — see method
     // docs). The base wire format (OpenAI Chat Completions) has no reasoning,
     // so these stay unused for openai/grok/groq. OpenRouter etc. opt in.
     let reasoningMessageId: string | undefined
     let hasClosedReasoning = false
-    // Legacy STEP_STARTED/STEP_FINISHED pair emitted alongside REASONING_*
-    // for back-compat with consumers (UI, devtools) that haven't migrated
-    // to the spec REASONING_* events yet.
-    let stepId: string | undefined
-    let accumulatedReasoning = ''
     // Track whether ANY tool call lifecycle was actually completed across the
     // entire stream. Lets us downgrade a `tool_calls` finish_reason to `stop`
     // when the upstream signalled tool calls but never produced a complete
@@ -972,6 +967,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         // chunk emitted when `stream_options.include_usage` is on).
         if (chunk.usage) {
           lastUsage = chunk.usage
+          lastUsageSource = chunk
         }
         if (chunk.id) lastResponseId = chunk.id
         if (chunk.model) {
@@ -1005,7 +1001,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         if (reasoning && reasoning.text) {
           if (!reasoningMessageId) {
             reasoningMessageId = generateId(this.name)
-            stepId = generateId(this.name)
             yield {
               type: EventType.REASONING_START,
               messageId: reasoningMessageId,
@@ -1019,18 +1014,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
               model: chunk.model || options.model,
               timestamp: Date.now(),
             }
-            // Legacy STEP_STARTED (single emission, paired with the
-            // STEP_FINISHED below when reasoning closes).
-            yield {
-              type: EventType.STEP_STARTED,
-              stepName: stepId,
-              stepId,
-              model: chunk.model || options.model,
-              timestamp: Date.now(),
-              stepType: 'thinking',
-            }
           }
-          accumulatedReasoning += reasoning.text
           yield {
             type: EventType.REASONING_MESSAGE_CONTENT,
             messageId: reasoningMessageId,
@@ -1074,16 +1058,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
               model: chunk.model || options.model,
               timestamp: Date.now(),
             }
-            if (stepId) {
-              yield {
-                type: EventType.STEP_FINISHED,
-                stepName: stepId,
-                stepId,
-                model: chunk.model || options.model,
-                timestamp: Date.now(),
-                content: accumulatedReasoning,
-              }
-            }
           }
 
           // Emit TEXT_MESSAGE_START on first text content
@@ -1114,7 +1088,38 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         // Handle tool calls - they come in as deltas
         if (deltaToolCalls) {
           for (const toolCallDelta of deltaToolCalls) {
-            const index = toolCallDelta.index
+            // Some providers omit `index`. A missing index starts the next call
+            // when the id differs and the latest call already has an id, when
+            // an id arrives with a different name while the latest id is still
+            // empty, or when a name with no id differs from the latest name.
+            // ponytail: two calls of the same tool, both name-first and with no
+            // id, still share a slot. An index or an id is required to split them.
+            const deltaName = toolCallDelta.function?.name
+            const startsNext =
+              latestToolCall !== undefined &&
+              ((!!toolCallDelta.id &&
+                !!latestToolCall.id &&
+                toolCallDelta.id !== latestToolCall.id) ||
+                (!!toolCallDelta.id &&
+                  !latestToolCall.id &&
+                  !!deltaName &&
+                  !!latestToolCall.name &&
+                  deltaName !== latestToolCall.name) ||
+                (!toolCallDelta.id &&
+                  !!deltaName &&
+                  !!latestToolCall.name &&
+                  deltaName !== latestToolCall.name))
+            let index =
+              typeof toolCallDelta.index === 'number'
+                ? toolCallDelta.index
+                : latestToolCall === undefined
+                  ? 0
+                  : startsNext
+                    ? latestToolCall.index + 1
+                    : latestToolCall.index
+            if (typeof toolCallDelta.index !== 'number' && startsNext) {
+              while (toolCallsInProgress.has(index)) index += 1
+            }
 
             // Initialize or update the tool call in progress
             let toolCall = toolCallsInProgress.get(index)
@@ -1135,6 +1140,11 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             if (toolCallDelta.function?.name) {
               toolCall.name = toolCallDelta.function.name
             }
+            latestToolCall = {
+              index,
+              id: toolCall.id,
+              name: toolCall.name,
+            }
             if (toolCallDelta.function?.arguments) {
               toolCall.arguments += toolCallDelta.function.arguments
             }
@@ -1146,7 +1156,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
                 type: EventType.TOOL_CALL_START,
                 toolCallId: toolCall.id,
                 toolCallName: toolCall.name,
-                toolName: toolCall.name,
                 parentMessageId: aguiState.messageId,
                 model: chunk.model || options.model,
                 timestamp: Date.now(),
@@ -1219,7 +1228,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
                 type: EventType.TOOL_CALL_END,
                 toolCallId: toolCall.id,
                 toolCallName: toolCall.name,
-                toolName: toolCall.name,
                 model: chunk.model || options.model,
                 timestamp: Date.now(),
                 args: toolCall.arguments,
@@ -1290,7 +1298,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             type: EventType.TOOL_CALL_END,
             toolCallId: toolCall.id,
             toolCallName: toolCall.name,
-            toolName: toolCall.name,
             model: lastModel || options.model,
             timestamp: Date.now(),
             args: toolCall.arguments,
@@ -1327,16 +1334,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             messageId: reasoningMessageId,
             model: lastModel || options.model,
             timestamp: Date.now(),
-          }
-          if (stepId) {
-            yield {
-              type: EventType.STEP_FINISHED,
-              stepName: stepId,
-              stepId,
-              model: lastModel || options.model,
-              timestamp: Date.now(),
-              content: accumulatedReasoning,
-            }
           }
         }
 
@@ -1384,21 +1381,26 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
         // Map upstream finish_reason to AG-UI's narrower vocabulary.
         // Collapsing length / content_filter to 'stop' would hide why the
-        // run terminated — surface it instead. Use `tool_calls` only when
-        // a TOOL_CALL_END was actually emitted: an upstream that signalled
-        // `tool_calls` but never produced a started/ended pair must NOT
-        // surface `tool_calls` here, since downstream consumers wait for
-        // tool results that would never arrive. OpenAI's legacy
-        // `function_call` value (from the v1 function-calling API) is
-        // normalized to `tool_calls` — semantically the same termination.
+        // run terminated — surface it instead. A tool call cut off by
+        // `length` still emits TOOL_CALL_END (so the lifecycle balances),
+        // but that must not win over `length`: the core would treat the
+        // unfinished arguments as a parse error and call the model again.
+        // Use `tool_calls` only when a TOOL_CALL_END was actually emitted:
+        // an upstream that signalled `tool_calls` but never produced a
+        // started/ended pair must NOT surface `tool_calls` here, since
+        // downstream consumers wait for tool results that would never
+        // arrive. OpenAI's legacy `function_call` value (from the v1
+        // function-calling API) is normalized to `tool_calls`.
         const finishReason: NonNullable<AdapterYieldChunk['finishReason']> =
-          emittedAnyToolCallEnd
-            ? 'tool_calls'
-            : pendingFinishReason === 'tool_calls'
-              ? 'stop'
-              : pendingFinishReason === 'function_call'
-                ? 'tool_calls'
-                : (pendingFinishReason ?? 'stop')
+          pendingFinishReason === 'length'
+            ? 'length'
+            : emittedAnyToolCallEnd
+              ? 'tool_calls'
+              : pendingFinishReason === 'tool_calls'
+                ? 'stop'
+                : pendingFinishReason === 'function_call'
+                  ? 'tool_calls'
+                  : (pendingFinishReason ?? 'stop')
 
         // Conditional `usage` spread: AG-UI's `RunFinishedEvent.usage` is
         // optional with no `| undefined`; omit the key entirely when no usage
@@ -1411,7 +1413,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           model: lastModel || options.model,
           timestamp: Date.now(),
           ...(lastUsage && {
-            usage: buildChatCompletionsUsage(lastUsage),
+            usage: this.chatCompletionsTokenUsage(lastUsage, lastUsageSource),
           }),
           finishReason,
         }

@@ -38,6 +38,7 @@ import type {
  *   import { createChat, fetchServerSentEvents } from '@tanstack/ai-svelte'
  *
  *   const chat = createChat({
+ *     threadId: 'support-1',
  *     connection: fetchServerSentEvents('/api/chat'),
  *   })
  * </script>
@@ -86,37 +87,25 @@ export function createChat<
     ? { connection: options.connection }
     : { fetcher: options.fetcher }
 
-  // The hook's identity is its `threadId`. When no `threadId` is given the
-  // client mints one after mount, so an ephemeral chat still works but is not
-  // restored on reload.
+  // The hook's identity is its `threadId`.
   const client = new ChatClient<TTools, TContext, TInterrupts>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),
-    ...(typeof options.threadId === 'string' && options.persistence === true
+    threadId: options.threadId,
+    ...(options.persistence === true
       ? {
           persistence: true,
-          threadId: options.threadId,
           ...(options.history !== undefined && {
             history: options.history,
           }),
         }
-      : typeof options.threadId === 'string' && options.persistence
-        ? {
-            persistence: options.persistence,
-            threadId: options.threadId,
-          }
-        : {
-            ...(options.threadId !== undefined && {
-              threadId: options.threadId,
-            }),
-          }),
+      : { persistence: options.persistence }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
     }),
-    ...(options.body !== undefined && { body: options.body }),
     ...(options.forwardedProps !== undefined && {
       forwardedProps: options.forwardedProps,
     }),
@@ -256,20 +245,6 @@ export function createChat<
     await client.addToolResult(result)
   }
 
-  const addToolApprovalResponse = async (response: {
-    id: string
-    approved: boolean
-  }) => {
-    await client.addToolApprovalResponse(response)
-  }
-
-  const resumeInterrupts = async (
-    resumeItems: Array<RunAgentResumeItem>,
-    state?: ChatResumeState,
-  ) => {
-    return await client.resumeInterrupts(resumeItems, state)
-  }
-
   const resolveInterrupts = (
     resolution:
       | boolean
@@ -296,14 +271,6 @@ export function createChat<
     resumeItems: Array<RunAgentResumeItem>,
     state?: ChatResumeState,
   ) => client.resumeInterruptsUnsafe(resumeItems, state)
-
-  /**
-   * @deprecated Use `updateForwardedProps` instead.
-   * Both populate the same wire payload.
-   */
-  const updateBody = (newBody: Record<string, any>) => {
-    client.updateOptions({ body: newBody })
-  }
 
   const updateForwardedProps = (newForwardedProps: Record<string, any>) => {
     client.updateOptions({ forwardedProps: newForwardedProps })
@@ -392,9 +359,6 @@ export function createChat<
     get interrupts() {
       return snapshot.interruptState.interrupts
     },
-    get pendingInterrupts() {
-      return snapshot.interruptState.interrupts
-    },
     get interruptErrors() {
       return snapshot.interruptState.interruptErrors
     },
@@ -417,13 +381,10 @@ export function createChat<
     setMessages,
     clear,
     addToolResult,
-    addToolApprovalResponse,
     resolveInterrupts,
     cancelInterrupts,
     retryInterrupts,
     resumeInterruptsUnsafe,
-    resumeInterrupts,
-    updateBody,
     updateForwardedProps,
     updateContext,
   } as unknown as CreateChatReturn<TTools, TSchema, TContext, TInterrupts>

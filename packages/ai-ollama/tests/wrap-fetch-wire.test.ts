@@ -27,6 +27,7 @@ const messages = [{ role: 'user' as const, content: 'Hi' }]
 async function streamTag(wrapFetch?: FetchWrapper) {
   const adapter = createOllamaChat(model, 'http://ollama.test')
   for await (const _ of adapter.chatStream({
+    threadId: 'thread-1',
     logger,
     model,
     messages,
@@ -67,7 +68,13 @@ describe('Ollama wrapFetch', () => {
   it('sends the structured output request through the wrapper', async () => {
     const adapter = createOllamaChat(model, 'http://ollama.test')
     await adapter.structuredOutput({
-      chatOptions: { logger, model, messages, wrapFetch: addTag },
+      chatOptions: {
+        threadId: 'thread-1',
+        logger,
+        model,
+        messages,
+        wrapFetch: addTag,
+      },
       outputSchema: { type: 'object', properties: {} },
     })
     expect(sentTag).toBe('yes')

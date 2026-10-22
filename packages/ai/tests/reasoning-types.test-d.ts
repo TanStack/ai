@@ -33,9 +33,10 @@ declare const plainModel: TextAdapter<
 const messages = [{ role: 'user' as const, content: 'hi' }]
 
 // A model's own levels, as a string or in the object form.
-chat({ adapter: effortModel, messages, reasoning: 'low' })
-chat({ adapter: effortModel, messages, reasoning: 'off' })
+chat({ threadId: 'thread-1', adapter: effortModel, messages, reasoning: 'low' })
+chat({ threadId: 'thread-1', adapter: effortModel, messages, reasoning: 'off' })
 chat({
+  threadId: 'thread-1',
   adapter: effortModel,
   messages,
   reasoning: { level: 'high', summary: false },
@@ -53,6 +54,7 @@ chat({
 
 // A budget-based model takes budgetTokens.
 chat({
+  threadId: 'thread-1',
   adapter: budgetModel,
   messages,
   reasoning: { level: 'medium', budgetTokens: 4000 },
@@ -62,7 +64,7 @@ chat({
 chat({ adapter: plainModel, messages, reasoning: 'low' })
 
 // Not passing it is always fine.
-chat({ adapter: plainModel, messages })
+chat({ threadId: 'thread-1', adapter: plainModel, messages })
 
 // A model's levels, derived from its reasoning data.
 const metaData = {

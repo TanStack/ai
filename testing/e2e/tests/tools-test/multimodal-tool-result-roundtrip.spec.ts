@@ -59,14 +59,13 @@ test('multimodal server tool result keeps its image on the next user turn', asyn
 
   // Client state: the tool-result part keeps the parsed array.
   const messages = await getMessages(page)
-  const parts = messages.flatMap((message) => message.parts || [])
-  const screenshot = parts.find(
-    (part: any) => part.type === 'tool-call' && part.name === 'get_screenshot',
-  )
-  const result = parts.find(
-    (part: any) =>
-      part.type === 'tool-result' && part.toolCallId === screenshot?.id,
-  )
+  const parts = messages.flatMap((message) => message.parts)
+  const screenshot = parts
+    .filter((part) => part.type === 'tool-call')
+    .find((part) => part.name === 'get_screenshot')
+  const result = parts
+    .filter((part) => part.type === 'tool-result')
+    .find((part) => part.toolCallId === screenshot?.id)
   expect(Array.isArray(result?.content)).toBe(true)
 
   // Turn 2: the history round trips through the client.

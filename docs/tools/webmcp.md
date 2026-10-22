@@ -2,7 +2,7 @@
 title: WebMCP Tools
 id: webmcp
 order: 5
-description: "Expose TanStack AI client tools to browser agents through the experimental WebMCP API."
+description: "Let browser agents call your TanStack AI client tools through the experimental WebMCP API."
 keywords:
   - tanstack ai
   - webmcp
@@ -14,15 +14,18 @@ keywords:
   - injectRegisterWebMCPTools
 ---
 
-You have a browser action that a page agent needs to discover and execute. WebMCP exposes your TanStack client tools through `document.modelContext`.
+WebMCP publishes named actions on the page. A browser agent calls an action by name instead of clicking the UI.
 
-> **Experimental:** WebMCP support is experimental. Use it as progressive enhancement, not as a required application path.
+You register your TanStack client tools on `document.modelContext`. The agent finds them there and calls them.
 
-During SSR, in insecure contexts, or in unsupported browsers, registration resolves without adding tools. Your application continues to work without WebMCP.
+> [!WARNING]
+> WebMCP is experimental. Treat it as an extra for browsers that support it. Your page must work without it.
 
-This page sends your tools to WebMCP. To give the WebMCP tools on a page to your own chat, see [Page WebMCP Tools in Chat](./webmcp-page-tools).
+This page sends your tools to WebMCP. To use the WebMCP tools of a page in your own chat, see [Page WebMCP Tools in Chat](./webmcp-page-tools).
 
-## 1. Install the packages
+## Set it up
+
+### 1. Install the packages
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
@@ -38,9 +41,9 @@ remix: @tanstack/ai @tanstack/ai-remix remix zod
 
 <!-- ::end:tabs -->
 
-## 2. Define an executable client tool
+### 2. Define a client tool
 
-Define the tool at module scope. A browser agent executes the tool to open a help panel.
+Put the tool at module scope. This tool opens a help panel:
 
 ```ts
 // tools.ts
@@ -70,19 +73,15 @@ export const openHelpPanel = toolDefinition({
 export const webMCPTools = [openHelpPanel]
 ```
 
-WebMCP requires an executable `.client()` implementation. It also requires a nonempty description and a valid tool name.
+### 3. Register the tool
 
-A tool name can contain 1 to 128 ASCII letters, numbers, underscores, hyphens, or periods.
-
-## 3. Register the tool
-
-Use the lifecycle wrapper for your framework. Each wrapper removes its registrations during owner cleanup.
+Call the register function for your framework. When the component goes away, the function removes the tools.
 
 <!-- ::start:framework -->
 
 # React
 
-Call `useRegisterWebMCPTools` in a component. If its contents do not change, keep the tool array stable.
+Call `useRegisterWebMCPTools` in a component. Keep the tool array and the options stable, for example at module scope.
 
 ```tsx
 import { useRegisterWebMCPTools } from '@tanstack/ai-react'
@@ -107,7 +106,7 @@ export function HelpPage() {
 
 # Vue
 
-Call `useRegisterWebMCPTools` in a setup scope. Vue removes the registrations during scope disposal.
+Call `useRegisterWebMCPTools` in a setup scope. Vue removes the tools when it disposes the scope.
 
 ```vue
 <script setup lang="ts">
@@ -128,7 +127,7 @@ useRegisterWebMCPTools(webMCPTools, {
 
 # Solid
 
-Call `useRegisterWebMCPTools` in a reactive owner. Solid removes the registrations during owner cleanup.
+Call `useRegisterWebMCPTools` in a reactive owner. Solid removes the tools when it cleans up the owner.
 
 ```tsx
 import { useRegisterWebMCPTools } from '@tanstack/ai-solid'
@@ -149,7 +148,7 @@ export function HelpPage() {
 
 # Svelte
 
-Call `createRegisterWebMCPTools` in the component script. Svelte removes the registrations during component destruction.
+Call `createRegisterWebMCPTools` in the component script. Svelte removes the tools when it destroys the component.
 
 ```svelte
 <script lang="ts">
@@ -168,7 +167,7 @@ Call `createRegisterWebMCPTools` in the component script. Svelte removes the reg
 
 # Preact
 
-Call `useRegisterWebMCPTools` in a component. If its contents do not change, keep the tool array stable.
+Call `useRegisterWebMCPTools` in a component. Keep the tool array and the options stable, for example at module scope.
 
 ```tsx
 import { useRegisterWebMCPTools } from '@tanstack/ai-preact'
@@ -193,7 +192,7 @@ export function HelpPage() {
 
 # Angular
 
-Call `injectRegisterWebMCPTools` in an injection context. Angular removes the registrations through `DestroyRef`.
+Call `injectRegisterWebMCPTools` in an injection context. Angular removes the tools through `DestroyRef`.
 
 ```ts ignore
 import { Component } from '@angular/core'
@@ -214,7 +213,7 @@ export class HelpPage {
 
 # Octane
 
-Call `useRegisterWebMCPTools` in a component. If its contents do not change, keep the tool array stable.
+Call `useRegisterWebMCPTools` in a component. Keep the tool array and the options stable, for example at module scope.
 
 ```tsx
 import { useRegisterWebMCPTools } from '@tanstack/ai-octane'
@@ -239,7 +238,7 @@ export function HelpPage() {
 
 # Remix
 
-Pass the component `Handle` to `createRegisterWebMCPTools`. Remix uses `handle.signal` for cleanup.
+Pass the component `Handle` to `createRegisterWebMCPTools`. Remix uses `handle.signal` to remove the tools.
 
 ```tsx
 import { createRegisterWebMCPTools } from '@tanstack/ai-remix'
@@ -265,25 +264,32 @@ export const HelpPage = clientEntry(
 
 <!-- ::end:framework -->
 
-Changes to the `tools` or `options` value replace registrations in React, Preact, and Octane. Stable values prevent unnecessary registry changes.
+That is all. In a browser with WebMCP, an agent on this page can now find and call `open_help_panel`. In other browsers, the page works the same as before.
 
-All wrappers accept `toolOptions`, `context`, and `onError`. A contextual client tool makes `context` and the options argument required.
+## How it works
 
-### Migrate from the earlier wrapper names
+1. The register function turns each tool into a WebMCP tool. The input schema becomes JSON Schema, so the agent knows what to send.
+2. The agent calls the tool by name.
+3. WebMCP runs your `.client()` function in the page.
+4. The result goes back to the agent. It does not start or continue a TanStack chat run.
 
-The earlier names still work, but they are deprecated. They will be removed in 1.0.0:
+During SSR, in an insecure context, or in a browser without WebMCP, the register function adds no tools. It does not throw, so you can call it everywhere.
 
-| Deprecated name     | Current name                |
-| ------------------- | --------------------------- |
-| `useWebMCPTools`    | `useRegisterWebMCPTools`    |
-| `createWebMCPTools` | `createRegisterWebMCPTools` |
-| `injectWebMCPTools` | `injectRegisterWebMCPTools` |
+Each tool must have:
 
-The options types have the same change, for example `UseWebMCPToolsOptions` becomes `UseRegisterWebMCPToolsOptions`.
+- A `.client()` function. WebMCP needs code that it can run.
+- A description that is not empty.
+- A name of 1 to 128 ASCII letters, numbers, underscores, hyphens, or periods.
+- An input schema that accepts an object.
+- No `needsApproval: true`. See [Security](#security).
 
-## Use the framework-neutral registrar
+If a tool breaks one of these rules, registration fails and `onError` gets the error.
 
-If another lifecycle owns the registration, use `registerWebMCPTools`. The required signal controls how long the tools stay registered.
+## Advanced
+
+### Register without a framework
+
+If your own code owns the lifecycle, use `registerWebMCPTools` from `@tanstack/ai-client`. The `signal` option is required. The tools stay registered until the signal aborts.
 
 ```ts
 import { registerWebMCPTools } from '@tanstack/ai-client'
@@ -309,45 +315,73 @@ export function disposeWebMCPTools() {
 }
 ```
 
-Call `disposeWebMCPTools()` from the explicit teardown path for your application shell. Do not use `pagehide`, because BFCache can restore the page.
+Call `disposeWebMCPTools()` from the teardown code of your application shell. Do not call it on `pagehide`, because the browser can restore the page from the back/forward cache.
 
-The annotations are hints for the browser agent. They do not enforce permissions or approval.
+`registerWebMCPTools` returns a promise. If registration fails, the promise rejects.
 
-## Understand the execution boundary
+### Options
 
-WebMCP calls the client handler directly. The result returns directly to WebMCP and does not continue a TanStack chat run.
+All framework wrappers accept these options. `registerWebMCPTools` accepts the first two, plus `signal`.
 
-The execution context has these WebMCP rules:
+- `toolOptions`: a `title` and `annotations` for each tool, by tool name.
+- `context`: the value that your handler gets as `context`. If a client tool declares a context, `context` and the options argument are required.
+- `onError`: gets a registration failure.
 
-- `abortSignal` is the WebMCP execution signal. Pass it to cancellable browser APIs.
-- `context` is the value from the registrar or wrapper options.
-- `emitCustomEvent` does nothing because no TanStack stream exists.
-- `toolCallId` is absent because WebMCP does not provide one.
+The annotations are hints for the browser agent:
 
-The registration signal and the execution signal have different jobs. The registration signal removes tools, while the execution signal cancels one call.
+- `readOnlyHint`: the tool does not change state.
+- `untrustedContentHint`: the tool can return content that your app does not trust.
 
-Cancellation is cooperative. Your handler must observe `abortSignal` or pass it to an API that supports cancellation.
+The annotations do not enforce permissions or approval.
 
-## Validate data at the page boundary
+### Stable values in React, Preact, and Octane
 
-The registrar converts each input schema to JSON Schema for WebMCP discovery.
+In these frameworks, a new `tools` or `options` value replaces the registrations. If the contents do not change, keep both values stable. Stable values prevent extra changes to the WebMCP registry.
 
-For a Standard Schema, it validates input before execution. It also validates output before the result returns to WebMCP.
+### What your handler gets
 
-A raw JSON Schema only describes the data. TanStack AI does not use it for runtime validation.
+WebMCP calls your client handler directly. The handler gets these values:
 
-If you use raw JSON Schema, validate untrusted input inside the handler. Return a value that matches the output schema.
+- `abortSignal`: the WebMCP signal for this call. Pass it to browser APIs that you can cancel.
+- `context`: the value from the register options.
+- `emitCustomEvent`: does nothing, because no TanStack stream exists.
+- `toolCallId`: not set, because WebMCP does not give one.
 
-Tool results must be JSON-serializable. WebMCP reports a serialization failure to its caller.
+The two signals have different jobs:
 
-## Keep the security boundary on the server
+- The registration signal removes the tools.
+- The execution signal (`abortSignal`) cancels one call.
 
-`needsApproval: true` tools cannot register with WebMCP. WebMCP annotations cannot enforce the TanStack approval contract.
+Cancellation is cooperative. Your handler must read `abortSignal`, or pass it to an API that supports cancellation.
 
-Do not expose a sensitive action only through a browser check. The server endpoint must enforce authentication, authorization, rate limits, and business rules.
+### Validation
 
-Tool names must be unique. Duplicate names in one call fail before registration changes the document registry.
+The register function converts each input schema to JSON Schema for WebMCP.
 
-WebMCP also rejects a name that another owner already registered. If registration fails, the registrar removes only the tools added by that call.
+- **Standard Schema** (for example Zod): TanStack AI validates the input before your handler runs. It also validates the output before the result goes back to WebMCP.
+- **Raw JSON Schema**: the schema only describes the data. TanStack AI does not validate with it. Validate untrusted input inside the handler, and return a value that matches the output schema.
 
-If WebMCP is available, your page now exposes `open_help_panel`. Other browsers continue to use the page without that agent action.
+Tool results must be JSON-serializable. If a result cannot be serialized, WebMCP reports the failure to its caller.
+
+### Security
+
+A tool with `needsApproval: true` cannot register with WebMCP. WebMCP annotations cannot enforce the TanStack approval flow.
+
+Do not protect a sensitive action with a browser check only. Your server endpoint must enforce these rules:
+
+- Authentication.
+- Authorization.
+- Rate limits.
+- Business rules.
+
+### Duplicate tool names
+
+Tool names must be unique.
+
+- If one call has two tools with the same name, the call fails before it changes the registry.
+- If another owner already registered a name, WebMCP rejects that name.
+- If registration fails, the register function removes only the tools that this call added.
+
+### Upgrade from 0.x
+
+The 1.0 names of the wrapper functions and their option types are in the [1.0 upgrade guide](../migration/v1#other-client-renames).

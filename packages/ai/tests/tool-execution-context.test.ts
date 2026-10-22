@@ -19,6 +19,7 @@ describe('ToolExecutionContext.abortSignal', () => {
     await tool.execute!(
       { v: 'hi' },
       {
+        threadId: 'thread-1',
         toolCallId: 't1',
         emitCustomEvent: () => {},
         abortSignal: controller.signal,
@@ -46,6 +47,7 @@ describe('ToolExecutionContext.detach', () => {
     const result = await tool.execute!(
       {},
       {
+        threadId: 'thread-1',
         toolCallId: 't1',
         emitCustomEvent: () => {},
         detach: (job) => {

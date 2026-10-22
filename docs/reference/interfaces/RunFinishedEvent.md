@@ -3,7 +3,7 @@ id: RunFinishedEvent
 title: RunFinishedEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1632](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1632)
+Defined in: packages/ai/src/types.ts:1601
 
 Emitted when a run completes successfully.
 
@@ -23,7 +23,7 @@ Spec `usage[]` is provider/model token counts. TanStack leftovers live in
 optional finishReason?: "length" | "stop" | "content_filter" | "tool_calls" | null;
 ```
 
-Defined in: [packages/ai/src/types.ts:1643](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1643)
+Defined in: packages/ai/src/types.ts:1612
 
 Restored on the client from `metadata.tanstack`.
 
@@ -35,7 +35,7 @@ Restored on the client from `metadata.tanstack`.
 optional metadata?: object & Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1644](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1644)
+Defined in: packages/ai/src/types.ts:1613
 
 #### Type Declaration
 
@@ -53,7 +53,7 @@ optional tanstack?: TanStackRunMetadata;
 optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1639](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1639)
+Defined in: packages/ai/src/types.ts:1608
 
 Restored on the client from `metadata.tanstack`.
 
@@ -65,7 +65,7 @@ Restored on the client from `metadata.tanstack`.
 optional responseId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1641](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1641)
+Defined in: packages/ai/src/types.ts:1610
 
 Provider generation ID. Restored from `metadata.tanstack`.
 
@@ -77,7 +77,7 @@ Provider generation ID. Restored from `metadata.tanstack`.
 type: RUN_FINISHED;
 ```
 
-Defined in: [packages/ai/src/types.ts:1636](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1636)
+Defined in: packages/ai/src/types.ts:1605
 
 ***
 
@@ -87,4 +87,4 @@ Defined in: [packages/ai/src/types.ts:1636](https://github.com/TanStack/ai/blob/
 optional usage?: TokenUsage<ProviderUsageDetails> | TokenUsage[];
 ```
 
-Defined in: [packages/ai/src/types.ts:1637](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1637)
+Defined in: packages/ai/src/types.ts:1606

@@ -77,6 +77,7 @@ export const Route = createFileRoute('/api/openai-malformed-tool-arguments')({
         )
 
         for await (const chunk of chat({
+          threadId: 'openai-malformed-tool-arguments',
           adapter,
           messages: [{ role: 'user', content: 'Run the local action' }],
           tools: [tool],

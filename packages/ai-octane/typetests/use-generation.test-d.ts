@@ -14,6 +14,7 @@ describe('useGeneration', () => {
   it('types generate() with TInput rather than Record<string, any>', () => {
     const check = () => {
       const { generate } = useGeneration<CustomInput, { url: string }>({
+        threadId: 'thread-1',
         connection: { connect: async function* () {} },
       })
 

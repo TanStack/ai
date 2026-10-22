@@ -2,7 +2,7 @@
 
 Migrates client-side TanStack AI code from the legacy field names to the AG-UI–compliant ones introduced in the AG-UI client/server compliance release.
 
-> **Heads up — nothing breaks if you skip this.** The legacy names continue to work via deprecation bridges. Run this codemod when you want to clean up your codebase and remove deprecation warnings. See [`docs/migration/ag-ui-compliance.md`](../../docs/migration/ag-ui-compliance.md) for the full migration story.
+> **Heads up: 1.0 removes the legacy names.** Run this codemod before you upgrade to 1.0. See [`docs/migration/v1.md`](../../docs/migration/v1.md) for the full 1.0 upgrade and [`docs/migration/ag-ui-compliance.md`](../../docs/migration/ag-ui-compliance.md) for the wire change.
 
 ## What it does
 
@@ -20,7 +20,7 @@ Each rename is gated by an **import-source check** — the codemod only rewrites
 
 - **Server-side `body.data.X` rewrites.** Detecting which `body.data.foo` reads belong to a TanStack AI route handler vs. unrelated code requires more context than a syntactic codemod can reliably provide. Migrate these by hand using the recipes in [`docs/migration/ag-ui-compliance.md`](../../docs/migration/ag-ui-compliance.md).
 - **Re-exports and aliases.** If you re-export `useChat` from a barrel file (`export { useChat } from '@tanstack/ai-react'`), call sites that import the re-export won't be matched. Update the import to come directly from the framework package, or run the codemod against the barrel file too.
-- **`chat({ conversationId: <expr> })` value-source rewrites.** The codemod renames the property _key_ `conversationId` → `threadId` but does NOT rewrite the value expression. If your server reads from a now-stale source (commonly `body.forwardedProps?.conversationId`, which the upgraded client no longer auto-emits), audit the value after the codemod runs and migrate to `body.threadId` (the AG-UI top-level wire field), `params.threadId` from `chatParamsFromRequest`, or omit `threadId` entirely so the runtime auto-generates one.
+- **`chat({ conversationId: <expr> })` value-source rewrites.** The codemod renames the property _key_ `conversationId` → `threadId` but does NOT rewrite the value expression. If your server reads from a now-stale source (commonly `body.forwardedProps?.conversationId`, which the upgraded client no longer auto-emits), audit the value after the codemod runs and migrate to `body.threadId` (the AG-UI top-level wire field), or `params.threadId` from `chatParamsFromRequest`. `threadId` is required in 1.0 and nothing generates one, so pass a stable `threadId` for each conversation.
 
 ## Running it
 

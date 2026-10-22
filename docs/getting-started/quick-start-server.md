@@ -2,7 +2,7 @@
 title: "Quick Start: Server Only"
 id: quick-start-server
 order: 5
-description: "Add a streaming AI chat endpoint to a Node.js backend with TanStack AI — no UI framework required."
+description: "Call a model from Node.js with TanStack AI. Get text back in a script, or serve a streaming chat endpoint. No UI framework needed."
 keywords:
   - tanstack ai
   - node.js
@@ -14,11 +14,11 @@ keywords:
   - sse
 ---
 
-You have a Node.js backend and want to add AI capabilities. By the end of this guide, you'll have a working chat endpoint powered by TanStack AI and OpenAI -- no UI framework required.
+This guide calls a model from a Node.js server. It has no UI framework.
 
-> **Tip:** If you'd prefer not to sign up with individual AI providers, [OpenRouter](../adapters/openrouter) gives you access to 300+ models with a single API key and is the easiest way to get started.
+`chat()` runs on the server and returns a stream. You can read it to the end as text, or send it over HTTP. This takes about 5 minutes.
 
-## Installation
+## 1. Install
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
@@ -33,43 +33,65 @@ octane: @tanstack/ai @tanstack/ai-openai
 
 <!-- ::end:tabs -->
 
-## Basic Chat
+> [!TIP]
+> If you do not want a key for each provider, use [OpenRouter](../adapters/openrouter). It gives you 300+ models with one API key.
 
-The simplest way to get a response -- call `chat()` and collect the text:
+## 2. Add your API key
+
+Create a `.env` file:
+
+```bash
+OPENAI_API_KEY=your-openai-api-key
+```
+
+The adapter reads `OPENAI_API_KEY` at runtime. Do not send this key to the browser.
+
+## 3. Get a reply
+
+Call `chat()`, then read the whole stream with `streamToText`:
 
 ```typescript
 import { chat, streamToText } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const stream = chat({
-  adapter: openaiText('gpt-5.5'),
+  adapter: openaiText('gpt-6.1-sol'),
   messages: [{ role: 'user', content: 'Hello!' }],
+  threadId: 'thread-1',
 })
 
 const { text } = await streamToText(stream)
 console.log(text)
 ```
 
-`chat()` returns an `AsyncIterable<StreamChunk>`. `streamToText` reads it to the end and returns `{ text, chunks }`. `text` is the full reply. `chunks` holds the rest of the run: tool calls, usage, and interrupts.
+Run the file. The reply prints to the terminal.
 
-## HTTP Endpoint
+## 4. Serve it over HTTP
 
-Here's an Express server that exposes a streaming chat endpoint using Server-Sent Events:
+This Express server streams the reply as Server-Sent Events on `/api/chat`:
 
 ```typescript ignore
 import express from 'express'
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  chat,
+  chatParamsFromRequestBody,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const app = express()
 app.use(express.json())
 
 app.post('/api/chat', async (req, res) => {
-  const { messages } = req.body
+  const { messages, threadId, runId } = await chatParamsFromRequestBody(
+    req.body,
+  )
 
   const stream = chat({
-    adapter: openaiText('gpt-5.5'),
+    adapter: openaiText('gpt-6.1-sol'),
     messages,
+    threadId,
+    runId,
   })
 
   const response = toServerSentEventsResponse(stream)
@@ -94,13 +116,29 @@ app.post('/api/chat', async (req, res) => {
 app.listen(3000, () => console.log('Server running on port 3000'))
 ```
 
-> **Tip:** Any backend that returns the TanStack AI SSE format works -- you can use Fastify, Hono, or any other Node.js framework.
+The client hooks (`useChat` in `@tanstack/ai-react`, `@tanstack/ai-vue`, `@tanstack/ai-svelte`, and the others) can talk to this endpoint. Add a UI later with the [Quick Start](./quick-start).
 
-This endpoint is compatible with TanStack AI's client-side `useChat` hooks (`@tanstack/ai-react`, `@tanstack/ai-vue`, `@tanstack/ai-svelte`), so you can pair it with any frontend later.
+You now have a model that answers from your backend.
 
-## With Tools
+## How it works
 
-Define a server tool with `toolDefinition` and pass it to `chat()`. The agent loop automatically calls your tool and feeds the result back to the model:
+- `chat()` returns an `AsyncIterable<StreamChunk>`. Nothing runs until you read it.
+- `streamToText` reads the stream to the end. It returns `{ text, chunks }`. `text` is the full reply. `chunks` holds the rest of the run: tool calls, usage, and interrupts.
+- `toServerSentEventsResponse` turns the stream into a Web `Response` in the TanStack AI SSE format.
+
+Any backend that returns this format works. Fastify, Hono, and other Node.js frameworks are fine.
+
+## Next
+
+- [Tools](../tools/tools): add function calling and agent loops.
+- [Adapters](../adapters/openai): connect to other providers.
+- [Quick Start](./quick-start): add a frontend.
+
+## Advanced
+
+### Add a server tool
+
+Define a tool with `toolDefinition`, then pass it to `chat()`. The agent loop calls the tool and sends the result back to the model:
 
 ```typescript
 import { chat, toolDefinition, streamToText } from '@tanstack/ai'
@@ -113,12 +151,13 @@ const getWeather = toolDefinition({
   inputSchema: z.object({ city: z.string() }),
   outputSchema: z.object({ temp: z.number(), condition: z.string() }),
 }).server(async ({ city }) => {
-  return { temp: 22, condition: 'sunny' }
+  return { temp: 22, condition: `sunny in ${city}` }
 })
 
 const stream = chat({
-  adapter: openaiText('gpt-5.5'),
+  adapter: openaiText('gpt-6.1-sol'),
   messages: [{ role: 'user', content: 'Weather in Tokyo?' }],
+  threadId: 'thread-1',
   tools: [getWeather],
 })
 
@@ -126,32 +165,41 @@ const { text } = await streamToText(stream)
 console.log(text)
 ```
 
-The model decides when to call `getWeather`, receives the result, and incorporates it into its response -- all within a single `chat()` call.
+The model decides when to call `getWeather`. It gets the result and uses it in its answer, all inside one `chat()` call.
 
-## Alternative Response Formats
+### Newline-delimited JSON
 
-TanStack AI ships several ways to return a stream over HTTP:
-
-**`toHttpResponse()`** returns a `Response` using newline-delimited JSON instead of SSE. Pair it with `fetchHttpStream` on the client:
+`toHttpResponse()` returns a `Response` with newline-delimited JSON instead of SSE. On the client, pair it with `fetchHttpStream`:
 
 ```typescript
-import { chat, toHttpResponse } from '@tanstack/ai'
+import { chat, chatParamsFromRequest, toHttpResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
   const stream = chat({
-    adapter: openaiText('gpt-5.5'),
+    adapter: openaiText('gpt-6.1-sol'),
     messages,
+    threadId,
+    runId,
   })
   return toHttpResponse(stream)
 }
 ```
 
-**Raw stream consumption** -- iterate the `AsyncIterable` directly with `for await`:
+### Read the raw stream
+
+Iterate the stream with `for await` to handle each chunk yourself:
 
 ```typescript
-import { stream } from './stream'
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+const stream = chat({
+  adapter: openaiText('gpt-6.1-sol'),
+  messages: [{ role: 'user', content: 'Hello!' }],
+  threadId: 'thread-1',
+})
 
 for await (const chunk of stream) {
   if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
@@ -160,25 +208,14 @@ for await (const chunk of stream) {
 }
 ```
 
-This gives you full control over every chunk type (text deltas, tool calls, run lifecycle events, etc.).
+You see every chunk type: text deltas, tool calls, run lifecycle events, and more. For more control, see [StreamProcessor](../reference/classes/StreamProcessor).
 
-## Environment Variables
+### OpenRouter key
 
-Create a `.env` file with your API key:
+To use OpenRouter, put its key in `.env`:
 
 ```bash
-# OpenRouter (recommended — access 300+ models with one key)
 OPENROUTER_API_KEY=sk-or-...
-
-# OpenAI
-OPENAI_API_KEY=your-openai-api-key
 ```
 
-The adapter reads `OPENAI_API_KEY` at runtime. Never expose it to the browser.
-
-## Next Steps
-
-- Learn about [Tools](../tools/tools) to add function calling and agent loops
-- Explore [StreamProcessor](../reference/classes/StreamProcessor) for fine-grained stream control
-- Check out the [Adapters](../adapters/openai) to connect to different providers
-- See the [Quick Start](./quick-start) to add a frontend
+Then use the adapter from [OpenRouter](../adapters/openrouter).

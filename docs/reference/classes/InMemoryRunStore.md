@@ -3,7 +3,7 @@ id: InMemoryRunStore
 title: InMemoryRunStore
 ---
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:423](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L423)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:423
 
 In-memory [RunStore](../interfaces/RunStore.md). Single process only.
 
@@ -31,7 +31,7 @@ new InMemoryRunStore(): InMemoryRunStore;
 createOrResume(input): Promise<RunRecord>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:426](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L426)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:426
 
 Create a run record, or return the existing one unchanged if `runId` is
 already present.
@@ -64,7 +64,7 @@ link fields are copied only on the first insert.
 findActiveRun(threadId): Promise<RunRecord | null>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:493](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L493)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:493
 
 The most recent `'running'` run for `threadId`, or `null` if none is active.
 
@@ -101,7 +101,7 @@ tiers belong at the store level, not the method level.
 get(runId): Promise<RunRecord | null>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:461](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L461)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:461
 
 Current record, or null when unknown.
 
@@ -127,7 +127,7 @@ Current record, or null when unknown.
 listByParentRun(parentRunId): Promise<RunRecord[]>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:472](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L472)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:472
 
 Child runs started by `parentRunId`, ascending by `startedAt`.
 OPTIONAL. `reconstructChat` uses this to put subagent cards back
@@ -156,7 +156,7 @@ text and not the cards.
 listByThread(threadId): Promise<RunRecord[]>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:465](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L465)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:465
 
 Every run in a conversation, ascending by `startedAt`. OPTIONAL.
 `reconstructChat` calls it to find the parent runs of children that a
@@ -185,7 +185,7 @@ Consumers feature-detect.
 listReclaimable(opts): Promise<RunRecord[]>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:479](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L479)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:479
 
 Runs that may be reclaimed: ALL THREE of `status === 'running'`,
 `detachedSince` is set, and `detachedSince <= now - ttlMs`. The cutoff is
@@ -229,7 +229,7 @@ method cannot be reaped at all.
 update(runId, patch): Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:452](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L452)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:452
 
 Patch a record's mutable fields.
 

@@ -50,11 +50,12 @@ const pptx = inlineSkill({
 })
 
 export async function POST(request: Request) {
-  const { messages } = await request.json()
+  const { messages, threadId } = await request.json()
 
   const stream = chat({
     adapter: anthropicText('claude-sonnet-4-5'),
     messages,
+    threadId,
     middleware: [withSkills(pptx)],
   })
 

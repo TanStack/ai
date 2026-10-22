@@ -128,7 +128,6 @@ function createFatParallelAdapter(callCount: number): AnyTextAdapter {
           type: EventType.TOOL_CALL_START,
           toolCallId,
           toolCallName: 'ping',
-          toolName: 'ping',
           index: i,
           model,
           timestamp: Date.now(),
@@ -144,7 +143,6 @@ function createFatParallelAdapter(callCount: number): AnyTextAdapter {
           type: EventType.TOOL_CALL_END,
           toolCallId,
           toolCallName: 'ping',
-          toolName: 'ping',
           input: { n: i },
           model,
           timestamp: Date.now(),
@@ -182,6 +180,7 @@ export const Route = createFileRoute('/api/max-tool-calls-wire')({
         let error: string | null = null
         try {
           for await (const chunk of chat({
+            threadId: 'max-tool-calls-wire',
             ...createChatOptions({
               adapter: createFatParallelAdapter(8),
             }),

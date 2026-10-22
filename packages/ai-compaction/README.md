@@ -42,6 +42,7 @@ import { withCompaction } from '@tanstack/ai-compaction'
 chat({
   adapter,
   messages,
+  threadId: 'thread-1',
   middleware: [withCompaction({ maxTokens: 100_000 })],
 })
 ```

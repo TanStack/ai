@@ -86,7 +86,7 @@ lockfile shows which package manager to use.
 | Remember facts across conversations                               | `@tanstack/ai-memory`                                                                                                                                                                                   | `@tanstack/ai-memory#tanstack-ai-memory`     |
 | Load SKILL.md files at runtime, for the app's own model           | `@tanstack/ai-skills`                                                                                                                                                                                   | `@tanstack/ai-skills#ai-skills`              |
 | Keep a long conversation inside the context window                | `@tanstack/ai-compaction`                                                                                                                                                                               | docs                                         |
-| Port from the Vercel AI SDK, or upgrade a deprecated API          | see the `tanstack-ai-migration` skill                                                                                                                                                                   |                                              |
+| Port from the Vercel AI SDK, or upgrade from TanStack AI 0.x      | see the `tanstack-ai-migration` skill                                                                                                                                                                   |                                              |
 
 Things that trip agents up:
 
@@ -95,7 +95,7 @@ Things that trip agents up:
   with the capability the task needs.
 - Client code imports from the framework package, never `@tanstack/ai-client`
   (vanilla JS only). Chat UI is a subpath, such as `@tanstack/ai-react/ui`; the
-  `@tanstack/ai-*-ui` packages are deprecated.
+  old `@tanstack/ai-*-ui` packages have no 1.0 release.
 - Delivery durability (`ai-durable-stream`) and state persistence
   (`ai-persistence`) are different problems. Sort out which one the user has.
 - `@tanstack/ai-skills` loads skills for the model inside the app at runtime.

@@ -16,5 +16,11 @@
     "esModuleInterop": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*"]
+  "include": [
+    "src/**/*",
+    "tests/**/*",
+    "playwright.config.ts",
+    "global-setup.ts",
+    "global-teardown.ts"
+  ]
 }

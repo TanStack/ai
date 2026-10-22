@@ -118,6 +118,7 @@ describe('strict fallback warning (#1213)', () => {
 
     for (let i = 0; i < 2; i++) {
       for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
         logger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'hi' }],
@@ -160,6 +161,7 @@ describe('strict fallback warning (#1213)', () => {
     }
 
     for await (const _ of new Adapter().chatStream({
+      threadId: 'thread-1',
       logger,
       model: 'test-model',
       messages: [{ role: 'user', content: 'hi' }],
@@ -252,6 +254,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -300,6 +303,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -359,6 +363,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -428,6 +433,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -498,6 +504,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Say hello' }],
@@ -574,6 +581,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Ask me' }],
@@ -657,6 +665,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Weather in Berlin?' }],
@@ -670,7 +679,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       expect(toolStartChunk).toBeDefined()
       if (toolStartChunk?.type === 'TOOL_CALL_START') {
         expect(toolStartChunk.toolCallId).toBe('call_abc123')
-        expect(toolStartChunk.toolName).toBe('lookup_weather')
+        expect(toolStartChunk.toolCallName).toBe('lookup_weather')
       }
 
       const toolArgsChunks = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
@@ -680,7 +689,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       expect(toolEndChunk).toBeDefined()
       if (toolEndChunk?.type === 'TOOL_CALL_END') {
         expect(toolEndChunk.toolCallId).toBe('call_abc123')
-        expect(toolEndChunk.toolName).toBe('lookup_weather')
+        expect(toolEndChunk.toolCallName).toBe('lookup_weather')
         expect(toolEndChunk.input).toEqual({ location: 'Berlin' })
       }
 
@@ -738,6 +747,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Weather in Berlin?' }],
@@ -767,6 +777,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [
@@ -836,6 +847,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
 
       try {
         for await (const chunk of adapter.chatStream({
+          threadId: 'thread-1',
           logger: testLogger,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
@@ -868,6 +880,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -900,6 +913,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -920,6 +934,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -953,6 +968,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
 
       const result = await adapter.structuredOutput({
         chatOptions: {
+          threadId: 'thread-1',
           logger: testLogger,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Give me a person object' }],
@@ -1002,6 +1018,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
 
       const result = await adapter.structuredOutput({
         chatOptions: {
+          threadId: 'thread-1',
           logger: testLogger,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Give me a person object' }],
@@ -1040,6 +1057,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
 
       const result = await adapter.structuredOutput({
         chatOptions: {
+          threadId: 'thread-1',
           logger: testLogger,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Give me a person object' }],
@@ -1083,6 +1101,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       await expect(
         adapter.structuredOutput({
           chatOptions: {
+            threadId: 'thread-1',
             logger: testLogger,
             model: 'test-model',
             messages: [{ role: 'user', content: 'Give me a person object' }],
@@ -1114,6 +1133,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       await expect(
         adapter.structuredOutput({
           chatOptions: {
+            threadId: 'thread-1',
             logger: testLogger,
             model: 'test-model',
             messages: [{ role: 'user', content: 'Give me a person object' }],
@@ -1138,6 +1158,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       await expect(
         adapter.structuredOutput({
           chatOptions: {
+            threadId: 'thread-1',
             logger: testLogger,
             model: 'test-model',
             messages: [{ role: 'user', content: 'Give me a person object' }],
@@ -1164,6 +1185,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       await expect(
         adapter.structuredOutput({
           chatOptions: {
+            threadId: 'thread-1',
             logger: testLogger,
             model: 'test-model',
             messages: [{ role: 'user', content: 'Give me data' }],
@@ -1184,6 +1206,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       await expect(
         adapter.structuredOutput({
           chatOptions: {
+            threadId: 'thread-1',
             logger: testLogger,
             model: 'test-model',
             messages: [{ role: 'user', content: 'Give me data' }],
@@ -1230,6 +1253,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
 
         try {
           for await (const chunk of adapter.chatStream({
+            threadId: 'thread-1',
             logger: testLogger,
             model: 'test-model',
             messages: [{ role: 'user', content: 'Weather?' }],
@@ -1304,6 +1328,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
         const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
         const chunks: Array<AdapterYieldChunk> = []
         for await (const chunk of adapter.chatStream({
+          threadId: 'thread-1',
           logger: testLogger,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Weather?' }],
@@ -1358,6 +1383,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
 
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -1396,6 +1422,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
 
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -1424,6 +1451,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
 
       await adapter.structuredOutput({
         chatOptions: {
+          threadId: 'thread-1',
           logger: testLogger,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Give me a person' }],
@@ -1463,6 +1491,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       expect(adapter.supportsCombinedToolsAndSchema()).toBe(true)
 
       for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -1508,6 +1537,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       expect(adapter.supportsCombinedToolsAndSchema(modelOptions)).toBe(false)
 
       for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -1548,6 +1578,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
 
       for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -1583,6 +1614,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       const controller = new AbortController()
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],

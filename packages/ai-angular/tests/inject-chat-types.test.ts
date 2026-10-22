@@ -206,6 +206,7 @@ describe('injectChat() registered generic interrupt types', () => {
 
     const check = () => {
       const chat = injectChat({
+        threadId: 'thread-1',
         connection: { connect: async function* () {} },
         interrupts: [reviewPlan, acknowledge],
       })
@@ -253,6 +254,7 @@ describe('injectChat() registered generic interrupt types', () => {
         needsApproval: true,
       }).client()
       const withoutRegistry = injectChat({
+        threadId: 'thread-1',
         connection: { connect: async function* () {} },
         tools: clientTools(existingTool),
       })

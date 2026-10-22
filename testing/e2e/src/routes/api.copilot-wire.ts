@@ -69,7 +69,7 @@ const copilotStreams = {
             type: 'response.completed',
             response: {
               id: 'r-1',
-              model: 'gpt-5.6',
+              model: 'gpt-5.6-sol',
               status: 'completed',
               output: [{ ...call, id: 'fc_f' }],
             },
@@ -87,7 +87,7 @@ const copilotStreams = {
             type: 'response.completed',
             response: {
               id: 'r-2',
-              model: 'gpt-5.6',
+              model: 'gpt-5.6-sol',
               status: 'completed',
               output: [],
             },
@@ -118,7 +118,7 @@ const copilotStreams = {
             type: 'response.completed',
             response: {
               id: 'r-1',
-              model: 'gpt-5.6',
+              model: 'gpt-5.6-sol',
               status: 'completed',
               output: [],
             },
@@ -136,7 +136,7 @@ const copilotStreams = {
             type: 'response.completed',
             response: {
               id: 'r-2',
-              model: 'gpt-5.6',
+              model: 'gpt-5.6-sol',
               status: 'completed',
               output: [],
             },
@@ -178,7 +178,8 @@ export const Route = createFileRoute('/api/copilot-wire')({
         ) {
           let turn = 0
           const stream = chat({
-            adapter: openaiCompatibleText('gpt-5.6', {
+            threadId: 'copilot-wire',
+            adapter: openaiCompatibleText('gpt-5.6-sol', {
               name: 'github-copilot',
               baseURL: 'https://api.githubcopilot.com',
               apiKey: 'copilot-token',
@@ -210,6 +211,7 @@ export const Route = createFileRoute('/api/copilot-wire')({
           let url = ''
           let headers: Record<string, string> = {}
           const { text } = await chat({
+            threadId: 'copilot-wire',
             adapter: createAnthropicChat('claude-sonnet-5-5', 'copilot-token', {
               baseURL: LLMOCK_BASE,
               auth: 'bearer',
@@ -243,7 +245,8 @@ export const Route = createFileRoute('/api/copilot-wire')({
         // `include`. So the route keeps the body that the adapter sent.
         let sent: unknown
         const { text } = await chat({
-          adapter: openaiCompatibleText('gpt-5.6', {
+          threadId: 'copilot-wire',
+          adapter: openaiCompatibleText('gpt-5.6-sol', {
             name: 'github-copilot',
             baseURL: `${LLMOCK_BASE}/v1`,
             apiKey: 'copilot-token',

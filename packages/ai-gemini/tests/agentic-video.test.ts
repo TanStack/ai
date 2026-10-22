@@ -60,6 +60,7 @@ describe.each(['gemini-3.8-flash', 'gemini-3.7-flash'] as const)(
       const adapter = new GeminiTextAdapter({ apiKey: 'k' }, model)
       const chunks = await collect(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [videoMessage({ processing: 'agentic' })],
         }),
@@ -95,7 +96,9 @@ describe.each(['gemini-3.8-flash', 'gemini-3.7-flash'] as const)(
       )
 
       const adapter = new GeminiTextAdapter({ apiKey: 'k' }, model)
-      await collect(chat({ adapter, messages: [videoMessage()] }))
+      await collect(
+        chat({ threadId: 'thread-1', adapter, messages: [videoMessage()] }),
+      )
 
       expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
       expect(mocks.interactionsCreateSpy).not.toHaveBeenCalled()

@@ -2,20 +2,37 @@
 id: overview
 order: 1
 title: Sandboxes Overview
-description: "Run coding-agent CLIs (Grok Build, Claude Code, Codex, OpenCode) inside an isolated sandbox with a real filesystem and a cloned repo, and stream their work back through chat()."
+description: "Run a coding agent (Grok Build, Claude Code, Codex, OpenCode) inside an isolated sandbox with a real filesystem and a cloned repo, and stream its work back through chat()."
 ---
 
-A **sandbox** gives a coding agent a real computer to work in: a filesystem, a
-shell, processes, and a cloned repository. You point a **harness adapter** (a
-coding-agent CLI like Grok Build) at it through `chat()`, and the agent's work (edits,
-commands, tool calls) streams back to you like any other chat run.
+A sandbox gives the agent a filesystem and a shell. `chat()` alone can only talk about code.
 
-The same code runs on your laptop, in CI, in a Docker container, or on the edge.
-Only the **provider** changes.
+A sandbox gives the agent a real computer to work in: a cloned repo, a shell, and processes. The agent runs inside it, and its edits, commands, and tool calls stream back to you like any other `chat()` run.
+
+## Try it
+
+This runs a Grok Build agent in a Docker container. You need Docker running and an `XAI_API_KEY`.
+
+1. Install the packages:
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+vue: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+solid: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+svelte: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+preact: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+angular: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+vanilla: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+octane: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+
+<!-- ::end:tabs -->
+
+2. Save this as `agent.mts`:
 
 ```ts
 import { chat } from '@tanstack/ai'
-import { grokBuildText } from '@tanstack/ai-grok-build'
+import { GROK_CLI_INSTALL_COMMAND, grokBuildText } from '@tanstack/ai-grok-build'
 import {
   createSecrets,
   defineSandbox,
@@ -24,127 +41,102 @@ import {
   withSandbox,
 } from '@tanstack/ai-sandbox'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
-import { messages, threadId } from './chat-context'
 
 const repoSandbox = defineSandbox({
   id: 'repo-agent',
   provider: dockerSandbox({ image: 'node:22' }),
   workspace: defineWorkspace({
     source: githubRepo({ repo: 'TanStack/ai' }),
-    packageManager: 'pnpm',
-    setup: ['corepack enable', 'pnpm install'],
-    scripts: { test: 'pnpm test', typecheck: 'pnpm test:types' },
+    setup: [GROK_CLI_INSTALL_COMMAND],
     secrets: createSecrets({
       XAI_API_KEY: process.env.XAI_API_KEY ?? '',
     }),
   }),
-  lifecycle: { reuse: 'thread', snapshot: 'after-setup', keepAlive: '30m' },
 })
 
-chat({
-  threadId,
+const stream = chat({
+  threadId: 'overview-demo',
   adapter: grokBuildText('grok-build'),
-  messages,
+  messages: [{ role: 'user', content: 'List the packages in this repo.' }],
   middleware: [withSandbox(repoSandbox)],
 })
+
+for await (const chunk of stream) {
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT') process.stdout.write(chunk.delta)
+}
 ```
 
-`sbxSandbox()` from the same package runs the agent in a Docker Sandboxes microVM. See [Providers](./providers).
+3. Run it with `npx tsx agent.mts`.
 
-## The three moving parts
+The agent clones the repo into a container, reads it, and streams its answer to your terminal. Your host filesystem stays untouched.
 
-A sandboxed run is the composition of three independent pieces. You can change
-any one without touching the others.
+For a full walkthrough that fixes a bug and prints the diff, go to [Quick Start](./quick-start).
 
-| Part | What it is | You pick it with |
+## How it works
+
+A sandboxed run has three parts. You can change one without changing the others.
+
+| Part | What it decides | You pick it with |
 | --- | --- | --- |
-| **Provider** | *Where* the agent runs (your host, a container, a microVM, a cloud VM). | A provider package (`dockerSandbox`, `sbxSandbox`, `localProcessSandbox`, …) |
-| **Workspace** | *What the agent sees*: the source repo, package manager, setup commands, secrets. | `defineWorkspace({ … })` |
-| **Harness adapter** | *Which agent runs* and how its output is translated to chat chunks. | `grokBuildText`, `claudeCodeText`, `codexText`, `opencodeText`, or `acpCompatible` for [any ACP agent](./harnesses) |
+| **Provider** | Where the agent runs: your host, a container, a microVM, or a cloud VM. | A provider such as `dockerSandbox`, `sbxSandbox`, or `localProcessSandbox`. See [Providers](./providers). |
+| **Workspace** | What the agent sees: the repo, the package manager, the setup commands, and the secrets. | `defineWorkspace({ ... })`. See [Workspace](./workspace). |
+| **Harness adapter** | Which agent runs, and how its output turns into chat chunks. | `grokBuildText`, `claudeCodeText`, `codexText`, `opencodeText`, or `acpCompatible`. See [Harnesses](./harnesses). |
 
-`defineSandbox()` binds a provider + workspace (+ optional policy, lifecycle, and
-hooks) into a reusable definition. `withSandbox(definition)` is the `chat()`
-middleware that turns it on for a run.
+`defineSandbox()` binds a provider and a workspace into one reusable definition. You can also add a policy, a lifecycle, and hooks. `withSandbox(definition)` is the `chat()` middleware that turns the sandbox on for a run.
 
-The provider is where the agent runs, not how it signs in. The default
-`authMode` is `'api-key'`. Set `'host'` when the machine already has a CLI
-login. See [Harness Auth](./auth).
-
-### How a run executes
+A run goes through three steps:
 
 ```txt
 chat({ adapter: grokBuildText(), middleware: [withSandbox(repoSandbox)] })
-  │
-  ├─ withSandbox.setup    → ensure the sandbox: resume → restore snapshot → create + bootstrap
-  ├─ adapter.chatStream   → spawn `grok` INSIDE the sandbox; stream its events back as AG-UI chunks
-  └─ withSandbox.onFinish → snapshot / destroy per the lifecycle
+  |
+  |- withSandbox.setup     get a sandbox: resume it, or restore a snapshot, or create and bootstrap
+  |- adapter.chatStream    start `grok` INSIDE the sandbox, stream its events back as AG-UI chunks
+  '- withSandbox.onFinish  snapshot or destroy, as the lifecycle says
 ```
 
-A harness adapter declares `requires: [SandboxCapability]`, so `chat()` fails
-fast at the call site if no middleware provides a sandbox, you can't
-accidentally run a coding agent with nowhere to run it.
+Every harness adapter declares `requires: [SandboxCapability]`. If no middleware gives it a sandbox, `chat()` fails at the call site. A coding agent never runs without a place to run.
+
+The provider decides where the agent runs, not how it signs in. The default `authMode` is `'api-key'`. Set `'host'` when the machine already has a CLI login. See [Harness Auth](./auth).
 
 ## When to use a sandbox
 
-Reach for a sandbox whenever you want an agent to **act on a real codebase**,
-not just talk about one. A few shapes this takes:
+Use a sandbox when the agent must act on a real codebase:
 
-- **CI issue triage / bug-fix bots.** On a new issue, clone the repo into a
-  sandbox, let the agent reproduce and root-cause it, and post the findings (or
-  a draft fix) back.
-- **PR review automation.** Check out a branch, run the test/lint scripts, and
-  have the agent comment on what it found.
-- **Build-and-preview.** Ask the agent to scaffold or modify an app, run the dev
-  server inside the sandbox, and hand the user a live preview URL, see the
-  [Cloudflare guide](./cloudflare) and the `examples/sandbox-*-web` apps.
-- **Eval / benchmark harnesses.** Run a coding agent against a fixture repo with
-  a known bug and assert on the resulting diff, reproducibly, in isolation.
-- **Interactive coding copilots** that need to actually execute code, edit
-  files, and run commands rather than only suggest them.
+- **Issue triage and bug-fix bots.** Clone the repo, reproduce the bug, find the cause, and post the findings or a draft fix.
+- **PR review.** Check out a branch, run the test and lint scripts, and comment on the results.
+- **Build and preview.** Let the agent scaffold or change an app, start the dev server, and give the user a live preview URL. See [Cloudflare](./cloudflare) and the `examples/sandbox-*` apps.
+- **Evals and benchmarks.** Run an agent against a fixture repo with a known bug, then make sure the diff is correct.
+- **Coding copilots** that must run code, edit files, and run commands.
 
-If you only need the model to read code you already have in memory, you don't
-need a sandbox, a normal `chat()` with [tools](../tools/server-tools) is
-enough. The sandbox earns its keep the moment the agent needs a filesystem and a
-shell.
+If the model only needs to read code that you already have in memory, you do not need a sandbox. A normal `chat()` with [tools](../tools/server-tools) is enough.
 
-## Where to go next
+## Pick the next piece
 
-[Quick Start](./quick-start) gets an agent fixing a bug in a sandbox on your laptop.
-After that, pick the piece you need:
+Start here:
 
-- [Providers](./providers): local process, Docker container, Docker Sandboxes
-  (`sbxSandbox`), Daytona, Vercel, Sprites, and what each one can do.
-- [Harnesses](./harnesses): which agent runs. Grok Build, Claude Code, Codex,
-  OpenCode, or any ACP agent.
-- [Harness Auth](./auth): host CLI login or an API key. The sandbox type does
-  not pick this.
-- [Workspace](./workspace): the source repo, clone depth, and setup commands.
-- [Tools](./tools): bridge your app's own tools into the in-sandbox agent.
-- [Policy](./policy): allow, ask or deny guardrails on what the agent may run.
-- [Lifecycle & Snapshots](./lifecycle): reuse a sandbox, snapshot after setup, resume.
-- [Portable Snapshots](./portable-snapshots): keep completed files after the
-  sandbox is gone. Start with [Keep Files After Reload](./portable-snapshots-configure).
-  To keep only some files, see [Pick Which Files to Keep](./portable-snapshots-files).
-- [Instance Durability](./durability): reuse it across replicas too.
-- [Durable Runs](./durable-runs): let a run outlive the tab, and turn it on.
-- [Events](./events): stream the agent's edits and tool calls to a UI, and choose what
-  to store.
+- [Quick Start](./quick-start): fix a bug in a sandbox on your laptop.
+- [Providers](./providers): pick where the agent runs.
+- [Harnesses](./harnesses): pick which agent runs.
+- [Harness Auth](./auth): host CLI login or an API key.
+- [Workspace](./workspace): the repo, the clone depth, and the setup commands.
 
-The Advanced group in the sidebar has the rest: the journal file, takeover from
-another host, the reaping sweeper, provisioning, observability, Cloudflare, and how to
-build an adapter.
+Add these when you need them:
 
-## Try it
+- [Tools](./tools): give the agent your own app tools.
+- [Policy](./policy): allow, ask, or deny what the agent runs.
+- [Lifecycle & Snapshots](./lifecycle): reuse a sandbox and skip setup on the next run.
+- [Events](./events): stream file edits and tool calls to a UI.
 
-Three runnable demos:
+For production:
 
-- [`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web):
-  a "build me an app" agent on Docker with durable runs wired. It scaffolds an app,
-  runs the dev server, and hands back a live preview URL. The run survives a refresh
-  and a closed tab, and Stop is a real cancel.
-- [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare):
-  the same idea at the edge, with the harness picked per run from the UI.
-- [`examples/ts-react-chat`](https://github.com/TanStack/ai/tree/main/examples/ts-react-chat)
-  at `/repo-report`: clone `TanStack/ai`, pick the harness, pick Auth
-  (`host` or `api-key`), and read a typed report from `useChat().final`. See
-  [Harness Agents](../structured-outputs/harnesses).
+- [Portable Snapshots](./portable-snapshots): keep the finished files after the sandbox is gone. Start with [Keep Files After Reload](./portable-snapshots-configure).
+- [Instance Durability](./durability): find the same sandbox from a different server.
+- [Durable Runs](./durable-runs): let a run continue after the user closes the tab.
+
+The **Sandboxes (Advanced)** group in the sidebar has the rest: the run journal, takeover, reaping, provisioning, observability, Cloudflare, and the provider details.
+
+## Example apps
+
+- [`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web): a "build me an app" agent on Docker with durable runs. It scaffolds an app, starts the dev server, and gives back a live preview URL. The run continues after a refresh or a closed tab, and Stop cancels the agent.
+- [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare): the same idea at the edge. You pick the harness for each run in the UI.
+- [`examples/ts-react-chat`](https://github.com/TanStack/ai/tree/main/examples/ts-react-chat) at `/repo-report`: clone `TanStack/ai`, pick the harness and the auth mode (`host` or `api-key`), and read a typed report from `useChat().final`. See [Harness Agents](../structured-outputs/harnesses).

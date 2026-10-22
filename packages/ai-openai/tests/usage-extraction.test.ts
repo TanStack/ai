@@ -77,6 +77,7 @@ describe('OpenAI usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hello' }],
     })) {
@@ -134,6 +135,7 @@ describe('OpenAI usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hello' }],
     })) {
@@ -189,6 +191,7 @@ describe('OpenAI usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hello' }],
     })) {
@@ -237,6 +240,7 @@ describe('OpenAI usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hello' }],
     })) {
@@ -291,6 +295,7 @@ describe('OpenAI usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hello' }],
     })) {

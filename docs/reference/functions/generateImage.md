@@ -7,7 +7,7 @@ title: generateImage
 function generateImage<TAdapter, TStream>(options): ImageActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/generateImage/index.ts:246](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/index.ts#L246)
+Defined in: packages/ai/src/activities/generateImage/index.ts:249
 
 Image activity - generates images from text prompts.
 
@@ -42,25 +42,27 @@ import { generateImage } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 const result = await generateImage({
-  adapter: openaiImage('dall-e-3'),
-  prompt: 'A serene mountain landscape at sunset'
+  adapter: openaiImage('gpt-image-2.5-flare'),
+  prompt: 'A serene mountain landscape at sunset',
+  threadId,
 })
 
-console.log(result.images[0].url)
+console.log(result.images[0].b64Json)
 ```
 
 **Generate multiple images**
 
 ```ts
 const result = await generateImage({
-  adapter: openaiImage('dall-e-2'),
+  adapter: openaiImage('gpt-image-1-mini'),
   prompt: 'A cute robot mascot',
+  threadId,
   numberOfImages: 4,
-  size: '512x512'
+  size: '1024x1024'
 })
 
 result.images.forEach((image, i) => {
-  console.log(`Image ${i + 1}: ${image.url}`)
+  console.log(`Image ${i + 1}: ${image.b64Json}`)
 })
 ```
 
@@ -68,12 +70,13 @@ result.images.forEach((image, i) => {
 
 ```ts
 const result = await generateImage({
-  adapter: openaiImage('dall-e-3'),
+  adapter: openaiImage('gpt-image-2.5-flare'),
   prompt: 'A professional headshot photo',
+  threadId,
   size: '1024x1024',
   modelOptions: {
-    quality: 'hd',
-    style: 'natural'
+    quality: 'high',
+    background: 'transparent'
   }
 })
 ```

@@ -7,7 +7,7 @@ import {
   RealtimeClient,
   VideoGenerationClient,
 } from '../src'
-import type { RealtimeAdapter, RealtimeConnection } from '../src'
+import type { RealtimeAdapter, RealtimeConnection } from '@tanstack/ai/client'
 
 describe('client UI snapshots', () => {
   it('publishes and clears the active generation run id', async () => {
@@ -15,7 +15,10 @@ describe('client UI snapshots', () => {
     const pending = new Promise<{ id: string }>((done) => {
       resolve = done
     })
-    const client = new GenerationClient({ fetcher: async () => pending })
+    const client = new GenerationClient({
+      threadId: 'thread-1',
+      fetcher: async () => pending,
+    })
 
     const generating = client.generate({ prompt: 'test' })
     expect(client.getSnapshot().runId).toEqual(expect.any(String))
@@ -28,6 +31,7 @@ describe('client UI snapshots', () => {
 
   it('GenerationClient notifies subscribe and keeps getSnapshot identity until a change', async () => {
     const client = new GenerationClient({
+      threadId: 'thread-1',
       fetcher: async () => ({ id: '1' }),
     })
     const snapshot = client.getSnapshot()
@@ -64,6 +68,7 @@ describe('client UI snapshots', () => {
 
   it('a throwing generation subscriber does not stick isLoading', async () => {
     const client = new GenerationClient({
+      threadId: 'thread-1',
       fetcher: async () => ({ id: '1' }),
     })
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -84,6 +89,7 @@ describe('client UI snapshots', () => {
 
   it('a throwing chat snapshot subscriber does not stick isLoading', async () => {
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: createMockConnectionAdapter({
         chunks: createTextChunks('Hello'),
       }),
@@ -113,6 +119,7 @@ describe('client UI snapshots', () => {
       url: 'https://example.com/video.mp4',
     }
     const client = new VideoGenerationClient({
+      threadId: 'thread-1',
       fetcher: async () => result,
     })
     const snapshot = client.getSnapshot()

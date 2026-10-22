@@ -2,10 +2,7 @@ import { createGeneration } from './create-generation.ts'
 import { reconstructAudioResult } from '@tanstack/ai-client'
 import type { Handle } from 'remix/ui'
 import type { AudioGenerationResult } from '@tanstack/ai'
-import type {
-  AudioGenerateInput,
-  GenerationPersistenceOptions,
-} from '@tanstack/ai-client'
+import type { AudioGenerateInput } from '@tanstack/ai-client'
 import type {
   CreateGenerationOptions,
   CreateGenerationReturn,
@@ -47,6 +44,7 @@ export type CreateGenerateAudioReturn<TOutput = AudioGenerationResult> =
  *
  * function AudioGenerator(handle: Handle) {
  *   const audio = createGenerateAudio(handle, {
+ *     threadId: 'theme-audio',
  *     connection: fetchServerSentEvents('/api/generate/audio'),
  *   })
  *
@@ -68,13 +66,10 @@ export type CreateGenerateAudioReturn<TOutput = AudioGenerationResult> =
  * ```
  */
 export function createGenerateAudio<TTransformed = void>(
-  handle: Pick<Handle, 'id' | 'update' | 'signal'>,
-  options: Omit<
-    CreateGenerateAudioOptions,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  handle: Pick<Handle, 'update' | 'signal'>,
+  options: Omit<CreateGenerateAudioOptions, 'onResult'> & {
     onResult?: (result: AudioGenerationResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ) {
   const devtools = {
     ...options.devtools,

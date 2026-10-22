@@ -60,7 +60,7 @@ function Issue176ToolResultRepro() {
     threadId: 'issue-176-live-tool-result-repro',
     connection: fetchServerSentEvents('/api/tanchat'),
     tools: liveTools,
-    body: {
+    forwardedProps: {
       provider: 'openai',
       model: 'gpt-5.5',
     },

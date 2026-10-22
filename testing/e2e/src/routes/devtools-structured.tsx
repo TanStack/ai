@@ -18,7 +18,7 @@ function DevtoolsStructuredRoute() {
   const chat = useChat({
     threadId: 'devtools-structured:primary',
     connection: fetchServerSentEvents('/api/chat'),
-    body: {
+    forwardedProps: {
       provider: 'openai',
       feature: 'structured-output-stream',
       testId,

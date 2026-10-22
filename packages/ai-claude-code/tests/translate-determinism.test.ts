@@ -284,6 +284,7 @@ describe('claude-code chatStream wiring (real adapter, journaled call site)', ()
 
     const chunks = await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: 'haiku',
         messages: [{ role: 'user', content: 'say pong' }],
         logger: noopLogger,

@@ -9,7 +9,7 @@ title: createModel
 function createModel<TName, TInput>(name, input): ExtendedModelDef<TName, TInput>;
 ```
 
-Defined in: [packages/ai/src/extend-adapter.ts:91](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L91)
+Defined in: packages/ai/src/extend-adapter.ts:91
 
 Creates a custom model definition for use with `extendAdapter`.
 
@@ -80,7 +80,7 @@ const reasoner = createModel('reasoner', {
 function createModel<TName, TCaps>(name, capabilities): ExtendedModelDef<TName, TCaps["input"] extends readonly ("text" | "image" | "audio" | "video" | "document")[] ? any[any] : readonly ("text" | "image" | "audio" | "video" | "document")[], TCaps["modelOptions"], TCaps["features"] extends readonly string[] ? any[any] : readonly string[], TCaps["tools"] extends readonly string[] ? any[any] : readonly string[]>;
 ```
 
-Defined in: [packages/ai/src/extend-adapter.ts:96](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L96)
+Defined in: packages/ai/src/extend-adapter.ts:96
 
 Creates a custom model definition for use with `extendAdapter`.
 

@@ -1,6 +1,6 @@
 import { ChatClient } from '@tanstack/ai-client'
 import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   AnyClientTool,
   InferSchemaType,
@@ -39,12 +39,6 @@ export function useChat<
 >(
   options: UseChatOptions<TTools, TSchema, TContext, TInterrupts, TSubagents>,
 ): UseChatReturn<TTools, TSchema, TInterrupts, TSubagents> {
-  // The hook's identity is its `threadId`. Reload with the same `threadId`
-  // restores the same conversation. `hookId` is only a React recreation key
-  // when no `threadId` is given. It is never sent on the wire.
-  const hookId = useId()
-  const clientId = options.threadId ?? hookId
-
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
   type Final = InferSchemaType<NonNullable<TSchema>>
 
@@ -65,7 +59,8 @@ export function useChat<
     )
   optionsRef.current = options
 
-  // Create ChatClient once per clientId. User callbacks read latest options.
+  // Create ChatClient once per threadId. Reload with the same threadId
+  // restores the same conversation. User callbacks read latest options.
   const { client, initialization, serverSnapshot, startPersistenceHydration } =
     useMemo(() => {
       const messagesToUse = options.initialMessages || []
@@ -109,25 +104,15 @@ export function useChat<
         devtoolsBridgeFactory: createChatDevtoolsBridge,
         ...transport,
         initialMessages: messagesToUse,
-        ...(typeof initialOptions.threadId === 'string' && persistence === true
+        threadId: initialOptions.threadId,
+        ...(persistence === true
           ? {
               persistence: true,
-              threadId: initialOptions.threadId,
               ...(initialOptions.history !== undefined && {
                 history: initialOptions.history,
               }),
             }
-          : typeof initialOptions.threadId === 'string' && persistence
-            ? {
-                persistence,
-                threadId: initialOptions.threadId,
-              }
-            : {
-                ...(initialOptions.threadId !== undefined && {
-                  threadId: initialOptions.threadId,
-                }),
-              }),
-        ...(initialOptions.body !== undefined && { body: initialOptions.body }),
+          : { persistence }),
         ...(initialOptions.forwardedProps !== undefined && {
           forwardedProps: initialOptions.forwardedProps,
         }),
@@ -199,7 +184,7 @@ export function useChat<
         serverSnapshot: capturedServerSnapshot,
         startPersistenceHydration: releasePersistenceHydration,
       }
-    }, [clientId])
+    }, [options.threadId])
 
   useEffect(() => {
     activeClientRef.current = client
@@ -241,10 +226,6 @@ export function useChat<
   // changing doesn't re-run the others. `updateOptions` declares strict-optional
   // fields and rejects explicit `undefined` under EOPT, so guard the optional
   // slots before passing them.
-  useEffect(() => {
-    client.updateOptions({ body: options.body })
-  }, [client, options.body])
-
   useEffect(() => {
     if (options.forwardedProps !== undefined) {
       client.updateOptions({ forwardedProps: options.forwardedProps })
@@ -409,20 +390,6 @@ export function useChat<
     [client],
   )
 
-  const addToolApprovalResponse = useCallback(
-    async (response: { id: string; approved: boolean }) => {
-      await client.addToolApprovalResponse(response)
-    },
-    [client],
-  )
-
-  const resumeInterrupts = useCallback(
-    async (resumeItems: Array<RunAgentResumeItem>, state?: ChatResumeState) => {
-      return await client.resumeInterrupts(resumeItems, state ?? undefined)
-    },
-    [client],
-  )
-
   const resolveInterrupts = useCallback(
     (
       resolution:
@@ -524,19 +491,16 @@ export function useChat<
     setMessages: setMessagesManually,
     clear,
     addToolResult,
-    addToolApprovalResponse,
     queue: snapshot.queue,
     cancelQueued,
     runId: snapshot.runId,
     interrupts: snapshot.interruptState.interrupts,
-    pendingInterrupts: snapshot.interruptState.pendingInterrupts,
     interruptErrors: snapshot.interruptState.interruptErrors,
     resuming: snapshot.interruptState.resuming,
     resolveInterrupts,
     cancelInterrupts,
     retryInterrupts,
     resumeInterruptsUnsafe,
-    resumeInterrupts,
     partial,
     final,
   } as unknown as UseChatReturn<TTools, TSchema, TInterrupts, TSubagents>

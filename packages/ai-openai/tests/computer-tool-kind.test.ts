@@ -33,10 +33,6 @@ describe('OpenAI computer tool kind', () => {
     typedTools(openaiText('gpt-6.1-sol'), [computerTool])
   })
 
-  it('computer-use-preview accepts the computer tool', () => {
-    typedTools(openaiText('computer-use-preview'), [computerTool])
-  })
-
   it('gpt-4o rejects the computer tool', () => {
     typedTools(openaiText('gpt-4o'), [
       // @ts-expect-error - gpt-4o does not list computer_use

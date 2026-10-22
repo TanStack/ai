@@ -3,7 +3,7 @@ id: KeyedAdapter
 title: KeyedAdapter
 ---
 
-Defined in: [packages/ai/src/byok/keyed.ts:12](https://github.com/TanStack/ai/blob/main/packages/ai/src/byok/keyed.ts#L12)
+Defined in: packages/ai/src/byok/keyed.ts:12
 
 An adapter that needs a provider key before it exists. Make one with
 [keyedAdapter](../functions/keyedAdapter.md). A host finds the key and calls `create` just before a
@@ -23,7 +23,7 @@ call.
 readonly [KEYED_ADAPTER]: true;
 ```
 
-Defined in: [packages/ai/src/byok/keyed.ts:13](https://github.com/TanStack/ai/blob/main/packages/ai/src/byok/keyed.ts#L13)
+Defined in: packages/ai/src/byok/keyed.ts:13
 
 ***
 
@@ -33,7 +33,7 @@ Defined in: [packages/ai/src/byok/keyed.ts:13](https://github.com/TanStack/ai/bl
 readonly create: (key) => TAdapter;
 ```
 
-Defined in: [packages/ai/src/byok/keyed.ts:17](https://github.com/TanStack/ai/blob/main/packages/ai/src/byok/keyed.ts#L17)
+Defined in: packages/ai/src/byok/keyed.ts:17
 
 Builds the adapter from the key.
 
@@ -55,6 +55,6 @@ Builds the adapter from the key.
 readonly provider: string | ByokProvider<string>;
 ```
 
-Defined in: [packages/ai/src/byok/keyed.ts:15](https://github.com/TanStack/ai/blob/main/packages/ai/src/byok/keyed.ts#L15)
+Defined in: packages/ai/src/byok/keyed.ts:15
 
 The provider whose key `create` needs.

@@ -144,10 +144,18 @@ export type MCPServerOptions = {
    * to serve an MCP extension. Leave the methods this server already
    * handles alone.
    *
+   * `context` is the `handleOptions.context` of the request that builds the
+   * server. A spec 2025 session with `sessions: 'memory'` builds its server
+   * once, so there it is the context of the request that opened the session.
+   * A later request on that session does not run `setup` again.
+   *
    * It must be synchronous. The server connects as soon as it returns, so
    * an async `setup` throws a `TypeError`.
    */
-  setup?: (server: McpServer) => void
+  setup?: (
+    server: McpServer,
+    context: Record<string, unknown> | undefined,
+  ) => void
 }
 
 /**
@@ -214,7 +222,9 @@ type LegacySessions = Map<string, LegacySession>
  * `options.sample` is the model adapter for `ctx.context.sample` on spec 2026.
  * `options.waitUntil` receives the task promise so a worker can stay alive.
  * `options.setup` gets each SDK `McpServer` before it connects, so it can add
- * capabilities and request handlers, such as an MCP extension.
+ * capabilities and request handlers, such as an MCP extension. It also gets
+ * the `handle` context of the request that builds the server. A spec 2025
+ * memory session passes the context of the request that opened it.
  *
  * The result has `fetch(request)`, `handle(request, options)`, `tools`,
  * `resources`, and `prompts`. `handle` takes a token your own middleware
@@ -496,7 +506,7 @@ function buildMcpServer(input: {
   if (input.era === '2025') {
     registerLegacyTaskMethods(server, input.taskStore, input.owner)
   }
-  const setupResult: unknown = input.options.setup?.(server)
+  const setupResult: unknown = input.options.setup?.(server, input.appContext())
   if (setupResult instanceof Promise) {
     throw new TypeError('createMCPServer: setup must be synchronous')
   }

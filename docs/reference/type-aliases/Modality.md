@@ -7,7 +7,7 @@ title: Modality
 type Modality = AGUIContentPart["type"];
 ```
 
-Defined in: [packages/ai/src/types.ts:241](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L241)
+Defined in: packages/ai/src/types.ts:241
 
 Supported input modality types for multimodal content: the `type` of each
 AG-UI `ContentPart` (text, image, audio, video, document).

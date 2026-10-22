@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   InMemoryTransport,
+  StreamableHTTPClientTransport,
   SUPPORTED_PROTOCOL_VERSIONS,
 } from '@modelcontextprotocol/client'
 import { Server } from '@modelcontextprotocol/server'
@@ -64,6 +65,73 @@ describe('createMCPClient', () => {
     expect(client.instructions).toBeUndefined()
   })
 
+  it('skips server/discover when it gets a saved discover result as prior', async () => {
+    const server = createMCPServer({
+      name: 'weather',
+      version: '1.0.0',
+      tools: [
+        toolDefinition({
+          name: 'get_weather',
+          description: 'Weather for a city',
+          inputSchema: z.object({ city: z.string() }),
+        }).server(async ({ city }) => `Sunny in ${city}`),
+      ],
+    })
+    const methods: Array<string> = []
+    const transport = {
+      type: 'http' as const,
+      url: 'https://mcp.example.com/mcp',
+      fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init)
+        const body: unknown = await request
+          .clone()
+          .json()
+          .catch(() => undefined)
+        if (typeof body === 'object' && body !== null && 'method' in body) {
+          methods.push(String(body.method))
+        }
+        return server.fetch(request)
+      },
+    }
+
+    const first = await createMCPClient({ transport })
+    const discover = first.getDiscoverResult()
+    await first.close()
+    expect(methods).toContain('server/discover')
+    expect(discover?.supportedVersions).toContain('2026-07-28')
+    if (discover === undefined) throw new Error('No discover result')
+
+    methods.length = 0
+    await using next = await createMCPClient({
+      transport,
+      prior: { kind: 'modern', discover },
+    })
+    expect(next.getDiscoverResult()).toEqual(discover)
+    const called = await next.callTool('get_weather', { city: 'Paris' })
+    expect(called.content).toEqual([{ type: 'text', text: 'Sunny in Paris' }])
+    expect(methods).not.toContain('server/discover')
+    expect(methods).toContain('tools/call')
+
+    // A prior with no shared protocol version fails connect before any request.
+    methods.length = 0
+    await expect(
+      createMCPClient({
+        transport,
+        prior: {
+          kind: 'modern',
+          discover: { ...discover, supportedVersions: ['2025-11-25'] },
+        },
+      }),
+    ).rejects.toThrow(MCPConnectionError)
+    expect(methods).toEqual([])
+  })
+
+  it('has no discover result on a spec 2025 server', async () => {
+    const { clientTransport } = await makeSilentServer()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    expect(client.getDiscoverResult()).toBeUndefined()
+  })
+
   it('sends an extension method with request and refuses it after close', async () => {
     const server = createMCPServer({
       name: 'greeter',
@@ -112,6 +180,7 @@ describe('createMCPClient', () => {
     const result = await tools[0].execute!(
       { city: 'Brooklyn' },
       {
+        threadId: 'thread-1',
         toolCallId: 't',
         emitCustomEvent: () => {},
       },
@@ -255,7 +324,7 @@ describe('createMCPClient', () => {
     // The call still reaches the server tool by its own name.
     const result = await tools[0].execute!(
       { city: 'Oslo' },
-      { toolCallId: 't', emitCustomEvent: () => {} },
+      { threadId: 'thread-1', toolCallId: 't', emitCustomEvent: () => {} },
     )
     expect(JSON.stringify(result)).toContain('Sunny in Oslo')
   })
@@ -299,7 +368,7 @@ describe('createMCPClient', () => {
     await expect(
       research.execute!(
         { query: 'MCP tasks' },
-        { toolCallId: 't', emitCustomEvent: () => {} },
+        { threadId: 'thread-1', toolCallId: 't', emitCustomEvent: () => {} },
       ),
     ).resolves.toBe('Research complete: MCP tasks')
   })
@@ -316,7 +385,7 @@ describe('createMCPClient', () => {
     await expect(
       tool!.execute!(
         { query: 'typed tasks' },
-        { toolCallId: 't', emitCustomEvent: () => {} },
+        { threadId: 'thread-1', toolCallId: 't', emitCustomEvent: () => {} },
       ),
     ).resolves.toBe('Research complete: typed tasks')
   })
@@ -786,7 +855,10 @@ describe('requestOptions', () => {
     })
     const [tool] = await client.tools()
     await expect(
-      tool!.execute!({}, { toolCallId: 't', emitCustomEvent: () => {} }),
+      tool!.execute!(
+        {},
+        { threadId: 'thread-1', toolCallId: 't', emitCustomEvent: () => {} },
+      ),
     ).rejects.toThrow('Request timed out')
   })
 
@@ -804,7 +876,10 @@ describe('requestOptions', () => {
       }),
     ])
     await expect(
-      tool!.execute!({}, { toolCallId: 't', emitCustomEvent: () => {} }),
+      tool!.execute!(
+        {},
+        { threadId: 'thread-1', toolCallId: 't', emitCustomEvent: () => {} },
+      ),
     ).rejects.toThrow('Request timed out')
   })
 
@@ -998,3 +1073,91 @@ async function makeProgressServer() {
   await server.connect(serverTransport)
   return { server, clientTransport, sawProgressToken: () => sawToken }
 }
+
+describe('spec 2026 Mcp-Param headers', () => {
+  // A strict spec 2026 HTTP server, like GitHub's. It rejects a tools/call
+  // whose Mcp-Param-Region header is missing or differs from the argument.
+  function strictHeaderServer() {
+    const regions: Array<string | null> = []
+    const tool = {
+      name: 'lookup',
+      inputSchema: {
+        type: 'object',
+        properties: { region: { type: 'string', 'x-mcp-header': 'Region' } },
+        required: ['region'],
+      },
+    }
+    const transport = new StreamableHTTPClientTransport(
+      new URL('https://fixture.example/mcp'),
+      {
+        protocolVersion: '2026-07-28',
+        fetch: async (_url, init) => {
+          if (typeof init?.body !== 'string') {
+            return new Response(null, { status: 405 })
+          }
+          const body = JSON.parse(init.body)
+          if (body.id === undefined) return new Response(null, { status: 202 })
+          if (body.method === 'tools/call') {
+            const region = new Headers(init.headers).get('Mcp-Param-Region')
+            regions.push(region)
+            if (region !== body.params.arguments.region) {
+              return Response.json(
+                {
+                  jsonrpc: '2.0',
+                  id: body.id,
+                  error: { code: -32020, message: 'Mcp-Param-Region mismatch' },
+                },
+                { status: 400 },
+              )
+            }
+          }
+          const result =
+            body.method === 'server/discover'
+              ? {
+                  supportedVersions: ['2026-07-28'],
+                  serverInfo: { name: 'fixture', version: '1' },
+                  capabilities: { tools: {} },
+                }
+              : body.method === 'tools/list'
+                ? { tools: [tool] }
+                : { content: [{ type: 'text', text: 'ok' }] }
+          return Response.json({
+            jsonrpc: '2.0',
+            id: body.id,
+            result: {
+              resultType: 'complete',
+              ttlMs: 0,
+              cacheScope: 'private',
+              ...result,
+            },
+          })
+        },
+      },
+    )
+    return { transport, regions }
+  }
+
+  it('sends the x-mcp-header argument as a header from tools()', async () => {
+    const { transport, regions } = strictHeaderServer()
+    const mcp = await createMCPClient({ transport })
+    try {
+      const [tool] = await mcp.tools()
+      await expect(tool!.execute!({ region: 'eu' })).resolves.toBe('ok')
+      expect(regions).toEqual(['eu'])
+    } finally {
+      await mcp.close()
+    }
+  })
+
+  it('sends the x-mcp-header argument as a header from callTool()', async () => {
+    const { transport, regions } = strictHeaderServer()
+    const mcp = await createMCPClient({ transport })
+    try {
+      const result = await mcp.callTool('lookup', { region: 'eu' })
+      expect(result.content).toEqual([{ type: 'text', text: 'ok' }])
+      expect(regions).toEqual(['eu'])
+    } finally {
+      await mcp.close()
+    }
+  })
+})

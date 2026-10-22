@@ -49,7 +49,12 @@ async function many(request: Request, testId: string | undefined) {
   })
   const adapter = keyedAdapterFromRequest(request, models)
   if (!adapter) return byokMissing('openai')
-  const { text } = await chat({ adapter, messages, stream: false })
+  const { text } = await chat({
+    threadId: 'keyed-adapter',
+    adapter,
+    messages,
+    stream: false,
+  })
   return Response.json({ text, ...sent })
 }
 
@@ -82,6 +87,7 @@ export const Route = createFileRoute('/api/keyed-adapter')({
         if (!key) return byokMissing('openai')
 
         const { text } = await chat({
+          threadId: 'keyed-adapter',
           adapter: adapter.create(key),
           messages,
           stream: false,

@@ -13,7 +13,7 @@ type ProviderKeySource =
   | Promise<string | null | undefined>);
 ```
 
-Defined in: [packages/ai/src/byok/env-keys.ts:20](https://github.com/TanStack/ai/blob/main/packages/ai/src/byok/env-keys.ts#L20)
+Defined in: packages/ai/src/byok/env-keys.ts:20
 
 Where `subagents.keys` finds a key: an object by provider id, or a function
 that gets the provider (a BYOK descriptor or an id) and returns its key.

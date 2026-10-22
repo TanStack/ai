@@ -965,7 +965,6 @@ describe('getVideo', () => {
       completionTokens: 35800,
       totalTokens: 35800,
       billed: { quantity: 35800, unit: 'tokens' },
-      unitsBilled: 35800,
     })
   })
 
@@ -1001,7 +1000,6 @@ describe('getVideo', () => {
       completionTokens: 35800,
       totalTokens: 35800,
       billed: { quantity: 35800, unit: 'tokens' },
-      unitsBilled: 35800,
     })
   })
 

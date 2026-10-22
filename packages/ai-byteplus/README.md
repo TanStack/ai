@@ -85,6 +85,7 @@ const adapter = byteplusText('seed-2-0-lite-260428')
 const { text } = await chat({
   adapter,
   messages: [{ role: 'user', content: 'Explain diffusion models briefly' }],
+  threadId: 'thread-1',
   stream: false,
 })
 
@@ -113,6 +114,7 @@ const adapter = byteplusVideo('seedance-1-5-pro-251215')
 
 const { jobId } = await generateVideo({
   adapter,
+  threadId: 'thread-1',
   prompt: 'a guitar being played in a store',
   size: '16:9_720p',
   duration: 5,
@@ -136,6 +138,7 @@ import { byteplusVideo } from '@tanstack/ai-byteplus'
 
 const stream = generateVideo({
   adapter: byteplusVideo('seedance-1-5-pro-251215'),
+  threadId: 'thread-1',
   prompt: 'a guitar being played in a store',
   stream: true,
   pollingInterval: 5000,
@@ -155,6 +158,7 @@ import { byteplusImage } from '@tanstack/ai-byteplus'
 
 const result = await generateImage({
   adapter: byteplusImage('seedream-4-0-250828'),
+  threadId: 'thread-1',
   prompt: 'a guitar being played in a store',
   size: '2K',
   modelOptions: { watermark: false },

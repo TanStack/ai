@@ -60,6 +60,8 @@ export interface BridgePermission {
 }
 
 export interface ToolBridgeCoreOptions {
+  /** The thread id of the run, forwarded to each tool's `execute()`. */
+  threadId: string
   /** Runtime context forwarded to each tool's `execute()`. */
   context?: unknown
   /** Abort signal forwarded to each tool's `execute()`. */
@@ -128,11 +130,21 @@ export interface ToolBridgeCore {
   callTool: (name: string, args: unknown) => Promise<ToolCallResult>
 }
 
-/** Build the transport-agnostic bridge core for the given tools. */
+/**
+ * Build the transport-agnostic bridge core for the given tools. Throws if a
+ * tool has `needsApproval`: the bridge runs tools out-of-band and cannot pause
+ * the run for an approval round-trip.
+ */
 export function createToolBridgeCore(
   tools: Array<AnyTool>,
-  options: ToolBridgeCoreOptions = {},
+  options: ToolBridgeCoreOptions,
 ): ToolBridgeCore {
+  const gated = tools.find((tool) => tool.needsApproval)
+  if (gated) {
+    throw new Error(
+      `Tool "${gated.name}" has needsApproval, which harness adapters do not support. Remove needsApproval or use an HTTP adapter.`,
+    )
+  }
   const toolsByName = new Map(tools.map((tool) => [tool.name, tool]))
   const permission = options.permission
 
@@ -166,6 +178,7 @@ export function createToolBridgeCore(
       if (!tool?.execute) throw new Error(`Unknown tool: ${name}`)
       try {
         const result: unknown = await tool.execute(args ?? {}, {
+          threadId: options.threadId,
           context: options.context,
           abortSignal: options.signal,
           // No-op default so tools that always call it (e.g. code mode) don't

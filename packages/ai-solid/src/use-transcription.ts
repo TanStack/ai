@@ -10,7 +10,6 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   InferGenerationOutputFromReturn,
   TranscriptionGenerateInput,
 } from '@tanstack/ai-client'
@@ -90,6 +89,7 @@ export interface UseTranscriptionReturn<
  *
  * function Transcriber() {
  *   const { generate, result, isLoading } = useTranscription({
+ *     threadId: 'meeting-transcript',
  *     connection: fetchServerSentEvents('/api/transcribe'),
  *   })
  *
@@ -116,12 +116,9 @@ export interface UseTranscriptionReturn<
  * ```
  */
 export function useTranscription<TTransformed = void>(
-  options: Omit<
-    UseTranscriptionOptions,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<UseTranscriptionOptions, 'onResult'> & {
     onResult?: (result: TranscriptionResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ): UseTranscriptionReturn<
   InferGenerationOutputFromReturn<TranscriptionResult, TTransformed>
 > {

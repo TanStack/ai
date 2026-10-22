@@ -9,9 +9,6 @@ type MCPToolConfig = SDKTool.Mcp
 
 export type { MCPToolConfig }
 
-/** @deprecated Renamed to `MCPToolConfig`. Will be removed in a future release. */
-export type MCPTool = MCPToolConfig
-
 export function validateMCPtool(tool: MCPToolConfig) {
   if (!tool.server_url && !tool.connector_id) {
     throw new Error('Either server_url or connector_id must be provided.')

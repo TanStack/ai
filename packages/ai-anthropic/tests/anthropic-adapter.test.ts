@@ -46,7 +46,7 @@ vi.mock('@anthropic-ai/sdk', () => {
   return { default: MockAnthropic }
 })
 
-const createAdapter = <TModel extends 'claude-opus-4-1'>(model: TModel) =>
+const createAdapter = <TModel extends 'claude-sonnet-4-5'>(model: TModel) =>
   new AnthropicTextAdapter({ apiKey: 'test-key' }, model)
 
 const toolArguments = JSON.stringify({ location: 'Berlin' })
@@ -182,9 +182,10 @@ describe('Anthropic client injection', () => {
       },
     }
 
-    const adapter = createAnthropicChatWithClient('claude-opus-4-1', client)
+    const adapter = createAnthropicChatWithClient('claude-sonnet-4-5', client)
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
     })) {
@@ -204,9 +205,8 @@ describe('Anthropic adapter option mapping', () => {
   it('serializes only supported document metadata', async () => {
     mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
     const metadata = {
-      mediaType: 'application/pdf',
       cache_control: { type: 'ephemeral' },
       citations: { enabled: true },
       context: 'Quarterly report',
@@ -215,6 +215,7 @@ describe('Anthropic adapter option mapping', () => {
     } as AnthropicDocumentMetadata & { placeholder: string }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {
@@ -255,9 +256,10 @@ describe('Anthropic adapter option mapping', () => {
   it('prefers document title over filename and serializes only cache_control for images', async () => {
     mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {
@@ -276,7 +278,6 @@ describe('Anthropic adapter option mapping', () => {
               type: 'image',
               source: { type: 'url', value: 'https://example.com/a.png' },
               metadata: {
-                mediaType: 'image/png',
                 cache_control: { type: 'ephemeral' },
                 filename: 'a.png',
               },
@@ -320,10 +321,11 @@ describe('Anthropic adapter option mapping', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       promptCache: 'none',
       messages: [{ role: 'user', content: 'Hi' }],
@@ -363,9 +365,10 @@ describe('Anthropic adapter option mapping', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       systemPrompts: [
@@ -421,7 +424,7 @@ describe('Anthropic adapter option mapping', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     const logger = {
       debug: vi.fn(),
@@ -431,6 +434,7 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       promptCache: 'none',
       messages: [{ role: 'user', content: 'Hi' }],
@@ -494,7 +498,6 @@ describe('Anthropic adapter option mapping', () => {
     const providerOptions = {
       container: {
         id: 'container-weather',
-        skills: [{ skill_id: 'forecast', type: 'custom', version: '1' }],
       },
       mcp_servers: [
         {
@@ -515,11 +518,12 @@ describe('Anthropic adapter option mapping', () => {
       temperature: 0.4,
     } satisfies AnthropicTextProviderOptions
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     // Consume the stream to trigger the API call
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       promptCache: 'none',
       messages: [
@@ -548,7 +552,7 @@ describe('Anthropic adapter option mapping', () => {
     const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
 
     expect(payload).toMatchObject({
-      model: 'claude-opus-4-1',
+      model: 'claude-sonnet-4-5',
       max_tokens: 3000,
       temperature: 0.4,
       container: providerOptions.container,
@@ -598,9 +602,10 @@ describe('Anthropic adapter option mapping', () => {
   it('sources temperature and max_tokens from modelOptions', async () => {
     mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       modelOptions: {
@@ -619,12 +624,13 @@ describe('Anthropic adapter option mapping', () => {
   it('forwards context_management and attaches the required beta (issue #1074)', async () => {
     mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
     const contextManagement = {
       edits: [{ type: 'clear_tool_uses_20250919' as const }],
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       modelOptions: {
@@ -642,7 +648,7 @@ describe('Anthropic adapter option mapping', () => {
   it('forwards mcp_servers and attaches the mcp-client beta (issue #1424)', async () => {
     mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
     const mcpServers = [
       {
         type: 'url' as const,
@@ -653,6 +659,7 @@ describe('Anthropic adapter option mapping', () => {
     ]
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       modelOptions: {
@@ -670,9 +677,10 @@ describe('Anthropic adapter option mapping', () => {
   it('does not attach the mcp-client beta for an empty mcp_servers array', async () => {
     mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       modelOptions: {
@@ -689,7 +697,7 @@ describe('Anthropic adapter option mapping', () => {
   it('forwards top-level cache_control from modelOptions instead of dropping it', async () => {
     mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     const logger = {
       debug: vi.fn(),
@@ -699,6 +707,7 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       modelOptions: {
@@ -721,7 +730,7 @@ describe('Anthropic adapter option mapping', () => {
   it('does not warn about dropped keys when max_tokens is passed via modelOptions', async () => {
     mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     const logger = {
       debug: vi.fn(),
@@ -731,6 +740,7 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       modelOptions: {
@@ -756,9 +766,10 @@ describe('Anthropic adapter option mapping', () => {
     // top_p is mutually exclusive with temperature, so exercise it alone.
     mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       modelOptions: {
@@ -775,9 +786,10 @@ describe('Anthropic adapter option mapping', () => {
   it("defaults max_tokens to the model's max_output_tokens when not provided via modelOptions (#849)", async () => {
     mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
     })) {
@@ -785,7 +797,7 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
-    // claude-opus-4-1's model-meta max_output_tokens is 64_000 — not the old
+    // claude-sonnet-4-5's model-meta max_output_tokens is 64_000 — not the old
     // hard-coded 1024 floor that silently truncated long responses.
     expect(payload.max_tokens).toBe(64_000)
   })
@@ -813,7 +825,7 @@ describe('Anthropic adapter option mapping', () => {
     })()
     mocks.betaMessagesCreate.mockResolvedValueOnce(truncatedStream)
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     const logger = {
       debug: vi.fn(),
@@ -823,6 +835,7 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Write a long essay' }],
       debug: { logger, errors: true },
@@ -847,7 +860,7 @@ describe('Anthropic adapter option mapping', () => {
     })()
     mocks.betaMessagesCreate.mockResolvedValueOnce(truncatedStream)
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     const logger = {
       debug: vi.fn(),
@@ -857,6 +870,7 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       modelOptions: { max_tokens: 100 } satisfies AnthropicTextProviderOptions,
@@ -881,7 +895,7 @@ describe('Anthropic adapter option mapping', () => {
       id: 'msg_structured',
       type: 'message',
       role: 'assistant',
-      model: 'claude-opus-4-1',
+      model: 'claude-sonnet-4-5',
       content: [
         {
           type: 'tool_use',
@@ -894,23 +908,26 @@ describe('Anthropic adapter option mapping', () => {
       usage: { input_tokens: 10, output_tokens: 20 },
     })
 
-    const adapter = createAdapter('claude-opus-4-1')
-
-    for await (const _ of chat({
-      adapter,
-      messages: [{ role: 'user', content: 'recommend a guitar as json' }],
-      outputSchema: z.object({
-        recommendation: z.string(),
-        price: z.number(),
-      }),
-      stream: true,
-    })) {
-      // consume stream
-    }
+    await createAdapter('claude-sonnet-4-5').structuredOutput({
+      chatOptions: {
+        threadId: 'thread-1',
+        model: 'claude-sonnet-4-5',
+        messages: [{ role: 'user', content: 'recommend a guitar as json' }],
+        logger: resolveDebugOption(false),
+      },
+      outputSchema: {
+        type: 'object',
+        properties: {
+          recommendation: { type: 'string' },
+          price: { type: 'number' },
+        },
+        required: ['recommendation', 'price'],
+      },
+    })
 
     const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
     expect(payload.stream).toBe(false)
-    // Clamped to the non-streaming limit — NOT claude-opus-4-1's full 64K
+    // Clamped to the non-streaming limit — NOT claude-sonnet-4-5's full 64K
     // streaming ceiling, which would make the SDK throw before the request.
     expect(payload.max_tokens).toBe(ANTHROPIC_MAX_NONSTREAMING_TOKENS)
     expect(payload.max_tokens).toBeLessThanOrEqual(21_333)
@@ -922,7 +939,7 @@ describe('Anthropic adapter option mapping', () => {
       id: 'msg_structured',
       type: 'message',
       role: 'assistant',
-      model: 'claude-opus-4-1',
+      model: 'claude-sonnet-4-5',
       content: [
         {
           type: 'tool_use',
@@ -936,9 +953,10 @@ describe('Anthropic adapter option mapping', () => {
     })
 
     await expect(
-      createAdapter('claude-opus-4-1').structuredOutput({
+      createAdapter('claude-sonnet-4-5').structuredOutput({
         chatOptions: {
-          model: 'claude-opus-4-1',
+          threadId: 'thread-1',
+          model: 'claude-sonnet-4-5',
           messages: [{ role: 'user', content: 'recommend a guitar as json' }],
           logger: resolveDebugOption(false),
         },
@@ -956,7 +974,7 @@ describe('Anthropic adapter option mapping', () => {
       id: 'msg_structured',
       type: 'message',
       role: 'assistant',
-      model: 'claude-opus-4-1',
+      model: 'claude-sonnet-4-5',
       content: [
         {
           type: 'tool_use',
@@ -969,9 +987,10 @@ describe('Anthropic adapter option mapping', () => {
       usage: { input_tokens: 10, output_tokens: 10 },
     })
 
-    await createAdapter('claude-opus-4-1').structuredOutput({
+    await createAdapter('claude-sonnet-4-5').structuredOutput({
       chatOptions: {
-        model: 'claude-opus-4-1',
+        threadId: 'thread-1',
+        model: 'claude-sonnet-4-5',
         messages: [{ role: 'user', content: 'recommend a guitar as json' }],
         reasoning: { level: 'high', summary: true },
         logger: resolveDebugOption(false),
@@ -1029,6 +1048,7 @@ describe('Anthropic adapter option mapping', () => {
     })
 
     const result = await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'forecast for Berlin' }],
       tools: [weatherTool],
@@ -1054,14 +1074,6 @@ describe('Anthropic adapter option mapping', () => {
     // No second beta.messages.create — the engine harvested from the agent
     // loop and did NOT issue a separate finalization call.
     expect(mocks.messagesCreate).not.toHaveBeenCalled()
-  })
-
-  it('native combined mode (#605): pre-4.5 models keep the forced-tool finalization path', async () => {
-    const adapter = new AnthropicTextAdapter(
-      { apiKey: 'test-key' },
-      'claude-opus-4-1',
-    )
-    expect(adapter.supportsCombinedToolsAndSchema()).toBe(false)
   })
 
   it('native combined mode (#605): claude-sonnet-5, claude-fable-5, and claude-opus-4-8 use the single-request path', () => {
@@ -1119,6 +1131,7 @@ describe('Anthropic adapter option mapping', () => {
       initialMessages: firstMessages as unknown as Array<UIMessage>,
     })
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: firstMessages,
       outputSchema: RecipeSchema,
@@ -1138,6 +1151,7 @@ describe('Anthropic adapter option mapping', () => {
     )
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [...afterTurn1, { role: 'user', content: 'now make it vegan' }],
       outputSchema: RecipeSchema,
@@ -1190,11 +1204,12 @@ describe('Anthropic adapter option mapping', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     // Multi-turn: user -> assistant(tool_calls) -> tool_result -> follow-up user
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       promptCache: 'none',
       messages: [
@@ -1264,10 +1279,11 @@ describe('Anthropic adapter option mapping', () => {
       createTextStream('Follow-up answer'),
     )
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         { role: 'user', content: 'What is the weather in Berlin?' },
@@ -1321,10 +1337,11 @@ describe('Anthropic adapter option mapping', () => {
       createTextStream('Next answer'),
     )
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         { role: 'user', content: 'Think then answer.' },
@@ -1362,7 +1379,7 @@ describe('Anthropic adapter option mapping', () => {
       createTextStream('Follow-up answer'),
     )
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
     const providerToolMetadata = {
       providerExecuted: true,
       anthropic: {
@@ -1387,6 +1404,7 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         {
@@ -1480,9 +1498,10 @@ describe('Anthropic adapter option mapping', () => {
   it('sends an object tool_use input when replayed tool call arguments are truncated (issue #1582)', async () => {
     mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('Done'))
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         { role: 'user', content: 'Weather in Berlin and Paris?' },
@@ -1558,10 +1577,11 @@ describe('Anthropic adapter option mapping', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       promptCache: 'none',
       messages: [
@@ -1675,10 +1695,11 @@ describe('Anthropic adapter option mapping', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         { role: 'user', content: "what's a good acoustic guitar?" },
@@ -1787,10 +1808,11 @@ describe('Anthropic adapter option mapping', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       promptCache: 'none',
       messages: [
@@ -1852,10 +1874,11 @@ describe('Anthropic stream processing', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
     })) {
@@ -1933,10 +1956,11 @@ describe('Anthropic stream processing', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Weather + fetch' }],
       tools: [weatherTool],
@@ -2052,10 +2076,11 @@ describe('Anthropic stream processing', () => {
 
       mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-      const adapter = createAdapter('claude-opus-4-1')
+      const adapter = createAdapter('claude-sonnet-4-5')
 
       const chunks: AdapterYieldChunk[] = []
       for await (const chunk of chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Use the server tool' }],
       })) {
@@ -2166,7 +2191,7 @@ describe('Anthropic stream processing', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(turn1)
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     const firstMessages = [
       { role: 'user' as const, content: 'Search the drone market.' },
@@ -2177,7 +2202,11 @@ describe('Anthropic stream processing', () => {
     const processor = new StreamProcessor({
       initialMessages: firstMessages as unknown as Array<UIMessage>,
     })
-    for await (const chunk of chat({ adapter, messages: firstMessages })) {
+    for await (const chunk of chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: firstMessages,
+    })) {
       processor.processChunk(chunk)
     }
     processor.finalizeStream()
@@ -2204,6 +2233,7 @@ describe('Anthropic stream processing', () => {
     mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('Sources:'))
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         ...afterTurn1,
@@ -2283,7 +2313,7 @@ describe('Anthropic stream processing', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     const logger = {
       debug: vi.fn(),
@@ -2293,6 +2323,7 @@ describe('Anthropic stream processing', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Fetch it' }],
       debug: { logger, errors: true },
@@ -2355,10 +2386,11 @@ describe('Anthropic stream processing', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Weather in Berlin?' }],
       tools: [weatherTool],
@@ -2420,10 +2452,11 @@ describe('Anthropic stream processing', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
       tools: [weatherTool],
@@ -2467,7 +2500,8 @@ describe('Anthropic stream processing', () => {
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
-      adapter: createAdapter('claude-opus-4-1'),
+      threadId: 'thread-1',
+      adapter: createAdapter('claude-sonnet-4-5'),
       messages: [{ role: 'user', content: 'Weather in Berlin and Paris?' }],
       tools: [weatherTool],
     })) {
@@ -2504,7 +2538,8 @@ describe('Anthropic stream processing', () => {
 
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
-      adapter: createAdapter('claude-opus-4-1'),
+      threadId: 'thread-1',
+      adapter: createAdapter('claude-sonnet-4-5'),
       messages: [{ role: 'user', content: 'Think twice.' }],
     })) {
       chunks.push(chunk)
@@ -2557,8 +2592,9 @@ describe('Anthropic stream processing', () => {
     )
 
     const chunks: Array<AdapterYieldChunk> = []
-    for await (const chunk of createAdapter('claude-opus-4-1').chatStream({
-      model: 'claude-opus-4-1',
+    for await (const chunk of createAdapter('claude-sonnet-4-5').chatStream({
+      threadId: 'thread-1',
+      model: 'claude-sonnet-4-5',
       messages: [{ role: 'user', content: 'Go' }],
       logger: createSilentLogger(),
     })) {
@@ -2629,10 +2665,11 @@ describe('Anthropic adapter error handling', () => {
       }),
     )
 
-    const adapter = createAdapter('claude-opus-4-1')
+    const adapter = createAdapter('claude-sonnet-4-5')
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of adapter.chatStream({
-      model: 'claude-opus-4-1',
+      threadId: 'thread-1',
+      model: 'claude-sonnet-4-5',
       messages: [{ role: 'user', content: 'hi' }],
       logger: { request: () => {}, errors: () => {} } as any,
     })) {

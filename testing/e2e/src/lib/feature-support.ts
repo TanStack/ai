@@ -78,6 +78,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'neon',
     'neon-anthropic',
   ]),
+  'multi-turn-reasoning': new Set(['anthropic']),
   'multi-turn': new Set([
     'openai',
     'anthropic',
@@ -425,7 +426,8 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'lovable',
     'neon',
   ]),
-  // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
+  // Gemini excluded: its image adapter uses the Interactions API, which aimock
+  // doesn't mock. gemini-native-image-wire and gemini-image-ga-models cover it.
   // vercel-gateway uses POST /v1/images/generations, the same path aimock
   // already mocks for openai. Drop this entry if the first run has no fixture.
   'image-gen': new Set([

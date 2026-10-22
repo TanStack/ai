@@ -2,11 +2,32 @@ import { Client } from '@modelcontextprotocol/client'
 import {
   DuplicateToolNameError,
   MCPConnectionError,
+  MCPEventConfigError,
   MCPTaskRequiredToolError,
   MCPToolFilterError,
   MCPToolNotFoundError,
 } from './errors'
 import { listPages } from './list-pages'
+import {
+  serverSupportsEvents,
+  withEventsClientCapability,
+} from './events/capability'
+import { createDirectMCPEvents } from './events/direct'
+import { createDiscoveryMCPEvents } from './events/discovery'
+import {
+  createManagedMCPEvents,
+  validateMCPEventOperations,
+} from './events/managed'
+import type {
+  DirectMCPEventsOptions,
+  ManagedMCPEvents,
+  ManagedMCPEventsOptions,
+  MCPEventAdapterTransport,
+  MCPEventOperations,
+  MCPEvents,
+  MCPEventsContext,
+  MCPEventsOptions,
+} from './events/types'
 import {
   callMcpTool,
   makeMcpExecute,
@@ -24,7 +45,7 @@ import type {
   DirectMCPClient,
 } from './direct-client'
 import type { MCPServer } from './server/create-server'
-import type { TransportConfig } from './transport'
+import type { TransportConfig, TransportInput } from './transport'
 import type {
   AnyToolDefinition,
   AutomaticDescriptor,
@@ -37,8 +58,10 @@ import type {
 } from './types'
 import type {
   ClientOptions,
+  DiscoverResult,
   GetPromptResult,
   McpSubscription,
+  PriorDiscovery,
   Prompt,
   ReadResourceResult,
   Request as McpRequest,
@@ -79,6 +102,14 @@ export interface MCPClient<
    * Optional so an existing hand-rolled `MCPClient` keeps compiling.
    */
   readonly instructions?: string
+  /**
+   * The `server/discover` result of this connection, or the `prior` it
+   * adopted. Save it and pass it back as `prior: { kind: 'modern', discover }`
+   * to skip the `server/discover` request on a later connect. `undefined`
+   * when the server speaks protocol `2025-11-25`, or after a
+   * `{ kind: 'legacy' }` prior.
+   */
+  getDiscoverResult: () => DiscoverResult | undefined
   /**
    * Auto-discovery: every server tool as a ServerTool. With a generated
    * descriptor, tool names are typed as the descriptor's name literals;
@@ -173,13 +204,35 @@ export interface MCPClient<
   }
   close: () => Promise<void>
   [Symbol.asyncDispose]: () => Promise<void>
+  /**
+   * MCP Events (SEP-3415). Always present after `createMCPClient` connects
+   * over a transport. Optional so a hand-rolled `MCPClient` keeps compiling.
+   *
+   * Managed mode narrows this to {@link ManagedMCPEvents} via overloads.
+   *
+   * @experimental
+   */
+  readonly experimental_events?: MCPEvents
 }
 
-class MCPClientImpl<
-  TServer extends ServerDescriptor,
-> implements MCPClient<TServer> {
+/**
+ * Client created with `experimental_events: { adapter }`.
+ *
+ * @experimental
+ */
+export type ManagedMCPClient<
+  TDescriptor extends ServerDescriptor = AutomaticDescriptor,
+> = Omit<MCPClient<TDescriptor>, 'experimental_events'> & {
+  readonly experimental_events: ManagedMCPEvents
+}
+
+class MCPClientImpl<TServer extends ServerDescriptor> implements Omit<
+  MCPClient<TServer>,
+  'experimental_events'
+> {
   capabilities: TServer['capabilities'] = {}
   instructions: string | undefined
+  experimental_events?: MCPEvents | ManagedMCPEvents
   readonly #client: Client
   #closed = false
   #toolDefinitions?: Map<string, McpToolDef>
@@ -194,6 +247,9 @@ class MCPClientImpl<
   // `jsonSchemaValidator` falls straight back to AJV.
   readonly #clientOptions: ClientOptions | undefined
   readonly #policy: ToolPolicy
+  readonly #eventsOptions?: MCPEventsOptions
+  readonly #eventsTransport: MCPEventAdapterTransport
+  readonly #managedOps?: MCPEventOperations
 
   constructor(
     prefix?: string,
@@ -202,11 +258,26 @@ class MCPClientImpl<
     transport?: TransportConfig,
     clientOptions?: ClientOptions,
     policy: ToolPolicy = {},
+    eventsSetup?: {
+      options?: MCPEventsOptions
+      transport: MCPEventAdapterTransport
+    },
   ) {
     this.prefix = prefix
     this.#transport = transport
     this.#clientOptions = clientOptions
     this.#policy = policy
+    this.#eventsOptions = eventsSetup?.options
+    this.#eventsTransport = eventsSetup?.transport ?? { type: 'custom' }
+    this.#managedOps = bindManagedOperations(
+      eventsSetup?.options,
+      this.#eventsTransport,
+    )
+    const capabilities = {
+      elicitation: { form: {} },
+      sampling: {},
+      ...clientOptions?.capabilities,
+    }
     // Try spec 2026-07-28 first. If the server does not support it, the
     // client uses the 2025 initialize handshake. Caller options still apply.
     // `mode` stays `auto` even when `clientOptions` sets another mode.
@@ -217,11 +288,10 @@ class MCPClientImpl<
       { name, version },
       {
         ...clientOptions,
-        capabilities: {
-          elicitation: { form: {} },
-          sampling: {},
-          ...clientOptions?.capabilities,
-        },
+        capabilities:
+          eventsSetup?.options === undefined
+            ? capabilities
+            : withEventsClientCapability(capabilities),
         versionNegotiation: {
           ...clientOptions?.versionNegotiation,
           mode: 'auto',
@@ -251,7 +321,7 @@ class MCPClientImpl<
     }
   }
 
-  async connect(transport: Transport): Promise<void> {
+  async connect(transport: Transport, prior?: PriorDiscovery): Promise<void> {
     try {
       // A tools/list_changed notice drops the cached definitions so the next
       // callTool reads each tool's execution mode again.
@@ -263,12 +333,15 @@ class MCPClientImpl<
       )
       // The connect handshake gets the request options too, so `timeout`
       // also limits a server that does not answer while it connects.
-      await this.#client.connect(
-        transport,
-        sdkRequestOptions(this.#policy.requestOptions),
-      )
+      // With `prior`, the SDK skips the server/discover probe and sends
+      // nothing here, so a dead or unauthorized server fails on first use.
+      await this.#client.connect(transport, {
+        ...sdkRequestOptions(this.#policy.requestOptions),
+        prior,
+      })
       this.capabilities = this.#client.getServerCapabilities() ?? {}
       this.instructions = this.#client.getInstructions()
+      this.experimental_events = this.#createEventsApi()
       // A failed listen only means that tool changes are not pushed.
       // The connection still works, so the error does not fail connect.
       await this.#listenForToolListChanges().catch(() => undefined)
@@ -295,8 +368,9 @@ class MCPClientImpl<
   // A raw list does not compile `jsonSchemaValidator`. On spec 2025, SDK
   // `callTool` then skips output checks. So `tools()` follows the raw walk
   // with `listTools()` to fill the SDK cache and run the validator.
-  // Spec 2026 calls use a raw tools/call, which never reads that cache,
-  // so the second walk is skipped there.
+  // Spec 2026 calls pass the listed input schema to `callTool` for the
+  // Mcp-Param-* headers, and do not read that cache. So the second walk is
+  // skipped there.
   // `raw: true` is the lazy `callTool` path. It must stay free of that cache.
   async #listTools(options?: { raw?: boolean }) {
     const client = this.#client
@@ -360,6 +434,7 @@ class MCPClientImpl<
             Boolean(def.outputSchema),
             requiresTaskExecution(serverTool),
             requestOptions,
+            serverTool.inputSchema,
           ),
         ) as ServerTool
         // A caller-supplied definition may already carry its own `mcp` block,
@@ -485,6 +560,7 @@ class MCPClientImpl<
       options?.signal,
       undefined,
       this.#policy.requestOptions,
+      definition?.inputSchema,
     )
     // Trust boundary: the server type says what `structuredContent` holds.
     // The client does not check the wire value against that type.
@@ -513,6 +589,10 @@ class MCPClientImpl<
     )
   }) as Client['request']
 
+  getDiscoverResult(): DiscoverResult | undefined {
+    return this.#client.getDiscoverResult()
+  }
+
   async close(): Promise<void> {
     if (this.#closed) return
     this.#closed = true
@@ -527,6 +607,36 @@ class MCPClientImpl<
 
   async [Symbol.asyncDispose](): Promise<void> {
     await this.close()
+  }
+
+  #createEventsApi(): MCPEvents | ManagedMCPEvents {
+    const ctx = this.#eventsContext()
+    if (this.#managedOps !== undefined) {
+      return createManagedMCPEvents(ctx, this.#managedOps)
+    }
+    if (
+      this.#eventsOptions !== undefined &&
+      isDirectEvents(this.#eventsOptions)
+    ) {
+      return createDirectMCPEvents(ctx, this.#eventsOptions)
+    }
+    return createDiscoveryMCPEvents(ctx)
+  }
+
+  #eventsContext(): MCPEventsContext {
+    return {
+      assertOpen: () => {
+        if (this.#closed) throw new MCPConnectionError('MCP client is closed')
+      },
+      supportsEvents: serverSupportsEvents(this.capabilities),
+      transport: this.#eventsTransport,
+      request: (method, params, schema, signal) =>
+        this.#client.request(
+          { method, params },
+          schema,
+          sdkRequestOptions(this.#policy.requestOptions, signal),
+        ),
+    }
   }
 }
 
@@ -609,16 +719,30 @@ function applyToolFilter(
  */
 export async function createMCPClient<
   TDescriptor extends ServerDescriptor = AutomaticDescriptor,
->(options: MCPClientOptions): Promise<MCPClient<TDescriptor>>
+>(
+  options: MCPClientOptions & { experimental_events: ManagedMCPEventsOptions },
+): Promise<ManagedMCPClient<TDescriptor>>
 export async function createMCPClient<TServer extends MCPServer>(
-  options: MCPClientOptions,
-): Promise<MCPClient<DescriptorFromServer<TServer>>>
+  options: MCPClientOptions & { experimental_events: ManagedMCPEventsOptions },
+): Promise<ManagedMCPClient<DescriptorFromServer<TServer>>>
 export async function createMCPClient<TServer extends MCPServer>(
   options: DirectClientOptions<TServer>,
 ): Promise<DirectMCPClient<TServer>>
+export async function createMCPClient<
+  TDescriptor extends ServerDescriptor = AutomaticDescriptor,
+>(
+  options: MCPClientOptions,
+): Promise<MCPClient<TDescriptor> & { readonly experimental_events: MCPEvents }>
+export async function createMCPClient<TServer extends MCPServer>(
+  options: MCPClientOptions,
+): Promise<
+  MCPClient<DescriptorFromServer<TServer>> & {
+    readonly experimental_events: MCPEvents
+  }
+>
 export async function createMCPClient(
   options: MCPClientOptions | DirectClientOptions<MCPServer>,
-): Promise<MCPClient | DirectMCPClient<MCPServer>> {
+): Promise<MCPClient | ManagedMCPClient | DirectMCPClient<MCPServer>> {
   if ('server' in options) {
     return directMCPClient(options.server)
   }
@@ -628,7 +752,9 @@ export async function createMCPClient(
 async function connectTransport<
   TServer extends ServerDescriptor = AutomaticDescriptor,
 >(options: MCPClientOptions) {
-  const transport = await resolveTransport(options.transport)
+  const transport = await resolveTransport(options.transport, {
+    events: options.experimental_events !== undefined,
+  })
   const impl = new MCPClientImpl<TServer>(
     options.prefix,
     options.name,
@@ -643,9 +769,15 @@ async function connectTransport<
       toolName: options.toolName,
       requestOptions: options.requestOptions,
     },
+    {
+      options: options.experimental_events,
+      transport: eventsTransportOf(options.transport),
+    },
   )
-  await impl.connect(transport)
-  return impl
+  await impl.connect(transport, options.prior)
+  return impl as MCPClient<TServer> & {
+    readonly experimental_events: MCPEvents | ManagedMCPEvents
+  }
 }
 
 /** Test-only: connect directly from a transport instance (skips resolveTransport). */
@@ -664,5 +796,43 @@ export async function createMCPClientFromTransport<
     clientOptions,
   )
   await impl.connect(transport)
-  return impl
+  return impl as MCPClient<TServer>
+}
+
+function isDirectEvents(
+  options: MCPEventsOptions,
+): options is DirectMCPEventsOptions {
+  return options.store !== undefined
+}
+
+function eventsTransportOf(input: TransportInput): MCPEventAdapterTransport {
+  if (isTransportInstance(input)) return { type: 'custom' }
+  if (input.type === 'http') return { type: 'http', url: input.url }
+  if (input.type === 'sse') return { type: 'sse', url: input.url }
+  return { type: 'custom' }
+}
+
+function bindManagedOperations(
+  options: MCPEventsOptions | undefined,
+  transport: MCPEventAdapterTransport,
+): MCPEventOperations | undefined {
+  if (options === undefined) return undefined
+  const hasStore = options.store !== undefined
+  const hasAdapter = options.adapter !== undefined
+  if (hasStore && hasAdapter) {
+    throw new MCPEventConfigError(
+      'experimental_events cannot include both store and adapter',
+    )
+  }
+  if (!hasStore && !hasAdapter) {
+    throw new MCPEventConfigError(
+      'experimental_events requires store or adapter',
+    )
+  }
+  if (!hasAdapter) return undefined
+  const adapter = options.adapter
+  if (typeof adapter.createAdapter !== 'function') {
+    throw new MCPEventConfigError('adapter is missing createAdapter')
+  }
+  return validateMCPEventOperations(adapter.createAdapter({ transport }))
 }

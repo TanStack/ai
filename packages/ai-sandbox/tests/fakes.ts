@@ -258,7 +258,6 @@ export function makeMiddlewareCtx(input: {
     streamId: `stream-${input.runId}`,
     runId: input.runId,
     threadId: input.threadId,
-    conversationId: input.threadId,
     phase: 'init',
     iteration: 0,
     chunkIndex: 0,

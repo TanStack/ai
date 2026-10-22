@@ -3,7 +3,7 @@ id: RealtimeToolConfig
 title: RealtimeToolConfig
 ---
 
-Defined in: [packages/ai/src/realtime/types.ts:25](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L25)
+Defined in: packages/ai/src/realtime/types.ts:25
 
 Serializable tool descriptor for realtime session configuration.
 Contains only the metadata needed by providers, not Zod schemas or execute functions.
@@ -16,7 +16,7 @@ Contains only the metadata needed by providers, not Zod schemas or execute funct
 description: string;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:27](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L27)
+Defined in: packages/ai/src/realtime/types.ts:27
 
 ***
 
@@ -26,7 +26,7 @@ Defined in: [packages/ai/src/realtime/types.ts:27](https://github.com/TanStack/a
 optional inputSchema?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:28](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L28)
+Defined in: packages/ai/src/realtime/types.ts:28
 
 ***
 
@@ -36,7 +36,7 @@ Defined in: [packages/ai/src/realtime/types.ts:28](https://github.com/TanStack/a
 name: string;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:26](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L26)
+Defined in: packages/ai/src/realtime/types.ts:26
 
 ***
 
@@ -46,4 +46,4 @@ Defined in: [packages/ai/src/realtime/types.ts:26](https://github.com/TanStack/a
 optional outputSchema?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:29](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L29)
+Defined in: packages/ai/src/realtime/types.ts:29

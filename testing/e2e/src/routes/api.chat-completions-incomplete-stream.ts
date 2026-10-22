@@ -12,7 +12,7 @@ export const Route = createFileRoute('/api/chat-completions-incomplete-stream')(
             id: 'chatcmpl-eof',
             object: 'chat.completion.chunk',
             created: 1,
-            model: 'gpt-5.6',
+            model: 'gpt-5.6-sol',
           }
           const chunks: Array<Record<string, unknown>> = [
             {
@@ -77,7 +77,7 @@ export const Route = createFileRoute('/api/chat-completions-incomplete-stream')(
           ]
           let requests = 0
           const adapter = createOpenaiChatCompletions(
-            'gpt-5.6',
+            'gpt-5.6-sol',
             'test-placeholder',
             {
               maxRetries: 0,
@@ -113,6 +113,7 @@ export const Route = createFileRoute('/api/chat-completions-incomplete-stream')(
             errorMessage: '',
           }
           for await (const event of chat({
+            threadId: 'chat-completions-incomplete-stream',
             adapter,
             messages: [{ role: 'user', content: 'Reply' }],
             debug: false,

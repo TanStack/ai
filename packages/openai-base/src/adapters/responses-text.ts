@@ -76,6 +76,7 @@ import type {
   TanStackMessageMetadata,
   TextCompactOptions,
   TextOptions,
+  TokenUsage,
   AnyTool,
   NormalizedSystemPrompt,
 } from '@tanstack/ai'
@@ -475,6 +476,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   readonly name: string
   protected client: OpenAI
 
+  /**
+   * Token usage for a Responses result. `source` is the response that carried
+   * `usage`, so a subclass can read sibling fields such as provider metadata.
+   */
+  protected responsesTokenUsage(
+    usage: OpenAI.Responses.ResponseUsage | undefined | null,
+    _source?: unknown,
+  ): TokenUsage | undefined {
+    return buildResponsesUsage(usage)
+  }
+
   private sourceMetadata(
     model: string,
     stopReason?: 'error' | 'aborted',
@@ -521,14 +533,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   async *chatStream(
     chatOptions: TextOptions<TProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
-    // A portable computer tool becomes the native computer tool of the model.
+    // A portable computer tool becomes the native computer tool.
     // The request and the stream both read the native tool.
     const options = chatOptions.tools
       ? {
           ...chatOptions,
-          tools: chatOptions.tools.map((tool) =>
-            resolveComputerUseTool(tool, chatOptions.model),
-          ),
+          tools: chatOptions.tools.map((tool) => resolveComputerUseTool(tool)),
         }
       : chatOptions
     // Key streamed state by output item ID because argument deltas reference
@@ -536,13 +546,13 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     // tool-call ID and the correlation key for function_call_output.
     const toolCallMetadata = new Map<string, StreamedFunctionCallMetadata>()
 
-    // AG-UI lifecycle tracking. Honor a caller-supplied `runId` (as `threadId`
-    // already does) so the emitted RUN_STARTED matches the id the caller keys
+    // AG-UI lifecycle tracking. Honor a caller-supplied `runId` so the
+    // emitted RUN_STARTED matches the id the caller keys
     // durability by — e.g. a summarize run threading the client's runId through
     // for mid-run reload resumability. Falls back to a generated id.
     const aguiState = {
       runId: options.runId ?? generateId(this.name),
-      threadId: options.threadId ?? generateId(this.name),
+      threadId: options.threadId,
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,
     }
@@ -716,7 +726,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
       // Surface usage so non-stream structured paths (and
       // fallbackStructuredOutputStream) can forward tokens to middleware.
-      const usage = buildResponsesUsage(response.usage)
+      const usage = this.responsesTokenUsage(response.usage, response)
       return {
         data: transformed,
         rawText,
@@ -761,7 +771,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
     const aguiState = {
       runId: generateId(this.name),
-      threadId: chatOptions.threadId ?? generateId(this.name),
+      threadId: chatOptions.threadId,
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,
     }
@@ -770,11 +780,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     let accumulatedReasoning = ''
     let hasEmittedTextMessageStart = false
     let reasoningMessageId: string | undefined
-    let stepId: string | undefined
     let hasClosedReasoning = false
     let model: string = chatOptions.model
     let responseId: string | undefined
     let usage: OpenAI.Responses.Response['usage'] | undefined
+    let usageSource: unknown
     let responseCompleted = false
 
     const closeReasoning = function* (this: {
@@ -794,18 +804,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           model,
           timestamp: Date.now(),
         }
-        if (stepId) {
-          yield {
-            type: EventType.STEP_FINISHED,
-            stepName: stepId,
-            stepId,
-            model,
-            timestamp: Date.now(),
-            content: accumulatedReasoning,
-          }
-        }
         reasoningMessageId = undefined
-        stepId = undefined
         hasClosedReasoning = false
       }
     }.bind(this)
@@ -815,7 +814,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     }): Generator<AdapterYieldChunk> {
       if (reasoningMessageId) return
       reasoningMessageId = generateId(this.name)
-      stepId = generateId(this.name)
       yield {
         type: EventType.REASONING_START,
         messageId: reasoningMessageId,
@@ -828,14 +826,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         role: 'reasoning' as const,
         model,
         timestamp: Date.now(),
-      }
-      yield {
-        type: EventType.STEP_STARTED,
-        stepName: stepId,
-        stepId,
-        model,
-        timestamp: Date.now(),
-        stepType: 'thinking',
       }
     }.bind(this)
 
@@ -974,7 +964,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           responseCompleted = true
           const response = chunk.response
           if (response.id) responseId = response.id
-          if (response.usage) usage = response.usage
+          if (response.usage) {
+            usage = response.usage
+            usageSource = response
+          }
           if (response.model) model = response.model
           // Terminal event: do not wait for the HTTP body to close (#1445).
           break
@@ -1094,7 +1087,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         timestamp: Date.now(),
         finishReason: 'stop',
         ...(usage && {
-          usage: buildResponsesUsage(usage),
+          usage: this.responsesTokenUsage(usage, usageSource),
         }),
       }
     } catch (error: unknown) {
@@ -1402,21 +1395,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       hasEmittedRunStarted: boolean
     },
   ): AsyncIterable<AdapterYieldChunk> {
-    // A `computer_call` is a call to the computer tool of this request.
-    const computerTool = options.tools?.some(
-      (tool) =>
-        tool.name === 'computer' &&
-        getOpenAIProviderToolKind(tool) === 'computer_use',
-    )
-      ? 'computer'
-      : 'computer_use_preview'
     const normalizeToolInput = createToolInputNormalizer(
       options.tools,
       (schema, required) =>
         this.makeStructuredOutputCompatibleWithMap(schema, required),
     )
     let accumulatedContent = ''
-    let accumulatedReasoning = ''
 
     // Track if we've been streaming deltas to avoid duplicating content from done events
     let hasStreamedContentDeltas = false
@@ -1427,7 +1411,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     let responseId: string | undefined
 
     // AG-UI lifecycle tracking
-    let stepId: string | null = null
     let hasEmittedTextMessageStart = false
     let reasoningMessageId: string | undefined
     let reasoningItemId: string | undefined
@@ -1507,7 +1490,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           type: EventType.TOOL_CALL_START,
           toolCallId: entry.item.id,
           toolCallName: 'web_search',
-          toolName: 'web_search',
           parentMessageId: aguiState.messageId,
           model: emitModel(),
           timestamp: Date.now(),
@@ -1518,7 +1500,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           type: EventType.TOOL_CALL_END,
           toolCallId: entry.item.id,
           toolCallName: 'web_search',
-          toolName: 'web_search',
           model: emitModel(),
           timestamp: Date.now(),
           input: entry.item.action,
@@ -1529,7 +1510,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     const openReasoning = function* (): Generator<AdapterYieldChunk> {
       if (reasoningMessageId) return
       reasoningMessageId = generateId(adapterName)
-      stepId = generateId(adapterName)
       const timestamp = Date.now()
       const currentModel = emitModel()
       yield {
@@ -1544,14 +1524,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         role: 'reasoning' as const,
         model: currentModel,
         timestamp,
-      }
-      yield {
-        type: EventType.STEP_STARTED,
-        stepName: stepId,
-        stepId,
-        model: currentModel,
-        timestamp,
-        stepType: 'thinking',
       }
     }
 
@@ -1585,35 +1557,23 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         model: currentModel,
         timestamp,
       }
-      if (stepId) {
-        closedReasoningMessageId = reasoningMessageId
+      closedReasoningMessageId = reasoningMessageId
+      // The signature belongs to the reasoning message, so an AG-UI client
+      // finds that message by `entityId`.
+      if (signature) {
         yield {
-          type: EventType.STEP_FINISHED,
-          stepName: stepId,
-          stepId,
+          type: EventType.REASONING_ENCRYPTED_VALUE,
+          subtype: 'message' as const,
+          entityId: reasoningMessageId,
+          encryptedValue: signature,
           model: currentModel,
           timestamp,
-          content: accumulatedReasoning,
-        }
-        // The signature belongs to the reasoning message, not the step, so
-        // an AG-UI client finds that message by `entityId`.
-        if (signature) {
-          yield {
-            type: EventType.REASONING_ENCRYPTED_VALUE,
-            subtype: 'message' as const,
-            entityId: reasoningMessageId,
-            encryptedValue: signature,
-            model: currentModel,
-            timestamp,
-          }
         }
       }
       reasoningMessageId = undefined
       reasoningItemId = undefined
       reasoningEncryptedContent = undefined
-      stepId = null
       hasClosedReasoning = false
-      accumulatedReasoning = ''
     }
 
     // A stateless stream (the ChatGPT plan route) can stream a tool call, then
@@ -1638,7 +1598,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       outputIndex: number,
       bareShell: boolean,
     ): Array<AdapterYieldChunk> => {
-      const call = readUserExecutedCall(item, { bareShell, computerTool })
+      const call = readUserExecutedCall(item, { bareShell })
       if (!call || toolCallMetadata.get(call.callId)?.ended) return []
       const tracked = toolCallMetadata.get(call.callId) ?? {
         callId: call.callId,
@@ -1665,7 +1625,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           type: EventType.TOOL_CALL_START,
           toolCallId: call.callId,
           toolCallName: call.name,
-          toolName: call.name,
           parentMessageId: aguiState.messageId,
           model: modelName,
           timestamp,
@@ -1676,7 +1635,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           type: EventType.TOOL_CALL_END,
           toolCallId: call.callId,
           toolCallName: call.name,
-          toolName: call.name,
           model: modelName,
           timestamp,
           input: call.input,
@@ -1690,7 +1648,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       if (!text) return
       yield* openReasoning()
       if (!reasoningMessageId) return
-      accumulatedReasoning += text
       hasStreamedReasoningDeltas = true
       yield {
         type: EventType.REASONING_MESSAGE_CONTENT,
@@ -1777,9 +1734,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           hasEmittedTextMessageStart = false
           reasoningMessageId = undefined
           hasClosedReasoning = false
-          stepId = null
           accumulatedContent = ''
-          accumulatedReasoning = ''
         }
 
         // response.failed and response.incomplete are TERMINAL events for
@@ -2059,7 +2014,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 type: EventType.TOOL_CALL_START,
                 toolCallId: metadata.callId,
                 toolCallName: metadata.name,
-                toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
@@ -2180,7 +2134,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             type: EventType.TOOL_CALL_END,
             toolCallId: metadata.callId,
             toolCallName: name,
-            toolName: name,
             model: model || options.model,
             timestamp: Date.now(),
             args: chunk.arguments,
@@ -2229,7 +2182,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 type: EventType.TOOL_CALL_START,
                 toolCallId: metadata.callId,
                 toolCallName: metadata.name,
-                toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
@@ -2277,7 +2229,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 type: EventType.TOOL_CALL_END,
                 toolCallId: metadata.callId,
                 toolCallName: name,
-                toolName: name,
                 model: model || options.model,
                 timestamp: Date.now(),
                 args: rawArgs,
@@ -2403,7 +2354,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 type: EventType.TOOL_CALL_START,
                 toolCallId: metadata.callId,
                 toolCallName: metadata.name,
-                toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
@@ -2449,7 +2399,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 type: EventType.TOOL_CALL_END,
                 toolCallId: metadata.callId,
                 toolCallName: name,
-                toolName: name,
                 model: model || options.model,
                 timestamp: Date.now(),
                 args: rawArgs,
@@ -2545,7 +2494,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             // Omit usage entirely when the provider reported none rather than
             // emitting fabricated zeros (also satisfies exactOptionalPropertyTypes).
             ...(chunk.response.usage && {
-              usage: buildResponsesUsage(chunk.response.usage),
+              usage: this.responsesTokenUsage(
+                chunk.response.usage,
+                chunk.response,
+              ),
             }),
             finishReason,
           }
@@ -3128,11 +3080,14 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           // back right after this message's reasoning.
           if (items) result.splice(firstCall, 0, ...items)
           else if (contentStr)
-            result.push({
-              type: 'message',
-              role: 'assistant',
-              content: contentStr,
-            })
+            // Text must not sit between a call and its output (DeepSeek
+            // rejects that, #1792). With calls, it goes before this message's
+            // reasoning, so the reasoning stays directly before its calls.
+            result.splice(
+              result.length > firstCall ? firstItem : result.length,
+              0,
+              { type: 'message', role: 'assistant', content: contentStr },
+            )
         }
 
         // Another model's answer: plain text and calls in the order the

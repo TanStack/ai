@@ -70,6 +70,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: byteplusText('dola-seed-2-1-turbo-260628'),
   messages,
+  threadId: 'thread-1',
   // Ark thinking.type plus reasoning_effort
   reasoning: 'medium',
   modelOptions: {
@@ -133,7 +134,7 @@ BYTEPLUS_VOICE_API_KEY   # TTS + transcription — a DIFFERENT product key
   `seed-2-0-mini-260428`, `seed-2-0-pro-260328`) emit an opaque signature over
   the reasoning trace that BytePlus asks for back on the next turn. The adapter
   round-trips it automatically over the same seam Anthropic thinking signatures
-  use: it is captured onto `STEP_FINISHED.signature`, which lands on the
+  use: it is sent as `REASONING_ENCRYPTED_VALUE`, which lands on the
   thinking part as `ModelMessage.thinking[].signature` and is echoed back on the
   following request. Code that persists and replays history by hand must **keep
   the thinking part's `signature`** — not "message metadata", which is a

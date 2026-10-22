@@ -7,7 +7,7 @@ title: ClientToolDeclaration
 type ClientToolDeclaration = object;
 ```
 
-Defined in: [packages/ai/src/utilities/chat-params.ts:319](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L319)
+Defined in: packages/ai/src/utilities/chat-params.ts:313
 
 Client-declared tool stub (no execute). `name` is `string`, so arrays that
 include these stubs intentionally widen tool-name discrimination —
@@ -21,7 +21,7 @@ pass server tools alone when you need a closed name union.
 description: string;
 ```
 
-Defined in: [packages/ai/src/utilities/chat-params.ts:321](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L321)
+Defined in: packages/ai/src/utilities/chat-params.ts:315
 
 ***
 
@@ -31,7 +31,7 @@ Defined in: [packages/ai/src/utilities/chat-params.ts:321](https://github.com/Ta
 inputSchema: JSONSchema;
 ```
 
-Defined in: [packages/ai/src/utilities/chat-params.ts:322](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L322)
+Defined in: packages/ai/src/utilities/chat-params.ts:316
 
 ***
 
@@ -41,4 +41,4 @@ Defined in: [packages/ai/src/utilities/chat-params.ts:322](https://github.com/Ta
 name: string;
 ```
 
-Defined in: [packages/ai/src/utilities/chat-params.ts:320](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L320)
+Defined in: packages/ai/src/utilities/chat-params.ts:314

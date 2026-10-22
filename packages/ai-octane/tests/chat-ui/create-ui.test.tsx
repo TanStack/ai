@@ -6,6 +6,8 @@ import { createChatHookContexts } from '../../src/chat-ui/create-ui-contexts.tsr
 import type {
   ChatUIFactoryConfig,
   ChatUIHost,
+  InterruptMixins,
+  PartMixins,
 } from '../../src/chat-ui/create-ui.tsrx'
 import {
   chatOptions,
@@ -19,6 +21,10 @@ import {
   unknownToolMessage,
 } from '../../../ai-client/tests/ui-fixtures'
 import type { ToolCallState } from '@tanstack/ai-client'
+import type {
+  ChatUIInterrupt,
+  ChatUISelectedPart,
+} from '@tanstack/ai-client/ui'
 
 function renderToStaticMarkup(ui: Parameters<typeof render>[0]) {
   const { container } = render(ui)
@@ -61,6 +67,7 @@ const baseConfig: ChatUIFactoryConfig<typeof chatOptions> = {
 }
 
 type Config = ChatUIFactoryConfig<typeof chatOptions>
+type InterruptsConfig = NonNullable<Config['interruptsComponents']>
 
 // The helper keeps `layout` / `message` / `input` flat for brevity and
 // assembles them into `components`; the shape under test is what reaches
@@ -74,8 +81,8 @@ function makeUI(patch?: {
   partsComponents?: Config['partsComponents']
   toolsComponents?: Config['toolsComponents']
   interruptsComponents?: {
-    tools?: Config['interruptsComponents']['tools']
-    generic?: Partial<Config['interruptsComponents']['generic']>
+    tools?: InterruptsConfig['tools']
+    generic?: Partial<InterruptsConfig['generic']>
   }
 }) {
   return createChatUI(chatOptions, {
@@ -97,11 +104,11 @@ function makeUI(patch?: {
     },
     interruptsComponents: {
       tools: {
-        ...baseConfig.interruptsComponents.tools,
+        ...baseConfig.interruptsComponents?.tools,
         ...patch?.interruptsComponents?.tools,
       },
       generic: {
-        ...baseConfig.interruptsComponents.generic,
+        ...baseConfig.interruptsComponents?.generic,
         ...patch?.interruptsComponents?.generic,
       },
     },
@@ -119,9 +126,10 @@ describe('createChatHook', () => {
 
     function Screen() {
       const chat = useAppChat({
-        initialMessages: [messageWithToolResults] as ChatUIHost<
-          typeof chatOptions
-        >['messages'],
+        threadId: 'thread-1',
+        initialMessages: [messageWithToolResults] as Array<
+          ChatUIHost<typeof chatOptions>['messages'][number]
+        >,
       })
       return <chat.AppChat />
     }
@@ -330,7 +338,9 @@ describe('createChatUI', () => {
                 {(parts) =>
                   parts.map((part, index) => (
                     <UI.Part key={index} part={part}>
-                      {(p) =>
+                      {(
+                        p: ChatUISelectedPart & PartMixins<typeof chatOptions>,
+                      ) =>
                         part.key === 'toolCall' ? (
                           <p.getWeather />
                         ) : (
@@ -369,7 +379,9 @@ describe('createChatUI', () => {
           {(interrupts) =>
             interrupts.map((interrupt) => (
               <UI.Interrupt key={interrupt.id} interrupt={interrupt}>
-                {(item) => {
+                {(
+                  item: ChatUIInterrupt & InterruptMixins<typeof chatOptions>,
+                ) => {
                   const ChoosePlan = item.choosePlan
                   return <ChoosePlan />
                 }}

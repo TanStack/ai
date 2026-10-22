@@ -34,17 +34,6 @@ const firstEvents: Array<{
     ],
     thinking: '',
   },
-  {
-    name: 'step signature',
-    chunks: [
-      {
-        type: EventType.STEP_FINISHED,
-        stepName: 'thinking',
-        timestamp: 2,
-        ...{ signature: 'signature' },
-      },
-    ],
-  },
 ]
 
 it.each(firstEvents)(

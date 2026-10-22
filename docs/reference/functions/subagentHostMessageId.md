@@ -7,7 +7,7 @@ title: subagentHostMessageId
 function subagentHostMessageId(runId): string;
 ```
 
-Defined in: [packages/ai/src/utilities/subagent-wire.ts:194](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/subagent-wire.ts#L194)
+Defined in: packages/ai/src/utilities/subagent-wire.ts:194
 
 The id of the parent assistant message that hosts a routed turn's cards.
 The persistence recorder writes that message, and a handoff run passes the

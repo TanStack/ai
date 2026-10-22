@@ -52,6 +52,10 @@
     "./server/stdio": {
       "types": "./dist/esm/server/stdio.d.ts",
       "import": "./dist/esm/server/stdio.js"
+    },
+    "./events": {
+      "types": "./dist/esm/events/index.d.ts",
+      "import": "./dist/esm/events/index.js"
     }
   },
   "files": [

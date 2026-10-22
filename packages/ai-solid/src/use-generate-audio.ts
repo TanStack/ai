@@ -11,7 +11,6 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 import type { Accessor } from 'solid-js'
@@ -86,6 +85,7 @@ export interface UseGenerateAudioReturn<
  *
  * function AudioGenerator() {
  *   const { generate, result, isLoading } = useGenerateAudio({
+ *     threadId: 'theme-audio',
  *     connection: fetchServerSentEvents('/api/generate/audio'),
  *   })
  *
@@ -101,12 +101,9 @@ export interface UseGenerateAudioReturn<
  * ```
  */
 export function useGenerateAudio<TTransformed = void>(
-  options: Omit<
-    UseGenerateAudioOptions,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<UseGenerateAudioOptions, 'onResult'> & {
     onResult?: (result: AudioGenerationResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ): UseGenerateAudioReturn<
   InferGenerationOutputFromReturn<AudioGenerationResult, TTransformed>
 > {

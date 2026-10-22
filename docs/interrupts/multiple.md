@@ -2,7 +2,7 @@
 title: Multiple Interrupts
 id: interrupts-multiple
 order: 3
-description: "Render a queue of pending decisions and resolve them item by item or all at once as one validated batch."
+description: "Show a queue of pending decisions and resolve them one by one or all at once, as one validated batch."
 keywords:
   - tanstack ai
   - ag-ui interrupts
@@ -11,53 +11,19 @@ keywords:
   - cancelInterrupts
 ---
 
-One run can pause on several decisions at once. A tool approval and a generic
-middleware request can land in the same batch. You want to show the whole queue
-and send the answers back together, not one round trip each.
+One run can pause on several interrupts at once. Render the queue, then send every answer in one request.
 
-## Two ways to resolve
+`useChat` collects the answers as local drafts. It sends them together when
+every item has an answer, and the server validates the full batch.
 
-You have already seen the first one on the [Tool Approval](./tool-approval) page:
-call a method on the item itself.
+## Quick setup
 
-```ts ignore
-// Per item: resolve each one where you render it.
-interrupt.resolveInterrupt(true)
-```
+This page uses the `transfer` tool from [Tool Approval](./tool-approval).
 
-When several client-owned items are pending, it is often easier to answer them
-all from one place. The `useChat` hook gives you root helpers for those items:
+### 1. Render the queue
 
-```ts ignore
-// All at once: one callback decides every pending item.
-resolveInterrupts((interrupt) => {
-  if (interrupt.kind === 'tool-approval') {
-    interrupt.resolveInterrupt(true)
-    return
-  }
-  interrupt.cancel()
-})
-```
-
-Both stage local drafts. Nothing goes to the server until every pending item has
-an answer. Then the client submits the whole set at once. The server validates
-the whole set before it accepts any item.
-
-When persistence is enabled, `InterruptStore.commitBatch()` can commit the
-validated batch in one database transaction. Without `commitBatch()`, the
-compatibility fallback writes items in sequence. That fallback is not atomic.
-
-For a mixed batch, switch on `kind`. Registered generic items use their
-definition id to narrow their payload and response. Tool approvals keep their
-own controls. A generic item with a valid raw binding has untyped controls and
-joins the resume batch. An `unbound` item has a missing, malformed, or
-unsupported binding. It remains visible, has no controls, and does not block
-the resumable items.
-
-## Render the queue
-
-Map over `interrupts` and switch on `kind`. Each item carries its own
-`canResolve` and `errors`:
+Map over `interrupts` and switch on `kind`. Give each item its own buttons, and
+add root buttons for the full queue:
 
 ```tsx
 // app/decision-queue.tsx
@@ -117,12 +83,41 @@ export function DecisionQueue() {
 }
 ```
 
+### 2. Try it
+
+Ask the model for two transfers in one message. The queue shows two items.
+Approve one, then the other. The client sends both answers in one request, and
+the run continues.
+
+## How it works
+
+You can resolve items in two ways:
+
+- **Per item.** Call `interrupt.resolveInterrupt(...)` or `interrupt.cancel()`
+  where you render the item.
+- **From the root.** Call `resolveInterrupts(...)` or `cancelInterrupts()` once
+  for the full queue.
+
+Both ways stage local drafts. The client sends nothing until every pending item
+has an answer. Then it submits the full set at once. The server validates the
+full set before it accepts any item.
+
+In a mixed batch, `kind` tells you what each item is:
+
+- `tool-approval`: a tool call. It has its own approval controls.
+- `generic` with a `definitionId`: a registered generic interrupt. The
+  definition id narrows its payload and response types.
+- `generic` without a `definitionId`: an external interrupt with a valid
+  binding. Its controls are untyped, and it joins the batch.
+- `unbound`: the binding is missing, malformed, or of an unsupported version.
+  The item is visible, has no controls, and does not block the other items.
+
 ## Resolve every item from one callback
 
-`resolveInterrupts(callback)` runs your callback once per resumable item in a
-single synchronous transaction. This includes valid raw external generic
-bindings. It must resolve or cancel every such item. If it throws or leaves one
-unanswered, nothing submits:
+`resolveInterrupts(callback)` runs your callback once for each item that can
+resume, in one synchronous transaction. This includes external generic items
+with a valid binding. The callback must resolve or cancel every item. If it
+throws or skips an item, nothing is sent:
 
 ```ts ignore
 resolveInterrupts((interrupt) => {
@@ -136,33 +131,31 @@ resolveInterrupts((interrupt) => {
 
 Two shortcuts cover the common cases:
 
-- `resolveInterrupts(true)` / `resolveInterrupts(false)` approves or rejects the
-  whole queue. It works only when every item is a tool approval that needs no
-  payload or edits. Generic items, mixed queues, or required payloads are
-  rejected.
-- `cancelInterrupts()` cancels every resumable item with no payload, including
-  client-tool execution steps that are hidden from `interrupts`.
-
-Use the `onInterruptStateChange` source to apply different policies to restored
-(`hydrate`) and current-session (`live`) batches. Cancellation still applies to
-every resumable item in the batch.
+- `resolveInterrupts(true)` or `resolveInterrupts(false)` approves or rejects
+  the full queue. It works only when every item is a tool approval that needs
+  no payload and no edits. It rejects generic items, mixed queues, and required
+  payloads.
+- `cancelInterrupts()` cancels every item that can resume, with no payload.
+  This includes the client-tool steps that `interrupts` does not show.
 
 ## When an answer is wrong
 
-A bad answer does not tear down the queue. The item keeps your last valid draft,
-shows what went wrong, and lets you fix it and resubmit. Errors come in two
-places, and you render both.
+A bad answer does not clear the queue. The item keeps your last valid draft and
+shows the error. The user fixes it and submits again.
 
-Each item carries its own `errors`: a bad payload, invalid edited args, or an
-expired item. The root `interruptErrors` carries failures for the whole batch:
-transport problems, server rejections, and errors for the internal client-tool
-steps that never show up as their own item.
+Errors come in two places. Show both:
 
-This component renders both, gates its buttons correctly, and offers the two
-recovery paths:
+- `interrupt.errors`, on each item: a bad payload, bad edited arguments, or an
+  expired item.
+- `interruptErrors`, on the root: errors for the full batch. These are transport
+  errors, server rejections, and errors for internal client-tool steps that
+  have no item of their own.
+
+This component shows both kinds of error, disables its buttons at the right
+times, and offers the two ways to recover:
 
 ```tsx
-// app/robust-queue.tsx
+// app/error-queue.tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
@@ -178,15 +171,15 @@ const transferTool = toolDefinition({
   outputSchema: z.object({ receiptId: z.string() }),
 }).client()
 
-export function RobustQueue() {
+export function ErrorQueue() {
   const { interrupts, interruptErrors, retryInterrupts, resuming } = useChat({
     threadId: 'account-42',
     connection: fetchServerSentEvents('/api/chat'),
     tools: [transferTool] as const,
   })
 
-  // Retry only helps a transport failure. Expired or stale batches cannot
-  // be retried, so do not offer it for those.
+  // Retry helps only after a transport failure. Expired or stale batches
+  // cannot be retried, so do not offer it for those.
   const canRetry = interruptErrors.some((error) => error.code === 'transport')
 
   return (
@@ -199,8 +192,8 @@ export function RobustQueue() {
           return null
         }
 
-        // canResolve reflects the schema and binding, not the live phase, so
-        // also gate on the item's status and the run being busy.
+        // canResolve reflects the schema and binding, not the live phase.
+        // Also check the item status and whether the run is busy.
         const busy = interrupt.status === 'submitting' || resuming
 
         return (
@@ -243,13 +236,33 @@ export function RobustQueue() {
 }
 ```
 
-The two recovery paths, side by side:
+The two ways to recover:
 
-- `interrupt.clearResolution()` drops one item's draft so the user can answer it
-  again from scratch. Fixing a form and calling `resolveInterrupt` again works
-  too, the draft is replaced, not stacked.
-- `retryInterrupts()` retries a staged batch after a transport failure. With
-  sequential durable storage, a failed request may have committed earlier
-  entries already. Reload the current pending records, then retry only the
-  remaining batch. It does nothing for expired or stale batches, start a fresh
-  run to get a new set of interrupts for those.
+- `interrupt.clearResolution()` drops the draft of one item, so the user can
+  answer it again. You can also call `resolveInterrupt` again after the user
+  fixes a form. The new draft replaces the old one.
+- `retryInterrupts()` sends a staged batch again after a transport failure. It
+  does nothing for expired or stale batches. For those, start a new run to get
+  a new set of interrupts.
+
+## Advanced
+
+### Persistence and batch commits
+
+With persistence, `InterruptStore.commitBatch()` can commit the validated batch
+in one database transaction. If the store has no `commitBatch()`, a fallback
+writes the items one after the other. That fallback is not atomic.
+
+With that sequential storage, a failed request can already have committed some
+items. Before you call `retryInterrupts()`, reload the current pending records.
+Then retry only the rest of the batch.
+
+### Restored and live batches
+
+`onInterruptStateChange` gets a `source` with each update:
+
+- `hydrate`: the batch came back from a restored snapshot.
+- `live`: the batch came from the stream or from the client in this session.
+
+Use it to apply a different policy to restored batches. Cancellation still
+applies to every item in the batch that can resume.

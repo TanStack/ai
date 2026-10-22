@@ -39,7 +39,10 @@ function TranscriptionForm({
     if (mode === 'direct') {
       return {
         threadId: `transcription:${mode}:${config.id}`,
-        fetcher: (input: TranscriptionGenerateInput) =>
+        fetcher: (
+          input: TranscriptionGenerateInput,
+          { threadId }: { threadId: string },
+        ) =>
           transcribeFn({
             data: {
               audio: input.audio as string,
@@ -47,6 +50,7 @@ function TranscriptionForm({
               responseFormat: input.responseFormat,
               modelOptions: input.modelOptions,
               provider: config.id,
+              threadId,
             },
           }),
         persistence: true,
@@ -54,7 +58,10 @@ function TranscriptionForm({
     }
     return {
       threadId: `transcription:${mode}:${config.id}`,
-      fetcher: (input: TranscriptionGenerateInput) =>
+      fetcher: (
+        input: TranscriptionGenerateInput,
+        { threadId }: { threadId: string },
+      ) =>
         transcribeStreamFn({
           data: {
             audio: input.audio as string,
@@ -62,6 +69,7 @@ function TranscriptionForm({
             responseFormat: input.responseFormat,
             modelOptions: input.modelOptions,
             provider: config.id,
+            threadId,
           },
         }),
       persistence: true,

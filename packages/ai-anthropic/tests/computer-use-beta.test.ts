@@ -35,6 +35,7 @@ async function sentBetas(tool: ReturnType<typeof computerUseTool>) {
   mockEmptyStream()
   const adapter = new AnthropicTextAdapter({ apiKey: 'k' }, 'claude-haiku-4-5')
   for await (const _ of chat({
+    threadId: 'thread-1',
     adapter,
     messages: [{ role: 'user', content: 'Open the browser.' }],
     tools: [tool],

@@ -20,11 +20,6 @@ export class ChatNotifier extends RpcTarget {
     }
   }
 
-  /** @deprecated Prefer addHandler for multiple listeners */
-  setHandler(handler: (notification: ChatNotification) => void) {
-    handlers.set(this, new Set([handler]))
-  }
-
   notify(notification: ChatNotification) {
     const set = handlers.get(this)
     if (!set) return

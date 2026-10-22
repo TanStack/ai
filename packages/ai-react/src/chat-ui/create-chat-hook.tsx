@@ -19,10 +19,9 @@ type HeadlessOptions<TOptions> = UseChatOptions<
 >
 
 type ChatInstanceOverrides<TOptions> = {
-  threadId?: string
+  threadId: string
   live?: boolean
   forwardedProps?: Record<string, any>
-  body?: Record<string, any>
   initialMessages?: HeadlessOptions<TOptions>['initialMessages']
 }
 
@@ -34,7 +33,7 @@ type ChatInstanceOverrides<TOptions> = {
  * `useChatContext` reads that instance. Part and interrupt widgets take
  * `part` / `interrupt` as props. Do not read those from context.
  *
- * Pass instance overrides such as `threadId` into `useAppChat()`.
+ * Pass `threadId` and other instance overrides into `useAppChat()`.
  *
  * @example
  * ```tsx
@@ -68,15 +67,11 @@ export function createChatHook<
     chatComponents as ChatUIFactoryConfig<NoInfer<TOptions>, TInput>,
   )
 
-  function useAppChat(overrides?: ChatInstanceOverrides<TOptions>) {
-    const chat = (
-      overrides
-        ? useUnboundChat({
-            ...(options as HeadlessOptions<TOptions>),
-            ...overrides,
-          })
-        : useUnboundChat(options as HeadlessOptions<TOptions>)
-    ) as ChatUIHost<TOptions>
+  function useAppChat(overrides: ChatInstanceOverrides<TOptions>) {
+    const chat = useUnboundChat({
+      ...(options as HeadlessOptions<TOptions>),
+      ...overrides,
+    }) as ChatUIHost<TOptions>
 
     // `useChat` returns a fresh object on every render. The mixed Chat
     // component must stay stable, or React remounts the tree on each

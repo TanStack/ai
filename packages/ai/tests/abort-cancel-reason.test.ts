@@ -53,6 +53,7 @@ async function runAbortedByCaller(
   const abortController = new AbortController()
 
   const stream = chat({
+    threadId: 'thread-1',
     adapter,
     messages: [{ role: 'user', content: 'Hi' }],
     abortController,
@@ -132,6 +133,7 @@ describe('AbortInfo.cancelRequested', () => {
       })
 
       const stream = chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [aborter, recorder.middleware],
@@ -187,6 +189,7 @@ describe('AbortInfo.cancelRequested', () => {
 
       await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Hi' }],
           tools: [serverTool('myTool', () => ({ ok: true }))],

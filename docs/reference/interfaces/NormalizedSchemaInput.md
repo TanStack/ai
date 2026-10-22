@@ -3,7 +3,7 @@ id: NormalizedSchemaInput
 title: NormalizedSchemaInput
 ---
 
-Defined in: [packages/ai/src/activities/chat/tools/approval-schema.ts:10](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/approval-schema.ts#L10)
+Defined in: packages/ai/src/activities/chat/tools/approval-schema.ts:10
 
 ## Properties
 
@@ -13,7 +13,7 @@ Defined in: [packages/ai/src/activities/chat/tools/approval-schema.ts:10](https:
 optional jsonSchema?: JSONSchema;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/approval-schema.ts:13](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/approval-schema.ts#L13)
+Defined in: packages/ai/src/activities/chat/tools/approval-schema.ts:13
 
 ***
 
@@ -23,7 +23,7 @@ Defined in: [packages/ai/src/activities/chat/tools/approval-schema.ts:13](https:
 source: SchemaInput;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/approval-schema.ts:11](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/approval-schema.ts#L11)
+Defined in: packages/ai/src/activities/chat/tools/approval-schema.ts:11
 
 ***
 
@@ -33,4 +33,4 @@ Defined in: [packages/ai/src/activities/chat/tools/approval-schema.ts:11](https:
 optional validator?: StandardSchemaV1<unknown, unknown>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/approval-schema.ts:12](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/approval-schema.ts#L12)
+Defined in: packages/ai/src/activities/chat/tools/approval-schema.ts:12

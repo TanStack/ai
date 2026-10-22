@@ -3,7 +3,7 @@ id: GenericInterruptContinuation
 title: GenericInterruptContinuation
 ---
 
-Defined in: [packages/ai/src/generic-interrupt-continuation.ts:16](https://github.com/TanStack/ai/blob/main/packages/ai/src/generic-interrupt-continuation.ts#L16)
+Defined in: packages/ai/src/generic-interrupt-continuation.ts:16
 
 ## Properties
 
@@ -13,7 +13,7 @@ Defined in: [packages/ai/src/generic-interrupt-continuation.ts:16](https://githu
 batchIndex: number;
 ```
 
-Defined in: [packages/ai/src/generic-interrupt-continuation.ts:20](https://github.com/TanStack/ai/blob/main/packages/ai/src/generic-interrupt-continuation.ts#L20)
+Defined in: packages/ai/src/generic-interrupt-continuation.ts:20
 
 ***
 
@@ -23,7 +23,7 @@ Defined in: [packages/ai/src/generic-interrupt-continuation.ts:20](https://githu
 definitionId: string;
 ```
 
-Defined in: [packages/ai/src/generic-interrupt-continuation.ts:18](https://github.com/TanStack/ai/blob/main/packages/ai/src/generic-interrupt-continuation.ts#L18)
+Defined in: packages/ai/src/generic-interrupt-continuation.ts:18
 
 ***
 
@@ -33,7 +33,7 @@ Defined in: [packages/ai/src/generic-interrupt-continuation.ts:18](https://githu
 optional expiresAt?: string;
 ```
 
-Defined in: [packages/ai/src/generic-interrupt-continuation.ts:23](https://github.com/TanStack/ai/blob/main/packages/ai/src/generic-interrupt-continuation.ts#L23)
+Defined in: packages/ai/src/generic-interrupt-continuation.ts:23
 
 ***
 
@@ -43,7 +43,7 @@ Defined in: [packages/ai/src/generic-interrupt-continuation.ts:23](https://githu
 key: string;
 ```
 
-Defined in: [packages/ai/src/generic-interrupt-continuation.ts:19](https://github.com/TanStack/ai/blob/main/packages/ai/src/generic-interrupt-continuation.ts#L19)
+Defined in: packages/ai/src/generic-interrupt-continuation.ts:19
 
 ***
 
@@ -53,7 +53,7 @@ Defined in: [packages/ai/src/generic-interrupt-continuation.ts:19](https://githu
 message: string;
 ```
 
-Defined in: [packages/ai/src/generic-interrupt-continuation.ts:22](https://github.com/TanStack/ai/blob/main/packages/ai/src/generic-interrupt-continuation.ts#L22)
+Defined in: packages/ai/src/generic-interrupt-continuation.ts:22
 
 ***
 
@@ -63,7 +63,7 @@ Defined in: [packages/ai/src/generic-interrupt-continuation.ts:22](https://githu
 optional payload?: unknown;
 ```
 
-Defined in: [packages/ai/src/generic-interrupt-continuation.ts:26](https://github.com/TanStack/ai/blob/main/packages/ai/src/generic-interrupt-continuation.ts#L26)
+Defined in: packages/ai/src/generic-interrupt-continuation.ts:26
 
 ***
 
@@ -73,7 +73,7 @@ Defined in: [packages/ai/src/generic-interrupt-continuation.ts:26](https://githu
 optional payloadSchemaHash?: string;
 ```
 
-Defined in: [packages/ai/src/generic-interrupt-continuation.ts:25](https://github.com/TanStack/ai/blob/main/packages/ai/src/generic-interrupt-continuation.ts#L25)
+Defined in: packages/ai/src/generic-interrupt-continuation.ts:25
 
 ***
 
@@ -83,7 +83,7 @@ Defined in: [packages/ai/src/generic-interrupt-continuation.ts:25](https://githu
 reason: string;
 ```
 
-Defined in: [packages/ai/src/generic-interrupt-continuation.ts:21](https://github.com/TanStack/ai/blob/main/packages/ai/src/generic-interrupt-continuation.ts#L21)
+Defined in: packages/ai/src/generic-interrupt-continuation.ts:21
 
 ***
 
@@ -93,7 +93,7 @@ Defined in: [packages/ai/src/generic-interrupt-continuation.ts:21](https://githu
 optional responseSchemaHash?: string;
 ```
 
-Defined in: [packages/ai/src/generic-interrupt-continuation.ts:24](https://github.com/TanStack/ai/blob/main/packages/ai/src/generic-interrupt-continuation.ts#L24)
+Defined in: packages/ai/src/generic-interrupt-continuation.ts:24
 
 ***
 
@@ -103,4 +103,4 @@ Defined in: [packages/ai/src/generic-interrupt-continuation.ts:24](https://githu
 v: 1;
 ```
 
-Defined in: [packages/ai/src/generic-interrupt-continuation.ts:17](https://github.com/TanStack/ai/blob/main/packages/ai/src/generic-interrupt-continuation.ts#L17)
+Defined in: packages/ai/src/generic-interrupt-continuation.ts:17

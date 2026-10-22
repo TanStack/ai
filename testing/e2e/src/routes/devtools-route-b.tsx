@@ -13,7 +13,7 @@ function DevtoolsRouteB() {
   const routeBChat = useChat({
     threadId: 'devtools-route-b:chat',
     connection: fetchServerSentEvents('/api/chat'),
-    body: {
+    forwardedProps: {
       provider: 'openai',
       feature: 'chat',
       testId: search.testId,

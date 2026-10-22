@@ -6,9 +6,8 @@
  * Both subsystems answer the same underlying question — "whose data is this?" —
  * so they share ONE identity vocabulary defined here rather than each inventing
  * its own. `threadId` is the single conversation key across the codebase (it is
- * `ChatMiddlewareContext.threadId`, and `conversationId` is deprecated in favor
- * of it); a subsystem must never introduce a second name (`sessionId`,
- * `conversationId`, …) for the same concept.
+ * `ChatMiddlewareContext.threadId`); a subsystem must never introduce a second
+ * name (`sessionId`, `conversationId`, …) for the same concept.
  *
  * ## Security
  *

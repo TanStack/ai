@@ -48,6 +48,7 @@ describe('ui-resource persistence across MESSAGES_SNAPSHOT', () => {
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Show the widget' }],
         tools: [presentWidgetTool(), clientTool('await_result')],

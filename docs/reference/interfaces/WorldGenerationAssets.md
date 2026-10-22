@@ -3,7 +3,7 @@ id: WorldGenerationAssets
 title: WorldGenerationAssets
 ---
 
-Defined in: [packages/ai/src/types.ts:2776](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2776)
+Defined in: packages/ai/src/types.ts:2693
 
 **`Experimental`**
 
@@ -21,7 +21,7 @@ to fetch from a browser.
 optional caption?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2778](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2778)
+Defined in: packages/ai/src/types.ts:2695
 
 **`Experimental`**
 
@@ -35,7 +35,7 @@ Auto-generated scene description
 optional imagery?: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:2792](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2792)
+Defined in: packages/ai/src/types.ts:2709
 
 **`Experimental`**
 
@@ -53,7 +53,7 @@ optional panoUrl?: string;
 optional mesh?: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:2787](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2787)
+Defined in: packages/ai/src/types.ts:2704
 
 **`Experimental`**
 
@@ -83,7 +83,7 @@ optional hqMeshUrl?: string;
 optional splats?: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:2781](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2781)
+Defined in: packages/ai/src/types.ts:2698
 
 **`Experimental`**
 
@@ -115,7 +115,7 @@ Quality-key map of splat URLs (`100k`, `500k`, `full_res`, …)
 optional thumbnailUrl?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2780](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2780)
+Defined in: packages/ai/src/types.ts:2697
 
 **`Experimental`**
 

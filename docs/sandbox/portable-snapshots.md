@@ -5,10 +5,7 @@ order: 10
 description: "Keep completed sandbox files after the provider sandbox is gone, then rebuild them in a new sandbox."
 ---
 
-An agent can finish work in a sandbox, then the sandbox can disappear. A reload
-or a later run starts with an empty workspace. Portable snapshots store the
-finished files in your persistence. A later run restores them into a new
-sandbox.
+A portable snapshot stores the finished sandbox files in your persistence. A later run restores them into a new sandbox.
 
 This work runs on the server. Your client calls routes that you own.
 

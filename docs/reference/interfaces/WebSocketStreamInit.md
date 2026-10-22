@@ -3,7 +3,7 @@ id: WebSocketStreamInit
 title: WebSocketStreamInit
 ---
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:90](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L90)
+Defined in: packages/ai/src/stream-to-websocket.ts:90
 
 ## Type Parameters
 
@@ -19,7 +19,7 @@ Defined in: [packages/ai/src/stream-to-websocket.ts:90](https://github.com/TanSt
 optional batch?: number;
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:96](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L96)
+Defined in: packages/ai/src/stream-to-websocket.ts:96
 
 Chunks buffered per durability append (default 32).
 
@@ -31,7 +31,7 @@ Chunks buffered per durability append (default 32).
 optional batchWaitMs?: number;
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:101](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L101)
+Defined in: packages/ai/src/stream-to-websocket.ts:101
 
 Most ms a chunk waits in the batch for the next one before the batch is
 appended and sent anyway (default 50). `0` appends every chunk on its own.
@@ -44,7 +44,7 @@ appended and sent anyway (default 50). `0` appends every chunk on its own.
 optional debug?: DebugOption;
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:110](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L110)
+Defined in: packages/ai/src/stream-to-websocket.ts:110
 
 ***
 
@@ -54,7 +54,7 @@ Defined in: [packages/ai/src/stream-to-websocket.ts:110](https://github.com/TanS
 optional durability?: (ctx) => StreamDurability<TOffset>;
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:94](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L94)
+Defined in: packages/ai/src/stream-to-websocket.ts:94
 
 Per-TURN durability factory, keyed by the frame's runId via ctx.request.
 
@@ -76,7 +76,7 @@ Per-TURN durability factory, keyed by the frame's runId via ctx.request.
 optional heartbeatMs?: number;
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:103](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L103)
+Defined in: packages/ai/src/stream-to-websocket.ts:103
 
 Heartbeat ping interval in ms (default 30_000).
 
@@ -88,7 +88,7 @@ Heartbeat ping interval in ms (default 30_000).
 optional idleTimeoutMs?: number;
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:109](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L109)
+Defined in: packages/ai/src/stream-to-websocket.ts:109
 
 Close after this many ms without any inbound frame (default 300_000).
 Never fires while a turn is still streaming, so a long single generation
@@ -102,7 +102,7 @@ Never fires while a turn is still streaming, so a long single generation
 onRun: (ctx) => AsyncIterable<AGUIEvent>;
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:92](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L92)
+Defined in: packages/ai/src/stream-to-websocket.ts:92
 
 Build a fresh chat() stream for each inbound RunAgentInput frame.
 

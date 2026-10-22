@@ -136,7 +136,10 @@ describe('createGeneration', () => {
   describe('initialization', () => {
     it('should initialize with default state', () => {
       const adapter = createMockConnectionAdapter()
-      const gen = createGeneration({ connection: adapter })
+      const gen = createGeneration({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       expect(gen.result).toBeNull()
       expect(gen.isLoading).toBe(false)
@@ -145,14 +148,17 @@ describe('createGeneration', () => {
     })
 
     it('should throw if neither connection nor fetcher is provided', () => {
-      expect(() => createGeneration({})).toThrow(
+      expect(() => createGeneration({ threadId: 'thread-1' })).toThrow(
         'createGeneration requires either a connection or fetcher option',
       )
     })
 
     it('should expose generate, stop, reset, and updateBody methods', () => {
       const adapter = createMockConnectionAdapter()
-      const gen = createGeneration({ connection: adapter })
+      const gen = createGeneration({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       expect(typeof gen.generate).toBe('function')
       expect(typeof gen.stop).toBe('function')
@@ -167,6 +173,7 @@ describe('createGeneration', () => {
       const onResult = vi.fn()
 
       const gen = createGeneration({
+        threadId: 'thread-1',
         fetcher: async () => mockResult,
         onResult,
       })
@@ -183,6 +190,7 @@ describe('createGeneration', () => {
       const onError = vi.fn()
 
       const gen = createGeneration({
+        threadId: 'thread-1',
         fetcher: async () => {
           throw new Error('fetch failed')
         },
@@ -206,7 +214,10 @@ describe('createGeneration', () => {
       const chunks = createGenerationChunks(mockResult)
       const adapter = createMockConnectionAdapter({ chunks })
 
-      const gen = createGeneration({ connection: adapter })
+      const gen = createGeneration({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await gen.generate({ prompt: 'test' })
 
@@ -218,7 +229,10 @@ describe('createGeneration', () => {
       const chunks = createErrorChunks('Generation failed')
       const adapter = createMockConnectionAdapter({ chunks })
 
-      const gen = createGeneration({ connection: adapter })
+      const gen = createGeneration({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
 
       await gen.generate({ prompt: 'test' })
 
@@ -262,6 +276,7 @@ describe('createGeneration', () => {
       let resolvePromise: (value: any) => void
 
       const gen = createGeneration({
+        threadId: 'thread-1',
         fetcher: async () =>
           new Promise((resolve) => {
             resolvePromise = resolve
@@ -285,6 +300,7 @@ describe('createGeneration', () => {
 
     it('should reset all state', async () => {
       const gen = createGeneration({
+        threadId: 'thread-1',
         fetcher: async () => ({ id: '1' }),
       })
 
@@ -308,7 +324,10 @@ describe('createGenerateImage', () => {
 
   it('should initialize with default state', () => {
     const adapter = createMockConnectionAdapter()
-    const gen = createGenerateImage({ connection: adapter })
+    const gen = createGenerateImage({
+      threadId: 'thread-1',
+      connection: adapter,
+    })
 
     expect(gen.result).toBeNull()
     expect(gen.isLoading).toBe(false)
@@ -323,6 +342,7 @@ describe('createGenerateImage', () => {
     }
 
     const gen = createGenerateImage({
+      threadId: 'thread-1',
       fetcher: async () => mockResult,
     })
 
@@ -340,7 +360,10 @@ describe('createGenerateImage', () => {
     const chunks = createGenerationChunks(mockResult)
     const adapter = createMockConnectionAdapter({ chunks })
 
-    const gen = createGenerateImage({ connection: adapter })
+    const gen = createGenerateImage({
+      threadId: 'thread-1',
+      connection: adapter,
+    })
 
     await gen.generate({ prompt: 'A sunset' })
 
@@ -352,6 +375,7 @@ describe('createGenerateImage', () => {
     const onError = vi.fn()
 
     const gen = createGenerateImage({
+      threadId: 'thread-1',
       fetcher: async () => {
         throw new Error('Image generation failed')
       },
@@ -367,7 +391,10 @@ describe('createGenerateImage', () => {
 
   it('should expose stop and reset', () => {
     const adapter = createMockConnectionAdapter()
-    const gen = createGenerateImage({ connection: adapter })
+    const gen = createGenerateImage({
+      threadId: 'thread-1',
+      connection: adapter,
+    })
 
     expect(typeof gen.stop).toBe('function')
     expect(typeof gen.reset).toBe('function')
@@ -438,7 +465,10 @@ describe('createGenerateSpeech', () => {
 
   it('should initialize with default state', () => {
     const adapter = createMockConnectionAdapter()
-    const gen = createGenerateSpeech({ connection: adapter })
+    const gen = createGenerateSpeech({
+      threadId: 'thread-1',
+      connection: adapter,
+    })
 
     expect(gen.result).toBeNull()
     expect(gen.isLoading).toBe(false)
@@ -454,6 +484,7 @@ describe('createGenerateSpeech', () => {
     }
 
     const gen = createGenerateSpeech({
+      threadId: 'thread-1',
       fetcher: async () => mockResult,
     })
 
@@ -468,7 +499,10 @@ describe('createGenerateSpeech', () => {
     const chunks = createGenerationChunks(mockResult)
     const adapter = createMockConnectionAdapter({ chunks })
 
-    const gen = createGenerateSpeech({ connection: adapter })
+    const gen = createGenerateSpeech({
+      threadId: 'thread-1',
+      connection: adapter,
+    })
 
     await gen.generate({ text: 'Hello world' })
 
@@ -480,6 +514,7 @@ describe('createGenerateSpeech', () => {
     const onError = vi.fn()
 
     const gen = createGenerateSpeech({
+      threadId: 'thread-1',
       fetcher: async () => {
         throw new Error('Speech generation failed')
       },
@@ -495,6 +530,7 @@ describe('createGenerateSpeech', () => {
 
   it('should stop and reset', async () => {
     const gen = createGenerateSpeech({
+      threadId: 'thread-1',
       fetcher: async () => ({
         id: 'tts-1',
         audio: 'base64data',
@@ -579,7 +615,10 @@ describe('createTranscription', () => {
 
   it('should initialize with default state', () => {
     const adapter = createMockConnectionAdapter()
-    const gen = createTranscription({ connection: adapter })
+    const gen = createTranscription({
+      threadId: 'thread-1',
+      connection: adapter,
+    })
 
     expect(gen.result).toBeNull()
     expect(gen.isLoading).toBe(false)
@@ -594,6 +633,7 @@ describe('createTranscription', () => {
     }
 
     const gen = createTranscription({
+      threadId: 'thread-1',
       fetcher: async () => mockResult,
     })
 
@@ -608,7 +648,10 @@ describe('createTranscription', () => {
     const chunks = createGenerationChunks(mockResult)
     const adapter = createMockConnectionAdapter({ chunks })
 
-    const gen = createTranscription({ connection: adapter })
+    const gen = createTranscription({
+      threadId: 'thread-1',
+      connection: adapter,
+    })
 
     await gen.generate({ audio: 'base64audio' })
 
@@ -620,6 +663,7 @@ describe('createTranscription', () => {
     const onError = vi.fn()
 
     const gen = createTranscription({
+      threadId: 'thread-1',
       fetcher: async () => {
         throw new Error('Transcription failed')
       },
@@ -635,6 +679,7 @@ describe('createTranscription', () => {
 
   it('should stop and reset', async () => {
     const gen = createTranscription({
+      threadId: 'thread-1',
       fetcher: async () => ({
         id: 'tr-1',
         text: 'Hello world',
@@ -661,7 +706,7 @@ describe('createSummarize', () => {
 
   it('should initialize with default state', () => {
     const adapter = createMockConnectionAdapter()
-    const gen = createSummarize({ connection: adapter })
+    const gen = createSummarize({ threadId: 'thread-1', connection: adapter })
 
     expect(gen.result).toBeNull()
     expect(gen.isLoading).toBe(false)
@@ -677,6 +722,7 @@ describe('createSummarize', () => {
     }
 
     const gen = createSummarize({
+      threadId: 'thread-1',
       fetcher: async () => mockResult,
     })
 
@@ -691,7 +737,7 @@ describe('createSummarize', () => {
     const chunks = createGenerationChunks(mockResult)
     const adapter = createMockConnectionAdapter({ chunks })
 
-    const gen = createSummarize({ connection: adapter })
+    const gen = createSummarize({ threadId: 'thread-1', connection: adapter })
 
     await gen.generate({ text: 'Long text to summarize...' })
 
@@ -703,6 +749,7 @@ describe('createSummarize', () => {
     const onError = vi.fn()
 
     const gen = createSummarize({
+      threadId: 'thread-1',
       fetcher: async () => {
         throw new Error('Summarization failed')
       },
@@ -718,6 +765,7 @@ describe('createSummarize', () => {
 
   it('should stop and reset', async () => {
     const gen = createSummarize({
+      threadId: 'thread-1',
       fetcher: async () => ({
         id: 'sum-1',
         summary: 'A brief summary',
@@ -745,7 +793,10 @@ describe('createGenerateVideo', () => {
 
   it('should initialize with default state', () => {
     const adapter = createMockConnectionAdapter()
-    const gen = createGenerateVideo({ connection: adapter })
+    const gen = createGenerateVideo({
+      threadId: 'thread-1',
+      connection: adapter,
+    })
 
     expect(gen.result).toBeNull()
     expect(gen.jobId).toBeNull()
@@ -768,6 +819,7 @@ describe('createGenerateVideo', () => {
     }
 
     const gen = createGenerateVideo({
+      threadId: 'thread-1',
       fetcher: async () => mockResult,
     })
 
@@ -784,6 +836,7 @@ describe('createGenerateVideo', () => {
     const onStatusUpdate = vi.fn()
 
     const gen = createGenerateVideo({
+      threadId: 'thread-1',
       connection: adapter,
       onJobCreated,
       onStatusUpdate,
@@ -809,6 +862,7 @@ describe('createGenerateVideo', () => {
     const onError = vi.fn()
 
     const gen = createGenerateVideo({
+      threadId: 'thread-1',
       connection: adapter,
       onError,
     })
@@ -822,6 +876,7 @@ describe('createGenerateVideo', () => {
 
   it('should stop and reset', async () => {
     const gen = createGenerateVideo({
+      threadId: 'thread-1',
       fetcher: async () => ({
         jobId: 'job-1',
         status: 'completed' as const,
@@ -866,7 +921,10 @@ describe('createGenerateVideo', () => {
 
   it('should expose generate, stop, reset, and updateBody methods', () => {
     const adapter = createMockConnectionAdapter()
-    const gen = createGenerateVideo({ connection: adapter })
+    const gen = createGenerateVideo({
+      threadId: 'thread-1',
+      connection: adapter,
+    })
 
     expect(typeof gen.generate).toBe('function')
     expect(typeof gen.stop).toBe('function')
@@ -885,6 +943,7 @@ describe('onResult transform', () => {
     // the fetcher's return, and `result` narrows to the transform's return —
     // no explicit type arguments needed.
     const gen = createGeneration({
+      threadId: 'thread-1',
       fetcher: async () => ({ id: '1', audio: 'base64data' }),
       onResult: (raw) => ({ playable: raw.audio.length > 0 }),
     })
@@ -900,6 +959,7 @@ describe('onResult transform', () => {
     const onResult = vi.fn()
 
     const gen = createGeneration({
+      threadId: 'thread-1',
       fetcher: async () => ({ id: '1', data: 'test' }),
       onResult,
     })
@@ -912,6 +972,7 @@ describe('onResult transform', () => {
 
   it('should keep previous result when onResult returns null', async () => {
     const gen = createGeneration({
+      threadId: 'thread-1',
       fetcher: async () => ({ id: '1' }),
       onResult: () => null,
     })
@@ -933,6 +994,7 @@ describe('onResult transform', () => {
     // the `onResult` parameter — `TResult` infers from the annotation and
     // `result` narrows to the transform's return. No explicit type args needed.
     const gen = createGeneration({
+      threadId: 'thread-1',
       connection: adapter,
       onResult: (raw: StreamResult) => ({ count: raw.images.length }),
     })
@@ -956,6 +1018,7 @@ describe('onResult transform', () => {
     // `onResult` with no explicit type argument. `raw` is contextually typed
     // as `TTSResult`.
     const gen = createGenerateSpeech({
+      threadId: 'thread-1',
       fetcher: async () => mockTTSResult,
       onResult: (raw) => ({
         audioUrl: `data:${raw.contentType};base64,${raw.audio}`,
@@ -972,6 +1035,7 @@ describe('onResult transform', () => {
 
   it('infers the raw result type when no onResult is provided', () => {
     const gen = createTranscription({
+      threadId: 'thread-1',
       fetcher: async () => ({ id: '1', text: 'hi', model: 'whisper-1' }),
     })
     // Without a transform, `result` stays the raw TranscriptionResult.
@@ -980,6 +1044,7 @@ describe('onResult transform', () => {
 
   it('narrows the wrapper result type to the transform return', () => {
     const gen = createTranscription({
+      threadId: 'thread-1',
       fetcher: async () => ({ id: '1', text: 'hi', model: 'whisper-1' }),
       onResult: (res) => res.text,
     })

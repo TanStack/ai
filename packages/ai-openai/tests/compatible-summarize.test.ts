@@ -37,6 +37,7 @@ describe('compatible summarize token limits on the wire', () => {
         it(`${api}, name=${name}, stream=${stream}: forwards maxLength`, async () => {
           const { adapter, requests } = setup(api, name)
           const options = {
+            threadId: 'thread-1',
             model: 'test-model',
             text: 'Synthetic input.',
             maxLength: 73,
@@ -62,6 +63,7 @@ describe('compatible summarize token limits on the wire', () => {
       const { adapter, requests } = setup(api)
       const modelOptions = { [key]: 41 }
       await adapter.summarize({
+        threadId: 'thread-1',
         model: 'test-model',
         text: 'Synthetic input.',
         maxLength: 73,
@@ -75,6 +77,7 @@ describe('compatible summarize token limits on the wire', () => {
     it(`${api}: does not add a limit when maxLength is absent`, async () => {
       const { adapter, requests } = setup(api)
       await adapter.summarize({
+        threadId: 'thread-1',
         model: 'test-model',
         text: 'Synthetic input.',
         logger: resolveDebugOption(false),

@@ -20,16 +20,16 @@ afterEach(() => {
 
 describe('injectChat', () => {
   describe('interrupt state', () => {
-    it('projects one immutable reactive snapshot with the deprecated pending alias', () => {
+    it('projects one immutable reactive snapshot', () => {
       const onInterruptStateChange = vi.fn()
       const { result, flush } = renderInjectChat({
+        threadId: 'thread-1',
         connection: createMockConnectionAdapter(),
         initialResumeSnapshot: createInterruptResumeSnapshot(),
         onInterruptStateChange,
       })
 
       expect(Object.isFrozen(result.interrupts())).toBe(true)
-      expect(result.pendingInterrupts()).toBe(result.interrupts())
       expect(result.interrupts()[0]).toMatchObject({
         id: 'staged-interrupt',
         status: 'pending',
@@ -77,6 +77,7 @@ describe('injectChat', () => {
         .spyOn(ChatClient.prototype, 'resumeInterruptsUnsafe')
         .mockResolvedValue(true)
       const { result } = renderInjectChat({
+        threadId: 'thread-1',
         connection: createMockConnectionAdapter(),
       })
       const resolver = () => undefined
@@ -96,7 +97,10 @@ describe('injectChat', () => {
 
   it('initializes with default state', () => {
     const adapter = createMockConnectionAdapter()
-    const { result } = renderInjectChat({ connection: adapter })
+    const { result } = renderInjectChat({
+      threadId: 'thread-1',
+      connection: adapter,
+    })
 
     expect(result.messages()).toEqual([])
     expect(result.isLoading()).toBe(false)
@@ -113,7 +117,10 @@ describe('injectChat — streaming', () => {
     const adapter = createMockConnectionAdapter({
       chunks: createTextChunks('Hello there'),
     })
-    const { result, flush } = renderInjectChat({ connection: adapter })
+    const { result, flush } = renderInjectChat({
+      threadId: 'thread-1',
+      connection: adapter,
+    })
 
     await result.sendMessage('Hi')
     await tick()
@@ -133,8 +140,9 @@ describe('injectChat — streaming', () => {
       },
     })
     const { result, flush } = renderInjectChat({
+      threadId: 'thread-1',
       connection: adapter,
-      body: { provider: 'openai' },
+      forwardedProps: { provider: 'openai' },
     })
 
     await result.sendMessage('Hi', {
@@ -160,6 +168,7 @@ describe('injectChat — streaming', () => {
       },
     ]
     const { result } = renderInjectChat({
+      threadId: 'thread-1',
       connection: adapter,
       initialMessages,
     })
@@ -170,7 +179,10 @@ describe('injectChat — streaming', () => {
     const adapter = createMockConnectionAdapter({
       chunks: createTextChunks('Hi'),
     })
-    const { result, flush } = renderInjectChat({ connection: adapter })
+    const { result, flush } = renderInjectChat({
+      threadId: 'thread-1',
+      connection: adapter,
+    })
     await result.sendMessage('Hi')
     await tick()
     result.clear()
@@ -183,7 +195,11 @@ describe('injectChat — reactive options', () => {
   it('subscribes/unsubscribes when a live signal flips', async () => {
     const adapter = createMockConnectionAdapter()
     const live = signal(false)
-    const { result, flush } = renderInjectChat({ connection: adapter, live })
+    const { result, flush } = renderInjectChat({
+      threadId: 'thread-1',
+      connection: adapter,
+      live,
+    })
 
     await tick()
     flush()
@@ -200,25 +216,29 @@ describe('injectChat — reactive options', () => {
     expect(result.isSubscribed()).toBe(false)
   })
 
-  it('pushes body-signal changes to the client', async () => {
+  it('pushes forwardedProps-signal changes to the client', async () => {
     const updateSpy = vi.spyOn(ChatClient.prototype, 'updateOptions')
     try {
       const adapter = createMockConnectionAdapter()
-      const body = signal<Record<string, any>>({ model: 'a' })
-      const { flush } = renderInjectChat({ connection: adapter, body })
+      const forwardedProps = signal<Record<string, any>>({ model: 'a' })
+      const { flush } = renderInjectChat({
+        threadId: 'thread-1',
+        connection: adapter,
+        forwardedProps,
+      })
 
       // initial effect run picks up { model: 'a' }
       flush()
       await tick()
       updateSpy.mockClear()
 
-      body.set({ model: 'b' })
+      forwardedProps.set({ model: 'b' })
       flush()
       await tick()
 
       expect(updateSpy).toHaveBeenCalled()
       expect(updateSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ body: { model: 'b' } }),
+        expect.objectContaining({ forwardedProps: { model: 'b' } }),
       )
     } finally {
       updateSpy.mockRestore()
@@ -231,7 +251,7 @@ describe('injectChat — resume', () => {
     // `onResumeStateChange` is NOT an `injectChat` option (it is omitted here
     // exactly as in React / Solid / Vue / Svelte / Preact). The same
     // information reaches the caller as reactive state: the pending interrupts
-    // through `interrupts` / `pendingInterrupts` (and the
+    // through `interrupts` (and the
     // `onInterruptStateChange` callback), and the run identity through the
     // `runId` signal while a run is in flight.
     const onInterruptStateChange = vi.fn()
@@ -273,7 +293,6 @@ describe('injectChat — resume', () => {
     expect(result.interrupts()).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'interrupt-1' })]),
     )
-    expect(result.pendingInterrupts()).toBe(result.interrupts())
     expect(onInterruptStateChange).toHaveBeenCalledWith(
       expect.objectContaining({
         interrupts: expect.arrayContaining([
@@ -294,7 +313,11 @@ describe('injectChat — structured output', () => {
 
     @Component({ standalone: true, template: '' })
     class StructuredHost {
-      chat = injectChat({ connection: adapter, outputSchema: schema })
+      chat = injectChat({
+        threadId: 'thread-1',
+        connection: adapter,
+        outputSchema: schema,
+      })
     }
     const fixture = TestBed.createComponent(StructuredHost)
     fixture.detectChanges()

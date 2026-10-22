@@ -7,7 +7,7 @@ title: compactForModel
 function compactForModel(value, depth?): unknown;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-calls.ts:96](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-calls.ts#L96)
+Defined in: packages/ai/src/activities/chat/tools/tool-calls.ts:96
 
 A copy of a subagent result that is safe to send to the parent model.
 A string longer than MODEL\_RESULT\_MAX\_STRING (for example a base64

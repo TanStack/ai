@@ -35,7 +35,7 @@ function SubagentsTestPage() {
         ? { headers: { 'x-byok-openai': SUBAGENT_E2E_KEY } }
         : {},
     ),
-    body: { scenario, testId, aimockPort },
+    forwardedProps: { scenario, testId, aimockPort },
     tools: clientTools,
   })
 

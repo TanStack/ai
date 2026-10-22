@@ -3,7 +3,7 @@ id: RawEvent
 title: RawEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:2100](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2100)
+Defined in: packages/ai/src/types.ts:2020
 
 AG-UI 1.0 RawEvent shape.
 

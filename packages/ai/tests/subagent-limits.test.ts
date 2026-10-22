@@ -58,6 +58,7 @@ describe('subagent limits', () => {
     const { adapter } = callsInOneTurn('worker', ['c1', 'c2', 'c3'])
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Go' }],
         subagents: { agents: [worker], limits: { maxCalls: 2 } },
@@ -91,6 +92,7 @@ describe('subagent limits', () => {
     const { adapter } = callsInOneTurn('child', ['c1'])
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Go' }],
         subagents: { agents: [child], limits: { maxDepth: 1 } },
@@ -115,6 +117,7 @@ describe('subagent limits', () => {
     const { adapter } = callsInOneTurn('slow', ['c1'])
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Go' }],
         subagents: { agents: [slow], limits: { timeoutMs: 20 } },
@@ -146,6 +149,7 @@ describe('subagent limits', () => {
       const { adapter } = callsInOneTurn('child', ['c1'])
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'Go' }],
           subagents: { agents: [child], limits: { timeoutMs: 5_000 } },
@@ -168,6 +172,7 @@ describe('subagent limits', () => {
     const { adapter } = callsInOneTurn('worker', ['c1'])
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Go' }],
         subagents: { agents: [worker], limits: { timeoutMs: 0 } },
@@ -195,6 +200,7 @@ describe('subagent limits', () => {
     const { adapter } = callsInOneTurn('waiting', ['c1', 'c2', 'c3'])
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Go' }],
         subagents: { agents: [waiting], limits: { maxConcurrent: 2 } },
@@ -226,6 +232,7 @@ describe('subagent limits', () => {
     })
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: createMockAdapter({ iterations: [] }).adapter,
         messages: [{ role: 'user', content: 'Go' }],
         subagents: {

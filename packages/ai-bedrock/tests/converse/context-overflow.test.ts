@@ -24,6 +24,7 @@ async function runError(name: string, message: string) {
   adapter.error = Object.assign(new Error(message), { name })
   const chunks: Array<StreamChunk> = []
   for await (const chunk of adapter.chatStream({
+    threadId: 'thread-1',
     model,
     messages: [{ role: 'user', content: 'hi' }],
     logger: resolveDebugOption(false),

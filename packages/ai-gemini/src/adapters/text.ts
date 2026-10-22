@@ -525,7 +525,7 @@ export class GeminiTextAdapter<
     const model = options.model
     const { logger } = options
     const runId = options.runId ?? generateId(this.name)
-    const threadId = options.threadId ?? generateId(this.name)
+    const threadId = options.threadId
     const messageId = generateId(this.name)
 
     try {
@@ -850,7 +850,6 @@ export class GeminiTextAdapter<
     let responseId: string | undefined
     let reportedModel: string | undefined
     let accumulatedContent = ''
-    let accumulatedThinking = ''
     const toolCallMap = new Map<
       string,
       {
@@ -865,14 +864,12 @@ export class GeminiTextAdapter<
 
     // AG-UI lifecycle tracking
     const runId = options.runId ?? generateId(this.name)
-    const threadId = options.threadId ?? generateId(this.name)
+    const threadId = options.threadId
     const messageId = generateId(this.name)
-    let stepId: string | null = null
     let reasoningMessageId: string | null = null
     let hasClosedReasoning = false
     let hasEmittedRunStarted = false
     let hasEmittedTextMessageStart = false
-    let hasEmittedStepStarted = false
     let groundingMetadata: GroundingMetadata | undefined
     let groundingCallEmitted = false
     const adapterName = this.name
@@ -897,7 +894,6 @@ export class GeminiTextAdapter<
         type: EventType.TOOL_CALL_START,
         toolCallId,
         toolCallName: 'google_search',
-        toolName: 'google_search',
         parentMessageId: messageId,
         model,
         timestamp: Date.now(),
@@ -908,7 +904,6 @@ export class GeminiTextAdapter<
         type: EventType.TOOL_CALL_END,
         toolCallId,
         toolCallName: 'google_search',
-        toolName: 'google_search',
         model,
         timestamp: Date.now(),
         input: {
@@ -952,10 +947,8 @@ export class GeminiTextAdapter<
         for (const part of parts) {
           if (part.text) {
             if (part.thought) {
-              // Emit STEP_STARTED and REASONING events on first thinking content
-              if (!hasEmittedStepStarted) {
-                hasEmittedStepStarted = true
-                stepId = generateId(this.name)
+              // Emit REASONING start events on first thinking content
+              if (!reasoningMessageId) {
                 reasoningMessageId = generateId(this.name)
 
                 // Spec REASONING events
@@ -972,40 +965,15 @@ export class GeminiTextAdapter<
                   model,
                   timestamp: Date.now(),
                 }
-
-                // Legacy STEP events (kept during transition)
-                yield {
-                  type: EventType.STEP_STARTED,
-                  stepName: stepId,
-                  stepId,
-                  model,
-                  timestamp: Date.now(),
-                  stepType: 'thinking',
-                }
               }
 
-              accumulatedThinking += part.text
-
-              // Spec REASONING content event — reasoningMessageId is set in the
-              // hasEmittedStepStarted block above (entered on the same `part.thought` path)
-              if (!reasoningMessageId) continue
+              // Spec REASONING content event
               yield {
                 type: EventType.REASONING_MESSAGE_CONTENT,
                 messageId: reasoningMessageId,
                 delta: part.text,
                 model,
                 timestamp: Date.now(),
-              }
-
-              // Legacy STEP event
-              yield {
-                type: EventType.STEP_FINISHED,
-                stepName: stepId || generateId(this.name),
-                stepId: stepId || generateId(this.name),
-                model,
-                timestamp: Date.now(),
-                delta: part.text,
-                content: accumulatedThinking,
               }
             } else if (part.text.trim()) {
               // Close reasoning before text starts
@@ -1106,7 +1074,6 @@ export class GeminiTextAdapter<
                 type: EventType.TOOL_CALL_START,
                 toolCallId,
                 toolCallName: toolCallData.name,
-                toolName: toolCallData.name,
                 parentMessageId: messageId,
                 model,
                 timestamp: Date.now(),
@@ -1177,7 +1144,6 @@ export class GeminiTextAdapter<
             type: EventType.TOOL_CALL_END,
             toolCallId,
             toolCallName: toolCallData.name,
-            toolName: toolCallData.name,
             model,
             timestamp: Date.now(),
             args: toolCallData.args,
