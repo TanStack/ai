@@ -1719,7 +1719,7 @@ export class AnthropicTextAdapter<
     // Track current content block type for proper content_block_stop handling
     let currentBlockType: string | null = null
     // Input and cache counts from message_start, for a closing message_delta
-    // that leaves them out.
+    // that leaves them out and for a stream that fails before it arrives.
     let messageStartUsage: Anthropic_SDK.Beta.BetaUsage | undefined
 
     try {
@@ -2343,6 +2343,10 @@ export class AnthropicTextAdapter<
       const code = runErrorCode(err)
       const rawEvent = toRunErrorRawEvent(error)
       const retryAfterMs = toRetryAfterMs(error)
+      // The closing message_delta already reported usage on its terminal chunk.
+      const usage = hasEmittedRunFinished
+        ? undefined
+        : buildAnthropicUsage(messageStartUsage)
 
       logger.errors('anthropic.processAnthropicStream fatal', {
         error,
@@ -2358,6 +2362,7 @@ export class AnthropicTextAdapter<
         // Forward the Anthropic SDK error's `.error` response body when present.
         ...(rawEvent !== undefined && { rawEvent }),
         ...(retryAfterMs !== undefined && { retryAfterMs }),
+        ...(usage && { usage }),
         ...toRunErrorDetails(error),
         error: {
           message: err.message || 'Unknown error occurred',

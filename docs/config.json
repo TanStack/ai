@@ -1691,7 +1691,8 @@
         {
           "label": "Anthropic: Advanced",
           "to": "adapters/anthropic-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Google Gemini",

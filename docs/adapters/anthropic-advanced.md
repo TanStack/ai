@@ -180,7 +180,7 @@ The Messages API of Anthropic requires `max_tokens` on every request, so the ada
 - Set `max_tokens` only to cap the output below the model limit.
 - If a response stops at the default limit, the adapter logs a warning. You see it with [debug logging](../advanced/debug-logging) on.
 
-A streamed response that stops at `max_tokens` ends in a `RUN_ERROR` with `code: 'max_tokens'`. Anthropic bills the tokens of that call, so this `RUN_ERROR` carries the `usage` of the call. The `onUsage` middleware hook fires only for `RUN_FINISHED`. To count these tokens too, read `usage` from the `RUN_ERROR` chunk, in the stream or in an `onChunk` middleware.
+A streamed response that stops at `max_tokens` ends in a `RUN_ERROR` with `code: 'max_tokens'`. Anthropic bills the tokens of that call, so this `RUN_ERROR` carries the `usage` of the call. A stream can also fail after it starts, for example when the connection drops. That `RUN_ERROR` carries the `usage` from Anthropic's first event (`message_start`). The input counts are complete. The output count can be lower than the real one. The `onUsage` middleware hook fires only for `RUN_FINISHED`. To count these tokens too, read `usage` from the `RUN_ERROR` chunk, in the stream or in an `onChunk` middleware.
 
 One exception: structured output (`chat({ outputSchema })`) on models that use the non-streaming finalization path caps this default at about 21K tokens. The Anthropic SDK rejects a non-streaming request whose `max_tokens` can go past its 10-minute timeout. Streaming chat does not have this cap. To raise the structured output limit toward the true maximum of a model, stream the response.
 
