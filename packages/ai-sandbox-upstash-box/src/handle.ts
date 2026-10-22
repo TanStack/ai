@@ -197,15 +197,21 @@ export class UpstashBoxHandle implements SandboxHandle {
       spawn: (command, opts) => this.spawnProcess(command, opts),
     }
 
+    // The native file calls take no abort signal, so each call checks it first.
     this.fs = {
-      read: (p) => this.box.files.read(this.abs(p)),
-      readBytes: async (p) => {
+      read: async (p, o) => {
+        o?.signal?.throwIfAborted()
+        return this.box.files.read(this.abs(p))
+      },
+      readBytes: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const b64 = await this.box.files.read(this.abs(p), {
           encoding: 'base64',
         })
         return new Uint8Array(Buffer.from(b64, 'base64'))
       },
-      write: async (p, data) => {
+      write: async (p, data, o) => {
+        o?.signal?.throwIfAborted()
         const abs = this.abs(p)
         const dir = abs.replace(/\/[^/]*$/, '') || '/'
         await this.box.files.mkdir(dir, { parents: true })
@@ -219,7 +225,8 @@ export class UpstashBoxHandle implements SandboxHandle {
           })
         }
       },
-      list: async (p) => {
+      list: async (p, o) => {
+        o?.signal?.throwIfAborted()
         const entries = await this.box.files.list(this.abs(p))
         const base = p.replace(/\/$/, '')
         return entries.map((e) => ({
@@ -228,10 +235,20 @@ export class UpstashBoxHandle implements SandboxHandle {
           type: e.is_dir ? ('dir' as const) : ('file' as const),
         }))
       },
-      mkdir: (p) => this.box.files.mkdir(this.abs(p), { parents: true }),
-      remove: (p) => this.box.files.remove(this.abs(p), { recursive: true }),
-      rename: (from, to) => this.box.files.rename(this.abs(from), this.abs(to)),
-      exists: async (p) => {
+      mkdir: async (p, o) => {
+        o?.signal?.throwIfAborted()
+        return this.box.files.mkdir(this.abs(p), { parents: true })
+      },
+      remove: async (p, o) => {
+        o?.signal?.throwIfAborted()
+        return this.box.files.remove(this.abs(p), { recursive: true })
+      },
+      rename: async (from, to, o) => {
+        o?.signal?.throwIfAborted()
+        return this.box.files.rename(this.abs(from), this.abs(to))
+      },
+      exists: async (p, o) => {
+        o?.signal?.throwIfAborted()
         try {
           await this.box.files.stat(this.abs(p))
           return true
@@ -240,7 +257,10 @@ export class UpstashBoxHandle implements SandboxHandle {
           throw error
         }
       },
-      lstat: async (p) => this.lstat(this.abs(p)),
+      lstat: async (p, o) => {
+        o?.signal?.throwIfAborted()
+        return this.lstat(this.abs(p))
+      },
     }
 
     this.git = createExecBackedGit(this.process, this.workspaceRoot)

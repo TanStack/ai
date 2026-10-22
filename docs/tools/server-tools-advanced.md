@@ -18,7 +18,7 @@ This page is for when your [server tool](./server-tools) works and you need more
 
 The `inputSchema` checks the input right before the tool runs:
 
-- The check runs after approval edits and after middleware `onBeforeToolCall`. An approval edit that does not fit the schema stops the resume with an `invalid-edited-args` error. A middleware change that does not fit becomes a tool error.
+- The check runs after approval edits and after middleware `onBeforeToolCall`. An approval edit or a middleware change that does not fit the schema becomes a tool error. The resume goes on, the tool does not run, and the model gets the input error as the result of that call.
 - An async validator is awaited.
 - The tool gets the output of the schema, so a transform such as `z.string().transform(Number)` applies once.
 
@@ -181,6 +181,7 @@ The second argument of a `.server()` function is the `ToolExecutionContext`:
 - `threadId`: the thread id of the chat run. Use it to keep tool state for each conversation. It is missing when the tool runs outside a chat (an MCP server, WebMCP, or a direct `execute()` call).
 - `abortSignal`: aborts when the run aborts. Pass it to long work, so the work stops too.
 - `emitCustomEvent`: sends a custom event to the client while the tool runs.
+- `get` and `getOptional`: read a capability that a middleware of the run provides. See [Read a middleware capability](#read-a-middleware-capability).
 
 Use `emitCustomEvent` to show progress:
 
@@ -213,6 +214,55 @@ const importData = toolDefinition({
 ```
 
 Each `emitCustomEvent` call flushes through durability at once, so the client can show progress while the tool still runs. Pass `{ batch: true }` only for a high-volume stream. To read the events on the client, see [Custom Events](../protocol/custom-events).
+
+## Read a middleware capability
+
+Call `context.get(capability)` in a server tool. It returns the value that a middleware of the run provides, with the type of the capability.
+
+```typescript
+import {
+  chat,
+  createCapability,
+  defineChatMiddleware,
+  toolDefinition,
+} from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
+const tenantCapability = createCapability<{ id: string }>()("tenant");
+
+const withTenant = defineChatMiddleware({
+  name: "with-tenant",
+  provides: [tenantCapability],
+  setup(ctx) {
+    ctx.provide(tenantCapability, { id: "acme" });
+  },
+});
+
+const whoAmI = toolDefinition({
+  name: "who_am_i",
+  description: "Return the tenant of this run",
+  inputSchema: z.object({}),
+}).server(async (_input, context) => {
+  // `tenant` has the type { id: string }
+  const tenant = context?.get?.(tenantCapability);
+  return tenant?.id ?? "unknown";
+});
+
+const stream = chat({
+  adapter: openaiText("gpt-6.1-sol"),
+  messages: [{ role: "user", content: "Who am I?" }],
+  threadId: "thread-1",
+  tools: [whoAmI],
+  middleware: [withTenant],
+});
+```
+
+- `get` throws if no middleware provides the capability.
+- `getOptional` returns `undefined` instead.
+- `chat()` sets both. They are missing when the tool runs outside a chat, so use `context?.get?.(...)`.
+
+To create and provide a capability, see [Capabilities](../advanced/middleware-advanced#capabilities). A harness turn gives the same accessors to its tools.
 
 ## Support a host that runs long sessions
 

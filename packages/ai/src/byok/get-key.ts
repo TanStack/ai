@@ -4,18 +4,22 @@ import type { ByokProvider } from './define-provider'
 import type { ProviderId } from './providers'
 
 /**
- * Read `provider.env` in order and return the first value that is set. A
- * slug has no env names. Where `process` is missing (a browser) it returns
- * `null`.
+ * The first name in `provider.env` that is set, with its value. A slug has no
+ * env names. Where `process` is missing (a browser) it returns `null`.
  */
-export function envKey(provider: ProviderId | ByokProvider) {
+export function envKeyEntry(provider: ProviderId | ByokProvider) {
   if (typeof provider === 'string') return null
   const env = globalThis.process?.env
   for (const name of provider.env ?? []) {
     const value = env?.[name]
-    if (typeof value === 'string' && value.length > 0) return value
+    if (typeof value === 'string' && value.length > 0) return { name, value }
   }
   return null
+}
+
+/** The value of {@link envKeyEntry}, or `null`. */
+export function envKey(provider: ProviderId | ByokProvider) {
+  return envKeyEntry(provider)?.value ?? null
 }
 
 /**

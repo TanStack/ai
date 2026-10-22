@@ -1,0 +1,1924 @@
+import { describe, expect, it, vi } from 'vitest'
+import { EventType, toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+import {
+  NO_OWNER_EPOCH,
+  memoryLogStore,
+  memoryPersistence,
+} from '@tanstack/ai-persistence'
+import {
+  InputRejectedError,
+  createHarnessHost,
+  defineHarness,
+  definePlugin,
+  logIdOf,
+} from '../src'
+import {
+  after,
+  appendToLog,
+  CRASHING_OWNERSHIP,
+  gate,
+  messageTexts,
+  mockAdapter,
+  ownershipExpired,
+  stoppedRun,
+  storedRun,
+  storedThreadState,
+  text,
+  toolCall,
+  turnInterrupts,
+  untilAborted,
+  wakeMessages,
+  wrapLogStore,
+} from './helpers'
+import type { AnyTool, ModelMessage } from '@tanstack/ai'
+import type { LogRecord } from '@tanstack/ai-persistence'
+import type {
+  HarnessDurability,
+  HarnessInput,
+  OwnershipOptions,
+  RecoverDecision,
+  TurnInfo,
+} from '../src'
+import type { Reply } from './helpers'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
+const THREAD = 't1'
+/** The id of the log of `THREAD` in the store, and its key in the other stores. */
+const LOG = logIdOf({ logId: THREAD })
+
+function durablePersistence() {
+  const { metadata } = memoryPersistence().stores
+  return { stores: { log: memoryLogStore(), metadata } }
+}
+
+type Durable = ReturnType<typeof durablePersistence>
+
+/** The run `runId` in the log of `THREAD`. */
+const runIn = (persistence: Durable, runId: string) =>
+  storedRun(persistence.stores.log, { threadId: THREAD }, runId)
+
+/** The log record of a prompt. With no other record, it never ran. */
+const pendingInput = (inputId: string, message: string): LogRecord => ({
+  type: 'harness.input',
+  inputId,
+  input: { op: 'prompt', message, busy: 'queue' },
+  at: 1,
+})
+
+/** The log record of a `cancelInput` or `setDelivery` input `ctl-1`. */
+const controlInput = (input: HarnessInput): LogRecord => ({
+  type: 'harness.input',
+  inputId: 'ctl-1',
+  input,
+  at: 2,
+})
+
+const controlApplied: LogRecord = {
+  type: 'harness.input.applied',
+  inputId: 'ctl-1',
+  operationId: 'session',
+  attempt: 1,
+}
+
+/**
+ * The log and run of a host that stopped during attempt `attempt` of input
+ * `in-1`: the input, its applied record, and the user message that the turn
+ * saved. No host owns the log, so a host that opens it recovers the turn.
+ */
+async function seedStoppedTurn(
+  persistence: Durable,
+  options: {
+    attempt: number
+    timeoutAt?: number
+    abort?: boolean
+    answer?: string
+  },
+) {
+  const user: ModelMessage = { id: 'u1', role: 'user', content: 'go' }
+  const records: Array<LogRecord> = [
+    pendingInput('in-1', 'go'),
+    {
+      type: 'harness.input.applied',
+      inputId: 'in-1',
+      operationId: 'op-stopped',
+      attempt: options.attempt,
+      ...(options.timeoutAt !== undefined
+        ? { timeoutAt: options.timeoutAt }
+        : {}),
+    },
+    {
+      type: 'harness.transcript',
+      keep: 0,
+      add: options.answer
+        ? [user, { id: 'a1', role: 'assistant', content: options.answer }]
+        : [user],
+    },
+    ...(options.abort
+      ? [{ type: 'harness.input.abort', inputId: 'in-1' }]
+      : []),
+    stoppedRun('op-stopped', THREAD, {
+      checkpoint: { at: 1, pendingTools: [] },
+    }),
+  ]
+  await persistence.stores.log.append({
+    logId: LOG,
+    seq: 1,
+    epoch: NO_OWNER_EPOCH,
+    records,
+  })
+}
+
+async function openDurable(options: {
+  persistence: Durable
+  replies: Array<Reply>
+  durability?: HarnessDurability
+  tools?: Array<AnyTool>
+  ownership?: OwnershipOptions
+}) {
+  const { adapter, calls } = mockAdapter(options.replies)
+  const host = createHarnessHost({
+    persistence: options.persistence,
+    ...(options.ownership ? { ownership: options.ownership } : {}),
+  })
+  const session = await host.open(
+    defineHarness({
+      name: 'test/durable-inputs',
+      adapter,
+      ...(options.durability ? { durability: options.durability } : {}),
+      ...(options.tools ? { tools: options.tools } : {}),
+    }),
+    {
+      threadId: THREAD,
+    },
+  )
+  return { host, session, calls }
+}
+
+const logRecords = async (persistence: Durable) =>
+  (await persistence.stores.log.read({ logId: LOG })).map(
+    (entry) => entry.record,
+  )
+
+const recordTypes = async (persistence: Durable) =>
+  (await logRecords(persistence)).map((record) => record.type)
+
+const recordTypesOf = async (persistence: Durable, inputId: string) =>
+  (await logRecords(persistence))
+    .filter((record) => record.inputId === inputId)
+    .map((record) => record.type)
+
+describe('recovery of a durable input', () => {
+  it('settles failed when the attempts are used up, with no model call', async () => {
+    const persistence = durablePersistence()
+    await seedStoppedTurn(persistence, { attempt: 3 })
+
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('never')],
+      durability: { maxAttempts: 3 },
+    })
+
+    expect(await session.settled({ inputId: 'in-1' })).toEqual({
+      inputId: 'in-1',
+      outcome: 'failed',
+      operationId: 'op-stopped',
+      error: {
+        message: 'The input stopped the host 3 times.',
+        code: 'attempts_exhausted',
+      },
+    })
+    expect(calls).toHaveLength(0)
+    expect((await runIn(persistence, 'op-stopped'))?.status).toBe('failed')
+    await host.close()
+  })
+
+  it('runs the next attempt while attempts are left', async () => {
+    const persistence = durablePersistence()
+    await seedStoppedTurn(persistence, { attempt: 1 })
+
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('recovered')],
+      durability: { maxAttempts: 3 },
+    })
+    const settlement = await session.settled({ inputId: 'in-1' })
+
+    expect(settlement.outcome).toBe('completed')
+    expect(calls).toHaveLength(1)
+    const applied = (await logRecords(persistence)).filter(
+      (record) => record.type === 'harness.input.applied',
+    )
+    expect(applied.map((record) => record.attempt)).toEqual([1, 2])
+    await host.close()
+  })
+
+  it('settles failed when the time limit passed, with attempts left', async () => {
+    const persistence = durablePersistence()
+    await seedStoppedTurn(persistence, {
+      attempt: 1,
+      timeoutAt: Date.now() - 1,
+    })
+
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('never')],
+      durability: { maxAttempts: 10, timeoutMs: 60_000 },
+    })
+
+    expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
+      outcome: 'failed',
+      error: { code: 'timeout' },
+    })
+    expect(calls).toHaveLength(0)
+    await host.close()
+  })
+
+  it('settles aborted after an abort request, with no model call', async () => {
+    const persistence = durablePersistence()
+    await seedStoppedTurn(persistence, { attempt: 1, abort: true })
+
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('never')],
+    })
+
+    expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
+      outcome: 'aborted',
+    })
+    expect(calls).toHaveLength(0)
+    await host.close()
+  })
+
+  it('settles aborted a pending input that was cancelled before it ran', async () => {
+    const persistence = durablePersistence()
+    await persistence.stores.log.append({
+      logId: LOG,
+      seq: 1,
+      epoch: NO_OWNER_EPOCH,
+      records: [
+        pendingInput('in-1', 'go'),
+        { type: 'harness.input.abort', inputId: 'in-1' },
+      ],
+    })
+
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('never')],
+    })
+
+    expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
+      outcome: 'aborted',
+    })
+    expect(calls).toHaveLength(0)
+    await host.close()
+  })
+
+  it('settles completed when the log already has the final answer', async () => {
+    const persistence = durablePersistence()
+    await seedStoppedTurn(persistence, { attempt: 1, answer: 'done before' })
+
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('never')],
+    })
+
+    expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(calls).toHaveLength(0)
+    await host.close()
+  })
+
+  it.each([
+    { name: 'an abort request', stopped: { attempt: 1, abort: true } },
+    { name: 'no attempt left', stopped: { attempt: 3 } },
+    {
+      name: 'a passed time limit',
+      stopped: { attempt: 1, timeoutAt: Date.now() - 1 },
+    },
+  ])(
+    'settles completed when the log has the final answer, also with $name',
+    async ({ stopped }) => {
+      const persistence = durablePersistence()
+      await seedStoppedTurn(persistence, { ...stopped, answer: 'done before' })
+      const seen: Array<RecoverDecision> = []
+
+      const { host, session, calls } = await openDurable({
+        persistence,
+        replies: [() => text('never')],
+        durability: {
+          maxAttempts: 3,
+          timeoutMs: 60_000,
+          recover: ({ decision }) => {
+            seen.push(decision)
+            return undefined
+          },
+        },
+      })
+
+      expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
+        outcome: 'completed',
+      })
+      expect(seen).toEqual([{ action: 'settle', outcome: 'completed' }])
+      expect(calls).toHaveLength(0)
+      await host.close()
+    },
+  )
+
+  it('gives a cut call of a tool that must not run twice the interruptedToolResult text', async () => {
+    const interrupted = JSON.stringify({
+      type: 'interrupted',
+      message:
+        'Tool execution was interrupted before completion. The outcome is unknown.',
+    })
+    const persistence = durablePersistence()
+    const started = gate()
+    const mail = toolDefinition({
+      name: 'mail',
+      description: 'Send a mail',
+    }).server(
+      (_args, context) =>
+        new Promise<never>((_resolve, reject) => {
+          started.open()
+          // Wait like a host that stopped, until the call is aborted at close.
+          context?.abortSignal?.addEventListener(
+            'abort',
+            () => reject(new Error('stopped')),
+            { once: true },
+          )
+        }),
+    )
+    const first = await openDurable({
+      persistence,
+      replies: [() => toolCall('mail', {})],
+      tools: [mail],
+      ownership: CRASHING_OWNERSHIP,
+    })
+    void Promise.resolve(
+      first.session.send('mail it', { inputId: 'in-1' }),
+    ).catch(() => {})
+    await started.opened
+    // The first host stops: its ownership of the log expires.
+    await ownershipExpired()
+
+    const next = await openDurable({
+      persistence,
+      replies: [() => text('done')],
+      tools: [mail],
+      durability: { interruptedToolResult: interrupted },
+    })
+    await next.session.settled({ inputId: 'in-1' })
+
+    const results = (await next.session.transcript()).filter(
+      (message) => message.role === 'tool',
+    )
+    expect(results).toEqual([
+      {
+        role: 'tool',
+        toolCallId: 'call-1',
+        content: interrupted,
+        error: interrupted,
+      },
+    ])
+    await first.host.close().catch(() => {})
+    await next.host.close()
+  })
+
+  it('never runs a call of an answer cut at the output limit, also after a crash', async () => {
+    const lookup = vi.fn(async () => 'found')
+    const tools = [
+      toolDefinition({
+        name: 'lookup',
+        description: 'Look up a fact',
+        inputSchema: z.object({ q: z.string() }),
+        replay: 'safe',
+      }).server(lookup),
+    ]
+    // A provider search, then thinking, so the engine keeps the answer as
+    // two segments with their tool calls. The output limit cuts the answer.
+    const cutAnswer: Reply = () => [
+      { type: EventType.RUN_STARTED, runId: 'r', threadId: 't', timestamp: 1 },
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'call-search',
+        toolCallName: 'web_search',
+        timestamp: 1,
+        metadata: { providerExecuted: true },
+      },
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: 'call-search',
+        timestamp: 1,
+      },
+      {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: 'r1',
+        delta: 'Now look it up.',
+        timestamp: 1,
+      },
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'call-lookup',
+        toolCallName: 'lookup',
+        timestamp: 1,
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: 'call-lookup',
+        delta: '{"q":"x"}',
+        timestamp: 1,
+      },
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: 'call-lookup',
+        timestamp: 1,
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        runId: 'r',
+        threadId: 't',
+        timestamp: 1,
+        finishReason: 'length',
+      },
+    ]
+    const persistence = durablePersistence()
+    const first = await openDurable({
+      persistence,
+      replies: [cutAnswer],
+      tools,
+    })
+    await first.session.send('look it up', { inputId: 'in-1' })
+    await first.host.close()
+    // The host stopped after it saved the answer, before the turn settled.
+    // The live run gave the call its result. A log from before that has none.
+    const entries = await persistence.stores.log.read({ logId: LOG })
+    const settledAt = entries.findIndex(
+      (entry) => entry.record.type === 'harness.input.settled',
+    )
+    const stopped = durablePersistence()
+    await stopped.stores.log.append({
+      logId: LOG,
+      seq: 1,
+      epoch: NO_OWNER_EPOCH,
+      records: entries.slice(0, settledAt).map(({ record }) =>
+        Array.isArray(record.add)
+          ? {
+              ...record,
+              add: record.add.filter(
+                (message: ModelMessage) => message.role !== 'tool',
+              ),
+            }
+          : record,
+      ),
+    })
+
+    const next = await openDurable({
+      persistence: stopped,
+      replies: [() => text('done')],
+      tools,
+      durability: { truncatedToolResult: 'Cut off. Not run.' },
+    })
+
+    expect(await next.session.settled({ inputId: 'in-1' })).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(lookup).not.toHaveBeenCalled()
+    const results = (await next.session.transcript()).filter(
+      (message) => message.role === 'tool',
+    )
+    expect(results).toEqual([
+      {
+        role: 'tool',
+        toolCallId: 'call-lookup',
+        content: 'Cut off. Not run.',
+        error: 'Cut off. Not run.',
+      },
+    ])
+    expect(next.calls).toHaveLength(1)
+    await next.host.close()
+  })
+
+  it('with truncatedToolResult, never runs a cut call and calls the model again', async () => {
+    const lookup = vi.fn(async () => 'found')
+    const tools = [
+      toolDefinition({
+        name: 'lookup',
+        description: 'Look up a fact',
+        inputSchema: z.object({ q: z.string() }),
+        replay: 'safe',
+      }).server(lookup),
+    ]
+    const truncatedToolResult = (call: { toolName: string }) =>
+      `Tool call "${call.toolName}" was not executed: the response hit the output token limit, so its arguments may be truncated. Re-issue the tool call with complete arguments.`
+    // A plain answer with one tool call. The output limit cuts it.
+    const cutAnswer: Reply = () => [
+      ...toolCall('lookup', { q: 'x' }, 'call-lookup').slice(0, -1),
+      {
+        type: EventType.RUN_FINISHED,
+        runId: 'r',
+        threadId: 't',
+        timestamp: 1,
+        finishReason: 'length',
+      },
+    ]
+    const { host, session, calls } = await openDurable({
+      persistence: durablePersistence(),
+      replies: [cutAnswer, () => text('done')],
+      tools,
+      durability: { truncatedToolResult },
+    })
+
+    expect(await session.send('look it up')).toEqual({
+      text: 'done',
+      media: [],
+    })
+
+    const result = truncatedToolResult({ toolName: 'lookup' })
+    expect(lookup).not.toHaveBeenCalled()
+    expect(calls).toHaveLength(2)
+    expect(calls[1].messages.at(-1)).toMatchObject({
+      role: 'tool',
+      toolCallId: 'call-lookup',
+      content: result,
+    })
+    expect(
+      (await session.transcript()).filter((message) => message.role === 'tool'),
+    ).toEqual([
+      {
+        role: 'tool',
+        toolCallId: 'call-lookup',
+        content: result,
+        error: result,
+      },
+    ])
+    await host.close()
+  })
+
+  it('fails a background agent whose host stopped, and wakes the thread', async () => {
+    const persistence = durablePersistence()
+    await persistence.stores.log.append({
+      logId: LOG,
+      seq: 1,
+      epoch: NO_OWNER_EPOCH,
+      records: [
+        {
+          type: 'harness.input',
+          inputId: 'in-agent',
+          input: { op: 'agent', agent: 'waiter', detached: true },
+          at: 1,
+        },
+        {
+          type: 'harness.input.applied',
+          inputId: 'in-agent',
+          operationId: 'op-agent',
+          attempt: 1,
+        },
+        stoppedRun('op-agent', THREAD, { kind: 'agent', agent: 'waiter' }),
+      ],
+    })
+
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('noted')],
+    })
+
+    await waitFor(() => expect(calls).toHaveLength(1))
+    expect(messageTexts(calls[0]).slice(-2)).toEqual([
+      '[waiter failed] The host stopped during this agent run.',
+      'Background agent waiter failed: [waiter failed] The host stopped during this agent run.',
+    ])
+    expect((await runIn(persistence, 'op-agent'))?.status).toBe('failed')
+    await waitFor(async () =>
+      expect(wakeMessages(await session.transcript())).toEqual([
+        'Background agent waiter failed: [waiter failed] The host stopped during this agent run.',
+      ]),
+    )
+    const settled = (await logRecords(persistence)).find(
+      (record) =>
+        record.type === 'harness.input.settled' &&
+        record.inputId === 'in-agent',
+    )
+    expect(settled).toMatchObject({
+      operationId: 'op-agent',
+      outcome: 'failed',
+      error: { message: 'The host stopped during this agent run.' },
+    })
+    await host.close()
+  })
+
+  it('keeps the wake mark of a logged follow-up that never ran', async () => {
+    const persistence = durablePersistence()
+    await persistence.stores.log.append({
+      logId: LOG,
+      seq: 1,
+      epoch: NO_OWNER_EPOCH,
+      records: [
+        {
+          type: 'harness.input',
+          inputId: 'in-wake',
+          input: {
+            op: 'followUp',
+            message: 'Background job done.',
+            wake: true,
+          },
+          at: 1,
+        },
+      ],
+    })
+
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('noted')],
+    })
+
+    await waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(async () =>
+      expect(wakeMessages(await session.transcript())).toEqual([
+        'Background job done.',
+      ]),
+    )
+    await host.close()
+  })
+
+  it('settles an input with the recover hook that the default would run again', async () => {
+    const persistence = durablePersistence()
+    await seedStoppedTurn(persistence, { attempt: 1 })
+    const seen: Array<unknown> = []
+
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('never')],
+      durability: {
+        recover: ({ input, decision }) => {
+          seen.push({
+            inputId: input.inputId,
+            attempt: input.attempt,
+            decision,
+          })
+          return {
+            action: 'settle',
+            outcome: 'failed',
+            error: { message: 'The host gave up.', code: 'host_rule' },
+          }
+        },
+      },
+    })
+
+    expect(await session.settled({ inputId: 'in-1' })).toEqual({
+      inputId: 'in-1',
+      outcome: 'failed',
+      operationId: 'op-stopped',
+      error: { message: 'The host gave up.', code: 'host_rule' },
+    })
+    expect(seen).toEqual([
+      { inputId: 'in-1', attempt: 1, decision: { action: 'run' } },
+    ])
+    expect(calls).toHaveLength(0)
+    await host.close()
+  })
+
+  it('runs an input with the recover hook that the default would settle', async () => {
+    const persistence = durablePersistence()
+    await seedStoppedTurn(persistence, { attempt: 1, answer: 'old answer' })
+
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('new answer')],
+      durability: {
+        recover: ({ decision }) =>
+          decision.action === 'settle' && decision.outcome === 'completed'
+            ? { action: 'run' }
+            : undefined,
+      },
+    })
+
+    expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(calls).toHaveLength(1)
+    await host.close()
+  })
+
+  it('asks the recover hook about an input that never ran', async () => {
+    const persistence = durablePersistence()
+    await persistence.stores.log.append({
+      logId: LOG,
+      seq: 1,
+      epoch: NO_OWNER_EPOCH,
+      records: [pendingInput('in-new', 'later')],
+    })
+
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('never')],
+      durability: { recover: () => ({ action: 'settle', outcome: 'aborted' }) },
+    })
+
+    expect(await session.settled({ inputId: 'in-new' })).toMatchObject({
+      outcome: 'aborted',
+    })
+    expect(calls).toHaveLength(0)
+    await host.close()
+  })
+
+  /** Add `records` to the log of a stopped turn, after its other records. */
+  const appendSeeded = async (
+    persistence: Durable,
+    records: Array<LogRecord>,
+  ) =>
+    persistence.stores.log.append({
+      logId: LOG,
+      seq: (await persistence.stores.log.read({ logId: LOG })).length + 1,
+      epoch: NO_OWNER_EPOCH,
+      records,
+    })
+
+  const call = (id: string, name: string) => ({
+    id,
+    type: 'function' as const,
+    function: { name, arguments: '{}' },
+  })
+
+  const answers = (name: string, result: string) =>
+    toolDefinition({ name, description: name }).server(async () => result)
+
+  it.each([
+    { maxAttempts: 10, action: 'run' },
+    { maxAttempts: 1, action: 'settle' },
+  ])(
+    'tells the recover hook which cut calls get the interrupted result ($action)',
+    async ({ maxAttempts, action }) => {
+      const persistence = durablePersistence()
+      await seedStoppedTurn(persistence, { attempt: 1 })
+      // Four calls in one batch: two cut mails, a lookup that finished, and a
+      // fetch that can run again.
+      await appendSeeded(persistence, [
+        {
+          type: 'harness.transcript',
+          keep: 1,
+          add: [
+            {
+              id: 'a1',
+              role: 'assistant',
+              content: null,
+              toolCalls: [
+                call('call-1', 'mail'),
+                call('call-2', 'mail'),
+                call('call-3', 'lookup'),
+                call('call-4', 'fetch'),
+              ],
+            },
+          ],
+        },
+        ...['call-1', 'call-2', 'call-3'].map((toolCallId) => ({
+          type: 'harness.tool.started',
+          toolCallId,
+          name: toolCallId === 'call-3' ? 'lookup' : 'mail',
+          replay: 'never',
+        })),
+        {
+          type: 'harness.tool.result',
+          toolCallId: 'call-3',
+          message: { role: 'tool', toolCallId: 'call-3', content: 'found' },
+        },
+        {
+          type: 'harness.tool.started',
+          toolCallId: 'call-4',
+          name: 'fetch',
+          replay: 'safe',
+        },
+      ])
+      const seen: Array<unknown> = []
+
+      const { host, session } = await openDurable({
+        persistence,
+        replies: [() => text('done')],
+        tools: [
+          answers('mail', 'sent'),
+          answers('lookup', 'found'),
+          answers('fetch', 'fetched'),
+        ],
+        durability: {
+          maxAttempts,
+          recover: ({ decision, interruptedTools }) => {
+            seen.push({ action: decision.action, interruptedTools })
+            return undefined
+          },
+        },
+      })
+      await session.settled({ inputId: 'in-1' })
+
+      expect(seen).toEqual([
+        {
+          action,
+          interruptedTools: [
+            { toolCallId: 'call-1', toolName: 'mail', reason: 'interrupted' },
+            { toolCallId: 'call-2', toolName: 'mail', reason: 'interrupted' },
+          ],
+        },
+      ])
+      await host.close()
+    },
+  )
+
+  it('tells the recover hook about a cut call of an answer that stopped at the output limit', async () => {
+    const persistence = durablePersistence()
+    await seedStoppedTurn(persistence, { attempt: 1 })
+    await appendSeeded(persistence, [
+      {
+        type: 'harness.transcript',
+        keep: 1,
+        add: [
+          {
+            id: 'a1',
+            role: 'assistant',
+            content: null,
+            toolCalls: [call('call-lookup', 'lookup')],
+            metadata: { tanstack: { finishReason: 'length' } },
+          },
+        ],
+      },
+    ])
+    const seen: Array<unknown> = []
+
+    const { host, session } = await openDurable({
+      persistence,
+      replies: [() => text('done')],
+      tools: [answers('lookup', 'found')],
+      durability: {
+        recover: ({ interruptedTools }) => {
+          seen.push(interruptedTools)
+          return undefined
+        },
+      },
+    })
+    await session.settled({ inputId: 'in-1' })
+
+    expect(seen).toEqual([
+      [{ toolCallId: 'call-lookup', toolName: 'lookup', reason: 'truncated' }],
+    ])
+    await host.close()
+  })
+})
+
+describe('session.recoverPendingWork()', () => {
+  /**
+   * A turn that another live host runs: it owns the log. `stop` gives the
+   * log up, as that host does when it stops.
+   */
+  async function seedLiveTurn(persistence: Durable) {
+    await seedStoppedTurn(persistence, { attempt: 1 })
+    const { log } = persistence.stores
+    const ownerId = 'other-host'
+    const owned = await log.acquireOwnership({
+      logId: LOG,
+      harness: 'test/durable-inputs',
+      ownerId,
+      ttlMs: 60_000,
+    })
+    if (owned === null) throw new Error('The other host has no ownership.')
+    const { epoch } = owned
+    return {
+      epoch,
+      stop: () => log.releaseOwnership({ logId: LOG, ownerId, epoch }),
+    }
+  }
+
+  it('runs a turn that another host held at open, after that host stops', async () => {
+    const persistence = durablePersistence()
+    const other = await seedLiveTurn(persistence)
+    const { log } = persistence.stores
+    // A store that does not push new records: the session reads them only
+    // when it catches up.
+    const quiet: Durable = {
+      stores: {
+        ...persistence.stores,
+        log: wrapLogStore(log, { subscribe: () => () => {} }),
+      },
+    }
+    const { host, session, calls } = await openDurable({
+      persistence: quiet,
+      replies: [() => text('one'), () => text('two')],
+    })
+    expect(calls).toHaveLength(0)
+
+    // The other host stored one more input, then stopped.
+    const head = (await log.read({ logId: LOG })).length
+    await log.append({
+      logId: LOG,
+      seq: head + 1,
+      epoch: other.epoch,
+      records: [pendingInput('in-2', 'next')],
+    })
+    await other.stop()
+    await host.recover()
+
+    expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(await session.settled({ inputId: 'in-2' })).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(calls).toHaveLength(2)
+    await host.close()
+  })
+
+  it('runs the turn once when two calls run at once', async () => {
+    const persistence = durablePersistence()
+    const other = await seedLiveTurn(persistence)
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('recovered'), () => text('later'), () => text('x')],
+    })
+    expect(calls).toHaveLength(0)
+    await other.stop()
+
+    await Promise.all([session.recoverPendingWork(), host.recover(THREAD)])
+    await session.settled({ inputId: 'in-1' })
+    // A second run of the turn would run before this one.
+    await session.send('later')
+
+    expect(calls).toHaveLength(2)
+    const applied = (await logRecords(persistence)).filter(
+      (record) =>
+        record.type === 'harness.input.applied' && record.inputId === 'in-1',
+    )
+    expect(applied.map((record) => record.attempt)).toEqual([1, 2])
+    await host.close()
+  })
+
+  it('leaves the turns that this session runs and queues alone', async () => {
+    const persistence = durablePersistence()
+    const release = gate()
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [
+        after(release.opened, 'first'),
+        () => text('second'),
+        () => text('third'),
+        () => text('x'),
+      ],
+    })
+    const one = session.send('one', { inputId: 'in-1' })
+    const two = session.send('two', { inputId: 'in-2' })
+    await two.receipt
+    await waitFor(() => expect(calls).toHaveLength(1))
+
+    await session.recoverPendingWork()
+    release.open()
+    await Promise.all([one, two])
+    // A second run of `two` would run before this one.
+    await session.send('three')
+
+    expect(calls.map((call) => messageTexts(call).at(-1))).toEqual([
+      'one',
+      'two',
+      'three',
+    ])
+    await host.close()
+  })
+})
+
+describe('durable input limits while a turn runs', () => {
+  it('aborts a turn at its time limit and settles it failed', async () => {
+    const persistence = durablePersistence()
+    const { host, session } = await openDurable({
+      persistence,
+      replies: [untilAborted()],
+      durability: { timeoutMs: 30 },
+    })
+
+    const turn = session.send('slow', { inputId: 'slow-1' })
+
+    await expect(turn).rejects.toThrow('The input passed its time limit.')
+    expect(await session.settled({ inputId: 'slow-1' })).toMatchObject({
+      outcome: 'failed',
+      error: { code: 'timeout' },
+    })
+    await host.close()
+  })
+
+  it('stores the abort request before it cancels the turn', async () => {
+    const persistence = durablePersistence()
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [untilAborted()],
+    })
+    const turn = session.send('wait', { inputId: 'wait-1' })
+    await waitFor(() => expect(calls).toHaveLength(1))
+
+    await session.cancel({ operationId: turn.id })
+
+    await expect(turn).rejects.toThrow('Cancelled.')
+    expect(await session.settled({ inputId: 'wait-1' })).toMatchObject({
+      outcome: 'aborted',
+    })
+    const types = await recordTypes(persistence)
+    expect(types.indexOf('harness.input.abort')).toBeLessThan(
+      types.indexOf('harness.input.settled'),
+    )
+    await host.close()
+  })
+})
+
+/**
+ * A durable session whose first turn calls `hold`, which waits for
+ * `release`. The turn then makes one more model call, where a steer joins.
+ */
+async function openHolding(replies: Array<Reply>) {
+  const persistence = durablePersistence()
+  const release = gate()
+  const hold = toolDefinition({ name: 'hold', description: 'Hold' }).server(
+    async () => {
+      await release.opened
+      return 'held'
+    },
+  )
+  const opened = await openDurable({
+    persistence,
+    replies: [() => toolCall('hold', {}), ...replies],
+    tools: [hold],
+  })
+  return { ...opened, persistence, release }
+}
+
+describe('waiting inputs', () => {
+  it('lists the waiting inputs, and cancels a queued one so it never runs', async () => {
+    const persistence = durablePersistence()
+    const release = gate()
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [after(release.opened, 'first done'), () => text('steer done')],
+    })
+    const first = session.send('first', { inputId: 'first' })
+    await waitFor(() => expect(calls).toHaveLength(1))
+    await session.send('second', { inputId: 'second', mode: 'followUp' })
+      .receipt
+    await session.send('third', { inputId: 'third', mode: 'steer' }).receipt
+
+    expect(session.waitingInputs()).toEqual([
+      { inputId: 'third', delivery: 'steer', message: 'third' },
+      { inputId: 'second', delivery: 'queue', message: 'second' },
+    ])
+    expect(await session.cancelInput({ inputId: 'second' })).toMatchObject({
+      status: 'accepted',
+    })
+    expect(await session.settled({ inputId: 'second' })).toMatchObject({
+      outcome: 'aborted',
+    })
+    expect(session.waitingInputs()).toEqual([
+      { inputId: 'third', delivery: 'steer', message: 'third' },
+    ])
+    expect(await logRecords(persistence)).toContainEqual({
+      type: 'harness.input.abort',
+      inputId: 'second',
+    })
+
+    release.open()
+    await first
+    expect(await session.settled({ inputId: 'third' })).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(calls).toHaveLength(2)
+    expect(calls.flatMap(messageTexts)).not.toContain('second')
+    await host.close()
+  })
+
+  it('refuses to cancel an input that started', async () => {
+    const release = gate()
+    const { host, session, calls } = await openDurable({
+      persistence: durablePersistence(),
+      replies: [after(release.opened, 'done')],
+    })
+    const turn = session.send('first', { inputId: 'first' })
+    await waitFor(() => expect(calls).toHaveLength(1))
+
+    expect(await session.cancelInput({ inputId: 'first' })).toMatchObject({
+      status: 'rejected',
+      reason: 'not_waiting',
+    })
+    release.open()
+    expect(await turn).toEqual({ text: 'done', media: [] })
+    await host.close()
+  })
+
+  it('joins a queued input to the running turn with changeInputDelivery steer', async () => {
+    const { host, session, calls, persistence, release } = await openHolding([
+      () => text('done'),
+    ])
+    const first = session.send('first', { inputId: 'first' })
+    await waitFor(() => expect(calls).toHaveLength(1))
+    await session.send('later', { inputId: 'later', mode: 'followUp' }).receipt
+
+    expect(
+      await session.changeInputDelivery({
+        inputId: 'later',
+        delivery: 'steer',
+      }),
+    ).toMatchObject({
+      status: 'accepted',
+    })
+    expect(session.waitingInputs()).toEqual([
+      { inputId: 'later', delivery: 'steer', message: 'later' },
+    ])
+    expect(await logRecords(persistence)).toContainEqual({
+      type: 'harness.input.delivery',
+      inputId: 'later',
+      delivery: 'steer',
+    })
+
+    release.open()
+    await first
+    expect(await session.settled({ inputId: 'later' })).toMatchObject({
+      outcome: 'completed',
+      operationId: first.id,
+    })
+    expect(calls).toHaveLength(2)
+    expect(messageTexts(calls[1])).toContain('later')
+    await host.close()
+  })
+
+  it('runs a waiting input as its own turn with changeInputDelivery steer when no turn runs', async () => {
+    const persistence = durablePersistence()
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('done')],
+    })
+    // A turn that holds the queue: the follow-up waits behind it.
+    await session.reset()
+    await session.send('later', { inputId: 'later', mode: 'followUp' }).receipt
+    await session.changeInputDelivery({ inputId: 'later', delivery: 'steer' })
+
+    expect(await session.settled({ inputId: 'later' })).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(messageTexts(calls[0])).toContain('later')
+    await host.close()
+  })
+
+  it('cancels a queued continue', async () => {
+    const { host, session, release, persistence } = await openHolding([
+      () => text('done'),
+    ])
+    const first = session.send('first', { inputId: 'first' })
+    await waitFor(() => expect(session.snapshot().status).toBe('running'))
+    const queued = session.continueWithoutMessage({ inputId: 'c-1' })
+    await waitFor(async () =>
+      expect(await recordTypesOf(persistence, 'c-1')).toContain(
+        'harness.input',
+      ),
+    )
+
+    expect(await session.cancelInput({ inputId: 'c-1' })).toMatchObject({
+      status: 'accepted',
+    })
+    expect(await session.settled({ inputId: 'c-1' })).toMatchObject({
+      outcome: 'aborted',
+    })
+    await expect(queued).rejects.toThrow()
+
+    release.open()
+    await first
+    await host.close()
+  })
+
+  it('runs a steer as its own turn with changeInputDelivery queue', async () => {
+    const { host, session, calls, release } = await openHolding([
+      () => text('done'),
+      () => text('own turn'),
+    ])
+    const first = session.send('first', { inputId: 'first' })
+    await waitFor(() => expect(calls).toHaveLength(1))
+    await session.send('now', { inputId: 'now', mode: 'steer' }).receipt
+
+    expect(
+      await session.changeInputDelivery({ inputId: 'now', delivery: 'queue' }),
+    ).toMatchObject({
+      status: 'accepted',
+    })
+    expect(session.waitingInputs()).toEqual([
+      { inputId: 'now', delivery: 'queue', message: 'now' },
+    ])
+
+    release.open()
+    await first
+    await session.settled({ inputId: 'now' })
+    expect(calls).toHaveLength(3)
+    expect(messageTexts(calls[1])).not.toContain('now')
+    expect(messageTexts(calls[2])).toContain('now')
+    await host.close()
+  })
+
+  const nothingLanded: Array<LogRecord> = []
+  const abortLanded: Array<LogRecord> = [
+    { type: 'harness.input.abort', inputId: 'in-1' },
+    controlApplied,
+  ]
+  const deliveryLanded: Array<LogRecord> = [
+    { type: 'harness.input.delivery', inputId: 'in-2', delivery: 'steer' },
+    controlApplied,
+  ]
+
+  it.each([
+    ['before its change landed', nothingLanded],
+    ['after its change landed', abortLanded],
+  ])(
+    'recovery does not run an input after a cancelInput, crash %s',
+    async (_when, landed) => {
+      const persistence = durablePersistence()
+      await persistence.stores.log.append({
+        logId: LOG,
+        seq: 1,
+        epoch: NO_OWNER_EPOCH,
+        records: [
+          pendingInput('in-1', 'go'),
+          controlInput({ op: 'cancelInput', inputId: 'in-1' }),
+          ...landed,
+        ],
+      })
+
+      const { host, session, calls } = await openDurable({
+        persistence,
+        replies: [() => text('never')],
+      })
+
+      expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
+        outcome: 'aborted',
+      })
+      expect(calls).toHaveLength(0)
+      // Applied, not rejected with `expired_on_restart`.
+      expect(await recordTypesOf(persistence, 'ctl-1')).toEqual([
+        'harness.input',
+        'harness.input.applied',
+      ])
+      await host.close()
+    },
+  )
+
+  it.each([
+    ['before its change landed', nothingLanded],
+    ['after its change landed', deliveryLanded],
+  ])(
+    'recovery joins an input that a setDelivery sent to steer, crash %s',
+    async (_when, landed) => {
+      const persistence = durablePersistence()
+      await persistence.stores.log.append({
+        logId: LOG,
+        seq: 1,
+        epoch: NO_OWNER_EPOCH,
+        records: [
+          pendingInput('in-1', 'first'),
+          pendingInput('in-2', 'second'),
+          controlInput({
+            op: 'setDelivery',
+            inputId: 'in-2',
+            delivery: 'steer',
+          }),
+          ...landed,
+        ],
+      })
+
+      const { host, session, calls } = await openDurable({
+        persistence,
+        replies: [() => text('both'), () => text('never')],
+      })
+
+      expect(await session.settled({ inputId: 'in-2' })).toMatchObject({
+        outcome: 'completed',
+      })
+      expect(calls).toHaveLength(1)
+      expect(messageTexts(calls[0])).toEqual(['first', 'second'])
+      expect(await recordTypesOf(persistence, 'ctl-1')).toEqual([
+        'harness.input',
+        'harness.input.applied',
+      ])
+      await host.close()
+    },
+  )
+})
+
+describe('input ids', () => {
+  it('returns the first operation for a duplicate, and runs once', async () => {
+    const persistence = durablePersistence()
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('once')],
+    })
+
+    const first = session.send('hi', { inputId: 'dup-1' })
+    const again = session.send('hi', { inputId: 'dup-1' })
+
+    expect(again).toBe(first)
+    expect(await first).toEqual({ text: 'once', media: [] })
+    expect(calls).toHaveLength(1)
+    await host.close()
+  })
+
+  it('rejects the same id with another payload as a conflict', async () => {
+    const persistence = durablePersistence()
+    const { host, session } = await openDurable({
+      persistence,
+      replies: [() => text('first')],
+    })
+    await session.send('hi', { inputId: 'dup-1' })
+
+    const other = session.send('something else', { inputId: 'dup-1' })
+
+    await expect(other).rejects.toBeInstanceOf(InputRejectedError)
+    expect(await other.receipt).toEqual({
+      inputId: 'dup-1',
+      status: 'rejected',
+      reason: 'conflict',
+    })
+    expect(
+      await session.send('x', { inputId: 'dup-1', mode: 'followUp' }).receipt,
+    ).toMatchObject({
+      status: 'rejected',
+      reason: 'conflict',
+    })
+    await host.close()
+  })
+
+  it('settles a duplicate after a restart from the log, with no model call', async () => {
+    const persistence = durablePersistence()
+    const first = await openDurable({
+      persistence,
+      replies: [() => text('from the first host')],
+    })
+    const original = first.session.send('hi', { inputId: 'dup-1' })
+    await original
+    await first.host.close()
+
+    const second = await openDurable({
+      persistence,
+      replies: [() => text('never')],
+    })
+    const replay = second.session.send('hi', { inputId: 'dup-1' })
+
+    expect(await replay).toEqual({ text: 'from the first host', media: [] })
+    expect(await replay.receipt).toEqual({
+      inputId: 'dup-1',
+      status: 'accepted',
+      operationId: original.id,
+    })
+    expect(second.calls).toHaveLength(0)
+    await second.host.close()
+  })
+
+  it('settles a duplicate after a restart when the store reorders the keys of the input', async () => {
+    const persistence = durablePersistence()
+    const first = await openDurable({
+      persistence,
+      replies: [() => text('from the first host')],
+    })
+    const original = first.session.send('hi', { inputId: 'dup-1' })
+    await original
+    await first.host.close()
+
+    // A jsonb store gives keys back in its own order.
+    const inner = persistence.stores.log
+    const reordering = wrapLogStore(inner, {
+      read: async (query) =>
+        (await inner.read(query)).map((entry) => ({
+          ...entry,
+          record: {
+            ...entry.record,
+            input:
+              entry.record.input && typeof entry.record.input === 'object'
+                ? Object.fromEntries(
+                    Object.entries(entry.record.input).reverse(),
+                  )
+                : entry.record.input,
+          },
+        })),
+    })
+    const second = await openDurable({
+      persistence: { stores: { ...persistence.stores, log: reordering } },
+      replies: [() => text('never')],
+    })
+    const replay = second.session.send('hi', { inputId: 'dup-1' })
+
+    expect(await replay.receipt).toEqual({
+      inputId: 'dup-1',
+      status: 'accepted',
+      operationId: original.id,
+    })
+    expect(await replay).toEqual({ text: 'from the first host', media: [] })
+    expect(second.calls).toHaveLength(0)
+    await second.host.close()
+  })
+
+  it('streams a duplicate after a restart from the start of its run in the log', async () => {
+    const persistence = durablePersistence()
+    const first = await openDurable({
+      persistence,
+      replies: [() => text('from the first host')],
+    })
+    await first.session.send('hi', { inputId: 'dup-1' })
+    await first.host.close()
+
+    const second = await openDurable({ persistence, replies: [] })
+    const replay = second.session.send('hi', { inputId: 'dup-1' })
+    await replay
+    const deltas: Array<string> = []
+    for await (const chunk of replay.stream()) {
+      if (chunk.type === EventType.TEXT_MESSAGE_CONTENT)
+        deltas.push(chunk.delta)
+    }
+
+    // The rebuilt operation starts before its run, not at the log head.
+    expect(deltas.join('')).toBe('from the first host')
+    await second.host.close()
+  })
+
+  it('settles an old duplicate after a restart with the text of its own turn', async () => {
+    const persistence = durablePersistence()
+    const release = gate()
+    const first = await openDurable({
+      persistence,
+      replies: [
+        after(release.opened, 'first answer'),
+        () => text('second answer'),
+      ],
+    })
+    const one = first.session.send('one', { inputId: 'old-1' })
+    await waitFor(async () =>
+      expect(await recordTypes(persistence)).toContain('harness.transcript'),
+    )
+    // An input applied during the turn does not cut the turn's text.
+    await first.session.updateThreadSettings({
+      settings: { instructions: 'Be brief.' },
+    })
+    release.open()
+    await one
+    await first.session.send('two', { inputId: 'new-1' })
+    await first.host.close()
+
+    const second = await openDurable({ persistence, replies: [] })
+
+    expect(await second.session.send('one', { inputId: 'old-1' })).toEqual({
+      text: 'first answer',
+      media: [],
+    })
+    await second.host.close()
+  })
+
+  it('resolves the receipt when the input is in the log, before the turn ends', async () => {
+    const persistence = durablePersistence()
+    const release = gate()
+    const { host, session } = await openDurable({
+      persistence,
+      replies: [
+        () =>
+          (async function* () {
+            await release.opened
+            yield* text('late')
+          })(),
+      ],
+    })
+
+    const turn = session.send('hi', { inputId: 'r-1' })
+    const receipt = await turn.receipt
+
+    expect(receipt).toEqual({
+      inputId: 'r-1',
+      status: 'accepted',
+      operationId: turn.id,
+    })
+    expect(await recordTypes(persistence)).toContain('harness.input')
+    expect(turn.status()).not.toBe('completed')
+    release.open()
+    await turn
+    await host.close()
+  })
+})
+
+describe('session.continueWithoutMessage()', () => {
+  const user: ModelMessage = { id: 'u1', role: 'user', content: 'go' }
+  const transcript = (...add: Array<ModelMessage>): LogRecord => ({
+    type: 'harness.transcript',
+    keep: 0,
+    add,
+  })
+
+  it.each([
+    ['a user message', [user]],
+    [
+      'a tool message',
+      [
+        user,
+        {
+          id: 'a1',
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call-1',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call-1', content: 'found' },
+      ],
+    ],
+  ] satisfies Array<[string, Array<ModelMessage>]>)(
+    'runs the model on a stored transcript that ends with %s',
+    async (_name, messages) => {
+      const persistence = durablePersistence()
+      await persistence.stores.log.append({
+        logId: LOG,
+        seq: 1,
+        epoch: NO_OWNER_EPOCH,
+        records: [transcript(...messages)],
+      })
+      const { host, session, calls } = await openDurable({
+        persistence,
+        replies: [() => text('went')],
+      })
+
+      expect(await session.continueWithoutMessage({ inputId: 'c-1' })).toEqual({
+        text: 'went',
+        media: [],
+      })
+      // The stored transcript, and no new message.
+      expect(
+        calls[0].messages.map((message: ModelMessage) => message.role),
+      ).toEqual(messages.map((message) => message.role))
+      expect(await session.settled({ inputId: 'c-1' })).toMatchObject({
+        outcome: 'completed',
+      })
+      await host.close()
+    },
+  )
+
+  it('returns the first operation for a duplicate inputId, and runs once', async () => {
+    const persistence = durablePersistence()
+    await persistence.stores.log.append({
+      logId: LOG,
+      seq: 1,
+      epoch: NO_OWNER_EPOCH,
+      records: [transcript(user)],
+    })
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('once'), () => text('twice')],
+    })
+
+    const first = session.continueWithoutMessage({ inputId: 'c-1' })
+    const again = session.continueWithoutMessage({ inputId: 'c-1' })
+
+    expect(again).toBe(first)
+    await first
+    expect(calls).toHaveLength(1)
+    await host.close()
+  })
+
+  it('runs a continue that a stopped host left pending', async () => {
+    const persistence = durablePersistence()
+    await persistence.stores.log.append({
+      logId: LOG,
+      seq: 1,
+      epoch: NO_OWNER_EPOCH,
+      records: [
+        transcript(user),
+        {
+          type: 'harness.input',
+          inputId: 'c-1',
+          input: { op: 'continue' },
+          at: 1,
+        },
+      ],
+    })
+
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('went')],
+    })
+
+    expect(await session.settled({ inputId: 'c-1' })).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(messageTexts(calls[0])).toEqual(['go'])
+    await host.close()
+  })
+
+  it.each([
+    ['an empty transcript', []],
+    [
+      'a transcript that ends with an answer',
+      [transcript(user, { id: 'a1', role: 'assistant', content: 'done' })],
+    ],
+  ] satisfies Array<[string, Array<LogRecord>]>)(
+    'rejects a continue on %s',
+    async (_name, records) => {
+      const persistence = durablePersistence()
+      if (records.length > 0) {
+        await persistence.stores.log.append({
+          logId: LOG,
+          seq: 1,
+          epoch: NO_OWNER_EPOCH,
+          records,
+        })
+      }
+      const { host, session, calls } = await openDurable({
+        persistence,
+        replies: [() => text('never')],
+      })
+
+      const turn = session.continueWithoutMessage({ inputId: 'c-1' })
+
+      await expect(turn).rejects.toBeInstanceOf(InputRejectedError)
+      await expect(session.settled({ inputId: 'c-1' })).rejects.toMatchObject({
+        receipt: { status: 'rejected', reason: 'nothing_to_continue' },
+      })
+      expect(calls).toHaveLength(0)
+      await host.close()
+    },
+  )
+})
+
+describe('settled() of a live input', () => {
+  it('gives the outcome of a live input, and refuses an unknown id', async () => {
+    const { adapter } = mockAdapter([() => text('fine')])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({ name: 'test/settled', adapter }),
+      {
+        threadId: THREAD,
+      },
+    )
+
+    const turn = session.send('hi', { inputId: 'live-1' })
+    await turn
+
+    expect(await session.settled({ inputId: 'live-1' })).toEqual({
+      inputId: 'live-1',
+      outcome: 'completed',
+      operationId: turn.id,
+    })
+    await expect(session.settled({ inputId: 'missing' })).rejects.toThrow(
+      'knows no chat input',
+    )
+    await host.close()
+  })
+})
+
+describe('durable approval recovery', () => {
+  it('uses up the approval when a resume hits the time limit after its tool ran', async () => {
+    const persistence = durablePersistence()
+    const execute = vi.fn(async () => 'removed')
+    const tool = toolDefinition({
+      name: 'remove',
+      description: 'Remove',
+      needsApproval: true,
+    }).server(execute)
+    const main = mockAdapter([
+      () => toolCall('remove', {}, 'timeout-approval'),
+      untilAborted(),
+    ])
+    const config = defineHarness({
+      name: 'approval-timeout',
+      adapter: main.adapter,
+      tools: [tool],
+      durability: { timeoutMs: 30 },
+    })
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(config, { threadId: THREAD })
+    const initial = await session.send('remove')
+    const approval = initial.interrupts?.[0]
+    if (!approval) throw new Error('The turn did not stop for approval.')
+    const receipt = await session.resolve({
+      resume: [{ interruptId: approval.id, status: 'resolved', payload: true }],
+    })
+    await expect(session.operation(receipt.operationId ?? '')).rejects.toThrow(
+      'time limit',
+    )
+    expect(await session.settled({ inputId: receipt.inputId })).toMatchObject({
+      outcome: 'failed',
+      error: { code: 'timeout' },
+    })
+    // The approved tool ran before the time limit. Offering the approval
+    // again would run it a second time, so it is used up.
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(turnInterrupts(session.snapshot())).toEqual([])
+    const { interrupts } = await storedThreadState(persistence.stores.log, {
+      threadId: THREAD,
+    })
+    expect(interrupts.get(approval.id)?.status).toBe('resolved')
+    await host.close()
+    const next = createHarnessHost({ persistence })
+    const reopened = await next.open(config, { threadId: THREAD })
+    expect(turnInterrupts(reopened.snapshot())).toEqual([])
+    expect(
+      await reopened.resolve({
+        resume: [
+          { interruptId: approval.id, status: 'resolved', payload: true },
+        ],
+      }),
+    ).toMatchObject({ status: 'rejected', reason: 'no_pending_interrupts' })
+    expect(execute).toHaveBeenCalledTimes(1)
+    await next.close()
+  })
+
+  it('keeps approval after an early applied failure', async () => {
+    const persistence = durablePersistence()
+    const { log } = persistence.stores
+    const execute = vi.fn(async () => 'removed')
+    const tool = toolDefinition({
+      name: 'remove',
+      description: 'Remove',
+      needsApproval: true,
+    }).server(execute)
+    const main = mockAdapter([
+      () => toolCall('remove', {}, 'early-call'),
+      () => text('Done.'),
+    ])
+    const config = defineHarness({
+      name: 'early-approval',
+      adapter: main.adapter,
+      tools: [tool],
+    })
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(config, { threadId: THREAD })
+    const result = await session.send('remove')
+    const approval = result.interrupts?.[0]
+    if (!approval) throw new Error('The turn did not stop for approval.')
+    const append = log.append.bind(log)
+    const write = vi.spyOn(log, 'append').mockImplementation(async (batch) => {
+      if (
+        batch.records.some((record) => record.type === 'harness.input.applied')
+      )
+        throw new Error('applied write failed')
+      await append(batch)
+    })
+    const receipt = await session.resolve({
+      resume: [{ interruptId: approval.id, status: 'resolved', payload: true }],
+    })
+    await expect(session.operation(receipt.operationId ?? '')).rejects.toThrow()
+    expect(turnInterrupts(session.snapshot()).map((item) => item.id)).toEqual([
+      approval.id,
+    ])
+    expect(execute).not.toHaveBeenCalled()
+    write.mockRestore()
+    await host.close()
+    const next = createHarnessHost({ persistence })
+    const reopened = await next.open(config, { threadId: THREAD })
+    if (turnInterrupts(reopened.snapshot()).length > 0) {
+      const retry = await reopened.resolve({
+        resume: [
+          { interruptId: approval.id, status: 'resolved', payload: true },
+        ],
+      })
+      await reopened.operation(retry.operationId ?? '')
+    }
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(turnInterrupts(reopened.snapshot())).toEqual([])
+    await next.close()
+  })
+
+  it('replays an applied resolve after a crash', async () => {
+    const persistence = durablePersistence()
+    const { log } = persistence.stores
+    const execute = vi.fn(async () => 'removed')
+    const tool = toolDefinition({
+      name: 'remove',
+      description: 'Remove',
+      needsApproval: true,
+      inputSchema: z.object({ path: z.string() }),
+    }).server(execute)
+    const firstAdapter = mockAdapter([
+      () => toolCall('remove', { path: 'a.txt' }, 'crash-call'),
+    ])
+    const first = createHarnessHost({ persistence })
+    const firstSession = await first.open(
+      defineHarness({
+        name: 'crash-approval',
+        adapter: firstAdapter.adapter,
+        tools: [tool],
+      }),
+      {
+        threadId: THREAD,
+      },
+    )
+    const result = await firstSession.send('remove', {
+      user: { id: 'alice' },
+    })
+    const approval = result.interrupts?.[0]
+    if (!approval) throw new Error('The turn did not stop for approval.')
+    await first.close()
+    // A host that applied a resolve of bob and then crashed.
+    await appendToLog(log, { threadId: THREAD }, [
+      {
+        type: 'harness.input',
+        inputId: 'resume-crash',
+        input: {
+          op: 'resolve',
+          resume: [
+            { interruptId: approval.id, status: 'resolved', payload: true },
+          ],
+        },
+        user: { id: 'bob' },
+        at: Date.now(),
+      },
+      {
+        type: 'harness.input.applied',
+        inputId: 'resume-crash',
+        operationId: 'resume-stopped',
+        attempt: 1,
+      },
+      stoppedRun('resume-stopped', THREAD),
+    ])
+    const nextAdapter = mockAdapter([() => text('Recovered approval.')])
+    const turns: Array<TurnInfo | undefined> = []
+    const next = createHarnessHost({ persistence })
+    const session = await next.open(
+      defineHarness({
+        name: 'crash-approval',
+        adapter: nextAdapter.adapter,
+        tools: [tool],
+        plugins: () => [
+          definePlugin({
+            name: 'test/turns',
+            lifetime: 'turn',
+            setup: (ctx) => void turns.push(ctx.turn),
+          }),
+        ],
+      }),
+      {
+        threadId: THREAD,
+      },
+    )
+    expect(await session.settled({ inputId: 'resume-crash' })).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(execute).toHaveBeenCalledExactlyOnceWith(
+      { path: 'a.txt' },
+      expect.anything(),
+    )
+    expect(nextAdapter.calls).toHaveLength(1)
+    expect(turnInterrupts(session.snapshot())).toEqual([])
+    // It runs as alice, and names bob, who resolved.
+    expect(turns).toEqual([
+      expect.objectContaining({ user: { id: 'alice' }, sender: { id: 'bob' } }),
+    ])
+    await next.close()
+  })
+
+  it('does not revive a consumed approval from a stale interrupted record', async () => {
+    const persistence = durablePersistence()
+    const { log } = persistence.stores
+    const execute = vi.fn(async () => 'removed')
+    const tool = toolDefinition({
+      name: 'remove',
+      description: 'Remove',
+      needsApproval: true,
+    }).server(execute)
+    const adapter = mockAdapter([
+      () => toolCall('remove', {}, 'consumed-call'),
+      () => text('Done.'),
+    ])
+    const host = createHarnessHost({ persistence })
+    const config = defineHarness({
+      name: 'consumed-approval',
+      adapter: adapter.adapter,
+      tools: [tool],
+    })
+    const session = await host.open(config, { threadId: THREAD })
+    const result = await session.send('remove')
+    const approval = result.interrupts?.[0]
+    if (!approval) throw new Error('The turn did not stop for approval.')
+    const { interrupted: cached } = await storedThreadState(log, {
+      threadId: THREAD,
+    })
+    if (!cached) throw new Error('No stored interrupted turn.')
+    const receipt = await session.resolve({
+      resume: [{ interruptId: approval.id, status: 'resolved', payload: true }],
+    })
+    await session.operation(receipt.operationId ?? '')
+    expect(turnInterrupts(session.snapshot())).toEqual([])
+    await host.close()
+    // A stale copy of the stopped turn lands after the resolve.
+    await appendToLog(log, { threadId: THREAD }, [
+      { type: 'harness.interrupted', turn: cached },
+    ])
+    const next = createHarnessHost({ persistence })
+    const reopened = await next.open(config, { threadId: THREAD })
+    expect(turnInterrupts(reopened.snapshot())).toEqual([])
+    expect(
+      await reopened.resolve({
+        resume: [
+          { interruptId: approval.id, status: 'resolved', payload: true },
+        ],
+      }),
+    ).toMatchObject({ status: 'rejected', reason: 'no_pending_interrupts' })
+    expect(execute).toHaveBeenCalledTimes(1)
+    await next.close()
+  })
+})

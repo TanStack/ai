@@ -259,6 +259,19 @@ describe('fetchJson', () => {
     ])
   })
 
+  it('retries a poll answered 503', async () => {
+    const fetchClient = fetchSequence(
+      jsonResponse({ chunks: [contentChunk('a')], offset: '1', done: false }),
+      new Response('restarting', { status: 503 }),
+      jsonResponse({ chunks: [contentChunk('b')], offset: '2', done: true }),
+    )
+
+    const chunks = await collect(connectWith(fetchClient))
+
+    expect(deltasOf(chunks)).toEqual(['a', 'b'])
+    expect(fetchClient).toHaveBeenCalledTimes(3)
+  })
+
   it('gives up on a poll after the reconnect ceiling', async () => {
     const fetchClient = fetchSequence(
       jsonResponse({ chunks: [], offset: '1', done: false }),

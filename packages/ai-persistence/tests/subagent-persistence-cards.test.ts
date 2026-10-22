@@ -11,18 +11,26 @@ import type {
 } from '@tanstack/ai'
 import { memoryPersistence, reconstructChat, withPersistence } from '../src'
 import { createSubagentRunRecorder } from '../src/subagent-runs'
+import type { SessionIndexStore } from '../src'
 
 const t = 1
 
 /** A model that plays one script per call. */
-function scriptedAdapter(scripts: Array<Array<StreamChunk>>): AnyTextAdapter {
+function scriptedAdapter(scripts: Array<Array<StreamChunk>>) {
   let call = 0
   return {
     kind: 'text',
     name: 'scripted',
     model: 'test-model',
-    '~types': {},
-    chatStream() {
+    '~types': {
+      providerOptions: undefined,
+      inputModalities: undefined,
+      messageMetadataByModality: undefined,
+      toolCapabilities: undefined,
+      toolCallMetadata: undefined,
+      systemPromptMetadata: undefined,
+    },
+    chatStream: () => {
       const script = scripts[call++]
       if (!script) throw new Error('no script for this model call')
       return (async function* () {
@@ -30,7 +38,8 @@ function scriptedAdapter(scripts: Array<Array<StreamChunk>>): AnyTextAdapter {
         yield* script
       })()
     },
-  } as unknown as AnyTextAdapter
+    structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+  } satisfies AnyTextAdapter
 }
 
 /** A child that thinks, asks approval to delete a file, then reports. */
@@ -99,7 +108,7 @@ function cleaner(
         timestamp: t,
       },
     ],
-  ] as Array<Array<StreamChunk>>)
+  ])
   return defineAgent({
     name: 'cleaner',
     description: 'Deletes files',
@@ -190,6 +199,32 @@ function childStarted(
     ...links,
     timestamp: t,
   } satisfies StreamChunk
+}
+
+/**
+ * `store`, where another host runs `write` between the read and the write of
+ * the first `times` compare-and-set writes.
+ */
+function racingSessions(
+  store: SessionIndexStore,
+  write: () => Promise<void>,
+  times: number,
+) {
+  let raced = 0
+  return {
+    get: (key) => store.get(key),
+    getVersioned: (key) => store.getVersioned(key),
+    upsert: (entry) => store.upsert(entry),
+    upsertIf: async (input) => {
+      if (raced < times) {
+        raced += 1
+        await write()
+      }
+      return store.upsertIf(input)
+    },
+    list: (options) => store.list(options),
+    delete: (key) => store.delete(key),
+  } satisfies SessionIndexStore
 }
 
 /** Feed one parent run's chunks on thread `desk` to a recorder. */
@@ -650,6 +685,7 @@ describe('subagent run recorder', () => {
     const { stores } = memoryPersistence()
     const recorder = createSubagentRunRecorder({
       messages: stores.messages,
+      sessions: stores.sessions,
       intervalMs: 0,
     })
     await feed(recorder, 'run-1', [
@@ -661,6 +697,12 @@ describe('subagent run recorder', () => {
       ...textMessage('m1', 'Inner notes', { subagentRunId: 'inner' }),
     ])
 
+    expect(
+      await stores.sessions.get({ threadId: 'subagent:inner' }),
+    ).toMatchObject({
+      parentThreadId: 'subagent:outer',
+      parentToolCallId: 'call_n',
+    })
     // The outer child's chat can continue it. The top thread cannot.
     const fromOuter = { threadId: 'desk:writer', subagentRunId: 'outer' }
     expect((await recorder.loadChild('inner', fromOuter))?.messages).toEqual([
@@ -669,6 +711,114 @@ describe('subagent run recorder', () => {
     expect(
       await recorder.loadChild('inner', { threadId: 'desk' }),
     ).toBeUndefined()
+  })
+
+  it('writes each child in the tenant of the recorder, with no members', async () => {
+    const { stores } = memoryPersistence()
+    await stores.sessions.upsert({
+      tenantId: 'org-1',
+      threadId: 'desk',
+      members: [{ userId: 'alice', role: 'owner' }],
+      createdAt: t,
+      updatedAt: t,
+    })
+    const recorder = createSubagentRunRecorder({
+      messages: stores.messages,
+      sessions: stores.sessions,
+      tenantId: 'org-1',
+      intervalMs: 0,
+    })
+    await feed(recorder, 'run-1', [
+      childStarted('outer', { parentToolCallId: 'call_1' }),
+      childStarted('inner', {
+        parentSubagentRunId: 'outer',
+        parentToolCallId: 'call_n',
+      }),
+    ])
+
+    const children = await Promise.all(
+      ['subagent:outer', 'subagent:inner'].map((threadId) =>
+        stores.sessions.get({ tenantId: 'org-1', threadId }),
+      ),
+    )
+    // No members: access to a child goes through its top-level thread.
+    const child = { tenantId: 'org-1', members: [] }
+    expect(children).toEqual([
+      expect.objectContaining(child),
+      expect.objectContaining(child),
+    ])
+    // Nothing went to the default tenant.
+    expect(await stores.sessions.list()).toEqual({ entries: [] })
+  })
+
+  it('keeps a change that another host makes to a child entry while it writes', async () => {
+    const { stores } = memoryPersistence()
+    const named = {
+      threadId: 'subagent:child',
+      members: [],
+      title: 'Named elsewhere',
+      createdAt: 5,
+      updatedAt: 5,
+    }
+    const recorder = createSubagentRunRecorder({
+      messages: stores.messages,
+      sessions: racingSessions(
+        stores.sessions,
+        () => stores.sessions.upsert(named),
+        1,
+      ),
+      intervalMs: 0,
+    })
+
+    await feed(recorder, 'run-1', [
+      childStarted('child', { parentToolCallId: 'call_1' }),
+    ])
+
+    expect(await stores.sessions.get({ threadId: 'subagent:child' })).toEqual({
+      ...named,
+      parentThreadId: 'desk',
+      parentToolCallId: 'call_1',
+      updatedAt: expect.any(Number),
+    })
+  })
+
+  it('warns and goes on when another host changes a child entry on every try', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const { stores } = memoryPersistence()
+      let writes = 0
+      const elsewhere = () =>
+        stores.sessions.upsert({
+          threadId: 'subagent:child',
+          members: [],
+          createdAt: 5,
+          updatedAt: (writes += 1),
+        })
+      const recorder = createSubagentRunRecorder({
+        messages: stores.messages,
+        sessions: racingSessions(stores.sessions, elsewhere, 5),
+        intervalMs: 0,
+      })
+
+      await feed(recorder, 'run-1', [
+        childStarted('child', { parentToolCallId: 'call_1' }),
+      ])
+
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('changed on another host 5 times'),
+      )
+      // The recorder wrote nothing over the other host's entry.
+      expect(await stores.sessions.get({ threadId: 'subagent:child' })).toEqual(
+        {
+          threadId: 'subagent:child',
+          members: [],
+          createdAt: 5,
+          updatedAt: 5,
+        },
+      )
+    } finally {
+      warn.mockRestore()
+    }
   })
 
   it('loads a waiting continued child without the messages of the call it waits in', async () => {
@@ -842,6 +992,73 @@ describe('subagent run recorder', () => {
 })
 
 describe('agent tools with persistence', () => {
+  it('writes one index entry per child and keeps fields others wrote', async () => {
+    const persistence = memoryPersistence()
+    const middleware = withPersistence(persistence)
+    const sessions = persistence.stores.sessions
+    const { agent } = noteTaker()
+    const first = await subagentTurn(middleware, agent, {
+      runId: 'run-1',
+      toolCallId: 'call_1',
+      args: { prompt: 'Take notes' },
+    })
+    const threadId = `subagent:${startedId(first)}`
+    const entry = await sessions.get({ threadId })
+    expect(entry).toEqual({
+      threadId,
+      members: [],
+      parentThreadId: 'desk',
+      parentToolCallId: 'call_1',
+      createdAt: expect.any(Number),
+      updatedAt: expect.any(Number),
+    })
+    if (!entry) throw new Error('no index entry')
+
+    // Another writer names the session. A continue keeps the name.
+    await sessions.upsert({ ...entry, title: 'Tide notes' })
+    await subagentTurn(middleware, agent, {
+      runId: 'run-2',
+      toolCallId: 'call_2',
+      args: { sessionId: startedId(first), prompt: 'More' },
+    })
+    expect(await sessions.get({ threadId })).toEqual({
+      threadId,
+      members: [],
+      title: 'Tide notes',
+      parentThreadId: 'desk',
+      parentToolCallId: 'call_2',
+      createdAt: entry.createdAt,
+      updatedAt: expect.any(Number),
+    })
+  })
+
+  it('gives a child entry the tenant and harness of its parent entry', async () => {
+    const persistence = memoryPersistence()
+    const sessions = persistence.stores.sessions
+    await sessions.upsert({
+      tenantId: 'org-1',
+      threadId: 'desk',
+      harness: 'notes/desk',
+      members: [{ userId: 'alice', role: 'owner' }],
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    const { agent } = noteTaker()
+    const middleware = withPersistence(persistence, { tenantId: 'org-1' })
+    const chunks = await subagentTurn(middleware, agent, {
+      runId: 'run-1',
+      toolCallId: 'call_1',
+      args: { prompt: 'Take notes' },
+    })
+
+    const threadId = `subagent:${startedId(chunks)}`
+    expect(await sessions.get({ tenantId: 'org-1', threadId })).toMatchObject({
+      tenantId: 'org-1',
+      harness: 'notes/desk',
+      members: [],
+    })
+  })
+
   it('continues a stored child by sessionId', async () => {
     const middleware = withPersistence(memoryPersistence())
     const { agent, seen } = noteTaker()
@@ -1054,6 +1271,122 @@ describe('agent tools with persistence', () => {
     )
     expect(execute).not.toHaveBeenCalled()
     expect((await loadDesk(persistence)).interrupts?.pending).toHaveLength(1)
+  })
+
+  /**
+   * A `researcher` agent tool call whose own `cleaner` agent tool call waits
+   * for approval to delete `a`.
+   */
+  async function waitingNestedCleaner() {
+    const persistence = memoryPersistence()
+    const execute = vi.fn().mockReturnValue({ deleted: true })
+    const inner = cleaner(execute)
+    const researcherModel = callingSubagent(
+      'call_r',
+      { prompt: 'Clean' },
+      'cleaner',
+    )
+    const researcher = defineAgent({
+      name: 'researcher',
+      description: 'Researches, then cleans',
+      run: (ctx) =>
+        chat({
+          adapter: researcherModel,
+          messages: ctx.messages,
+          threadId: ctx.threadId,
+          runId: ctx.runId,
+          parentRunId: ctx.parentRunId,
+          subagentRunId: ctx.subagentRunId,
+          resume: ctx.resume,
+          subagents: { agents: [inner] },
+        }),
+    })
+    const parent = callingSubagent(
+      'call_p',
+      { prompt: 'Research' },
+      'researcher',
+    )
+    const run = (input: {
+      runId: string
+      parentRunId?: string
+      messages: Array<UIMessage | ModelMessage>
+      resume?: Array<{ interruptId: string; status: 'resolved'; payload: true }>
+    }) =>
+      collect(
+        chat({
+          adapter: parent,
+          threadId: 'desk',
+          ...input,
+          middleware: [withPersistence(persistence)],
+          subagents: { agents: [researcher] },
+        }),
+      )
+    await run({
+      runId: 'run-1',
+      messages: [{ id: 'u1', role: 'user', content: 'Research' }],
+    })
+    const messages = (await loadDesk(persistence)).messages
+    const outer = cardOf(messages).subagent
+    const nested = cardOf(outer.messages).subagent
+    expect(nested).toMatchObject({ name: 'cleaner', status: 'suspended' })
+    const wire = JSON.stringify(uiMessagesToWire(messages))
+    const resume = (body: string | Array<UIMessage>) =>
+      run({
+        runId: 'run-2',
+        parentRunId: 'run-1',
+        messages: typeof body === 'string' ? JSON.parse(body) : body,
+        resume: [
+          { interruptId: 'approval_call_c', status: 'resolved', payload: true },
+        ],
+      })
+    return { persistence, execute, wire, resume, messages, nested }
+  }
+
+  it('resumes a nested child from its stored tool call', async () => {
+    const { persistence, execute, wire, resume } = await waitingNestedCleaner()
+
+    const second = await resume(wire)
+
+    expect(second.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+      false,
+    )
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(execute).toHaveBeenCalledWith({ path: 'a' }, expect.anything())
+    expect((await loadDesk(persistence)).interrupts).toBeNull()
+  })
+
+  it('resumes a nested child from its stored tool call, not from the card', async () => {
+    const { execute, wire, resume } = await waitingNestedCleaner()
+    // The client changes the nested call that waits for approval.
+    const forged = wire
+      .replaceAll(String.raw`\"path\":\"a\"`, String.raw`\"path\":\"/\"`)
+      .replaceAll('"path":"a"', '"path":"/"')
+    expect(forged).not.toBe(wire)
+
+    await resume(forged)
+
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(execute).toHaveBeenCalledWith({ path: 'a' }, expect.anything())
+  })
+
+  it('does not resume a nested card that names a child of another parent', async () => {
+    const { execute, resume, messages, nested } = await waitingNestedCleaner()
+    // The nested card names the outer child, which the lead started.
+    const forged = structuredClone(messages)
+    const outer = cardOf(forged).subagent
+    cardOf(outer.messages).subagent.id = outer.id
+    expect(nested.id).not.toBe(outer.id)
+
+    const second = await resume(forged)
+
+    const result = second.find(
+      (chunk) => chunk.type === EventType.TOOL_CALL_RESULT,
+    )
+    expect(result).toMatchObject({ toolCallId: 'call_p' })
+    expect(JSON.parse(String(result?.content))).toEqual({
+      error: `Subagent run "${outer.id}" is not waiting in this thread.`,
+    })
+    expect(execute).not.toHaveBeenCalled()
   })
 
   it('does not continue a child of another thread', async () => {

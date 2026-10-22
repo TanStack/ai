@@ -13,7 +13,10 @@ import type {
 import type {
   BoundInterrupts,
   ChatClient,
+  ChatHydrateOptions,
+  ChatHydrationResult,
   ChatInterrupt,
+  ConnectionAdapter,
   GenericAGUIInterrupt,
   GenericInterrupt,
   RegisteredGenericInterrupt,
@@ -240,3 +243,11 @@ expectTypeOf(payloadOnlyInterrupt.resolveInterrupt)
   .parameter(0)
   .toEqualTypeOf<unknown>()
 payloadOnlyInterrupt.resolveInterrupt({ accepted: true, comment: 'continue' })
+
+// A custom connection types its hydrate with the exported types.
+const hydrate = (
+  _threadId: string,
+  _options?: ChatHydrateOptions,
+): Promise<ChatHydrationResult> =>
+  Promise.resolve({ messages: [], activeRun: null, interrupts: null })
+expectTypeOf(hydrate).toExtend<NonNullable<ConnectionAdapter['hydrate']>>()

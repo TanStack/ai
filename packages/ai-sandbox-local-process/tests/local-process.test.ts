@@ -96,6 +96,29 @@ describe('local-process fs', () => {
     await sbx.destroy()
   })
 
+  it('rejects each fs call on an aborted signal, and writes nothing', async () => {
+    const sbx = await fresh()
+    await sbx.fs.write('/workspace/a.txt', 'hello')
+    const signal = AbortSignal.abort()
+    const calls = [
+      () => sbx.fs.read('/workspace/a.txt', { signal }),
+      () => sbx.fs.readBytes('/workspace/a.txt', { signal }),
+      () => sbx.fs.write('/workspace/a.txt', 'changed', { signal }),
+      () => sbx.fs.list('/workspace', { signal }),
+      () => sbx.fs.lstat!('/workspace/a.txt', { signal }),
+      () => sbx.fs.mkdir('/workspace/dir', { signal }),
+      () => sbx.fs.remove('/workspace/a.txt', { signal }),
+      () => sbx.fs.rename('/workspace/a.txt', '/workspace/b.txt', { signal }),
+      () => sbx.fs.exists('/workspace/a.txt', { signal }),
+    ]
+    for (const call of calls) {
+      await expect(call()).rejects.toMatchObject({ name: 'AbortError' })
+    }
+    expect(await sbx.fs.read('/workspace/a.txt')).toBe('hello')
+    expect(await sbx.fs.exists('/workspace/dir')).toBe(false)
+    await sbx.destroy()
+  })
+
   it('contains paths within the sandbox root', async () => {
     const sbx = await fresh()
     await expect(sbx.fs.read('/workspace/../../../etc/hosts')).rejects.toThrow(
@@ -118,6 +141,48 @@ describe('local-process process', () => {
     const sbx = await fresh()
     const r = await sbx.process.exec('exit 7')
     expect(r.exitCode).toBe(7)
+    await sbx.destroy()
+  })
+
+  it('does not give a variable of the server to a command', async () => {
+    const sbx = await fresh()
+    process.env.LP_SERVER_SECRET = 'hunter2'
+    try {
+      const r = await sbx.process.exec('echo "${LP_SERVER_SECRET:-unset}"')
+      expect(r.stdout.trim()).toBe('unset')
+    } finally {
+      delete process.env.LP_SERVER_SECRET
+      await sbx.destroy()
+    }
+  })
+
+  it('gives a command the server variables named in passEnv', async () => {
+    const sbx = await localProcessSandbox({
+      baseDir,
+      removeOnDestroy: true,
+      passEnv: ['LP_PROXY'],
+    }).create({})
+    process.env.LP_PROXY = 'http://proxy:8080'
+    process.env.LP_SERVER_SECRET = 'hunter2'
+    try {
+      const r = await sbx.process.exec(
+        'echo "$LP_PROXY ${LP_SERVER_SECRET:-unset}"',
+      )
+      expect(r.stdout.trim()).toBe('http://proxy:8080 unset')
+    } finally {
+      delete process.env.LP_PROXY
+      delete process.env.LP_SERVER_SECRET
+      await sbx.destroy()
+    }
+  })
+
+  it('gives a command the env of env.set and of the call', async () => {
+    const sbx = await fresh()
+    await sbx.env.set({ LP_SET: 'from-set' })
+    const r = await sbx.process.exec('echo "$LP_SET $LP_CALL"', {
+      env: { LP_CALL: 'from-call' },
+    })
+    expect(r.stdout.trim()).toBe('from-set from-call')
     await sbx.destroy()
   })
 

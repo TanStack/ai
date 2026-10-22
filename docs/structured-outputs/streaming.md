@@ -90,7 +90,7 @@ For a full TanStack Start app that fills a table from `partial.rows`, open [Stre
 
 - `partial` is `DeepPartial<T>`. Every property and every array element is optional. The hook parses the JSON deltas as they arrive. It reads `{}` from `sendMessage()` until the first chunk.
 - `final` is `T | null`. It is `null` until the run completes. Then it holds the full object from the `structured-output.complete` event.
-- The schema on `useChat` gives you types. The streaming path does not validate the object with your schema. If you need validation, do it in your own code.
+- The schema on `useChat` gives you types. The server validates the full object with the schema of `chat({ outputSchema })` before it sends `final`. If the object fails, the run ends with an error and `final` stays `null`. See [Where validation runs](./overview#where-validation-runs).
 
 Some adapters cannot stream the JSON. Anthropic and Ollama send the object as one event. Harness agents also send it at the end (see [Harness Agents](./harnesses)). In these cases `partial` stays `{}` until `final` is set. Your client code does not change.
 

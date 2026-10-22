@@ -20,6 +20,7 @@ const MIDDLEWARE_MODES = [
   { id: 'tool-skip', label: 'Tool Skip (skip with custom result)' },
   { id: 'tool-replace', label: 'Tool Replace (replace result after call)' },
   { id: 'tool-bad-args', label: 'Tool Bad Args (invalid args rewrite)' },
+  { id: 'tool-guard', label: 'Tool Guard (deny on final args)' },
   { id: 'capability', label: 'Capability (provide/consume prefix)' },
   { id: 'phase-recorder', label: 'Phase Recorder (capture phase + chunks)' },
   { id: 'otel', label: 'OpenTelemetry (capture spans/metrics)' },

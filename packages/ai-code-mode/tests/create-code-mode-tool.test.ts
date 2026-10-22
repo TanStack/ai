@@ -3,9 +3,11 @@ import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import { createCodeModeTool } from '../src/create-code-mode-tool'
 import type {
+  CodeModeToolConfig,
   IsolateDriver,
   IsolateContext,
   ExecutionResult,
+  ToolBinding,
   ToolExecutionContext,
 } from '../src/types'
 
@@ -30,6 +32,32 @@ function createMockTool<TName extends string>(name: TName) {
     outputSchema: z.object({ result: z.string() }),
   })
   return def.server(async (input) => ({ result: input.query }))
+}
+
+/**
+ * A driver whose program calls the host bindings, as sandbox code calls
+ * `external_*` functions. A program that throws ends as a failure.
+ */
+function createProgramDriver(
+  program: (bindings: Record<string, ToolBinding>) => Promise<unknown>,
+) {
+  const driver: IsolateDriver = {
+    createContext: async ({ bindings }) => ({
+      execute: vi.fn().mockImplementation(async () => {
+        try {
+          return { success: true, value: await program(bindings), logs: [] }
+        } catch (error) {
+          return {
+            success: false,
+            error: { name: 'Error', message: String(error) },
+            logs: [],
+          }
+        }
+      }),
+      dispose: vi.fn().mockResolvedValue(undefined),
+    }),
+  }
+  return driver
 }
 
 describe('createCodeModeTool', () => {
@@ -57,6 +85,7 @@ describe('createCodeModeTool', () => {
     })
     expect(tool.description).toContain('external_fetchWeather')
     expect(tool.description).toContain('external_dbQuery')
+    expect(tool.description).toContain('{ success, result, logs, error }')
   })
 
   it('tool description says discover_tools is a separate tool', () => {
@@ -325,26 +354,9 @@ describe('createCodeModeTool', () => {
         }),
     )
 
-    const mockContext: IsolateContext = {
-      execute: vi.fn().mockImplementation(async () => {
-        const bindings = vi.mocked(driver.createContext).mock.calls[0]![0]
-          .bindings
-        try {
-          await bindings['external_slow']!.execute({})
-          return { success: true, value: 'finished', logs: [] }
-        } catch (error) {
-          return {
-            success: false,
-            error: { name: 'Error', message: String(error) },
-            logs: [],
-          }
-        }
-      }),
-      dispose: vi.fn().mockResolvedValue(undefined),
-    }
-    const driver: IsolateDriver = {
-      createContext: vi.fn().mockResolvedValue(mockContext),
-    }
+    const driver = createProgramDriver((bindings) =>
+      bindings['external_slow']!.execute({}),
+    )
 
     const tool = createCodeModeTool({ driver, tools: [slowTool] })
     const controller = new AbortController()
@@ -387,6 +399,83 @@ describe('createCodeModeTool', () => {
     const result = await tool.execute!({ typescriptCode: '' })
     expect(result.success).toBe(false)
     expect(result.error?.name).toBe('ValidationError')
+  })
+})
+
+describe('createCodeModeTool aroundCalls', () => {
+  it('calls aroundCalls once per program and runs each call through its hook', async () => {
+    const calls: Array<{ name: string; args: unknown }> = []
+    const aroundCalls = vi.fn<NonNullable<CodeModeToolConfig['aroundCalls']>>(
+      () => (call, run) => {
+        calls.push(call)
+        return run()
+      },
+    )
+    const programSignal = () => aroundCalls.mock.calls[0]![1]
+    let abortedWhileRunning: boolean | undefined
+    const driver = createProgramDriver(async (bindings) => {
+      const fetchWeather = bindings['external_fetchWeather']!
+      const sunny = await fetchWeather.execute({ query: 'sunny' })
+      const rain = await fetchWeather.execute({ query: 'rain' })
+      abortedWhileRunning = programSignal().aborted
+      return [sunny, rain]
+    })
+    const parentContext: ToolExecutionContext = {
+      context: { userId: 'u1' },
+      emitCustomEvent: vi.fn(),
+    }
+    const tool = createCodeModeTool({
+      driver,
+      tools: [createMockTool('fetchWeather')],
+      aroundCalls,
+    })
+
+    const result = await tool.execute!(
+      { typescriptCode: 'return 1' },
+      parentContext,
+    )
+
+    expect(result).toEqual({
+      success: true,
+      result: [{ result: 'sunny' }, { result: 'rain' }],
+      logs: [],
+    })
+    expect(calls).toEqual([
+      { name: 'fetchWeather', args: { query: 'sunny' } },
+      { name: 'fetchWeather', args: { query: 'rain' } },
+    ])
+    expect(aroundCalls).toHaveBeenCalledTimes(1)
+    expect(aroundCalls.mock.calls[0]![0]).toBe(parentContext)
+    expect(abortedWhileRunning).toBe(false)
+    expect(programSignal().aborted).toBe(true)
+  })
+
+  it('aborts the signal when the program times out while a call still waits', async () => {
+    const aroundCalls = vi.fn<NonNullable<CodeModeToolConfig['aroundCalls']>>(
+      (_context, signal) => () =>
+        // Waits for an answer, for example from the user, until the program ends.
+        new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(signal.reason))
+        }),
+    )
+    let waitingCall: Promise<unknown> | undefined
+    const driver = createProgramDriver(async (bindings) => {
+      waitingCall = bindings['external_fetchWeather']!.execute({
+        query: 'sunny',
+      }).catch((error: unknown) => error)
+      throw new Error('Execution timed out')
+    })
+    const tool = createCodeModeTool({
+      driver,
+      tools: [createMockTool('fetchWeather')],
+      aroundCalls,
+    })
+
+    const result = await tool.execute!({ typescriptCode: 'return 1' })
+
+    expect(result.error?.message).toBe('Error: Execution timed out')
+    expect(aroundCalls.mock.calls[0]![1].aborted).toBe(true)
+    expect(await waitingCall).toMatchObject({ name: 'AbortError' })
   })
 })
 

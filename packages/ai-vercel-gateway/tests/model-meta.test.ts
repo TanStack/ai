@@ -43,7 +43,7 @@ describe('Vercel Gateway per-model input modalities', () => {
 
   it('maps pdf input to document on file-input chat models', () => {
     expectTypeOf<
-      VercelGatewayModelInputModalitiesByName['alibaba/qwen3-235b-a22b-thinking']
+      VercelGatewayModelInputModalitiesByName['alibaba/qwen3.5-flash']
     >().toEqualTypeOf<readonly ['text', 'image', 'document']>()
   })
 })

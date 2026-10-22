@@ -31,6 +31,7 @@ export default mergeConfig(
   tanstackViteConfig({
     entry: [
       './src/index.ts',
+      './src/harness.ts',
       './src/node/index.ts',
       './src/static/index.ts',
       './src/testing/index.ts',

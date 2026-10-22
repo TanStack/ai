@@ -633,6 +633,569 @@ export interface BlobStore {
   list: (options?: BlobListOptions) => Promise<BlobListPage>
 }
 
+// ===========================================================================
+// Session stores
+// ===========================================================================
+//
+// Opt-in stores for a host that keeps long-lived sessions: an append-only
+// log, and a list of sessions. `withPersistence` writes only `sessions`, an entry
+// for each subagent child, in the tenant of its `tenantId` option.
+
+/**
+ * One record of a session log. `type` names the kind of record. The other
+ * fields are JSON. The store does not read records: the writer owns the
+ * `type` names.
+ */
+export interface LogRecord {
+  type: string
+  [key: string]: unknown
+}
+
+/** A {@link LogRecord} and its position in the log. */
+export interface LogEntry {
+  /** The position of the record. The first record of a log is at 1. */
+  seq: number
+  record: LogRecord
+}
+
+/**
+ * The epoch of a log that no host ever acquired. A writer that never calls
+ * {@link LogStore.acquireOwnership} writes with this epoch.
+ */
+export const NO_OWNER_EPOCH = 0
+
+/**
+ * The error {@link LogStore.append} rejects with when `seq` is not the next
+ * free position of the log. It means that another writer appended first.
+ * Nothing of the rejected batch is written.
+ */
+export class LogConflictError extends Error {
+  readonly logId: string
+  readonly seq: number
+
+  constructor(logId: string, seq: number) {
+    super(
+      `Log conflict on log ${JSON.stringify(logId)}: position ${seq} is not the next free position.`,
+    )
+    this.name = 'LogConflictError'
+    this.logId = logId
+    this.seq = seq
+  }
+}
+
+/**
+ * The error that a fenced write ({@link LogStore.append},
+ * {@link LogStore.putSnapshot}, {@link LogStore.truncate},
+ * {@link LogStore.pinToWorkers}) rejects with when `epoch` does not give the
+ * writer the log. It means that another host acquired the log, that the
+ * owner released it, that the log was deleted, or that the writer did not
+ * acquire a log that needs an owner. Nothing is written. Stop the work on the
+ * log.
+ */
+export class OwnershipLostError extends Error {
+  readonly logId: string
+  readonly epoch: number
+
+  constructor(logId: string, epoch: number) {
+    super(
+      `Ownership lost on log ${JSON.stringify(logId)}: epoch ${epoch} does not own the log.`,
+    )
+    this.name = 'OwnershipLostError'
+    this.logId = logId
+    this.epoch = epoch
+  }
+}
+
+/**
+ * The error {@link LogStore.read} rejects with when the query starts before
+ * the first record that the log keeps. A truncate dropped the records before
+ * `firstSeq`. Load the snapshot, then read after its `seq`.
+ */
+export class LogTruncatedError extends Error {
+  readonly logId: string
+  readonly firstSeq: number
+
+  constructor(logId: string, firstSeq: number) {
+    super(
+      `Log ${JSON.stringify(logId)} is truncated: the first kept position is ${firstSeq}.`,
+    )
+    this.name = 'LogTruncatedError'
+    this.logId = logId
+    this.firstSeq = firstSeq
+  }
+}
+
+/**
+ * The result of {@link LogStore.offerInput}:
+ *
+ * - `'offered'`: the store keeps the input as a pending offer.
+ * - `'duplicate'`: the id was offered before with an equal record.
+ * - `'conflict'`: the id was offered before with a different record.
+ * - `'deleted'`: `deleteLog` deleted the log, and no host acquired it since.
+ *   Nothing is stored.
+ */
+export type OfferResult = 'offered' | 'duplicate' | 'conflict' | 'deleted'
+
+/** A pending input of a log, from {@link LogStore.listOfferedInputs}. */
+export interface OfferedInput {
+  inputId: string
+  record: LogRecord
+  /** Epoch milliseconds, from the store clock. */
+  offeredAt: number
+}
+
+/** A log that has work and no live owner, from {@link LogStore.listLogsWithoutOwner}. */
+export interface OrphanedLog {
+  logId: string
+  /** The name of the setup that runs the log, so a worker can open it. */
+  harness: string
+  /**
+   * Why the log has work:
+   *
+   * - `'expired'`: the ownership expired and the owner did not release it.
+   * - `'offered'`: the log has pending offers and no live owner.
+   * - `'wake'`: the owner released the log with a wake time that is due.
+   */
+  reason: 'expired' | 'offered' | 'wake'
+}
+
+/** The saved state of a log, from {@link LogStore.getSnapshot}. */
+export interface LogSnapshot {
+  /** The position of the last record that `state` includes. */
+  seq: number
+  /** The version of the `state` shape. The writer owns the version names. */
+  version: string
+  /** JSON state. The store does not read it. */
+  state: unknown
+}
+
+/**
+ * Durable append-only log of a session tree. A host keeps the events, the
+ * transcript, the inputs, and the tool steps of the tree in it. The store also
+ * keeps one ownership record per log, the pending inputs (the input lane), and
+ * the latest snapshot.
+ *
+ * The log has one writer at a time: the owner. A host gets the log with
+ * `acquireOwnership`, and each fenced write carries the epoch that `acquireOwnership` returned.
+ * When another host acquired the log, the epoch is old and the write fails.
+ * `append` is also a compare-and-append: the writer names the position of the
+ * first record, and the store refuses the batch when that position is taken.
+ *
+ * The store clock decides expiry. Callers pass `ttlMs` and `wakeInMs`, never
+ * timestamps. Records are JSON: a store keeps copies, never the objects of
+ * the caller.
+ */
+export interface LogStore {
+  /**
+   * Write `records` at positions `seq`, `seq + 1`, and so on, and consume the
+   * pending offers in `consumes` in the same write.
+   *
+   * The store checks in this order, and the first check that fails rejects:
+   *
+   * 1. The fence. On a log that a host acquired, `epoch` must be the current
+   *    epoch, and the owner must not have released the log. On a log that no
+   *    host acquired, `epoch` must be {@link NO_OWNER_EPOCH}. A deleted log
+   *    refuses every epoch until the next `acquireOwnership`. Else reject with
+   *    {@link OwnershipLostError}.
+   * 2. `seq` must be the next free position (the last position plus 1, or 1
+   *    for a new log). Else reject with {@link LogConflictError}.
+   * 3. Each id in `consumes` must be a pending offer. Else reject with a
+   *    `TypeError`.
+   * 4. Each record must become JSON. Else reject with the error of the copy.
+   *
+   * INVARIANT (atomic): the store writes the whole batch and consumes all of
+   * `consumes`, or it changes nothing. A crash never leaves a part of a batch.
+   *
+   * An empty batch with no `consumes` resolves, writes nothing, and checks
+   * nothing.
+   */
+  append: (batch: {
+    logId: string
+    seq: number
+    epoch: number
+    records: ReadonlyArray<LogRecord>
+    consumes?: ReadonlyArray<string>
+  }) => Promise<void>
+  /**
+   * The entries of `logId` with `seq` greater than `after` (default 0), in
+   * ascending order, at most `limit` of them. `limit: 0` gives `[]`.
+   *
+   * If a truncate dropped the record at position `after + 1`, reject with
+   * {@link LogTruncatedError}.
+   *
+   * INVARIANT: a log that has no records gives `[]`. The returned records are
+   * copies: a change to them does not change the log.
+   */
+  read: (query: {
+    logId: string
+    after?: number
+    limit?: number
+  }) => Promise<Array<LogEntry>>
+  /**
+   * Call `listener` after each successful `append` to `logId`, each `offerInput`
+   * that returns `'offered'`, and each `deleteLog` of `logId`. The calls come
+   * from every store instance on the same backend (other machines). A store
+   * that cannot push must poll. A listener that throws is logged, and the
+   * write still succeeds. Returns a function that stops the calls.
+   */
+  subscribe: (watch: { logId: string; listener: () => void }) => () => void
+
+  /**
+   * Get the log for `ownerId` for `ttlMs` milliseconds of the store clock.
+   *
+   * - Returns `null` when another owner holds the log (not released, and not
+   *   expired).
+   * - Returns `null` when the log has an affinity that is not
+   *   `claim.affinity`, and the host of that affinity is alive (see
+   *   `markHostAlive`). The pin of a host with no live heartbeat does not count.
+   * - When `ownerId` already holds the log, extends the expiry and returns
+   *   the same epoch.
+   * - Else increments the epoch, stores `harness`, clears the wake time,
+   *   opens a deleted log again, and returns the new epoch. The epoch never
+   *   goes down, also after `releaseOwnership` and `deleteLog`.
+   * - When the log had another owner whose ownership expired with no
+   *   `releaseOwnership`, the result has `expired: true`: that owner stopped.
+   *
+   * Rejects with a `RangeError` when `ttlMs` is not more than 0.
+   */
+  acquireOwnership: (claim: {
+    logId: string
+    harness: string
+    ownerId: string
+    ttlMs: number
+    affinity?: string
+  }) => Promise<{ epoch: number; expired?: boolean } | null>
+  /**
+   * Extend the ownership to `ttlMs` milliseconds from now. Returns `true` only
+   * when the log is not released, `epoch` is the current epoch, and `ownerId`
+   * is the owner. A renew after the expiry succeeds when no other host
+   * acquired the log in between.
+   *
+   * Rejects with a `RangeError` when `ttlMs` is not more than 0.
+   */
+  renewOwnership: (claim: {
+    logId: string
+    ownerId: string
+    epoch: number
+    ttlMs: number
+  }) => Promise<boolean>
+  /**
+   * Give up the log. With a matching `epoch` and `ownerId`, mark the log
+   * released, and set a wake time `wakeInMs` from now when `wakeInMs` is
+   * given. Any other call does nothing.
+   *
+   * Rejects with a `RangeError` when `wakeInMs` is less than 0.
+   */
+  releaseOwnership: (claim: {
+    logId: string
+    ownerId: string
+    epoch: number
+    wakeInMs?: number
+  }) => Promise<void>
+  /**
+   * Pin the log to the workers with `affinity`, or unpin it with `null`.
+   * Only the owner pins: `epoch` must be the current epoch of an acquired
+   * log that is not released. Else reject with {@link OwnershipLostError},
+   * also for {@link NO_OWNER_EPOCH}.
+   */
+  pinToWorkers: (pin: {
+    logId: string
+    epoch: number
+    affinity: string | null
+  }) => Promise<void>
+  /**
+   * Mark the host `hostId` alive for `ttlMs` milliseconds of the store
+   * clock. `hostId` is the affinity of its pins. A pin counts only while its
+   * host is alive, so the logs of a host that stopped go to other hosts.
+   *
+   * Rejects with a `RangeError` when `ttlMs` is not more than 0.
+   */
+  markHostAlive: (beat: { hostId: string; ttlMs: number }) => Promise<void>
+  /**
+   * The logs that have work and no live owner, at most `limit` of them. A log
+   * is listed for the first reason that applies:
+   *
+   * 1. `'expired'`: not released, and the expiry is due.
+   * 2. `'offered'`: pending offers, and no live owner.
+   * 3. `'wake'`: released, and the wake time is due.
+   *
+   * Only logs of `harnesses` are listed, when `harnesses` is given. A log with
+   * an affinity is listed only when `affinity` is equal, or the host of the
+   * affinity is not alive (see `markHostAlive`). The log that is due
+   * first comes first. `limit: 0` gives `[]`.
+   */
+  listLogsWithoutOwner: (query: {
+    limit: number
+    harnesses?: ReadonlyArray<string>
+    affinity?: string
+  }) => Promise<Array<OrphanedLog>>
+
+  /**
+   * Keep `record` as a pending input of the log. Any machine can offer. Only
+   * the owner consumes, with `append({ consumes })`.
+   *
+   * - A deleted log returns `'deleted'` and stores nothing, until the next
+   *   `acquireOwnership`.
+   * - An `inputId` that was offered before (pending or consumed) returns
+   *   `'duplicate'` when the JSON of the record is equal, else `'conflict'`.
+   *   Nothing changes.
+   * - A new `inputId` is stored with the store clock as `offeredAt`, calls
+   *   the listeners, and returns `'offered'`. `harness` names the harness of
+   *   the log only when the log has no owner and no earlier offer: the
+   *   harness of the owner, else of the first offer, stays.
+   *
+   * Rejects, and stores nothing, when the record cannot become JSON.
+   */
+  offerInput: (input: {
+    logId: string
+    harness: string
+    inputId: string
+    record: LogRecord
+  }) => Promise<OfferResult>
+  /** The pending offers of `logId`, in offer order. */
+  listOfferedInputs: (query: { logId: string }) => Promise<Array<OfferedInput>>
+
+  /** The latest snapshot of `logId`, or `null` when the log has none. */
+  getSnapshot: (query: { logId: string }) => Promise<LogSnapshot | null>
+  /**
+   * Replace the snapshot of the log. Fenced like `pinToWorkers`: only the
+   * owner of an acquired log writes it. Rejects with a `RangeError`
+   * unless `firstSeq - 1 <= seq <= head`. `head` is the last position of the
+   * log. `firstSeq` is the first kept position after a `truncate`, or 1. A
+   * snapshot before `firstSeq - 1` needs records that a truncate dropped.
+   */
+  putSnapshot: (
+    snapshot: { logId: string; epoch: number } & LogSnapshot,
+  ) => Promise<void>
+  /**
+   * Drop the records with `seq` less than `beforeSeq`. The positions keep
+   * counting, so the next `append` is still at the last position plus 1.
+   * Fenced like `pinToWorkers`: only the owner of an acquired log truncates.
+   * Rejects with a `RangeError` unless a snapshot
+   * has a `seq` of `beforeSeq - 1` or more.
+   */
+  truncate: (cut: {
+    logId: string
+    epoch: number
+    beforeSeq: number
+  }) => Promise<void>
+  /**
+   * Remove the records, the offers, the snapshot, the truncation point, the
+   * affinity, and the wake time of `logId`, and call the listeners. The epoch
+   * counter stays. Every fenced write to the log fails until the next
+   * `acquireOwnership`, also with {@link NO_OWNER_EPOCH}, so a late write cannot bring
+   * the deleted records back. An `offerInput` returns `'deleted'`.
+   */
+  deleteLog: (target: { logId: string }) => Promise<void>
+}
+
+/** Type a {@link LogStore} implementation inline. */
+export function defineLogStore(store: LogStore): LogStore {
+  return store
+}
+
+/**
+ * A user who can open a session, and the role of that user in it. The
+ * `owner` is the user who opened the session. The host decides what a
+ * `member`, a `viewer`, and an `operator` (a person who takes over from an
+ * agent) can do.
+ */
+export interface SessionMember {
+  userId: string
+  role: 'owner' | 'member' | 'viewer' | 'operator'
+}
+
+/**
+ * The key of one session index entry. Without `tenantId`, the key is in the
+ * default tenant.
+ */
+export interface SessionIndexKey {
+  tenantId?: string
+  threadId: string
+}
+
+/**
+ * One entry of the session index: what a list of sessions shows for one
+ * thread. The index holds no messages. The thread data stays in the stores
+ * that hold it.
+ *
+ * @property createdAt - Epoch ms when the thread was first opened.
+ * @property updatedAt - Epoch ms of the last change. {@link SessionIndexStore.list}
+ *   sorts by it.
+ */
+export interface SessionIndexEntry<TMetadata = Record<string, unknown>> {
+  /**
+   * The tenant of the thread. Without it, the entry is in the default tenant.
+   * The tenant and `threadId` together are the key, so one thread id in two
+   * tenants is two entries.
+   */
+  tenantId?: string
+  threadId: string
+  /**
+   * The users who can open the thread. The owner is the member with the role
+   * `owner`. Empty when the thread has no owner: a host without access rules
+   * opened it without a user. A subagent child keeps it empty: access to a
+   * child goes through its top-level thread.
+   */
+  members: Array<SessionMember>
+  /** The name of the setup that runs the thread. */
+  harness?: string
+  title?: string
+  /**
+   * The thread that started this one. A subagent child has the thread id
+   * `subagent:<runId>` and the thread of its parent here.
+   */
+  parentThreadId?: string
+  /** The tool call in the parent thread that started this thread. */
+  parentToolCallId?: string
+  createdAt: number
+  updatedAt: number
+  pinned?: boolean
+  /**
+   * `true` when the thread is archived. {@link SessionIndexStore.list} leaves
+   * archived entries out unless `withArchived` is `true`. The thread and its
+   * data stay, and it still opens.
+   */
+  archived?: boolean
+  /** Token totals of the thread. */
+  usage?: {
+    /** Model calls. */
+    turns: number
+    promptTokens: number
+    completionTokens: number
+    totalTokens: number
+    /** Input tokens the provider read from its prompt cache. */
+    cachedTokens: number
+    /** Input tokens the provider wrote to its prompt cache. */
+    cacheWriteTokens: number
+    /** Cost in USD, when the host counts it. */
+    cost?: number
+  }
+  /** Data the app owns, for example the context items a user pinned. */
+  metadata?: TMetadata
+}
+
+/** Options for {@link SessionIndexStore.list}. */
+export interface SessionIndexListOptions {
+  /**
+   * The tenant to list. Without it, the list has only the default tenant. A
+   * list never has the entries of another tenant.
+   */
+  tenantId?: string
+  /**
+   * Only the entries whose `members` have this user id, with any role. An
+   * entry with no `members` (a subagent child) never matches.
+   */
+  memberId?: string
+  /** The most entries in one page. Without it, the page has all entries. */
+  limit?: number
+  /** The `cursor` of the previous page. */
+  cursor?: string
+  /**
+   * Only the entries whose `parentThreadId` is this thread. `null`: only the
+   * entries with no parent (the top-level sessions).
+   */
+  parentThreadId?: string | null
+  /**
+   * Only the entries whose `title` contains this text, without case. An entry
+   * without a title never matches.
+   */
+  search?: string
+  /** Only the entries whose `harness` is exactly this name. */
+  harness?: string
+  /**
+   * Only the entries whose `metadata` has each key with exactly this string
+   * value.
+   */
+  metadata?: Record<string, string>
+  /**
+   * `true`: the list has the archived entries too. Default: it leaves out the
+   * entries with `archived: true`.
+   */
+  withArchived?: boolean
+}
+
+/**
+ * One page of a {@link SessionIndexStore.list} scan.
+ *
+ * @property cursor - The token for the next page. Only when `truncated`.
+ * @property truncated - `true` when more entries match after this page.
+ */
+export interface SessionIndexPage {
+  entries: Array<SessionIndexEntry>
+  cursor?: string
+  truncated?: boolean
+}
+
+/**
+ * Durable index of sessions, one entry per tenant and thread. The key is
+ * `(tenantId ?? '', threadId)`: a key without `tenantId` is in the default
+ * tenant, and one thread id in two tenants is two entries.
+ */
+export interface SessionIndexStore {
+  /** The entry for `key`, or `undefined`. */
+  get: (key: SessionIndexKey) => Promise<SessionIndexEntry | undefined>
+  /**
+   * The entry for `key` with its revision, or `undefined` when it is absent.
+   * A write that changes the entry gives it a new revision. A revision may
+   * name the content (a content-hash ETag, as in S3 or Netlify Blobs), so the
+   * same entry written again, also after a `delete`, can get the same
+   * revision back.
+   */
+  getVersioned: (
+    key: SessionIndexKey,
+  ) => Promise<{ entry: SessionIndexEntry; revision: string } | undefined>
+  /**
+   * Write the entry for the tenant and thread of `entry`.
+   *
+   * INVARIANT (full replace): a second upsert for the same key replaces the
+   * whole entry. A field that the new entry does not have is gone. To change
+   * one field, read the entry and write a changed copy with `upsertIf`.
+   */
+  upsert: (entry: SessionIndexEntry) => Promise<void>
+  /**
+   * Write `entry` only when the current revision of its key is `revision`
+   * (`null` means "only when absent"). Returns the new revision, or
+   * `{ ok: false, reason: 'conflict' }` when someone else wrote first. With
+   * `getVersioned`, hosts on several machines do not lose each other's
+   * changes to one entry. A full replace, the same as `upsert`.
+   */
+  upsertIf: (input: {
+    entry: SessionIndexEntry
+    revision: string | null
+  }) => Promise<
+    { ok: true; revision: string } | { ok: false; reason: 'conflict' }
+  >
+  /**
+   * The entries of one tenant that match the filters, newest `updatedAt`
+   * first. Entries with the same `updatedAt` are in `threadId` order. Pinned
+   * entries get no special place. All filters must match. Archived entries
+   * are left out unless `withArchived` is `true`.
+   *
+   * CURSOR SEMANTICS: when `limit` is given and more entries match, the page
+   * is `truncated: true` with a `cursor`. Pass that `cursor` back, with the
+   * same filters, to get the entries that follow the last entry of the page.
+   * An entry that changes between two pages can move in the order.
+   */
+  list: (options?: SessionIndexListOptions) => Promise<SessionIndexPage>
+  /**
+   * Remove the entry for `key`. A hard delete: after it, `get` and
+   * `getVersioned` return `undefined`, and `upsertIf` with revision `null`
+   * writes a new entry. A no-op for an unknown key.
+   *
+   * This removes the entry only. The messages, the log, and the other data of
+   * the thread stay. The stores that hold that data remove it.
+   */
+  delete: (key: SessionIndexKey) => Promise<void>
+}
+
+/** Type a {@link SessionIndexStore} implementation inline. */
+export function defineSessionIndexStore(
+  store: SessionIndexStore,
+): SessionIndexStore {
+  return store
+}
+
 /**
  * Sparse bag of **state** store keys — composition / validation only.
  *
@@ -653,6 +1216,10 @@ export interface AIPersistenceStores {
   generationRuns?: GenerationRunStore
   artifacts?: ArtifactStore
   blobs?: BlobStore
+  /** Append-only session log. */
+  log?: LogStore
+  /** The session index. */
+  sessions?: SessionIndexStore
 }
 
 /**
@@ -831,6 +1398,8 @@ const storeKeys = [
   'metadata',
   'artifacts',
   'blobs',
+  'log',
+  'sessions',
 ] satisfies Array<StoreKey>
 
 const storeKeySet = new Set<string>(storeKeys)

@@ -196,7 +196,7 @@ If a socket does not need to survive a drop, leave out `durability`. `toWebSocke
 | --- | --- |
 | `protocols` | WebSocket subprotocols, passed to the `WebSocket` constructor as they are. |
 | `body` | Static extra fields added to every outgoing `RunAgentInput` frame. Same as `body` on the HTTP connections. |
-| `reconnect` | Reconnect limits (`maxAttempts`, `delayMs`). They work the same as on `fetchServerSentEvents`. See [Advanced](./advanced). |
+| `reconnect` | Reconnect limits (`maxAttempts`, `initialDelayMs`, `maxDelayMs`, `budgetMs`). They work the same as on `fetchServerSentEvents`. See [Advanced](./advanced#reconnection-bounding). |
 | `WebSocketImpl` | Your own `WebSocket` implementation, for tests and non-browser runtimes. |
 
 [Transports](../transports/overview) shows where `webSocket()` fits next to the other connections.

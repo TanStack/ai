@@ -131,6 +131,7 @@ The Node, QuickJS, QuickJS Bun, and Cloudflare drivers have no access to the hos
 - **Run somewhere other than Node:** [Isolate Drivers](./code-mode-isolates).
 - **Let the model save and reuse code:** [Code Mode with Snippets](./code-mode-with-snippets).
 - **Have many tools:** [Lazy Tools](./lazy-tools) keeps rarely used tools out of the prompt.
+- **Run in a harness session:** [Code mode in a harness](../harness/code-mode) adds code mode as a plugin.
 
 ## Advanced
 

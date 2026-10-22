@@ -57,6 +57,50 @@ const stream = chat({
 
 The agent can now call `getTodos`. The tool reads `todos` on your host and sends the result into the sandbox.
 
+## Use the sandbox from a tool
+
+A server tool can read and write the sandbox of its run. Call `context.get(SandboxCapability)`. It returns the `SandboxHandle` that `withSandbox` opened for this run.
+
+```ts
+import { chat, toolDefinition } from '@tanstack/ai'
+import { grokBuildText } from '@tanstack/ai-grok-build'
+import { SandboxCapability, withSandbox } from '@tanstack/ai-sandbox'
+import type { SandboxDefinition } from '@tanstack/ai-sandbox'
+import { z } from 'zod'
+
+// The definition from the step above.
+declare const repoSandbox: SandboxDefinition
+
+const readPackageName = toolDefinition({
+  name: 'readPackageName',
+  description: 'Return the name in package.json of the repo.',
+  inputSchema: z.object({}),
+}).server(async (_input, context) => {
+  const sandbox = context?.get?.(SandboxCapability)
+  if (!sandbox) return 'No sandbox in this run.'
+  const pkg: unknown = JSON.parse(
+    await sandbox.fs.read('/workspace/package.json'),
+  )
+  return typeof pkg === 'object' && pkg !== null && 'name' in pkg
+    ? String(pkg.name)
+    : 'unknown'
+})
+
+const stream = chat({
+  threadId: 'thread-1',
+  adapter: grokBuildText('grok-build'),
+  messages: [{ role: 'user', content: 'What is this package called?' }],
+  tools: [readPackageName],
+  middleware: [withSandbox(repoSandbox)],
+})
+```
+
+- `get` throws if the run has no `withSandbox`.
+- `context.getOptional(SandboxCapability)` returns `undefined` instead.
+- The tool still runs on your host. Only the sandbox calls (`fs.read` here) go to the sandbox.
+
+For other capabilities, see [Read a middleware capability](../tools/server-tools-advanced#read-a-middleware-capability).
+
 ## How it works
 
 The agent always has its own native tools (Bash, file edits, search). They run on the sandbox filesystem. Your `chat()` tools go over a host-side MCP tool proxy:
