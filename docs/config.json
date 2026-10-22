@@ -1111,7 +1111,7 @@
           "label": "Durable sessions",
           "to": "harness/durable-sessions",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-20"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Run background work on workers",

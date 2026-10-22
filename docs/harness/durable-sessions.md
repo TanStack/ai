@@ -279,6 +279,7 @@ On a serverless platform, two requests for one thread often reach two instances.
 - The first write of a host takes the log. From then on, this host owns the thread.
 - One timer renews every thread that the host owns. The host gives a thread back when it has no work.
 - An input that reaches another instance waits in the log for the owner. The receipt is `queued`, and the owner runs it within a second. If the owner refuses it, `session.settled({ inputId })` on that instance rejects with `InputRejectedError`. See [Send inputs safely](./inputs).
+- `session.runCommand(...)` on another instance ends as the command ends on the owner. It resolves with the result of the command. It rejects when the command throws, or with `InputRejectedError` when the owner refuses it.
 - Every instance reads the thread, also while the owner runs a background job. A client gets the events from the log, on any instance. A `POST run` on the second instance streams the turn that the owner runs.
 - The thread settings, the config values, and the state of an interrupted turn follow the changes that other hosts write.
 

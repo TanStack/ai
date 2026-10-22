@@ -132,7 +132,7 @@ describe('harnessText', () => {
     await host.close()
   })
 
-  it('opens one session per call without a thread id, as the user, and closes it', async () => {
+  it('opens one session per thread, as the user, and closes it', async () => {
     const inner = mockAdapter([() => text('one'), () => text('two')])
     const seen: Array<{ threadId: string; user: unknown }> = []
     const watch = definePlugin({
@@ -160,10 +160,13 @@ describe('harnessText', () => {
       user: { id: 'u-1' },
     })
 
-    for (const content of ['hello', 'again']) {
+    for (const [threadId, content] of [
+      ['thread-1', 'hello'],
+      ['thread-2', 'again'],
+    ] as const) {
       for await (const _chunk of chat({
         adapter,
-        threadId: 'thread-1',
+        threadId,
         messages: [{ role: 'user', content }],
       })) {
         // drain
