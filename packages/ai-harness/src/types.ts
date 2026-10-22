@@ -639,6 +639,17 @@ export interface TurnInfo {
   overrides?: TurnOverrides
   /** The run of this turn: its user, and that user's credentials and keys. */
   run: RunContext
+  /**
+   * The model of the turn, `provider/model`, as `harness.usage` names it.
+   * The turn sets it when it picks its adapter, so plugin setup,
+   * `onTurnStart`, and the `adapter()` picks do not see it yet.
+   */
+  model?: string
+  /**
+   * How many times the input of the turn ran: 1 the first time. A turn that
+   * recovery runs again after a host stopped has a larger number.
+   */
+  attempt?: number
 }
 
 /** What a chat turn operation resolves to. */

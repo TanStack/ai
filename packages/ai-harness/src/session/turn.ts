@@ -696,6 +696,9 @@ export abstract class SessionTurn<
         this.activeTurn === operation && !this.declinedSignIns.has(id),
       handoff: (options) => turnHandoff(options),
     })
+    const attempt = turn.inputId
+      ? this.writer.state.inputs.get(turn.inputId)?.attempt
+      : undefined
     const info: TurnInfo = {
       operationId: operation.id,
       ...(turn.inputId ? { inputId: turn.inputId } : {}),
@@ -704,6 +707,7 @@ export abstract class SessionTurn<
       ...(sender ? { user: sender } : {}),
       ...(turn.overrides ? { overrides: turn.overrides } : {}),
       run,
+      ...(attempt ? { attempt } : {}),
     }
     try {
       await this.flushNotes()
@@ -838,6 +842,7 @@ export abstract class SessionTurn<
           this.harness.adapter)
       if (!model) throw new Error(NO_MODEL)
       const adapter: AnyTextAdapter = await run.keys.adapter(model)
+      info.model = `${adapter.name}/${adapter.model}`
       const resolvePrompt = (prompt: string | ((turn: TurnInfo) => string)) =>
         typeof prompt === 'function' ? prompt(info) : prompt
       const turnTools = overrides?.tools ?? []

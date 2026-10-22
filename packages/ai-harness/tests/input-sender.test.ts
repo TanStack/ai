@@ -608,6 +608,9 @@ describe('recovery keeps the sender and the context', () => {
         message: 'go',
         context: { screen: 'x' },
         user: { id: 'bob' },
+        // The second run of the input, on the model it ran with.
+        attempt: 2,
+        model: 'mock/test-model',
       }),
     ])
     expect(seen).toEqual([{ user: 'bob', context: { screen: 'x' } }])
@@ -671,6 +674,9 @@ describe('the turn where the model is picked', () => {
         runId: turn.id,
         threadId: THREAD,
       }),
+      attempt: 1,
+      // Set once the turn picked its adapter.
+      model: 'mock/test-model',
     }
     expect(setups).toEqual([expected])
     expect(picks).toEqual([expected])

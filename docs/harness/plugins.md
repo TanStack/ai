@@ -478,6 +478,8 @@ The `turn` has these fields:
 | `user` | Who sent the input. Default: the user that opened the session. See [Share a thread](./shared-threads). |
 | `overrides` | The [overrides of the prompt](./turn-control#give-one-prompt-its-own-settings), when it has some. |
 | `run` | The run of the turn: its user, and that user's credentials and keys. See [Act as the user of a run](#act-as-the-user-of-a-run). |
+| `model` | The model of the turn, as `provider/model`. The turn sets it when it picks its adapter, so `setup`, `onTurnStart`, and the picker do not see it yet. |
+| `attempt` | How many times the input ran: `1` the first time. A turn that recovery runs again after a host stopped has a larger number. |
 
 The session uses the picks like this:
 

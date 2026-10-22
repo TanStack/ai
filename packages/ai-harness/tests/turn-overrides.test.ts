@@ -572,6 +572,9 @@ describe('turn overrides: plugin adapter picker', () => {
         message: 'go',
         overrides,
         run: expect.objectContaining({ runId: turn.id }),
+        attempt: 1,
+        // Set after the pick, from the adapter the turn runs on.
+        model: 'mock/test-model',
       },
     ])
     expect(picked.calls).toHaveLength(0)
