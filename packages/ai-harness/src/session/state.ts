@@ -605,10 +605,11 @@ export abstract class SessionState<
     user?: HarnessUser
     controlId?: string
   }): Promise<Receipt> {
+    const sender = this.actor(user)
     const { admission, input } = await this.accept(
       inputId,
       { op: 'config', key: sent.key, value: sent.value },
-      this.actor(user),
+      sender,
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     // `acceptInput` can change the input.
