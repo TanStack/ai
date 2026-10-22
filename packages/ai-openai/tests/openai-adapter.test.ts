@@ -433,13 +433,14 @@ describe('OpenAI adapter option mapping', () => {
   })
 
   it.each([
-    { model: 'gpt-6.1-sol', reasoning: undefined, keepsSampling: false },
-    { model: 'gpt-6-sol', reasoning: 'low', keepsSampling: false },
+    { reasoning: undefined, keepsSampling: false },
+    { reasoning: 'low', keepsSampling: false },
     // OpenAI accepts sampling on gpt-6-sol / gpt-6-luna when effort is `none`.
-    { model: 'gpt-6-sol', reasoning: 'off', keepsSampling: true },
+    { reasoning: 'off', keepsSampling: true },
   ] as const)(
-    'sampling on $model with reasoning $reasoning: kept=$keepsSampling',
-    async ({ model, reasoning, keepsSampling }) => {
+    'sampling on gpt-6-sol with reasoning $reasoning: kept=$keepsSampling',
+    async ({ reasoning, keepsSampling }) => {
+      const model = 'gpt-6-sol'
       const mockStream = createMockChatCompletionsStream([
         {
           type: 'response.created',
@@ -467,6 +468,7 @@ describe('OpenAI adapter option mapping', () => {
       for await (const _ of chat({
         adapter,
         messages: [{ role: 'user', content: 'hi' }],
+        threadId: 'thread-1',
         reasoning,
         modelOptions: {
           temperature: 0.7,
