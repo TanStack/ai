@@ -220,6 +220,86 @@ function toAnthropicToolChoice(
   return { type: 'tool' as const, name: choice.name }
 }
 
+/** JSON Schema keywords that Anthropic structured outputs reject. */
+const UNSUPPORTED_SCHEMA_KEYWORDS = new Set([
+  'minimum',
+  'maximum',
+  'exclusiveMinimum',
+  'exclusiveMaximum',
+  'multipleOf',
+  'minLength',
+  'maxLength',
+  'maxItems',
+  'uniqueItems',
+  'minProperties',
+  'maxProperties',
+])
+const SUPPORTED_STRING_FORMATS = new Set([
+  'date-time',
+  'time',
+  'date',
+  'duration',
+  'email',
+  'hostname',
+  'uri',
+  'ipv4',
+  'ipv6',
+  'uuid',
+])
+const SCHEMA_MAP_KEYWORDS = new Set(['properties', '$defs', 'definitions'])
+const SUBSCHEMA_KEYWORDS = new Set([
+  'items',
+  'prefixItems',
+  'anyOf',
+  'allOf',
+  'oneOf',
+  'not',
+  'additionalProperties',
+])
+
+/**
+ * Moves the JSON Schema keywords that Anthropic rejects into `description`,
+ * like the SDK's `transformJSONSchema`. The SDK helper is not used because it
+ * also moves `enum`, `const` and `default`, which Anthropic supports. The
+ * response is still validated against the original schema.
+ */
+function toAnthropicOutputSchema(schema: unknown): unknown {
+  if (Array.isArray(schema)) return schema.map(toAnthropicOutputSchema)
+  if (!schema || typeof schema !== 'object') return schema
+  const result: Record<string, unknown> = {}
+  const moved: Array<string> = []
+  for (const [key, value] of Object.entries(schema)) {
+    if (
+      UNSUPPORTED_SCHEMA_KEYWORDS.has(key) ||
+      (key === 'minItems' && typeof value === 'number' && value > 1) ||
+      (key === 'format' && !SUPPORTED_STRING_FORMATS.has(String(value)))
+    ) {
+      moved.push(`${key}: ${JSON.stringify(value)}`)
+    } else if (
+      SCHEMA_MAP_KEYWORDS.has(key) &&
+      value &&
+      typeof value === 'object'
+    ) {
+      result[key] = Object.fromEntries(
+        Object.entries(value).map(([name, sub]) => [
+          name,
+          toAnthropicOutputSchema(sub),
+        ]),
+      )
+    } else {
+      result[key] = SUBSCHEMA_KEYWORDS.has(key)
+        ? toAnthropicOutputSchema(value)
+        : value
+    }
+  }
+  if (moved.length > 0) {
+    const description =
+      typeof result.description === 'string' ? `${result.description}\n\n` : ''
+    result.description = `${description}{${moved.join(', ')}}`
+  }
+  return result
+}
+
 /** The beta header of each single `computer` tool version. */
 const COMPUTER_USE_BETAS = {
   computer_20241022: 'computer-use-2024-10-22',
@@ -976,7 +1056,10 @@ export class AnthropicTextAdapter<
                 ? {
                     format: {
                       type: 'json_schema' as const,
-                      schema: combinedSchema,
+                      schema: toAnthropicOutputSchema(combinedSchema) as Record<
+                        string,
+                        unknown
+                      >,
                     },
                   }
                 : {}),
