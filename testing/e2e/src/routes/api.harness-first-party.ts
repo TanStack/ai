@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
@@ -19,11 +19,13 @@ import {
   selectGoal,
   title,
 } from '@tanstack/ai-harness/plugins'
+import { workspaceTools } from '@tanstack/ai-harness/plugins/coding'
 import { agents, projectInstructions } from '@tanstack/ai-harness/plugins/node'
 import { createOpenaiChat } from '@tanstack/ai-openai'
 import { openaiByok } from '@tanstack/ai-openai/byok'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
+import type { IsolateDriver } from '@tanstack/ai-code-mode'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type { HarnessHost } from '@tanstack/ai-harness'
 import { LLMOCK_DEFAULT_BASE, createTextAdapter } from '@/lib/providers'
@@ -330,9 +332,84 @@ async function codeModeTools(host: HarnessHost, model: () => AnyTextAdapter) {
 }
 
 /**
+ * An isolate with one fixed program. For any code, it reads notes.txt, then
+ * changes `hello` to `hello world`, through the bindings, as the code of the
+ * `[first-party-code-mode-edit]` fixture does. A real driver runs the code.
+ */
+const notesDriver: IsolateDriver = {
+  createContext: async ({ bindings }) => ({
+    execute: async <T>() => {
+      const value = {
+        read: await bindings.external_read_file.execute({ path: 'notes.txt' }),
+        edit: await bindings.external_edit_file.execute({
+          path: 'notes.txt',
+          old: 'hello',
+          new: 'hello world',
+        }),
+      }
+      // The caller picks T. This program returns what the calls returned.
+      return { success: true, value: value as T }
+    },
+    dispose: async () => {},
+  }),
+}
+
+/**
+ * `codeMode()` with the coding tools of `workspaceTools()`: the program of
+ * `notesDriver` reads notes.txt, which the rules allow, and edits it, which
+ * asks. The edit waits as a question, and the turn stays open. The route
+ * answers `once`, and the edit runs. Returns notes.txt before and after the
+ * answer.
+ */
+async function codeModeEdit(host: HarnessHost, model: () => AnyTextAdapter) {
+  const root = await mkdtemp(join(tmpdir(), 'e2e-code-mode-'))
+  const notes = () => readFile(join(root, 'notes.txt'), 'utf8')
+  try {
+    await writeFile(join(root, 'notes.txt'), 'hello\n')
+    const session = await host.open(
+      defineHarness({
+        name: 'e2e/harness-code-mode-edit',
+        adapter: model(),
+        plugins: () => [
+          // The program calls edit_file, so the edit style must not depend
+          // on the model.
+          workspaceTools({ root, editStyle: 'edit' }),
+          permissions({ root }),
+          codeMode({
+            driver: notesDriver,
+            include: (tool) =>
+              tool.name === 'read_file' || tool.name === 'edit_file',
+          }),
+        ],
+      }),
+      {
+        threadId: 'e2e-code-mode-edit',
+      },
+    )
+    // Do not await the turn: it ends only after the answer.
+    const turn = session.send('[first-party-code-mode-edit] edit notes.txt')
+    const questionOf = () =>
+      session.snapshot().pendingWaits.find((wait) => wait.kind === 'question')
+    const deadline = Date.now() + 10_000
+    while (!questionOf() && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    }
+    const question = questionOf()
+    // Without a question, nothing can approve the edit: fail now.
+    if (!question) throw new Error('The edit in the program asked no question.')
+    const before = await notes()
+    await session.answer({ questionId: question.waitId, value: 'once' })
+    const { text } = await turn
+    return { question: question.message, before, after: await notes(), text }
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+}
+
+/**
  * First-party harness plugins, one scenario per request:
- * `?scenario=agents|plan-subagent|env|title|goal|provider-keys|code-mode&testId=...`. The models are
- * OpenAI adapters against aimock.
+ * `?scenario=agents|plan-subagent|env|title|goal|provider-keys|code-mode|code-mode-edit&testId=...`.
+ * The models are OpenAI adapters against aimock.
  */
 export const Route = createFileRoute('/api/harness-first-party')({
   server: {
@@ -343,45 +420,34 @@ export const Route = createFileRoute('/api/harness-first-party')({
         const testId = params.get('testId') ?? undefined
         const model = () =>
           createTextAdapter('openai', 'gpt-5.5', undefined, testId).adapter
+        // The small model of the title and of the goal judge.
+        const nano = () =>
+          createTextAdapter('openai', 'gpt-5.4-nano', undefined, testId).adapter
         const host = createHarnessHost({ persistence: memoryPersistence() })
         try {
-          if (scenario === 'agents') {
-            return Response.json(await agentProfiles(host, model))
+          switch (scenario) {
+            case 'agents':
+              return Response.json(await agentProfiles(host, model))
+            case 'plan-subagent':
+              return Response.json(await planSubagent(host, model))
+            case 'env':
+              return Response.json(await environmentPrompt(host, model))
+            case 'title':
+              return Response.json(await sessionTitle(host, model, nano()))
+            case 'provider-keys':
+              return Response.json(await connectedKey(host, testId))
+            case 'goal':
+              return Response.json(await goalLoop(host, model, nano()))
+            case 'code-mode':
+              return Response.json(await codeModeTools(host, model))
+            case 'code-mode-edit':
+              return Response.json(await codeModeEdit(host, model))
+            default:
+              return Response.json(
+                { error: `Unknown scenario ${scenario}` },
+                { status: 400 },
+              )
           }
-          if (scenario === 'plan-subagent') {
-            return Response.json(await planSubagent(host, model))
-          }
-          if (scenario === 'env') {
-            return Response.json(await environmentPrompt(host, model))
-          }
-          if (scenario === 'title') {
-            const titleModel = createTextAdapter(
-              'openai',
-              'gpt-5.4-nano',
-              undefined,
-              testId,
-            ).adapter
-            return Response.json(await sessionTitle(host, model, titleModel))
-          }
-          if (scenario === 'provider-keys') {
-            return Response.json(await connectedKey(host, testId))
-          }
-          if (scenario === 'goal') {
-            const judgeModel = createTextAdapter(
-              'openai',
-              'gpt-5.4-nano',
-              undefined,
-              testId,
-            ).adapter
-            return Response.json(await goalLoop(host, model, judgeModel))
-          }
-          if (scenario === 'code-mode') {
-            return Response.json(await codeModeTools(host, model))
-          }
-          return Response.json(
-            { error: `Unknown scenario ${scenario}` },
-            { status: 400 },
-          )
         } catch (error) {
           return Response.json({
             error: error instanceof Error ? error.message : String(error),

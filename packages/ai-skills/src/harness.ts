@@ -7,7 +7,10 @@ import { estimateTokens, withSkills } from './middleware'
 import { skillDirectory } from './node'
 import type { FSWatcher } from 'node:fs'
 import type { AnyChatMiddleware } from '@tanstack/ai'
-import type { PluginResources, PluginSetupContext } from '@tanstack/ai-harness'
+import type {
+  HostPluginContext,
+  PluginSetupContext,
+} from '@tanstack/ai-harness'
 import type { SkillsOptions } from './middleware'
 import type { ModelFamily, SkillMetadata, SkillSource } from './types'
 
@@ -59,11 +62,12 @@ function skillPrompt(name: string, input: unknown) {
 /**
  * The part of {@link skills} that every session of a harness on a host
  * shares: the watchers of the folders. A change only tells the sessions to
- * sync. Each sync reads the skills from disk again.
+ * sync. Each sync reads the skills from disk again. Warnings go to the
+ * logger of the host.
  */
 async function sharedFolders(
   dirs: ReadonlyArray<string>,
-  resources: PluginResources,
+  { resources, logger }: HostPluginContext,
 ) {
   /** The watcher of each folder, and the path it watches. */
   const watchers = await resources.acquire(
@@ -123,7 +127,7 @@ async function sharedFolders(
       // the folder is watched: an added or removed skill shows at once, an
       // edited SKILL.md at the next turn.
       if (codeOf(error) !== 'ERR_FEATURE_UNAVAILABLE_ON_PLATFORM') throw error
-      console.warn(
+      logger.warn(
         `skills: cannot watch the subfolders of ${dir} on this platform. An edited SKILL.md shows at the next turn.`,
       )
       return start(dir, path, false)
@@ -152,7 +156,7 @@ async function sharedFolders(
         if (codeOf(error) === 'ENOENT') continue
         failed.add(dir)
         const reason = error instanceof Error ? error.message : String(error)
-        console.warn(
+        logger.warn(
           `skills: cannot watch ${dir} (${reason}). Its skills change at the next turn.`,
         )
       }
@@ -378,7 +382,8 @@ async function sessionPart(
  * once, outside the `plugins` factory. It reads the folders again at the start
  * of each turn. A skill that you add, change, or remove while a session runs
  * changes the commands at once, with no restart. When a folder cannot be
- * watched, the plugin warns once, and its skills change at the next turn.
+ * watched, the plugin warns once, to the host logger
+ * (`createHarnessHost({ logger })`), and its skills change at the next turn.
  *
  * The model's skill list has one line for each skill: its name and the first
  * sentence of its description. When the list is longer than
@@ -412,7 +417,7 @@ export function skills(options: SkillsPluginOptions) {
     // commands and the model's skill list are per session.
     lifetime: 'host',
     setup: async (host) => {
-      const folders = await sharedFolders(options.dirs, host.resources)
+      const folders = await sharedFolders(options.dirs, host)
       return {
         session: (ctx) => sessionPart(ctx, folders, options),
       }

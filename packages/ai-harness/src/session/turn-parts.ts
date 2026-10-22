@@ -9,6 +9,7 @@ import {
 } from '@tanstack/ai'
 import { bindDurable, createToolStep } from '../durable-tool'
 import { expiryOf } from '../waits'
+import { errorsOnlyDebug } from '../logger'
 import { jsonCopy, waitUntil } from '../utils'
 import { commonPrefix, stepKey } from '../log'
 import { isEnded } from '../log-records'
@@ -791,6 +792,9 @@ export abstract class SessionTurnParts<
     try {
       const result = await chat({
         threadId: this.threadId,
+        // Only the errors of the call, to the host logger. A `debug` in
+        // `options` wins.
+        debug: errorsOnlyDebug(this.logger),
         ...options,
         adapter: await run.keys.adapter(model),
         stream: false,

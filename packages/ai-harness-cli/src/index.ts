@@ -108,14 +108,16 @@ async function showUi(
 
 /**
  * The session for a `ui` view: a typed message or steer sends its `@path`
- * files, as in line mode.
+ * files, as in line mode. The other members go to the session as they are.
  */
 function attachingSource(session: HarnessSession) {
   const withFiles = (message: UserInput) =>
     typeof message === 'string'
       ? attach(session, message, { cwd: process.cwd() })
       : Promise.resolve(message)
-  const source: SessionViewSource = {
+  // `Required`: a member that is not here fails the typecheck. A view whose
+  // source has no member shows an error for that action.
+  const source: Required<SessionViewSource> = {
     // The view shows a failed operation from its events, so only a file that
     // cannot go rejects here. It becomes an error notice in the view.
     send: (
@@ -132,6 +134,13 @@ function attachingSource(session: HarnessSession) {
       }),
     resolve: (options) => session.resolve(options),
     cancel: (options) => session.cancel(options),
+    continueWithoutMessage: () => session.continueWithoutMessage(),
+    cancelInput: (options) => session.cancelInput(options),
+    changeInputDelivery: (change) => session.changeInputDelivery(change),
+    updateThreadSettings: (options) => session.updateThreadSettings(options),
+    reset: (options) => session.reset(options),
+    revert: (options) => session.revert(options),
+    unrevert: () => session.unrevert(),
     answer: (answer) => session.answer(answer),
     runCommand: (options) => session.runCommand(options),
     setPluginSetting: (change) => session.setPluginSetting(change),
@@ -141,6 +150,8 @@ function attachingSource(session: HarnessSession) {
     describe: () => session.describe(),
     mediaUrl: (options) => session.mediaUrl(options),
     loadMedia: (options) => session.loadMedia(options),
+    putMedia: (file) => session.putMedia(file),
+    agentTranscript: (options) => session.agentTranscript(options),
   }
   return source
 }

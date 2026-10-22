@@ -13,9 +13,10 @@ import {
   formatter,
   projectFormatters,
 } from '../src/first-party/coding/formatter'
-import { FormatterRewrote } from '../src/first-party/coding/events'
+import { FileChanged, FormatterRewrote } from '../src/first-party/coding/events'
 import { mockAdapter, questionsOf, text, toolCall } from './helpers'
 import type { HarnessSession } from '../src'
+import type { PluginEvent } from '../src/extensions'
 import type { PermissionRule } from '../src/first-party/permissions'
 import type { WorkspaceBackend } from '../src/first-party/coding/backend'
 import type {
@@ -423,17 +424,21 @@ describe('formatter with a workspace for each thread', () => {
 })
 
 describe('formatter events', () => {
-  it('sends tanstack/formatter:rewrote when the formatter changed the written file', async () => {
-    // The fake prettier puts spaces around `=`.
+  /**
+   * A session writes `let a=1` to `a.ts`, and a fake prettier puts spaces
+   * around `=`. Resolves to the values of `event` that a plugin got, and
+   * the file at the end.
+   */
+  async function writeAndFormat<T>(event: PluginEvent<T>) {
     const files = project(prettier, () => {
       files.put('a.ts', files.read('a.ts').replace('=', ' = '))
       return { exitCode: 0, stdout: '', stderr: '' }
     })
-    const rewrites: Array<unknown> = []
+    const values: Array<T> = []
     const listener = definePlugin({
       name: 'test/listener',
       setup: (ctx) => {
-        ctx.on(FormatterRewrote, (rewrite) => rewrites.push(rewrite))
+        ctx.on(event, (value) => values.push(value))
       },
     })
     const { adapter } = mockAdapter([
@@ -456,10 +461,37 @@ describe('formatter events', () => {
 
     await session.send('work')
     await host.close()
+    return { values, file: files.read('a.ts') }
+  }
 
-    expect(files.read('a.ts')).toBe('let a = 1')
-    expect(rewrites).toEqual([
+  it('sends tanstack/formatter:rewrote when the formatter changed the written file', async () => {
+    const { values, file } = await writeAndFormat(FormatterRewrote)
+    expect(file).toBe('let a = 1')
+    expect(values).toEqual([
       { path: join(root, 'a.ts'), formatter: 'prettier' },
+    ])
+  })
+
+  it('sends FileChanged after the formatter, so the patch has the formatted text', async () => {
+    const { values } = await writeAndFormat(FileChanged)
+    expect(values).toEqual([
+      {
+        path: join(root, 'a.ts'),
+        change: 'created',
+        patch: [
+          'diff --git a/a.ts b/a.ts',
+          'new file mode 100644',
+          '--- /dev/null',
+          '+++ b/a.ts',
+          '@@ -0,0 +1 @@',
+          '+let a = 1',
+          '\\ No newline at end of file',
+          '',
+        ].join('\n'),
+        additions: 1,
+        deletions: 0,
+        toolCallId: 'c1',
+      },
     ])
   })
 })

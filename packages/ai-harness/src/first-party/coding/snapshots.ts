@@ -10,13 +10,15 @@ import {
 import { isRecord } from '../../utils'
 import { WorkspaceHooks } from '../workspace-hooks'
 import { hostBackend, pathsOf, runOf } from './backend'
-import { SnapshotFailed } from './events'
+import { FileChanged, SnapshotFailed } from './events'
+import { MAX_PATCH_BYTES } from './file-change'
 import { parsePatch } from './patch'
 import { GIT, GIT_ENV, quoteArg, shellPlatform } from './search'
 import { ThreadWorkspace, createLock, writingRun } from './workspace'
 import type { ModelMessage, ToolCall } from '@tanstack/ai'
 import type { RunContext } from '../../types'
 import type { WorkspaceBackend } from './backend'
+import type { FileChange } from './events'
 
 export interface SnapshotsOptions {
   /**
@@ -87,6 +89,8 @@ const MAX_STEPS = 500
 const LOCKED_RETRY_MS = [50, 100, 200, 400]
 const BUSY = 'Wait until the turn ends, then try again.'
 const REVERTED = 'A revert stands. Run unrevert, or send a prompt, first.'
+/** The most `FileChanged` events that the plugin sends for one step. */
+const MAX_STEP_EVENTS = 100
 
 /** The tools that change no file. */
 const READ_TOOLS = new Set([
@@ -98,17 +102,22 @@ const READ_TOOLS = new Set([
 ])
 
 /**
+ * Does `call` send `FileChanged` for each file that it changes? The read
+ * tools change no file. `write_file`, `edit_file`, and `patch` send each
+ * change, also a delete or a move.
+ */
+const sendsChanges = ({ function: { name } }: ToolCall) =>
+  READ_TOOLS.has(name) || ['write_file', 'edit_file', 'patch'].includes(name)
+
+/**
  * Does `call` give each file that it changes to the `afterWrite` hook? The
  * read tools change no file. `write_file` and `edit_file` give each write.
  * `patch` gives its writes, but not a file that it deletes or moves away.
  * Other tools, like `bash`, give nothing.
  */
 function reportsChanges(call: ToolCall) {
-  const { name } = call.function
-  if (READ_TOOLS.has(name) || name === 'write_file' || name === 'edit_file') {
-    return true
-  }
-  if (name !== 'patch') return false
+  if (!sendsChanges(call)) return false
+  if (call.function.name !== 'patch') return true
   try {
     const args: unknown = JSON.parse(call.function.arguments)
     const text =
@@ -144,6 +153,68 @@ function firstTrees(steps: ReadonlyArray<SnapshotStep>) {
     byTree.set(tree, files)
   }
   return byTree
+}
+
+/**
+ * The sections of `patch`, a git diff: one for each file, in the order of
+ * git. Empty when the diff does not have `count` sections. For example,
+ * git gives two sections to a file that became a link.
+ */
+function sectionsOf(patch: string, count: number) {
+  // A line of a hunk starts with ` `, `+`, `-`, or `\`, so only the first
+  // line of a section starts with `diff --git `.
+  const sections = patch
+    .split(/^(?=diff --git )/m)
+    .filter((part) => part.startsWith('diff --git '))
+  return sections.length === count ? sections : []
+}
+
+/** What happened to the file of a git diff section, from its header. */
+function kindOf(header: string) {
+  if (/^new file mode /m.test(header)) return 'created'
+  if (/^deleted file mode /m.test(header)) return 'deleted'
+  return 'updated'
+}
+
+/**
+ * The change of the file at `path`, from `section`, its part of a git
+ * diff: its kind, its patch, and the added and deleted lines. Without a
+ * section, the kind is `'updated'`. A binary file, or a section over
+ * 256 KiB, gets no patch and 0 counts.
+ */
+function changeOf(path: string, section: string | undefined) {
+  if (section === undefined) {
+    return {
+      path,
+      change: 'updated',
+      additions: 0,
+      deletions: 0,
+    } satisfies FileChange
+  }
+  // The header ends at the first hunk.
+  const start = section.search(/^@@/m)
+  const header = start === -1 ? section : section.slice(0, start)
+  const change = kindOf(header)
+  const hasNoPatch =
+    /^Binary files /m.test(header) ||
+    Buffer.byteLength(section) > MAX_PATCH_BYTES
+  if (hasNoPatch) {
+    return { path, change, additions: 0, deletions: 0 } satisfies FileChange
+  }
+  let additions = 0
+  let deletions = 0
+  const lines = section.slice(header.length).split('\n')
+  for (const line of lines) {
+    if (line.startsWith('+')) additions += 1
+    else if (line.startsWith('-')) deletions += 1
+  }
+  return {
+    path,
+    change,
+    patch: section,
+    additions,
+    deletions,
+  } satisfies FileChange
 }
 
 /**
@@ -228,6 +299,14 @@ function shadowRepo(
     )
     return names.split('\0').filter((name) => name !== '')
   }
+  /**
+   * The unified diff between two trees, with 3 lines of context. The flags
+   * keep the output the same with any git config of the user.
+   */
+  const patchOf = (from: string, to: string) =>
+    run(
+      `diff --no-color --no-ext-diff --no-textconv --no-renames -U3 --src-prefix=a/ --dst-prefix=b/ ${quote(from)} ${quote(to)}`,
+    )
 
   const serial = <T>(fn: () => Promise<T>) => repoLocks(gitDir, fn)
 
@@ -260,11 +339,11 @@ function shadowRepo(
     diff: (from: string, to?: string) =>
       serial(async () => {
         const target = to ?? (await track())
-        const patch = await run(
-          `diff --no-color --no-ext-diff --no-renames ${quote(from)} ${quote(target)}`,
-        )
+        const patch = await patchOf(from, target)
         return { files: await changed(from, target), patch }
       }),
+    /** The unified diff between the trees `from` and `to`. */
+    patch: (from: string, to: string) => serial(() => patchOf(from, to)),
     /**
      * Make the files that differ between `from` and `tree` match `tree`, and
      * give their count. Of these files, the ones that are not in `tree` are
@@ -380,6 +459,12 @@ interface RunSteps {
    * in the step that runs.
    */
   written: Set<string>
+  /**
+   * The files in the workspace that the workspace tools of this run sent
+   * `FileChanged` for in the step that runs: each path, and the old path of
+   * a file that moved.
+   */
+  reported: Set<string>
   /** The steps of this run with changed files. */
   steps: Array<SnapshotStep>
 }
@@ -434,6 +519,13 @@ export function purgeSnapshots(
  * `/undo` keeps it. A step with a tool that does not give its changes, like
  * `bash`, keeps every file that changed in it. The snapshots never store
  * `.env*` files.
+ *
+ * At the end of each step, the plugin sends `FileChanged` for each file of
+ * the step that the workspace tools did not report, like a file that
+ * `bash` changed. It sends at most 100 events for each step. A binary
+ * file, or a patch over 256 KiB, gets no patch. `toolCallId` is set when
+ * the step has one tool call that does not send `FileChanged`, like one
+ * `bash` call.
  *
  * The changed files of each step go to the session log as a
  * `tanstack/snapshots:step` record. A revert uses the last 500 steps. What
@@ -694,6 +786,70 @@ export function snapshots(options: SnapshotsOptions) {
       }
 
       /**
+       * Add `full`, a file that the workspace tool call that runs now
+       * changed, to the `key` files of the step of its run.
+       */
+      const noteFile = (key: 'written' | 'reported', full: string) => {
+        const run = writingRun()
+        const steps = run && active.get(run.runId)
+        if (!steps?.place) return
+        const path = inRoot(steps.place, full)
+        if (path !== undefined) steps[key].add(path)
+      }
+      // The workspace tools send their events in a tool call. The events
+      // of this plugin come from no tool call, so they are not noted.
+      ctx.on(FileChanged, ({ path, from }) => {
+        noteFile('reported', path)
+        if (from !== undefined) noteFile('reported', from)
+      })
+
+      /**
+       * Send `FileChanged` for the files of `step` that no workspace tool
+       * reported in it, like the files that `bash` changed. `changed` has
+       * every file of the diff of the step, in the order of git. With no
+       * such file, it runs no git command. A failed diff sends the events
+       * without patches, and no `SnapshotFailed`.
+       */
+      const reportOthers = async (
+        { repo, root, paths }: Place,
+        {
+          step,
+          changed,
+          reported,
+          toolCalls,
+        }: {
+          step: SnapshotStep
+          changed: ReadonlyArray<string>
+          reported: ReadonlySet<string>
+          toolCalls: ReadonlyArray<ToolCall>
+        },
+      ) => {
+        // ponytail: at most 100 events for each step. A step that changed
+        // more files sends the first 100. Send a count of the others when a
+        // client needs it.
+        const files = step.files
+          .filter((file) => !reported.has(file))
+          .slice(0, MAX_STEP_EVENTS)
+        if (files.length === 0) return
+        // A diff fails also when its output is over the cap of `exec`.
+        const patch = await repo.patch(step.from, step.to).catch(() => '')
+        const sections = sectionsOf(patch, changed.length)
+        // The events name the tool call only when the step has one call
+        // that does not send `FileChanged`, like one `bash` call.
+        const silent = toolCalls.filter((call) => !sendsChanges(call))
+        const toolCallId = silent.length === 1 ? silent[0]?.id : undefined
+        for (const file of files) {
+          // Git quotes an odd name in a section header, so the sections
+          // pair by order with the exact names in `changed`.
+          const section = sections[changed.indexOf(file)]
+          ctx.emit(FileChanged, {
+            ...changeOf(paths.join(root, file), section),
+            ...(toolCallId === undefined ? {} : { toolCallId }),
+          })
+        }
+      }
+
+      /**
        * Put each file of `undone` back to `target`, the tree that `/undo`
        * or `/redo` goes to, and give the count of the files that changed.
        */
@@ -716,13 +872,7 @@ export function snapshots(options: SnapshotsOptions) {
         contribute: [
           WorkspaceHooks.item({
             // The write goes to the run of the tool call that wrote it.
-            afterWrite: async (full) => {
-              const run = writingRun()
-              const steps = run && active.get(run.runId)
-              if (!steps?.place) return
-              const path = inRoot(steps.place, full)
-              if (path !== undefined) steps.written.add(path)
-            },
+            afterWrite: async (full) => noteFile('written', full),
           }),
         ],
         middleware: [
@@ -745,6 +895,7 @@ export function snapshots(options: SnapshotsOptions) {
                 place,
                 start: place && (await guard(place.repo.track)),
                 written: new Set(),
+                reported: new Set(),
                 steps: [],
               }
               active.set(id, run)
@@ -755,16 +906,20 @@ export function snapshots(options: SnapshotsOptions) {
             },
             onToolPhaseComplete: async (ctx, { toolCalls }) => {
               const run = active.get(runIdOf(ctx))
-              const repo = run?.place?.repo
-              if (!run || !repo) return
+              const place = run?.place
+              if (!run || !place) return
+              const { repo } = place
               const from = run.start
               const mine = new Set(run.written)
+              const reported = new Set(run.reported)
               run.written.clear()
+              run.reported.clear()
               if (from === undefined) return
               // ponytail: a step with a tool like `bash` keeps every file
               // that changed in it, also a change of another agent then.
+              // That change also gets a `FileChanged` of this step.
               const keepsAll = !toolCalls.every(reportsChanges)
-              const step = await guard(async () => {
+              const tracked = await guard(async () => {
                 const to = await repo.track()
                 const hasNoChange =
                   to === from || (!keepsAll && mine.size === 0)
@@ -775,11 +930,12 @@ export function snapshots(options: SnapshotsOptions) {
                   ? changed
                   : changed.filter((file) => mine.has(file))
                 const toolCallIds = toolCalls.map((call) => call.id)
-                return { from, to, files, toolCallIds }
+                return { step: { from, to, files, toolCallIds }, changed }
               })
               // A failed snapshot leaves no start: the next step takes one.
-              run.start = step?.to
-              if (!step || step.files.length === 0) return
+              run.start = tracked?.step.to
+              if (!tracked || tracked.step.files.length === 0) return
+              const { step, changed } = tracked
               run.steps.push(step)
               const log = getLogRecords(ctx, { optional: true })
               if (log) await log.append([{ type: STEP_RECORD, ...step }])
@@ -789,6 +945,7 @@ export function snapshots(options: SnapshotsOptions) {
                   steps: [...saved.steps, step].slice(-MAX_STEPS),
                 }))
               }
+              await reportOthers(place, { step, changed, reported, toolCalls })
             },
             onFinish: ended,
             onAbort: ended,

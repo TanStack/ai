@@ -13,6 +13,7 @@ import { AccessDeniedError } from './access'
 import {
   accessOf,
   isSharedHost,
+  loggerOf,
   presenceOf,
   sessionOfTurn,
   tenantEventsOf,
@@ -621,7 +622,7 @@ export function createHarnessHandler<U extends HarnessUser = HarnessUser>(
   // share, so a host without ownership gets one warning, not an error.
   if (media === undefined && !warnedMediaKey) {
     warnedMediaKey = true
-    console.warn(
+    loggerOf(host).warn(
       '[@tanstack/ai-harness] createHarnessHandler has no media ({ secret } or { keys }), so it signs media URLs with a random key of its own. When more than one instance serves this host, set the same media.secret on every instance, else a media URL works only on the instance that signed it.',
     )
   }

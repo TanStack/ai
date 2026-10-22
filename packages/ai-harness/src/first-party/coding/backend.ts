@@ -3,6 +3,7 @@ import * as fs from 'node:fs/promises'
 import * as nodePath from 'node:path'
 import { commandEnv, createOutputTail } from '@tanstack/ai-utils'
 import { isRecord } from '../../utils'
+import type { PluginEvent } from '../../extensions'
 import type { RunContext } from '../../types'
 import type { WorkspaceHooks } from '../workspace-hooks'
 
@@ -196,6 +197,11 @@ export interface ToolEnv {
   protectedIn?: (
     folder: string,
   ) => Promise<((path: string) => boolean) | undefined>
+  /**
+   * Sends a plugin event, like `ctx.emit` of a plugin. The edit tools send
+   * `FileChanged` with it. Without it, they send no events.
+   */
+  emit?: <T>(event: PluginEvent<T>, value: T) => void
 }
 
 /**

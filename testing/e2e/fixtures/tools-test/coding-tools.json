@@ -206,6 +206,43 @@
       "response": {
         "content": "Edited notes.txt in the sandbox."
       }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-diffs] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "write_file",
+            "arguments": "{\"path\":\"a.txt\",\"content\":\"two\\n\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-diffs] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "bash",
+            "arguments": "{\"command\":\"echo hi > b.txt\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-diffs] run test",
+        "sequenceIndex": 2
+      },
+      "response": {
+        "content": "Wrote a.txt and b.txt."
+      }
     }
   ]
 }

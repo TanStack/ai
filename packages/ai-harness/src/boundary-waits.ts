@@ -36,7 +36,8 @@ export interface ApprovalAnswer {
 /**
  * The answer shape of an approval, for hosts that render a form. A yes or
  * no (`true` or `false`) works too, as for every approval, so a client
- * answers each approval the same way.
+ * answers each approval the same way. So does the core resolution
+ * `{ approved, payload? }` that a session view sends.
  */
 export const APPROVAL_ANSWER_SCHEMA: Record<string, unknown> = {
   anyOf: [
@@ -60,6 +61,20 @@ export const APPROVAL_ANSWER_SCHEMA: Record<string, unknown> = {
         },
       },
       required: ['answer'],
+    },
+    {
+      type: 'object',
+      properties: {
+        approved: {
+          type: 'boolean',
+          description: 'true: allow this call. false: refuse it.',
+        },
+        payload: {
+          description:
+            'With true: once or always. With false: what the model should do instead.',
+        },
+      },
+      required: ['approved'],
     },
   ],
 }
@@ -144,18 +159,49 @@ export function withoutBoundaryWaits(
   })
 }
 
+/** The reject message for an approval that comes with edited arguments. */
+const EDITED_ARGS_REJECTED =
+  'The user changed the arguments of this call, and this approval cannot run a changed call, so the call did not run. Ask the user what to do.'
+
+/** The answer that `value` names, as text or in `answer`, when it names one. */
+function answerOf(value: unknown) {
+  const raw = isRecord(value) ? value.answer : value
+  const answer = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
+  return answer === 'once' || answer === 'always' || answer === 'reject'
+    ? answer
+    : undefined
+}
+
 /**
  * The user's reply to an approval: `{ answer, message? }`, the answer as
  * text, or a yes or no (`true` is `once`). Anything that is not `once` or
- * `always` rejects.
+ * `always` rejects. A session view sends the core resolution
+ * `{ approved, payload? }`: a yes is the answer that its payload names, or
+ * `once`. A no rejects, with the payload as its message: text, or the
+ * `message` of an object.
  */
 export function readApproval(value: unknown): {
   choice: ApprovalAnswer['answer']
   message: string | undefined
 } {
   if (value === true) return { choice: 'once', message: undefined }
-  const raw = isRecord(value) ? value.answer : value
-  const choice = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
+  if (isRecord(value) && typeof value.approved === 'boolean') {
+    const { approved, payload } = value
+    if (!approved) {
+      const message = isRecord(payload) ? payload.message : payload
+      return readApproval({ answer: 'reject', message })
+    }
+    // This approval cannot apply edited arguments, and the arguments of the
+    // model are not what the user approved. So the call does not run.
+    if (value.editedArgs !== undefined) {
+      return { choice: 'reject', message: EDITED_ARGS_REJECTED }
+    }
+    if (answerOf(payload) === undefined) {
+      return { choice: 'once', message: undefined }
+    }
+    return readApproval(payload)
+  }
+  const choice = answerOf(value)
   const text =
     isRecord(value) && typeof value.message === 'string'
       ? value.message.trim()

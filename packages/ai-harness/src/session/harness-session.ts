@@ -265,11 +265,11 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
       turn.operation.fail('cancelled', new Error('Session closed.'))
     }
     // A session whose open failed before the log opened has no writer.
-    await this.logWriter
-      ?.flush()
-      .catch((error: unknown) =>
-        console.error('[@tanstack/ai-harness] The log flush failed.', error),
-      )
+    await this.logWriter?.flush().catch((error: unknown) =>
+      this.logger.error('[@tanstack/ai-harness] The log flush failed.', {
+        error,
+      }),
+    )
   }
 
   /** Read `harness.plugins()` and set up its session plugins. */
@@ -610,10 +610,12 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
       // An event that another host wrote: the host status and the `onEvent`
       // listeners see it, as they see the events of this host at publish.
       onRemoteEvent: ({ operationId, event }) =>
-        notifyListeners(this.notifyHost, this.eventListeners, {
-          operationId,
-          event,
-        }),
+        notifyListeners(
+          this.notifyHost,
+          this.eventListeners,
+          { operationId, event },
+          this.logger,
+        ),
       // Records of another host: the settings, the config, and the
       // interrupted turn come from the new fold.
       onRemoteFold: () => this.syncFromLog(),
@@ -631,6 +633,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
       this.notifyHost,
       this.eventListeners,
       this.redactor,
+      this.logger,
     )
     // The child threads (agent chains and subagent runs) are in this log.
     const view = { writer }

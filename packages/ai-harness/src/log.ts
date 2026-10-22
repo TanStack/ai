@@ -1,4 +1,4 @@
-import { EventType } from '@tanstack/ai'
+import { ConsoleLogger, EventType } from '@tanstack/ai'
 import {
   LogConflictError,
   LogTruncatedError,
@@ -27,7 +27,7 @@ import {
   isSessionUsage,
 } from './usage'
 import { isRecord } from './utils'
-import type { ModelMessage, StreamChunk } from '@tanstack/ai'
+import type { Logger, ModelMessage, StreamChunk } from '@tanstack/ai'
 import type {
   InterruptRecord,
   LogEntry,
@@ -447,17 +447,22 @@ export const stableJson = (value: unknown) =>
 
 /**
  * Run a host fold (`project` or `reduce`). One that throws skips its record
- * with a warning. The record is in the log already, so failing here would
- * fail every later open of the log too. A pure fold skips the same record
- * live and on each reopen.
+ * with a warning to `logger`. The record is in the log already, so failing
+ * here would fail every later open of the log too. A pure fold skips the
+ * same record live and on each reopen.
  */
-function hostFold<T>(seq: number, fold: () => T, unchanged: T): T {
+function hostFold<T>(
+  seq: number,
+  fold: () => T,
+  unchanged: T,
+  logger: Logger = new ConsoleLogger(),
+) {
   try {
     return fold()
   } catch (error) {
-    console.warn(
-      `The fold of log record ${seq} threw, so the fold skips it.`,
-      error,
+    logger.warn(
+      `[@tanstack/ai-harness] The fold of log record ${seq} threw, so the fold skips it.`,
+      { error },
     )
     return unchanged
   }
@@ -557,12 +562,13 @@ function updateInput(
   if (input) state.inputs.set(inputId, change(input))
 }
 
-/** Fold one entry into `state`. */
+/** Fold one entry into `state`. A `project` that throws warns to `logger`. */
 export function foldEntry(
   state: LogState,
   entry: LogEntry,
   project?: ProjectRecord,
   keep?: KeptRecords,
+  logger?: Logger,
 ) {
   state.seq = entry.seq
   const { record } = entry
@@ -573,6 +579,7 @@ export function foldEntry(
           entry.seq,
           () => project({ messages: state.messages, record }),
           undefined,
+          logger,
         )
       : undefined
     if (next) state.messages = next
@@ -875,6 +882,8 @@ interface FoldOptions<TState> {
   project?: ProjectRecord
   reduce?: ReduceOptions<TState>
   keep?: KeptRecords
+  /** Gets the warning of a `project` or `reduce` that throws. Default: the console. */
+  logger?: Logger
 }
 
 /** Fold one entry of a shared log. */
@@ -895,6 +904,7 @@ export function foldLogEntry<TState>(
       entry.seq,
       () => reduce.record({ state: current, record }),
       current,
+      options.logger,
     )
   }
   foldEntry(
@@ -902,6 +912,7 @@ export function foldLogEntry<TState>(
     entry,
     options.project,
     options.keep,
+    options.logger,
   )
 }
 
@@ -1159,8 +1170,10 @@ export async function loadLogState<TState = unknown>(options: {
   reduce?: ReduceOptions<TState>
   /** The host records to keep. See {@link KeptRecords}. */
   keep?: KeptRecords
+  /** Gets the warning of a `project` or `reduce` that throws. Default: the console. */
+  logger?: Logger
 }) {
-  const { store, logId, rootThread, project, reduce, keep } = options
+  const { store, logId, rootThread, project, reduce, keep, logger } = options
   // A snapshot that does not load only makes the fold longer.
   const snapshot = await store.getSnapshot({ logId }).catch(() => null)
   const state =
@@ -1171,6 +1184,7 @@ export async function loadLogState<TState = unknown>(options: {
     ...(project ? { project: project.record } : {}),
     ...(reduce ? { reduce } : {}),
     ...(keep ? { keep } : {}),
+    ...(logger ? { logger } : {}),
   }
   await readAll(store, logId, state, (entry) =>
     foldLogEntry(state, entry, fold),
@@ -1636,6 +1650,8 @@ export class SharedLog<TState = unknown> {
     logRecords?: LogRecordRetention
     /** Called when the last session closes, or when a write fails. */
     onIdle?: () => void
+    /** Gets the warning of a `project` or `reduce` that throws. Default: the console. */
+    logger?: Logger
   }) {
     this.store = options.store
     this.ownership = options.ownership
@@ -1655,6 +1671,7 @@ export class SharedLog<TState = unknown> {
       ...(options.project ? { project: options.project.record } : {}),
       ...(options.reduce ? { reduce: options.reduce } : {}),
       ...(options.keep ? { keep: options.keep } : {}),
+      ...(options.logger ? { logger: options.logger } : {}),
     }
     this.versions = versionsOf(options.project, options.reduce)
     this.tail = new EventRing({

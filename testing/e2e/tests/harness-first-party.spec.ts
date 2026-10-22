@@ -177,4 +177,18 @@ test.describe('harness first-party plugins', () => {
     expect(tools).not.toContain('list_issues')
     expect(systemOf(call)).toContain('external_list_issues')
   })
+
+  test('codeMode(): an edit in a program waits for the approval of the user, then runs', async ({
+    request,
+    testId,
+  }) => {
+    expect(await runScenario(request, 'code-mode-edit', testId)).toEqual({
+      // The rules allow the read, so the one question is for the edit.
+      question: expect.stringMatching(/edit_file.*notes\.txt/),
+      // notes.txt while the question waits, and after the answer `once`.
+      before: 'hello\n',
+      after: 'hello world\n',
+      text: 'The program edited notes.txt.',
+    })
+  })
 })

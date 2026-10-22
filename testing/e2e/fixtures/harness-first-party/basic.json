@@ -136,6 +136,29 @@
       "response": {
         "content": "I can run TypeScript."
       }
+    },
+    {
+      "match": {
+        "userMessage": "[first-party-code-mode-edit] edit notes.txt",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "execute_typescript",
+            "arguments": "{\"typescriptCode\":\"const read = await external_read_file({ path: 'notes.txt' })\\nconst edit = await external_edit_file({ path: 'notes.txt', old: 'hello', new: 'hello world' })\\nreturn { read, edit }\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[first-party-code-mode-edit] edit notes.txt",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The program edited notes.txt."
+      }
     }
   ]
 }

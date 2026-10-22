@@ -145,6 +145,17 @@ export interface ToolBinding {
 // Re-export for convenience
 export type { ToolExecutionContext }
 
+/**
+ * Runs around each external call of a program. `run` runs the tool.
+ * `call.name` is the tool name as code mode knows it, without the
+ * `external_` prefix.
+ *
+ * @internal
+ */
+export type CodeModeCallHook = ReturnType<
+  NonNullable<CodeModeToolConfig['aroundCalls']>
+>
+
 // ============================================================================
 // Code Mode Tool Types
 // ============================================================================
@@ -269,6 +280,23 @@ export interface CodeModeToolConfig {
    *   it to your own `Logger` (pino, winston, …).
    */
   debug?: DebugOption
+
+  /**
+   * Called once per program run with the context of the code mode tool call
+   * and a signal that aborts when the program ends.
+   *
+   * The hook type is written out here, not as `CodeModeCallHook`: a package
+   * that infers a type from this config can then name it.
+   *
+   * @internal
+   */
+  aroundCalls?: (
+    context: ToolExecutionContext | undefined,
+    signal: AbortSignal,
+  ) => (
+    call: { name: string; args: unknown },
+    run: () => Promise<unknown>,
+  ) => Promise<unknown>
 }
 
 /**

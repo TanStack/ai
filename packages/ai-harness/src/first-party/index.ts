@@ -4,6 +4,7 @@
 export { modelPicker } from './model-picker'
 export {
   PERMISSION_MODES,
+  PermissionCallCapability,
   PermissionDecisionCapability,
   PermissionResources,
   PermissionRules,
@@ -15,6 +16,7 @@ export {
 } from './permissions'
 export type {
   CallResources,
+  PermissionCallDecision,
   PermissionDecision,
   PermissionMode,
   PermissionRule,

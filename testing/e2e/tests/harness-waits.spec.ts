@@ -71,18 +71,19 @@ async function readUntil(
 const stop = (request: APIRequestContext, runId: string) =>
   request.post(`${ROUTE}/stop?runId=${runId}`)
 
-/** Approve the wait `waitId` on host B. */
+/** Approve the wait `waitId` on host B with the answer `payload`. */
 async function approve(
   request: APIRequestContext,
   { runId, threadId }: Started,
   waitId: string,
+  payload: unknown = true,
 ) {
   const res = await request.post(`${ROUTE}/control?runId=${runId}`, {
     data: {
       threadId,
       input: {
         op: 'resolve',
-        resume: [{ interruptId: waitId, status: 'resolved', payload: true }],
+        resume: [{ interruptId: waitId, status: 'resolved', payload }],
       },
     },
   })
@@ -120,26 +121,7 @@ test.describe('harness: durable waits', () => {
       ])
 
       // The user approves on host B.
-      const res = await request.post(
-        `${ROUTE}/control?runId=${started.runId}`,
-        {
-          data: {
-            threadId: started.threadId,
-            input: {
-              op: 'resolve',
-              resume: [
-                {
-                  interruptId: wait!.waitId,
-                  status: 'resolved',
-                  payload: true,
-                },
-              ],
-            },
-          },
-        },
-      )
-      expect(res.ok()).toBe(true)
-      expect(await res.json()).toMatchObject({ status: 'accepted' })
+      await approve(request, started, wait!.waitId)
 
       const read = await readUntil(
         request,
@@ -173,6 +155,38 @@ test.describe('harness: durable waits', () => {
           status: 'resolved',
           response: true,
         }),
+      ])
+    } finally {
+      await stop(request, started.runId)
+    }
+  })
+
+  test('an approval accepts the answer of a session view, and the tool runs', async ({
+    request,
+  }) => {
+    const started = await start(request, 'approval')
+    try {
+      const asked = await readUntil(
+        request,
+        started.runId,
+        (read) => read.pendingWaits.length > 0,
+      )
+      // A session view sends the core resolution `{ approved, payload }`.
+      await approve(request, started, asked.pendingWaits[0]!.waitId, {
+        approved: true,
+        payload: 'always',
+      })
+
+      const read = await readUntil(
+        request,
+        started.runId,
+        (done) => done.status === 'idle' && done.transcript.length === 4,
+      )
+      // `permissions()` took the answer as a yes: `deploy` ran, and the
+      // model answered with its result.
+      expect(read.transcript.slice(2)).toEqual([
+        { role: 'tool', text: '{"deployed":"v2"}' },
+        { role: 'assistant', text: 'Deployed v2.' },
       ])
     } finally {
       await stop(request, started.runId)

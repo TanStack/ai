@@ -18,6 +18,7 @@ export type {
 } from './snapshots'
 export { FormatFailed, formatter } from './formatter'
 export {
+  FileChanged,
   FormatterRewrote,
   JobEnded,
   JobOutput,
@@ -25,4 +26,5 @@ export {
   SnapshotFailed,
   WorkspaceStranded,
 } from './events'
+export type { FileChange } from './events'
 export type { Formatter, FormatterOptions, FormatterProject } from './formatter'

@@ -1,6 +1,9 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { collectChunks, createMockAdapter } from './test-utils'
 import type { GenerationMiddleware } from '../src/activities/middleware/types'
 import type { ChatMiddleware } from '../src/activities/chat/middleware/types'
+import type { SubagentBinding } from '../src/activities/chat/agents/bound'
+import type { DebugOption, Logger } from '../src/logger/types'
 
 // Replace every activity with a spy that returns the options it got, so the
 // test sees exactly what each bound wrapper passes on.
@@ -45,6 +48,11 @@ vi.mock('../src/activities/evaluate/index', () => ({
 
 const { createBoundActivities } =
   await import('../src/activities/chat/agents/bound')
+const { chat: mockedChat } = await import('../src/activities/chat/index')
+// The real chat, for the tests that run a child chat call to its end.
+const { chat: actualChat } = await vi.importActual<{
+  chat: typeof mockedChat
+}>('../src/activities/chat/index')
 
 const input = {
   input: undefined,
@@ -59,7 +67,75 @@ const input = {
 // bound function is cast to one that returns `Recorded` before the call.
 type Recorded = { name: string; options: Record<string, any> }
 
+type Activity = keyof ReturnType<typeof createBoundActivities>
+
+// Each activity that takes ids, and the name its run ids use.
+const idActivities: Array<[Activity, string]> = [
+  ['summarize', 'summarize'],
+  ['generateImage', 'image'],
+  ['generateVideo', 'video'],
+  ['generateAudio', 'audio'],
+  ['generateSpeech', 'speech'],
+  ['generateVoice', 'voice'],
+  ['generateTranscription', 'transcription'],
+  ['generateWorld', 'world'],
+  ['generateLiveVideo', 'liveVideo'],
+]
+
+/** A logger that keeps each line as `[level, message]`. */
+function recordingLogger() {
+  const lines: Array<[keyof Logger, string]> = []
+  const logger: Logger = {
+    debug: (message) => lines.push(['debug', message]),
+    info: (message) => lines.push(['info', message]),
+    warn: (message) => lines.push(['warn', message]),
+    error: (message) => lines.push(['error', message]),
+  }
+  return { logger, lines }
+}
+
+/** The `debug` option that sends only the `errors` category to `logger`. */
+const errorsOnly = (logger: Logger) => ({
+  logger,
+  errors: true,
+  provider: false,
+  output: false,
+  middleware: false,
+  tools: false,
+  agentLoop: false,
+  config: false,
+  request: false,
+  sandbox: false,
+})
+
+/** Runs one child chat call through the real chat. Its model call throws. */
+async function failChildChat(binding: SubagentBinding, debug?: DebugOption) {
+  const { adapter } = createMockAdapter({
+    chatStreamFn: () =>
+      (async function* () {
+        throw new Error('boom')
+      })(),
+  })
+  const activities = createBoundActivities(
+    'helper',
+    input,
+    new AbortController(),
+    binding,
+  )
+  vi.mocked(mockedChat).mockImplementationOnce(actualChat)
+  await expect(
+    collectChunks(activities.chat({ adapter, debug })),
+  ).rejects.toThrow('boom')
+}
+
+// The line that the errors category logs when the model call of a chat throws.
+const chatRunFailed = ['error', expect.stringContaining('chat run failed')]
+
 describe('createBoundActivities', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   const generationMiddleware: Array<GenerationMiddleware> = [
     { name: 'host-generation' },
   ]
@@ -79,18 +155,7 @@ describe('createBoundActivities', () => {
   it('gives every id-taking activity its own run id, the thread, the signal, and host middleware first', () => {
     const { activities, controller } = bound()
     const own = { name: 'own' }
-    const calls: Array<[keyof typeof activities, string]> = [
-      ['summarize', 'summarize'],
-      ['generateImage', 'image'],
-      ['generateVideo', 'video'],
-      ['generateAudio', 'audio'],
-      ['generateSpeech', 'speech'],
-      ['generateVoice', 'voice'],
-      ['generateTranscription', 'transcription'],
-      ['generateWorld', 'world'],
-      ['generateLiveVideo', 'liveVideo'],
-    ]
-    calls.forEach(([method, activity], index) => {
+    idActivities.forEach(([method, activity], index) => {
       const call = activities[method] as unknown as (
         options: object,
       ) => Recorded
@@ -221,6 +286,71 @@ describe('createBoundActivities', () => {
     ])
   })
 
+  it('sends the errors of a child chat call to the host debug logger', async () => {
+    const host = recordingLogger()
+    await failChildChat({ debug: errorsOnly(host.logger) })
+    expect(host.lines).toEqual([chatRunFailed])
+  })
+
+  it('keeps the own debug of a child chat call', async () => {
+    const host = recordingLogger()
+    const own = recordingLogger()
+    const binding = { debug: errorsOnly(host.logger) }
+    await failChildChat(binding, errorsOnly(own.logger))
+    // `false` silences the call, so the host logger gets nothing from it.
+    await failChildChat(binding, false)
+    expect(own.lines).toEqual([chatRunFailed])
+    expect(host.lines).toEqual([])
+  })
+
+  it('logs the errors of a child chat call to the console when the host sets no debug', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    // On Node the default logger prints the meta of a line with `console.dir`.
+    vi.spyOn(console, 'dir').mockImplementation(() => {})
+    await failChildChat({})
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.stringContaining('chat run failed'),
+    )
+  })
+
+  it('gives every generation call the host debug, unless the call sets its own', () => {
+    const debug = { errors: true }
+    const activities = createBoundActivities(
+      'helper',
+      input,
+      new AbortController(),
+      { debug },
+    )
+    const methods: Array<Activity> = [
+      ...idActivities.map(([method]) => method),
+      'embed',
+      'rerank',
+      'decide',
+    ]
+    for (const method of methods) {
+      const call = activities[method] as unknown as (
+        options: object,
+      ) => Recorded
+      expect(call({ prompt: 'x' }).options.debug).toBe(debug)
+      expect(call({ prompt: 'x', debug: false }).options.debug).toBe(false)
+    }
+  })
+
+  it('passes the host debug down to nested children, unless the call sets its own', () => {
+    const activities = createBoundActivities(
+      'helper',
+      input,
+      new AbortController(),
+      { debug: true },
+    )
+    const chat = activities.chat as unknown as (options: object) => Recorded
+    const nestedDebug = (binding?: SubagentBinding) =>
+      chat({ adapter: 'a', subagents: { agents: [], binding } }).options
+        .subagents.binding.debug
+    expect(nestedDebug()).toBe(true)
+    expect(nestedDebug({ debug: false })).toBe(false)
+  })
+
   it('works without a binding', () => {
     const activities = createBoundActivities(
       'helper',
@@ -231,5 +361,7 @@ describe('createBoundActivities', () => {
       activities.generateImage as unknown as (options: object) => Recorded
     )({ prompt: 'x' })
     expect(result.options.middleware).toEqual([])
+    // No host debug: the activity keeps its own default.
+    expect(result.options.debug).toBeUndefined()
   })
 })

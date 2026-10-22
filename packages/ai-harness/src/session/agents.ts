@@ -9,6 +9,7 @@ import {
 import { withPersistence } from '@tanstack/ai-persistence'
 import { redactMiddleware } from '../auth'
 import { BOUNDARY_INTERRUPTS, withoutBoundaryWaits } from '../boundary-waits'
+import { errorsOnlyDebug } from '../logger'
 import { mediaCapture, mediaMiddleware } from '../media'
 import { OperationImpl } from '../operation'
 import {
@@ -606,6 +607,9 @@ export abstract class SessionAgents<
       // of the session, also when one of them sets the messages again.
       lastChatMiddleware: [redactMiddleware(this.redactor)],
       keys: run.keys,
+      // A model call of a child that sets no `debug` logs only its errors,
+      // to the host logger. Nested children get it too.
+      debug: errorsOnlyDebug(this.logger),
       // No `promptCache`: a tool-mode child then uses the retention of the
       // turn's chat() call, so a turn override reaches it.
       ...(start && { start }),

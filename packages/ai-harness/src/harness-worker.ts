@@ -1,4 +1,4 @@
-import { sweepOf } from './host'
+import { loggerOf, sweepOf } from './host'
 import type { OrphanedLog } from '@tanstack/ai-persistence'
 import type { AnyHarness } from './define'
 import type { HarnessHost } from './host'
@@ -64,6 +64,7 @@ export function createHarnessWorker<U extends HarnessUser>({
     )
   }
   const sweep = sweepOf(host)
+  const logger = loggerOf(host)
   const byName = new Map(harnesses.map((harness) => [harness.name, harness]))
   const names = [...byName.keys()]
   const stopped = new AbortController()
@@ -118,9 +119,9 @@ export function createHarnessWorker<U extends HarnessUser>({
       const count = (failures.get(orphan.logId)?.count ?? 0) + 1
       const backoff = Math.min(MAX_FAILURE_BACKOFF_MS, pollMs * 2 ** count)
       failures.set(orphan.logId, { count, until: Date.now() + backoff })
-      console.error(
+      logger.error(
         `[@tanstack/ai-harness] The worker could not take the log ${JSON.stringify(orphan.logId)} over (failure ${count} in a row). It skips the log for ${backoff} ms.`,
-        error,
+        { error },
       )
       end()
       return false
@@ -168,7 +169,9 @@ export function createHarnessWorker<U extends HarnessUser>({
       try {
         found = await look()
       } catch (error) {
-        console.error('[@tanstack/ai-harness] The worker look failed.', error)
+        logger.error('[@tanstack/ai-harness] The worker look failed.', {
+          error,
+        })
       }
       if (found) {
         emptyLooks = 0

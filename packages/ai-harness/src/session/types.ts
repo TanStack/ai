@@ -2,6 +2,7 @@ import type { CredentialStore } from '@tanstack/ai/byok'
 import type {
   SubagentBudget,
   Interrupt,
+  Logger,
   ModelMessage,
   PromptCacheOptions,
   RunAgentResumeItem,
@@ -453,6 +454,8 @@ export interface SessionDependencies {
   child?: ChildSessionLink
   /** The `observability` option of the host: spans and `onOperation`. */
   observability?: ObservabilityOptions
+  /** The `logger` of the host, safe to call: it never throws. */
+  logger: Logger
 }
 
 /** What a child session of `harnessAgent` takes from its parent. */

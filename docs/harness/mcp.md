@@ -165,7 +165,7 @@ export const renamed = mcp({
 })
 ```
 
-When two servers still give the same tool name, the model gets the tool of the server that comes first in `servers`. The other tool is dropped, and the console shows one warning with the names of both servers.
+When two servers still give the same tool name, the model gets the tool of the server that comes first in `servers`. `mcp()` drops the other tool. It writes one warning with the names of both servers to the [host `logger`](./host-options#send-the-warnings-to-your-own-logger) (the console by default).
 
 To treat a clash as a config error, set `onDuplicateTool: 'error'`. Then the later server shows `failed` with an error that names both servers and the tool, and the model gets none of its tools. The other servers keep working:
 

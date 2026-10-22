@@ -84,6 +84,7 @@ const isolated = dockerSandbox({ image: 'node:22' })
 ```
 
 - **Isolation:** a real container boundary between the agent and your host.
+- **Workspace:** when `workspace.source` is `localSource(dir)`, `create()` copies the folder into `workdir` (`/workspace` by default). The copy has every file that git does not ignore, with its uncommitted changes, and the history of the current branch. The folder must be a git repository root (not a shallow clone), and the host and the image need `git`. Fork, restore, and resume do not copy the folder again. See [Copy your project into the container](../harness/coding-tools-backends#copy-your-project-into-the-container).
 - **Auth and env:** no host login. Pass credentials as workspace secrets. They go into the container env at create and resume.
 - **Tools:** the agent reaches host tools at `host.docker.internal`. See [Tools](./tools).
 - **Snapshot and resume:** full commit-based snapshots, `fork`, and resume by id. Bootstrap takes a snapshot after `setup`, so later runs resume from it and skip setup.

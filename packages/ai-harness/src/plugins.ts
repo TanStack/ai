@@ -1,5 +1,10 @@
-import { CapabilityRegistry, createCapability } from '@tanstack/ai'
+import {
+  CapabilityRegistry,
+  ConsoleLogger,
+  createCapability,
+} from '@tanstack/ai'
 import { hostPluginContext } from './host-plugins'
+import { safeLogger } from './logger'
 import { ResourceScope, disposeAll } from './resources'
 import { assertMetadataSchema } from './session-entry'
 import type {
@@ -13,6 +18,7 @@ import type {
   ChatResult,
   InferSchemaType,
   KeyedAdapter,
+  Logger,
   MetadataStore,
   ModelMessage,
   ProviderKeys,
@@ -185,6 +191,12 @@ export interface HostPluginContext {
   harness: string
   /** Resources that live as long as the shared setup. */
   resources: PluginResources
+  /**
+   * The `logger` of the host (`createHarnessHost({ logger })`), for the
+   * warnings and errors of the shared setup. A logger that throws loses that
+   * line, and the setup goes on.
+   */
+  logger: Logger
 }
 
 /**
@@ -222,6 +234,8 @@ export interface PluginServices {
   commandsChanged?: () => void
   /** One model call of `ctx.model.chat`. Resolves to what chat() gives. */
   modelChat: (call: PluginModelCall) => Promise<unknown>
+  /** The logger of the host, safe to call: `ctx.logger`. */
+  logger: Logger
 }
 
 /** The chat() options of one `ctx.model.chat` call. */
@@ -391,6 +405,12 @@ export interface PluginSetupContext<TMetadata = Record<string, unknown>> {
   commands: PluginCommands
   /** Call a model, with the usage counted under `plugin:<name>`. */
   model: PluginModel
+  /**
+   * The `logger` of the host (`createHarnessHost({ logger })`), for the
+   * warnings and errors of this plugin. A logger that throws loses that
+   * line, and the session goes on.
+   */
+  logger: Logger
   /**
    * The turn this plugin is set up for: its input, context, sender, and run.
    * Set only for a plugin with `lifetime: 'turn'`. A session plugin has no
@@ -757,6 +777,7 @@ const NO_SESSION: PluginSessionApi = {
   authRequired: unavailable('ctx.session'),
   setPluginSetting: unavailable('ctx.session'),
   threadSettings: unavailable('ctx.session'),
+  putMedia: unavailable('ctx.session'),
 }
 
 const NO_SERVICES: PluginServices = {
@@ -785,6 +806,7 @@ const NO_SERVICES: PluginServices = {
     group: unavailable('ctx.agents.group'),
   },
   modelChat: unavailable('ctx.model'),
+  logger: safeLogger(new ConsoleLogger()),
 }
 
 /**
@@ -1143,7 +1165,8 @@ async function sharedSetup(
   env: MountEnvironment,
 ): Promise<SharedHostPlugin> {
   if (env.hostPlugin) return env.hostPlugin(plugin)
-  const context = hostPluginContext(env.harnessName ?? '', scope)
+  const { logger } = env.services ?? NO_SERVICES
+  const context = hostPluginContext(env.harnessName ?? '', scope, logger)
   return {
     contributions: await plugin.setup(context),
     release: () => Promise.resolve(),
@@ -1382,6 +1405,7 @@ export async function mountPlugins(
             })) as never
           },
         },
+        logger: services.logger,
         ...(env.turn ? { turn: env.turn } : {}),
       }
       let parts: Array<PluginContributions | void>

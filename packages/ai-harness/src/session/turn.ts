@@ -17,6 +17,7 @@ import { NO_SESSION_CONTEXT } from '../agents'
 import { isHumanTarget } from '../log-records'
 import { BOUNDARY_INTERRUPTS } from '../boundary-waits'
 import { agentCardOf } from '../waits'
+import { errorsOnlyDebug } from '../logger'
 import { mediaMiddleware } from '../media'
 import { mediaOfMessage } from '../media-ref'
 import { OperationImpl } from '../operation'
@@ -1175,6 +1176,8 @@ export abstract class SessionTurn<
             ...(parentRunId ? { parentRunId } : {}),
             ...(resume ? { resume } : {}),
             abortController: operation.abortController,
+            // Only the errors of the call, to the host logger.
+            debug: errorsOnlyDebug(this.logger),
             stream: true,
           }) as AsyncIterable<StreamChunk>
 

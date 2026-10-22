@@ -99,6 +99,7 @@ export function createCodeModeTool(
     onSecretParameter,
     transpile = stripTypeScript,
     debug,
+    aroundCalls,
   } = config
 
   const logger = resolveDebugOption(debug)
@@ -193,6 +194,8 @@ export function createCodeModeTool(
 
       // Create a fresh sandbox context for this execution
       let isolateContext: IsolateContext | null = null
+      // Aborts when this program ends, so a host call that still waits can stop.
+      const programEnd = new AbortController()
 
       // Emit execution started event immediately
       emitCustomEvent('code_mode:execution_started', {
@@ -245,6 +248,7 @@ export function createCodeModeTool(
           allBindings,
           emitCustomEvent,
           toolContext,
+          aroundCalls?.(toolContext, programEnd.signal),
         )
 
         // Step 4: Create sandbox context with event-aware bindings
@@ -340,6 +344,8 @@ export function createCodeModeTool(
           'unhandled',
         )
       } finally {
+        // The program has ended (success, error, or timeout).
+        programEnd.abort()
         // Always clean up the sandbox context
         if (isolateContext) {
           await isolateContext.dispose()

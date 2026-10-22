@@ -1,5 +1,9 @@
 import { createCapability, getMetadata } from '@tanstack/ai'
-import { approvalInterrupt, readApproval } from '../boundary-waits'
+import {
+  APPROVAL_ANSWER_SCHEMA,
+  approvalInterrupt,
+  readApproval,
+} from '../boundary-waits'
 import { defineCommand } from '../commands'
 import { configOption } from '../config'
 import { createExtensionPoint } from '../extensions'
@@ -101,6 +105,41 @@ export const PermissionDecisionCapability = createCapability<
     resources?: CallResources,
   ) => PermissionDecision
 >()('tanstack/permission-decision')
+
+/** What `PermissionCallCapability` decides for one call. */
+export type PermissionCallDecision =
+  | { decision: 'allow' }
+  | {
+      decision: 'deny'
+      /** The error that the model gets for the same direct call. */
+      error: string
+    }
+  | {
+      decision: 'ask'
+      /** The question of the approval that the same direct call gets. */
+      message: string
+      /** The JSON Schema of the answer, as for a direct approval. */
+      schema: Record<string, unknown>
+      /**
+       * Apply the user's reply, read as the answer of an approval. `always`
+       * saves the rules of the call, as for a direct call. Resolves to the
+       * error text of a reject, or `undefined` when the call can run.
+       */
+      settle: (reply: unknown) => Promise<string | undefined>
+    }
+
+/**
+ * What `permissions()` decides for one call of `tool` with `args`. A plugin
+ * that runs tool calls itself, like code mode, reads it, so each of its
+ * calls gets the same decision as a direct tool call. It uses the current
+ * mode, the `root`, all rules, the saved `always` answers, and what the
+ * args touch (`PermissionResources`). `bypass` allows every call. A call
+ * whose resources cannot be read is denied. Read it when the call runs,
+ * with `ctx.getOptional(PermissionCallCapability)`.
+ */
+export const PermissionCallCapability = createCapability<
+  (call: { tool: string; args: unknown }) => Promise<PermissionCallDecision>
+>()('tanstack/permission-call')
 
 /**
  * True when a command part still has shell syntax that can run or chain
@@ -571,6 +610,9 @@ const PLAN_PROMPT =
  * call, for the project (`root`), in the metadata store, else in memory for
  * the session. `/permissions` lists the saved rules, and
  * `/permissions forget <n>` deletes one.
+ *
+ * A plugin that runs tool calls itself, like `codeMode()`, gets the same
+ * decision for each of its calls from `PermissionCallCapability`.
  */
 export function permissions(
   options: {
@@ -585,7 +627,7 @@ export function permissions(
 ) {
   return definePlugin({
     name: 'tanstack/permissions',
-    provides: [PermissionDecisionCapability],
+    provides: [PermissionDecisionCapability, PermissionCallCapability],
     setup: (ctx) => {
       const contributed = ctx.collect(PermissionRules)
       const declared = ctx.collect(PermissionResources)
@@ -630,7 +672,8 @@ export function permissions(
           return added.length === 0 ? undefined : [...current, ...added]
         })
       }
-      // The session's store, for commands. A chat run reads its own.
+      // The session's store, for commands and `PermissionCallCapability`. A
+      // chat run reads its own.
       const sessionMetadata = ctx.getOptional(SessionMetadata)
       const savedRules = async () =>
         sessionMetadata ? readSaved(sessionMetadata, savedKey()) : [...memory]
@@ -730,11 +773,66 @@ export function permissions(
         return `Allow ${tool} ${preview}? Answer once, always, or reject.`
       }
       /**
-       * The answers to the approvals of the turn, by tool call id. The turn
-       * that resumes gets them in `onInterruptResolution`, on any host,
-       * before its tools run. A call takes its answer when it runs.
+       * The decision for one call of `tool` with `args` in the current mode.
+       * The boundary, the guard, and `PermissionCallCapability` all use it,
+       * so a call gets the same decision wherever it runs.
        */
-      const answers = new Map<string, ReturnType<typeof readApproval>>()
+      const decideCall = async (
+        tool: string,
+        args: unknown,
+        metadata: MetadataStore | undefined,
+      ) => {
+        const current = mode()
+        if (current === 'bypass') return { decision: 'allow' as const }
+        const checked = await decide(tool, args, current, metadata).catch(
+          (error: unknown) =>
+            error instanceof Error ? error : new Error(String(error)),
+        )
+        // Fail closed: a call we cannot check does not run.
+        if (checked instanceof Error) {
+          return {
+            decision: 'deny' as const,
+            error: `Cannot check the permissions of this call: ${checked.message}`,
+          }
+        }
+        const { decision, resources } = checked
+        if (decision === 'allow') return { decision: 'allow' as const }
+        if (decision === 'deny') {
+          const error =
+            current === 'plan'
+              ? 'This tool is not allowed in plan mode.'
+              : 'A permission rule denies this tool.'
+          return { decision: 'deny' as const, error }
+        }
+        const settle = async (reply: unknown) => {
+          const answer = readApproval(reply)
+          if (answer.choice === 'reject') {
+            return answer.message ?? 'The user denied this tool call.'
+          }
+          if (answer.choice === 'always') {
+            // The session keeps the answer in memory, so a failed write does
+            // not fail the call the user allowed.
+            await save(metadata, rulesToSave(tool, resources)).catch(() => {})
+          }
+          return undefined
+        }
+        return {
+          decision: 'ask' as const,
+          message: approvalMessage(tool, args),
+          schema: APPROVAL_ANSWER_SCHEMA,
+          settle,
+        }
+      }
+      // Other plugins call it with no chat run, so it uses the session's store.
+      ctx.provide(PermissionCallCapability, ({ tool, args }) =>
+        decideCall(tool, args, sessionMetadata),
+      )
+      /**
+       * The replies to the approvals of the turn, by tool call id. The turn
+       * that resumes gets them in `onInterruptResolution`, on any host,
+       * before its tools run. A call settles its reply when it runs.
+       */
+      const answers = new Map<string, unknown>()
       /**
        * Decide each tool call of the model message before the tools run.
        * Each call that asks opens one approval wait, so the turn stops, and
@@ -744,24 +842,23 @@ export function permissions(
         run,
       ) => {
         if (run.phase !== 'beforeTools') return undefined
-        const current = mode()
-        if (current === 'bypass') return undefined
         const metadata = getMetadata(run, { optional: true })
         const interrupts = []
         for (const call of pendingCalls(run.messages)) {
           if (answers.has(call.id)) continue
           const tool = call.function.name
-          const args = parseArgs(call.function.arguments)
-          // A call that cannot be checked is refused when it runs.
-          const checked = await decide(tool, args, current, metadata).catch(
-            () => undefined,
+          // A call that cannot be checked is denied: it is refused when it runs.
+          const checked = await decideCall(
+            tool,
+            parseArgs(call.function.arguments),
+            metadata,
           )
-          if (checked?.decision !== 'ask') continue
+          if (checked.decision !== 'ask') continue
           interrupts.push(
             approvalInterrupt.interrupt({
               key: call.id,
               reason: 'approval',
-              message: approvalMessage(tool, args),
+              message: checked.message,
               payload: { toolCallId: call.id, tool },
             }),
           )
@@ -773,12 +870,10 @@ export function permissions(
         onInterruptBoundary: boundary,
         onInterruptResolution: (_run, resolutions) => {
           for (const resolution of resolutions.for(approvalInterrupt)) {
-            // A cancelled approval is a reject.
+            // A cancelled approval is a reject: `false`.
             answers.set(
               resolution.request.key,
-              resolution.status === 'resolved'
-                ? readApproval(resolution.response)
-                : { choice: 'reject', message: undefined },
+              resolution.status === 'resolved' ? resolution.response : false,
             )
           }
         },
@@ -787,53 +882,22 @@ export function permissions(
         // the input check, so it decides on the args that the tool gets. A
         // middleware before this one cannot change a call past the rules.
         onGuardToolCall: async (run, hook) => {
-          const current = mode()
-          if (current === 'bypass') return undefined
           const metadata = getMetadata(run, { optional: true })
-          const checked = await decide(
-            hook.toolName,
-            hook.args,
-            current,
-            metadata,
-          ).catch((error: unknown) =>
-            error instanceof Error ? error : new Error(String(error)),
-          )
-          // Fail closed: a call we cannot check does not run.
-          if (checked instanceof Error) {
-            return refuse(
-              `Cannot check the permissions of this call: ${checked.message}`,
-            )
-          }
-          const { decision, resources } = checked
-          if (decision === 'allow') return undefined
-          if (decision === 'deny') {
-            return refuse(
-              current === 'plan'
-                ? 'This tool is not allowed in plan mode.'
-                : 'A permission rule denies this tool.',
-            )
-          }
-          const reply = answers.get(hook.toolCallId)
-          answers.delete(hook.toolCallId)
+          const call = await decideCall(hook.toolName, hook.args, metadata)
+          if (call.decision === 'allow') return undefined
+          if (call.decision === 'deny') return refuse(call.error)
           // The boundary asked about every call of the model message. A call
           // with no answer is one that the boundary did not see (for example,
           // a call that a `chat()` without the approval interrupt makes).
-          if (!reply) {
+          if (!answers.has(hook.toolCallId)) {
             return refuse(
               'This call needs the approval of the user, and this run cannot ask for it.',
             )
           }
-          if (reply.choice === 'reject') {
-            return refuse(reply.message ?? 'The user denied this tool call.')
-          }
-          if (reply.choice === 'always') {
-            // The session keeps the answer in memory, so a failed write does
-            // not fail the call the user allowed.
-            await save(metadata, rulesToSave(hook.toolName, resources)).catch(
-              () => {},
-            )
-          }
-          return undefined
+          const reply = answers.get(hook.toolCallId)
+          answers.delete(hook.toolCallId)
+          const error = await call.settle(reply)
+          return error === undefined ? undefined : refuse(error)
         },
       } satisfies AnyChatMiddleware
       return {

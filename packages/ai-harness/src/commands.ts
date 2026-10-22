@@ -8,6 +8,8 @@ import type {
   ChatTurnResult,
   Operation,
   HarnessUser,
+  MediaRecord,
+  MediaUpload,
   Receipt,
   RunContext,
   ThreadSettings,
@@ -175,6 +177,13 @@ export interface PluginSessionApi<TMetadata = Record<string, unknown>> {
    * the next turn.
    */
   threadSettings: () => ThreadSettings
+  /**
+   * Store a file in the media store of this session, as `session.putMedia`
+   * does. Put `mediaPart(record)` in a tool result: the transcript and the
+   * log keep a small `harness-media:` reference, and the model gets the
+   * bytes.
+   */
+  putMedia: (upload: MediaUpload<Uint8Array>) => Promise<MediaRecord>
 }
 
 /** What a command handler receives besides its input. */

@@ -93,6 +93,18 @@ for (const { record } of await log.read({ logId: logIdOf({ logId: 'fix-login' })
 - `diff` finds a snapshot only in the repository of a session that is open.
 - A step that changed no file is not saved.
 
+The file tools send a [`FileChanged` event](./custom-ui#show-live-diffs) for each file that they change, with its diff. A `bash` command sends none. So at the end of each model step, `snapshots()` sends `FileChanged` for each file of the step that no tool reported. Listen for all of them in a view:
+
+```ts group=harness-snapshots
+import { FileChanged } from '@tanstack/ai-harness/plugins/coding'
+import { createSessionView } from '@tanstack/ai-harness/view'
+
+const view = createSessionView(session)
+view.on(FileChanged, (file) => console.log(`${file.change} ${file.path}`))
+```
+
+When the model runs `pnpm format` with `bash`, the handler prints one line for each file that the command changed, for example `updated /work/repo/src/app.ts`. A tool like `bash` does not report the files that it changes. If the step has one call of such a tool, each event has the `toolCallId` of that call. See also the [known limits](#known-limits) of these events.
+
 ## Go back to an earlier message
 
 `/undo` goes back one turn. To go back more turns, revert the session to a message of the transcript:
@@ -172,9 +184,17 @@ await purgeSnapshots({ root, dataDir }, { tenantId: 'acme', threadId: 'fix-login
 - If you sent a message while the turn ran, `/undo` removes the conversation from that message on. The files still go back to the start of the turn.
 - Without `git`, the plugin sends a `tanstack/snapshots:failed` event (`SnapshotFailed`) with `snapshots: git was not found. Snapshots are off.`, and adds no commands. `diff()` throws. The turns run as usual. A snapshot that fails for another reason sends the same event, and the turn goes on.
 
+For the `FileChanged` events of the plugin:
+
+- At most 100 events for each model step. For a step that changed more files, the plugin sends the first 100.
+- No `'moved'` event. A file that `bash` moves gives a `'deleted'` event for the old path and a `'created'` event for the new path.
+- The plugin does not check the permission rules. So a file that `read_file` asks about or denies can get a `patch`.
+- No event for `.env` files and for the files that `.gitignore` names. The snapshots skip these files.
+
 ## What you have now
 
 - `/undo` and `/redo` for the file changes of the last turn, also the changes of shell commands.
 - A revert to any earlier message, with its files, and `unrevert()` to bring them back.
 - A list of changed files and a unified diff for each model step.
+- A live `FileChanged` diff for each file that a `bash` command changes.
 - Snapshots that never touch the git repository of your project.

@@ -838,6 +838,54 @@ describe('custom ui', () => {
     expect(seen).toEqual(['main'])
   })
 
+  it('changes the thread settings and resets the context from the ui view', async () => {
+    const harness = defineHarness({
+      name: 'test/ui-actions',
+      adapter: scripted([]).adapter,
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    let errors: Array<string> = []
+    try {
+      const code = await runCli(harness, {
+        argv: [],
+        stdin: stdinFrom([], { isTTY: true }),
+        stdout: capture(),
+        stderr: capture(),
+        host,
+        ui: async (view) => {
+          await view.updateThreadSettings({
+            settings: { instructions: 'Answer in French.' },
+          })
+          await view.reset({ note: 'Start over.' })
+          errors = view.store
+            .get()
+            .messages.flatMap((message) =>
+              message.role === 'notice' && message.kind === 'error'
+                ? [message.text]
+                : [],
+            )
+        },
+      })
+      const session = await host.open(harness, { threadId: 'main' })
+      await session.whenIdle()
+
+      expect(code).toBe(EXIT.ok)
+      expect(errors).toEqual([])
+      expect(session.threadSettings()).toEqual({
+        instructions: 'Answer in French.',
+      })
+      expect(await session.transcript()).toMatchObject([
+        {
+          role: 'user',
+          content: 'Start over.',
+          metadata: { harness: { reset: { note: 'Start over.' } } },
+        },
+      ])
+    } finally {
+      await host.close()
+    }
+  })
+
   it('uses line mode for piped input, even with a ui', async () => {
     const { adapter } = scripted([textTurn('Piped answer.')])
     const stdout = capture()

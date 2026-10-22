@@ -86,6 +86,7 @@ import type {
   LiveVideoProviderOptions,
 } from '../../generateLiveVideo/index'
 import type { LiveVideoAdapter } from '../../generateLiveVideo/adapter'
+import type { DebugOption } from '../../../logger/types'
 
 /**
  * The fields a child `chat()` needs, in one spread:
@@ -156,6 +157,12 @@ export interface SubagentBinding {
    * uses it when the call gives no `promptCache`.
    */
   promptCache?: PromptCacheRetention
+  /**
+   * The `debug` option for the model calls of a child agent that set no
+   * `debug` of their own. A child's `ctx.chat({ subagents })` passes it down
+   * to its own children.
+   */
+  debug?: DebugOption
   /**
    * Adds fields to the `ctx` of every run. A host declares their types by
    * augmenting `SubagentContextExtension`. It passes down to nested children.
@@ -330,13 +337,16 @@ export function createBoundActivities(
       runId: `${input.runId}:${activity}-${calls}`,
     }
   }
-  const withGenerationMiddleware = (options: LooseOptions) => ({
+  // Every generation call gets the host middleware first, and the host
+  // `debug` when it sets no `debug` of its own.
+  const withHost = (options: LooseOptions) => ({
     ...options,
+    debug: options.debug ?? binding?.debug,
     middleware: [...generationMiddleware, ...(options.middleware ?? [])],
   })
   // Activities that accept thread and run ids plus an abort signal.
   const full = (activity: string, options: LooseOptions) =>
-    withGenerationMiddleware({
+    withHost({
       ...ids(activity),
       abortSignal: signal,
       ...options,
@@ -358,14 +368,20 @@ export function createBoundActivities(
         ...(binding?.promptCache ? { promptCache: binding.promptCache } : {}),
         abortController,
         ...options,
+        // A call that sets no `debug` of its own gets the host one.
+        debug: options.debug ?? binding?.debug,
         // Nested children get the host middleware before their own, share
-        // the tree budget, and get the host keys unless the call sets its own.
+        // the tree budget, and get the host keys and `debug` unless the call
+        // sets its own.
         ...(options.subagents
           ? {
               subagents: {
                 ...options.subagents,
                 binding: {
                   ...(binding?.keys ? { keys: binding.keys } : {}),
+                  ...(binding?.debug !== undefined
+                    ? { debug: binding.debug }
+                    : {}),
                   ...options.subagents.binding,
                   chatMiddleware: [
                     ...chatMiddleware,
@@ -441,15 +457,15 @@ export function createBoundActivities(
       )) as BoundActivities['generateLiveVideo'],
     // `embed` takes neither ids nor an abort signal.
     embed: ((options: LooseOptions) =>
-      embed(withGenerationMiddleware(options) as never)) as typeof embed,
+      embed(withHost(options) as never)) as typeof embed,
     // `rerank` and `decide` take an abort signal but no ids.
     rerank: ((options: LooseOptions) =>
       rerank(
-        withGenerationMiddleware({ abortSignal: signal, ...options }) as never,
+        withHost({ abortSignal: signal, ...options }) as never,
       )) as typeof rerank,
     decide: ((options: LooseOptions) =>
       decide(
-        withGenerationMiddleware({ abortSignal: signal, ...options }) as never,
+        withHost({ abortSignal: signal, ...options }) as never,
       )) as typeof decide,
   }
 }

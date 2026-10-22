@@ -11,7 +11,7 @@ import {
 } from '../src'
 import { createHarnessHandler } from '../src/server'
 import { mockAdapter } from './helpers'
-import type { AnyTextAdapter, KeyedAdapter } from '@tanstack/ai'
+import type { AnyTextAdapter, KeyedAdapter, Logger } from '@tanstack/ai'
 import type { SessionIndexEntry } from '@tanstack/ai-persistence'
 import type {
   AgentActions,
@@ -330,6 +330,10 @@ it('gives plugins and agent code the same agent actions', () => {
   expectTypeOf<PluginServices['agents']>().toEqualTypeOf<AgentActions>()
   expectTypeOf<HarnessAgentContext['agents']>().toEqualTypeOf<AgentActions>()
   expectTypeOf<PluginSetupContext['agents']>().toExtend<AgentActions>()
+})
+
+it('gives plugins the logger of the host as ctx.logger', () => {
+  expectTypeOf<PluginSetupContext['logger']>().toEqualTypeOf<Logger>()
 })
 
 it('types ctx.harness as optional, since a plain chat() run has none', () => {

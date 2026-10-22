@@ -1,8 +1,10 @@
 import { toolDefinition } from '@tanstack/ai'
 import { readText, stringArg } from './backend'
 import { afterWriteSeen, findMatches, toEndingsOf } from './edit'
+import { readForDiff, reportChange } from './file-change'
 import type { ToolEnv } from './backend'
 import type { FileVersions } from './edit'
+import type { DiffText } from './file-change'
 
 const BOM = '﻿'
 
@@ -308,7 +310,8 @@ interface Step {
  * Apply each step. Every file is read and checked first. The files are
  * written and removed only when every operation fits, and `versions`
  * remembers the files as the patch left them. Resolves to the lines of the
- * result and the written files, for the `afterWrite` hooks.
+ * result, the written files for the `afterWrite` hooks, and one report for
+ * each changed file, for {@link reportChange}.
  */
 async function applyAll(
   env: ToolEnv,
@@ -320,6 +323,11 @@ async function applyAll(
   // operation on a file sees it. A removed file is always a file that was
   // there before the patch.
   const planned = new Map<string, string | null>()
+  // The text of each file before the patch, for the diffs, from the first
+  // step on the file (see `readForDiff`).
+  const original = new Map<string, DiffText>()
+  // The old path of each moved file, by its new path.
+  const movedFrom = new Map<string, string>()
   const changes: Array<string> = []
   for (const { operation, full, to } of steps) {
     const shown = env.shown(full)
@@ -328,6 +336,10 @@ async function applyAll(
         // Checked here, so a patch that does not fit writes nothing.
         if ((await backend.stat(full))?.type === 'dir') {
           throw new Error(`Cannot add ${shown}: it is a folder.`)
+        }
+        // An add can replace a file that is there.
+        if (!planned.has(full)) {
+          original.set(full, await readForDiff(backend, full))
         }
         planned.set(full, operation.content)
         changes.push(`added ${shown}`)
@@ -345,6 +357,7 @@ async function applyAll(
         }
         const isFile = (await backend.stat(full))?.type === 'file'
         if (!isFile) throw new Error(`Cannot delete ${shown}: no such file.`)
+        original.set(full, await readForDiff(backend, full))
         planned.set(full, null)
         changes.push(`deleted ${shown}`)
         break
@@ -381,8 +394,13 @@ async function applyAll(
           )
         }
         const before = known ?? (await readText(backend, full))
+        // The first step on the file: `before` is its text before the patch.
+        if (known === undefined) original.set(full, before)
         planned.set(to, applyChunks(before, operation.chunks, shown))
-        if (isMove) planned.set(full, null)
+        if (isMove) {
+          planned.set(full, null)
+          movedFrom.set(to, full)
+        }
         changes.push(
           isMove ? `moved ${shown} to ${toShown}` : `updated ${shown}`,
         )
@@ -400,7 +418,17 @@ async function applyAll(
   for (const full of removed) await backend.remove?.(full)
   for (const { full } of written) await versions.saw(full)
   for (const full of removed) versions.forget(full)
-  return { changes, written: written.map(({ full }) => full) }
+  // One report for each file. A move is one report, at its new path.
+  // ponytail: a move onto a file that the patch deleted before reports
+  // only the move, not the old text of the target.
+  const sources = new Set(movedFrom.values())
+  const reports = files.flatMap(([full, text]) => {
+    const isMovedAway = text === null && sources.has(full)
+    if (isMovedAway) return []
+    const from = movedFrom.get(full)
+    return [{ path: full, from, before: original.get(from ?? full) }]
+  })
+  return { changes, written: written.map(({ full }) => full), reports }
 }
 
 /**
@@ -420,6 +448,9 @@ async function applyAll(
  *   same patch. A file cannot be removed or moved after the patch changed it.
  * - A file that changed since a tool read it fails the patch, before it
  *   writes anything (see `versions`).
+ * - After the hooks, each changed file sends `FileChanged` (see
+ *   {@link reportChange}), with its text from before the patch. A move
+ *   sends one `'moved'` event.
  */
 export function patchTools(env: ToolEnv, versions: FileVersions) {
   return [
@@ -431,7 +462,7 @@ export function patchTools(env: ToolEnv, versions: FileVersions) {
         properties: { patch: { type: 'string' } },
         required: ['patch'],
       },
-    }).server(async (args: unknown) => {
+    }).server(async (args: unknown, context) => {
       const operations = parsePatch(stringArg(args, 'patch'))
       // Resolve each path first. The rules decided an outside path before
       // the call.
@@ -467,8 +498,11 @@ export function patchTools(env: ToolEnv, versions: FileVersions) {
         const inner = run
         run = () => env.lock(path, inner)
       }
-      const { changes, written } = await run()
+      const { changes, written, reports } = await run()
       const notes = await afterWriteSeen(env, versions, written)
+      for (const report of reports) {
+        await reportChange(env, { ...report, toolCallId: context?.toolCallId })
+      }
       return ['Applied the patch:', ...changes, ...notes].join('\n')
     }),
   ]

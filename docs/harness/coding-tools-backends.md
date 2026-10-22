@@ -60,6 +60,8 @@ export const sandboxed = defineHarness({
 })
 ```
 
+To give the agent the project folder on your machine, [copy it into the container](#copy-your-project-into-the-container).
+
 3. When you are done, stop the sandbox with `await sandbox.destroy()`.
 
 Every provider works. Get the handle from `create()`, or from `resume()` for a sandbox that runs already. See [Providers](../sandbox/providers). To create a sandbox for each thread, and resume it on another server, see [Run the coding tools for many threads](./coding-workspaces).
@@ -71,6 +73,28 @@ In a sandbox, some things are different:
 - `background: true` needs a sandbox with `capabilities.backgroundProcesses`.
 - A sandbox with `capabilities.killableProcesses` off cannot stop a command after the time limit. The call returns, and the command continues in the sandbox.
 - `list_files` and `grep` use `rg` in the sandbox. The `@vscode/ripgrep` binary is a host file, so the sandbox does not use it.
+
+### Copy your project into the container
+
+A clone has only the commits that you pushed. To give the agent your project as it is now, copy its folder into the container. In step 2, replace the `create({})` and `git.clone()` lines with this code:
+
+```ts group=harness-coding-tools-local-source
+import { defineWorkspace, localSource } from '@tanstack/ai-sandbox'
+import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+
+// Run this script in the root folder of your repository.
+const sandbox = await dockerSandbox({ image: 'node:24' }).create({
+  workspace: defineWorkspace({ source: localSource(process.cwd()) }),
+})
+```
+
+The tools now work on your project in `/workspace`.
+
+- The copy has every file that git does not ignore, with its uncommitted changes. Ignored files, like `node_modules`, stay on your machine, so install the dependencies in the container.
+- The copy has the current branch with its history, so `git status` in the container shows your uncommitted changes. Staged changes show as unstaged.
+- The folder must be the root of a git repository or a git worktree, and not a shallow clone. Otherwise, `create()` throws before it starts a container.
+- Your machine and the image both need `git`. `node:24` has `git`, and `alpine` does not.
+- `create()` copies the folder once. Your folder does not get the changes that the agent makes in the container.
 
 ## Write your own backend
 
@@ -286,6 +310,7 @@ export const bounded = defineHarness({
 ## What you have now
 
 - The coding tools in a sandbox, with one option.
+- Your project in a Docker container, with its uncommitted changes.
 - A backend of your own for another place.
 - Code that runs after each read and each write.
 - Formatted files after each write, and tool results that fit the context.

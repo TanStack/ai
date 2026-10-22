@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { HostEventBus } from '../src/host-event-bus'
+import type { Logger } from '@tanstack/ai'
 import type { HostEvent } from '../src/host'
 
 /** A status event of `threadId` in `tenantId`. */
@@ -102,6 +103,32 @@ describe('the host event bus', () => {
 
     expect((await take(read, 2)).map(threadOf)).toEqual(['t0', 't1'])
     expect(bus.readers).toBe(0)
+  })
+
+  it('logs a reader that throws to its logger, and the other readers still get the event', async () => {
+    const error = vi.fn<Logger['error']>()
+    const bus = new HostEventBus({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error,
+    })
+    const failure = new Error('The filter broke.')
+    void bus.read({
+      filter: () => {
+        throw failure
+      },
+    })
+    const other = take(bus.read(), 1)
+    await Promise.resolve()
+
+    bus.emit(status('t1'))
+
+    expect((await other).map(threadOf)).toEqual(['t1'])
+    expect(error).toHaveBeenCalledWith(
+      '[@tanstack/ai-harness] A host events reader threw.',
+      { error: failure },
+    )
   })
 
   it('stops a read when its signal aborts', async () => {

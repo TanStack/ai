@@ -18,7 +18,7 @@ import {
   untilAborted,
   wrapLogStore,
 } from './helpers'
-import type { AnyTextAdapter } from '@tanstack/ai'
+import type { AnyTextAdapter, Logger } from '@tanstack/ai'
 import type { LogRecord, LogStore } from '@tanstack/ai-persistence'
 import type { AnyHarness, HarnessHost } from '../src'
 
@@ -298,7 +298,7 @@ describe('createHarnessWorker', () => {
   })
 
   it('skips a log that fails to open, so the other logs run', async () => {
-    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const error = vi.fn<Logger['error']>()
     const inner = memoryLogStore()
     const bad = logIdOf({ logId: 't-bad' })
     const broken = () => Promise.reject(new Error('The disk is gone.'))
@@ -309,7 +309,10 @@ describe('createHarnessWorker', () => {
     })
     const { adapter } = mockAdapter([() => text('Done.')])
     const harness = harnessWith(adapter)
-    const host = hostOn(log)
+    const host = createHarnessHost({
+      persistence: { stores: { log } },
+      logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error },
+    })
     // The broken log is due first, so it is first in each list.
     await submitPrompt(host, harness, 't-bad', 'in-bad')
     await pause()
@@ -327,9 +330,9 @@ describe('createHarnessWorker', () => {
         outcome: 'completed',
       }),
     )
-    expect(errors).toHaveBeenCalledWith(
+    expect(error).toHaveBeenCalledWith(
       expect.stringContaining('(failure 1 in a row)'),
-      expect.any(Error),
+      { error: expect.any(Error) },
     )
     await worker.stop()
     await host.close()

@@ -1,6 +1,8 @@
 import Dockerode from 'dockerode'
 import { DOCKER_CAPS, DockerHandle } from './handle'
+import { copyLocalSource, readLocalSource } from './local-source'
 import type { DockerLogger } from './handle'
+import type { LocalSource } from './local-source'
 import type {
   SandboxCapabilities,
   SandboxCreateInput,
@@ -89,8 +91,14 @@ class DockerProvider implements SandboxProvider {
 
   private async startContainer(
     image: string,
-    env?: Record<string, string>,
+    options: {
+      env?: Record<string, string>
+      /** Copied into the work dir. Only `create` passes it. */
+      localSource?: LocalSource
+      signal?: AbortSignal
+    } = {},
   ): Promise<SandboxHandle> {
+    const { env } = options
     const exposed: Record<string, Record<string, never>> = {}
     const bindings: Record<string, Array<{ HostPort: string }>> = {}
     for (const port of this.config.publishPorts ?? []) {
@@ -113,10 +121,11 @@ class DockerProvider implements SandboxProvider {
       },
     })
 
-    // If anything after createContainer fails (start, or the first exec to
-    // create the workspace dir), the container already exists and would leak as
-    // a stopped container — these accumulate and strain the daemon. Tear it down
-    // on any instantiation failure before propagating the error.
+    // If anything after createContainer fails (start, the first exec to
+    // create the workspace dir, or the localSource copy), the container already
+    // exists and would leak as a stopped container. These accumulate and strain
+    // the daemon. Tear it down on any instantiation failure before propagating
+    // the error.
     try {
       await container.start()
       const handle = new DockerHandle({
@@ -129,6 +138,14 @@ class DockerProvider implements SandboxProvider {
       })
       // Ensure the workspace dir exists.
       await handle.fs.mkdir(this.workdir)
+      if (options.localSource !== undefined) {
+        await copyLocalSource(options.localSource, {
+          container,
+          handle,
+          logger: this.config.logger,
+          signal: options.signal,
+        })
+      }
       return handle
     } catch (error) {
       try {
@@ -141,8 +158,16 @@ class DockerProvider implements SandboxProvider {
   }
 
   async create(input: SandboxCreateInput): Promise<SandboxHandle> {
+    const source = input.workspace?.source
+    // Read a local folder before any container work, so a bad path fails fast.
+    const localSource =
+      source?.type === 'local' ? await readLocalSource(source.path) : undefined
     await this.ensureImage(this.config.image)
-    return this.startContainer(this.config.image, input.env)
+    return this.startContainer(this.config.image, {
+      env: input.env,
+      localSource,
+      signal: input.signal,
+    })
   }
 
   async resume(input: SandboxResumeInput): Promise<SandboxHandle | null> {
@@ -171,7 +196,7 @@ class DockerProvider implements SandboxProvider {
   }
 
   async restoreSnapshot(input: SandboxRestoreInput): Promise<SandboxHandle> {
-    return this.startContainer(input.snapshotId, input.env)
+    return this.startContainer(input.snapshotId, { env: input.env })
   }
 
   async destroy(input: SandboxDestroyInput): Promise<void> {
@@ -195,6 +220,12 @@ class DockerProvider implements SandboxProvider {
  * Docker sandbox provider — runs harness adapters inside isolated containers.
  * Requires a reachable Docker daemon (local socket by default; override via
  * `dockerodeOptions`).
+ *
+ * When `workspace.source` is `localSource(dir)`, `create()` copies the folder
+ * into `workdir`: the files that git lists, with their uncommitted changes,
+ * and the history of the current branch. The folder must be a Git repository,
+ * and the image must have git (for example `node:24`). The copy goes one way,
+ * once. Fork, restore, and resume do not copy.
  */
 export function dockerSandbox(config: DockerSandboxConfig): SandboxProvider {
   return new DockerProvider(config)

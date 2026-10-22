@@ -1,4 +1,4 @@
-import { EventType } from '@tanstack/ai'
+import { ConsoleLogger, EventType } from '@tanstack/ai'
 import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import type { CredentialStore } from '@tanstack/ai/byok'
@@ -14,6 +14,7 @@ import {
 import { HostEventBus, tenantOfHostEvent } from './host-event-bus'
 import { refreshFlights } from './auth'
 import { HostPlugins } from './host-plugins'
+import { safeLogger } from './logger'
 import { purgeThreadData } from './purge'
 import { HostOwnership, OPEN_RETRY_MS } from './ownership'
 import { withSpan } from './observability'
@@ -31,6 +32,7 @@ import { HARNESS_EVENTS } from './types'
 import { isRecord } from './utils'
 import { changedEntry } from './session-entry'
 import type {
+  Logger,
   ModelMessage,
   PromptCacheOptions,
   StreamChunk,
@@ -212,6 +214,27 @@ export interface HarnessHostOptions<U extends HarnessUser = HarnessUser> {
    * ```
    */
   observability?: ObservabilityOptions
+  /**
+   * Where the harness sends its warnings and errors: a `Logger` from
+   * `@tanstack/ai`. Plugins get it as `ctx.logger`. The `chat()` calls of
+   * the harness send their errors to it too. A logger that throws loses
+   * that line, and the harness goes on. Default: `new ConsoleLogger()`.
+   *
+   * @example
+   * ```ts
+   * // The harness puts an error under `error`, so tell pino to read it there.
+   * const log = pino({ errorKey: 'error' })
+   * const host = createHarnessHost({
+   *   logger: {
+   *     debug: (message, meta) => log.debug(meta, message),
+   *     info: (message, meta) => log.info(meta, message),
+   *     warn: (message, meta) => log.warn(meta, message),
+   *     error: (message, meta) => log.error(meta, message),
+   *   },
+   * })
+   * ```
+   */
+  logger?: Logger
   /**
    * The harnesses whose threads this host may delete without an open first.
    * `host.sessions.delete` ends a thread in the plugins of its harness, so
@@ -1226,10 +1249,12 @@ export function presenceOf<U extends HarnessUser>(host: HarnessHost<U>) {
 function callPresence<T>(
   hook: ((event: T) => void | Promise<void>) | undefined,
   event: T,
+  logger: Logger = new ConsoleLogger(),
 ) {
   const warn = (error: unknown) =>
-    console.warn(
+    logger.warn(
       `[@tanstack/ai-harness] A presence hook failed: ${error instanceof Error ? error.message : String(error)}`,
+      { error },
     )
   try {
     const done = hook?.(event)
@@ -1342,6 +1367,17 @@ export const isSharedHost = (host: object) => sharedHosts.has(host)
 export function accessOf<U extends HarnessUser>(host: HarnessHost<U>) {
   // The host stored its own access under its own key, so it has type U.
   return accesses.get(host) as HarnessAccess<U> | undefined
+}
+
+/** The logger of each host, safe to call. Not public API. */
+const loggers = new WeakMap<object, Logger>()
+
+/**
+ * @internal The logger of `host` (`HarnessHostOptions.logger`), safe to
+ * call. A host that `createHarnessHost` did not make logs to the console.
+ */
+export function loggerOf<U extends HarnessUser>(host: HarnessHost<U>) {
+  return loggers.get(host) ?? safeLogger(new ConsoleLogger())
 }
 
 /** The key of what `host.revoke` took: one user on one thread of a tenant. */
@@ -1489,9 +1525,12 @@ export function throughOuterThread(
 export function createHarnessHost<U extends HarnessUser = HarnessUser>(
   options: HarnessHostOptions<U> = {},
 ) {
+  const logger = safeLogger(options.logger ?? new ConsoleLogger())
+  // ponytail: one warning per process, so only the logger of the first host
+  // without persistence gets it.
   if (!options.persistence && !warned) {
     warned = true
-    console.warn(
+    logger.warn(
       '[@tanstack/ai-harness] No persistence given: sessions live in memory and are lost on restart.',
     )
   }
@@ -1537,7 +1576,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
   const logStore = persistence.stores.log
   const { sessions: sessionStore } = persistence.stores
   /** The readers of `host.events()`. */
-  const bus = new HostEventBus()
+  const bus = new HostEventBus(logger)
   const emit = (event: HostEvent) => bus.emit(event)
   /** The latest status of each open session, by session key. */
   const statuses = new Map<string, HostStatusEvent>()
@@ -1619,6 +1658,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
       ...(project ? { project } : {}),
       ...(reduce ? { reduce } : {}),
       keep,
+      logger,
     }).then((state) => {
       const log = new SharedLog({
         store,
@@ -1632,6 +1672,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
         ...(project ? { project } : {}),
         ...(reduce ? { reduce } : {}),
         keep,
+        logger,
         ...(options.log?.saveSnapshotAfter
           ? { snapshot: options.log.saveSnapshotAfter }
           : {}),
@@ -1661,7 +1702,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
     (options.harnesses ?? []).map((harness) => [harness.name, harness]),
   )
   /** The plugins with `lifetime: 'host'`, shared by the sessions of a harness. */
-  const hostPlugins = new HostPlugins()
+  const hostPlugins = new HostPlugins(logger)
   /** The sessions of `sessions` that finished opening, by key. */
   const live = new Map<string, SessionImpl>()
   /**
@@ -1776,10 +1817,9 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
   const closeIdle = (key: string, session: SessionImpl) =>
     // ponytail: an idle session has no work to lose.
     closeShared(key, session).catch((error: unknown) =>
-      console.error(
-        '[@tanstack/ai-harness] An idle session did not close.',
+      logger.error('[@tanstack/ai-harness] An idle session did not close.', {
         error,
-      ),
+      }),
     )
 
   /** No handle holds the open session `session` of `key`, and it is idle. */
@@ -1839,7 +1879,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
     const held = holds.get(key)
     if (!held || held.warned) return
     held.warned = true
-    console.warn(
+    logger.warn(
       `[@tanstack/ai-harness] A handle of thread ${JSON.stringify(threadId)} was dropped without close(), so the host released it. Call session.close(), or open the session with await using.`,
     )
   }
@@ -1864,7 +1904,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
     }
     if (excess <= 0 || warnedFull) return
     warnedFull = true
-    console.warn(
+    logger.warn(
       `[@tanstack/ai-harness] The host has ${sessions.size} open sessions, more than lifecycle.maxOpenSessions (${maxOpenSessions}), and each one is busy or held by a handle. Release handles with session.close().`,
     )
   }
@@ -1908,6 +1948,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
       : {}),
     openChild: openChildIn(ids, harness, tenantId),
     ...(options.observability ? { observability: options.observability } : {}),
+    logger,
   })
 
   /**
@@ -2057,9 +2098,9 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
             if (!isSweptOnly) return
             closeShared(key, created, { recoverable: true }).catch(
               (error: unknown) =>
-                console.error(
+                logger.error(
                   '[@tanstack/ai-harness] A sleeping session did not close.',
-                  error,
+                  { error },
                 ),
             )
           }),
@@ -2575,7 +2616,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
     if (!entry || name === undefined) return
     const harness = harnessesByName.get(name)
     if (!harness) {
-      console.warn(
+      logger.warn(
         `[@tanstack/ai-harness] Thread ${JSON.stringify(threadId)} is deleted, but its plugins did not end it: this host does not know the harness ${JSON.stringify(name)}. What lives as long as the thread (an owned sandbox, a shadow repository) is not freed. Pass the harness in the \`harnesses\` option of createHarnessHost, or open it on this host first.`,
       )
       return
@@ -2601,8 +2642,9 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
       await session.openToEnd()
       await session.endThread()
     } catch (error) {
-      console.warn(
+      logger.warn(
         `[@tanstack/ai-harness] A plugin did not end thread ${JSON.stringify(threadId)}: ${String(error)}`,
+        { error },
       )
     } finally {
       // As on a crash: the log gets no write of this short session.
@@ -3473,6 +3515,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
     },
   }
   if (access) accesses.set(host, access)
+  loggers.set(host, logger)
   if (options.ownership) sharedHosts.add(host)
   tenantEventReaders.set(host, ({ tenantId, filter, signal }) =>
     bus.read({
@@ -3489,12 +3532,12 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
     presences.set(host, {
       connect: (event: Omit<PresenceEvent<U>, 'connectionId'>) => {
         const connected = { ...event, connectionId: crypto.randomUUID() }
-        callPresence(presence.onConnect, connected)
+        callPresence(presence.onConnect, connected, logger)
         let isEnded = false
         return (reason) => {
           if (isEnded) return
           isEnded = true
-          callPresence(presence.onDisconnect, { ...connected, reason })
+          callPresence(presence.onDisconnect, { ...connected, reason }, logger)
         }
       },
     })

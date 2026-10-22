@@ -12,6 +12,7 @@ import {
 import { permissions } from '../src/first-party/permissions'
 import { hostBackend } from '../src/first-party/coding/backend'
 import {
+  FileChanged,
   JobEnded,
   JobOutput,
   JobStarted,
@@ -553,6 +554,233 @@ describe('the afterWrite hooks', () => {
       )
     },
   )
+})
+
+describe('FileChanged', () => {
+  /** A unified diff of `rows`, each with a line ending. */
+  const diff = (...rows: Array<string>) =>
+    rows.map((row) => `${row}\n`).join('')
+
+  /** The tools for `options`, and the `FileChanged` values that they send. */
+  function tracked(options: WorkspaceToolsOptions) {
+    const changes: Array<unknown> = []
+    const { tools } = createWorkspaceTools(options, {
+      emit: (event, value) => {
+        if (event === FileChanged) changes.push(value)
+      },
+    })
+    const set = new Map(
+      tools.map((tool): [string, AnyTool] => [tool.name, tool]),
+    )
+    return { set, changes }
+  }
+
+  /**
+   * {@link tracked} on a memory workspace at `/workspace` that starts with
+   * `files`, by path from the root.
+   */
+  function workspaceWith(files: Record<string, string> = {}) {
+    const memory = memoryBackend()
+    for (const [path, text] of Object.entries(files)) {
+      memory.files.set(`/workspace/${path}`, new TextEncoder().encode(text))
+    }
+    return tracked({ root: '/workspace', backend: memory.backend })
+  }
+
+  it('sends created for a new file, then updated with the diff for each change', async () => {
+    const { set, changes } = workspaceWith()
+    await runIn(set, 'write_file', { path: 'src/a.ts', content: 'one\ntwo\n' })
+    await runIn(set, 'write_file', { path: 'src/a.ts', content: 'one\n2\n' })
+    await runIn(set, 'edit_file', { path: 'src/a.ts', old: 'one', new: '1' })
+
+    const path = '/workspace/src/a.ts'
+    const git = 'diff --git a/src/a.ts b/src/a.ts'
+    const both = [git, '--- a/src/a.ts', '+++ b/src/a.ts']
+    // No tool call id: a call from code mode sends the event too.
+    expect(changes).toEqual([
+      {
+        path,
+        change: 'created',
+        patch: diff(
+          git,
+          'new file mode 100644',
+          '--- /dev/null',
+          '+++ b/src/a.ts',
+          '@@ -0,0 +1,2 @@',
+          '+one',
+          '+two',
+        ),
+        additions: 2,
+        deletions: 0,
+      },
+      {
+        path,
+        change: 'updated',
+        patch: diff(...both, '@@ -1,2 +1,2 @@', ' one', '-two', '+2'),
+        additions: 1,
+        deletions: 1,
+      },
+      {
+        path,
+        change: 'updated',
+        patch: diff(...both, '@@ -1,2 +1,2 @@', '-one', '+1', ' 2'),
+        additions: 1,
+        deletions: 1,
+      },
+    ])
+  })
+
+  it('sends nothing when the write leaves the text as it was', async () => {
+    const { set, changes } = workspaceWith({ 'a.txt': 'same\n' })
+    await runIn(set, 'write_file', { path: 'a.txt', content: 'same\n' })
+    expect(changes).toEqual([])
+  })
+
+  /** Writes of `a.txt` that send an event without a patch. */
+  const unpatched: Array<{
+    name: string
+    files: Record<string, string>
+    content: string
+    change: string
+  }> = [
+    { name: 'a binary file', files: {}, content: 'a\0b\n', change: 'created' },
+    {
+      // The old text is not read, so it is not known.
+      name: 'a file that was over 1 MiB',
+      files: { 'a.txt': 'x'.repeat(1024 * 1024 + 1) },
+      content: 'small\n',
+      change: 'updated',
+    },
+    {
+      name: 'a patch over 256 KiB',
+      files: {},
+      content: 'line\n'.repeat(60_000),
+      change: 'created',
+    },
+  ]
+
+  it.each(unpatched)(
+    'sends no patch for $name',
+    async ({ files, content, change }) => {
+      const { set, changes } = workspaceWith(files)
+      await runIn(set, 'write_file', { path: 'a.txt', content })
+      expect(changes).toEqual([
+        { path: '/workspace/a.txt', change, additions: 0, deletions: 0 },
+      ])
+    },
+  )
+
+  it('gives paths with / in the patch for a Windows root', async () => {
+    const { set, changes } = tracked({
+      root: 'C:/work',
+      backend: memoryBackend({ shell: 'cmd' }).backend,
+    })
+    await runIn(set, 'write_file', { path: 'src/a.ts', content: 'one\n' })
+    expect(changes).toEqual([
+      {
+        path: 'C:\\work\\src\\a.ts',
+        change: 'created',
+        patch: diff(
+          'diff --git a/src/a.ts b/src/a.ts',
+          'new file mode 100644',
+          '--- /dev/null',
+          '+++ b/src/a.ts',
+          '@@ -0,0 +1 @@',
+          '+one',
+        ),
+        additions: 1,
+        deletions: 0,
+      },
+    ])
+  })
+
+  /**
+   * A session where the model calls `write_file` with `args` once, as tool
+   * call `c1`. `plugins` come before the workspace tools. Resolves to the
+   * `FileChanged` values that a plugin got.
+   */
+  async function writeInSession(
+    args: Record<string, unknown>,
+    plugins: Array<HarnessPlugin> = [],
+  ) {
+    const changes: Array<unknown> = []
+    const listener = definePlugin({
+      name: 'test/file-changes',
+      setup: (ctx) => {
+        ctx.on(FileChanged, (change) => changes.push(change))
+      },
+    })
+    const { adapter } = mockAdapter([
+      () => toolCall('write_file', args, 'c1'),
+      () => text('done'),
+    ])
+    const { host, session } = await openSession(adapter, [
+      ...plugins,
+      workspaceTools({ root: '/workspace', backend: memoryBackend().backend }),
+      listener,
+    ])
+    await session.send('write')
+    await host.close()
+    return changes
+  }
+
+  it('reaches the plugins of a session, with the tool call id', async () => {
+    const changes = await writeInSession({ path: 'a.txt', content: 'one\n' })
+    expect(changes).toEqual([
+      {
+        path: '/workspace/a.txt',
+        change: 'created',
+        patch: diff(
+          'diff --git a/a.txt b/a.txt',
+          'new file mode 100644',
+          '--- /dev/null',
+          '+++ b/a.txt',
+          '@@ -0,0 +1 @@',
+          '+one',
+        ),
+        additions: 1,
+        deletions: 0,
+        toolCallId: 'c1',
+      },
+    ])
+  })
+
+  it('sends no patch for a .env file, also with no permission rules', async () => {
+    const { set, changes } = workspaceWith()
+    await runIn(set, 'write_file', {
+      path: 'app/.env.local',
+      content: 'KEY=hunter2\n',
+    })
+    expect(changes).toEqual([
+      {
+        path: '/workspace/app/.env.local',
+        change: 'created',
+        additions: 0,
+        deletions: 0,
+      },
+    ])
+  })
+
+  it('sends no patch for a file that the permission rules protect, like .env', async () => {
+    // A rule allows the write. A read_file of .env still asks, so the
+    // rules protect the file.
+    const rules: Array<PermissionRule> = [
+      { tool: 'write_file', resource: '.env', decision: 'allow' },
+    ]
+    const changes = await writeInSession(
+      { path: '.env', content: 'KEY=hunter2\n' },
+      [permissions({ root: '/workspace', rules })],
+    )
+    expect(changes).toEqual([
+      {
+        path: '/workspace/.env',
+        change: 'created',
+        additions: 0,
+        deletions: 0,
+        toolCallId: 'c1',
+      },
+    ])
+  })
 })
 
 describe('permission resources', () => {

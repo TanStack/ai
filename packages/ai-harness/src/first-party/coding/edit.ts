@@ -1,6 +1,7 @@
 import { toolDefinition } from '@tanstack/ai'
 import { isRecord } from '../../utils'
 import { afterWrite, readText, stringArg } from './backend'
+import { readForDiff, reportChange } from './file-change'
 import type { ToolEnv } from './backend'
 
 const BOM = '﻿'
@@ -221,7 +222,8 @@ export async function afterWriteSeen(
 /**
  * `write_file` and `edit_file`. Each write first checks with `versions` that
  * the file did not change since a tool read it. After each write, the
- * `afterWrite` hooks run for the file. `edit_file` finds the old text with
+ * `afterWrite` hooks run for the file, and then the tool sends `FileChanged`
+ * (see {@link reportChange}). `edit_file` finds the old text with
  * {@link findMatches}. It writes the new text with the line endings of the
  * file, and keeps a byte order mark.
  */
@@ -235,7 +237,7 @@ export function editTools(env: ToolEnv, versions: FileVersions) {
         properties: { path: { type: 'string' }, content: { type: 'string' } },
         required: ['path', 'content'],
       },
-    }).server(async (args: unknown) => {
+    }).server(async (args: unknown, context) => {
       const full = await env.reach(
         stringArg(args, 'path'),
         'write_file',
@@ -243,12 +245,20 @@ export function editTools(env: ToolEnv, versions: FileVersions) {
       )
       const content = stringArg(args, 'content')
       const missing = !(await versions.exists(full))
-      await env.lock(full, async () => {
+      const before = await env.lock(full, async () => {
         await versions.check(full, { missing })
+        // The old text, for the diff. A file over 1 MiB is not read.
+        const old = await readForDiff(env.backend, full)
         await env.backend.writeFile(full, content)
         await versions.saw(full)
+        return old
       })
       const notes = await afterWriteSeen(env, versions, [full])
+      await reportChange(env, {
+        path: full,
+        before,
+        toolCallId: context?.toolCallId,
+      })
       return [`Wrote ${env.shown(full)}.`, ...notes].join('\n')
     }),
     toolDefinition({
@@ -265,12 +275,12 @@ export function editTools(env: ToolEnv, versions: FileVersions) {
         },
         required: ['path', 'old', 'new'],
       },
-    }).server(async (args: unknown) => {
+    }).server(async (args: unknown, context) => {
       const full = await env.reach(stringArg(args, 'path'), 'edit_file', 'file')
       const oldText = stringArg(args, 'old')
       const newText = stringArg(args, 'new')
       const replaceAll = isRecord(args) && args.replaceAll === true
-      const count = await env.lock(full, async () => {
+      const edited = await env.lock(full, async () => {
         // The edit reads the file itself, so a file that no tool read can
         // change. One that a tool read must be as that read saw it.
         await versions.check(full, { missing: false })
@@ -295,9 +305,15 @@ export function editTools(env: ToolEnv, versions: FileVersions) {
         const keepBom = before.startsWith(BOM) && !after.startsWith(BOM)
         await env.backend.writeFile(full, keepBom ? BOM + after : after)
         await versions.saw(full)
-        return matches.length
+        return { count, before }
       })
       const notes = await afterWriteSeen(env, versions, [full])
+      await reportChange(env, {
+        path: full,
+        before: edited.before,
+        toolCallId: context?.toolCallId,
+      })
+      const { count } = edited
       return [
         `Edited ${env.shown(full)} (${count} change${count > 1 ? 's' : ''}).`,
         ...notes,

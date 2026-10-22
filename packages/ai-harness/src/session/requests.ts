@@ -1136,6 +1136,7 @@ export abstract class SessionRequests<
       setPluginSetting: (change) =>
         this.setPluginSetting({ ...change, user: owner() }),
       threadSettings: () => this.threadSettings(),
+      putMedia: (upload) => this.putMedia(upload),
     }
   }
 

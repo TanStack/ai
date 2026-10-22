@@ -46,6 +46,7 @@ import type { OperationImpl } from '../operation'
 import type {
   AgentLoopStrategy,
   AnyChatMiddleware,
+  Logger,
   ModelMessage,
   ProviderKeys,
   ResolvedPromptCache,
@@ -547,6 +548,11 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected readonly harnessChildren = new Map<string, HarnessChild>()
   /** Spans and `onOperation`. Without host `observability`, none. */
   protected readonly tracing: OperationTracing | undefined
+  /**
+   * The `logger` of the host, safe to call. Plugins get it as `ctx.logger`,
+   * and the chat() calls of the session send their errors to it.
+   */
+  protected readonly logger: Logger
 
   constructor(deps: SessionDependencies) {
     this.harness = deps.harness as THarness
@@ -575,6 +581,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     this.hostPlugins = deps.hostPlugins
     this.inputRecords = new InputRecords(deps.retention.keepSettledOperations)
     this.notifyHost = deps.onEvent
+    this.logger = deps.logger
     this.feed = tapFeed(
       new SessionFeed({
         threadId: deps.threadId,
@@ -583,6 +590,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       deps.onEvent,
       this.eventListeners,
       this.redactor,
+      this.logger,
     )
     this.onClose = deps.onClose
     this.notifyIdle = deps.onIdle
@@ -963,6 +971,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
           customEvent(HARNESS_EVENTS.commandsChanged, {}),
         ),
       modelChat: (call) => this.modelChat(call),
+      logger: this.logger,
     }
   }
 

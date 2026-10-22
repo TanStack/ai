@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin, logIdOf } from '../src'
-import { SnapshotFailed } from '../src/first-party/coding/events'
+import { FileChanged, SnapshotFailed } from '../src/first-party/coding/events'
 import { hostBackend } from '../src/first-party/coding/backend'
 import { quoteArg } from '../src/first-party/coding/search'
 import { purgeSnapshots, snapshots } from '../src/first-party/coding/snapshots'
@@ -25,9 +25,11 @@ import {
   text,
   toolCall,
 } from './helpers'
+import type { StreamChunk } from '@tanstack/ai'
 import type { LogStore } from '@tanstack/ai-persistence'
 import type { HarnessPersistence, HarnessSession, HarnessUser } from '../src'
 import type { WorkspaceBackend } from '../src/first-party/coding/backend'
+import type { FileChange } from '../src/first-party/coding/events'
 import type { Reply } from './helpers'
 
 // Coverage runs in CI are slow, so polled checks wait up to 5 s.
@@ -97,13 +99,16 @@ async function open(options: {
     return 'changed'
   })
   const plugin = snapshots({ root, dataDir, backend: options.backend })
-  // The messages of the `tanstack/snapshots:failed` events. The listener comes
-  // first, so it also gets an event that `snapshots()` sends in its setup.
+  // The messages of the `tanstack/snapshots:failed` events, and the
+  // `FileChanged` values. The listener comes first, so it also gets an event
+  // that `snapshots()` sends in its setup.
   const failures: Array<string> = []
+  const fileChanges: Array<FileChange> = []
   const listener = definePlugin({
-    name: 'test/snapshot-failures',
+    name: 'test/snapshot-events',
     setup: (ctx) => {
       ctx.on(SnapshotFailed, ({ message }) => failures.push(message))
+      ctx.on(FileChanged, (change) => fileChanges.push(change))
     },
   })
   const { adapter, calls } = mockAdapter(options.replies)
@@ -130,6 +135,7 @@ async function open(options: {
     plugin,
     calls,
     failures,
+    fileChanges,
     log: persistence.stores.log,
   }
 }
@@ -252,9 +258,11 @@ describe.skipIf(!hasGit)('snapshots', () => {
     expect(
       commands.filter((command) => /write-tree/.test(command)),
     ).toHaveLength(3)
-    // The second step changed nothing, so it needs no diff.
-    expect(commands.filter((command) => / diff /.test(command))).toHaveLength(1)
-    expect(commands.length).toBeLessThanOrEqual(6)
+    // The first step changed a file that no workspace tool reported, so it
+    // needs a second diff for the patch of its `FileChanged`. The second
+    // step changed nothing, so it needs no diff.
+    expect(commands.filter((command) => / diff /.test(command))).toHaveLength(2)
+    expect(commands.length).toBeLessThanOrEqual(7)
     await host.close()
   })
 
@@ -695,6 +703,243 @@ describe.skipIf(!hasGit)('snapshots of many runs', () => {
   })
 })
 
+describe.skipIf(!hasGit)('snapshots FileChanged', () => {
+  /** The rows of a patch, each with a line ending. */
+  const lines = (...rows: Array<string>) =>
+    rows.map((row) => `${row}\n`).join('')
+
+  /**
+   * `changes` with no `index` line in a patch. That line has short blob ids,
+   * and the git config of the user sets their length.
+   */
+  const withoutIndex = (changes: ReadonlyArray<FileChange>) =>
+    changes.map(({ patch, ...change }) =>
+      patch === undefined
+        ? change
+        : { ...change, patch: patch.replace(/^index .+\n/m, '') },
+    )
+
+  /** The path and the tool call of each value of `changes`. */
+  const sources = (changes: ReadonlyArray<FileChange>) =>
+    changes.map(({ path, toolCallId }) => ({ path, toolCallId }))
+
+  /** One turn: one model call makes the tool calls `first` and `second`. */
+  const twoCallsTurn = (
+    first: Array<StreamChunk>,
+    second: Array<StreamChunk>,
+  ): Array<Reply> => [
+    // Without the end of `first` and the start of `second`, one model call
+    // has both.
+    () => [...first.slice(0, -1), ...second.slice(1)],
+    () => text('Done.'),
+  ]
+
+  it('sends the git patch of each file that a tool like bash changed', async () => {
+    await put('a.txt', 'one\n')
+    await put('d.txt', 'gone\nnow\n')
+    const { host, session, fileChanges } = await open({
+      replies: editTurn('Done.'),
+      changes: [
+        async () => {
+          await put('a.txt', 'two\n')
+          await rm(join(root, 'd.txt'))
+          await put('new/c.txt', 'added\n')
+        },
+      ],
+    })
+
+    await session.send('Change the files')
+
+    // The events come in the order of git, and name the one tool call.
+    expect(withoutIndex(fileChanges)).toEqual([
+      {
+        path: join(root, 'a.txt'),
+        change: 'updated',
+        patch: lines(
+          'diff --git a/a.txt b/a.txt',
+          '--- a/a.txt',
+          '+++ b/a.txt',
+          '@@ -1 +1 @@',
+          '-one',
+          '+two',
+        ),
+        additions: 1,
+        deletions: 1,
+        toolCallId: 'call-1',
+      },
+      {
+        path: join(root, 'd.txt'),
+        change: 'deleted',
+        patch: lines(
+          'diff --git a/d.txt b/d.txt',
+          'deleted file mode 100644',
+          '--- a/d.txt',
+          '+++ /dev/null',
+          '@@ -1,2 +0,0 @@',
+          '-gone',
+          '-now',
+        ),
+        additions: 0,
+        deletions: 2,
+        toolCallId: 'call-1',
+      },
+      {
+        path: join(root, 'new', 'c.txt'),
+        change: 'created',
+        patch: lines(
+          'diff --git a/new/c.txt b/new/c.txt',
+          'new file mode 100644',
+          '--- /dev/null',
+          '+++ b/new/c.txt',
+          '@@ -0,0 +1 @@',
+          '+added',
+        ),
+        additions: 1,
+        deletions: 0,
+        toolCallId: 'call-1',
+      },
+    ])
+    await host.close()
+  })
+
+  it('sends no second event for a file that write_file wrote in the step', async () => {
+    await put('a.txt', 'one\n')
+    const { host, session, fileChanges } = await open({
+      workspace: true,
+      replies: twoCallsTurn(
+        toolCall('write_file', { path: 'b.txt', content: 'B\n' }, 'w-1'),
+        toolCall('change', {}, 'c-1'),
+      ),
+      changes: [() => put('a.txt', 'two\n')],
+    })
+
+    await session.send('Change the files')
+
+    // `write_file` sends the event of b.txt, and `snapshots()` the one of
+    // a.txt.
+    expect(sources(fileChanges)).toEqual([
+      { path: join(root, 'b.txt'), toolCallId: 'w-1' },
+      { path: join(root, 'a.txt'), toolCallId: 'c-1' },
+    ])
+    await host.close()
+  })
+
+  it('names no tool call when two calls of the step do not send FileChanged', async () => {
+    const { host, session, fileChanges } = await open({
+      replies: twoCallsTurn(
+        toolCall('change', {}, 'c-1'),
+        toolCall('change', {}, 'c-2'),
+      ),
+      changes: [() => put('a.txt', 'one\n'), async () => undefined],
+    })
+
+    await session.send('Change the files')
+
+    expect(sources(fileChanges)).toEqual([
+      { path: join(root, 'a.txt'), toolCallId: undefined },
+    ])
+    await host.close()
+  })
+
+  it('sends no patch for a binary file or a patch over 256 KiB', async () => {
+    const { host, session, fileChanges } = await open({
+      replies: editTurn('Done.'),
+      changes: [
+        async () => {
+          await writeFile(join(root, 'image.bin'), Buffer.from([0, 1, 2, 255]))
+          await put('big.txt', 'line\n'.repeat(60_000))
+        },
+      ],
+    })
+
+    await session.send('Add the files')
+
+    const unpatched = { change: 'created', additions: 0, deletions: 0 }
+    expect(fileChanges).toEqual([
+      { path: join(root, 'big.txt'), ...unpatched, toolCallId: 'call-1' },
+      { path: join(root, 'image.bin'), ...unpatched, toolCallId: 'call-1' },
+    ])
+    await host.close()
+  })
+
+  it('sends at most 100 events for one step', async () => {
+    const names = Array.from(
+      { length: 101 },
+      (_, index) => `f-${String(index).padStart(3, '0')}.txt`,
+    )
+    const { host, session, fileChanges } = await open({
+      replies: editTurn('Done.'),
+      changes: [
+        async () => {
+          for (const name of names) await put(name, 'new\n')
+        },
+      ],
+    })
+
+    await session.send('Add the files')
+
+    expect(fileChanges.map((change) => change.path)).toEqual(
+      names.slice(0, 100).map((name) => join(root, name)),
+    )
+    await host.close()
+  })
+
+  it('runs no git diff for the events when the workspace tools reported each change', async () => {
+    await put('a.txt', 'one\n')
+    const { host, session, fileChanges } = await open({
+      workspace: true,
+      replies: [
+        () =>
+          toolCall('write_file', { path: 'a.txt', content: 'two\n' }, 'w-1'),
+        () => text('Done.'),
+      ],
+    })
+    const exec = vi.spyOn(hostBackend, 'exec')
+
+    await session.send('Write a.txt')
+
+    const commands = exec.mock.calls.map(([command]) => command)
+    expect(
+      commands.filter((command) => / diff --no-color /.test(command)),
+    ).toEqual([])
+    expect(sources(fileChanges)).toEqual([
+      { path: join(root, 'a.txt'), toolCallId: 'w-1' },
+    ])
+    await host.close()
+  })
+
+  it('sends the events without patches when the git diff fails, and no failed event', async () => {
+    await put('a.txt', 'one\n')
+    // The diff for the patches fails, like one over the output cap of `exec`.
+    const backend: WorkspaceBackend = {
+      ...hostBackend,
+      exec: async (command, options) =>
+        / diff --no-color /.test(command)
+          ? { exitCode: 1, stdout: '', stderr: 'fatal: out of memory' }
+          : hostBackend.exec(command, options),
+    }
+    const { host, session, fileChanges, failures } = await open({
+      replies: editTurn('Done.'),
+      changes: [() => put('a.txt', 'two\n')],
+      backend,
+    })
+
+    await session.send('Edit a.txt')
+
+    expect(fileChanges).toEqual([
+      {
+        path: join(root, 'a.txt'),
+        change: 'updated',
+        additions: 0,
+        deletions: 0,
+        toolCallId: 'call-1',
+      },
+    ])
+    expect(failures).toEqual([])
+    await host.close()
+  })
+})
+
 /** Three turns. Each one changes the files once, with its own tool call. */
 const threeTurns = () => ({
   replies: (['First.', 'Second.', 'Third.'] as const).flatMap(
@@ -1076,6 +1321,28 @@ describe('snapshots with a fake git', () => {
     await session.send('Edit a.txt')
 
     expect(await savedSteps(log)).toMatchObject([{ files: ['a.txt'] }])
+    expect(failures).toEqual([])
+    await host.close()
+  })
+
+  it('sends the events without patches when the diff has no section for each changed file', async () => {
+    // The fake git gives `a.txt` as the changed file, and an empty diff.
+    const { host, session, fileChanges, failures } = await open({
+      replies: editTurn('Done.'),
+      backend: fakeGit(),
+    })
+
+    await session.send('Edit a.txt')
+
+    expect(fileChanges).toEqual([
+      {
+        path: join(root, 'a.txt'),
+        change: 'updated',
+        additions: 0,
+        deletions: 0,
+        toolCallId: 'call-1',
+      },
+    ])
     expect(failures).toEqual([])
     await host.close()
   })

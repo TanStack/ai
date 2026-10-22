@@ -1,4 +1,4 @@
-import { EventType } from '@tanstack/ai'
+import { EventType, INTERRUPT_PAYLOAD_METADATA_KEY } from '@tanstack/ai'
 import { isMediaRecord, mediaIdOf, mediaOfMessage } from '../media-ref'
 import { signInOf, waitKind } from '../waits'
 import { HARNESS_EVENTS } from '../types'
@@ -721,6 +721,18 @@ function findCallIn(
   return undefined
 }
 
+/**
+ * An approval interrupt with its tool call id. A `permissions()` approval is
+ * a generic interrupt: its tool call id is only in its payload.
+ */
+function withPayloadToolCallId(interrupt: Interrupt): Interrupt {
+  if (interrupt.toolCallId !== undefined) return interrupt
+  const payload = recordOf(interrupt.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY])
+  return typeof payload.toolCallId === 'string'
+    ? { ...interrupt, toolCallId: payload.toolCallId }
+    : interrupt
+}
+
 function findToolCall(
   messages: ReadonlyArray<ViewMessage>,
   id: string | undefined,
@@ -844,14 +856,15 @@ export function applySnapshot(
     )
   const approvals = keep(
     state.approvals,
-    ofKind('approval').map(
-      (interrupt) =>
-        state.approvals.find((item) => item.id === interrupt.id) ??
-        factory.approval(
-          interrupt,
-          findToolCall(state.messages, interrupt.toolCallId),
-        ),
-    ),
+    ofKind('approval').map((interrupt) => {
+      const known = state.approvals.find((item) => item.id === interrupt.id)
+      if (known) return known
+      const linked = withPayloadToolCallId(interrupt)
+      return factory.approval(
+        linked,
+        findToolCall(state.messages, linked.toolCallId),
+      )
+    }),
   )
   const clientTools = keep(
     state.clientTools,

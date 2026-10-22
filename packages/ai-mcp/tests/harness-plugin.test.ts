@@ -17,6 +17,7 @@ import {
   tripForm,
 } from './connector-helpers'
 import { startProtectedServer } from './protected-server'
+import type { Logger } from '@tanstack/ai'
 import type { McpServerConfig } from '../src/harness'
 
 // With this env var, this file is the stdio server of the stdio test.
@@ -51,12 +52,16 @@ function httpServer(
   return config
 }
 
-/** Opens a session with `mcp({ servers })` and the recording `model`. */
+/**
+ * Opens a session with `mcp({ servers })` and the recording `model`, on a
+ * host that logs to `logger` (default: the console).
+ */
 async function openWith(
   servers: Record<string, McpServerConfig>,
   model = recorder(),
+  logger?: Logger,
 ) {
-  const host = createHarnessHost({ persistence: memoryPersistence() })
+  const host = createHarnessHost({ persistence: memoryPersistence(), logger })
   cleanups.push(() => host.close())
   const harness = defineHarness({
     name: 'test/mcp-plugin',
@@ -251,19 +256,24 @@ if (process.env[childEnv] === '1') {
       expect(model.toolNames(0)).toEqual(['fs_echo'])
     })
 
-    it('keeps the tool of the first server when two servers give one tool name, and warns once', async () => {
-      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-      cleanups.push(() => warn.mockRestore())
+    it('keeps the tool of the first server when two servers give one tool name, and warns once to the host logger', async () => {
+      const consoleWarn = vi.spyOn(console, 'warn')
+      cleanups.push(() => consoleWarn.mockRestore())
+      const warn = vi.fn<Logger['warn']>()
       const first = echoServer('First echo')
       const second = echoServer('Second echo')
-      const { session, model } = await openWith({
-        first: httpServer((request) => first.fetch(request), {
-          toolName: (tool) => tool.name,
-        }),
-        second: httpServer((request) => second.fetch(request), {
-          toolName: (tool) => tool.name,
-        }),
-      })
+      const { session, model } = await openWith(
+        {
+          first: httpServer((request) => first.fetch(request), {
+            toolName: (tool) => tool.name,
+          }),
+          second: httpServer((request) => second.fetch(request), {
+            toolName: (tool) => tool.name,
+          }),
+        },
+        recorder(),
+        { debug: () => {}, info: () => {}, warn, error: () => {} },
+      )
       await session.send('hi')
       await session.send('again')
 
@@ -279,6 +289,7 @@ if (process.env[childEnv] === '1') {
           '[@tanstack/ai-mcp] The MCP servers "first" and "second" both give the tool "echo". The model gets the tool of "first". Set toolName on one of the servers to rename its tools.',
         ],
       ])
+      expect(consoleWarn).not.toHaveBeenCalled()
     })
 
     it("fails the later server when two servers give one tool name, with onDuplicateTool 'error'", async () => {

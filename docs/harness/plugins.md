@@ -252,6 +252,41 @@ export const counter = definePlugin({
 - For a long list of records, such as one record for each step, append records to the log and set `keepRecords`. Read them with `ctx.session.keptRecords(type)`. See [Keep records after a truncate](./session-log#keep-records-after-a-truncate).
 - Agents get a state with the same `get` and `update` from `ctx.harness.state({ key, initial })`. See [Share state between agents](./subagents#share-state-between-agents).
 
+## Store a file from a tool
+
+A tool of your plugin makes an image or a PDF. Inline bytes in a tool result stay in the transcript and the log, and each later model call sends them again. Store the bytes with `ctx.session.putMedia`, and return `mediaPart(record)`:
+
+```ts group=harness-plugins
+import { mediaPart } from '@tanstack/ai-harness/media'
+
+declare function drawChart(values: Array<number>): Promise<Uint8Array>
+
+export const charts = definePlugin({
+  name: 'acme/charts',
+  setup: (ctx) => ({
+    tools: [
+      toolDefinition({
+        name: 'draw_chart',
+        description: 'Draw a bar chart of the values',
+        inputSchema: z.object({ values: z.array(z.number()) }),
+      }).server(async ({ values }) => {
+        const record = await ctx.session.putMedia({
+          body: await drawChart(values),
+          mimeType: 'image/png',
+          name: 'chart.png',
+        })
+        return [mediaPart(record)]
+      }),
+    ],
+  }),
+})
+```
+
+- The transcript and the log keep a small `harness-media:` reference. The model gets the bytes.
+- `putMedia` throws a `MediaError` when the file is bigger than `media.maxBytes`, or when its kind is not in `media.kinds`. See [Limit files, and choose what the model reads](./media#limit-files-and-choose-what-the-model-reads).
+
+[Give your agent a computer](./computer-use) stores each screenshot this way.
+
 ## Middleware in every agent
 
 You want to track token cost, or apply a policy, for every model call. But `middleware` runs only in the lead turn. The agents that the lead model calls, the agents you start in the background, and their own children each run a separate chat. Put the same middleware in `agentMiddleware` too. Then it runs in each of those chats.
@@ -379,6 +414,38 @@ The options:
 - `timeoutMs`: the time limit of the call. The default is 2 minutes.
 
 The call stops when its run stops, for example on a cancel, and when the time limit ends. Then it rejects. Its usage counts in the session under `plugin:<name>`, here `plugin:acme/recap`. See [Usage of plugins](./usage#usage-of-plugins). The `goal()`, `title()`, and `compact()` plugins call their models this way.
+
+## Write warnings to the host logger
+
+Your plugin has a warning for the developer of the app, for example a service that does not answer. A `console.warn` line does not go where the app sends its logs, and it breaks a full-screen terminal UI. Write the warning to `ctx.logger`, the [host logger](./host-options#send-the-warnings-to-your-own-logger):
+
+```ts group=harness-plugins
+export const prices = definePlugin({
+  name: 'acme/prices',
+  setup: (ctx) => {
+    let latest = 'unknown'
+    return {
+      onTurnStart: async () => {
+        try {
+          const response = await fetch('https://prices.example.com/today')
+          if (!response.ok) throw new Error(`HTTP ${response.status}`)
+          latest = await response.text()
+        } catch (error) {
+          ctx.logger.warn('[acme/prices] Cannot load the prices. The turn uses the old prices.', { error })
+        }
+      },
+      prompts: [() => `Prices: ${latest}`],
+    }
+  },
+})
+```
+
+- `ctx.logger` has `debug`, `info`, `warn`, and `error`. Put an error in the meta as `{ error }`, as the harness does.
+- The logger does not add the name of your plugin. Start each message with it.
+- A call to `ctx.logger` never throws. A logger that fails loses the line, and your plugin goes on.
+- Every plugin gets `ctx.logger`: a session plugin, a turn plugin, and the setup of a `lifetime: 'host'` plugin.
+
+The `mcp()`, `codeMode()`, and `skills()` plugins write their warnings this way.
 
 ## Pick the model of a turn
 
@@ -547,7 +614,7 @@ export const orders = definePlugin({
 - The host sets the plugin up one time for each harness and plugin object. Every session of that harness that uses the same object shares this setup.
 - Create the plugin one time, outside the `plugins` function, as `orders` is above. Then use it with `plugins: () => [orders]`. A `plugins` function that calls `definePlugin` or `mcp()` for each session gives each session its own setup.
 - The host cleans it up when the last session that uses it closes, or at `host.close()`.
-- Its setup context has no session, no credentials, no keys, and no commands. It has `harness`, the name of the harness, and `resources`.
+- Its setup context has no session, no credentials, no keys, and no commands. It has `harness` (the name of the harness), `resources`, and `logger`. See [Write warnings to the host logger](#write-warnings-to-the-host-logger).
 - A tool of the plugin reads the user of its call from `ctx.context.run`. See [Act as the user of a run](#act-as-the-user-of-a-run).
 
 Some parts need the session: a command, a setting, plugin state, or a question to the user. Return them from `session`. It runs for each session, with the same context as a session plugin:

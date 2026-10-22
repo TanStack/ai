@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
+import { APPROVAL_ANSWER_SCHEMA } from '../src/boundary-waits'
 import {
+  PermissionCallCapability,
   PermissionDecisionCapability,
   PermissionResources,
   PermissionRules,
@@ -11,6 +13,7 @@ import {
   listSavedPermissions,
   permissions,
 } from '../src/first-party/permissions'
+import { createSessionView } from '../src/view'
 import { gate, mockAdapter, questionsOf, text, toolCall } from './helpers'
 import type { MetadataStore } from '@tanstack/ai-persistence'
 import type {
@@ -21,6 +24,7 @@ import type {
 } from '../src'
 import type {
   CallResources,
+  PermissionCallDecision,
   PermissionDecision,
   PermissionMode,
   PermissionRule,
@@ -1109,6 +1113,278 @@ describe('permissions() at the turn boundary', () => {
     const seen = JSON.stringify(calls[1]?.messages)
     expect(seen).toContain('bash done')
     expect(seen).toContain('The user denied this tool call.')
+    await host.close()
+  })
+})
+
+/**
+ * A session with `permissions()` and a view on it. The model reads `.env`
+ * once, which asks, so the view shows one approval. `answered` waits for
+ * the turn that the answer resumes, and returns the errors the view showed.
+ */
+async function approvalInView() {
+  const persistence = memoryPersistence()
+  const tools = fakeTools()
+  const { host, session, calls } = await open(
+    persistence,
+    [permissions({ root: ROOT }), tools.plugin],
+    [() => toolCall('read_file', { path: '.env' }, 'c1')],
+  )
+  const view = createSessionView(session)
+  const errors: Array<string> = []
+  const ends: Array<string> = []
+  view.on('error', (message) => errors.push(message))
+  view.on('turnEnd', ({ operationId }) => ends.push(operationId))
+  await view.ready
+  await view.send('read it')
+  await waitFor(() => expect(view.store.get().approvals).toHaveLength(1))
+  const [approval] = view.store.get().approvals
+  if (!approval) throw new Error('No approval.')
+  return {
+    approval,
+    calls,
+    ran: tools.ran,
+    answered: async () => {
+      await waitFor(() =>
+        expect(ends.length + errors.length).toBeGreaterThan(0),
+      )
+      return errors
+    },
+    saved: () =>
+      persistence.stores.metadata.get(
+        'tanstack/permissions',
+        'permissions:saved::/work/repo',
+      ),
+    close: async () => {
+      view.dispose()
+      await host.close()
+    },
+  }
+}
+
+describe('permissions() answered from a session view', () => {
+  it('shows the tool, the args, and the tool call of the approval', async () => {
+    const { approval, close } = await approvalInView()
+
+    expect(approval).toMatchObject({
+      tool: 'read_file',
+      args: { path: '.env' },
+      toolCallId: 'c1',
+    })
+    await close()
+  })
+
+  it.each(['always', { answer: 'always' }])(
+    'runs the call and saves the rule for approve({ payload: %j })',
+    async (payload) => {
+      const { approval, answered, ran, saved, close } = await approvalInView()
+
+      approval.approve({ payload })
+
+      expect(await answered()).toEqual([])
+      expect(ran).toEqual(['read_file'])
+      expect(await saved()).toEqual([
+        { tool: 'read_file', resource: '.env', decision: 'allow' },
+      ])
+      await close()
+    },
+  )
+
+  it('rejects approve({ editedArgs }) and tells the model why', async () => {
+    const { approval, answered, ran, calls, saved, close } =
+      await approvalInView()
+
+    // The core does not apply edited arguments to this approval. The call of
+    // the model is not what the user approved, so nothing runs.
+    approval.approve({ editedArgs: { path: 'README.md' } })
+
+    expect(await answered()).toEqual([])
+    expect(ran).toEqual([])
+    expect(await saved()).toBeNull()
+    expect(JSON.stringify(calls[1]?.messages)).toContain(
+      'this approval cannot run a changed call',
+    )
+    await close()
+  })
+
+  it.each(['use pnpm', { message: 'use pnpm' }])(
+    'gives the model the message of reject({ payload: %j })',
+    async (payload) => {
+      const { approval, answered, ran, calls, close } = await approvalInView()
+
+      approval.reject({ payload })
+
+      expect(await answered()).toEqual([])
+      expect(ran).toEqual([])
+      expect(JSON.stringify(calls[1]?.messages)).toContain(
+        '{\\"error\\":\\"use pnpm\\"}',
+      )
+      await close()
+    },
+  )
+})
+
+/** A write that asks in the default mode. */
+const WRITE = { path: 'src/a.ts', content: 'x' }
+
+/**
+ * A session with `permissions()` and a plugin that reads
+ * `PermissionCallCapability`, like `codeMode()` does. The plugin adds
+ * `write_file`: an edit that asks, and touches its `path`. `decide` decides
+ * one call, and `askWrite` decides `WRITE`, which asks.
+ */
+async function callDecisions(rules: Array<PermissionRule> = []) {
+  const persistence = memoryPersistence()
+  let capability:
+    | ((call: {
+        tool: string
+        args: unknown
+      }) => Promise<PermissionCallDecision>)
+    | undefined
+  const writer = definePlugin({
+    name: 'test/writer',
+    optionalRequires: [PermissionCallCapability],
+    setup: (ctx) => {
+      capability = ctx.getOptional(PermissionCallCapability)
+      return {
+        contribute: [
+          PermissionRules.item({
+            tool: 'write_file',
+            decision: 'ask',
+            kind: 'edit',
+          }),
+          PermissionResources.item({
+            write_file: { paths: (input) => [field(input, 'path')] },
+          }),
+        ],
+      }
+    },
+  })
+  const { host, session } = await open(
+    persistence,
+    [permissions({ root: ROOT, rules }), fakeTools().plugin, writer],
+    [],
+  )
+  const decide = (tool: string, args: unknown) => {
+    if (!capability) throw new Error('No PermissionCallCapability.')
+    return capability({ tool, args })
+  }
+  return {
+    host,
+    session,
+    decide,
+    saved: () => listSavedPermissions(persistence.stores, ROOT),
+    askWrite: async () => {
+      const call = await decide('write_file', WRITE)
+      if (call.decision !== 'ask') {
+        throw new Error(`The write did not ask: ${call.decision}.`)
+      }
+      return call
+    },
+  }
+}
+
+describe('PermissionCallCapability', () => {
+  it('allows a read inside the root, and asks for a read outside it', async () => {
+    const { decide, host } = await callDecisions()
+
+    expect(await decide('read_file', { path: 'src/a.ts' })).toEqual({
+      decision: 'allow',
+    })
+    expect(await decide('read_file', { path: '../a.txt' })).toMatchObject({
+      decision: 'ask',
+    })
+    await host.close()
+  })
+
+  it.each([
+    [
+      'a write in plan mode',
+      'plan',
+      'write_file',
+      WRITE,
+      'This tool is not allowed in plan mode.',
+    ],
+    [
+      'a read that a rule denies',
+      'default',
+      'read_file',
+      { path: 'secrets/key' },
+      'A permission rule denies this tool.',
+    ],
+    [
+      'a call whose resources cannot be read',
+      'default',
+      'read_file',
+      {},
+      'Cannot check the permissions of this call: No path.',
+    ],
+  ] as const)(
+    'denies %s, with the error that a direct call gets',
+    async (_name, mode, tool, args, error) => {
+      const { decide, session, host } = await callDecisions([
+        { tool: 'read_file', resource: 'secrets/**', decision: 'deny' },
+      ])
+      await session.runCommand({ name: 'mode', input: mode })
+
+      expect(await decide(tool, args)).toEqual({ decision: 'deny', error })
+      await host.close()
+    },
+  )
+
+  it('asks for a write in the default mode, with the question and the answer shape of a direct approval', async () => {
+    const { askWrite, host } = await callDecisions()
+
+    const call = await askWrite()
+
+    expect(call.message).toBe(
+      'Allow write_file {"path":"src/a.ts","content":"x"}? Answer once, always, or reject.',
+    )
+    expect(call.schema).toBe(APPROVAL_ANSWER_SCHEMA)
+    await host.close()
+  })
+
+  it('settles once: the call can run, and nothing is saved', async () => {
+    const { askWrite, decide, saved, host } = await callDecisions()
+    const call = await askWrite()
+
+    expect(await call.settle({ answer: 'once' })).toBeUndefined()
+
+    expect(await saved()).toEqual([])
+    expect(await decide('write_file', WRITE)).toMatchObject({ decision: 'ask' })
+    await host.close()
+  })
+
+  it('settles always: the call can run, and the saved rule allows the same call next time', async () => {
+    const { askWrite, decide, saved, host } = await callDecisions()
+    const call = await askWrite()
+
+    expect(await call.settle('always')).toBeUndefined()
+
+    expect(await saved()).toEqual([
+      { tool: 'write_file', resource: 'src/a.ts', decision: 'allow' },
+    ])
+    expect(await decide('write_file', WRITE)).toEqual({ decision: 'allow' })
+    await host.close()
+  })
+
+  it('settles a reject from a session view with the message of the user', async () => {
+    const { askWrite, host } = await callDecisions()
+    const call = await askWrite()
+
+    expect(await call.settle({ approved: false, payload: 'use pnpm' })).toBe(
+      'use pnpm',
+    )
+    await host.close()
+  })
+
+  it('allows every call in bypass mode', async () => {
+    const { decide, session, host } = await callDecisions()
+    await session.runCommand({ name: 'mode', input: 'bypass' })
+
+    expect(
+      await decide('write_file', { path: '../a.ts', content: 'x' }),
+    ).toEqual({ decision: 'allow' })
     await host.close()
   })
 })

@@ -1,3 +1,5 @@
+import { ConsoleLogger } from '@tanstack/ai'
+import type { Logger } from '@tanstack/ai'
 import type { HostEvent } from './host'
 
 /** The most events that wait for one slow reader. Then its read ends. */
@@ -28,6 +30,12 @@ export class HostEventBus {
   private readonly tenants = new Map<string | undefined, Set<Reader>>()
   /** The readers of every tenant. */
   private readonly everyTenant = new Set<Reader>()
+  /** Where a reader that throws is logged. */
+  private readonly logger: Logger
+
+  constructor(logger: Logger = new ConsoleLogger()) {
+    this.logger = logger
+  }
 
   /** Give `event` to each reader of its tenant and each reader of every tenant. */
   emit(event: HostEvent): void {
@@ -38,9 +46,9 @@ export class HostEventBus {
         if (reader.filter && !reader.filter(event)) continue
         reader.push(event)
       } catch (error) {
-        console.error(
+        this.logger.error(
           '[@tanstack/ai-harness] A host events reader threw.',
-          error,
+          { error },
         )
       }
     }

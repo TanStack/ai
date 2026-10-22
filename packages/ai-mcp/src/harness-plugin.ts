@@ -1,7 +1,7 @@
 import { defineCommand, definePlugin } from '@tanstack/ai-harness'
 import { connectTransport } from './client'
 import type { ElicitResult } from '@modelcontextprotocol/client'
-import type { AnyTool, JSONSchema } from '@tanstack/ai'
+import type { AnyTool, JSONSchema, Logger } from '@tanstack/ai'
 import type {
   AnyCommand,
   PluginPrompt,
@@ -101,8 +101,9 @@ export type McpServerStatus = {
  * - When a server sends `tools/list_changed`, the next turn lists its tools
  *   again.
  * - When two servers give a tool with the same name, the model gets the
- *   tool of the server that comes first in `servers`. The plugin warns once.
- *   With `onDuplicateTool: 'error'`, the later server fails instead.
+ *   tool of the server that comes first in `servers`. The plugin warns once,
+ *   to the host logger (`createHarnessHost({ logger })`). With
+ *   `onDuplicateTool: 'error'`, the later server fails instead.
  *
  * @param options.servers - The servers, keyed by name. The name is the tool
  *   prefix.
@@ -294,7 +295,7 @@ async function sessionPart(
       )
       return onDuplicate === 'error'
         ? failOnDuplicate(found, setStatus)
-        : keepFirstTools(found, warned)
+        : keepFirstTools(found, warned, ctx.logger)
     },
   }
 }
@@ -501,11 +502,13 @@ function approvalOf(server: McpServerConfig) {
 
 /**
  * The tools of all servers, in server order. A tool whose name an earlier
- * server already gives is dropped. Each pair of servers warns once.
+ * server already gives is dropped. Each pair of servers warns once, to
+ * `logger`.
  */
 function keepFirstTools(
   found: ReadonlyArray<{ name: string; tools: ReadonlyArray<AnyTool> }>,
   warned: Set<string>,
+  logger: Logger,
 ) {
   const owners = new Map<string, string>()
   const kept: Array<AnyTool> = []
@@ -520,7 +523,7 @@ function keepFirstTools(
       const pair = JSON.stringify([owner, name])
       if (warned.has(pair)) continue
       warned.add(pair)
-      console.warn(
+      logger.warn(
         `[@tanstack/ai-mcp] The MCP servers ${JSON.stringify(owner)} and ${JSON.stringify(name)} both give the tool ${JSON.stringify(tool.name)}. The model gets the tool of ${JSON.stringify(owner)}. Set toolName on one of the servers to rename its tools.`,
       )
     }

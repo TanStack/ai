@@ -159,7 +159,10 @@ interface SessionAccess {
   ) => Promise<void>
   signal?: AbortSignal
   jobs?: BackgroundJobsApi
-  /** Sends the events of the background `bash` jobs and of a stranded thread. */
+  /**
+   * Sends the events of the background `bash` jobs, of the files that the
+   * edit tools change, and of a stranded thread.
+   */
   emit?: <T>(event: PluginEvent<T>, value: T) => void
   /** The bindings, the pin, and the jobs in the session log. */
   log?: WorkspaceLogApi
@@ -524,6 +527,7 @@ function bindTools(
           paths: [paths.resolve(dir, path), paths.resolve(real, path)],
         }) !== 'allow'
     },
+    emit: session.emit,
   }
   // What each chat run of this binding read and wrote, so a write fails
   // when the file changed since its own chat run saw it.
@@ -1041,7 +1045,8 @@ export function workspaceTools(options: WorkspaceToolsOptions) {
           log: ctx.getOptional(WorkspaceLog),
           // A `bash` spill file gets no secret that the tool result hides.
           scrub: ctx.getOptional(SessionScrub),
-          // The events of the background jobs go to the clients.
+          // The events of the background jobs and of the changed files go
+          // to the clients.
           emit: ctx.emit,
         })
       // `snapshots()` and `formatter()` read the workspace of each thread.

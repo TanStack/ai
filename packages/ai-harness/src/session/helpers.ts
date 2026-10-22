@@ -1,4 +1,5 @@
 import {
+  ConsoleLogger,
   EventType,
   compactForModel,
   genericInterruptContinuationFromDescriptor,
@@ -12,6 +13,7 @@ import type {
   AnyChatMiddleware,
   AnyTool,
   Interrupt,
+  Logger,
   Modality,
   ModelMessage,
   PromptCacheOptions,
@@ -1036,15 +1038,19 @@ export const notOpenMessages: MessageStore = {
 
 /**
  * Give one event to `notifyHost` and each of `listeners`. A listener that
- * throws, or whose promise rejects, is logged, and the others still run.
+ * throws, or whose promise rejects, is logged to `logger`, and the others
+ * still run.
  */
 export function notifyListeners(
   notifyHost: (event: StreamChunk) => void,
   listeners: Set<EventListener>,
   entry: Parameters<EventListener>[0],
+  logger: Logger = new ConsoleLogger(),
 ) {
   const report = (error: unknown) =>
-    console.error('[@tanstack/ai-harness] An onEvent listener threw.', error)
+    logger.error('[@tanstack/ai-harness] An onEvent listener threw.', {
+      error,
+    })
   try {
     notifyHost(entry.event)
   } catch (error) {
@@ -1066,13 +1072,15 @@ export function notifyListeners(
  * `feed`, then `notifyHost` and each of `listeners` after each publish. This
  * is how the host and `onEvent` see events. The caller keeps `listeners`, so
  * they survive a new tap of another feed. Each event goes through
- * `redactor` first, so no one of them gets a secret of the session.
+ * `redactor` first, so no one of them gets a secret of the session. A
+ * listener that throws is logged to `logger`.
  */
 export function tapFeed(
   feed: EventFeed,
   notifyHost: (event: StreamChunk) => void,
   listeners: Set<EventListener>,
   redactor: Redactor,
+  logger?: Logger,
 ): ListenedFeed {
   return {
     publish: (operationId, raw) => {
@@ -1082,7 +1090,7 @@ export function tapFeed(
       // run route, `Last-Event-ID`) needs it: ai-client rebuilds the paused
       // run from it. If core sends it at other times, filter here.
       feed.publish(operationId, event)
-      notifyListeners(notifyHost, listeners, { operationId, event })
+      notifyListeners(notifyHost, listeners, { operationId, event }, logger)
     },
     listen: (listener) => {
       // A new entry per call: a listener added twice is called twice.

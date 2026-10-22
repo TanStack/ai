@@ -6,7 +6,11 @@ import {
   toolToBinding,
   toolsToBindings,
 } from '../src/bindings/tool-to-binding'
-import type { ToolBinding, ToolExecutionContext } from '../src/types'
+import type {
+  CodeModeCallHook,
+  ToolBinding,
+  ToolExecutionContext,
+} from '../src/types'
 
 function createMockServerTool<TName extends string>(
   name: TName,
@@ -124,25 +128,36 @@ describe('toolsToBindings', () => {
 })
 
 describe('createEventAwareBindings', () => {
-  function makeBinding(name: string) {
+  /** Wraps one `external_fetch` binding whose `execute` resolves 'ok'. */
+  function wrapBinding(
+    options: {
+      parentContext?: ToolExecutionContext
+      hook?: CodeModeCallHook
+    } = {},
+  ) {
+    const emitCustomEvent = vi.fn<ToolExecutionContext['emitCustomEvent']>()
     const execute = vi.fn<ToolBinding['execute']>().mockResolvedValue('ok')
-    return {
-      name,
-      description: 'test',
-      inputSchema: {},
-      execute,
+    const bindings = {
+      external_fetch: {
+        name: 'external_fetch',
+        description: 'test',
+        inputSchema: {},
+        execute,
+      },
     }
+    const wrapped = createEventAwareBindings(
+      bindings,
+      emitCustomEvent,
+      options.parentContext,
+      options.hook,
+    )
+    return { emitCustomEvent, execute, wrapped: wrapped['external_fetch']! }
   }
 
   it('emits code_mode:external_call before execution', async () => {
-    const emitCustomEvent = vi.fn<ToolExecutionContext['emitCustomEvent']>()
-    const binding = makeBinding('external_fetch')
-    const wrapped = createEventAwareBindings(
-      { external_fetch: binding },
-      emitCustomEvent,
-    )
+    const { emitCustomEvent, wrapped } = wrapBinding()
 
-    await wrapped['external_fetch']!.execute({ q: 'test' })
+    await wrapped.execute({ q: 'test' })
 
     expect(emitCustomEvent).toHaveBeenCalledWith(
       'code_mode:external_call',
@@ -155,14 +170,9 @@ describe('createEventAwareBindings', () => {
   })
 
   it('emits code_mode:external_result after success with duration', async () => {
-    const emitCustomEvent = vi.fn<ToolExecutionContext['emitCustomEvent']>()
-    const binding = makeBinding('external_fetch')
-    const wrapped = createEventAwareBindings(
-      { external_fetch: binding },
-      emitCustomEvent,
-    )
+    const { emitCustomEvent, wrapped } = wrapBinding()
 
-    await wrapped['external_fetch']!.execute({})
+    await wrapped.execute({})
 
     expect(emitCustomEvent).toHaveBeenCalledWith(
       'code_mode:external_result',
@@ -175,19 +185,10 @@ describe('createEventAwareBindings', () => {
   })
 
   it('emits code_mode:external_error on failure and re-throws', async () => {
-    const emitCustomEvent = vi.fn<ToolExecutionContext['emitCustomEvent']>()
-    const error = new Error('network fail')
-    const binding = makeBinding('external_fetch')
-    binding.execute.mockRejectedValue(error)
+    const { emitCustomEvent, execute, wrapped } = wrapBinding()
+    execute.mockRejectedValue(new Error('network fail'))
 
-    const wrapped = createEventAwareBindings(
-      { external_fetch: binding },
-      emitCustomEvent,
-    )
-
-    await expect(wrapped['external_fetch']!.execute({})).rejects.toThrow(
-      'network fail',
-    )
+    await expect(wrapped.execute({})).rejects.toThrow('network fail')
 
     expect(emitCustomEvent).toHaveBeenCalledWith(
       'code_mode:external_error',
@@ -200,13 +201,9 @@ describe('createEventAwareBindings', () => {
   })
 
   it('passes the parent abortSignal, threadId, and context, not its toolCallId or inputResponse', async () => {
-    const emitCustomEvent = vi.fn<ToolExecutionContext['emitCustomEvent']>()
-    const binding = makeBinding('external_fetch')
     const controller = new AbortController()
-    const wrapped = createEventAwareBindings(
-      { external_fetch: binding },
-      emitCustomEvent,
-      {
+    const { emitCustomEvent, execute, wrapped } = wrapBinding({
+      parentContext: {
         toolCallId: 'parent-call',
         threadId: 'thread-1',
         abortSignal: controller.signal,
@@ -214,11 +211,11 @@ describe('createEventAwareBindings', () => {
         inputResponse: { status: 'cancelled' },
         emitCustomEvent: vi.fn(),
       },
-    )
+    })
 
-    await wrapped['external_fetch']!.execute({})
+    await wrapped.execute({})
 
-    const ctx = binding.execute.mock.calls[0]![1]
+    const ctx = execute.mock.calls[0]![1]
     expect(ctx?.abortSignal).toBe(controller.signal)
     expect(ctx?.context).toEqual({ userId: 'u1' })
     expect(ctx?.threadId).toBe('thread-1')
@@ -229,39 +226,30 @@ describe('createEventAwareBindings', () => {
   })
 
   it('builds a context with no threadId when there is no parent context', async () => {
-    const emitCustomEvent = vi.fn<ToolExecutionContext['emitCustomEvent']>()
-    const binding = makeBinding('external_fetch')
-    const wrapped = createEventAwareBindings(
-      { external_fetch: binding },
-      emitCustomEvent,
-    )
+    const { emitCustomEvent, execute, wrapped } = wrapBinding()
 
-    await wrapped['external_fetch']!.execute({})
+    await wrapped.execute({})
 
-    const ctx = binding.execute.mock.calls[0]![1]
+    const ctx = execute.mock.calls[0]![1]
     expect(ctx?.emitCustomEvent).toBe(emitCustomEvent)
     expect(ctx?.threadId).toBeUndefined()
   })
 
   it('does not run the binding when the parent signal is already aborted', async () => {
-    const emitCustomEvent = vi.fn<ToolExecutionContext['emitCustomEvent']>()
-    const binding = makeBinding('external_fetch')
     const controller = new AbortController()
     controller.abort()
-    const wrapped = createEventAwareBindings(
-      { external_fetch: binding },
-      emitCustomEvent,
-      {
+    const { emitCustomEvent, execute, wrapped } = wrapBinding({
+      parentContext: {
         threadId: 'thread-1',
         abortSignal: controller.signal,
         emitCustomEvent: vi.fn(),
       },
-    )
+    })
 
-    await expect(wrapped['external_fetch']!.execute({})).rejects.toMatchObject({
+    await expect(wrapped.execute({})).rejects.toMatchObject({
       name: 'AbortError',
     })
-    expect(binding.execute).not.toHaveBeenCalled()
+    expect(execute).not.toHaveBeenCalled()
     expect(emitCustomEvent).toHaveBeenCalledWith(
       'code_mode:external_error',
       expect.objectContaining({ function: 'external_fetch' }),
@@ -269,19 +257,68 @@ describe('createEventAwareBindings', () => {
   })
 
   it('event data includes function name, args, and timestamps', async () => {
-    const emitCustomEvent = vi.fn<ToolExecutionContext['emitCustomEvent']>()
-    const binding = makeBinding('external_search')
-    const wrapped = createEventAwareBindings(
-      { external_search: binding },
-      emitCustomEvent,
-    )
+    const { emitCustomEvent, wrapped } = wrapBinding()
 
-    await wrapped['external_search']!.execute({ term: 'hello' })
+    await wrapped.execute({ term: 'hello' })
 
     const callEvent = emitCustomEvent.mock.calls[0]!
     expect(callEvent[0]).toBe('code_mode:external_call')
-    expect(callEvent[1].function).toBe('external_search')
+    expect(callEvent[1].function).toBe('external_fetch')
     expect(callEvent[1].args).toEqual({ term: 'hello' })
     expect(typeof callEvent[1].timestamp).toBe('number')
+  })
+
+  it('runs each call through the hook with the tool name and the args', async () => {
+    const calls: Array<{ name: string; args: unknown }> = []
+    const { emitCustomEvent, execute, wrapped } = wrapBinding({
+      hook: (call, run) => {
+        calls.push(call)
+        return run()
+      },
+    })
+
+    await expect(wrapped.execute({ q: 'test' })).resolves.toBe('ok')
+
+    expect(calls).toEqual([{ name: 'fetch', args: { q: 'test' } }])
+    expect(execute).toHaveBeenCalledWith(
+      { q: 'test' },
+      expect.objectContaining({ emitCustomEvent }),
+    )
+  })
+
+  it('fails the call and emits code_mode:external_error when the hook refuses it', async () => {
+    const { emitCustomEvent, execute, wrapped } = wrapBinding({
+      hook: async () => {
+        throw new Error('denied by a rule')
+      },
+    })
+
+    await expect(wrapped.execute({})).rejects.toThrow('denied by a rule')
+
+    expect(execute).not.toHaveBeenCalled()
+    expect(emitCustomEvent).toHaveBeenCalledWith(
+      'code_mode:external_error',
+      expect.objectContaining({
+        function: 'external_fetch',
+        error: 'denied by a rule',
+      }),
+    )
+  })
+
+  it('returns the result of the hook in place of the binding result', async () => {
+    const { emitCustomEvent, execute, wrapped } = wrapBinding({
+      hook: async () => 'stored result',
+    })
+
+    await expect(wrapped.execute({})).resolves.toBe('stored result')
+
+    expect(execute).not.toHaveBeenCalled()
+    expect(emitCustomEvent).toHaveBeenCalledWith(
+      'code_mode:external_result',
+      expect.objectContaining({
+        function: 'external_fetch',
+        result: 'stored result',
+      }),
+    )
   })
 })

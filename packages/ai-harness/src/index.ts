@@ -61,6 +61,7 @@ export { createExtensionPoint, createPluginEvent } from './extensions'
 // Portable (no Node imports), so plugins such as code mode can read the
 // permission rules and resources from the root.
 export {
+  PermissionCallCapability,
   PermissionDecisionCapability,
   PermissionResources,
   PermissionRules,
@@ -68,6 +69,7 @@ export {
 } from './first-party/permissions'
 export type {
   CallResources,
+  PermissionCallDecision,
   PermissionDecision,
   PermissionMode,
   PermissionRule,

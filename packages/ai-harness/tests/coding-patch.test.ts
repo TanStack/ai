@@ -2,6 +2,7 @@ import { tmpdir } from 'node:os'
 import { join, relative, resolve, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { fileVersions } from '../src/first-party/coding/edit'
+import { FileChanged } from '../src/first-party/coding/events'
 import {
   parsePatch,
   patchPaths,
@@ -26,10 +27,14 @@ function patch(...lines: Array<string>) {
   return ['*** Begin Patch', ...lines, '*** End Patch'].join('\n')
 }
 
+/** A unified diff of `rows`, each with a line ending. */
+const diff = (...rows: Array<string>) => rows.map((row) => `${row}\n`).join('')
+
 /**
  * The patch tool on files in memory that start as `files`. `written` lists
- * the files that the `afterWrite` hook saw, in order. With `canRemove:
- * false`, the backend has no `remove`. `dirs` are folders.
+ * the files that the `afterWrite` hook saw, in order, and `changes` the
+ * `FileChanged` values that the tool sent. With `canRemove: false`, the
+ * backend has no `remove`. `dirs` are folders.
  */
 function workspace(
   files: Record<string, string>,
@@ -66,6 +71,7 @@ function workspace(
     exec: async () => ({ exitCode: 0, stdout: '', stderr: '' }),
   }
   const written: Array<string> = []
+  const changes: Array<unknown> = []
   const env: ToolEnv = {
     backend,
     root,
@@ -79,11 +85,15 @@ function workspace(
     lock: (_path, fn) => fn(),
     reach: async (path) => resolve(root, path),
     shown,
+    emit: (event, value) => {
+      if (event === FileChanged) changes.push(value)
+    },
   }
   const tools: Array<AnyTool> = patchTools(env, fileVersions(env))
   const [tool] = tools
   return {
     written,
+    changes,
     run: async (text: string) => {
       if (!tool?.execute) throw new Error('No patch tool')
       const result: string = await tool.execute({ patch: text })
@@ -382,7 +392,7 @@ describe('patch tool', () => {
     expect(files.files()).toEqual({ 'a.txt': file })
   })
 
-  it('changes no file when a later file does not fit', async () => {
+  it('changes no file, and sends no event, when a later file does not fit', async () => {
     const files = workspace({ 'a.txt': 'a\n', 'b.txt': 'b\n' })
     const text = patch(
       '*** Update File: a.txt',
@@ -399,6 +409,7 @@ describe('patch tool', () => {
     )
     expect(files.files()).toEqual({ 'a.txt': 'a\n', 'b.txt': 'b\n' })
     expect(files.written).toEqual([])
+    expect(files.changes).toEqual([])
   })
 
   it('changes no file when an added file is a folder', async () => {
@@ -504,4 +515,149 @@ describe('patch tool', () => {
       expect(files.files()).toEqual({ 'a.txt': 'a\n' })
     },
   )
+})
+
+describe('FileChanged of the patch tool', () => {
+  it('sends one event for each added, updated, and deleted file', async () => {
+    const files = workspace({ 'a.txt': 'a\n', 'b.txt': 'b\n' })
+    await files.run(
+      patch(
+        '*** Add File: c.txt',
+        '+c',
+        '*** Update File: a.txt',
+        '-a',
+        '+A',
+        '*** Delete File: b.txt',
+      ),
+    )
+    // No tool call id: a call from code mode sends the events too.
+    expect(files.changes).toEqual([
+      {
+        path: join(root, 'c.txt'),
+        change: 'created',
+        patch: diff(
+          'diff --git a/c.txt b/c.txt',
+          'new file mode 100644',
+          '--- /dev/null',
+          '+++ b/c.txt',
+          '@@ -0,0 +1 @@',
+          '+c',
+        ),
+        additions: 1,
+        deletions: 0,
+      },
+      {
+        path: join(root, 'a.txt'),
+        change: 'updated',
+        patch: diff(
+          'diff --git a/a.txt b/a.txt',
+          '--- a/a.txt',
+          '+++ b/a.txt',
+          '@@ -1 +1 @@',
+          '-a',
+          '+A',
+        ),
+        additions: 1,
+        deletions: 1,
+      },
+      {
+        path: join(root, 'b.txt'),
+        change: 'deleted',
+        patch: diff(
+          'diff --git a/b.txt b/b.txt',
+          'deleted file mode 100644',
+          '--- a/b.txt',
+          '+++ /dev/null',
+          '@@ -1 +0,0 @@',
+          '-b',
+        ),
+        additions: 0,
+        deletions: 1,
+      },
+    ])
+  })
+
+  it('sends one moved event for a move, with the old path', async () => {
+    const files = workspace({ 'a.txt': 'one\ntwo\n' })
+    await files.run(
+      patch(
+        '*** Update File: a.txt',
+        '*** Move to: src/b.txt',
+        '@@',
+        ' one',
+        '-two',
+        '+2',
+      ),
+    )
+    expect(files.changes).toEqual([
+      {
+        path: join(root, 'src', 'b.txt'),
+        change: 'moved',
+        from: join(root, 'a.txt'),
+        patch: diff(
+          'diff --git a/a.txt b/src/b.txt',
+          'rename from a.txt',
+          'rename to src/b.txt',
+          '--- a/a.txt',
+          '+++ b/src/b.txt',
+          '@@ -1,2 +1,2 @@',
+          ' one',
+          '-two',
+          '+2',
+        ),
+        additions: 1,
+        deletions: 1,
+      },
+    ])
+  })
+
+  it.each([
+    {
+      name: 'an add that replaces a file, against the old text',
+      lines: ['*** Add File: a.txt', '+new'],
+    },
+    {
+      name: 'a file that two sections change, against its text before the patch',
+      lines: [
+        '*** Update File: a.txt',
+        '-old',
+        '+between',
+        '*** Update File: a.txt',
+        '-between',
+        '+new',
+      ],
+    },
+  ])('sends updated for $name', async ({ lines }) => {
+    const files = workspace({ 'a.txt': 'old\n' })
+    await files.run(patch(...lines))
+    expect(files.changes).toEqual([
+      {
+        path: join(root, 'a.txt'),
+        change: 'updated',
+        patch: diff(
+          'diff --git a/a.txt b/a.txt',
+          '--- a/a.txt',
+          '+++ b/a.txt',
+          '@@ -1 +1 @@',
+          '-old',
+          '+new',
+        ),
+        additions: 1,
+        deletions: 1,
+      },
+    ])
+  })
+
+  it('sends no patch for a binary file', async () => {
+    const files = workspace({ 'a.bin': 'x\0y' })
+    await files.run(patch('*** Delete File: a.bin'))
+    expect(files.changes).toEqual([
+      {
+        path: join(root, 'a.bin'),
+        change: 'deleted',
+        additions: 0,
+        deletions: 0,
+      },
+    ])
+  })
 })
