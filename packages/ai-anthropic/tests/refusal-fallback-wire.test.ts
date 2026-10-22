@@ -202,6 +202,12 @@ describe('Anthropic response served by a fallback model', () => {
     const { chunks } = await run(midOutputHandoff(), { fallbacks: 'default' })
     const count = (type: string) =>
       chunks.filter((chunk) => chunk.type === type).length
-    expect(count('TEXT_MESSAGE_START')).toBe(count('TEXT_MESSAGE_END'))
+    const text = chunks
+      .filter((chunk) => chunk.type === 'TEXT_MESSAGE_CONTENT')
+      .map((chunk) => chunk.delta)
+      .join('')
+    expect(text).toBe('Partial answer.')
+    expect(count('TEXT_MESSAGE_START')).toBe(2)
+    expect(count('TEXT_MESSAGE_END')).toBe(2)
   })
 })

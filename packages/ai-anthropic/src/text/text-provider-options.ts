@@ -1,6 +1,7 @@
 import type { AnthropicThinkingFields } from './reasoning'
 import type {
   BetaContextManagementConfig,
+  BetaFallbacksParam,
   BetaMessageParam,
   BetaTool,
   BetaToolChoiceAny,
@@ -84,9 +85,7 @@ export interface AnthropicFallbackOptions {
    * refusal category. A list names up to three models to try in order.
    * The adapter adds the `server-side-fallback-2026-07-01` beta header.
    */
-  // ponytail: hand-typed; SDK 0.97.1 predates `fallbacks`. Per-entry overrides
-  // (max_tokens, thinking, output_config, speed) can join when someone needs them.
-  fallbacks?: 'default' | Array<{ model: string }>
+  fallbacks?: BetaFallbacksParam | null
 }
 
 export interface AnthropicMCPOptions {
