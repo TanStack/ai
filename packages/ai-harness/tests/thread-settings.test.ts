@@ -110,6 +110,44 @@ describe('thread settings', () => {
     await host.close()
   })
 
+  it('lets a plugin pick with override: true win over the settings model', async () => {
+    const { base, fast, strong } = models()
+    const override = mockAdapter(() => text('override'))
+    const forced = mockAdapter(() => text('forced'))
+    const picked = mockAdapter(() => text('picked'))
+    let force = true
+    const { host, session } = await open({
+      adapter: base.adapter,
+      models: { fast: fast.adapter, strong: strong.adapter },
+      plugins: () => [
+        definePlugin({
+          name: 'test/forcer',
+          setup: () => ({
+            adapter: () =>
+              force ? { adapter: forced.adapter, override: true } : undefined,
+          }),
+        }),
+        // A later plain pick does not hide the override pick.
+        definePlugin({
+          name: 'test/picker',
+          setup: () => ({ adapter: () => picked.adapter }),
+        }),
+      ],
+    })
+    await session.updateThreadSettings({ settings: { model: 'fast' } })
+
+    expect((await session.send('One.')).text).toBe('forced')
+    // The prompt override still wins over everything.
+    const overridden = await session.send('Two.', {
+      overrides: { adapter: override.adapter },
+    })
+    expect(overridden.text).toBe('override')
+    // Without the override pick, the settings model wins again.
+    force = false
+    expect((await session.send('Three.')).text).toBe('fast')
+    await host.close()
+  })
+
   it('publishes the change, and treats a repeated inputId as the same input', async () => {
     const { adapter } = mockAdapter(() => text('ok'))
     const { host, session } = await open({ adapter })

@@ -521,10 +521,35 @@ The session uses the picks like this:
 - `undefined` keeps the harness adapter.
 - If more than one plugin returns an adapter, the last plugin wins.
 - The `overrides.adapter` of the turn wins over every pick.
-- A model that the thread stored with `session.configure` also wins over every pick. See [Store settings per thread](./thread-settings).
+- A model that the thread stored with `session.updateThreadSettings` wins over a plain pick. See [Store settings per thread](./thread-settings).
+- A pick with `override: true` wins over the stored model. See below.
 - A keyed adapter gets the provider key of the sender.
 
 If the picker does not need the turn, it can take no parameter.
+
+### Win over the stored model
+
+Return `{ adapter, override: true }` when your pick must win over the model that the thread stored. For example, a plugin that moves every turn to a smaller model when an organization is over its budget:
+
+```ts group=harness-plugins
+// Your check, for example a usage query.
+function overBudget(tenantId: string | undefined) {
+  return tenantId === 'trial'
+}
+
+export const budgetGuard = definePlugin({
+  name: 'acme/budget-guard',
+  setup: () => ({
+    adapter: (turn) =>
+      overBudget(turn.user?.tenantId)
+        ? { adapter: anthropicText('claude-haiku-5-5'), override: true }
+        : undefined,
+  }),
+})
+```
+
+- The `overrides.adapter` of the prompt still wins over this pick.
+- If more than one plugin returns an `override: true` pick, the last one wins. A later plain pick does not change that.
 
 ### Read the model from your data
 

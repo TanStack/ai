@@ -809,18 +809,20 @@ export abstract class SessionTurn<
       // tool loop, retries, `beforeFinish` cycles, the main part of
       // `routing.afterAgentsAnswer: 'main-answers'`, and late joins.
       const { overrides } = turn
-      const picked = [
+      const picks = [
         ...(session?.adapters ?? []),
         ...(runPlugins?.adapters ?? []),
       ]
         .map((pick) => pick(info))
         .filter((adapter) => adapter !== undefined)
-        .at(-1)
+      const forced = picks.filter((pick) => 'override' in pick).at(-1)?.adapter
+      const last = picks.at(-1)
+      const picked = last && 'override' in last ? last.adapter : last
       // A keyed adapter is built for this turn with the user's key. A
       // missing key publishes `auth_required` and fails the turn. It is
       // built before `prepareTools`, which gets its model id. The turn
-      // override (an adapter, then a model name), the stored model, a plugin
-      // pick, the harness model.
+      // override (an adapter, then a model name), a plugin pick with
+      // `override: true`, the stored model, a plugin pick, the harness model.
       const named =
         stored.model === undefined
           ? undefined
@@ -838,6 +840,7 @@ export abstract class SessionTurn<
         ? new ToolTurnAdapter(turn.tool, `tool-${turn.inputId ?? operation.id}`)
         : (overrides?.adapter ??
           turnModel ??
+          forced ??
           named ??
           picked ??
           this.harness.adapter)

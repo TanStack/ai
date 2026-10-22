@@ -1175,7 +1175,7 @@
           "label": "Store settings per thread",
           "to": "harness/thread-settings",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Compact a long session",
