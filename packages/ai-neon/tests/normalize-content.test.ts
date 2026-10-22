@@ -158,6 +158,7 @@ describe('normalizeNeonContent', () => {
     for await (const event of adapter.chatStream({
       logger,
       model: 'gemini-3-8-flash',
+      threadId: 'thread-1',
       messages: [{ role: 'user', content: 'Hi' }],
       wrapFetch,
     })) {

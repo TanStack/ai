@@ -40,6 +40,7 @@ async function drain(
   for await (const event of adapter.chatStream({
     logger,
     model,
+    threadId: 'thread-1',
     messages,
     ...extra,
   })) {
@@ -239,7 +240,13 @@ describe('neon request body', () => {
     const modelOptions = { max_tokens: 73, temperature: 0.2, top_p: 0.9 }
     const result = await adapter.structuredOutput({
       outputSchema: { type: 'object', properties: { ok: { type: 'boolean' } } },
-      chatOptions: { model, messages, logger, modelOptions },
+      chatOptions: {
+        model,
+        threadId: 'thread-1',
+        messages,
+        logger,
+        modelOptions,
+      },
     })
     expect(result.data).toEqual({ ok: true })
     expect(bodies).toHaveLength(1)

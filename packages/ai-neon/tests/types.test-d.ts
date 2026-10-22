@@ -98,13 +98,19 @@ chat({
 })
 
 // Each route's summarize adapter fits `summarize()`.
-void summarize({ adapter: neonSummarize('gpt-6-1-sol'), text: 'A long text.' })
+void summarize({
+  adapter: neonSummarize('gpt-6-1-sol'),
+  threadId: 'thread-1',
+  text: 'A long text.',
+})
 void summarize({
   adapter: neonSummarize('gpt-5-3-codex'),
+  threadId: 'thread-1',
   text: 'A long text.',
 })
 void summarize({
   adapter: neonSummarize('claude-opus-5-5'),
+  threadId: 'thread-1',
   text: 'A long text.',
 })
 
@@ -112,7 +118,11 @@ void summarize({
 for (const model of NEON_CHAT_MODELS) {
   chat({ adapter: createNeonText(model, 'k'), messages, threadId: 'thread-1' })
   chat({ adapter: neonText(model), messages, threadId: 'thread-1' })
-  void summarize({ adapter: neonSummarize(model), text: 'A long text.' })
+  void summarize({
+    adapter: neonSummarize(model),
+    threadId: 'thread-1',
+    text: 'A long text.',
+  })
   // @ts-expect-error not every member of the model union supports Chat Completions
   createNeonText(model, 'k', { api: 'chat' })
   // @ts-expect-error not every member of the model union supports Responses
@@ -129,22 +139,26 @@ neonSummarize('gpt-5-3-codex', { api: 'chat' })
 
 void summarize({
   adapter: createNeonSummarize('gpt-6-1-sol', 'k', { api: 'responses' }),
+  threadId: 'thread-1',
   text: 'A long text.',
   modelOptions: { max_output_tokens: 100, truncation: 'auto' },
 })
 void summarize({
   adapter: neonSummarize('gpt-6-1-sol', { api: 'responses' }),
+  threadId: 'thread-1',
   text: 'A long text.',
   // @ts-expect-error Responses uses max_output_tokens
   modelOptions: { max_tokens: 100 },
 })
 void summarize({
   adapter: neonSummarize('gpt-6-1-sol'),
+  threadId: 'thread-1',
   text: 'A long text.',
   modelOptions: { max_tokens: 100 },
 })
 void summarize({
   adapter: neonSummarize('gpt-6-1-sol'),
+  threadId: 'thread-1',
   text: 'A long text.',
   // @ts-expect-error Chat Completions uses max_tokens
   modelOptions: { max_output_tokens: 100 },

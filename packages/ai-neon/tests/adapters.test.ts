@@ -58,7 +58,13 @@ describe('neon summarize adapter', () => {
       },
     })
     await adapter
-      .summarize({ model, text: 'A long text.', maxLength: 50, logger })
+      .summarize({
+        model,
+        threadId: 'thread-1',
+        text: 'A long text.',
+        maxLength: 50,
+        logger,
+      })
       .catch(() => {
         // An empty stream fails; only the request matters here.
       })
@@ -87,6 +93,7 @@ describe('neon summarize adapter', () => {
     })
     await adapter.summarize({
       model: 'gpt-6-1-sol',
+      threadId: 'thread-1',
       text: 'A long text.',
       maxLength: 50,
       logger,
@@ -94,6 +101,7 @@ describe('neon summarize adapter', () => {
     })
     await adapter.summarize({
       model: 'gpt-6-1-sol',
+      threadId: 'thread-1',
       text: 'A long text.',
       maxLength: 50,
       logger,

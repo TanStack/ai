@@ -74,7 +74,6 @@ export const NEON_ANTHROPIC_MODELS = [
   'claude-fable-5-1',
   'claude-haiku-4-5',
   'claude-haiku-5-5',
-  'claude-opus-4-1',
   'claude-opus-4-5',
   'claude-opus-4-6',
   'claude-opus-4-7',
