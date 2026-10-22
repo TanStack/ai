@@ -102,7 +102,7 @@ process.on('SIGTERM', async () => {
 - Running turns and background agents stop. The host writes no end for them.
 - The host gives each busy thread back with a wake. A [worker](./workers) takes it at once, so it does not wait for the ownership to expire.
 - A tool that the stop cut gets the same result as after a crash. See [Mark tools that are safe to run again](#mark-tools-that-are-safe-to-run-again).
-- A turn that a user cancelled still ends `aborted`.
+- A turn that a user cancelled still ends `aborted`. Middleware gets the stop in `onAbort` with `info.reason` set to `SHUTDOWN_REASON`, and a user cancel with `RUN_CANCEL_REASON`. Import both from `@tanstack/ai-harness`. Skip your "turn ended" work on a shutdown: the next host runs the turn again.
 - `session.close()` releases only your handle. It does not stop the work of the session. See [Lifecycle and retention](./lifecycle#open-and-release-a-session).
 
 During a rolling deploy, old and new hosts run at the same time. A host that reads a log record type from a newer version does not write to that log. Its session stops with `LogVersionError`, and the new hosts continue the thread.

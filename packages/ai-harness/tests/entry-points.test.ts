@@ -74,6 +74,14 @@ describe('subpath entry points', () => {
     ])
   })
 
+  it('the root has the abort reasons, so middleware can tell a shutdown from a cancel', () => {
+    expect([
+      root.SHUTDOWN_REASON,
+      root.RUN_CANCEL_REASON,
+      root.BUDGET_REASON,
+    ]).toEqual(['harness:shutdown', expect.any(String), 'harness:budget'])
+  })
+
   it('./plugins does not export the Node plugins', () => {
     expect(exportedFrom(plugins, PLUGINS_NODE)).toEqual([])
   })
