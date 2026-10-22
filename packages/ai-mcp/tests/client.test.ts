@@ -736,11 +736,12 @@ describe('requestOptions', () => {
     )
     await expect(client.prompts()).rejects.toThrow('Request timed out')
     await expect(client.getPrompt('brief')).rejects.toThrow('Request timed out')
-    await expect(client.request({ method: 'ping' })).rejects.toThrow(
+    // Both request shapes: no schema, and a result schema.
+    await expect(client.request({ method: 'resources/list' })).rejects.toThrow(
       'Request timed out',
     )
     await expect(
-      client.request({ method: 'notes/count' }, z.object({})),
+      client.request({ method: 'prompts/list' }, z.object({})),
     ).rejects.toThrow('Request timed out')
   }, 5000)
 
