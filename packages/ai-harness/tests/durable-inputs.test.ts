@@ -1369,6 +1369,49 @@ describe('input ids', () => {
     await second.host.close()
   })
 
+  it('settles a duplicate after a restart when the store reorders the keys of the input', async () => {
+    const persistence = durablePersistence()
+    const first = await openDurable({
+      persistence,
+      replies: [() => text('from the first host')],
+    })
+    const original = first.session.send('hi', { inputId: 'dup-1' })
+    await original
+    await first.host.close()
+
+    // A jsonb store gives keys back in its own order.
+    const inner = persistence.stores.log
+    const reordering = wrapLogStore(inner, {
+      read: async (query) =>
+        (await inner.read(query)).map((entry) => ({
+          ...entry,
+          record: {
+            ...entry.record,
+            input:
+              entry.record.input && typeof entry.record.input === 'object'
+                ? Object.fromEntries(
+                    Object.entries(entry.record.input).reverse(),
+                  )
+                : entry.record.input,
+          },
+        })),
+    })
+    const second = await openDurable({
+      persistence: { stores: { ...persistence.stores, log: reordering } },
+      replies: [() => text('never')],
+    })
+    const replay = second.session.send('hi', { inputId: 'dup-1' })
+
+    expect(await replay.receipt).toEqual({
+      inputId: 'dup-1',
+      status: 'accepted',
+      operationId: original.id,
+    })
+    expect(await replay).toEqual({ text: 'from the first host', media: [] })
+    expect(second.calls).toHaveLength(0)
+    await second.host.close()
+  })
+
   it('streams a duplicate after a restart from the start of its run in the log', async () => {
     const persistence = durablePersistence()
     const first = await openDurable({

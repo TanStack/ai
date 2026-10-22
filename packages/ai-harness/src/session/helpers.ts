@@ -7,6 +7,7 @@ import {
   readInterruptBinding,
   wrapGenericInterruptContinuation,
 } from '@tanstack/ai'
+import { stableJson } from '../log'
 import { isRecord, jsonCopy } from '../utils'
 import { interruptExpiry, signInOf, snapshotWaits } from '../waits'
 import type {
@@ -554,7 +555,7 @@ export const isSameSender = (
 export const inputKey = (
   input: unknown,
   user: Pick<HarnessUser, 'id' | 'tenantId'> | undefined,
-) => JSON.stringify([input, user?.id ?? null, user?.tenantId ?? null])
+) => stableJson([input, user?.id ?? null, user?.tenantId ?? null])
 
 export const isPlainObject = (
   value: unknown,
