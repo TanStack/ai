@@ -1,5 +1,5 @@
 ---
-'@tanstack/ai-harness-cli': minor
+'@tanstack/ai-harness-cli': major
 ---
 
 Add `@tanstack/ai-harness-cli`: `runCli(harness)` runs a harness from the terminal.

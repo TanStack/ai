@@ -1,5 +1,5 @@
 ---
-'@tanstack/ai-harness': minor
+'@tanstack/ai-harness': major
 ---
 
 Add `@tanstack/ai-harness`: build an agent harness on TanStack AI. A harness keeps one conversation open across many turns.
