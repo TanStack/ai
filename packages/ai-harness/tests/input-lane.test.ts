@@ -327,6 +327,79 @@ describe('an input that reaches a host that does not own the log', () => {
     await other.host.close()
   })
 
+  describe('a command', () => {
+    const commands = definePlugin({
+      name: 'test/commands',
+      setup: () => ({
+        commands: {
+          echo: defineCommand({
+            description: 'Return the input',
+            input: z.object({ word: z.string() }),
+            run: (input) => `echo ${input.word}`,
+          }),
+          boom: defineCommand({
+            description: 'Throw',
+            run: () => {
+              throw new Error('Boom.')
+            },
+          }),
+        },
+      }),
+    })
+
+    /** The owner runs a turn until the test opens the gate. */
+    async function ownerBusy() {
+      const { a, b } = twoStores()
+      const release = gate()
+      const harness = defineHarness({
+        name: NAME,
+        adapter: mockAdapter([after(release.opened, 'One.')]).adapter,
+        plugins: () => [commands],
+      })
+      const owner = await hostOn(a, harness)
+      const other = await hostOn(b, harness)
+      const turn = owner.session.send('Go.')
+      await turn.receipt
+      const done = async () => {
+        release.open()
+        await turn
+        await owner.host.close()
+        await other.host.close()
+      }
+      return { other, done }
+    }
+
+    it('ends with the result of the owner on the host that forwarded it', async () => {
+      const { other, done } = await ownerBusy()
+      await expect(
+        other.session.runCommand({ name: 'echo', input: { word: 'hi' } }),
+      ).resolves.toBe('echo hi')
+      await done()
+    })
+
+    it('fails on the host that forwarded it when the owner refuses it', async () => {
+      const { other, done } = await ownerBusy()
+      await expect(
+        other.session.runCommand({ name: 'unknown' }),
+      ).rejects.toMatchObject({
+        name: 'InputRejectedError',
+        receipt: { reason: 'unknown_command' },
+      })
+      await expect(
+        other.session.runCommand({ name: 'echo', input: { word: 1 } }),
+      ).rejects.toMatchObject({ receipt: { reason: 'invalid_input' } })
+      await done()
+    })
+
+    it('fails on the host that forwarded it when it throws on the owner', async () => {
+      const { other, done } = await ownerBusy()
+      await expect(other.session.runCommand({ name: 'boom' })).rejects.toThrow(
+        'Boom.',
+      )
+      await done()
+    })
+  })
+
   it('answers the approval of an agent tool on the owner, and the main model gets the agent result', async () => {
     const { a, b } = twoStores()
     /** A lead model that calls a writer agent, and the writer writes a file. */
