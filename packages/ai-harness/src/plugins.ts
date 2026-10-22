@@ -110,11 +110,18 @@ export interface PluginContributions {
    * keep the harness adapter. The last plugin that returns one wins. The
    * session builds a `keyedAdapter(...)` with the user's key. `turn` is the
    * turn that starts: its input, context, and sender. Its
-   * `overrides.adapter` wins over every pick.
+   * `overrides.adapter` wins over every pick. The stored `model` of the
+   * thread settings wins over a plain pick. Return
+   * `{ adapter, override: true }` to win over the stored `model` too.
    */
-  adapter?: (
-    turn: TurnInfo,
-  ) => AnyTextAdapter | KeyedAdapter<AnyTextAdapter> | undefined
+  adapter?: (turn: TurnInfo) =>
+    | AnyTextAdapter
+    | KeyedAdapter<AnyTextAdapter>
+    | {
+        adapter: AnyTextAdapter | KeyedAdapter<AnyTextAdapter>
+        override: true
+      }
+    | undefined
   /**
    * Runs once at the start of each turn, before the adapter pick, the tools,
    * and the prompts. `turn.run` has the turn's user and that user's

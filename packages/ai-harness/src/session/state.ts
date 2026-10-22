@@ -11,7 +11,7 @@ import { transcriptText } from '../first-party/session-tools'
 import { LogOwnedElsewhereError } from '../ownership'
 import { isRecord } from '../utils'
 import { changedEntry } from '../session-entry'
-import { stableJson, visibleMessages } from '../log'
+import { messageIdsOfUser, stableJson, visibleMessages } from '../log'
 import { agentRunThread, isHumanTarget } from '../log-records'
 import { mediaIdOf, mediaOfMessage, mediaPart } from '../media-ref'
 import {
@@ -55,6 +55,7 @@ import type {
   BlobBody,
   BlobRange,
   LogRecord,
+  MessageStore,
   SessionIndexEntry,
 } from '@tanstack/ai-persistence'
 import type { RevertState } from '../log'
@@ -595,23 +596,23 @@ export abstract class SessionState<
    * is a duplicate.
    */
   protected override async applyConfig({
-    key,
-    value,
     controlId: inputId = createInputId(),
     user,
+    ...sent
   }: {
     key: string
     value: unknown
     user?: HarnessUser
     controlId?: string
   }): Promise<Receipt> {
-    const sender = this.actor(user)
-    const admission = await this.accept(
+    const { admission, input } = await this.accept(
       inputId,
-      { op: 'config', key, value },
-      sender,
+      { op: 'config', key: sent.key, value: sent.value },
+      this.actor(user),
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+    // `acceptInput` can change the input.
+    const { key, value } = input
     const entry = this.sessionPlugins?.config.get(key)
     if (!entry) return this.reject(inputId, 'unknown_config')
     let checked: unknown
@@ -664,15 +665,16 @@ export abstract class SessionState<
   async updateThreadSettings(
     options: ConfigureOptions & { user?: HarnessUser },
   ): Promise<Receipt> {
-    const { settings } = options
     const inputId = options.inputId ?? createInputId()
     const user = this.actor(options.user)
-    const admission = await this.accept(
+    const { admission, input } = await this.accept(
       inputId,
-      { op: 'configure', settings },
+      { op: 'configure', settings: options.settings },
       user,
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+    // `acceptInput` can change the input.
+    const { settings } = input
     // The store took the input, so this host owns the log, and its fold has
     // the settings that other hosts wrote. The change merges into them.
     const current = this.settingsFromLog()
@@ -815,10 +817,8 @@ export abstract class SessionState<
    * the messages after its message are hidden.
    */
   async transcript() {
-    return visibleMessages(
-      await this.messages.loadThread(this.threadId),
-      this.reverted,
-    )
+    // The transcript, not the model context: a compaction hides nothing.
+    return visibleMessages(this.writer.state.transcript, this.reverted)
   }
 
   /**
@@ -839,16 +839,23 @@ export abstract class SessionState<
   async agentTranscript(
     run: { subagentRunId: string } | { runId: string },
   ): Promise<Array<ModelMessage>> {
+    // The transcripts of the child threads, not their model context.
+    const children: MessageStore = {
+      loadThread: (thread) =>
+        Promise.resolve([...this.writer.stateOf(thread).transcript]),
+      saveThread: () =>
+        Promise.reject(new Error('agentTranscript writes nothing.')),
+    }
     if ('subagentRunId' in run) {
       const child = await loadChildTranscript(
-        this.engine,
+        children,
         run.subagentRunId,
         this.threadId,
       )
       if (child) return child
     }
     const thread = agentRunThread(this.writer.state.thread, this.threadId, run)
-    return thread === undefined ? [] : this.engine.loadThread(thread)
+    return thread === undefined ? [] : children.loadThread(thread)
   }
 
   /**
@@ -907,7 +914,9 @@ export abstract class SessionState<
       return { inputId, status: 'rejected', reason: 'busy' }
     }
     return this.holding(async () => {
-      const messages = await this.messages.loadThread(this.threadId)
+      // The reader picks a message of the transcript, also one that a
+      // compaction took out of the model context.
+      const messages = [...this.writer.state.transcript]
       const at = messages.findIndex((message) => message.id === messageId)
       if (at < 0)
         return { inputId, status: 'rejected', reason: 'unknown_message' }
@@ -938,6 +947,40 @@ export abstract class SessionState<
       await this.endRevert()
       // The notes that came during the revert go after the messages again.
       await this.flushNotes()
+      return { inputId, status: 'accepted' }
+    })
+  }
+
+  /**
+   * Erase the messages of the user `userId`, as `host.sessions.eraseUser`
+   * says: log the erase, write a snapshot, drop the records before it, and
+   * delete the files of those messages. Refused while the session is not
+   * idle, or another host runs the thread (`'busy'`).
+   */
+  async eraseUser({
+    userId,
+    replies,
+  }: {
+    userId: string
+    replies: 'keep' | 'remove'
+  }): Promise<Receipt> {
+    const inputId = createInputId()
+    if (!(await this.ownsIdleThread())) {
+      return { inputId, status: 'rejected', reason: 'busy' }
+    }
+    return this.holding(async () => {
+      const ids = messageIdsOfUser(this.writer.state, userId)
+      const media = this.writer.state.messages
+        .filter((message) => message.id !== undefined && ids.has(message.id))
+        .flatMap((message) => [
+          ...mediaOfMessage(message).map(({ id }) => id),
+          ...(typeof message.content === 'string' || !message.content
+            ? []
+            : message.content.flatMap((part) => mediaIdOf(part) ?? [])),
+        ])
+      await this.writer.append([{ type: 'harness.erase', userId, replies }])
+      await this.writer.compact()
+      for (const id of new Set(media)) await this.mediaStore.delete(id)
       return { inputId, status: 'accepted' }
     })
   }
@@ -992,10 +1035,13 @@ export abstract class SessionState<
   /** Drop the messages that a standing revert hides, and end the revert. */
   protected async commitRevert() {
     if (!this.reverted) return
-    const messages = await this.messages.loadThread(this.threadId)
+    const messages = this.writer.state.transcript
     const at = this.revertedAt(messages)
     if (at >= 0) {
-      await this.messages.saveThread(this.threadId, messages.slice(0, at + 1))
+      await this.writer.commit({
+        messages: messages.slice(0, at + 1),
+        asTranscript: true,
+      })
     }
     await this.saveRevert(undefined)
   }
@@ -1065,8 +1111,8 @@ export abstract class SessionState<
    * `answerOffer`).
    */
   protected override async applyAnswer({
-    questionId,
-    value,
+    questionId: asking,
+    value: sent,
     controlId: inputId = createInputId(),
     user,
     ref,
@@ -1081,22 +1127,31 @@ export abstract class SessionState<
     // not replay an answer, so it never needs it. A host that does not know
     // the wait logs no value either: the wait can ask for a secret. When
     // another host owns the log, `answerOffer` decides what goes to it.
-    const asked = this.questions.get(questionId)
-    const logged = this.loggedWait(questionId)
+    const asked = this.questions.get(asking)
+    const logged = this.loggedWait(asking)
     const isSecret = asked?.secret ?? (!logged || logged.secret === true)
     const isHidden = ref !== undefined || isSecret
-    if (asked?.secret) this.redactor.add(value)
+    if (asked?.secret) this.redactor.add(sent)
     const sender = this.actor(user)
-    let admission
+    let accepted
     try {
-      admission = await this.accept(
+      accepted = await this.accept(
         inputId,
-        { op: 'answer', questionId, value: isHidden ? SECRET_ANSWER : value },
+        {
+          op: 'answer',
+          questionId: asking,
+          value: isHidden ? SECRET_ANSWER : sent,
+        },
         sender,
         isHidden && ref === undefined
           ? {
               offer: () =>
-                this.answerOffer({ questionId, value, inputId, sender }),
+                this.answerOffer({
+                  questionId: asking,
+                  value: sent,
+                  inputId,
+                  sender,
+                }),
             }
           : {},
       )
@@ -1104,7 +1159,11 @@ export abstract class SessionState<
       if (!(error instanceof AnswerRefused)) throw error
       return this.reject(inputId, error.reason)
     }
+    const { admission } = accepted
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+    // `acceptInput` can change the input. It never sees a secret value.
+    const { questionId } = accepted.input
+    const value = isHidden ? sent : accepted.input.value
     let answered = value
     if (ref !== undefined) {
       // The value leaves the store first, so a ref works only once.

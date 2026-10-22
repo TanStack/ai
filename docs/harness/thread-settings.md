@@ -88,12 +88,13 @@ await session.updateThreadSettings({ settings: { model: 'fast' } })
 
 ## What wins
 
-A turn can get its model from four places. The first one that is set wins:
+A turn can get its model from five places. The first one that is set wins:
 
 1. The `overrides.adapter` of the prompt. See [Give one prompt its own settings](./turn-control#give-one-prompt-its-own-settings).
-2. The stored `model`.
-3. A plugin `adapter()` pick. See [Pick the model of a turn](./plugins#pick-the-model-of-a-turn).
-4. The `adapter` of the harness.
+2. A plugin `adapter()` pick that returns `{ adapter, override: true }`. See [Win over the stored model](./plugins#win-over-the-stored-model).
+3. The stored `model`.
+4. A plugin `adapter()` pick. See [Pick the model of a turn](./plugins#pick-the-model-of-a-turn).
+5. The `adapter` of the harness.
 
 For `reasoning`, the `overrides` of the prompt win, then the stored setting, then the `reasoning` of the harness.
 

@@ -125,18 +125,20 @@ export abstract class SessionTurn<
 
   protected async executeCommand(
     operation: OperationImpl<unknown>,
-    name: string,
-    input: unknown,
+    command: string,
+    sent: unknown,
     user: HarnessUser | undefined,
     inputId: string,
   ): Promise<void> {
     // The log keeps the input for replay, so a command must not take a secret
     // as its input. Ask a `secret` question instead.
-    const admission = await this.accept(
+    const { admission, input: accepted } = await this.accept(
       inputId,
-      { op: 'command', name, input },
+      { op: 'command', name: command, input: sent },
       user,
     )
+    // `acceptInput` can change the input.
+    const { name, input } = accepted
     if (admission === 'offered') {
       await this.followCommand(operation, inputId)
       return
@@ -676,6 +678,9 @@ export abstract class SessionTurn<
     let openMessageId: string | undefined
     let interrupts: Array<Interrupt> | undefined
     let failure: string | undefined
+    /** With `outputSchema`: the value of the last call, or why its check failed. */
+    let structured: unknown
+    let structuredError: { code: string; rawText?: string } | undefined
     const captured: Array<MediaRecord> = []
     // What plugins and the router see of this turn. A turn that recovery
     // runs again gets the message its input sent.
@@ -809,18 +814,20 @@ export abstract class SessionTurn<
       // tool loop, retries, `beforeFinish` cycles, the main part of
       // `routing.afterAgentsAnswer: 'main-answers'`, and late joins.
       const { overrides } = turn
-      const picked = [
+      const picks = [
         ...(session?.adapters ?? []),
         ...(runPlugins?.adapters ?? []),
       ]
         .map((pick) => pick(info))
         .filter((adapter) => adapter !== undefined)
-        .at(-1)
+      const forced = picks.filter((pick) => 'override' in pick).at(-1)?.adapter
+      const last = picks.at(-1)
+      const picked = last && 'override' in last ? last.adapter : last
       // A keyed adapter is built for this turn with the user's key. A
       // missing key publishes `auth_required` and fails the turn. It is
       // built before `prepareTools`, which gets its model id. The turn
-      // override (an adapter, then a model name), the stored model, a plugin
-      // pick, the harness model.
+      // override (an adapter, then a model name), a plugin pick with
+      // `override: true`, the stored model, a plugin pick, the harness model.
       const named =
         stored.model === undefined
           ? undefined
@@ -838,11 +845,13 @@ export abstract class SessionTurn<
         ? new ToolTurnAdapter(turn.tool, `tool-${turn.inputId ?? operation.id}`)
         : (overrides?.adapter ??
           turnModel ??
+          forced ??
           named ??
           picked ??
           this.harness.adapter)
       if (!model) throw new Error(NO_MODEL)
-      const adapter: AnyTextAdapter = await run.keys.adapter(model)
+      // `turn.onModelError` can move the rest of the turn to another adapter.
+      let adapter: AnyTextAdapter = await run.keys.adapter(model)
       info.model = `${adapter.name}/${adapter.model}`
       const resolvePrompt = (prompt: string | ((turn: TurnInfo) => string)) =>
         typeof prompt === 'function' ? prompt(info) : prompt
@@ -912,11 +921,12 @@ export abstract class SessionTurn<
       const reasoning =
         overrides?.reasoning ?? stored.reasoning ?? this.harness.reasoning
       const modelOptions = overrides?.modelOptions ?? this.harness.modelOptions
-      // The server's run wins over a `run` key of the client's context.
-      const context = withRun(
-        turnContext(this.harness.context, turn.context),
-        run,
-      )
+      // The server's run wins over a `run` key of the client's context. Its
+      // `source` tells the middleware that a turn makes the call.
+      const context = withRun(turnContext(this.harness.context, turn.context), {
+        ...run,
+        source: 'turn',
+      })
       // The turn value wins over the session value, field by field.
       const turnCache = cacheObject(overrides?.promptCache)
       const promptCache = {
@@ -1073,6 +1083,8 @@ export abstract class SessionTurn<
         let streamed = false
         let runError: ModelErrorContext['error'] | undefined
         let heldError: StreamChunk | undefined
+        structured = undefined
+        structuredError = undefined
         try {
           // The router and the routed agents get the full history. The
           // stores merge by message id, so no message is saved twice.
@@ -1236,6 +1248,7 @@ export abstract class SessionTurn<
             // The context type narrows per harness; chat() wants it exact.
             context: context as never,
             ...(reasoning !== undefined ? { reasoning } : {}),
+            ...(turn.outputSchema ? { outputSchema: turn.outputSchema } : {}),
             promptCache,
             threadId: this.threadId,
             runId: operation.id,
@@ -1261,6 +1274,20 @@ export abstract class SessionTurn<
               (chunk.metadata?.tanstack?.interruptErrors?.length ?? 0) > 0
             ) {
               isResumeRefused = true
+            }
+            // chat() failed the `outputSchema` check: the settlement keeps
+            // its code and the model text.
+            if (
+              chunk.type === EventType.RUN_ERROR &&
+              chunk.code?.startsWith('structured-output-')
+            ) {
+              const rawText = chunk.metadata?.tanstack?.rawText
+              structuredError = {
+                code: chunk.code,
+                ...(rawText !== undefined
+                  ? { rawText: this.scrub(rawText) }
+                  : {}),
+              }
             }
             if (
               chunk.type === EventType.RUN_FINISHED &&
@@ -1320,6 +1347,15 @@ export abstract class SessionTurn<
               }
               if (chunk.type === EventType.TEXT_MESSAGE_END) {
                 openMessageId = undefined
+              }
+              // chat() checks the value against `outputSchema`. A failed
+              // check ends the call with a RUN_ERROR.
+              if (
+                chunk.type === EventType.CUSTOM &&
+                chunk.name === 'structured-output.complete' &&
+                isRecord(chunk.value)
+              ) {
+                structured = chunk.value.object
               }
               if (chunk.type === EventType.RUN_STARTED) isRunOpen = true
               if (
@@ -1393,13 +1429,18 @@ export abstract class SessionTurn<
                 error: runError,
                 retries,
                 partial,
+                adapter,
+                model: `${adapter.name}/${adapter.model}`,
                 signal,
               })
-          if (
-            (answer === 'retry' || answer === 'continue') &&
-            !signal.aborted
-          ) {
+          if (answer && !signal.aborted) {
             retries += 1
+            // ponytail: the tools stay as they were prepared for the first
+            // model. Prepare them again if a preparer depends on the model.
+            if (typeof answer === 'object' && !isToolTurn) {
+              adapter = await run.keys.adapter(answer.adapter)
+              info.model = `${adapter.name}/${adapter.model}`
+            }
             // Only streamed text can be continued. Reasoning and a cut tool
             // call do not stay, so with no text, 'continue' acts as 'retry'.
             const isContinued = answer === 'continue' && text !== textBefore
@@ -1796,8 +1837,13 @@ export abstract class SessionTurn<
       await settleTurn({ outcome: 'aborted' })
       operation.fail('cancelled', new Error('Cancelled.'))
     } else if (failure !== undefined) {
-      await settleTurn({ outcome: 'failed', error: { message: failure } })
-      operation.fail('failed', new Error(failure))
+      // A failed `outputSchema` check keeps the code and text of chat().
+      const error = { message: failure, ...structuredError }
+      await settleTurn({ outcome: 'failed', error })
+      operation.fail(
+        'failed',
+        Object.assign(new Error(failure), structuredError),
+      )
     } else if (interrupts && interrupts.length > 0) {
       // `this.interrupted` was kept at RUN_FINISHED.
       await settleTurn({ outcome: 'interrupted' })
@@ -1808,7 +1854,11 @@ export abstract class SessionTurn<
       operation.finish('interrupted', { text, interrupts: [], media: captured })
     } else {
       await settleTurn({ outcome: 'completed' })
-      operation.finish('completed', { text, media: captured })
+      operation.finish('completed', {
+        text,
+        media: captured,
+        ...(structured !== undefined ? { structured } : {}),
+      })
     }
     this.publishFinished(operation)
     this.requeueWaitingSteers()

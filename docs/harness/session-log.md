@@ -10,6 +10,7 @@ keywords:
   - LogStore
   - projection
   - compaction
+  - encryption
 ---
 
 Your framework keeps its own state next to the conversation: signals for the model, state writes, a compaction summary. Kept in a second store, it can drift from the transcript after a crash. Put these records in the harness session log. They share its atomic appends, its order, and its recovery.
@@ -94,6 +95,7 @@ export const projected = defineHarness({
 
 - `record` must be pure: the same log always folds to the same context, live and after a restart.
 - The model sees the change at its next model call. A message that arrives during a tool call comes after the tool result.
+- Readers see a message that `record` adds at the end of the list, for example the signal above. A change to earlier messages, for example a compaction summary, goes only to the model. `session.transcript()` keeps the full history.
 - Change `version` when you change `record`. A log snapshot with another version is not used, so the host folds the log again from the first record.
 - For compaction, use `projectCompaction` from `@tanstack/ai-compaction`. See [Compact a harness session](./compaction).
 - A chat middleware in a harness turn can append records itself with `getLogRecords(ctx).append([...])` from `@tanstack/ai`. The records land in the log at once. A plugin's middleware reads the writer with `getLogRecords(ctx, { optional: true })`. A plugin cannot list `LogRecordsCapability` in `requires`.
@@ -182,7 +184,7 @@ const handoffs = entries.filter((entry) => entry.record.type === 'harness.handof
 console.log(handoffs.at(-1)?.record.to)
 ```
 
-A reader outside a session that needs a `MessageStore`, for example `reconstructChat`, uses `logMessageStore`. It folds the log with the same `addRecordsToModelContext`. Pass `tenantId` to read the threads of a tenant:
+A reader outside a session that needs a `MessageStore`, for example `reconstructChat`, uses `logMessageStore`. It folds the log with the same `addRecordsToModelContext`, and it reads and writes the transcript that readers see, not the model context. Pass `tenantId` to read the threads of a tenant:
 
 ```ts group=harness-session-log
 import { logMessageStore } from '@tanstack/ai-harness'
@@ -212,6 +214,105 @@ console.log(agentNodes.map((record) => [record.runId, record.agent, record.paren
 - Each `harness.usage` record has the `runId` of the run that made the model call. See [Usage of one run](./usage#usage-of-one-run).
 - A `harness.state` record has a `key` and one change to its value. It is the shared state of [`ctx.harness.state`](./subagents#share-state-between-agents).
 
+## Encrypt the records in the store
+
+Wrap the `LogStore` to encrypt the records that hold what people wrote. The host reads and writes through the wrapper, so it only sees plain records. `HarnessRecord` is the type of every record that the harness writes, so a wrong record type is a type error:
+
+```ts group=harness-session-log
+import { createCipheriv, createDecipheriv, createHmac } from 'node:crypto'
+import { defineLogStore } from '@tanstack/ai-persistence'
+import type { LogRecord, LogStore } from '@tanstack/ai-persistence'
+import type { HarnessRecord } from '@tanstack/ai-harness'
+
+// The harness records that hold messages, prompts, and tool results.
+const SEALED: ReadonlySet<string> = new Set([
+  'harness.transcript',
+  'harness.input',
+  'harness.event',
+  'harness.tool.result',
+] satisfies Array<HarnessRecord['type']>)
+
+interface Keys {
+  aes: Buffer // 32 bytes
+  iv: Buffer // a second secret
+}
+
+// AES-256-GCM. The IV comes from the text, so the same text gives the same output.
+function seal(keys: Keys, text: string) {
+  const iv = createHmac('sha256', keys.iv).update(text).digest().subarray(0, 12)
+  const cipher = createCipheriv('aes-256-gcm', keys.aes, iv)
+  const data = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()])
+  return Buffer.concat([iv, cipher.getAuthTag(), data]).toString('base64')
+}
+
+function unseal(keys: Keys, sealed: string) {
+  const bytes = Buffer.from(sealed, 'base64')
+  const decipher = createDecipheriv('aes-256-gcm', keys.aes, bytes.subarray(0, 12))
+  decipher.setAuthTag(bytes.subarray(12, 28))
+  return Buffer.concat([decipher.update(bytes.subarray(28)), decipher.final()]).toString('utf8')
+}
+
+const isLogRecord = (value: unknown): value is LogRecord =>
+  typeof value === 'object' && value !== null && 'type' in value && typeof value.type === 'string'
+
+export function sealedLogStore(store: LogStore, keys: Keys): LogStore {
+  const sealRecord = (record: LogRecord): LogRecord =>
+    SEALED.has(record.type)
+      ? { type: record.type, sealed: seal(keys, JSON.stringify(record)) }
+      : record
+  const openRecord = (record: LogRecord): LogRecord => {
+    if (!SEALED.has(record.type) || typeof record.sealed !== 'string') return record
+    const opened: unknown = JSON.parse(unseal(keys, record.sealed))
+    if (!isLogRecord(opened)) throw new Error('A sealed record did not open.')
+    return opened
+  }
+  return defineLogStore({
+    append: (batch) => store.append({ ...batch, records: batch.records.map(sealRecord) }),
+    read: async (query) =>
+      (await store.read(query)).map((entry) => ({ ...entry, record: openRecord(entry.record) })),
+    offerInput: (input) => store.offerInput({ ...input, record: sealRecord(input.record) }),
+    listOfferedInputs: async (query) =>
+      (await store.listOfferedInputs(query)).map((offer) => ({
+        ...offer,
+        record: openRecord(offer.record),
+      })),
+    // The snapshot holds the transcript too.
+    putSnapshot: (snapshot) =>
+      store.putSnapshot({ ...snapshot, state: seal(keys, JSON.stringify(snapshot.state)) }),
+    getSnapshot: async (query) => {
+      const snapshot = await store.getSnapshot(query)
+      if (!snapshot || typeof snapshot.state !== 'string') return snapshot
+      const state: unknown = JSON.parse(unseal(keys, snapshot.state))
+      return { ...snapshot, state }
+    },
+    // These calls carry no records.
+    subscribe: (watch) => store.subscribe(watch),
+    acquireOwnership: (claim) => store.acquireOwnership(claim),
+    renewOwnership: (claim) => store.renewOwnership(claim),
+    releaseOwnership: (claim) => store.releaseOwnership(claim),
+    pinToWorkers: (pin) => store.pinToWorkers(pin),
+    markHostAlive: (beat) => store.markHostAlive(beat),
+    listLogsWithoutOwner: (query) => store.listLogsWithoutOwner(query),
+    truncate: (cut) => store.truncate(cut),
+    deleteLog: (target) => store.deleteLog(target),
+  })
+}
+
+const keys = {
+  aes: Buffer.from(process.env.LOG_AES_KEY ?? '', 'base64'),
+  iv: Buffer.from(process.env.LOG_IV_KEY ?? '', 'base64'),
+}
+const sealedHost = createHarnessHost({
+  persistence: { stores: { ...persistence.stores, log: sealedLogStore(log, keys) } },
+})
+```
+
+CAUTION: The wrapper must give back on read exactly what it got on write: the same fields, the same values, and the same key order. If it does not, the duplicate-input checks and the folds of the session break. The host compares the records that it wrote with the records that it reads back. The store compares a second offer of an input with the first one by its JSON.
+
+- `seal` must give the same output for the same text. With a random IV, a second offer of the same input is a `conflict`, not a `duplicate`. The cost: two equal records have equal ciphertext.
+- Keep `type` in the clear. The record types that you do not seal (thread settings, runs, usage) stay readable for your dashboards.
+- To redact in place of encrypt, keep the real values in your own store and put them back on read. A wrapper that drops data on write breaks the log.
+
 ## Tune how text streams into the log
 
 A host merges streamed text and tool call arguments for `log.bufferStreamWriteMs` milliseconds (default 100) before it appends them. A message start or end, a tool call start or end, and your own records append at once.
@@ -232,3 +333,4 @@ A larger value writes less often, and clients get text in larger parts.
 - Records that a webhook or a browser adds, for the record types you expose.
 - A transcript that any reader can fold from the log.
 - Every run of the thread, and the shared state of its agents, in records that you can read.
+- A log store that keeps the messages of your users encrypted.

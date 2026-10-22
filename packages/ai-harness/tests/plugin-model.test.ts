@@ -9,8 +9,8 @@ import {
   logIdOf,
 } from '../src'
 import { gate, mockAdapter, text, untilAborted } from './helpers'
-import type { StreamChunk } from '@tanstack/ai'
-import type { HarnessPlugin, SessionEvent } from '../src'
+import type { ChatMiddleware, StreamChunk } from '@tanstack/ai'
+import type { HarnessPlugin, HarnessRunContext, SessionEvent } from '../src'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
@@ -35,7 +35,11 @@ const answerWithUsage =
     )
 
 /** Open `THREAD` with `plugins`. The main model answers with `main`. */
-async function open(plugins: Array<HarnessPlugin>, main: Array<Reply>) {
+async function open(
+  plugins: Array<HarnessPlugin>,
+  main: Array<Reply>,
+  middleware?: Array<ChatMiddleware<HarnessRunContext>>,
+) {
   const log = memoryLogStore()
   const { metadata } = memoryPersistence().stores
   const host = createHarnessHost({ persistence: { stores: { log, metadata } } })
@@ -44,6 +48,7 @@ async function open(plugins: Array<HarnessPlugin>, main: Array<Reply>) {
       name: 'test/plugin-model',
       adapter: mockAdapter(main).adapter,
       plugins: () => plugins,
+      ...(middleware ? { middleware } : {}),
     }),
     { threadId: THREAD, user: alice },
   )
@@ -148,6 +153,51 @@ describe('ctx.model.chat', () => {
 
     await expect(call).rejects.toThrow()
     await expect(turn).rejects.toThrow('Cancelled.')
+    await host.close()
+  })
+
+  it('tells the harness middleware which call it sees: the turn, or a plugin call and its label', async () => {
+    const seen: Array<{ source?: string; label?: string }> = []
+    const recorder: ChatMiddleware<HarnessRunContext> = {
+      name: 'test/recorder',
+      onStart: (ctx) => {
+        const { source, label } = ctx.context.run
+        seen.push({ source, label })
+      },
+    }
+    const checker = mockAdapter(answerWithUsage('looks fine'))
+    const plugin = definePlugin({
+      name: 'test/checker',
+      setup: (ctx) => ({
+        commands: {
+          check: defineCommand({
+            description: 'Check',
+            run: async (_input, { run }) =>
+              (
+                await ctx.model.chat({
+                  adapter: checker.adapter,
+                  run,
+                  label: 'check',
+                  options: { messages: [{ role: 'user', content: 'Check' }] },
+                })
+              ).text,
+          }),
+        },
+      }),
+    })
+    const { host, session } = await open(
+      [plugin],
+      [() => text('hi')],
+      [recorder],
+    )
+
+    await session.send('hello')
+    await session.runCommand({ name: 'check' })
+
+    expect(seen).toEqual([
+      { source: 'turn', label: undefined },
+      { source: 'plugin:test/checker', label: 'check' },
+    ])
     await host.close()
   })
 

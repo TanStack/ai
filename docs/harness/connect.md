@@ -92,8 +92,8 @@ For one session:
 
 For a list of sessions:
 
-- `GET sessions`: one page of the sessions that this user can list, newest first.
-- `POST sessions`: change a session with `{ op, threadId }`. The ops are `rename`, `update`, `delete`, `fork`, `share`, and `unshare`. `client.sessions` has one method for each op. A thread that is not there throws `404`. See [List, rename, and fork sessions](./sessions) and [Share the thread](./shared-threads#2-share-the-thread).
+- `GET sessions`: one page of the sessions that this user can list, newest first. Add `withArchived=true` to also get the archived sessions.
+- `POST sessions`: change a session with `{ op, threadId }`. The ops are `rename`, `archive`, `unarchive`, `update`, `delete`, `fork`, `share`, and `unshare`. `client.sessions` has one method for each op. A thread that is not there throws `404`. See [List, rename, and fork sessions](./sessions) and [Share the thread](./shared-threads#2-share-the-thread).
 - `GET host-events`: the status changes and index changes of the sessions that this user can read, as SSE.
 
 A read of a thread that does not exist answers `404`. Only `GET run?threadId=` answers an empty thread, because `useChat` reads it before the first message.
@@ -152,6 +152,7 @@ export const team = defineHarness({
 | `records` | Add records of these types to the thread with `client.appendRecords({ records })`. See [Let a client add records](./session-log#let-a-client-add-records). |
 
 - Any other input of these kinds gets `{ status: 'rejected', reason: 'not_exposed' }`.
+- To check what an input says, for example its `context`, use `acceptInput` on the host. See [Check an input on the server](./inputs#check-an-input-on-the-server).
 - `GET describe` and `client.describe()` list only the exposed commands and config keys. A UI built from them shows only what a client can use.
 - Server code that calls the session is not limited. `session.setPluginSetting()` and `session.runCommand()` work for every key and command, and `session.describe()` lists all of them.
 - `defineHarness` checks the names in `agents` and `tools`, and TypeScript suggests them. Plugins add their config keys and commands when a session opens, so it does not check those names.

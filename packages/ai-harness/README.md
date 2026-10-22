@@ -22,6 +22,9 @@
 
 Build agent harnesses on TanStack AI: long-lived sessions, typed agents, and plugins.
 
+> [!WARNING]
+> The harness is experimental. `@tanstack/ai-harness` and `@tanstack/ai-harness-cli` are on 0.x, and a minor release can change the API. Pin the exact version you install.
+
 `chat()` answers one request. A harness keeps one conversation open across many turns. It takes new messages while it works, runs typed agents from code, and loads plugins that add tools, prompts, and middleware.
 
 ## Installation

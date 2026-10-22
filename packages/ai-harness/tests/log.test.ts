@@ -277,6 +277,79 @@ describe('transcript fold', () => {
 
     const reloaded = await loadSession({ store, project })
     expect(reloaded.messages).toEqual([...compacted, a2])
+    // Readers keep every message: the signal, but not the summary.
+    const full = [u1, a1, { role: 'user', content: 'ping' }, a2]
+    expect(writer.state.transcript).toEqual(full)
+    expect(reloaded.transcript).toEqual(full)
+  })
+
+  describe('a save after a compaction', () => {
+    const summary = (content: string): ModelMessage => ({
+      role: 'assistant',
+      content,
+    })
+    /** A log with u1 a1 u2 a2, compacted to a summary, u2 and a2. */
+    async function compacted() {
+      const store = memoryLogStore()
+      const writer = newWriter(store, { project })
+      const history = [
+        user('u1', 'one'),
+        assistant('a1', 'two'),
+        user('u2', 'three'),
+        assistant('a2', 'four'),
+      ]
+      await writer.commit({ messages: history })
+      await writer.append([
+        { type: 'app.compact', summary: 'S1', firstKept: 2 },
+      ])
+      return { store, writer, history }
+    }
+
+    it('that rewrites the summary keeps the history for readers', async () => {
+      const { store, writer, history } = await compacted()
+      const u3 = user('u3', 'five')
+
+      // keep 0: the save starts in the summary.
+      await writer.commit({
+        messages: [
+          summary('S2'),
+          user('u2', 'three'),
+          assistant('a2', 'four'),
+          u3,
+        ],
+      })
+
+      const model = [summary('S2'), ...history.slice(2), u3]
+      expect(writer.state.messages).toEqual(model)
+      expect(writer.state.transcript).toEqual([...history, u3])
+      const reloaded = await loadSession({ store, project })
+      expect(reloaded.messages).toEqual(model)
+      expect(reloaded.transcript).toEqual([...history, u3])
+    })
+
+    it('that replaces the messages after the summary replaces them for readers too', async () => {
+      const { store, writer, history } = await compacted()
+      const u9 = user('u9', 'other')
+
+      await writer.commit({ messages: [summary('S1'), u9] })
+
+      expect(writer.state.messages).toEqual([summary('S1'), u9])
+      expect(writer.state.transcript).toEqual([...history.slice(0, 2), u9])
+      expect((await loadSession({ store, project })).transcript).toEqual([
+        ...history.slice(0, 2),
+        u9,
+      ])
+    })
+
+    it('that keeps no message and drops the tail replaces both lists', async () => {
+      const { writer } = await compacted()
+      const u9 = user('u9', 'fresh')
+
+      await writer.commit({ messages: [u9] })
+
+      expect(writer.state.messages).toEqual([u9])
+      expect(writer.state.transcript).toEqual([u9])
+    })
   })
 
   it('keeps live state equal to reloaded state for values that are not JSON', async () => {
@@ -1341,6 +1414,59 @@ describe('snapshots', () => {
     ])
   })
 
+  it("keeps the full transcript after a truncate with logRecords 'since-snapshot'", async () => {
+    const store = memoryLogStore()
+    const writer = newWriter(store, {
+      project,
+      snapshot: { bytes: 1 },
+      logRecords: 'since-snapshot',
+    })
+    const history = [user('u1', 'one'), assistant('a1', 'two')]
+    const u2 = user('u2', 'three')
+
+    await writer.commit({ messages: history })
+    await writer.append([
+      { type: 'app.compact', summary: 'Earlier: one, two.', firstKept: 2 },
+    ])
+    await writer.commit({ messages: [...writer.state.messages, u2] })
+    await writer.rest()
+
+    await expect(store.read({ logId: LOG })).rejects.toBeInstanceOf(
+      LogTruncatedError,
+    )
+    const reloaded = await loadSession({ store, project })
+    expect(reloaded.transcript).toEqual([...history, u2])
+    expect(reloaded.messages).toEqual([
+      { role: 'assistant', content: 'Earlier: one, two.' },
+      u2,
+    ])
+    expect(reloaded.modelStart).toBe(1)
+  })
+
+  it('loads a version 5 snapshot, whose transcript is its model context', async () => {
+    const store = await seededStore(snapshotOf({}, threadOf(), '5'))
+
+    const state = await loadSession({ store, project })
+
+    const messages = [user('marker', 'from the snapshot'), user('u2', 'two')]
+    expect(state.messages).toEqual(messages)
+    expect(state.transcript).toEqual(messages)
+  })
+
+  it('does not load a snapshot whose transcript is shorter than the shared messages', async () => {
+    const store = await seededStore(
+      snapshotOf({
+        sessions: [
+          [THREAD, snapshotSession({ transcript: [], modelStart: 0 })],
+        ],
+      }),
+    )
+
+    // The fold ignores the snapshot and folds the records.
+    const state = await loadSession({ store, project })
+    expect(state.transcript).toEqual([user('u1', 'one'), user('u2', 'two')])
+  })
+
   it("keeps every record with logRecords 'all'", async () => {
     const store = memoryLogStore()
     const writer = newWriter(store, { snapshot: { bytes: 1 } })
@@ -1651,6 +1777,47 @@ describe('message stores', () => {
       { type: 'harness.transcript', keep: 0, add: [u1] },
       { type: 'harness.transcript', keep: 1, add: [a1] },
     ])
+  })
+
+  it('logMessageStore reads and writes the transcript after a compaction', async () => {
+    const store = memoryLogStore()
+    const messages = logMessageStore({ store, project })
+    const logId = logIdOf({ logId: 't9' })
+    const history = [user('u1', 'one'), assistant('a1', 'two')]
+    await messages.saveThread('t9', history)
+    await store.append({
+      logId,
+      seq: 2,
+      epoch: NO_OWNER_EPOCH,
+      records: [{ type: 'app.compact', summary: 'S', firstKept: 1 }],
+    })
+    expect(await messages.loadThread('t9')).toEqual(history)
+
+    // An added message goes after the model context too.
+    const u2 = user('u2', 'three')
+    await messages.saveThread('t9', [...history, u2])
+    expect(await messages.loadThread('t9')).toEqual([...history, u2])
+    expect((await records(store, logId)).at(-1)).toEqual({
+      type: 'harness.transcript',
+      keep: 2,
+      add: [u2],
+    })
+    const summary = { role: 'assistant', content: 'S' }
+    expect(
+      (
+        await loadLogState({ store, logId, rootThread: 't9', project })
+      ).sessions.get('t9')?.messages,
+    ).toEqual([summary, history[1], u2])
+
+    // A change in what the compaction replaced writes both lists again.
+    const edited = [user('u1', 'ONE'), history[1]!, u2]
+    await messages.saveThread('t9', edited)
+    expect(await messages.loadThread('t9')).toEqual(edited)
+    expect(
+      (
+        await loadLogState({ store, logId, rootThread: 't9', project })
+      ).sessions.get('t9')?.messages,
+    ).toEqual(edited)
   })
 
   it('logMessageStore reloads and tries once more after a conflict', async () => {

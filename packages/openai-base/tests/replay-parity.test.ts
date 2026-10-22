@@ -15,8 +15,6 @@ import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
 
 const logger = resolveDebugOption(false)
 const model = 'gpt-5.5'
-/** A stored Responses reasoning item, as a thinking signature. */
-const pairedReasoning = JSON.stringify({ id: 'rs_1', encrypted_content: 'enc' })
 
 class Completions extends OpenAIBaseChatCompletionsTextAdapter<string> {
   constructor(client: OpenAI, images = true) {
@@ -652,12 +650,17 @@ describe('OpenAI replay parity', () => {
       const body = mock.bodies[0]
       expect(body).toMatchObject({
         input: [
-          { type: 'function_call', call_id: 'call_bad' },
+          {
+            type: 'function_call',
+            call_id: 'call_bad',
+            id:
+              provider === 'openai'
+                ? 'fc_item'
+                : expect.stringMatching(/^fc_[a-z0-9]+$/),
+          },
           { type: 'function_call_output', call_id: 'call_bad', output: 'ok' },
         ],
       })
-      // No reasoning item pairs with the call, so it goes without an item id.
-      expect(body).not.toHaveProperty(['input', 0, 'id'])
     },
   )
 
@@ -735,8 +738,12 @@ describe('OpenAI replay parity', () => {
       expect(
         callIds.every((id) => id.length <= (api === 'completions' ? 40 : 64)),
       ).toBe(true)
-      // No reasoning item pairs with the calls, so they go without item ids.
-      expect(itemIds).toEqual([])
+      if (api === 'responses') {
+        expect(new Set(itemIds).size).toBe(2)
+        expect(
+          itemIds.every((id) => id.length <= 64 && id.startsWith('fc_')),
+        ).toBe(true)
+      }
     },
   )
 
@@ -1125,7 +1132,7 @@ describe('OpenAI replay parity', () => {
 
 describe('Responses answer items on replay', () => {
   /** Turn 1 with one answer item. Returns the saved transcript. */
-  async function firstTurn() {
+  async function firstTurn(before: Array<Record<string, unknown>> = []) {
     const answer = {
       type: 'message',
       id: 'msg_answer',
@@ -1138,7 +1145,10 @@ describe('Responses answer items on replay', () => {
       [
         {
           ...responseCompleted,
-          response: { ...responseCompleted.response, output: [answer] },
+          response: {
+            ...responseCompleted.response,
+            output: [...before, answer],
+          },
         },
       ],
       true,
@@ -1175,29 +1185,12 @@ describe('Responses answer items on replay', () => {
     return body.input.filter((item) => item.role === 'assistant')
   }
 
-  it('sends the phase of the first answer on a same-model request, and its id only next to its reasoning', async () => {
+  it('sends the id and phase of the first answer on a same-model request', async () => {
     const saved = await firstTurn()
     expect(saved.at(-1)?.metadata?.tanstack?.responseItems).toEqual([
       { id: 'msg_answer', phase: 'final_answer' },
     ])
-    // No reasoning item: a reasoning model refuses the msg_ id without one.
     expect(await secondTurnInput(saved)).toEqual([
-      {
-        type: 'message',
-        role: 'assistant',
-        phase: 'final_answer',
-        content: 'Hi there',
-      },
-    ])
-    const withReasoning = saved.map((message) =>
-      message.role === 'assistant'
-        ? {
-            ...message,
-            thinking: [{ content: '', signature: pairedReasoning }],
-          }
-        : message,
-    )
-    expect(await secondTurnInput(withReasoning)).toEqual([
       {
         type: 'message',
         role: 'assistant',
@@ -1206,6 +1199,17 @@ describe('Responses answer items on replay', () => {
         phase: 'final_answer',
         content: [{ type: 'output_text', text: 'Hi there', annotations: [] }],
       },
+    ])
+  })
+
+  it('leaves the id out when the reasoning item of the answer is lost (B13)', async () => {
+    const reasoning = { type: 'reasoning', id: 'rs_1', summary: [] }
+    const saved = await firstTurn([reasoning])
+    expect(saved.at(-1)?.metadata?.tanstack?.reasoningItem).toBe(true)
+    // A stored transcript that kept the message but not its reasoning.
+    const lost = saved.map(({ thinking: _thinking, ...message }) => message)
+    expect(await secondTurnInput(lost)).toEqual([
+      { type: 'message', role: 'assistant', content: 'Hi there' },
     ])
   })
 

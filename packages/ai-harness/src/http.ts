@@ -331,7 +331,9 @@ function parseSessionOp(body: unknown) {
         },
       }
     case 'delete':
-      return { op: 'delete' as const, threadId }
+    case 'archive':
+    case 'unarchive':
+      return { op, threadId }
     case 'fork':
       // Exactly one of `before` and `through`.
       if (typeof before === 'string' && through === undefined)
@@ -550,11 +552,13 @@ let warnedMediaKey = false
  *   still needs a user from `getUser`, or a guest from `access.getGuestUser`
  *   (401 without one), and it needs the `read` action on the thread, in
  *   the tenant of the URL.
- * - `GET  .../sessions?limit=&cursor=&parentThreadId=`: one page of the
- *   session index, newest first: the sessions that `host.sessions.list`
- *   gives this user. Default: top-level sessions only.
+ * - `GET  .../sessions?limit=&cursor=&parentThreadId=&withArchived=`: one
+ *   page of the session index, newest first: the sessions that
+ *   `host.sessions.list` gives this user. Default: top-level sessions only,
+ *   without archived ones (`withArchived=true` adds them).
  * - `POST .../sessions`: change a session. The body is
- *   `{ op: 'rename', threadId, title }`, `{ op: 'update', threadId, title?,
+ *   `{ op: 'rename', threadId, title }`, `{ op: 'archive', threadId }`,
+ *   `{ op: 'unarchive', threadId }`, `{ op: 'update', threadId, title?,
  *   pinned?, metadata? }` (each field replaces the stored one, and the
  *   harness `metadataSchema` checks `metadata`. Without a schema, a client
  *   cannot write `metadata`: 403 `not_exposed`), `{ op: 'delete', threadId }`
@@ -562,8 +566,8 @@ let warnedMediaKey = false
  *   `host.sessions.delete` does), `{ op: 'fork', threadId, before }`
  *   or `{ op: 'fork', threadId, through }` with a message id, and with
  *   `access.rules.members`, `{ op: 'share', threadId, userId, role }` and
- *   `{ op: 'unshare', threadId, userId }`. Rename, update, fork, share, and
- *   unshare answer with the entry, delete with 204. 400
+ *   `{ op: 'unshare', threadId, userId }`. Rename, archive, unarchive,
+ *   update, fork, share, and unshare answer with the entry, delete with 204. 400
  *   (`invalid_metadata`, with `issues`) for metadata the schema refuses, 404
  *   for a thread with no entry, and 409 (`other_harness`) for an update or a
  *   fork of a thread that another harness runs.
@@ -1215,6 +1219,7 @@ export function createHarnessHandler<U extends HarnessUser = HarnessUser>(
       if (isBadLimit)
         return json({ error: 'limit must be a positive integer' }, 400)
       const search = url.searchParams.get('search')
+      const withArchived = url.searchParams.get('withArchived') === 'true'
       // `metadata.<key>=<value>` asks for that exact metadata value.
       const metadata = Object.fromEntries(
         [...url.searchParams]
@@ -1232,6 +1237,7 @@ export function createHarnessHandler<U extends HarnessUser = HarnessUser>(
           ...(cursor ? { cursor } : {}),
           ...(parentThreadId ? { parentThreadId } : {}),
           ...(search ? { search } : {}),
+          ...(withArchived ? { withArchived } : {}),
         }),
       )
     }
@@ -1276,6 +1282,10 @@ export function createHarnessHandler<U extends HarnessUser = HarnessUser>(
             throw error
           }
         }
+        case 'archive':
+          return answer(await host.sessions.archive(target))
+        case 'unarchive':
+          return answer(await host.sessions.unarchive(target))
         case 'delete':
           await host.sessions.delete(target)
           return new Response(null, { status: 204 })

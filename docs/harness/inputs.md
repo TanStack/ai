@@ -171,6 +171,42 @@ await drafted
 - The harness keeps them in memory for the turn, like `ephemeral`. The transcript and the session log never store them.
 - A turn that recovery runs again after a crash has no `systemPreamble`, because the log does not keep it.
 
+## Get a typed answer from a turn
+
+Pass `outputSchema` to `session.send`. The turn's `chat()` call gets the schema, and the result has the checked object as `structured`, typed from the schema.
+
+```ts group=harness-inputs
+import { z } from 'zod'
+
+const Ticket = z.object({
+  title: z.string(),
+  priority: z.enum(['low', 'high']),
+})
+
+const triaged = await session.send('Triage: the login page is down.', {
+  inputId: 'req-60',
+  outputSchema: Ticket,
+})
+console.log(triaged.structured?.priority) // 'low' | 'high' | undefined
+```
+
+- `structured` is set when the turn completes. A turn that stops for an approval or another wait has no `structured`.
+- The transcript keeps the answer that `chat()` writes for structured output: the JSON text of the object.
+
+If the object fails the schema, the turn fails:
+
+1. `await triaged` rejects. The error has `code` and `rawText`.
+2. `session.settled({ inputId: 'req-60' })` resolves to `outcome: 'failed'`, with the same `error.code` and `error.rawText`.
+
+The `code` is `structured-output-validation-failed` (the JSON parsed, but the object failed the schema) or `structured-output-parse-failed` (the text was not JSON). `rawText` is the text of the model.
+
+Where the schema applies:
+
+- **One send only.** Thread settings and `overrides` do not keep it. The next turn runs without it.
+- **Server code only.** A schema is code, so clients cannot send it. The HTTP handler and the client protocol do not take `outputSchema`.
+- **A recovered turn runs without it.** The session log keeps only JSON, so a turn that recovery runs again after a crash has no schema. The session writes a `harness:overrides` warning to the log.
+- **A joined steer ignores it.** A `busy: 'steer'` message that joins a running turn uses that turn's settings. A steer that runs as its own turn uses its schema.
+
 ## Send a message while a turn runs
 
 With `busy: 'steer'` or `mode: 'steer'`, a message joins the running turn. It reaches the model at the next model call, in the order the messages arrived, and it ends with that turn.
@@ -296,7 +332,6 @@ On the server, a tool reads it from its tool context:
 
 ```ts group=harness-inputs
 import { toolDefinition } from '@tanstack/ai'
-import { z } from 'zod'
 
 const openRecord = toolDefinition({
   name: 'openRecord',
@@ -346,12 +381,63 @@ On `POST run`, the AG-UI `forwardedProps` of the request are the `context`, for 
 - When `HarnessConfig.context` and the input `context` are both plain objects, tools get them merged, and the harness value wins for a key in both. In all other cases, tools get the harness value. If the harness has no value, tools get the input value.
 - The harness adds the run of the turn to a plain-object context as `run`, and it replaces a `run` key that a client sent. A context that is not a plain object gets no `run`, so tools that read `ctx.context.run` fail. See [Act as the user of a run](./plugins#act-as-the-user-of-a-run).
 - Plugins and the router get it as `turn.context`. See [Pick the model of a turn](./plugins#pick-the-model-of-a-turn).
-- The `context` is client data, so do not trust it. Who sent the input comes from the server: the user of the request, or of the session handle. See [Access and tenants](./access).
+- The `context` is client data, so do not trust it. Who sent the input comes from the server: the user of the request, or of the session handle. See [Access and tenants](./access). To check the `context` or replace it, see [Check an input on the server](#check-an-input-on-the-server).
+
+## Check an input on the server
+
+Give the host `acceptInput`. It gets each input after the access check, and before the log keeps the input. Return the input, a changed input, or `{ refuse: reason }`:
+
+```ts group=harness-inputs
+// Your own data: the plan of each user.
+const plans = new Map([['ada', 'pro']])
+
+const checkedHost = createHarnessHost({
+  persistence: memoryPersistence(),
+  acceptInput: (input, { user }) => {
+    if (input.op !== 'prompt') return input
+    if (typeof input.message === 'string' && input.message.length > 20_000) {
+      return { refuse: 'message_too_long' }
+    }
+    // The server sets the plan. A plan that the client sent is dropped.
+    return { ...input, context: { plan: plans.get(user?.id ?? '') ?? 'free' } }
+  },
+})
+```
+
+What you return decides what happens:
+
+- The same input: the session stores it as it came.
+- A changed input with the same `op`: the log, the turn, and the tools get the changed input. An input with another `op` is refused.
+- `{ refuse: reason }`: nothing is stored. The receipt has `status: 'rejected'` and your `reason`, and `await turn` rejects with `InputRejectedError`.
+
+`acceptInput` also gets `threadId`. It runs for the calls of a session from `host.open`, for `host.submit`, and so for every `POST control` and `POST run` request. Inputs that the harness makes itself, such as a scheduled input when it runs, skip it.
+
+On the client, a refused `control` input answers with the rejected receipt:
+
+```ts group=harness-inputs-client
+const response = await fetch('/api/harness/control', {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({
+    threadId: 'user-1-thread',
+    input: { op: 'prompt', message: 'Summarize the report.' },
+  }),
+})
+const sent = await response.json()
+if (sent.status === 'rejected') console.warn(sent.reason) // 'message_too_long'
+```
+
+A refused `POST run` answers `409` with `{ error: reason }`, so `useChat` gets an error.
+
+- The `inputId` check compares the changed input. Return the same change for the same input: no random values and no times.
+- A retry of a changed prompt on another host, or after a restart, gets `'conflict'`.
 
 ## What you have now
 
 - Retries that never run a prompt twice.
 - The outcome of each input by its id, also after a restart.
+- Typed answers from a turn, checked against your schema.
 - Messages that join a running turn in order.
 - Waiting messages that a user can cancel, or move into the running turn, and running jobs that a user can move to the background.
 - Context from the client that tools read, also after a restart.
+- A server check that changes or refuses each input before the log keeps it.

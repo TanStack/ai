@@ -1051,6 +1051,12 @@ export interface SessionIndexEntry<TMetadata = Record<string, unknown>> {
   createdAt: number
   updatedAt: number
   pinned?: boolean
+  /**
+   * `true` when the thread is archived. {@link SessionIndexStore.list} leaves
+   * archived entries out unless `withArchived` is `true`. The thread and its
+   * data stay, and it still opens.
+   */
+  archived?: boolean
   /** Token totals of the thread. */
   usage?: {
     /** Model calls. */
@@ -1102,6 +1108,11 @@ export interface SessionIndexListOptions {
    * value.
    */
   metadata?: Record<string, string>
+  /**
+   * `true`: the list has the archived entries too. Default: it leaves out the
+   * entries with `archived: true`.
+   */
+  withArchived?: boolean
 }
 
 /**
@@ -1158,7 +1169,8 @@ export interface SessionIndexStore {
   /**
    * The entries of one tenant that match the filters, newest `updatedAt`
    * first. Entries with the same `updatedAt` are in `threadId` order. Pinned
-   * entries get no special place. All filters must match.
+   * entries get no special place. All filters must match. Archived entries
+   * are left out unless `withArchived` is `true`.
    *
    * CURSOR SEMANTICS: when `limit` is given and more entries match, the page
    * is `truncated: true` with a `cursor`. Pass that `cursor` back, with the

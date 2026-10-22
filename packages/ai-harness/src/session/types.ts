@@ -6,6 +6,7 @@ import type {
   ModelMessage,
   PromptCacheOptions,
   RunAgentResumeItem,
+  SchemaInput,
   StreamChunk,
   UIMessage,
 } from '@tanstack/ai'
@@ -507,6 +508,8 @@ export interface QueuedTurn {
   overrides?: TurnOverrides
   /** The `ephemeral` messages of the input. The log keeps them, as `overrides`. */
   ephemeral?: ReadonlyArray<ModelMessage>
+  /** The `outputSchema` of the input. In memory only. */
+  outputSchema?: SchemaInput
   /** Who sent the input. Its credentials and keys run the turn. */
   user?: HarnessUser
   /**
@@ -546,6 +549,8 @@ export interface WaitingSteer {
   overrides?: TurnOverrides
   /** Used only when the steer runs as its own turn, as `overrides`. */
   ephemeral?: ReadonlyArray<ModelMessage>
+  /** Used only when the steer runs as its own turn, as `overrides`. */
+  outputSchema?: SchemaInput
   /** Used only when the steer runs as its own turn, as `overrides`. */
   systemPreamble?: Array<string>
   user?: HarnessUser

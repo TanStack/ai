@@ -1,7 +1,12 @@
 import { AccessDeniedError } from '../access'
 import { InputRejectedError } from '../types'
 import { isSameSender } from './helpers'
-import type { AccessAction, AccessRun, AccessWait } from '../access'
+import type {
+  AcceptedInput,
+  AccessAction,
+  AccessRun,
+  AccessWait,
+} from '../access'
 import type { AnyHarness } from '../define'
 import type {
   AgentSendOptions,
@@ -299,8 +304,9 @@ type Session<THarness extends AnyHarness> = SessionImpl<THarness>
  * it again through `lease`.
  *
  * With `guard` (the host has access), each action asks `authorize` first. An
- * input is checked before the session stores it. A call that passes another
- * user throws. After `host.revoke`, every call throws
+ * input is checked before the session stores it. `acceptInput` then gets
+ * the input, and returns the input to store or a refusal. A call that passes
+ * another user throws. After `host.revoke`, every call throws
  * `AccessDeniedError`. Reads ask `authorize` once, when the host opens the
  * handle, and again when it opens the session again.
  */
@@ -308,11 +314,14 @@ export function sessionHandle<THarness extends AnyHarness>({
   session,
   user,
   guard,
+  acceptInput,
   lease,
 }: {
   session: Session<THarness>
   user: HarnessUser | undefined
   guard?: HandleGuard
+  /** The `acceptInput` of the host, for the user of this handle. */
+  acceptInput?: (input: HarnessInput) => Promise<AcceptedInput>
   lease: HandleLease<THarness>
 }) {
   const { threadId } = session
@@ -379,15 +388,19 @@ export function sessionHandle<THarness extends AnyHarness>({
     target: Session<THarness>,
     call: (target: Session<THarness>) => T,
   ) =>
-    guard
+    guard || acceptInput
       ? target.checked(
-          ({ input, run: accessRun, wait }) =>
-            authorizeInput({
-              authorize: guard.authorize,
-              input,
-              run: accessRun,
-              wait,
-            }),
+          async ({ input, run: accessRun, wait }) => {
+            if (guard) {
+              await authorizeInput({
+                authorize: guard.authorize,
+                input,
+                run: accessRun,
+                wait,
+              })
+            }
+            return acceptInput?.(input)
+          },
           () => call(target),
         )
       : call(target)
@@ -587,6 +600,9 @@ export function sessionHandle<THarness extends AnyHarness>({
           ? undefined
           : agentOf(name)
       },
+      appendRecords: (
+        options: Parameters<Session<THarness>['appendRecords']>[0],
+      ) => storing('send', (target) => target.appendRecords(as(options))),
       // These store no input, so the handle asks `authorize` itself.
       revert: (options: Parameters<Session<THarness>['revert']>[0]) =>
         acting('send', (target) => target.revert(as(options))),
@@ -597,9 +613,6 @@ export function sessionHandle<THarness extends AnyHarness>({
         acting('send', (target) =>
           target.moveToolCallToBackground(as(options ?? {})),
         ),
-      appendRecords: (
-        options: Parameters<Session<THarness>['appendRecords']>[0],
-      ) => acting('send', (target) => target.appendRecords(as(options))),
       putMedia: (upload: Parameters<Session<THarness>['putMedia']>[0]) =>
         acting('send', (target) => target.putMedia(upload)),
       updateIndexEntry: (

@@ -7,12 +7,14 @@ import {
   memoryPersistence,
 } from '@tanstack/ai-persistence'
 import {
+  AccessDeniedError,
   SessionMetadataError,
   createHarnessHost,
   defineHarness,
   definePlugin,
   logIdOf,
   logMessageStore,
+  membersOnly,
 } from '../src'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { ModelMessage, StreamChunk, TokenUsage } from '@tanstack/ai'
@@ -234,6 +236,79 @@ describe('host.sessions', () => {
       await host.sessions.rename({ threadId: 'unknown', title: 'x' }),
     ).toBeUndefined()
     expect(await host.sessions.get({ threadId: 'unknown' })).toBeUndefined()
+    await host.close()
+  })
+
+  it('archives and unarchives a session, and lists archived ones only with withArchived', async () => {
+    const { host, harness } = hostWith()
+    await host.open(harness, { threadId: 'kept' })
+    await host.open(harness, { threadId: 'old' })
+
+    const archived = await host.sessions.archive({ threadId: 'old' })
+
+    expect(archived?.archived).toBe(true)
+    expect(threadIds(await host.sessions.list())).toEqual(['kept'])
+    expect(
+      threadIds(await host.sessions.list({ withArchived: true })).sort(),
+    ).toEqual(['kept', 'old'])
+    expect(await host.sessions.archive({ threadId: 'unknown' })).toBeUndefined()
+
+    const restored = await host.sessions.unarchive({ threadId: 'old' })
+
+    expect(restored).not.toHaveProperty('archived')
+    expect(threadIds(await host.sessions.list()).sort()).toEqual([
+      'kept',
+      'old',
+    ])
+    await host.close()
+  })
+
+  it('refuses an archive without the configure action', async () => {
+    const persistence = memoryPersistence()
+    const host = createHarnessHost({
+      persistence,
+      access: { getUser: () => null, rules: membersOnly() },
+    })
+    const harness = defineHarness({
+      name: 'test/archive-access',
+      adapter: mockAdapter(() => text('ok')).adapter,
+    })
+    const olga = { id: 'olga' }
+    const mia = { id: 'mia' }
+    await host.open(harness, { threadId: 't1', user: olga })
+    await host.sessions.share({
+      threadId: 't1',
+      userId: 'mia',
+      role: 'member',
+      user: olga,
+    })
+
+    await expect(
+      host.sessions.archive({ threadId: 't1', user: mia }),
+    ).rejects.toBeInstanceOf(AccessDeniedError)
+    expect(
+      (await host.sessions.archive({ threadId: 't1', user: olga }))?.archived,
+    ).toBe(true)
+    await host.close()
+  })
+
+  it('deletes the archived child threads of a deleted thread', async () => {
+    const { persistence, host, harness } = hostWith()
+    await host.open(harness, { threadId: 'parent' })
+    await persistence.stores.sessions.upsert({
+      threadId: 'subagent:run-1',
+      parentThreadId: 'parent',
+      members: [],
+      createdAt: 1,
+      updatedAt: 1,
+      archived: true,
+    })
+
+    await host.sessions.delete({ threadId: 'parent' })
+
+    expect(
+      await host.sessions.get({ threadId: 'subagent:run-1' }),
+    ).toBeUndefined()
     await host.close()
   })
 

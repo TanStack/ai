@@ -1,4 +1,4 @@
-import type { ModelMessage } from '@tanstack/ai'
+import type { AnyTextAdapter, KeyedAdapter, ModelMessage } from '@tanstack/ai'
 import type { LogRecord } from '@tanstack/ai-persistence'
 import type { SessionWithMetadata } from './define'
 import type {
@@ -98,9 +98,23 @@ export interface ModelErrorContext<TMetadataSchema = any> {
    * the error.
    */
   partial: boolean
+  /** The adapter of the failed call. */
+  adapter: AnyTextAdapter
+  /** The model of the failed call, `provider/model`, as `TurnInfo.model`. */
+  model: string
   /** Aborted when the turn is cancelled. */
   signal: AbortSignal
 }
+
+/**
+ * What `turn.onModelError` returns. `{ retry: true, adapter }` retries as
+ * `'retry'` does, on `adapter`, for the rest of the turn.
+ */
+export type ModelErrorAnswer =
+  | 'retry'
+  | 'continue'
+  | { retry: true; adapter: AnyTextAdapter | KeyedAdapter<AnyTextAdapter> }
+  | undefined
 
 /** What `turn.beforeFinish` gets. */
 export interface FinishContext<TMetadataSchema = any> {
@@ -148,6 +162,11 @@ export interface HarnessTurnOptions<TMetadataSchema = any> {
    * note to continue from where it stopped. When no text streamed,
    * `'continue'` acts as `'retry'`. See `retryTransientErrors`.
    *
+   * Return `{ retry: true, adapter }` to retry on another model: the next
+   * calls of this turn use `adapter`, and `TurnInfo.model` and the usage
+   * name its model. A keyed adapter gets the key of the turn's user. A
+   * recovery after a host stop starts again on the turn's own model.
+   *
    * A chat middleware `onModelError` (for example `withCompaction` on a
    * `context_overflow`) runs first, inside the `chat()` call, and can retry
    * there with `ctx.retry()`. This hook sees the error only after such
@@ -155,11 +174,7 @@ export interface HarnessTurnOptions<TMetadataSchema = any> {
    */
   onModelError?: (
     ctx: ModelErrorContext<TMetadataSchema>,
-  ) =>
-    | 'retry'
-    | 'continue'
-    | undefined
-    | Promise<'retry' | 'continue' | undefined>
+  ) => ModelErrorAnswer | Promise<ModelErrorAnswer>
   /**
    * The model stopped calling tools and the turn would end. Return messages,
    * records, or ephemeral messages to send the model back to work in the same

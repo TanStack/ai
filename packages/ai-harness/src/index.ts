@@ -32,6 +32,7 @@ export type {
 export { LogVersionError, logIdOf, logMessageStore } from './log'
 export { LogOwnedElsewhereError } from './ownership'
 export type {
+  HarnessRecord,
   LogRecordRetention,
   ProjectOptions,
   ProjectRecord,
@@ -135,6 +136,8 @@ export type {
 } from './host'
 export { AccessDeniedError, membersOnly } from './access'
 export type {
+  AcceptInput,
+  AcceptedInput,
   AccessAction,
   AccessMembers,
   AccessPolicy,
@@ -179,6 +182,7 @@ export type {
   HarnessTurnOptions,
   JoinCandidate,
   JoinContext,
+  ModelErrorAnswer,
   ModelErrorContext,
   RecoverContext,
   RecoverDecision,

@@ -36,7 +36,7 @@ Fix recovery, cancel, steer, and provider bugs, and fill small harness gaps.
 - Compaction drops a background summary that another model prepared.
 - Sandbox file calls take an optional `{ signal }`.
 - Anthropic: `outputSchema` moves keywords that Anthropic rejects into `description`, usage reports 1-hour cache writes as `cacheWrite1hTokens` again, and `reasoning` on a model with no reasoning entry warns once.
-- OpenAI Responses: a replayed message with no reasoning item no longer sends its `msg_` and `fc_` ids.
+- OpenAI Responses: a message whose model call sent a reasoning item is marked with `metadata.tanstack.reasoningItem`. A replay of that message without its reasoning item no longer sends its `msg_` and `fc_` ids.
 - Cloudflare: a `data:` line with no `choices` no longer throws, and the SSE fix-up accepts `data:` with no space, CRLF line ends, and any case in the content type.
 - Structured output: a schema failure carries `rawText`, and a parse failure has the code `structured-output-parse-failed`.
 - `ChatClient.addToolResult` answers the interrupt when the tool's schemas differ, so the result is sent.

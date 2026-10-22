@@ -2,7 +2,7 @@
 title: List, rename, and fork sessions
 id: harness-sessions
 order: 4
-description: "Show a sidebar of past chats with titles and a live status. Rename, remove, fork, and revert a chat, and keep typed app data on each one."
+description: "Show a sidebar of past chats with titles and a live status. Rename, archive, remove, fork, and revert a chat, and keep typed app data on each one."
 keywords:
   - tanstack ai
   - harness
@@ -89,6 +89,7 @@ if (page.truncated) {
 ```
 
 - The newest `updatedAt` comes first.
+- By default, the list has no archived sessions. See [Archive a session](#archive-a-session).
 - By default, the list has only top-level sessions. Pass `parentThreadId: 'chat-1'` to get the child sessions of `chat-1`.
 - With `limit`, a page that has more entries after it has `truncated: true` and a `cursor`. Pass the `cursor` to get the next page.
 - A list reads one tenant: the tenant of `user`. Without a `tenantId`, the default tenant.
@@ -166,6 +167,42 @@ await host.sessions.delete({ threadId: 'chat-1' })
 - The next user who opens the same `threadId` starts empty. The host writes a new entry for the thread, with that user as the owner.
 
 For the full list of what `delete` removes, and what stays, see [Delete a thread for good](./lifecycle#delete-a-thread-for-good).
+
+## Archive a session
+
+Archive a chat to take it out of the sidebar and keep all of its data:
+
+```ts group=harness-sessions
+await host.sessions.archive({ threadId: forked.threadId })
+
+const active = await host.sessions.list() // no archived chats
+const all = await host.sessions.list({ withArchived: true })
+console.log(active.entries.length, all.entries.length)
+
+await host.sessions.unarchive({ threadId: forked.threadId })
+```
+
+- `archive` sets `archived: true` on the entry. `unarchive` removes it. Both resolve to the changed entry, or to `undefined` for a thread with no entry.
+- `list` leaves archived chats out. Pass `withArchived: true` to get them too. To show an "Archived" view, keep the entries that have `archived: true`.
+- An archived chat still opens and runs. A new turn does not unarchive it.
+- On a host with `access`, both calls need the `configure` action, the same as `rename`. With `membersOnly()`, only the owner can archive.
+
+From the browser, `client.sessions` has the same calls:
+
+```ts group=harness-sessions-client
+import { createHarnessClient } from '@tanstack/ai-harness/client'
+import type { assistant } from './harness'
+
+const client = createHarnessClient<typeof assistant>({
+  url: '/api/harness',
+  threadId: 'chat-1',
+})
+
+await client.sessions.archive({ threadId: 'chat-1' })
+const page = await client.sessions.list({ withArchived: true })
+console.log(page.entries.filter((entry) => entry.archived))
+await client.sessions.unarchive({ threadId: 'chat-1' })
+```
 
 ## Keep app data on a session
 
@@ -290,7 +327,7 @@ stopListening()
 ## What you have now
 
 - A sidebar of past chats, newest first, with a title for each.
-- Rename, remove, fork, and revert from your server code.
+- Rename, archive, remove, fork, and revert from your server code.
 - Typed app data on each session, such as the pinned files of a chat.
 - A status for each chat that stays current.
 - A listener that runs your code when a session sends an event.

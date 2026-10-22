@@ -19,6 +19,7 @@ import type {
   ModelMessage,
   PromptCacheOptions,
   RunAgentResumeItem,
+  SchemaInput,
   Scope,
   StreamChunk,
   SubagentsBag,
@@ -206,6 +207,8 @@ export interface TurnExtras {
   overrides?: TurnOverrides
   systemPreamble?: Array<string>
   ephemeral?: ReadonlyArray<ModelMessage>
+  /** Not JSON, so the log names it in `liveOnly` only. */
+  outputSchema?: SchemaInput
 }
 
 /**
@@ -227,10 +230,11 @@ export function turnRecords(inputId: string, extras: TurnExtras) {
  * JSON.
  */
 function namedOverrides(extras: TurnExtras) {
-  const { overrides, systemPreamble, ephemeral } = extras
+  const { overrides, systemPreamble, ephemeral, outputSchema } = extras
   const liveOnly = [
     ...(overrides?.adapter !== undefined ? ['adapter' as const] : []),
     ...(overrides?.tools?.length ? ['tools' as const] : []),
+    ...(outputSchema !== undefined ? ['outputSchema' as const] : []),
   ]
   const named: NamedTurnOverrides = {
     ...(overrides?.model !== undefined ? { model: overrides.model } : {}),
@@ -468,12 +472,7 @@ export function createMessageId(): string {
   return `msg-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
 }
 
-/**
- * The id of the user message that the chat input `inputId` adds to the
- * transcript. Recovery finds the message by this id, so the message goes in
- * once.
- */
-export const inputMessageId = (inputId: string) => `user-${inputId}`
+export { inputMessageId } from '../log'
 
 export function customEvent(
   name: string,

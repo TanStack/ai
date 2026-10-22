@@ -16,6 +16,9 @@ keywords:
 
 At the end of this page you have a session that answers prompts, queues and steers messages, runs a typed agent, and loads a plugin.
 
+> [!WARNING]
+> The harness is experimental. `@tanstack/ai-harness` and `@tanstack/ai-harness-cli` are on 0.x, and a minor release can change the API. Pin the exact version you install.
+
 ## Install
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->

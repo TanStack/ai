@@ -2,7 +2,7 @@ import { ConsoleLogger, EventType } from '@tanstack/ai'
 import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import type { CredentialStore } from '@tanstack/ai/byok'
-import { AccessDeniedError, ownerOf } from './access'
+import { AccessDeniedError, acceptedAs, ownerOf } from './access'
 import {
   SharedLog,
   loadLogState,
@@ -53,6 +53,7 @@ import type {
   SessionMember,
 } from '@tanstack/ai-persistence'
 import type {
+  AcceptInput,
   AccessAction,
   AccessRun,
   AccessSession,
@@ -145,6 +146,28 @@ export interface HarnessHostOptions<U extends HarnessUser = HarnessUser> {
    * ```
    */
   access?: HarnessAccess<U>
+  /**
+   * Look at each input before the session stores it: after the `access`
+   * check, before the log keeps it. It gets the input, and who sent it to
+   * which thread. Return the input, a changed input with the same `op`, or
+   * `{ refuse: reason }`. A refused input gets a receipt with
+   * `status: 'rejected'` and that reason, and nothing is stored. The log and
+   * the turn get the changed input. It runs for the calls of a session that
+   * `host.open` returns, for `host.submit`, and so for every input that
+   * `createHarnessHandler` takes. Inputs that the harness makes itself (a
+   * wake, a scheduled input when it runs) skip it.
+   *
+   * @example
+   * ```ts
+   * const host = createHarnessHost({
+   *   acceptInput: (input, { user }) =>
+   *     input.op === 'prompt'
+   *       ? { ...input, context: { plan: planOf(user) } }
+   *       : input,
+   * })
+   * ```
+   */
+  acceptInput?: AcceptInput<U>
   /**
    * Where users' API keys and OAuth tokens are saved: a table in your own
    * database, or a secrets manager. Encrypt the secrets at rest. Default: in
@@ -387,15 +410,17 @@ export interface OpenSessionOptions<U extends HarnessUser = HarnessUser> {
  * `tenantId` picks the tenant (without it, the default tenant), as in
  * `host.open`. A method never reads or changes the entries of another
  * tenant. With host `access`, each method asks `isAllowed` first: `get` reads, `list`
- * lists, `rename` and `update` configure, `delete` deletes, `fork` forks, and
+ * lists, `rename`, `archive`, `unarchive`, and `update` configure, `delete`
+ * deletes, `eraseUser` erases, `fork` forks, and
  * `share` and `unshare` share. A refused action throws `AccessDeniedError`.
  * A child thread is checked through its root thread.
  */
 export interface HostSessions<U extends HarnessUser = HarnessUser> {
   /**
    * The entries of the tenant of `user`, newest `updatedAt` first.
-   * Default: only top-level sessions (`parentThreadId: null`). Pass a thread
-   * id to get its child sessions. With access, only the entries that
+   * Default: only top-level sessions (`parentThreadId: null`), and no
+   * archived sessions (pass `withArchived: true` to get them too). Pass a
+   * thread id to get its child sessions. With access, only the entries that
    * `isAllowed` lets the user list.
    *
    * @example
@@ -427,6 +452,30 @@ export interface HostSessions<U extends HarnessUser = HarnessUser> {
   rename: (change: {
     threadId: string
     title: string
+    user?: U
+  }) => Promise<SessionIndexEntry | undefined>
+  /**
+   * Archive a thread: set `archived: true` on its entry. `list` leaves it
+   * out unless you pass `withArchived: true`. The thread keeps its data, and
+   * it still opens and runs. Resolves to the changed entry, or `undefined`
+   * for a thread that has no entry.
+   *
+   * @example
+   * ```ts
+   * await host.sessions.archive({ threadId: 't-1', user })
+   * ```
+   */
+  archive: (options: {
+    threadId: string
+    user?: U
+  }) => Promise<SessionIndexEntry | undefined>
+  /**
+   * Undo `archive`: remove `archived` from the entry of a thread, so `list`
+   * shows it again. Resolves to the changed entry, or `undefined` for a
+   * thread that has no entry.
+   */
+  unarchive: (options: {
+    threadId: string
     user?: U
   }) => Promise<SessionIndexEntry | undefined>
   /**
@@ -481,6 +530,33 @@ export interface HostSessions<U extends HarnessUser = HarnessUser> {
    * ```
    */
   delete: (options: { threadId: string; user?: U }) => Promise<void>
+  /**
+   * Erase the messages of the user `userId` from a thread, for example a
+   * person who left a shared thread. Each message of that user keeps its id
+   * and role, and gets `[removed]` as its content, so the turns keep their
+   * shape. Its files, and the media files it sent, are deleted.
+   * `replies: 'remove'` also erases the messages that answer each of those
+   * messages, up to the next user message. Default: `'keep'`.
+   *
+   * The thread gets a new log snapshot without that content, and the log
+   * drops the records before it. A reader whose cursor is before the
+   * snapshot gets a gap. Throws while a turn runs or waits on the thread,
+   * or while another host runs it: erase again when the thread is idle.
+   * With access, it needs the `erase` action, and a thread with no index
+   * entry throws `AccessDeniedError`.
+   *
+   * @example
+   * ```ts
+   * await host.sessions.eraseUser({ harness: assistant, threadId: 't-1', userId: 'bob', user })
+   * ```
+   */
+  eraseUser: (options: {
+    harness: AnyHarness
+    threadId: string
+    userId: string
+    replies?: 'keep' | 'remove'
+    user?: U
+  }) => Promise<void>
   /**
    * Fork a thread into a new thread with `host.fork`, so the fork gets the
    * settings, plugin config, and media too. `{ through: id }` copies the
@@ -1539,7 +1615,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
   checkDurableStores(persistence)
   checkSessionStore(persistence.stores.sessions)
   checkMetadataStore(persistence.stores.metadata)
-  const { access } = options
+  const { access, acceptInput } = options
   if (access && !persistence.stores.sessions) {
     throw new Error(
       'Host access needs stores.sessions: each session keeps its owner and members there.',
@@ -2463,6 +2539,12 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
       session,
       user,
       ...(access && user ? { guard: guardOf(user, guarded) } : {}),
+      ...(acceptInput
+        ? {
+            acceptInput: async (input: HarnessInput) =>
+              acceptInput(input, { user, threadId }),
+          }
+        : {}),
       lease: {
         current: () => {
           // After `host.close()`, a call refuses at once.
@@ -2590,6 +2672,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
       const page = await sessionStore.list({
         tenantId,
         parentThreadId: threadId,
+        withArchived: true,
         ...(cursor !== undefined ? { cursor } : {}),
       })
       children.push(...page.entries.map((entry) => entry.threadId))
@@ -3189,7 +3272,13 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
         }
         return refused
       }
-      const record = offeredInputRecord({ inputId: id, input, user })
+      const accepted = acceptInput
+        ? acceptedAs(input, await acceptInput(input, { user, threadId }))
+        : input
+      if ('refuse' in accepted) {
+        return { inputId: id, status: 'rejected', reason: accepted.refuse }
+      }
+      const record = offeredInputRecord({ inputId: id, input: accepted, user })
       const offered = await logStore.offerInput({
         logId: logIdOf({ tenantId, logId: threadId }),
         harness: harness.name,
@@ -3343,6 +3432,28 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
           (entry) => entry && { ...entry, title, updatedAt: Date.now() },
         )
       },
+      async archive({ threadId, user }) {
+        await checkEntry('host.sessions.archive', 'configure', {
+          threadId,
+          user,
+        })
+        return index.update(
+          { tenantId: user?.tenantId, threadId },
+          (entry) =>
+            entry && { ...entry, archived: true, updatedAt: Date.now() },
+        )
+      },
+      async unarchive({ threadId, user }) {
+        await checkEntry('host.sessions.unarchive', 'configure', {
+          threadId,
+          user,
+        })
+        return index.update({ tenantId: user?.tenantId, threadId }, (entry) => {
+          if (!entry) return undefined
+          const { archived: _archived, ...rest } = entry
+          return { ...rest, updatedAt: Date.now() }
+        })
+      },
       async update({ harness, threadId, update, user }) {
         const call = 'host.sessions.update'
         await checkEntry(call, 'configure', { threadId, user })
@@ -3376,6 +3487,29 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
         } finally {
           for (const id of seen)
             purging.delete(logIdOf({ tenantId, logId: id }))
+        }
+      },
+      async eraseUser({ harness, threadId, userId, replies = 'keep', user }) {
+        const call = 'host.sessions.eraseUser'
+        const entry = await checkEntry(call, 'erase', { threadId, user })
+        if (access && !entry) {
+          throw new AccessDeniedError({ action: 'erase', threadId })
+        }
+        checkHarness(entry, harness)
+        const tenantId = user?.tenantId
+        await refuseChild({ tenantId, threadId })
+        const key = sessionKey(harness.name, tenantId, threadId)
+        hold(key)
+        try {
+          const session = await openSession(harness, { threadId }, tenantId)
+          const receipt = await session.eraseUser({ userId, replies })
+          if (receipt.status === 'rejected') {
+            throw new Error(
+              `${call}: thread ${JSON.stringify(threadId)} is busy. A turn runs or waits on it, or another host runs it. Erase again when it is idle.`,
+            )
+          }
+        } finally {
+          await release(key)
         }
       },
       async fork({ harness, threadId, at, members, user }) {

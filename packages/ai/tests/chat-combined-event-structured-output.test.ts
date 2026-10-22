@@ -225,6 +225,41 @@ describe('chat({ outputSchema }) — combined event source', () => {
     }
   })
 
+  it('checks the event value against the schema on the stream path', async () => {
+    const invalid = { name: 'Jane Roe', age: 'old' }
+    const { adapter } = createMockAdapter({
+      iterations: [
+        eventSourcedTurn({
+          prose: 'looking around',
+          // The adapter sends a value of the wrong shape.
+          complete: JSON.parse(JSON.stringify(invalid)),
+        }),
+      ],
+      supportsCombinedToolsAndSchema: true,
+      combinedStructuredOutputSource: 'event',
+    })
+
+    const chunks = await collectChunks(
+      chat({
+        threadId: 'thread-1',
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        outputSchema: PersonSchema,
+        stream: true,
+      }),
+    )
+
+    expect(
+      chunks.some((c) => isNamedCustom(c, 'structured-output.complete')),
+    ).toBe(false)
+    const runErrors = chunks.filter((c) => c.type === EventType.RUN_ERROR)
+    expect(runErrors).toHaveLength(1)
+    expect(runErrors[0]).toMatchObject({
+      code: 'structured-output-validation-failed',
+      metadata: { tanstack: { rawText: JSON.stringify(invalid) } },
+    })
+  })
+
   it('does not harvest a second error after an adapter RUN_ERROR', async () => {
     const { adapter } = createMockAdapter({
       iterations: [

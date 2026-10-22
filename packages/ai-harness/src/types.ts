@@ -9,6 +9,7 @@ import type {
   ProviderKeys,
   ReasoningOption,
   RunAgentResumeItem,
+  SchemaInput,
   StreamChunk,
 } from '@tanstack/ai'
 import type { LogRecord } from '@tanstack/ai-persistence'
@@ -79,6 +80,12 @@ export type SendOptions = {
   context?: unknown
   overrides?: TurnOverrides
   ephemeral?: ReadonlyArray<ModelMessage>
+  /**
+   * The turn's `chat()` call gets it, as `chat({ outputSchema })`. The
+   * result has the checked value as `structured`. Server code only: the log
+   * does not keep it, so a turn that recovery runs again goes on without it.
+   */
+  outputSchema?: SchemaInput
   /** System prompts ahead of the harness prompts, from server code only. */
   systemPreamble?: Array<string>
   /**
@@ -479,8 +486,12 @@ export type InputSettlement = {
     }
   | {
       outcome: 'failed'
-      /** `code` is `'attempts_exhausted'`, `'timeout'`, or absent. */
-      error: { message: string; code?: string }
+      /**
+       * `code` is `'attempts_exhausted'`, `'timeout'`, a `structured-output-*`
+       * code of `chat()`, or absent. `rawText` is the model text that failed
+       * the `outputSchema` check.
+       */
+      error: { message: string; code?: string; rawText?: string }
     }
 )
 
@@ -611,6 +622,15 @@ export interface RunContext {
    * ```
    */
   handoff: (options: HandoffOptions) => Promise<void>
+  /**
+   * Who made the model call of this context: `'turn'` for a call of a chat
+   * turn, and for `ctx.model.chat` its source, as `harness.usage` names it
+   * (`plugin:<name>`, `router`, `transfer`). `undefined` outside a model call
+   * that the harness makes, for example in an agent run.
+   */
+  source?: string
+  /** The `label` of a `ctx.model.chat` call, when it has one. */
+  label?: string
 }
 
 /**
@@ -662,13 +682,18 @@ export interface TurnInfo {
 }
 
 /** What a chat turn operation resolves to. */
-export interface ChatTurnResult {
+export interface ChatTurnResult<TStructured = unknown> {
   /**
    * The main model's text for this turn, without the text of agents it
    * called. When a router sends the turn to agents, it is their text, as the
    * transcript keeps it.
    */
   text: string
+  /**
+   * The value of `send(message, { outputSchema })` that `chat()` checked.
+   * It is missing when the turn stopped for outside input.
+   */
+  structured?: TStructured
   /** Set when the turn stopped for outside input. */
   interrupts?: Array<Interrupt>
   /**

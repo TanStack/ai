@@ -141,6 +141,30 @@ describe('client reads and actions', () => {
     await host.close()
   })
 
+  it('archives and unarchives a session of the user', async () => {
+    const { host, client } = setup()
+    await client.send('hi')
+    await vi.waitFor(async () =>
+      expect(await client.transcript()).toHaveLength(2),
+    )
+    const listed = async (options?: { withArchived?: boolean }) =>
+      (await client.sessions.list(options)).entries.map(
+        (entry) => entry.threadId,
+      )
+
+    const archived = await client.sessions.archive({ threadId: 'thread-r' })
+
+    expect(archived).toMatchObject({ threadId: 'thread-r', archived: true })
+    expect(await listed()).toEqual([])
+    expect(await listed({ withArchived: true })).toEqual(['thread-r'])
+
+    const restored = await client.sessions.unarchive({ threadId: 'thread-r' })
+
+    expect(restored).not.toHaveProperty('archived')
+    expect(await listed()).toEqual(['thread-r'])
+    await host.close()
+  })
+
   it('refuses a read without a thread id, or for a thread the user may not open', async () => {
     const { host, harness, handler } = setup()
     await host.open(harness, {

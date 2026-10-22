@@ -1262,7 +1262,9 @@ class MemorySessionIndexStore implements SessionIndexStore {
         const hasMetadata = metadata.every(
           ([key, value]) => entry.metadata?.[key] === value,
         )
+        const isShown = options.withArchived === true || entry.archived !== true
         return (
+          isShown &&
           isChild &&
           isMember &&
           isFound &&

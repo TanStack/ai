@@ -92,6 +92,14 @@ const table: Array<{ action: AccessAction } & Record<Column, boolean>> = [
     stranger: false,
   },
   {
+    action: 'erase',
+    owner: true,
+    member: false,
+    viewer: false,
+    operator: false,
+    stranger: false,
+  },
+  {
     action: 'fork',
     owner: true,
     member: true,

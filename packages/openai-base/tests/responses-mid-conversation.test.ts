@@ -319,6 +319,7 @@ describe('Responses function call namespace', () => {
     ).toEqual({
       type: 'function_call',
       call_id: 'call-weather',
+      id: 'fc_weather',
       name: 'get_weather',
       arguments: '{"city":"Paris"}',
       namespace: 'get_weather',

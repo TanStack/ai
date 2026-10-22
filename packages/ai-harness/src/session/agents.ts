@@ -236,7 +236,7 @@ export abstract class SessionAgents<
     inputId?: string
     user?: HarnessUser
   }): Promise<Receipt> {
-    const { operationId, message } = options
+    const { operationId } = options
     const inputId = options.inputId ?? createInputId()
     const chain = this.chainOf.get(operationId) ?? this.loggedChain(operationId)
     // A run that another host runs: the message goes to it through the lane.
@@ -246,20 +246,21 @@ export abstract class SessionAgents<
       return { inputId, status: 'rejected', reason: 'not_running' }
     }
     const user = this.actor(options.user)
-    const mode = options.mode ?? 'steer'
     return this.admitting(async () => {
-      const admission = await this.accept(
+      const { admission, input } = await this.accept(
         inputId,
         {
           op: 'agentMessage',
           operationId,
-          message,
-          mode,
+          message: options.message,
+          mode: options.mode ?? 'steer',
           run: runInputId,
         },
         user,
       )
       if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+      // `acceptInput` can change the message and the mode.
+      const { message, mode } = input
       // This host owns the log, and no run of this host has the chain.
       if (!chain) return this.reject(inputId, 'not_running')
       const sent = { inputId, message, ...(user ? { user } : {}) }
@@ -1757,7 +1758,7 @@ export abstract class SessionAgents<
     chain: AgentChain,
     start: AgentRunStart,
   ): Promise<void> {
-    const { agent: name, target, input, options } = chain
+    const { agent: name, target, options } = chain
     const { inputId } = start
     // This run is the chain's current run.
     const { user } = chain.current
@@ -1765,14 +1766,14 @@ export abstract class SessionAgents<
     if (!start.resumed && !start.message && !answers) {
       // A queued start that recovery runs is in the log already. With no
       // `await` before the slot, recovery keeps the order of the starts.
-      const admission = start.queued
-        ? 'new'
+      const accepted = start.queued
+        ? undefined
         : await this.accept(
             inputId,
             {
               op: 'agent',
               agent: name,
-              input,
+              input: chain.input,
               ...(options.startTurnWhenDone ? { detached: true } : {}),
               ...(options.runAgainAfterCrash
                 ? { runAgainAfterCrash: true }
@@ -1808,10 +1809,21 @@ export abstract class SessionAgents<
                 : {}),
             },
           )
+      const admission = accepted?.admission ?? 'new'
+      // `acceptInput` can change the input of the run.
+      if (accepted) chain.input = accepted.input.input
       // As a turn does: a refused, offered, or known input gets its receipt
       // now. A new one gets it below, when the run starts or waits.
       if (admission !== 'new') {
         operation.resolveReceipt(this.duplicateReceipt(inputId, admission))
+      }
+      if (typeof admission === 'object') {
+        this.releaseStart(chain)
+        operation.fail(
+          'failed',
+          new InputRejectedError(this.duplicateReceipt(inputId, admission)),
+        )
+        return
       }
       switch (admission) {
         case 'new':
@@ -1863,6 +1875,7 @@ export abstract class SessionAgents<
       operation.fail('failed', new Error(`Unknown agent: ${name}`))
       return
     }
+    const { input } = chain
     let checkedInput: unknown = input
     if (agent.inputSchema !== undefined) {
       const checked = await validateWithStandardSchema(

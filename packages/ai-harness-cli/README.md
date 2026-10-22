@@ -22,6 +22,9 @@
 
 Run a TanStack AI harness from the terminal: line mode or your own screen, a print mode for scripts and CI, NDJSON output, an ACP mode for editors, and an HTTP server.
 
+> [!WARNING]
+> The harness is experimental. `@tanstack/ai-harness` and `@tanstack/ai-harness-cli` are on 0.x, and a minor release can change the API. Pin the exact version you install.
+
 ## Installation
 
 ```bash

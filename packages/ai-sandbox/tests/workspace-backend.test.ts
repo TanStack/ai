@@ -163,12 +163,16 @@ function fakeProcesses(
 ) {
   const aborted: Array<string> = []
   const killed: Array<string> = []
-  const commands: Array<{ command: string; cwd?: string }> = []
+  const commands: Array<{
+    command: string
+    cwd?: string
+    signal?: AbortSignal
+  }> = []
   // The pids that run, and the start time that `ps` gives for each.
   const starts = new Map([['7', 'Mon Oct 19 13:00:00 2026']])
   const process: SandboxHandle['process'] = {
     exec: (command, options = {}) => {
-      commands.push({ command, cwd: options.cwd })
+      commands.push({ command, cwd: options.cwd, signal: options.signal })
       const ps = /^LC_ALL=C ps -o lstart= -p (\d+)$/.exec(command)
       if (ps) {
         const start = starts.get(ps[1] ?? '')
@@ -393,6 +397,43 @@ describe('sandboxWorkspaceBackend files', () => {
     )
     expect(dirs.has('/workspace/src')).toBe(true)
     expect(files.has('/workspace/src/b.ts')).toBe(true)
+  })
+})
+
+describe('sandboxWorkspaceBackend signal', () => {
+  it('gives the signal of each file call to the sandbox', async () => {
+    const { backend, fs, commands } = fakeSandbox(SEED)
+    const methods = ['readBytes', 'write', 'lstat', 'list', 'remove'] as const
+    const spies = methods.map((name) => vi.spyOn(fs, name))
+    const { signal } = new AbortController()
+    await backend.readFile('/workspace/a.txt', { signal })
+    await backend.writeFile('/workspace/b.txt', 'b', { signal })
+    await backend.stat('/workspace/to-file', { signal })
+    await backend.realpath('/workspace/to-src', { signal })
+    await backend.readdir('/workspace', { signal })
+    await backend.remove?.('/workspace/b.txt', { signal })
+    await backend.readLines?.('/workspace/a.txt', {
+      offset: 1,
+      limit: 1,
+      signal,
+    })
+    for (const spy of spies) {
+      expect(spy).toHaveBeenCalled()
+      for (const args of spy.mock.calls) expect(args.at(-1)).toEqual({ signal })
+    }
+    // `readlink` for the links, and the page command of `readLines`.
+    expect(commands.length).toBeGreaterThan(1)
+    expect(commands.filter((each) => each.signal !== signal)).toEqual([])
+  })
+
+  it('gives the signal to the sandbox without lstat too', async () => {
+    const { backend, fs } = fakeSandbox(SEED, { withLstat: false })
+    const exists = vi.spyOn(fs, 'exists')
+    const readBytes = vi.spyOn(fs, 'readBytes')
+    const { signal } = new AbortController()
+    await backend.stat('/workspace/a.txt', { signal })
+    expect(exists).toHaveBeenCalledWith('/workspace/a.txt', { signal })
+    expect(readBytes).toHaveBeenCalledWith('/workspace/a.txt', { signal })
   })
 })
 

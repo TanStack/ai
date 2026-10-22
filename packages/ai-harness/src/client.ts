@@ -400,7 +400,8 @@ export interface HarnessClientSessions<THarness extends AnyHarness> {
    * Pass `parentThreadId` to get the child sessions of a thread, and the
    * `cursor` of a page to get the next page. `search` keeps the sessions
    * whose title contains the text, without case. `metadata` keeps the
-   * sessions with each exact metadata value.
+   * sessions with each exact metadata value. Archived sessions are left out
+   * unless `withArchived` is `true`.
    */
   list: (options?: {
     limit?: number
@@ -408,6 +409,7 @@ export interface HarnessClientSessions<THarness extends AnyHarness> {
     parentThreadId?: string
     search?: string
     metadata?: Record<string, string>
+    withArchived?: boolean
   }) => Promise<
     Omit<SessionIndexPage, 'entries'> & {
       entries: Array<SessionIndexEntry<SessionMetadataOf<THarness>>>
@@ -417,6 +419,17 @@ export interface HarnessClientSessions<THarness extends AnyHarness> {
   rename: (change: {
     threadId: string
     title: string
+  }) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
+  /**
+   * Archive one of your sessions: `list` leaves it out unless you pass
+   * `withArchived: true`. Resolves to the changed entry.
+   */
+  archive: (options: {
+    threadId: string
+  }) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
+  /** Undo `archive` on one of your sessions. Resolves to the changed entry. */
+  unarchive: (options: {
+    threadId: string
   }) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
   /**
    * Change the `title`, `pinned`, or `metadata` of one of your sessions, for
@@ -467,7 +480,7 @@ export interface HarnessClientSessions<THarness extends AnyHarness> {
 type SessionChange =
   | { op: 'rename'; threadId: string; title: string }
   | ({ op: 'update'; threadId: string } & SessionEntryChange<unknown>)
-  | { op: 'delete'; threadId: string }
+  | { op: 'delete' | 'archive' | 'unarchive'; threadId: string }
   | ({ op: 'fork'; threadId: string } & ForkPoint)
   | {
       op: 'share'
@@ -1008,12 +1021,14 @@ export function createHarnessClient<THarness extends AnyHarness>(
         parentThreadId,
         search,
         metadata = {},
+        withArchived,
       } = {}) => {
         const query = new URLSearchParams()
         if (limit !== undefined) query.set('limit', String(limit))
         if (cursor) query.set('cursor', cursor)
         if (parentThreadId) query.set('parentThreadId', parentThreadId)
         if (search) query.set('search', search)
+        if (withArchived) query.set('withArchived', 'true')
         for (const [key, value] of Object.entries(metadata))
           query.set(`metadata.${key}`, value)
         const response = await checked(
@@ -1027,6 +1042,8 @@ export function createHarnessClient<THarness extends AnyHarness>(
       },
       rename: ({ threadId, title }) =>
         sessionEntry({ op: 'rename', threadId, title }),
+      archive: ({ threadId }) => sessionEntry({ op: 'archive', threadId }),
+      unarchive: ({ threadId }) => sessionEntry({ op: 'unarchive', threadId }),
       update: (change) => sessionEntry({ ...change, op: 'update' }),
       delete: async ({ threadId }) => {
         await changeSession({ op: 'delete', threadId })

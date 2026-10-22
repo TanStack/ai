@@ -985,6 +985,7 @@ interface SessionIndexEntry {
   createdAt: number // epoch ms, the first open
   updatedAt: number // epoch ms, the last change
   pinned?: boolean
+  archived?: boolean // `list` leaves it out unless `withArchived` is `true`
   usage?: {
     turns: number // model calls
     promptTokens: number
@@ -1006,6 +1007,7 @@ interface SessionIndexListOptions {
   search?: string
   harness?: string
   metadata?: Record<string, string>
+  withArchived?: boolean // `true`: also the entries with `archived: true`
 }
 
 interface SessionIndexPage {
@@ -1056,6 +1058,8 @@ Rules for `list`:
 - `parentThreadId: 'x'` returns only the entries whose parent is `x`. `null` returns
   only the entries with no parent. `search` returns only the entries whose `title`
   contains the text, without case. `harness` and `metadata` match exact strings.
+- Leave out the entries with `archived: true`, unless `withArchived` is `true`.
+  Filter them in the query, so a page with `limit` stays full.
 - All filters must match. With `limit`, when more entries match, return
   `truncated: true` and a `cursor`. The next call with that `cursor` returns the
   entries after the last entry of the page.

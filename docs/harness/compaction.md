@@ -58,6 +58,8 @@ const host = createHarnessHost({ persistence: memoryPersistence() })
 
 - Compaction runs before a model call when the count passes `maxTokens`. If the usage of the last model call of a turn passed `maxTokens` or `contextWindow`, compaction also runs right after that call. This check needs `countTokens: 'usage'`.
 - The log only grows, so the original messages stay in the store. The fold that the model gets starts with the summary.
+- Readers still get every message. `session.transcript()`, `GET transcript`, and the chat hydration show the full history, not the summary.
+- A thread can change its model. To give each model its own limit, pass a function, like `maxTokens: ({ model }) => ...`. See [A limit for each model](../advanced/compaction-advanced#a-limit-for-each-model).
 
 ## Prepare the summary in the background
 
