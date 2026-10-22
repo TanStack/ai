@@ -43,10 +43,15 @@ Devtools show each tool call, interrupt, memory recall, and finish reason, on th
 
 ## Stay on the Vercel AI SDK when
 
-- **Your app already speaks the AI SDK stream protocol.** For example, your UI uses `@ai-sdk/react` or AI Elements, or a backend that you do not control emits the UI Message Stream. TanStack AI does not read or write that protocol.
-- **You need a first-party package for a provider that TanStack AI does not cover.** Many providers are also available through [OpenRouter](../adapters/openrouter), [Vercel AI Gateway](../adapters/vercel-gateway), or [`openaiCompatible`](../adapters/openai-compatible).
+Your app already speaks the AI SDK stream protocol. For example, your UI uses `@ai-sdk/react` or AI Elements, or a backend that you do not control emits the UI Message Stream. TanStack AI does not read or write that protocol.
 
 Vercel AI Gateway is not a reason to stay. TanStack AI has a native [Vercel AI Gateway adapter](../adapters/vercel-gateway) for chat, embeddings, and images.
+
+## Your provider is not listed
+
+1. Try [OpenRouter](../adapters/openrouter), [Vercel AI Gateway](../adapters/vercel-gateway), or [`openaiCompatible`](../adapters/openai-compatible). They reach most providers today.
+2. Ask for a first-party adapter in [GitHub Discussions](https://github.com/TanStack/ai/discussions).
+3. To build one yourself, follow the [community adapter guide](../community-adapters/guide).
 
 ## Try TanStack AI in 5 minutes
 
