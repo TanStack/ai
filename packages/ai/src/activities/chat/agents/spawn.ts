@@ -25,6 +25,7 @@ import {
   isStandardSchema,
 } from '../tools/schema-converter'
 import { getLoadChild } from '../middleware/load-child'
+import { modelMessageToUIMessage } from '../messages'
 import type { LoadChild } from '../middleware/load-child'
 import type {
   McpInputRequiredThrow,
@@ -1232,6 +1233,38 @@ function readCall(
   }
 }
 
+/**
+ * The stored messages of a waiting child, with the cards of its own children
+ * from `card`. The store keeps a nested child in its own thread, so its card
+ * is only in the client's copy. Without it, the resume of the child does not
+ * find the nested child that waits, and runs it again from the start.
+ */
+function withNestedCards(
+  pending: Array<ModelMessage | UIMessage>,
+  card: ReadonlyArray<ModelMessage | UIMessage>,
+): Array<ModelMessage | UIMessage> {
+  const nested = card.flatMap((message) =>
+    'parts' in message
+      ? message.parts.filter((part) => part.type === 'subagent')
+      : [],
+  )
+  if (nested.length === 0) return pending
+  return pending.map((message) => {
+    const ui = 'parts' in message ? message : modelMessageToUIMessage(message)
+    const callIds = new Set(
+      ui.parts.flatMap((part) => (part.type === 'tool-call' ? [part.id] : [])),
+    )
+    const cards = nested.filter(
+      (part) =>
+        part.subagent.parentToolCallId !== undefined &&
+        callIds.has(part.subagent.parentToolCallId),
+    )
+    return cards.length === 0
+      ? message
+      : { ...ui, parts: [...ui.parts, ...cards] }
+  })
+}
+
 export function createSyntheticSubagentTools(
   bag: SubagentsBag,
   parent: {
@@ -1292,7 +1325,9 @@ export function createSyntheticSubagentTools(
       ...(suspended && {
         resume: {
           subagentRunId: suspended.subagentRunId,
-          messages: pending ?? suspended.messages,
+          messages: pending
+            ? withNestedCards(pending, suspended.messages)
+            : suspended.messages,
           entries: suspended.resume,
           text: suspended.text,
         },

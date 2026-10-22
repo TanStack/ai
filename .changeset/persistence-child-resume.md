@@ -8,4 +8,4 @@ Fix `withPersistence` failing to resume an interrupt of a subagent tool call wit
 With `withPersistence`, the resume of a child is server-authoritative:
 
 - The stored interrupt records decide which interrupts a child owns. A resume whose subagent cards claim other interrupts fails with `InterruptResumeValidationError`.
-- The child resumes from its stored messages, not from the card the client sent back. `LoadChild` results get an optional `pending` field for this. A middleware that provides `loadChild` must set `pending` for a waiting child, or the agent tool does not resume it.
+- The child resumes from its stored messages, not from the card the client sent back. `LoadChild` results get an optional `pending` field for this. A middleware that provides `loadChild` must set `pending` for a waiting child, or the agent tool does not resume it. The cards of nested children still come from the client's copy, so a child that waits on its own child resumes that child instead of running it again.
