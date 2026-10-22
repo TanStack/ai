@@ -1635,6 +1635,11 @@
           "addedAt": "2026-10-21"
         },
         {
+          "label": "Model Catalog",
+          "to": "models/catalog",
+          "addedAt": "2026-10-14"
+        },
+        {
           "label": "Typed Pre-Configured Options",
           "to": "advanced/typed-options",
           "addedAt": "2026-05-25",
