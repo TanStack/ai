@@ -1113,6 +1113,37 @@ describe('Anthropic adapter option mapping', () => {
     expect(properties.kind).not.toHaveProperty('description')
   })
 
+  it('moves a nested outputSchema `not` into the description', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      createTextStream(JSON.stringify({ item: { name: 'Ada' } })),
+    )
+    const adapter = new AnthropicTextAdapter(
+      { apiKey: 'test-key' },
+      'claude-sonnet-4-5',
+    )
+
+    await chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'who?' }],
+      outputSchema: {
+        type: 'object',
+        properties: {
+          item: {
+            type: 'object',
+            properties: { name: { type: 'string', not: { const: '' } } },
+          },
+        },
+      },
+    })
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    const { schema } = payload.output_config.format
+    const { name } = schema.properties.item.properties
+    expect(name).not.toHaveProperty('not')
+    expect(name.description).toBe('{not: {"const":""}}')
+  })
+
   it('native combined mode (#605): pre-4.5 models keep the forced-tool finalization path', async () => {
     const adapter = new AnthropicTextAdapter(
       { apiKey: 'test-key' },

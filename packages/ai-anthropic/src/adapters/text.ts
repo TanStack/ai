@@ -236,6 +236,7 @@ const UNSUPPORTED_SCHEMA_KEYWORDS = new Set([
   'uniqueItems',
   'minProperties',
   'maxProperties',
+  'not',
 ])
 const SUPPORTED_STRING_FORMATS = new Set([
   'date-time',
@@ -256,7 +257,6 @@ const SUBSCHEMA_KEYWORDS = new Set([
   'anyOf',
   'allOf',
   'oneOf',
-  'not',
   'additionalProperties',
 ])
 
