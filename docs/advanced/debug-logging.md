@@ -2,7 +2,7 @@
 title: Debug Logging
 id: debug-logging
 order: 3
-description: "Turn on structured, category-toggleable debug logging to see every chunk, middleware transform, and tool call inside TanStack AI."
+description: "Turn on debug logging to see each chunk, middleware transform, and tool call inside TanStack AI. Pick the categories you want, or send the output to your own logger."
 keywords:
   - tanstack ai
   - debug
@@ -14,57 +14,61 @@ keywords:
   - middleware debugging
 ---
 
-You have a `chat()` that isn't behaving as expected — a missing chunk, a middleware that doesn't seem to fire, a tool call with wrong args. By the end of this guide, you'll have turned on debug logging and will see every chunk, middleware transform, and tool call flowing through your call.
+Debug logging prints each chunk, middleware step, and tool argument from `chat()`. Turn it on when a run does not match what you expect.
 
-## Turn it on
+Turn on debug logging. You then see each chunk, middleware transform, and tool call in your console.
 
-Add `debug: true` to any activity call:
+## Quick setup
+
+Add `debug: true` to the call:
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.5"),
+  adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
   debug: true,
 });
 ```
 
-Every internal event now prints to the console with a `[tanstack-ai:<category>]` prefix:
+Run it. Each internal event prints to the console with a `[tanstack-ai:<category>]` prefix:
 
 ```
-[tanstack-ai:request] activity=chat provider=openai model=gpt-5.5 messages=1 tools=0 stream=true
+[tanstack-ai:request] activity=chat provider=openai model=gpt-6.1-sol messages=1 tools=0 stream=true
 [tanstack-ai:agentLoop] run started
 [tanstack-ai:provider] provider=openai type=response.output_text.delta
 [tanstack-ai:output] type=TEXT_MESSAGE_CONTENT
-...
 ```
 
-## Narrow what's printed
+## Print less
 
-Pass a `DebugConfig` object instead of `true`. Every unspecified category defaults to `true`, so toggle by setting specific flags to `false`:
+Pass an object in place of `true`. Each category that you do not name stays on. Set a category to `false` to turn it off:
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 chat({
-  adapter: openaiText("gpt-5.5"),
+  adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
   debug: { middleware: false }, // everything except middleware
 });
 ```
 
-If you want to see ONLY a specific set of categories, set the rest to `false` explicitly. Errors default to `true` — keep them on unless you really want total silence:
+To see only some categories, set all the others to `false`. Keep `errors` on. Error logs are cheap and you need them.
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 chat({
-  adapter: openaiText("gpt-5.5"),
+  adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
   debug: {
     provider: true,
     output: true,
@@ -72,48 +76,89 @@ chat({
     tools: false,
     agentLoop: false,
     config: false,
-    errors: true,         // keep errors on — they're cheap and important
+    errors: true,
     request: false,
+    sandbox: false,
   },
 });
 ```
 
-## Pipe into your own logger
+## Send logs to your own logger
 
-Pass a `Logger` implementation and all debug output flows through it instead of `console`:
+Pass a `Logger` as `logger`. All debug output then goes to it, not to `console`:
 
 ```typescript
 import { chat, type Logger } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import pino from "pino";
-import { messages } from "./server";
 
 const pinoLogger = pino();
 const logger: Logger = {
   debug: (msg, meta) => pinoLogger.debug(meta, msg),
-  info:  (msg, meta) => pinoLogger.info(meta, msg),
-  warn:  (msg, meta) => pinoLogger.warn(meta, msg),
+  info: (msg, meta) => pinoLogger.info(meta, msg),
+  warn: (msg, meta) => pinoLogger.warn(meta, msg),
   error: (msg, meta) => pinoLogger.error(meta, msg),
 };
 
 chat({
-  adapter: openaiText("gpt-5.5"),
-  messages,
-  debug: { logger }, // all categories on, piped to pino
+  adapter: openaiText("gpt-6.1-sol"),
+  messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
+  debug: { logger }, // all categories on, sent to pino
 });
 ```
 
-The default logger is exported as `ConsoleLogger` if you want to wrap it:
+The default logger is `ConsoleLogger`. You can import it to wrap it:
 
 ```typescript
 import { ConsoleLogger } from "@tanstack/ai";
 ```
 
-### Your `Logger` is wrapped in a try/catch
+## Categories
 
-If your `Logger` implementation throws — a cyclic-meta `JSON.stringify`, a transport that rejects synchronously, a typo in a bound `this` — the exception is swallowed so it never masks the real error that triggered the log call (for example, a provider SDK failure inside the chat stream). You won't see the log line, but the pipeline error still surfaces through thrown exceptions and `RUN_ERROR` chunks.
+| Category | Logs | Applies to |
+|----------|------|------------|
+| `request` | The outgoing call to a provider (model, message count, tool count) | All activities |
+| `provider` | Each raw chunk or frame from a provider SDK | Streaming activities (`chat`, `realtime`, and streaming `generateAudio`, `generateSpeech`, `generateTranscription`) |
+| `output` | Each chunk or result that goes to the caller | All activities |
+| `middleware` | Inputs and outputs around each middleware hook | `chat()` only |
+| `tools` | Before and after each tool call | `chat()` only |
+| `agentLoop` | Agent-loop iterations and phase changes | `chat()` only |
+| `config` | Config changes that middleware `onConfig` hooks return | `chat()` only |
+| `errors` | Each caught error in the pipeline | All activities |
+| `sandbox` | Sandbox internals: watcher start and stop, file events, sandbox hooks, and lifecycle changes | `chat()` only |
 
-If you need to know when your own logger is failing, guard inside your implementation:
+Building a middleware? `debug: { middleware: true }` shows the chunks that go through it, with no logging middleware of your own. See [Middleware](./middleware) to write one.
+
+## Advanced
+
+### Errors are always logged
+
+The logger gets errors even when you leave out `debug`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+// On a failure, this still prints [tanstack-ai:errors] ...
+chat({
+  adapter: openaiText("gpt-6.1-sol"),
+  messages: [{ role: "user", content: "Hello" }],
+  threadId: "thread-1",
+});
+```
+
+To turn off all output, errors included, set `debug: false` or `debug: { errors: false }`.
+
+The logger is an extra output. Errors also always reach the caller, as thrown exceptions or `RUN_ERROR` stream chunks.
+
+### A failing logger does not break the call
+
+The library calls your `Logger` inside a try/catch. If your logger throws, the library drops the exception. Examples are a `JSON.stringify` on a cyclic `meta`, a transport that rejects synchronously, or a wrong `this` binding.
+
+This way, a logger failure never hides the real error that caused the log call, for example a provider SDK failure in the chat stream. You do not see the log line. The pipeline error still reaches you through thrown exceptions and `RUN_ERROR` chunks.
+
+To know when your own logger fails, add a guard in your implementation:
 
 ```typescript
 import { type Logger } from "@tanstack/ai";
@@ -125,45 +170,19 @@ const logger: Logger = {
     try {
       pinoLogger.debug(meta, msg);
     } catch (err) {
-      // surface to wherever you track infra errors
+      // Send it to the place where you track infrastructure errors.
       process.stderr.write(`logger failed: ${String(err)}\n`);
     }
   },
-  info:  (msg, meta) => pinoLogger.info(meta, msg),
-  warn:  (msg, meta) => pinoLogger.warn(meta, msg),
+  info: (msg, meta) => pinoLogger.info(meta, msg),
+  warn: (msg, meta) => pinoLogger.warn(meta, msg),
   error: (msg, meta) => pinoLogger.error(meta, msg),
 };
 ```
 
-## Categories reference
+### Other activities
 
-| Category | Logs | Applies to |
-|----------|------|------------|
-| `request` | Outgoing call to a provider (model, message count, tool count) | All activities |
-| `provider` | Every raw chunk/frame received from a provider SDK | Streaming activities (`chat`, `realtime`, and streaming `generateAudio`/`generateSpeech`/`generateTranscription`) |
-| `output` | Every chunk or result yielded to the caller | All activities |
-| `middleware` | Inputs and outputs around every middleware hook | `chat()` only |
-| `tools` | Before/after tool call execution | `chat()` only |
-| `agentLoop` | Agent-loop iterations and phase transitions | `chat()` only |
-| `config` | Config transforms returned by middleware `onConfig` hooks | `chat()` only |
-| `errors` | Every caught error anywhere in the pipeline | All activities |
-
-## Errors are always logged
-
-Errors flow through the logger unconditionally — even when you omit `debug`:
-
-```typescript
-import { chat } from "@tanstack/ai";
-import { adapter } from "./server";
-
-chat({ adapter, messages: [{ role: "user", content: "Hello" }] }); // still prints [tanstack-ai:errors] ... on failure
-```
-
-To fully silence (including errors), set `debug: false` or `debug: { errors: false }`. Errors also always reach the caller via thrown exceptions or `RUN_ERROR` stream chunks — the logger is additive, not the only surface.
-
-## Non-chat activities
-
-The same `debug` option works on every activity:
+The same `debug` option works on each activity:
 
 ```typescript
 import {
@@ -177,20 +196,24 @@ import {
 import { adapter } from "./server";
 import { logger } from "./logger";
 
+const threadId = "thread-1";
 const text = "Long article to summarize...";
 const audio = new File([""], "recording.mp3", { type: "audio/mpeg" });
 
-summarize({ adapter, text, debug: true });
-generateImage({ adapter, prompt: "a cat", debug: { logger } });
-generateSpeech({ adapter, text, debug: { request: true } });
-generateAudio({ adapter, prompt: "ambient piano", debug: true });
-generateTranscription({ adapter, audio, debug: { provider: true } });
+summarize({ adapter, text, debug: true, threadId });
+generateImage({ adapter, prompt: "a cat", debug: { logger }, threadId });
+generateSpeech({ adapter, text, debug: { request: true }, threadId });
+generateAudio({ adapter, prompt: "ambient piano", debug: true, threadId });
+generateTranscription({ adapter, audio, debug: { provider: true }, threadId });
 ```
 
-When streaming any of these (`generateAudio`, `generateSpeech`, `generateTranscription` with `stream: true`), the `provider` category emits the raw SDK chunks and `output` emits the AG-UI-shaped chunks yielded to the caller — useful when a media pipeline looks stuck or the bytes arriving don't match what you expected.
+When you stream `generateAudio`, `generateSpeech`, or `generateTranscription` (`stream: true`):
 
-The chat-only categories (`middleware`, `tools`, `agentLoop`, `config`) simply never fire for these activities because those concepts don't exist in their pipelines.
+- `provider` shows the raw SDK chunks.
+- `output` shows the AG-UI chunks that go to the caller.
 
-## Related
+If a media pipeline seems stuck, or the bytes are not what you expect, read these two categories.
 
-If you're building middleware and want to see chunks flow through it, `debug: { middleware: true }` is faster than writing a logging middleware. See [Middleware](./middleware) for writing your own middleware.
+The chat-only categories (`middleware`, `tools`, `agentLoop`, `config`) never fire for these activities. Those parts do not exist in their pipelines.
+
+For traces and metrics in production, use [OpenTelemetry](./otel).

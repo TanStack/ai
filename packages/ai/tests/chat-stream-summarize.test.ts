@@ -85,6 +85,7 @@ describe('ChatStreamSummarizeAdapter — spec stream chunks', () => {
     )
 
     const result = await adapter.summarize({
+      threadId: 'thread-1',
       model: 'options-model',
       text: 'long text',
       logger,
@@ -105,6 +106,7 @@ describe('ChatStreamSummarizeAdapter — spec stream chunks', () => {
     )
 
     const result = await adapter.summarize({
+      threadId: 'thread-1',
       model: 'options-model',
       text: 'long text',
       logger,
@@ -125,6 +127,7 @@ describe('ChatStreamSummarizeAdapter — spec stream chunks', () => {
     )
 
     const result = await adapter.summarize({
+      threadId: 'thread-1',
       model: 'options-model',
       text: 'long text',
       logger,
@@ -156,6 +159,7 @@ describe('ChatStreamSummarizeAdapter — spec stream chunks', () => {
     )
 
     const result = await adapter.summarize({
+      threadId: 'thread-1',
       model: 'options-model',
       text: 'long text',
       logger,
@@ -187,6 +191,7 @@ describe('ChatStreamSummarizeAdapter — spec stream chunks', () => {
 
     await expect(
       adapter.summarize({
+        threadId: 'thread-1',
         model: 'options-model',
         text: 'long text',
         logger,
@@ -210,6 +215,7 @@ describe('ChatStreamSummarizeAdapter — spec stream chunks', () => {
 
     const chunks: Array<StreamChunk> = []
     for await (const chunk of adapter.summarizeStream({
+      threadId: 'thread-1',
       model: 'options-model',
       text: 'long text',
       logger,

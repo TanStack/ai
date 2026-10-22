@@ -180,6 +180,7 @@ describe(
 
       const chunks = await collect(
         adapter().chatStream({
+          threadId: 'thread-1',
           model: 'pi-fast',
           runId: 'r-attach-refused',
           messages: [{ role: 'user', content: 'say pong' }],
@@ -224,6 +225,7 @@ describe(
 
       const chunks = await collect(
         adapter().chatStream({
+          threadId: 'thread-1',
           model: 'pi-fast',
           runId: 'r-fresh-durable',
           messages: [{ role: 'user', content: 'say pong' }],
@@ -255,6 +257,7 @@ describe(
 
       const chunks = await collect(
         adapter().chatStream({
+          threadId: 'thread-1',
           model: 'pi-fast',
           runId: 'r-no-durability',
           messages: [{ role: 'user', content: 'say pong' }],

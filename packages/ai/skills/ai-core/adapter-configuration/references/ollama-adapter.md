@@ -58,6 +58,7 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 const stream = chat({
   adapter: ollamaText('llama3.3:latest'),
   messages,
+  threadId: 'thread-1',
   modelOptions: {
     options: {
       temperature: 0.7,

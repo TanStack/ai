@@ -21,6 +21,7 @@ export const lookupFacts = toolDefinition({
 export type SubagentScenario =
   | 'route'
   | 'approval'
+  | 'tool-approval'
   | 'tool'
   | 'brief'
   | 'result'
@@ -36,6 +37,7 @@ export const SUBAGENT_E2E_KEY = 'sk-e2e-subagent-key'
 export const SUBAGENT_PROMPTS: Record<SubagentScenario, string> = {
   route: '[subagent-route] research squids',
   approval: '[subagent-approval] clean up the old logs',
+  'tool-approval': '[subagent-tool-approval] clean up the old logs',
   tool: '[subagent-tool] research squids',
   brief: '[subagent-brief] compare squid facts',
   result: '[subagent-result] price vendor a',
@@ -49,6 +51,7 @@ export function isSubagentScenario(value: unknown): value is SubagentScenario {
   return (
     value === 'route' ||
     value === 'approval' ||
+    value === 'tool-approval' ||
     value === 'tool' ||
     value === 'brief' ||
     value === 'result' ||

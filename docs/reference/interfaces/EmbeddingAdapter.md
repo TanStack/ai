@@ -3,7 +3,7 @@ id: EmbeddingAdapter
 title: EmbeddingAdapter
 ---
 
-Defined in: [packages/ai/src/activities/embed/adapter.ts:31](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/embed/adapter.ts#L31)
+Defined in: packages/ai/src/activities/embed/adapter.ts:31
 
 Embedding adapter interface with pre-resolved generics.
 
@@ -43,7 +43,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [packages/ai/src/activities/embed/adapter.ts:54](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/embed/adapter.ts#L54)
+Defined in: packages/ai/src/activities/embed/adapter.ts:54
 
 **`Internal`**
 
@@ -75,7 +75,7 @@ providerOptions: TProviderOptions;
 createEmbeddings: (options) => Promise<EmbeddingResult>;
 ```
 
-Defined in: [packages/ai/src/activities/embed/adapter.ts:63](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/embed/adapter.ts#L63)
+Defined in: packages/ai/src/activities/embed/adapter.ts:63
 
 Generate embeddings for the input items (one vector per item)
 
@@ -97,7 +97,7 @@ Generate embeddings for the input items (one vector per item)
 readonly kind: "embedding";
 ```
 
-Defined in: [packages/ai/src/activities/embed/adapter.ts:39](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/embed/adapter.ts#L39)
+Defined in: packages/ai/src/activities/embed/adapter.ts:39
 
 Discriminator for adapter kind
 
@@ -109,7 +109,7 @@ Discriminator for adapter kind
 readonly model: TModel;
 ```
 
-Defined in: [packages/ai/src/activities/embed/adapter.ts:49](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/embed/adapter.ts#L49)
+Defined in: packages/ai/src/activities/embed/adapter.ts:49
 
 The model this adapter is configured for
 
@@ -121,7 +121,7 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: [packages/ai/src/activities/embed/adapter.ts:41](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/embed/adapter.ts#L41)
+Defined in: packages/ai/src/activities/embed/adapter.ts:41
 
 Adapter name identifier
 
@@ -133,7 +133,7 @@ Adapter name identifier
 readonly optional supportsFileSources?: boolean;
 ```
 
-Defined in: [packages/ai/src/activities/embed/adapter.ts:47](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/embed/adapter.ts#L47)
+Defined in: packages/ai/src/activities/embed/adapter.ts:47
 
 Declares that this adapter can consume `{ type: 'file' }` content
 sources (provider Files API references). `embed()` rejects file sources

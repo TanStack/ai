@@ -1,5 +1,30 @@
 # @tanstack/ai-groq
 
+## 0.10.1
+
+### Patch Changes
+
+- Updated dependencies [[`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325), [`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325), [`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325)]:
+  - @tanstack/ai@0.71.0
+  - @tanstack/openai-base@0.16.0
+
+## 0.10.0
+
+### Minor Changes
+
+- [#1775](https://github.com/TanStack/ai/pull/1775) [`85c2956`](https://github.com/TanStack/ai/commit/85c2956c68f3226ef409b3a4e54d5be82198931e) - Structured output sends `response_format: { type: "json_object" }` for OpenRouter and Groq models that declare a response format without strict structured outputs. These models reject strict `json_schema`. In JSON mode the adapter adds the schema as a system prompt. `await chat({ outputSchema })` checks the reply when the schema is a Standard Schema, such as Zod. Other models keep strict `json_schema`.
+
+  `modelOptions` can set `json_object` for any model. On the OpenAI-base adapters (OpenAI, Grok, Groq and others), a `json_object` in `modelOptions` was replaced by strict `json_schema`. It is now sent as given, with the schema in a system prompt. In JSON mode, `supportsCombinedToolsAndSchema()` returns `false`. Tools and the schema then go out in separate requests, so the tool-calling turns do not get the schema prompt.
+
+  OpenRouter catalog ids with a `:variant`, such as `google/gemma-4-26b-a4b-it:free`, now match their own catalog entry. Before, only the id without the variant was checked.
+
+### Patch Changes
+
+- Updated dependencies [[`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`5f95dbd`](https://github.com/TanStack/ai/commit/5f95dbd08f2780442000ac52074ea747d1b44187), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`3292bad`](https://github.com/TanStack/ai/commit/3292bad7b26990c5aa4676cc9d9fe33b1741fc1a), [`ee374b4`](https://github.com/TanStack/ai/commit/ee374b4753adfc2ae305edad03f1ac9a588321fa), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`4298480`](https://github.com/TanStack/ai/commit/429848047c8c514f29855f8a99a7260253eb5d5b), [`761a652`](https://github.com/TanStack/ai/commit/761a652a3d3f8d31017e11034a4844c8c81af0f6), [`f68da51`](https://github.com/TanStack/ai/commit/f68da51f63f999b70ac7aaf5aebc0109a7e9daf7), [`85c2956`](https://github.com/TanStack/ai/commit/85c2956c68f3226ef409b3a4e54d5be82198931e), [`30fa651`](https://github.com/TanStack/ai/commit/30fa651d173e519db8de50c9f888ded71b951640), [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b)]:
+  - @tanstack/ai@0.70.0
+  - @tanstack/openai-base@0.15.0
+  - @tanstack/ai-utils@0.5.0
+
 ## 0.9.0
 
 ### Minor Changes

@@ -68,6 +68,7 @@ async function bridgedFor(toolChoice: ToolChoice) {
   })
   const chunks = await collect(
     pi('pi-model').chatStream({
+      threadId: 'thread-1',
       model: 'pi-model',
       messages: [{ role: 'user', content: 'hi' }],
       logger: loggerWith(() => {}),
@@ -92,6 +93,7 @@ async function callWithoutSandbox(
 ) {
   await collect(
     adapter.chatStream({
+      threadId: 'thread-1',
       model: 'pi-model',
       messages: [{ role: 'user', content: 'hi' }],
       logger: loggerWith(warn),

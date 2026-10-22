@@ -6,20 +6,18 @@ title: TaggedCustomEvent
 ```ts
 type TaggedCustomEvent<T> = 
   | StructuredOutputStartEvent
-  | StructuredOutputCompleteEvent<T>
-  | ApprovalRequestedEvent
-  | ToolInputAvailableEvent;
+| StructuredOutputCompleteEvent<T>;
 ```
 
-Defined in: [packages/ai/src/types.ts:2161](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2161)
+Defined in: packages/ai/src/types.ts:2123
 
 Discriminated union of the orchestrator-tagged `CUSTOM` events. Each variant
 has a literal `name`, so a single narrow on `chunk.name` yields a typed
 `value` with no helper or cast:
 
 ```ts
-if (chunk.type === 'CUSTOM' && chunk.name === 'approval-requested') {
-  chunk.value.toolCallId // typed as string
+if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.start') {
+  chunk.value.messageId // typed as string
 }
 ```
 

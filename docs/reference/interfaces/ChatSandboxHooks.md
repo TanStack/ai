@@ -3,7 +3,7 @@ id: ChatSandboxHooks
 title: ChatSandboxHooks
 ---
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:60](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L60)
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:61
 
 Sandbox file-event hooks a chat middleware can declare. Fire server-side for
 every file create/change/delete observed in the sandbox during the run.
@@ -22,7 +22,7 @@ every file create/change/delete observed in the sandbox during the run.
 optional onFile?: (ctx, e) => void | Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:61](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L61)
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:62
 
 #### Parameters
 
@@ -46,7 +46,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:61](https://git
 optional onFileChange?: (ctx, e) => void | Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:69](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L69)
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:70
 
 #### Parameters
 
@@ -70,7 +70,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:69](https://git
 optional onFileCreate?: (ctx, e) => void | Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:65](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L65)
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:66
 
 #### Parameters
 
@@ -94,7 +94,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:65](https://git
 optional onFileDelete?: (ctx, e) => void | Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:73](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L73)
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:74
 
 #### Parameters
 

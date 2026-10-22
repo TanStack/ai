@@ -6,6 +6,8 @@ import {
 import { Server } from '@modelcontextprotocol/server'
 import { DuplicateToolNameError } from '../src/errors'
 import { createMCPClients } from '../src/pool'
+import { inMemoryMCPEventStore } from '../src/events/memory-store'
+import { createTestEventsServer } from './helpers/events-server'
 import {
   makeServerWithMismatchedResource,
   makeServerWithResource,
@@ -24,6 +26,21 @@ describe('createMCPClients', () => {
     const names = (await pool.tools()).map((t) => t.name)
     expect(names).toContain('alpha_get_weather')
     expect(names).toContain('beta_get_weather') // no collision despite same server tool name
+  })
+
+  it('passes experimental_events through to each client', async () => {
+    const events = createTestEventsServer({ verify: 'skip' })
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair()
+    await events.server.connect(serverTransport)
+    await using pool = await createMCPClients({
+      a: {
+        transport: clientTransport,
+        experimental_events: { store: inMemoryMCPEventStore() },
+      },
+    })
+    const listed = await pool.clients.a!.experimental_events!.list()
+    expect(listed.map((item) => item.name)).toEqual(['incident.created'])
   })
 
   it('exposes typed per-server access via .clients', async () => {

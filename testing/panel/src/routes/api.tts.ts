@@ -31,6 +31,7 @@ export const Route = createFileRoute('/api/tts')({
           const adapter = openaiSpeech(model)
 
           const result = await generateSpeech({
+            threadId: 'panel-tts',
             adapter,
             text,
             voice,

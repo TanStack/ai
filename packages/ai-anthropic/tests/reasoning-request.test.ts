@@ -47,6 +47,7 @@ async function send(
     beta: { messages: { create } },
   })
   for await (const _chunk of adapter.chatStream({
+    threadId: 'thread-1',
     logger,
     model,
     messages: [{ role: 'user', content: 'hi' }],
@@ -158,6 +159,7 @@ describe('Anthropic chat({ reasoning }) request shape', () => {
       .fn()
       .mockResolvedValue(textStream(JSON.stringify({ word: 'hi' })))
     const result = await chat({
+      threadId: 'thread-1',
       adapter: createAnthropicChatWithClient('claude-opus-5-5', {
         beta: { messages: { create } },
       }),

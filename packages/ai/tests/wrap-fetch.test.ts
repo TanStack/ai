@@ -39,6 +39,7 @@ async function orderOfEachCall(options: {
     iterations: [toolTurn('tc-1'), toolTurn('tc-2'), stopTurn],
   })
   await chat({
+    threadId: 'thread-1',
     adapter,
     messages: [{ role: 'user', content: 'Hi' }],
     tools: [lookup],
@@ -115,6 +116,7 @@ describe('chat({ wrapFetch })', () => {
   it('sends no wrapFetch when no wrapper is set', async () => {
     const { adapter, calls } = createMockAdapter({ iterations: [stopTurn] })
     await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       stream: false,

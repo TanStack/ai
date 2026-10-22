@@ -79,6 +79,7 @@ describe('Grok usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
     })) {
@@ -113,6 +114,7 @@ describe('Grok usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
     })) {

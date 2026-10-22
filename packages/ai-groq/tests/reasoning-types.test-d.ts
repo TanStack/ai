@@ -4,7 +4,8 @@ import { createGroqText } from '../src'
 const messages = [{ role: 'user' as const, content: 'hi' }]
 
 chat({
-  adapter: createGroqText('qwen/qwen3-32b', 'k'),
+  threadId: 'thread-1',
+  adapter: createGroqText('qwen/qwen3.8-27b', 'k'),
   messages,
   reasoning: 'off',
 })

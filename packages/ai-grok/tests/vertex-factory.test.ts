@@ -54,6 +54,7 @@ describe('grokVertexText', () => {
 
     try {
       for await (const _chunk of adapter.chatStream({
+        threadId: 'thread-1',
         model: 'grok-4.3',
         messages: [{ role: 'user', content: 'Hello' }],
         logger: testLogger,

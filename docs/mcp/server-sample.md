@@ -2,7 +2,7 @@
 title: Draft Text from a Tool
 id: mcp-server-sample
 order: 13
-description: "Call ctx.context.sample from an MCP server tool so the tool can return a draft."
+description: "Call ctx.context.sample from an MCP server tool, so the tool can ask a model for a draft and return it."
 keywords:
   - tanstack ai
   - mcp
@@ -14,9 +14,17 @@ keywords:
   - MCPToolContext
 ---
 
-You want the tool to return a draft. The tool has no model result yet.
+`sample` lets an MCP tool call a model for a draft, such as a short note. The tool itself has no model.
 
-Call `ctx.context.sample` inside the tool. Pass a `sample` function to `createMCPServer`. Give `.server()` the type `MCPToolContext`, so `ctx.context.sample` type-checks.
+Call it as `ctx.context.sample` inside the tool.
+
+## Quick setup
+
+You need an MCP server first. If you do not have one, start with [Serve Tools over HTTP](./server).
+
+1. Give `.server()` the type `MCPToolContext`, so `ctx.context.sample` type-checks.
+2. Call `ctx.context.sample` with the messages for the model.
+3. Pass a `sample` function to `createMCPServer`. It answers the sample request.
 
 ```ts
 import { toolDefinition } from '@tanstack/ai'
@@ -63,9 +71,17 @@ export function handleMcp(request: Request) {
 }
 ```
 
-`ctx.context.sample` is a method on the context of the tool. The `sample` function is `(request) => Promise<unknown>`.
+Call `draft_note` with a topic. The tool result is the draft text. In this example, the `sample` function returns `Draft:` plus the message. In your app, call your model there.
 
-## Spec 2025 and spec 2026
+## How it works
+
+- `ctx.context.sample` is a method on the context of the tool.
+- The `sample` function has the type `(request) => Promise<unknown>`.
+- Who answers depends on the MCP spec version of the client. See the table below.
+
+## Advanced
+
+### Spec 2025 and spec 2026
 
 | Spec | Result |
 | --- | --- |
@@ -73,4 +89,4 @@ export function handleMcp(request: Request) {
 | Spec 2026 | `ctx.context.sample` calls the `sample` function. It does not ask the client. |
 | Spec 2026 with no `sample` | `ctx.context.sample` throws an Error. The message names `sample`. |
 
-Call `draft_note` with a topic. The tool result is the draft text.
+On spec 2025, the server can ask the client only when it keeps a session. Without a session, `ctx.context.sample` calls the `sample` function. See [MCP Server Sessions](./server-sessions).

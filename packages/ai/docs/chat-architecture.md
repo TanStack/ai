@@ -152,10 +152,10 @@ The model returns text AND one tool call. This is the most common source of bugs
 2    TEXT_MESSAGE_START     messageId, role: "assistant"                        Before any text content
 3    TEXT_MESSAGE_CONTENT   messageId, delta: "Let me check."                   Text before tool call
 4    TEXT_MESSAGE_END       messageId                                           Text segment done
-5    TOOL_CALL_START        toolCallId: "call_1", toolName: "getWeather"        MUST have toolCallId + toolName
+5    TOOL_CALL_START        toolCallId: "call_1", toolCallName: "getWeather"    MUST have toolCallId + toolCallName
 6    TOOL_CALL_ARGS         toolCallId: "call_1", delta: '{"city":'             Incremental JSON string
 7    TOOL_CALL_ARGS         toolCallId: "call_1", delta: '"NYC"}'               More JSON
-8    TOOL_CALL_END          toolCallId: "call_1", toolName: "getWeather"        Signals arguments finalized
+8    TOOL_CALL_END          toolCallId: "call_1", toolCallName: "getWeather"    Signals arguments finalized
 9    RUN_FINISHED           runId, finishReason: "tool_calls"                   MUST be "tool_calls" when tools requested
 ```
 
@@ -202,7 +202,7 @@ RUN_FINISHED received        →  state: "input-complete"      (safety net via c
 
 - It does **not** execute the tool. That's the TextEngine's job.
 - It does **not** create a `tool-result` part. That happens later when `TOOL_CALL_END` arrives WITH a `result` field (from TextEngine after execution).
-- It does **not** validate that `toolName` matches a known tool. The processor is tool-definition-agnostic.
+- It does **not** validate that `toolCallName` matches a known tool. The processor is tool-definition-agnostic.
 
 ---
 
@@ -216,12 +216,12 @@ The model requests multiple tools in one response. Adapters may interleave the e
 #    Event                  Key Fields
 ───  ─────────────────────  ──────────────────────────────────────────
 1    RUN_STARTED            runId
-2    TOOL_CALL_START        toolCallId: "call_1", toolName: "getWeather", index: 0
-3    TOOL_CALL_START        toolCallId: "call_2", toolName: "getTime", index: 1
+2    TOOL_CALL_START        toolCallId: "call_1", toolCallName: "getWeather", index: 0
+3    TOOL_CALL_START        toolCallId: "call_2", toolCallName: "getTime", index: 1
 4    TOOL_CALL_ARGS         toolCallId: "call_1", delta: '{"city":"NYC"}'
 5    TOOL_CALL_ARGS         toolCallId: "call_2", delta: '{"tz":"EST"}'
-6    TOOL_CALL_END          toolCallId: "call_1", toolName: "getWeather"
-7    TOOL_CALL_END          toolCallId: "call_2", toolName: "getTime"
+6    TOOL_CALL_END          toolCallId: "call_1", toolCallName: "getWeather"
+7    TOOL_CALL_END          toolCallId: "call_2", toolCallName: "getTime"
 8    RUN_FINISHED           finishReason: "tool_calls"
 ```
 
@@ -271,7 +271,7 @@ A response with text, then a tool call, then the tool result comes back, then mo
 2    TEXT_MESSAGE_START      messageId: "m1"
 3    TEXT_MESSAGE_CONTENT    delta: "Checking weather..."
 4    TEXT_MESSAGE_END
-5    TOOL_CALL_START        toolCallId: "call_1", toolName: "getWeather"
+5    TOOL_CALL_START        toolCallId: "call_1", toolCallName: "getWeather"
 6    TOOL_CALL_ARGS         toolCallId: "call_1", delta: '{"city":"NYC"}'
 7    TOOL_CALL_END          toolCallId: "call_1"
 8    RUN_FINISHED           finishReason: "tool_calls"
@@ -372,27 +372,34 @@ If an adapter incorrectly includes `result`, the processor will store it as a to
 
 ## Client Tools and Approval Flows
 
-These are handled via `CUSTOM` events emitted by the TextEngine (not the adapter).
-
-### Client tool flow
+The TextEngine (not the adapter) pauses the run with an interrupt. It ends the run with one terminal chunk:
 
 ```
-CUSTOM { name: "tool-input-available", data: { toolCallId, toolName, input } }
+RUN_FINISHED { outcome: { type: "interrupt", interrupts: [...] } }
 ```
 
-Processor action: Fires `onToolCall` callback. Client calls `addToolResult(toolCallId, output)`.
+Each interrupt carries `toolCallId` and a binding in `metadata` that says what it is for.
 
-### Approval flow
+### Approval interrupt
 
 ```
-CUSTOM { name: "approval-requested", data: { toolCallId, toolName, input, approval: { id, needsApproval: true } } }
+{ id: approvalId, reason: "tool_call", toolCallId,
+  metadata: { kind: "approval", toolName, input, <binding kind: "tool-approval"> } }
 ```
 
-Processor action:
-1. `updateToolCallApproval()` -- Sets `state: "approval-requested"` and adds `approval` metadata to tool-call part.
-2. Fires `onApprovalRequest` callback.
-3. Client calls `addToolApprovalResponse(approvalId, true/false)`.
-4. `updateToolCallApprovalResponse()` -- Sets `state: "approval-responded"` and `approval.approved`.
+Processor action (`handleInterrupts()`):
+1. `updateToolCallApproval()` sets `state: "approval-requested"` and adds `approval` metadata to the tool-call part.
+2. Fires `onApprovalRequest`.
+3. The client calls `resolveInterrupt(true/false)` on the bound `tool-approval` interrupt, which resumes the run.
+
+### Client tool interrupt
+
+```
+{ id: "client_tool_<toolCallId>", reason: "tanstack:client_tool_execution", toolCallId,
+  metadata: { kind: "client_tool", toolName, input, <binding kind: "client-tool-execution"> } }
+```
+
+Processor action: fires `onToolCall`. The client runs the tool. Its result (`addToolResult`) answers the bound interrupt, which resumes the run.
 
 ---
 
@@ -467,7 +474,7 @@ Terminal      ::= RUN_FINISHED | RUN_ERROR
 
 #### TOOL_CALL_START
 - `toolCallId: string` -- **Globally unique** within this stream. The processor uses this as a Map key.
-- `toolName: string` -- Name of the tool being called. Must not be empty.
+- `toolCallName: string` -- Name of the tool being called. Must not be empty.
 - `index?: number` -- (Optional) For parallel tool calls. Defaults to `toolCalls.size` (order of arrival).
 
 #### TOOL_CALL_ARGS
@@ -476,7 +483,7 @@ Terminal      ::= RUN_FINISHED | RUN_ERROR
 
 #### TOOL_CALL_END
 - `toolCallId: string` -- Must match.
-- `toolName: string` -- Must match.
+- `toolCallName?: string` -- (Optional) Must match. Kept in `metadata.tanstack` on the wire.
 - `input?: unknown` -- (Optional) Parsed arguments. If provided, overrides the processor's accumulated string parse.
 - `result?: string` -- (Optional) **Adapters MUST NOT set this.** Reserved for TextEngine tool execution results.
 
@@ -506,7 +513,7 @@ Terminal      ::= RUN_FINISHED | RUN_ERROR
 
 4. **Do not emit `TEXT_MESSAGE_CONTENT` without a preceding `TEXT_MESSAGE_START`.** The text will still be processed (the processor doesn't validate this), but `TEXT_MESSAGE_START` is needed to reset the segment accumulator for correct multi-segment text after tool calls.
 
-5. **Do not use empty strings for `toolCallId` or `toolName`.** The `ToolCallManager.getToolCalls()` filters out entries where `name.trim().length === 0`.
+5. **Do not use empty strings for `toolCallId` or `toolCallName`.** The `ToolCallManager.getToolCalls()` filters out entries where `name.trim().length === 0`.
 
 6. **Do not reuse `toolCallId` values within a single stream.** The processor's Map deduplicates by ID -- a second `TOOL_CALL_START` with the same ID is silently ignored.
 

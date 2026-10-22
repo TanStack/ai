@@ -22,6 +22,7 @@ describe('generation onResult inference (#848)', () => {
     it('infers TResult from the fetcher and narrows result to the transform return', () => {
       function _scenario() {
         const api = injectGeneration({
+          threadId: 'thread-1',
           fetcher: async () => ({ id: '1', audio: 'base64data' }),
           onResult: (raw) => ({ playable: raw.audio.length > 0 }),
         })
@@ -35,6 +36,7 @@ describe('generation onResult inference (#848)', () => {
     it('keeps the raw result type when no onResult is provided', () => {
       function _scenario() {
         const api = injectGeneration({
+          threadId: 'thread-1',
           fetcher: async () => ({ id: '1', text: 'hi' }),
         })
         expectTypeOf(api.result()).toEqualTypeOf<{
@@ -53,6 +55,7 @@ describe('generation onResult inference (#848)', () => {
         // appears directly in the callback parameter position) — no explicit
         // type arguments needed.
         const api = injectGeneration({
+          threadId: 'thread-1',
           connection: undefined as any,
           onResult: (raw: StreamResult) => ({ count: raw.images.length }),
         })
@@ -66,6 +69,7 @@ describe('generation onResult inference (#848)', () => {
     it('narrows the wrapper result type to the transform return', () => {
       function _scenario() {
         const api = injectTranscription({
+          threadId: 'thread-1',
           fetcher: async () => ({ id: '1', text: 'hi', model: 'whisper-1' }),
           onResult: (res) => res.text,
         })
@@ -77,6 +81,7 @@ describe('generation onResult inference (#848)', () => {
     it('infers the raw result type when no onResult is provided', () => {
       function _scenario() {
         const api = injectTranscription({
+          threadId: 'thread-1',
           fetcher: async () => ({ id: '1', text: 'hi', model: 'whisper-1' }),
         })
         expectTypeOf(api.result()).toEqualTypeOf<TranscriptionResult | null>()
@@ -94,6 +99,7 @@ describe('generation onResult inference (#848)', () => {
           contentType: 'audio/mpeg',
         }
         const api = injectGenerateSpeech({
+          threadId: 'thread-1',
           fetcher: async () => mockTTSResult,
           onResult: (raw) => ({
             audioUrl: `data:${raw.contentType};base64,${raw.audio}`,
@@ -107,6 +113,7 @@ describe('generation onResult inference (#848)', () => {
     it('keeps the raw result type for injectGenerateSpeech without onResult', () => {
       function _scenario() {
         const api = injectGenerateSpeech({
+          threadId: 'thread-1',
           fetcher: async () => undefined as unknown as TTSResult,
         })
         expectTypeOf(api.result()).toEqualTypeOf<TTSResult | null>()

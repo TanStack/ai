@@ -146,8 +146,8 @@ export type ImageActivityOptions<
    * `GenerationMiddleware` contract for a custom backend.
    */
   middleware?: Array<GenerationMiddleware>
-  /** Stable conversation/thread id for correlating this run when persisted. */
-  threadId?: string
+  /** Stable conversation/thread id. It is the AG-UI thread id and the persistence key. */
+  threadId: string
   /** Stable run id for correlating this run when persisted. */
   runId?: string
   /**
@@ -209,36 +209,39 @@ function createId(prefix: string): string {
  * import { openaiImage } from '@tanstack/ai-openai'
  *
  * const result = await generateImage({
- *   adapter: openaiImage('dall-e-3'),
- *   prompt: 'A serene mountain landscape at sunset'
+ *   adapter: openaiImage('gpt-image-2.5-flare'),
+ *   prompt: 'A serene mountain landscape at sunset',
+ *   threadId,
  * })
  *
- * console.log(result.images[0].url)
+ * console.log(result.images[0].b64Json)
  * ```
  *
  * @example Generate multiple images
  * ```ts
  * const result = await generateImage({
- *   adapter: openaiImage('dall-e-2'),
+ *   adapter: openaiImage('gpt-image-1-mini'),
  *   prompt: 'A cute robot mascot',
+ *   threadId,
  *   numberOfImages: 4,
- *   size: '512x512'
+ *   size: '1024x1024'
  * })
  *
  * result.images.forEach((image, i) => {
- *   console.log(`Image ${i + 1}: ${image.url}`)
+ *   console.log(`Image ${i + 1}: ${image.b64Json}`)
  * })
  * ```
  *
  * @example With provider-specific options
  * ```ts
  * const result = await generateImage({
- *   adapter: openaiImage('dall-e-3'),
+ *   adapter: openaiImage('gpt-image-2.5-flare'),
  *   prompt: 'A professional headshot photo',
+ *   threadId,
  *   size: '1024x1024',
  *   modelOptions: {
- *     quality: 'hd',
- *     style: 'natural'
+ *     quality: 'high',
+ *     background: 'transparent'
  *   }
  * })
  * ```
@@ -254,11 +257,8 @@ export function generateImage<
   assertPromptFileSourceSupport(options.adapter, options.prompt)
   if (options.stream) {
     return streamGenerationResult(
-      // Only `runId` is taken from the resolved wire identity. `threadId` stays
-      // the CALLER's: `streamGenerationResult` mints one for the RUN_* chunks
-      // when none was passed, and spreading that over the options would hand
-      // middleware a thread id known to nobody, which persistence would then
-      // file the run under. Matches `generateVideo`.
+      // Only `runId` comes from the resolved wire identity. `threadId` is
+      // the caller's own id.
       (resolved) => runGenerateImage({ ...options, runId: resolved.runId }),
       options,
     ) as ImageActivityResult<TStream>

@@ -7,7 +7,7 @@ title: isProviderExecutedToolCall
 function isProviderExecutedToolCall(toolCall): boolean;
 ```
 
-Defined in: [packages/ai/src/utilities/provider-executed.ts:28](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/provider-executed.ts#L28)
+Defined in: packages/ai/src/utilities/provider-executed.ts:28
 
 True when a tool call was executed by the provider (e.g. Anthropic
 `web_search` / `web_fetch` server tools) rather than the agent loop. Such

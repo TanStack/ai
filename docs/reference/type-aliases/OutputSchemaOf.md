@@ -7,7 +7,7 @@ title: OutputSchemaOf
 type OutputSchemaOf<TTool> = TTool extends object ? TOutput extends undefined ? NoSchema : TOutput : NoSchema;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:65](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L65)
+Defined in: packages/ai/src/activities/chat/tools/tool-definition.ts:65
 
 ## Type Parameters
 

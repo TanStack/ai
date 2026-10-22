@@ -4,12 +4,10 @@ export { createByok } from './create-byok.svelte'
 export {
   createPageWebMCPTools,
   createRegisterWebMCPTools,
-  createWebMCPTools,
 } from './create-web-mcp-tools.svelte'
 export type {
   CreatePageWebMCPToolsOptions,
   CreateRegisterWebMCPToolsOptions,
-  CreateWebMCPToolsOptions,
 } from './create-web-mcp-tools.svelte'
 export type {
   CreateChatOptions,

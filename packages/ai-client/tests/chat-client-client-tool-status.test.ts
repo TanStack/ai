@@ -67,6 +67,7 @@ describe('client tool call status (issue #421)', () => {
 
     const statuses: Array<string> = []
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: adapter,
       onStatusChange: (s) => statuses.push(s),
       tools: [
@@ -118,6 +119,7 @@ describe('client tool call status (issue #421)', () => {
 
     const statuses: Array<string> = []
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: adapter,
       onStatusChange: (s) => statuses.push(s),
     })
@@ -158,6 +160,7 @@ describe('client tool call status (issue #421)', () => {
 
     const statuses: Array<string> = []
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection: adapter,
       onStatusChange: (s) => statuses.push(s),
     })

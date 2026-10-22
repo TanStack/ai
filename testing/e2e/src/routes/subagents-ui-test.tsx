@@ -61,7 +61,7 @@ function SubagentsUITestPage() {
   const { testId, aimockPort } = Route.useSearch()
   const chat = useAppChat({
     threadId: `subagents-ui-${testId ?? 'manual'}`,
-    body: { scenario: 'route', testId, aimockPort },
+    forwardedProps: { scenario: 'route', testId, aimockPort },
   })
   return (
     <div data-testid="subagents-ui-page">

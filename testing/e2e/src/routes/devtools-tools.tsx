@@ -39,7 +39,7 @@ function DevtoolsToolsRoute() {
   const chat = useChat({
     threadId: 'devtools-tools:primary',
     connection: fetchServerSentEvents('/api/chat'),
-    body: { provider: 'openai', feature: 'chat', testId, aimockPort },
+    forwardedProps: { provider: 'openai', feature: 'chat', testId, aimockPort },
     tools,
     devtools: { name: 'Tool Runner' },
   })

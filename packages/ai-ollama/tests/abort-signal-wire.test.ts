@@ -36,6 +36,7 @@ describe('Ollama abort signal', () => {
     const abortController = new AbortController()
     const run = (async () => {
       for await (const _ of chat({
+        threadId: 'thread-1',
         adapter: createOllamaChat(model, 'http://ollama.test'),
         messages,
         abortController,
@@ -54,6 +55,7 @@ describe('Ollama abort signal', () => {
   it('aborts the structured output request when the caller aborts', async () => {
     const abortController = new AbortController()
     const run = chat({
+      threadId: 'thread-1',
       adapter: createOllamaChat(model, 'http://ollama.test'),
       messages,
       outputSchema: { type: 'object', properties: {} },
@@ -79,6 +81,7 @@ describe('Ollama abort signal', () => {
         model,
         'http://ollama.test',
       ).chatStream({
+        threadId: 'thread-1',
         logger,
         model,
         messages,

@@ -5,11 +5,7 @@ import { toolDefinition } from '@tanstack/ai/client'
 import { ChatClient } from '@tanstack/ai-client'
 import { useChat } from '../src/use-chat'
 import { createMockConnectionAdapter } from './test-utils'
-import {
-  usePageWebMCPTools,
-  useRegisterWebMCPTools,
-  useWebMCPTools,
-} from '../src/index'
+import { usePageWebMCPTools, useRegisterWebMCPTools } from '../src/index'
 import type { UseRegisterWebMCPToolsOptions } from '../src/index'
 
 interface RegisteredWebMCPTool {
@@ -151,12 +147,6 @@ describe('useRegisterWebMCPTools (Vue)', () => {
   })
 })
 
-describe('useWebMCPTools (Vue)', () => {
-  it('is a deprecated alias of useRegisterWebMCPTools', () => {
-    expect(useWebMCPTools).toBe(useRegisterWebMCPTools)
-  })
-})
-
 function installPageTools(names: Array<string>) {
   const target = new EventTarget()
   const modelContext = {
@@ -191,7 +181,11 @@ describe('usePageWebMCPTools (Vue)', () => {
       const pageTools = usePageWebMCPTools({
         filter: (tool) => tool.name !== 'blocked',
       })
-      useChat({ connection: createMockConnectionAdapter(), tools: pageTools })
+      useChat({
+        threadId: 'thread-1',
+        connection: createMockConnectionAdapter(),
+        tools: pageTools,
+      })
       return pageTools
     })
 

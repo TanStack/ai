@@ -2,7 +2,7 @@
 title: MCP Server Auth
 id: mcp-server-auth
 order: 13
-description: "Accept the access tokens your authorization server issues, so only a signed-in user can call your MCP tools."
+description: "Accept the access tokens that your authorization server issues, so only a signed-in user can call your MCP tools."
 keywords:
   - tanstack ai
   - mcp
@@ -16,19 +16,17 @@ keywords:
   - oauthMetadataResponse
 ---
 
-Your MCP server is on a public URL. As a result, any client that can reach that URL can call your tools.
+Require a credential on your public MCP route. A client that cannot present it cannot call your tools.
 
-An MCP server is an OAuth resource server. It does not sign users in. Your authorization server does that, and it issues the access token. The MCP server checks that token on each request.
+Pass `auth` to `createMCPServer`. The server then checks the access token on each request, and a missing or bad token gets 401.
 
-Pass `auth` to `createMCPServer`. Then a missing or bad token returns 401.
-
-## Verify a JWT
+## Quick setup
 
 Most providers issue a JWT and publish their keys at a JWKS URL. Auth0, Clerk, WorkOS, Keycloak, Supabase, and the Better Auth MCP plugin all do.
 
 1. Find the issuer URL and the JWKS URL of your provider.
-2. Register your MCP server URL as the audience of the token.
-3. Serve MCP with this handler.
+2. In your provider, register the URL of your MCP server as the audience of the token.
+3. Pass `jwtVerifier` to `auth`:
 
 ```ts
 import { createMCPServer, jwtVerifier } from '@tanstack/ai-mcp/server'
@@ -52,86 +50,19 @@ export default {
 }
 ```
 
-Add your tools on the `tools` field.
+4. Add your tools on the `tools` field.
 
-`jwtVerifier` checks the signature, `iss`, `aud`, `exp`, and `nbf`. It reads the keys from `jwksUrl` and caches them. A token that fails one check returns 401.
+Now a request with no token, or with a bad token, gets 401. A request with a valid token from your provider calls your tools.
 
-## Verify an opaque token
+## How it works
 
-If your provider issues opaque tokens, pass `introspectionVerifier`. It posts the token to the RFC 7662 introspection endpoint with the client credentials of your MCP server.
+An MCP server is an OAuth resource server. It does not sign users in:
 
-```ts
-import { createMCPServer, introspectionVerifier } from '@tanstack/ai-mcp/server'
+- Your authorization server signs the user in and issues the access token.
+- The MCP client sends that token on each request.
+- The MCP server checks the token with the `verifier`.
 
-const server = createMCPServer({
-  name: 'notes',
-  version: '1.0.0',
-  auth: {
-    verifier: introspectionVerifier({
-      introspectionUrl: 'https://auth.example.com/oauth/introspect',
-      clientId: process.env.OAUTH_CLIENT_ID ?? '',
-      clientSecret: process.env.OAUTH_CLIENT_SECRET ?? '',
-    }),
-  },
-})
-```
-
-A token that is not `active` returns 401. If the endpoint is down, the caller gets 500.
-
-## Write your own verifier
-
-`verifier` is the `OAuthTokenVerifier` type from the MCP SDK. It has one method, `verifyAccessToken`. Return an `AuthInfo`, or throw `OAuthError` with `OAuthErrorCode.InvalidToken`.
-
-```ts
-import { OAuthError, OAuthErrorCode, createMCPServer } from '@tanstack/ai-mcp/server'
-import type { OAuthTokenVerifier } from '@tanstack/ai-mcp/server'
-import { findSession } from './sessions'
-
-const verifier: OAuthTokenVerifier = {
-  async verifyAccessToken(token) {
-    const session = await findSession(token)
-    if (session === undefined) {
-      throw new OAuthError(OAuthErrorCode.InvalidToken, 'Unknown token')
-    }
-    return {
-      token,
-      clientId: session.appId,
-      scopes: session.scopes,
-      expiresAt: session.expiresAt,
-      extra: { sub: session.userId },
-    }
-  },
-}
-
-const server = createMCPServer({
-  name: 'notes',
-  version: '1.0.0',
-  auth: { verifier },
-})
-```
-
-`expiresAt` is required. The SDK rejects an `AuthInfo` without it.
-
-## Require a scope
-
-Pass `requiredScopes`. A token without one of those scopes returns 403 with `insufficient_scope`.
-
-```ts
-import { createMCPServer, jwtVerifier } from '@tanstack/ai-mcp/server'
-
-const server = createMCPServer({
-  name: 'notes',
-  version: '1.0.0',
-  auth: {
-    verifier: jwtVerifier({
-      jwksUrl: 'https://auth.example.com/.well-known/jwks.json',
-      issuer: 'https://auth.example.com/',
-      audience: 'https://mcp.example.com/mcp',
-    }),
-    requiredScopes: ['notes:read'],
-  },
-})
-```
+`jwtVerifier` checks the signature, `iss`, `aud`, `exp`, and `nbf`. It reads the keys from `jwksUrl` and caches them. A token that fails one check gets 401.
 
 ## Tell clients where to sign in
 
@@ -176,6 +107,8 @@ export default {
 }
 ```
 
+The two documents:
+
 - `/.well-known/oauth-protected-resource/mcp` is the RFC 9728 document. It names your authorization server.
 - `/.well-known/oauth-authorization-server` is the RFC 8414 document. It is `oauthMetadata`, served as is.
 
@@ -203,9 +136,91 @@ export const listNotes = toolDefinition({
 })
 ```
 
-`authInfo` is `undefined` when the server has no `auth`, and for `createMCPClient({ server })`.
+`authInfo` is `undefined` in two cases:
 
-## Use the auth you already have
+- The server has no `auth`.
+- The client is `createMCPClient({ server })`.
+
+## Require a scope
+
+Pass `requiredScopes`. A token without one of those scopes gets 403 with `insufficient_scope`.
+
+```ts
+import { createMCPServer, jwtVerifier } from '@tanstack/ai-mcp/server'
+
+const server = createMCPServer({
+  name: 'notes',
+  version: '1.0.0',
+  auth: {
+    verifier: jwtVerifier({
+      jwksUrl: 'https://auth.example.com/.well-known/jwks.json',
+      issuer: 'https://auth.example.com/',
+      audience: 'https://mcp.example.com/mcp',
+    }),
+    requiredScopes: ['notes:read'],
+  },
+})
+```
+
+## Advanced
+
+### Verify an opaque token
+
+If your provider issues opaque tokens, pass `introspectionVerifier`. It posts the token to the RFC 7662 introspection endpoint, with the client credentials of your MCP server.
+
+```ts
+import { createMCPServer, introspectionVerifier } from '@tanstack/ai-mcp/server'
+
+const server = createMCPServer({
+  name: 'notes',
+  version: '1.0.0',
+  auth: {
+    verifier: introspectionVerifier({
+      introspectionUrl: 'https://auth.example.com/oauth/introspect',
+      clientId: process.env.OAUTH_CLIENT_ID ?? '',
+      clientSecret: process.env.OAUTH_CLIENT_SECRET ?? '',
+    }),
+  },
+})
+```
+
+A token that is not `active` gets 401. If the endpoint is down, the caller gets 500.
+
+### Write your own verifier
+
+`verifier` is the `OAuthTokenVerifier` type from the MCP SDK. It has one method, `verifyAccessToken`. Return an `AuthInfo`, or throw `OAuthError` with `OAuthErrorCode.InvalidToken`.
+
+```ts
+import { OAuthError, OAuthErrorCode, createMCPServer } from '@tanstack/ai-mcp/server'
+import type { OAuthTokenVerifier } from '@tanstack/ai-mcp/server'
+import { findSession } from './sessions'
+
+const verifier: OAuthTokenVerifier = {
+  async verifyAccessToken(token) {
+    const session = await findSession(token)
+    if (session === undefined) {
+      throw new OAuthError(OAuthErrorCode.InvalidToken, 'Unknown token')
+    }
+    return {
+      token,
+      clientId: session.appId,
+      scopes: session.scopes,
+      expiresAt: session.expiresAt,
+      extra: { sub: session.userId },
+    }
+  },
+}
+
+const server = createMCPServer({
+  name: 'notes',
+  version: '1.0.0',
+  auth: { verifier },
+})
+```
+
+`expiresAt` is required. The SDK rejects an `AuthInfo` without it.
+
+### Use the auth you already have
 
 Your app already checks the caller in a middleware. That middleware puts the user and a database handle on the request. You do not want to check the token a second time in `createMCPServer`.
 
@@ -227,7 +242,7 @@ export async function handleMcp(request: Request) {
 
 `server.fetch(request)` stays a plain Fetch handler. `server.handle` is the same handler with options.
 
-In a tool, name the values you expect with `MCPToolContext`:
+In a tool, name the values that you expect with `MCPToolContext`:
 
 ```ts
 import { toolDefinition } from '@tanstack/ai'
@@ -244,16 +259,19 @@ export const listNotes = toolDefinition({
 })
 ```
 
-- `authInfo` is the SDK `AuthInfo`. A tool or a resource reads it as `ctx.context.authInfo`. A session or a task belongs to its `clientId` plus `extra.sub`.
-- `context` sits next to `authInfo`, `requestInput`, and `sample` on `ctx.context`. Those three names win over a value of yours.
+- `authInfo` is the SDK `AuthInfo`. A tool or a resource reads it as `ctx.context.authInfo`.
+- `context` sits next to `authInfo`, `requestInput`, and `sample` on `ctx.context`. If one of your values has one of those three names, the built-in value wins.
 - `createMCPClient({ server })` passes no `context`.
 
-## Sessions and tasks per caller
+### Sessions and tasks per caller
 
-A spec 2025 session belongs to the caller that opened it. A task belongs to the caller that started it. The caller is the `clientId` of the token plus its `sub` claim. A request from another caller gets "not found".
+When the server has `auth`, each spec 2025 session and each task belongs to one caller:
 
-## Cookie sessions
+- The caller is the `clientId` of the token plus its `sub` claim.
+- A session belongs to the caller that opened it.
+- A task belongs to the caller that started it.
+- A request from another caller gets "not found".
+
+### Cookie sessions
 
 An MCP client like Claude Desktop or Cursor does not send your app cookies. It needs an OAuth authorization server. If your app signs users in with a cookie session only, add an authorization server in front of it. The Better Auth MCP plugin, Keycloak, and the hosted providers above all give you one.
-
-A request with no token, or with a bad token, returns 401. The response names your metadata document. A request with a token from your provider calls the server, and the tool reads the user from `ctx.context.authInfo`.

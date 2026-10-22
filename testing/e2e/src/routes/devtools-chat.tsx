@@ -16,7 +16,7 @@ function DevtoolsChatRoute() {
   const chat = useChat({
     threadId: 'devtools-chat:primary',
     connection: fetchServerSentEvents('/api/chat'),
-    body: { provider: 'openai', feature: 'chat', testId, aimockPort },
+    forwardedProps: { provider: 'openai', feature: 'chat', testId, aimockPort },
     devtools: { name: 'Support Chat' },
   })
 
@@ -72,7 +72,7 @@ function SecondaryChat({
   const secondary = useChat({
     threadId: 'devtools-chat:secondary',
     connection: fetchServerSentEvents('/api/chat'),
-    body: { provider: 'openai', feature: 'chat', testId, aimockPort },
+    forwardedProps: { provider: 'openai', feature: 'chat', testId, aimockPort },
     devtools: { name: 'Secondary Chat' },
   })
 

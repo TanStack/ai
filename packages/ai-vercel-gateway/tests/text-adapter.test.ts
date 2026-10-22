@@ -113,6 +113,7 @@ describe('Vercel Gateway text adapter', () => {
     const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-5.5',
       messages: [{ role: 'user', content: 'hi' }],
       logger: testLogger,
@@ -137,6 +138,7 @@ describe('Vercel Gateway text adapter', () => {
     ])
     const adapter = createVercelGatewayText('openai/gpt-5.5', 'k')
     for await (const _chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'openai/gpt-5.5',
       messages: [{ role: 'user', content: 'hi' }],
       modelOptions: { gateway: { order: ['anthropic'] } },

@@ -1,6 +1,6 @@
 import { ChatClient } from '@tanstack/ai-client'
 import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'octane'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'octane'
 import type {
   AnyClientTool,
   InferSchemaType,
@@ -37,10 +37,8 @@ export function useChat<
   options: UseChatOptions<TTools, TSchema, TContext, TInterrupts>,
 ): UseChatReturn<TTools, TSchema, TInterrupts> {
   // The hook's identity is its `threadId`. Reload with the same `threadId`
-  // restores the same conversation. `hookId` is only a recreation key when no
-  // `threadId` is given. It is never sent on the wire.
-  const hookId = useId()
-  const clientId = options.threadId ?? hookId
+  // restores the same conversation.
+  const clientId = options.threadId
 
   const subscribedRef = useRef(false)
   const activeClientRef = useRef<ChatClient | null>(null)
@@ -93,27 +91,15 @@ export function useChat<
       devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
       initialMessages: messagesToUse,
-      ...(typeof initialOptions.threadId === 'string' &&
-      initialOptions.persistence === true
+      threadId: initialOptions.threadId,
+      ...(initialOptions.persistence === true
         ? {
             persistence: true,
-            threadId: initialOptions.threadId,
             ...(initialOptions.history !== undefined && {
               history: initialOptions.history,
             }),
           }
-        : typeof initialOptions.threadId === 'string' &&
-            initialOptions.persistence
-          ? {
-              persistence: initialOptions.persistence,
-              threadId: initialOptions.threadId,
-            }
-          : {
-              ...(initialOptions.threadId !== undefined && {
-                threadId: initialOptions.threadId,
-              }),
-            }),
-      ...(initialOptions.body !== undefined && { body: initialOptions.body }),
+        : { persistence: initialOptions.persistence }),
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
       }),
@@ -123,6 +109,8 @@ export function useChat<
       ...(initialOptions.context !== undefined && {
         context: initialOptions.context,
       }),
+      ...(initialOptions.byok !== undefined && { byok: initialOptions.byok }),
+      byokProvider: () => optionsRef.current.byokProvider?.(),
       devtools: {
         ...initialOptions.devtools,
         // OCTANE DIVERGENCE: identify this binding as Octane (not 'react') in TanStack AI Devtools.
@@ -248,10 +236,6 @@ export function useChat<
   // fields and rejects explicit `undefined` under EOPT, so guard the optional
   // slots before passing them.
   useEffect(() => {
-    client.updateOptions({ body: options.body })
-  }, [client, options.body])
-
-  useEffect(() => {
     if (options.forwardedProps !== undefined) {
       client.updateOptions({ forwardedProps: options.forwardedProps })
     }
@@ -367,20 +351,6 @@ export function useChat<
     [client],
   )
 
-  const addToolApprovalResponse = useCallback(
-    async (response: { id: string; approved: boolean }) => {
-      await client.addToolApprovalResponse(response)
-    },
-    [client],
-  )
-
-  const resumeInterrupts = useCallback(
-    async (resumeItems: Array<RunAgentResumeItem>, state?: ChatResumeState) => {
-      return await client.resumeInterrupts(resumeItems, state ?? undefined)
-    },
-    [client],
-  )
-
   const resolveInterrupts = useCallback(
     (
       resolution:
@@ -479,19 +449,16 @@ export function useChat<
     setMessages: setMessagesManually,
     clear,
     addToolResult,
-    addToolApprovalResponse,
     queue: snapshot.queue,
     cancelQueued,
     runId: snapshot.runId,
     interrupts: snapshot.interruptState.interrupts,
-    pendingInterrupts: snapshot.interruptState.pendingInterrupts,
     interruptErrors: snapshot.interruptState.interruptErrors,
     resuming: snapshot.interruptState.resuming,
     resolveInterrupts,
     cancelInterrupts,
     retryInterrupts,
     resumeInterruptsUnsafe,
-    resumeInterrupts,
     partial,
     final,
   } as unknown as UseChatReturn<TTools, TSchema, TInterrupts>

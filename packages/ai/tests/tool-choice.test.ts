@@ -38,6 +38,7 @@ async function toolChoiceOfThreeCalls(options: {
     iterations: [toolTurn('tc-1'), toolTurn('tc-2'), stopTurn],
   })
   await chat({
+    threadId: 'thread-1',
     adapter,
     messages: [{ role: 'user', content: 'Hi' }],
     tools: [lookup],
@@ -68,6 +69,7 @@ describe('chat({ toolChoice })', () => {
   it('sends no toolChoice on a call with no tools', async () => {
     const { adapter, calls } = createMockAdapter({ iterations: [stopTurn] })
     await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       toolChoice: 'required',
@@ -88,6 +90,7 @@ describe('chat({ toolChoice })', () => {
       },
     })
     const result = await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Who?' }],
       tools: [lookup],

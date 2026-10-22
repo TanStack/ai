@@ -6,12 +6,10 @@ export { injectByok } from './inject-byok'
 export {
   injectPageWebMCPTools,
   injectRegisterWebMCPTools,
-  injectWebMCPTools,
 } from './inject-web-mcp-tools'
 export type {
   InjectPageWebMCPToolsOptions,
   InjectRegisterWebMCPToolsOptions,
-  InjectWebMCPToolsOptions,
 } from './inject-web-mcp-tools'
 
 // Generation

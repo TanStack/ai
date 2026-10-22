@@ -95,8 +95,8 @@ export interface WorldActivityOptions<
    * `GenerationMiddleware` contract for a custom backend.
    */
   middleware?: Array<GenerationMiddleware>
-  /** Stable conversation/thread id for correlating this run when persisted. */
-  threadId?: string
+  /** Stable conversation/thread id. It is the AG-UI thread id and the persistence key. */
+  threadId: string
   /** Stable run id for correlating this run when persisted. */
   runId?: string
   /**
@@ -145,6 +145,7 @@ function createId(prefix: string): string {
  *
  * const world = await generateWorld({
  *   adapter: reactorWorld('visko-orbis-stable'),
+ *   threadId: 'world-1',
  *   prompt: 'A neon cyberpunk city at night, slow aerial drift',
  * })
  *

@@ -1,0 +1,58 @@
+{
+  "name": "@tanstack/ai-computer-use",
+  "version": "0.1.0",
+  "description": "Provider-agnostic computer use for TanStack AI.",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-computer-use"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:build": "publint --strict",
+    "test:oxlint": "oxlint src --type-aware",
+    "test:coverage": "vitest run --passWithNoTests --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
+    "test:lib": "vitest --passWithNoTests",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "tanstack",
+    "computer-use",
+    "agent"
+  ],
+  "dependencies": {
+    "@tanstack/ai-utils": "workspace:^"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "zod": "^3.0.0 || ^4.0.0"
+  },
+  "devDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@vitest/coverage-v8": "4.1.10",
+    "zod": "^4.2.0"
+  }
+}

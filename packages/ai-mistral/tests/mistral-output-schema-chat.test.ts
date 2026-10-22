@@ -82,6 +82,7 @@ describe('chat({ outputSchema }) with Mistral', () => {
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
 
     const result = await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Return structured output' }],
       outputSchema: {

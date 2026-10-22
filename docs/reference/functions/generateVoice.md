@@ -7,7 +7,7 @@ title: generateVoice
 function generateVoice<TAdapter, TStream>(options): VoiceActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/generateVoice/index.ts:185](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVoice/index.ts#L185)
+Defined in: packages/ai/src/activities/generateVoice/index.ts:188
 
 Voice activity - creates a reusable voice.
 
@@ -45,6 +45,7 @@ import { elevenlabsVoiceDesign, elevenlabsSpeech } from '@tanstack/ai-elevenlabs
 
 const designed = await generateVoice({
   adapter: elevenlabsVoiceDesign('eleven_ttv_v3'),
+  threadId: 'narrator',
   prompt: 'A warm, gravelly narrator in his sixties with a slight Irish lilt',
 })
 
@@ -53,6 +54,7 @@ if (!preview) throw new Error('No voice candidates returned')
 
 const speech = await generateSpeech({
   adapter: elevenlabsSpeech('eleven_v4'),
+  threadId: 'narrator',
   text: 'Once upon a time...',
   voice: preview.voiceId,
 })
@@ -63,6 +65,7 @@ const speech = await generateSpeech({
 ```ts
 const saved = await generateVoice({
   adapter: elevenlabsVoiceDesign('eleven_ttv_v3'),
+  threadId: 'demo-host',
   prompt: 'A bright, upbeat product demo host',
   name: 'Demo Host',
   description: 'Bright, upbeat, mid-30s',

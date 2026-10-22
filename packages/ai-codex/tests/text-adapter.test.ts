@@ -85,6 +85,7 @@ describe('codex in-sandbox adapter', () => {
 
     const chunks = await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: 'gpt-5.5-codex',
         messages: [{ role: 'user', content: 'say pong' }],
         logger: noopLogger,
@@ -126,6 +127,7 @@ describe('codex in-sandbox adapter', () => {
     })
     await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: 'gpt-5.5-codex',
         messages: [{ role: 'user', content: 'use a tool' }],
         logger: noopLogger,
@@ -157,6 +159,7 @@ describe('codex in-sandbox adapter', () => {
     })
     await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: 'gpt-5.5-codex',
         messages: [{ role: 'user', content: 'say pong' }],
         logger: noopLogger,
@@ -180,6 +183,7 @@ describe('codex in-sandbox adapter', () => {
     })
     await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: 'gpt-5.5-codex',
         messages: [{ role: 'user', content: 'say pong' }],
         logger: noopLogger,
@@ -197,6 +201,7 @@ describe('codex in-sandbox adapter', () => {
     const adapter = codexText('gpt-5.5-codex')
     const chunks = await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: 'gpt-5.5-codex',
         messages: [{ role: 'user', content: 'hi' }],
         logger: noopLogger,
@@ -230,6 +235,7 @@ describe('codex in-sandbox adapter', () => {
 
     const chunks = await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: 'gpt-5.5-codex',
         messages: [{ role: 'user', content: 'summarize' }],
         logger: noopLogger,

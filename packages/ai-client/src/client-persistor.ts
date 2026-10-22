@@ -7,15 +7,6 @@ import type {
   UIMessage,
 } from './types'
 
-/** Normalize a raw `getItem` result (legacy bare array or combined record). */
-function normalizePersistedState(
-  raw: ChatPersistedState | Array<UIMessage> | null | undefined,
-): ChatPersistedState | undefined {
-  if (Array.isArray(raw)) return { messages: raw }
-  if (raw && Array.isArray(raw.messages)) return raw
-  return undefined
-}
-
 // `StreamChunk` is a discriminated union; `toolCallId` / `messageId` /
 // `parentMessageId` exist on only some members. Narrow with `in` (matching
 // `getChunkRunId`) instead of asserting a shape, so the field's real type is
@@ -71,6 +62,9 @@ export class ChatPersistor {
   // so a full page reload restores both from a single adapter key.
   private lastMessages: Array<UIMessage> = []
   private lastResume: ChatResumeSnapshot | null = null
+  // The stored value is in the 0.x format (a bare `UIMessage[]`). 1.0 does not
+  // read it, and must not overwrite it either, so writes stop until a clear.
+  private legacyStored = false
 
   // --- clear-during-stream suppression state ---
   private readonly clearedMessageIds = new Set<string>()
@@ -88,6 +82,7 @@ export class ChatPersistor {
 
   /** Persist the current state as one combined `{ messages, resume? }` record. */
   private writeState(): void {
+    if (this.legacyStored) return
     const messages = [...this.lastMessages]
     // Nothing to persist (no transcript, no resume pointer): remove the key
     // rather than writing an empty `{ messages: [] }`, so a cleared
@@ -119,6 +114,21 @@ export class ChatPersistor {
   // Storage orchestration
   // ---------------------------------------------------------------------------
 
+  /** Validate a raw `getItem` result. */
+  private normalize(
+    raw: ChatPersistedState | null | undefined,
+  ): ChatPersistedState | undefined {
+    if (Array.isArray(raw)) {
+      this.legacyStored = true
+      console.error(
+        `[TanStack AI] The stored chat for threadId "${this.id}" is in the 0.x format (a bare message array). TanStack AI 1.0 does not read this format, so the chat starts empty and the stored value is not overwritten. Clear the chat or the stored value to start saving again.`,
+      )
+      return undefined
+    }
+    if (raw && Array.isArray(raw.messages)) return raw
+    return undefined
+  }
+
   /**
    * Synchronously read the persisted state for constructor-time hydration.
    * Returns the normalized combined record, or a promise of it for async stores.
@@ -130,9 +140,9 @@ export class ChatPersistor {
     try {
       const raw = this.adapter.getItem(this.id)
       if (raw instanceof Promise) {
-        return raw.then(normalizePersistedState).catch(() => undefined)
+        return raw.then((value) => this.normalize(value)).catch(() => undefined)
       }
-      const state = normalizePersistedState(raw)
+      const state = this.normalize(raw)
       if (state) {
         this.lastMessages = state.messages
         this.lastResume = state.resume ?? null
@@ -206,6 +216,7 @@ export class ChatPersistor {
 
   /** Remove the persisted conversation. Invalidates any queued writes. */
   remove(): void {
+    this.legacyStored = false
     this.lastMessages = []
     this.lastResume = null
     const generation = ++this.generation

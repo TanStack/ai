@@ -10,6 +10,7 @@ import {
 const INTEGRATION_HEADER = 'X-Pplx-Integration'
 
 const unusedContext = {
+  threadId: 'thread-1',
   emitCustomEvent: () => {},
 }
 

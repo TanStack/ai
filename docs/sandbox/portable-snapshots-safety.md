@@ -5,9 +5,7 @@ order: 16
 description: "See which workspace paths a portable snapshot stores, and how capture treats secrets and unsafe files."
 ---
 
-You do not want secrets, git metadata, or install trees in durable storage. The
-default snapshot policy excludes those paths. When a capture or restore finds
-an unsafe filesystem entry, it stops.
+The default snapshot policy excludes secrets, git metadata, and install trees. A capture or restore stops when it finds an unsafe filesystem entry.
 
 Portable snapshots store regular files and directories only. When a capture or
 restore finds a symlink, an executable file, or a special filesystem entry, it

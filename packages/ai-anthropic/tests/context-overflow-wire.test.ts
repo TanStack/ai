@@ -15,6 +15,7 @@ async function runError(response: Response) {
   })
   const chunks: Array<StreamChunk> = []
   for await (const chunk of adapter.chatStream({
+    threadId: 'thread-1',
     logger,
     model,
     messages: [{ role: 'user', content: 'Hi' }],

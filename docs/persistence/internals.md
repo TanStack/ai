@@ -1,7 +1,7 @@
 ---
 title: How Persistence Works (Advanced)
 id: internals
-description: "The two durability layers and how they differ, thread and run identity, who owns history when both sides persist, what a reload restores, and the middleware lifecycle behind every backend."
+description: "How persistence works: the two durability layers, thread and run identity, who owns history, what a reload restores, and the middleware lifecycle."
 keywords:
   - persistence internals
   - delivery durability vs state persistence
@@ -10,28 +10,29 @@ keywords:
   - middleware lifecycle
 ---
 
-Read this when something surprised you, or before you write a backend. To simply set
-persistence up, [the overview](./overview) is three snippets.
+This page describes the calls a reload makes. To set persistence up, use [the overview](./overview).
 
-## Two layers, not one
+## The short version
 
-| Layer | Answers | Lives | Docs |
+- **Two layers.** Delivery durability replays a live stream. State persistence stores the conversation. They share no code, and most apps want both.
+- **Two ids.** A thread is the conversation. A run is one execution inside it. Restore starts from the thread.
+- **Merge by id.** `withPersistence` merges the incoming messages into the stored thread by message id, then saves the full list.
+- **Isolation is your job.** Store methods take a bare `threadId`. Authorize the user before you load or save.
+
+## How it works
+
+### Two layers
+
+| Layer | Answers | Lives in | Docs |
 | --- | --- | --- | --- |
-| **Delivery durability** | "how do I reconnect to a stream that is still running?" | a per-run log, keyed by `runId` | [Resumable Streams](../resumable-streams/overview) |
-| **State persistence** | "what is the conversation, and is it still there later?" | a durable store (client and/or server) | this section |
+| **Delivery durability** | "How do I reconnect to a stream that still runs?" | A log per run, keyed by `runId` | [Resumable Streams](../resumable-streams/overview) |
+| **State persistence** | "What is the conversation, and is it still there later?" | A durable store, on the client, the server, or both | This section |
 
-They share no code. Delivery durability replays a live byte stream so a dropped
-connection resumes exactly where it stopped. State persistence stores the
-conversation itself, so it survives a reload or exists on another device. A replayable
-stream is not a saved conversation, and a saved conversation is not a live stream.
-Most real apps want both.
+Delivery durability replays a live byte stream, so a dropped connection resumes where it stopped. State persistence stores the conversation itself, so it survives a reload and opens on another device. A replayable stream is not a saved conversation. A saved conversation is not a live stream.
 
-## Identity: threads and runs
+### Threads and runs
 
-A **thread** (`threadId`) is the conversation: stable, survives reloads, exists on
-every device. A **run** (`runId`) is one execution inside it, minted fresh for each
-streamed answer. A thread accumulates many runs; delivery durability logs one run,
-state persistence stores the whole thread.
+A **thread** (`threadId`) is the conversation. It is stable, survives reloads, and exists on every device. A **run** (`runId`) is one execution inside the thread, made fresh for each streamed answer. A thread collects many runs. Delivery durability logs one run. State persistence stores the whole thread.
 
 ```mermaid
 flowchart TB
@@ -56,85 +57,52 @@ replays the live stream to a reconnecting client"]
     thread -- "saved on finish, loaded on mount" --> store
 ```
 
-Run ids are too ephemeral to reconnect by, since a reloading client may not know the
-current one. Reconnection resolves from the stable `threadId` instead: the store
-answers "does this thread have a live run?" (`findActiveRun`), and only then does the
-client tail that run's log. [Id map](./id-map) is the short version of both ids.
+A reloading client does not always know the current run id, so it cannot reconnect by run. It reconnects from the stable `threadId`. The store answers "does this thread have a live run?" with `findActiveRun`. Only then does the client read that run's log. [Id map](./id-map) is the short version of both ids.
 
 ### Isolation is yours to enforce
 
-Store APIs take a bare `threadId` string, which keeps adapters simple and makes
-multi-user isolation your job:
+Store APIs take a bare `threadId` string. That keeps adapters simple, and it makes multi-user isolation your job:
 
-- Derive `Scope.userId` / `Scope.tenantId` **server-side** from session state.
-- Authorize before `loadThread` / `saveThread` / `reconstructChat`, with
-  `reconstructChat({ authorize })`.
-- Never treat a client-supplied thread id as ownership. Thread ids are guessable.
+1. Derive `Scope.userId` and `Scope.tenantId` on the server, from session state.
+2. Authorize before `loadThread`, `saveThread`, and `reconstructChat`. Use `reconstructChat(persistence, request, { authorize })`.
+3. Never treat a thread id from the client as proof of ownership. Thread ids are easy to guess.
 
-`Scope` is re-exported from `@tanstack/ai-persistence`, so the identity type sits next
-to the store contracts.
+`Scope` is re-exported from `@tanstack/ai-persistence`, next to the store contracts.
 
-## Who owns history when both sides persist
+### Who owns history when both sides persist
 
-`withPersistence` merges incoming `messages` into the stored thread by id:
+`withPersistence` merges the incoming `messages` into the stored thread by id:
 
-- **Empty `messages`**: continue from the stored transcript. The server loads
-  its copy and runs from there.
-- **Non-empty `messages`**: merge by id. The last incoming id that already
-  exists in stored is a cutoff. Stored messages after it are dropped. Incoming
-  wins on the same id. New ids are appended.
+- **Empty `messages`**: the server loads its stored transcript and continues from it.
+- **Non-empty `messages`**: the last incoming id that already exists in the stored thread is a cutoff. Stored messages after it are dropped. On the same id, the incoming message wins. New ids are appended.
 
-`saveThread` replaces the stored thread with that merged list.
+`saveThread` then replaces the stored thread with the merged list.
 
-Two postures:
+There are two postures:
 
-- **Client-authoritative**, closest to a pure SPA. The client sends its
-  in-memory list. Merge keeps stored extras the client omitted, unless a
-  shared id cuts the stored tail (reload).
-- **Server-authoritative**: the same thread opens on another device. With
-  `history: { pageSize }`, the client posts only the new turn. Reload posts
-  the last user. Resume posts from that user through the painted assistant.
-  Merge keeps stored extras that sit before the cutoff.
+- **Client-authoritative**, close to a pure single-page app. The client sends its full in-memory list. The merge keeps stored messages that the client left out, unless a shared id cuts the stored tail (a reload).
+- **Server-authoritative**: the same thread opens on another device. With `history: { pageSize }`, the client posts only the new turn. A reload posts the last user message. A resume posts from that user message through the assistant message on screen. The merge keeps stored messages before the cutoff.
 
-## What a reload restores
+### What a reload restores
 
-With a client store adapter, `useChat` reads the client record on load and acts on
-what it finds:
+With a client storage adapter, `useChat` reads the client record on load. Then it does one of three things:
 
-1. **The run had finished.** The record has the transcript and no resume pointer. The
-   conversation paints instantly from storage, with no network.
-2. **The run was paused on an interrupt.** The resume pointer carries the pending
-   interrupts, so the transcript paints and the approval UI comes back as it was.
-3. **The run was still streaming.** The transcript paints from storage, then the
-   client rejoins the live run through the durability log and the reply finishes in
-   place. This is the one case that needs both layers.
+1. **The run had finished.** The record has the transcript and no resume pointer. The conversation paints from storage, with no network.
+2. **The run had paused on an interrupt.** The resume pointer holds the pending interrupts. The transcript paints, and the approval UI comes back as it was.
+3. **The run was still streaming.** The transcript paints from storage. Then the client rejoins the live run through the durability log, and the reply finishes in place. Only this case needs both layers.
 
-A dropped connection while the page is still open is simpler: delivery durability
-reconnects on its own. Persistence matters once the page itself is gone.
+If the connection drops while the page stays open, delivery durability reconnects by itself. Persistence matters when the page itself is gone.
 
-Server-authoritative mode paints from a server read instead of `localStorage`.
-A GET with `limit` returns the newest window and `page`. An older window uses
-`before`. The delivery log cannot supply that history, because it holds one
-run, not the thread.
+In server-authoritative mode, the client paints from a server read, not from `localStorage`. A `GET` with `limit` returns the newest window and a `page` object. An older window uses `before`. The delivery log cannot supply that history, because it holds one run, not the thread.
 
-Both layers assume the work itself is over by the time the client comes back:
-replaying a log and reading a transcript are both reads of something already
-produced. A long-running **sandboxed agent** is the case where neither is enough,
-because the run is still going and its producer was the host that disappeared. That
-needs a third thing, a later request that adopts the run and keeps driving it. See
-[Takeover & Detached Runs](../sandbox/takeover).
+Both layers expect the work to be over when the client comes back. Replaying a log and reading a transcript both read something that already exists. A long-running **sandboxed agent** is different: the run still goes on, and its producer was the host that disappeared. That needs a later request that adopts the run and keeps driving it. See [Takeover & Detached Runs](../sandbox/takeover).
 
-## Why server-authoritative is the recommended default
+### Why server-authoritative is the recommended default
 
-- **One source of truth.** History lives on the server, so no two copies can drift.
-  The same conversation opens on any device and survives a restart.
-- **A cheap client.** The browser never parses or stores a long transcript, so there
-  is no storage quota or startup-parse cost, even for huge threads.
-- **Reload durability anyway.** The mount `GET` re-paints the transcript and reports
-  any `activeRun`, so the client rejoins it and restores pending interrupts.
-- **No wasted work.** That `GET` shares the route with the durable-stream resume, and
-  `loadThread` returns ready-made messages instead of replaying a stream to rebuild
-  them.
+- **One source of truth.** History lives on the server, so two copies cannot drift apart. The same conversation opens on any device and survives a restart.
+- **A light client.** The browser never parses or stores a long transcript. There is no storage quota and no parse cost at startup, even for very long threads.
+- **Reloads still work.** The mount `GET` paints the transcript again and reports any `activeRun`. The client rejoins that run and restores pending interrupts.
+- **No wasted work.** That `GET` shares the route with the stream resume. `loadThread` returns ready messages, so nothing replays a stream to rebuild them.
 
 ```mermaid
 sequenceDiagram
@@ -149,81 +117,59 @@ sequenceDiagram
     Store-->>Route: messages + activeRun (runId)
     Route-->>Hook: transcript + activeRun cursor
     Note over Hook: transcript paints
-    Hook->>Route: ?runId=…&offset=-1
+    Hook->>Route: ?runId=...&offset=-1
     Route->>Log: resumeServerSentEventsResponse
     Log-->>Hook: replay + live tail of the run
     Note over Hook: reply finishes in place
 ```
 
-## Separate boundaries
+## Advanced
 
-Server state persistence is one of three boundaries that intentionally share no
-code:
+### Separate boundaries
 
-- **Server state** (this page): `AIPersistence` stores driven by the middleware
-  lifecycle, the authoritative record.
-- **Client hydration**: the browser restores a rendered conversation, a separate
-  concern covered in [Client persistence](./client-persistence).
-- **Stream delivery**: replaying an in-flight SSE response,
-  [Resumable Streams](../resumable-streams/overview).
+Server state persistence is one of three boundaries that share no code:
 
-State middleware never mutates chunks to add delivery offsets, and it stores
-server event state, not the client's rendered messages.
+- **Server state** (this page): `AIPersistence` stores that the middleware lifecycle drives. This is the authoritative record.
+- **Client hydration**: the browser restores a rendered conversation. See [Client persistence](./client-persistence).
+- **Stream delivery**: replay of an in-flight SSE response. See [Resumable Streams](../resumable-streams/overview).
 
-## Chat middleware lifecycle
+State middleware never changes chunks to add delivery offsets. It stores server event state, not the messages that the client rendered.
 
-`withPersistence(persistence)` derives a plan from store presence:
+### Chat middleware lifecycle
 
-1. `setup` provides persistence, interrupt, and lock capabilities when their
-   stores exist.
-2. `onConfig` creates or resumes the run, seeds usage from the existing run
-   record, loads pending interrupts, and validates the request's resume batch
-   against them, then merges stored messages into the request by id. An empty
-   list loads the stored thread.
-3. `onUsage` accumulates each provider terminal.
-4. `onChunk` reacts only to a `RUN_FINISHED` interrupt outcome. A direct adapter
-   terminal arrives before `onUsage`, so the handler includes its usage and
-   ignores the following `onUsage`. A synthesized tool boundary arrives after
-   the original terminal's `onUsage`, so the handler reuses that aggregate. It
-   then commits accepted resumes, stores the new interrupts, marks the run
-   interrupted, and saves messages.
-5. Before `onFinish`, the chat engine appends the completed terminal assistant
-   messages to `ctx.messages`. Native-combined output keeps the structured
-   result on its terminal assistant message. Separate finalization and
-   event-sourced harness output append a second structured-output message only
-   when that event uses a different message id.
-6. `onFinish` saves that canonical transcript before marking the run completed.
-   `onError` terminalizes the run record without replacing the transcript. Both
-   retain known usage. So does terminal `onAbort`, with one exception: on a run
-   another middleware has declared detachable, a plain disconnect (no cancel
-   recorded in either band) writes nothing and leaves the record `'running'`
-   for a later takeover. See
-   [Takeover & Detached Runs](../sandbox/takeover#detach-vs-cancel).
+`withPersistence(persistence)` makes a plan from the stores that are present. Then it acts at these hooks:
 
-Accepted resumes are committed (interrupts marked resolved/cancelled) only once
-the run reaches a successful boundary, so a provider failure or abort between
-accepting a resume and reaching that boundary leaves the interrupt pending and a
-retry with the same resume succeeds. The canonical AG-UI chunk stream remains
-unchanged; persistence does not create a second event stream.
+1. **`setup`** provides the persistence capability, a run-completion capability, and the core metadata and interrupts capabilities when those stores exist. It does not provide locks.
+2. **`onConfig`** creates or resumes the run and seeds usage from the run record. It loads pending interrupts and validates the resume batch of the request against them. Then it merges stored messages into the request by id. An empty list loads the stored thread.
+3. **`onStart`** saves the pending turn, so a reload during generation still shows the question. This save is best-effort.
+4. **`onUsage`** adds up the usage of each provider terminal.
+5. **`onChunk`** reacts only to a `RUN_FINISHED` with an interrupt outcome. It commits the accepted resumes, stores the new interrupts, marks the run interrupted, and saves the messages.
+6. **`onFinish`** saves the full transcript first, then marks the run completed.
 
-`withPersistence` merges incoming `messages` into the stored thread by id.
-If `messages` is empty, the stored transcript is loaded and used.
-If `messages` is not empty, stored extras stay, new ids append, and the same
-id uses the incoming message. `saveThread` replaces the stored thread with
-that merged list.
+Usage at the interrupt boundary has two cases. A direct adapter terminal arrives before `onUsage`, so the handler includes its usage and ignores the next `onUsage`. A synthesized tool boundary arrives after the original terminal's `onUsage`, so the handler reuses that total.
 
-## Reading the stores from your own middleware
+Before `onFinish`, the chat engine adds the completed terminal assistant messages to `ctx.messages`:
 
-Your own middleware often needs the same stores `withPersistence` is already
-holding: an audit step that writes to `metadata`, a guard that checks pending
-interrupts. Passing the persistence object in twice works but drifts, because
-the middleware and your code can end up with different instances.
+- Native-combined output keeps the structured result on its terminal assistant message.
+- Separate finalization and event-sourced harness output add a second structured-output message only when that event uses a different message id.
 
-`withPersistence` publishes what it holds as capabilities instead. Declare what
-you need in `requires`, then read it off the context:
+`onError` terminalizes the run record and does not replace the transcript. `onFinish`, `onError`, and a terminal `onAbort` all keep the usage known so far. One exception: on a run that another middleware has declared detachable, a plain disconnect (no cancel recorded in either band) writes nothing. The record stays `'running'` for a later takeover. See [Takeover & Detached Runs](../sandbox/takeover#detach-vs-cancel).
+
+Accepted resumes are committed (interrupts marked resolved or cancelled) only at a successful boundary. If a provider failure or an abort happens between accepting a resume and reaching that boundary, the interrupt stays pending. A retry with the same resume then succeeds.
+
+The AG-UI chunk stream does not change. Persistence does not create a second event stream.
+
+### Reading the stores from your own middleware
+
+Your own middleware often needs the stores that `withPersistence` already holds: an audit step that writes to `metadata`, or a guard that checks pending interrupts. If you pass the persistence object in twice, the two copies can drift apart. Read the stores as capabilities instead. Declare them in `requires`, then read them from the context:
 
 ```ts
-import { chat, defineChatMiddleware, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  chat,
+  chatParamsFromRequest,
+  defineChatMiddleware,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import {
   InterruptsCapability,
@@ -239,7 +185,7 @@ const persistence = memoryPersistence()
 
 const auditPending = defineChatMiddleware({
   name: 'audit-pending',
-  // Fails fast at setup when the capability was never provided.
+  // Fails at setup when no middleware provided the capability.
   requires: [PersistenceCapability, InterruptsCapability],
   async setup(ctx: ChatMiddlewareContext) {
     const stores = getPersistence(ctx).stores
@@ -252,57 +198,45 @@ const auditPending = defineChatMiddleware({
 })
 
 export async function POST(request: Request) {
-  const { messages, threadId } = await request.json()
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
   const stream = chat({
-    adapter: openaiText('gpt-5.5'),
+    adapter: openaiText('gpt-6.1-sol'),
     messages,
     threadId,
-    // Order matters: the provider runs before the consumer.
+    runId,
+    // Order matters: the provider comes before the consumer.
     middleware: [withPersistence(persistence), auditPending],
   })
   return toServerSentEventsResponse(stream)
 }
 ```
 
-Two capabilities are published:
+The capabilities that `withPersistence` publishes:
 
-- `PersistenceCapability`, read with `getPersistence(ctx)`: the whole
-  `AIPersistence` object, so any store it exposes is reachable.
-- `InterruptsCapability`, read with `getInterrupts(ctx)`: the `interrupts` store
-  alone, published only when persistence actually has one.
+| Capability | Read with | Gives you | Published when |
+| --- | --- | --- | --- |
+| `PersistenceCapability` | `getPersistence(ctx)` | The whole `AIPersistence` object | Always |
+| `InterruptsCapability` | `getInterrupts(ctx)` | The `interrupts` store | The backend has an `interrupts` store |
+| `PersistenceCompletionCapability` | `getPersistenceCompletion(ctx)` | `waitForRunCompletion()` | Always |
+| `MetadataCapability` (from `@tanstack/ai`) | `getMetadata(ctx)` | The `metadata` store | The backend has a `metadata` store |
 
-`providePersistence` and `provideInterrupts` are the write halves, for a
-middleware of your own that supplies the stores instead of `withPersistence`.
-Locks are not part of this: they are a separate capability from
-[`@tanstack/ai/locks`](../advanced/locks).
+`providePersistence` and `provideInterrupts` are the write halves. Use them in a middleware of your own that supplies the stores in place of `withPersistence`. Locks are a separate capability from [`@tanstack/ai/locks`](../advanced/locks).
 
-## Generation middleware lifecycle
+### Generation middleware lifecycle
 
-`withGenerationPersistence(persistence)` records the job across
-three points:
+`withGenerationPersistence(persistence)` records the job at three points:
 
 - `onStart` creates or resumes the run record.
-- `onFinish` / `onError` / `onAbort` terminalize it.
-- A result transform captures the terminal result metadata (ids, urls, never
-  media bytes) onto the record.
+- `onFinish`, `onError`, and `onAbort` terminalize it.
+- A result transform writes the terminal result metadata (ids and URLs, never media bytes) onto the record.
 
-When `artifacts` and `blobs` are both provided it also persists the generated
-media and merges the durable refs onto both the result and the run record.
+When `artifacts` and `blobs` are both present, it also stores the generated media. Then it merges the durable refs onto the result and onto the run record.
 
-Generation uses its own `generationRuns` store (`GenerationRunStore`), never chat's
-`runs` / `messages`. A generation has no conversation, so the run is keyed on
-its own `runId` (`ctx.runId ?? ctx.requestId`), and `threadId` never becomes the
-job's primary identity.
+Generation uses its own `generationRuns` store (`GenerationRunStore`), never the chat `runs` or `messages` stores. A generation has no conversation, so the run is keyed on its own `runId` (`ctx.runId ?? ctx.requestId`). The `threadId` is never the primary identity of the job.
 
-`threadId` is nonetheless **required**: it is the slot the run is filed under,
-and `GenerationRunRecord.threadId` is a required field. The middleware resolves
-it as `opts.threadId ?? ctx.threadId` (normally the `threadId` the caller
-passed the activity, with the option as an override) and **throws** when
-neither supplies one. It is never faked from the request id: a run filed under
-an invented scope can never be hydrated by one, so restoring would silently
-return nothing forever.
+The `threadId` is still **required**. It is the slot that the run is filed under, and `GenerationRunRecord.threadId` is a required field. The middleware resolves it as `opts.threadId ?? ctx.threadId`: normally the `threadId` that the caller passed to the activity, with the option as an override. When neither gives one, the middleware **throws**. It never makes one up from the request id. Nothing can find a run that is filed under an invented scope, so restore returns nothing forever.
 
-## Composition semantics
+### Composition semantics
 
 ```ts
 import {
@@ -323,42 +257,32 @@ const result = composePersistence(base, {
 ```
 
 - `messages` is replaced.
-- `metadata` is inherited because the override is `undefined`.
+- `metadata` is inherited, because the override is `undefined`.
 - `interrupts` is removed.
-- every omitted store is inherited.
+- Every store that you leave out is inherited.
 
-Composition copies the store map and does not mutate or dispose either input.
-The return type calculates which keys are required, optional, replaced, or
-removed. Unknown store keys are rejected statically and by runtime validation.
+Composition copies the store map. It does not change or dispose of either input. The return type works out which keys are required, optional, replaced, or removed. Unknown store keys fail at compile time and at runtime.
 
-Middleware adds entrypoint validation:
+Each entrypoint adds its own runtime check:
 
-- chat requires `messages`; rejects `interrupts` without `runs`.
-- generation requires `generationRuns`.
-- `reconstructChat` requires `messages`.
-- `reconstructGeneration` requires `generationRuns`.
+| Entrypoint | Rule |
+| --- | --- |
+| `withPersistence` | Requires `messages`. Rejects `interrupts` without `runs`. |
+| `withGenerationPersistence` | Requires `generationRuns`. Requires `artifacts` and `blobs` together. |
+| `reconstructChat` | Requires `messages`. |
+| `reconstructGeneration` | Requires `generationRuns`. |
 
-The runtime checks are required because JavaScript, configuration loading, and
-explicitly widened types can bypass static guarantees.
+The runtime checks are necessary because plain JavaScript, loaded configuration, and widened types can get past the static checks.
 
-## Backend ownership
+### Backend ownership
 
-An adapter owns its own resources: connection lifecycle, when migrations run, and
-how each store record maps to rows. The middleware only calls the store methods;
-it never opens a connection or inspects a table. A backend may provide any subset
-of the stores (for example, no `metadata`), and the return type reflects exactly the
-stores it exposes. [Build a chat adapter](./build-your-own-chat-adapter) shows
-this end to end for SQLite.
+An adapter owns its resources: the connection lifecycle, when migrations run, and how each store record maps to rows. The middleware only calls store methods. It never opens a connection or reads a table. A backend can provide any subset of the stores (for example, no `metadata`), and the return type shows exactly the stores that it has. [Build a chat adapter](./build-your-own-chat-adapter) shows this end to end for SQLite.
 
-`composePersistence` does not add distributed transactions. When related
-stores use different systems, adapter authors must define retry,
-idempotency, and consistency behavior.
+`composePersistence` does not add distributed transactions. When related stores use different systems, the adapter author defines the retry, idempotency, and consistency behavior.
 
-Two `RunStore` details bind an adapter author beyond the obvious mapping, and
-both exist for durable runs. `update` must round-trip `driverEpoch` (the fencing
-token a takeover bumps, and the only way a superseded host can discover it lost
-the run), and it must distinguish an **omitted** patch key (leave the column
-alone) from a key carrying `undefined` (clear the column). The takeover path
-clears `detachedSince` exactly that way. See
-[Build your own adapter](./build-your-own-adapter) and
-[Takeover & Detached Runs](../sandbox/takeover#requirements).
+Two `RunStore` rules apply to durable runs:
+
+- `update` must round-trip `driverEpoch`. A takeover increments this fencing token, and it is the only way a replaced host learns that it lost the run.
+- `update` must tell an **omitted** patch key (leave the column alone) apart from a key set to `undefined` (clear the column). The takeover path clears `detachedSince` that way.
+
+See [Build your own adapter](./build-your-own-adapter) and [Takeover & Detached Runs](../sandbox/takeover#requirements).

@@ -14,8 +14,8 @@ const messages = [{ role: 'user' as const, content: 'hi' }]
 chat({ adapter: models.acme, messages })
 
 // One provider's adapter is fully typed.
-chat({ adapter: models.acme.create('sk'), messages })
+chat({ threadId: 'thread-1', adapter: models.acme.create('sk'), messages })
 
 // The adapter picked from a request is accepted too.
 const picked = keyedAdapterFromRequest(new Request('http://x'), models)
-if (picked) chat({ adapter: picked, messages })
+if (picked) chat({ threadId: 'thread-1', adapter: picked, messages })

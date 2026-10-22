@@ -171,7 +171,6 @@ interface DevtoolsMiddlewareContext {
   streamId: string
   runId: string
   threadId: string
-  conversationId?: string
   provider: string
   model: string
   source: 'client' | 'server'
@@ -267,7 +266,7 @@ function buildEventContext(ctx: DevtoolsMiddlewareContext) {
     threadId: ctx.threadId,
     provider: ctx.provider,
     model: ctx.model,
-    clientId: ctx.conversationId,
+    clientId: ctx.threadId,
     source: ctx.source,
     // Devtools wire payload is plain strings; per-prompt metadata is
     // irrelevant for observation and would require devtools-UI changes to
@@ -331,14 +330,12 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
         timestamp: Date.now(),
       })
 
-      // Emit text:message:created for initial messages
+      // Emit text:message:created for the new user message
       const messages = ctx.messages
-      const messagesToEmit = ctx.conversationId
-        ? messages.slice(-1).filter((m) => m.role === 'user')
-        : messages
+      const messagesToEmit = messages.slice(-1).filter((m) => m.role === 'user')
 
-      messagesToEmit.forEach((message, index) => {
-        const messageIndex = ctx.conversationId ? messages.length - 1 : index
+      messagesToEmit.forEach((message) => {
+        const messageIndex = messages.length - 1
         const messageId = ctx.createId('msg')
         const base = buildEventContext(ctx)
         const content = getContentString(message.content)

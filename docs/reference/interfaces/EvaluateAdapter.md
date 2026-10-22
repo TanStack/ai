@@ -3,7 +3,7 @@ id: EvaluateAdapter
 title: EvaluateAdapter
 ---
 
-Defined in: [packages/ai/src/activities/evaluate/adapter.ts:150](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/adapter.ts#L150)
+Defined in: packages/ai/src/activities/evaluate/adapter.ts:150
 
 Evaluate adapter interface with pre-resolved generics.
 
@@ -32,7 +32,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [packages/ai/src/activities/evaluate/adapter.ts:164](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/adapter.ts#L164)
+Defined in: packages/ai/src/activities/evaluate/adapter.ts:164
 
 **`Internal`**
 
@@ -52,7 +52,7 @@ providerOptions: TProviderOptions;
 evaluate: (options) => Promise<EvaluateAdapterResult>;
 ```
 
-Defined in: [packages/ai/src/activities/evaluate/adapter.ts:172](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/adapter.ts#L172)
+Defined in: packages/ai/src/activities/evaluate/adapter.ts:172
 
 Evaluate typed questions against `state`. Return the provider payload.
 Do not invent unified `.value` fields. The activity maps wire answers.
@@ -75,7 +75,7 @@ Do not invent unified `.value` fields. The activity maps wire answers.
 readonly kind: "evaluate";
 ```
 
-Defined in: [packages/ai/src/activities/evaluate/adapter.ts:155](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/adapter.ts#L155)
+Defined in: packages/ai/src/activities/evaluate/adapter.ts:155
 
 Discriminator for adapter kind
 
@@ -87,7 +87,7 @@ Discriminator for adapter kind
 readonly model: TModel;
 ```
 
-Defined in: [packages/ai/src/activities/evaluate/adapter.ts:159](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/adapter.ts#L159)
+Defined in: packages/ai/src/activities/evaluate/adapter.ts:159
 
 The model this adapter is configured for
 
@@ -99,6 +99,6 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: [packages/ai/src/activities/evaluate/adapter.ts:157](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/adapter.ts#L157)
+Defined in: packages/ai/src/activities/evaluate/adapter.ts:157
 
 Adapter name identifier

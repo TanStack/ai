@@ -40,6 +40,7 @@ for (const { name, create } of adapters) {
     let finished = false
     for await (const chunk of chat({
       adapter,
+      threadId: testId,
       messages: [
         { role: 'user', content: '[gemini-3.8-flash] recommend a guitar' },
       ],

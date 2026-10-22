@@ -39,6 +39,7 @@ export const Route = createFileRoute('/api/transcription')({
           }
 
           const result = await generateTranscription({
+            threadId: 'panel-transcription',
             adapter,
             audio: audioData,
             language: language || undefined,

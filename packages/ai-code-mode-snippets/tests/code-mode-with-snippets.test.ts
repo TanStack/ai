@@ -23,7 +23,7 @@ const snippet: Snippet = {
 }
 
 describe('codeModeWithSnippets', () => {
-  it('passes the abort signal and runtime context through snippet_* to external_* calls', async () => {
+  it('passes the abort signal, thread id, and runtime context through snippet_* to external_* calls', async () => {
     const fetchData = vi.fn().mockResolvedValue('ok')
     const tool = toolDefinition({
       name: 'fetchData',
@@ -45,6 +45,7 @@ describe('codeModeWithSnippets', () => {
     }
 
     const { toolsRegistry } = await codeModeWithSnippets({
+      threadId: 'thread-1',
       config: { driver, tools: [tool] },
       adapter: {} as AnyTextAdapter,
       snippets: { storage: createMemorySnippetStorage([snippet]) },
@@ -56,6 +57,7 @@ describe('codeModeWithSnippets', () => {
       { typescriptCode: 'return await snippet_load({})' },
       {
         emitCustomEvent: vi.fn(),
+        threadId: 'thread-1',
         abortSignal: controller.signal,
         context: { userId: 'u1' },
       },
@@ -64,6 +66,7 @@ describe('codeModeWithSnippets', () => {
     expect(fetchData).toHaveBeenCalledWith(
       {},
       expect.objectContaining({
+        threadId: 'thread-1',
         abortSignal: controller.signal,
         context: { userId: 'u1' },
       }),

@@ -80,6 +80,8 @@ export type {
   BlockOrderEntry,
   OrderedAssistantBlock,
 } from './utilities/block-order'
+export { getComputerUseToolMetadata } from './tools/computer-use'
+export type { ComputerUseToolMetadata } from './tools/computer-use'
 export {
   transformMessagesForReplay,
   hashToolCallId,

@@ -15,6 +15,7 @@
     filter: (tool) => tool.name !== 'blocked',
   })
   createChat({
+    threadId: 'thread-1',
     connection,
     get tools() {
       return page.tools

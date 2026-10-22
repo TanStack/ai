@@ -12,7 +12,7 @@ export interface ElevenLabsCatalogModel {
   rawId?: unknown
   firstSeenAt?: unknown
   deprecatedAt?: unknown
-  capabilities?: {
+  providerMetadata?: {
     canDoTextToSpeech?: unknown
   } | null
 }
@@ -26,7 +26,7 @@ function isListedTtsModel(
   model: ElevenLabsCatalogModel,
 ): model is ElevenLabsCatalogModel & { rawId: string } {
   return (
-    model.capabilities?.canDoTextToSpeech === true &&
+    model.providerMetadata?.canDoTextToSpeech === true &&
     model.deprecatedAt == null &&
     typeof model.rawId === 'string' &&
     SAFE_ID.test(model.rawId)

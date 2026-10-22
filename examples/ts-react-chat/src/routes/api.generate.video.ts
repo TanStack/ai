@@ -38,21 +38,15 @@ export const Route = createFileRoute('/api/generate/video')({
     handlers: {
       POST: async ({ request }) => {
         const body = await request.json()
-        // Adapter arguments come straight off the envelope's `data`: `size` and
-        // `model` are adapter-specific unions that the provider-agnostic video
-        // input widens to `string`.
-        const { prompt, size, duration, model } = body.data
+        // Adapter arguments come straight off the envelope's
+        // `forwardedProps`: `size` and `model` are adapter-specific unions
+        // that the provider-agnostic video input widens to `string`.
+        const { prompt, size, duration, model } = body.forwardedProps
         const { threadId, runId } = generationParamsFromBody('video', body)
 
         // Persistence needs the scope named. It is a type error to wire the
         // middleware without one, so reject the request rather than inventing
         // an id the client could never hydrate by.
-        if (!threadId) {
-          return new Response(
-            '`threadId` is required — it is the scope this generation is filed under.',
-            { status: 400 },
-          )
-        }
 
         const stream = generateVideo({
           adapter: grokVideo(model ?? 'grok-imagine-video'),
@@ -62,8 +56,8 @@ export const Route = createFileRoute('/api/generate/video')({
           stream: true,
           pollingInterval: 3000,
           maxDuration: 600_000,
-          ...(threadId ? { threadId } : {}),
-          ...(runId ? { runId } : {}),
+          threadId,
+          runId,
           middleware: [
             withGenerationPersistence(generationServerPersistence(), {
               threadId,

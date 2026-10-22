@@ -41,7 +41,7 @@ describe('ChatClient metadata', () => {
         sentMessages = messages
       },
     })
-    const client = new ChatClient({ connection: adapter })
+    const client = new ChatClient({ threadId: 'thread-1', connection: adapter })
 
     await client.sendMessage({
       content: 'Show me failed logins',
@@ -64,7 +64,7 @@ describe('ChatClient metadata', () => {
     const adapter = createMockConnectionAdapter({
       chunks: createTextChunks('ok'),
     })
-    const client = new ChatClient({ connection: adapter })
+    const client = new ChatClient({ threadId: 'thread-1', connection: adapter })
 
     await client.sendMessage('hello')
 
@@ -74,7 +74,7 @@ describe('ChatClient metadata', () => {
 
   it('queued object send keeps metadata on the queue entry content', async () => {
     const { connection, release } = createSequencedHoldingConnection()
-    const client = new ChatClient({ connection })
+    const client = new ChatClient({ threadId: 'thread-1', connection })
 
     const firstSend = client.sendMessage('first')
     await vi.waitFor(() => {
@@ -104,7 +104,7 @@ describe('ChatClient metadata', () => {
     const adapter = createMockConnectionAdapter({
       chunks: createTextChunks('ok'),
     })
-    const client = new ChatClient({ connection: adapter })
+    const client = new ChatClient({ threadId: 'thread-1', connection: adapter })
 
     const message: UIMessage = {
       id: 'user-1',
@@ -122,6 +122,7 @@ describe('ChatClient metadata', () => {
   it('batch drain merges object metadata last-write-wins per key', async () => {
     const { connection, release } = createSequencedHoldingConnection()
     const client = new ChatClient({
+      threadId: 'thread-1',
       connection,
       queue: { drain: 'batch' },
     })

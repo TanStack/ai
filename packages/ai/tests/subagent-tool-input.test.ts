@@ -99,6 +99,7 @@ async function callSubagent(
   const { adapter, calls } = parentCalling(agent, args)
   const chunks = await collectChunks(
     chat({
+      threadId: 'thread-1',
       adapter,
       ...(options.runId !== undefined && { runId: options.runId }),
       messages: [{ role: 'user', content: 'Go' }],
@@ -197,6 +198,7 @@ describe('agent tool input', () => {
     })
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Go' }],
         middleware: [storedChildren(oldChild)],
@@ -243,6 +245,7 @@ describe('agent tool input', () => {
     const { adapter } = parentCalling('deep', { topic: 'tides' })
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Go' }],
         middleware: [storedChildren(oldChild), spy],
@@ -283,6 +286,7 @@ describe('agent tool input', () => {
 
     expect(() =>
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Go' }],
         middleware: [storedChildren(oldChild)],
@@ -297,6 +301,7 @@ describe('agent tool input', () => {
     const { adapter } = parentCalling('taken', { sessionId: 'mine' })
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Go' }],
         subagents: { agents: [taken] },
@@ -434,13 +439,16 @@ describe('agent tool input', () => {
         interruptedRunId: 'run-1',
         turn,
         sink: createSubagentSink(),
-        childLoader: () => async () => ({ messages: stored }),
+        childLoader: () => async () => ({
+          messages: stored,
+          pending: [waiting],
+        }),
         canContinue: true,
       },
     )
     await tool?.execute?.(
       { sessionId: 'subagent-old', prompt: 'Make it shorter' },
-      { toolCallId: 'call_1', emitCustomEvent: () => {} },
+      { threadId: 'thread-1', toolCallId: 'call_1', emitCustomEvent: () => {} },
     )
 
     expect(runs[0]?.messages).toEqual([
@@ -495,6 +503,7 @@ describe('agent tool input', () => {
     const { adapter } = parentCalling('flat', { sessionId: 'subagent-old' })
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Go' }],
         middleware: [storedChildren(oldChild)],
@@ -521,6 +530,7 @@ describe('agent tool input', () => {
     const { adapter, calls } = parentCalling('either', { topic: 'tides' })
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Go' }],
         middleware: [storedChildren(oldChild)],
@@ -552,6 +562,7 @@ describe('agent tool input', () => {
     })
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Go' }],
         subagents: {
@@ -591,6 +602,7 @@ describe('agent tool input', () => {
     })
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Go' }],
         toolExecution: 'sequential',

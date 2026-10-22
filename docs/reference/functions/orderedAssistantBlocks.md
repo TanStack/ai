@@ -9,7 +9,7 @@ function orderedAssistantBlocks(message):
   | undefined;
 ```
 
-Defined in: [packages/ai/src/utilities/block-order.ts:58](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/block-order.ts#L58)
+Defined in: packages/ai/src/utilities/block-order.ts:58
 
 The blocks of an assistant message in map order, or undefined when the
 message has no map or the map does not match the message. A map matches

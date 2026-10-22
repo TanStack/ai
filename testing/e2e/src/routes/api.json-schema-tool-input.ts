@@ -65,6 +65,7 @@ export const Route = createFileRoute('/api/json-schema-tool-input')({
         })
 
         const { text } = await chat({
+          threadId: 'json-schema-tool-input',
           adapter: fake,
           messages: [{ role: 'user', content: 'Count the items' }],
           tools: [countItems, labelItem],

@@ -11,7 +11,7 @@ export const Route = createFileRoute('/api/image')({
         await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
         const abortController = new AbortController()
         const body = await request.json()
-        const data = body.forwardedProps ?? body.data ?? body
+        const data = body.forwardedProps ?? body
         const { prompt, provider, numberOfImages, testId, aimockPort } =
           data as {
             prompt: MediaPrompt
@@ -25,6 +25,7 @@ export const Route = createFileRoute('/api/image')({
 
         try {
           const stream = generateImage({
+            threadId: body.threadId,
             adapter,
             prompt,
             numberOfImages: numberOfImages ?? 1,

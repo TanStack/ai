@@ -36,6 +36,7 @@ describe('processConverseStream', () => {
         },
       ),
       () => 'msg-1',
+      { threadId: 'thread-1' },
     )) {
       types.push(c.type)
     }
@@ -56,6 +57,7 @@ describe('processConverseStream', () => {
         { messageStop: { stopReason: 'end_turn' } },
       ),
       () => 'msg-1',
+      { threadId: 'thread-1' },
     )) {
       if (c.type === EventType.TEXT_MESSAGE_CONTENT)
         contents.push((c as { delta: string }).delta)
@@ -91,6 +93,7 @@ describe('processConverseStream', () => {
         { messageStop: { stopReason: 'tool_use' } },
       ),
       () => 'msg-2',
+      { threadId: 'thread-1' },
     )) {
       types.push(c.type)
       if (c.type === EventType.TOOL_CALL_ARGS)
@@ -116,6 +119,7 @@ describe('processConverseStream', () => {
         { messageStop: { stopReason: 'end_turn' } },
       ),
       () => 'msg-3',
+      { threadId: 'thread-1' },
     )) {
       types.push(c.type)
     }
@@ -133,7 +137,9 @@ describe('processConverseStream', () => {
     ...events: Array<ConverseStreamFixture>
   ): Promise<Array<AdapterYieldChunk>> {
     const out: Array<AdapterYieldChunk> = []
-    for await (const c of processConverseStream(gen(...events), counter())) {
+    for await (const c of processConverseStream(gen(...events), counter(), {
+      threadId: 'thread-1',
+    })) {
       out.push(c)
     }
     return out
@@ -309,6 +315,7 @@ describe('processConverseStream', () => {
           { throttlingException: new Error('rate limited') },
         ),
         counter(),
+        { threadId: 'thread-1' },
       )) {
         // consume
       }

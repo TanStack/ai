@@ -1,5 +1,44 @@
 # @tanstack/ai-persistence
 
+## 0.10.1
+
+### Patch Changes
+
+- Updated dependencies [[`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325)]:
+  - @tanstack/ai@0.71.0
+
+## 0.10.0
+
+### Minor Changes
+
+- [#1723](https://github.com/TanStack/ai/pull/1723) [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555) - Continue a child. With `withPersistence` on the parent `chat()`, an agent tool result gives the model the child's `subagentRunId`, and a later call of the same agent tool with `sessionId` continues that child from its stored transcript. With a host that sets `subagents.binding.start`, `background: true` starts the child and returns at once. These fields sit next to the agent's own fields, and each agent tool has them only when the run can use them. When the run uses `sessionId` or `background`, that name is reserved: `chat()` throws when an agent's `inputSchema` uses it. An agent without `inputSchema` takes the task as text in `prompt`, and the child gets it as the last user message. Agent tools also support the `detach` field of the tool context.
+
+  The card keeps the checked input of an agent with `inputSchema`. On the client, `part.subagent.input` has it, typed from `inputSchema` when the agent declaration goes to `useChat({ subagents })`.
+
+  `@tanstack/ai` adds `LoadChildCapability`, `getLoadChild`, and `provideLoadChild`, so a persistence middleware can load a stored child. A provider lists `LoadChildCapability` in `provides`. `withPersistence` in `@tanstack/ai-persistence` provides it: it stores the task of each child's first call and the thread that started it, and loads only the children of the calling thread.
+
+### Patch Changes
+
+- [#1723](https://github.com/TanStack/ai/pull/1723) [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555) - A subagent can now return a plain value and call any activity.
+  - `defineAgent`'s `run` can return a promise of any value, such as an image result. The value arrives on `SUBAGENT_FINISHED.result`, and the parent model gets it as the tool result. A very long string inside an object result (for example a base64 image) reaches the parent model as a short note (`compactForModel`). A string result also streams as the child's text. The result of `ctx.chat({ stream: false })` streams like the chat stream.
+  - `run` gets the activities on `ctx` (`ctx.chat`, `ctx.generateImage`, `ctx.generateVideo`, and the rest), which fill in the thread id, a run id, and the abort signal. `ctx.forward` holds the fields for a plain `chat()` call. The optional `produces` field says what an agent makes.
+  - A host can set `subagents.binding` (`SubagentBinding`) to add chat and generation middleware to every activity call of a child. A child's `ctx.chat({ subagents })` passes it down to its own children.
+  - Children inherit the prompt cache retention of the parent call.
+  - The chat middleware context has `subagentName` and `parentSubagentRunId`. `chat()` takes both as options.
+  - `RunRecord` gets optional fields for host sessions (`kind`, `activity`, `agent`, `result`, `artifacts`, `principal`, `leaseOwner`, `leaseExpiresAt`, `checkpoint`). The memory run stores keep them.
+
+- [#1744](https://github.com/TanStack/ai/pull/1744) [`29bb0a4`](https://github.com/TanStack/ai/commit/29bb0a487f8b8febebcbd891bead0ab7aa3ba987) - Store a tool result once when a run resumes from a client-tool interrupt. The client posts earlier tool results under interrupt snapshot ids the store never saw, so `withPersistence` appended a second copy and the next provider request failed.
+
+- [#1786](https://github.com/TanStack/ai/pull/1786) [`30fa651`](https://github.com/TanStack/ai/commit/30fa651d173e519db8de50c9f888ded71b951640) - Fix subagent limit and continue edges.
+  - A background `start` that throws gives the `maxCalls` slot back. `maxConcurrent` counts that child until `done` settles. `start` now returns `done`.
+  - A schema result that is not an object does not drop `sessionId` or `background`. A top-level `anyOf` schema still shows those fields.
+  - A suspended child with no stored `base` keeps its transcript.
+  - When the parent deadline is already past, the model gets `subagent limit reached (no time left)`.
+
+- Updated dependencies [[`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`5f95dbd`](https://github.com/TanStack/ai/commit/5f95dbd08f2780442000ac52074ea747d1b44187), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`3292bad`](https://github.com/TanStack/ai/commit/3292bad7b26990c5aa4676cc9d9fe33b1741fc1a), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`4298480`](https://github.com/TanStack/ai/commit/429848047c8c514f29855f8a99a7260253eb5d5b), [`f68da51`](https://github.com/TanStack/ai/commit/f68da51f63f999b70ac7aaf5aebc0109a7e9daf7), [`85c2956`](https://github.com/TanStack/ai/commit/85c2956c68f3226ef409b3a4e54d5be82198931e), [`30fa651`](https://github.com/TanStack/ai/commit/30fa651d173e519db8de50c9f888ded71b951640), [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b), [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b)]:
+  - @tanstack/ai@0.70.0
+  - @tanstack/ai-utils@0.5.0
+
 ## 0.9.0
 
 ### Minor Changes

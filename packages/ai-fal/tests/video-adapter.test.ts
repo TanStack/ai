@@ -70,6 +70,7 @@ describe('Fal Video Adapter', () => {
       const adapter = createAdapter()
 
       const result = await generateVideo({
+        threadId: 'thread-1',
         adapter: adapter,
         prompt: 'A cat walking in the garden',
         modelOptions: {
@@ -99,6 +100,7 @@ describe('Fal Video Adapter', () => {
       const adapter = createAdapter()
 
       await generateVideo({
+        threadId: 'thread-1',
         adapter: adapter,
         prompt: 'A stylish woman walks down a Tokyo street',
         modelOptions: {
@@ -120,6 +122,7 @@ describe('Fal Video Adapter', () => {
       const adapter = createAdapter()
 
       await generateVideo({
+        threadId: 'thread-1',
         adapter: adapter,
         prompt: 'A time lapse of a sunset',
         // veo3/image-to-video accepts '4s' | '6s' | '8s'
@@ -139,6 +142,7 @@ describe('Fal Video Adapter', () => {
       mockQueueSubmit.mockResolvedValueOnce({ request_id: 'job-unk' })
 
       await generateVideo({
+        threadId: 'thread-1',
         adapter: falVideo('fal-ai/not-in-the-sdk', { apiKey: 'test' }),
         prompt: 'A fox running through snow',
         duration: 10,
@@ -156,6 +160,7 @@ describe('Fal Video Adapter', () => {
       const adapter = falVideo('fal-ai/minimax/video-01', { apiKey: 'test' })
 
       await generateVideo({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A fox running through snow',
       })
@@ -172,6 +177,7 @@ describe('Fal Video Adapter', () => {
       const adapter = createAdapter()
 
       await generateVideo({
+        threadId: 'thread-1',
         adapter: adapter,
         prompt: 'A wide landscape video',
         size: '16:9_720p',
@@ -194,6 +200,7 @@ describe('Fal Video Adapter', () => {
       const adapter = createAdapter()
 
       await generateVideo({
+        threadId: 'thread-1',
         adapter: adapter,
         prompt: 'Test video',
         modelOptions: {
@@ -536,7 +543,6 @@ describe('Fal Video Adapter', () => {
         completionTokens: 0,
         totalTokens: 0,
         billed: { quantity: 12, unit: 'units' },
-        unitsBilled: 12,
       })
     })
 

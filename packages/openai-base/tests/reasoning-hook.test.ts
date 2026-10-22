@@ -43,6 +43,7 @@ class ResponsesAdapter extends OpenAIBaseResponsesTextAdapter<string> {
 
 function options(reasoning?: ReasoningRequest): TextOptions {
   return {
+    threadId: 'thread-1',
     model: 'm',
     logger,
     messages: [{ role: 'user', content: 'hi' }],

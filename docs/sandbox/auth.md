@@ -1,37 +1,66 @@
 ---
 title: Harness Auth
 id: sandbox-auth
-description: "Pick host login or an API key for a coding-agent harness. The same local-process sandbox can be your laptop or a CI runner."
+description: "Pick host login or an API key for a coding-agent harness. The same local-process sandbox can run on your laptop or on a CI runner."
 ---
 
-Your laptop already has `grok login`, `claude login`, or `codex login`. A GitHub
-runner has no browser login. It only has an API key. Both can use
-`localProcessSandbox()`.
+Pass credentials into `localProcessSandbox()` yourself. The sandbox type does not know whether the machine has `grok login` or only an API key.
 
-Set `authMode` on the adapter. The sandbox type does not pick the credentials.
-The default is `'api-key'`. Most harnesses run in Docker or a cloud sandbox.
-Those have no host CLI login.
+You tell it with `authMode` on the harness adapter:
 
-- `'api-key'` (default): inject the key and use it.
-- `'host'`: use the CLI login on the machine. Do not inject an API key into
-  that process.
+- `'api-key'` (default): inject the key and use it. Use this in Docker, in a cloud sandbox, on a CI runner, or on any machine with no CLI login.
+- `'host'`: use the CLI login on the machine. Do not inject an API key into that process.
 
-Pass `authMode` in one of two places:
+You can set `authMode` in two places:
 
-- Adapter factory: `grokBuildText('composer-2.5', { authMode: 'host' })`
-- One call: `chat({ modelOptions: { authMode: 'host' } })`
+- On the adapter factory: `grokBuildText('composer-2.5', { authMode: 'host' })`.
+- For one call: `chat({ modelOptions: { authMode: 'host' } })`.
 
-## Host login
+## Use an API key
 
-Use this when the machine already ran `grok login`, `claude login`, or
-`codex login`.
+This is the default, so you can omit `authMode`. Pass the key as a workspace secret:
+
+```ts
+import { chat } from '@tanstack/ai'
+import { GROK_CLI_INSTALL_COMMAND, grokBuildText } from '@tanstack/ai-grok-build'
+import {
+  createSecrets,
+  defineSandbox,
+  defineWorkspace,
+  githubRepo,
+  withSandbox,
+} from '@tanstack/ai-sandbox'
+import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+
+const sandbox = defineSandbox({
+  id: 'repo-agent',
+  provider: dockerSandbox({ image: 'node:22' }),
+  workspace: defineWorkspace({
+    source: githubRepo({ repo: 'owner/app' }),
+    setup: [GROK_CLI_INSTALL_COMMAND],
+    secrets: createSecrets({
+      XAI_API_KEY: process.env.XAI_API_KEY ?? '',
+    }),
+  }),
+})
+
+const stream = chat({
+  threadId: 'thread-1',
+  adapter: grokBuildText('composer-2.5'),
+  messages: [{ role: 'user', content: 'Summarize this repo.' }],
+  middleware: [withSandbox(sandbox)],
+})
+```
+
+## Use the host login
+
+If the machine already ran `grok login`, `claude login`, or `codex login`, use this setup:
 
 ```ts
 import { chat } from '@tanstack/ai'
 import { grokBuildText } from '@tanstack/ai-grok-build'
 import { defineSandbox, defineWorkspace, withSandbox } from '@tanstack/ai-sandbox'
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
-import { messages, threadId } from './chat-context'
 
 const sandbox = defineSandbox({
   id: 'repo-agent',
@@ -44,69 +73,29 @@ const sandbox = defineSandbox({
 })
 
 const stream = chat({
-  threadId,
+  threadId: 'thread-1',
   adapter: grokBuildText('composer-2.5', { authMode: 'host' }),
-  messages,
+  messages: [{ role: 'user', content: 'Summarize this repo.' }],
   middleware: [withSandbox(sandbox)],
 })
 ```
 
-`scrubEnv` removes keys the host process inherited. If the CLI sees
-`XAI_API_KEY`, it can prefer that key over your login.
+`scrubEnv` removes keys that the host process inherited. If the CLI sees `XAI_API_KEY`, it can use that key and not your login.
 
-## API key
-
-This is the default. Use it on a runner, in Docker, or on any machine that
-has no CLI login. You can omit `authMode`.
-
-```ts
-import { chat } from '@tanstack/ai'
-import { grokBuildText } from '@tanstack/ai-grok-build'
-import {
-  createSecrets,
-  defineSandbox,
-  defineWorkspace,
-  githubRepo,
-  withSandbox,
-} from '@tanstack/ai-sandbox'
-import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
-import { messages, threadId } from './chat-context'
-
-const sandbox = defineSandbox({
-  id: 'repo-agent',
-  provider: dockerSandbox({ image: 'node:22' }),
-  workspace: defineWorkspace({
-    source: githubRepo({ repo: 'owner/app' }),
-    secrets: createSecrets({
-      XAI_API_KEY: process.env.XAI_API_KEY ?? '',
-    }),
-  }),
-})
-
-const stream = chat({
-  threadId,
-  adapter: grokBuildText('composer-2.5'),
-  messages,
-  middleware: [withSandbox(sandbox)],
-})
-```
-
-## Each harness
+## What each harness reads
 
 | Adapter | `authMode: 'api-key'` (default) | `authMode: 'host'` |
 | --- | --- | --- |
 | [Grok Build](../adapters/grok-build) | `XAI_API_KEY` | `grok login` |
 | [Claude Code](../adapters/claude-code) | `ANTHROPIC_API_KEY` | `claude login` |
 | [Codex](../adapters/codex) | `CODEX_API_KEY` | `codex login` |
-| [ACP-Compatible](../adapters/acp-compatible) | set `authMethodId` (for Grok, `xai.api_key`) | skip ACP `authenticate` |
+| [ACP-Compatible](../adapters/acp-compatible) | Set `authMethodId` (for Grok, `xai.api_key`). | Skips ACP `authenticate`. |
 
-OpenCode still reads `OPENAI_API_KEY` from the process env. It has no `authMode`
-flag.
+OpenCode reads `OPENAI_API_KEY` from the process env. It has no `authMode` flag.
 
-## Client and server
+## Let the user pick (client and server)
 
-The React chat example exposes the same choice on `/repo-report`. The client
-sends `authMode`. The server builds the adapter with that value.
+The React chat example has this choice on `/repo-report`. The client sends `authMode`. The server builds the adapter with that value.
 
 Client:
 
@@ -116,6 +105,7 @@ import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 function Report() {
   const { sendMessage } = useChat({
     connection: fetchServerSentEvents('/api/sandbox-repo-report'),
+    threadId: 'support-chat',
     forwardedProps: { authMode: 'api-key' },
   })
 
@@ -149,10 +139,21 @@ export async function POST(request: Request) {
     'authMode' in forwarded && forwarded.authMode === 'host'
       ? 'host'
       : 'api-key'
+  const threadId =
+    typeof body === 'object' &&
+    body !== null &&
+    'threadId' in body &&
+    typeof body.threadId === 'string'
+      ? body.threadId
+      : undefined
+  if (!threadId) {
+    return new Response('Send a threadId.', { status: 400 })
+  }
 
   const stream = chat({
     adapter: grokBuildText('composer-2.5', { authMode }),
     messages: [{ role: 'user', content: 'Report on this repo' }],
+    threadId,
     stream: true,
     middleware: [withSandbox(sandbox)],
   })
@@ -161,5 +162,6 @@ export async function POST(request: Request) {
 }
 ```
 
-See [Harnesses](./harnesses) for which adapter to pick, and [Providers](./providers)
-for `scrubEnv` on local-process.
+The server accepts only `'host'` or `'api-key'`. Any other value falls back to `'api-key'`.
+
+To pick the agent, see [Harnesses](./harnesses). For `scrubEnv` and other local-process options, see [Providers (Advanced)](./providers-advanced#local-process).

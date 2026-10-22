@@ -24,6 +24,7 @@ export const Route = createFileRoute('/api/fake-text')({
         }).server(({ city }) => `sunny in ${city}`)
 
         const { text } = await chat({
+          threadId: 'fake-text',
           adapter: fake,
           messages: [{ role: 'user', content: 'Weather in Oslo?' }],
           tools: [getWeather],

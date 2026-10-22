@@ -51,21 +51,6 @@ describe('restorePublicUsage', () => {
     expect(chunk).not.toHaveProperty('model')
   })
 
-  it('restores TOOL_CALL_START toolName from toolCallName', () => {
-    const chunk: StreamChunk = {
-      type: EventType.TOOL_CALL_START,
-      toolCallId: 'tc1',
-      toolCallName: 'get_weather',
-    }
-
-    restorePublicUsage(chunk)
-
-    if (chunk.type !== EventType.TOOL_CALL_START) {
-      throw new Error('expected TOOL_CALL_START')
-    }
-    expect(chunk.toolName).toBe('get_weather')
-  })
-
   it('restores TOOL_CALL_END input from metadata.tanstack.input', () => {
     const chunk: StreamChunk = {
       type: EventType.TOOL_CALL_END,

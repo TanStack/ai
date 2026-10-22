@@ -63,8 +63,10 @@ export function TTSUI({ provider, mode, testId, aimockPort }: TTSUIProps) {
     }
   }
 
-  const { generate, result, isLoading, error, status } =
-    useGenerateSpeech(connectionOptions())
+  const { generate, result, isLoading, error, status } = useGenerateSpeech({
+    threadId: testId ?? 'tts',
+    ...connectionOptions(),
+  })
 
   return (
     <div className="p-4 space-y-4">

@@ -13,9 +13,6 @@ export type CodeExecutionToolConfig =
   | BetaCodeExecutionTool20250522
   | BetaCodeExecutionTool20250825
 
-/** @deprecated Renamed to `CodeExecutionToolConfig`. Will be removed in a future release. */
-export type CodeExecutionTool = CodeExecutionToolConfig
-
 /**
  * A hosted/managed Anthropic Skill reference. Lifted by the text adapter into
  * the top-level `container.skills` request param (NOT serialized into the

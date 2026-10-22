@@ -7,7 +7,6 @@ import {
   injectChat,
   injectPageWebMCPTools,
   injectRegisterWebMCPTools,
-  injectWebMCPTools,
   type InjectRegisterWebMCPToolsOptions,
 } from '../src'
 import { createMockConnectionAdapter } from './test-utils'
@@ -176,12 +175,6 @@ describe('injectRegisterWebMCPTools', () => {
   })
 })
 
-describe('injectWebMCPTools', () => {
-  it('is a deprecated alias of injectRegisterWebMCPTools', () => {
-    expect(injectWebMCPTools).toBe(injectRegisterWebMCPTools)
-  })
-})
-
 function installPageTools(names: Array<string>) {
   const target = new EventTarget()
   const modelContext = {
@@ -218,6 +211,7 @@ describe('injectPageWebMCPTools', () => {
         filter: (tool) => tool.name !== 'blocked',
       })
       chat = injectChat({
+        threadId: 'thread-1',
         connection: createMockConnectionAdapter(),
         tools: this.pageTools,
       })

@@ -11,7 +11,7 @@ export const Route = createFileRoute('/api/tts/stream')({
         await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
         const abortController = new AbortController()
         const body = await request.json()
-        const data = body.forwardedProps ?? body.data ?? body
+        const data = body.forwardedProps ?? body
         const { text, turns, timestamps, voice, provider, testId, aimockPort } =
           data as {
             text?: string
@@ -27,9 +27,16 @@ export const Route = createFileRoute('/api/tts/stream')({
 
         try {
           const stream = turns
-            ? generateSpeech({ adapter, turns, timestamps, stream: true })
+            ? generateSpeech({
+                adapter,
+                threadId: body.threadId,
+                turns,
+                timestamps,
+                stream: true,
+              })
             : generateSpeech({
                 adapter,
+                threadId: body.threadId,
                 text: text ?? '',
                 voice,
                 timestamps,

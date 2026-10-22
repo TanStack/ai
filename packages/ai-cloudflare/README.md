@@ -37,12 +37,13 @@ import type { Ai } from '@cloudflare/workers-types'
 
 export default {
   async fetch(request: Request, env: { AI: Ai }) {
-    const { messages } = await request.json()
+    const { messages, threadId } = await request.json()
     const stream = chat({
       adapter: createCloudflareText('@cf/zai-org/glm-5.3-flash', {
         binding: env.AI,
       }),
       messages,
+      threadId,
     })
     return toServerSentEventsResponse(stream)
   },

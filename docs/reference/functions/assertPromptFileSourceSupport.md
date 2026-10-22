@@ -7,7 +7,7 @@ title: assertPromptFileSourceSupport
 function assertPromptFileSourceSupport(adapter, prompt): void;
 ```
 
-Defined in: [packages/ai/src/utilities/content-source.ts:108](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/content-source.ts#L108)
+Defined in: packages/ai/src/utilities/content-source.ts:108
 
 Fail-closed preflight for media prompts and embedding inputs
 (`generateImage` / `generateVideo` / `embed`): throws when the input
