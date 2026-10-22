@@ -21,21 +21,21 @@ import { anthropicText } from '@tanstack/ai-anthropic'
 
 ## Key Chat Models
 
-| Model                | Context Window | Max Output | Notes                                       |
-| -------------------- | -------------- | ---------- | ------------------------------------------- |
-| `claude-fable-5-1`   | 1M             | 128K       | Newest; thinking always on (adaptive)       |
-| `claude-fable-5`     | 1M             | 128K       | Most capable; thinking always on (adaptive) |
-| `claude-opus-5`      | 1M             | 128K       | Opus tier; budget thinking + sampling       |
-| `claude-sonnet-5-5`  | 1M             | 128K       | Sonnet tier; adaptive-only, no sampling     |
-| `claude-haiku-5-5`   | 1M             | 128K       | Fastest; adaptive thinking, no sampling     |
-| `claude-sonnet-5`    | 1M             | 128K       | Best balance; adaptive thinking by default  |
-| `claude-opus-4-8`    | 1M             | 128K       | Opus tier; adaptive thinking, no sampling   |
-| `claude-opus-4-7`    | 1M             | 128K       | Older Opus; adaptive thinking, no sampling  |
-| `claude-opus-4-6`    | 200K           | 128K       | Older Opus, adaptive + budget thinking      |
-| `claude-sonnet-4-6`  | 1M             | 64K        | Previous gen balanced, adaptive + budget    |
-| `claude-sonnet-4-5`  | 200K           | 64K        | Previous gen balanced                       |
-| `claude-opus-4-5`    | 200K           | 32K        | Previous gen most capable                   |
-| `claude-haiku-4-5`   | 200K           | 64K        | Fast and affordable                         |
+| Model               | Context Window | Max Output | Notes                                       |
+| ------------------- | -------------- | ---------- | ------------------------------------------- |
+| `claude-fable-5-1`  | 1M             | 128K       | Newest; thinking always on (adaptive)       |
+| `claude-fable-5`    | 1M             | 128K       | Most capable; thinking always on (adaptive) |
+| `claude-opus-5`     | 1M             | 128K       | Opus tier; budget thinking + sampling       |
+| `claude-sonnet-5-5` | 1M             | 128K       | Sonnet tier; adaptive-only, no sampling     |
+| `claude-haiku-5-5`  | 1M             | 128K       | Fastest; adaptive thinking, no sampling     |
+| `claude-sonnet-5`   | 1M             | 128K       | Best balance; adaptive thinking by default  |
+| `claude-opus-4-8`   | 1M             | 128K       | Opus tier; adaptive thinking, no sampling   |
+| `claude-opus-4-7`   | 1M             | 128K       | Older Opus; adaptive thinking, no sampling  |
+| `claude-opus-4-6`   | 200K           | 128K       | Older Opus, adaptive + budget thinking      |
+| `claude-sonnet-4-6` | 1M             | 64K        | Previous gen balanced, adaptive + budget    |
+| `claude-sonnet-4-5` | 200K           | 64K        | Previous gen balanced                       |
+| `claude-opus-4-5`   | 200K           | 32K        | Previous gen most capable                   |
+| `claude-haiku-4-5`  | 200K           | 64K        | Fast and affordable                         |
 
 Note: Model IDs use the format `claude-sonnet-5`, `claude-opus-4-8`, etc.
 Retired models (Claude 3.x, Sonnet 3.7, Opus 4 / Sonnet 4, Opus 4.1) and the

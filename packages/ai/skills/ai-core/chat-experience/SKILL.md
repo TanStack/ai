@@ -784,7 +784,12 @@ chat({ adapter: openaiText('gpt-6.1-sol'), messages, threadId: 'thread-1' })
 ```typescript ignore
 // WRONG — `openai()` is no longer exported from @tanstack/ai-openai
 import { openai } from '@tanstack/ai-openai'
-chat({ adapter: openai(), model: 'gpt-6.1-sol', messages, threadId: 'thread-1' })
+chat({
+  adapter: openai(),
+  model: 'gpt-6.1-sol',
+  messages,
+  threadId: 'thread-1',
+})
 ```
 
 ```typescript
@@ -931,7 +936,11 @@ import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
   const { messages, threadId } = await request.json()
-  const stream = chat({ adapter: openaiText('gpt-6.1-sol'), messages, threadId })
+  const stream = chat({
+    adapter: openaiText('gpt-6.1-sol'),
+    messages,
+    threadId,
+  })
 
   const readable = new ReadableStream({
     async start(controller) {
