@@ -1,0 +1,57 @@
+{
+  "name": "@tanstack/ai-pi-stream",
+  "version": "0.0.1",
+  "description": "Convert between TanStack AI (AG-UI) events and pi agent events, in both directions, with the message history.",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-pi-stream"
+  },
+  "keywords": [
+    "ai",
+    "tanstack",
+    "pi",
+    "pi-agent",
+    "ag-ui"
+  ],
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:build": "publint --strict",
+    "test:oxlint": "oxlint src --type-aware",
+    "test:coverage": "vitest run --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-agent-core": "^1.4.0",
+    "@earendil-works/pi-ai": "^1.4.0",
+    "@tanstack/ai": "workspace:^"
+  },
+  "devDependencies": {
+    "@ag-ui/core": "1.0.0",
+    "@earendil-works/pi-agent-core": "1.4.0",
+    "@earendil-works/pi-ai": "1.4.0",
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-client": "workspace:*",
+    "@vitest/coverage-v8": "4.1.10",
+    "zod": "^4.2.0"
+  }
+}

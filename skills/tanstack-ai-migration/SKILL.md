@@ -1,7 +1,7 @@
 ---
 name: tanstack-ai-migration
 description: >
-  Move an app to TanStack AI from the Vercel AI SDK or raw provider SDKs, or
+  Move an app to TanStack AI from the Vercel AI SDK, pi, or raw provider SDKs, or
   upgrade it from TanStack AI 0.x to 1.0. Use when someone asks
   whether to switch AI libraries, when code mixes streamText, generateText,
   generateObject, createOpenAI, or @ai-sdk/* with TanStack AI, when an upgrade
@@ -53,6 +53,26 @@ place to stay: finish the port of the other side, then remove it.
 
 Tool approvals, client tools, activity, subagents and stream resume cross the
 bridge. Shared state goes from a TanStack server to an AI SDK client only.
+
+From pi (`@earendil-works/pi-ai`, `pi-agent-core`), `@tanstack/ai-pi-stream`
+converts pi agent events and pi messages in both directions:
+
+- Client first: serve
+  `toServerSentEventsResponse(runPiAgent(await chatParamsFromRequest(request), { config, streamFn, tools, needsApproval, systemPrompts }))`.
+  pi tools in `needsApproval` pause for a `useChat` approval, and the client
+  tools of `useChat` run in the browser. For a hand-run `agentLoop()`, use
+  `fromPiAgentEvents` and `toPiMessages`.
+  https://tanstack.com/ai/latest/docs/migration/pi-agent-tanstack-client
+- Server first:
+  `chat({ adapter, systemPrompts, ...(await chatParamsFromPiRequest(request)) })`,
+  then stream `toPiAgentEvents(stream)` to the pi UI. `chatParamsFromPiRequest`
+  drops the client's system messages, so the server sets `systemPrompts`.
+  Approvals arrive as `tanstack-interrupt` pi messages and go back as `resume`.
+  https://tanstack.com/ai/latest/docs/migration/pi-client-tanstack-server
+
+What does not cross is what one side cannot hold: image URLs, audio, video
+and documents sent to pi, and structured output and subagents from pi. See
+https://tanstack.com/ai/latest/docs/migration/pi-compatibility
 
 ## Upgrading TanStack AI itself
 
