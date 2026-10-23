@@ -1,5 +1,5 @@
 import type { ProviderExecutedToolMetadata } from '@tanstack/ai'
-import type { GroundingMetadata } from '@google/genai'
+import type { GroundingMetadata, Part } from '@google/genai'
 
 /**
  * Gemini-specific metadata types for multimodal content parts.
@@ -184,6 +184,14 @@ export interface GeminiMessageMetadataByModality {
 export interface GeminiToolCallMetadata extends ProviderExecutedToolMetadata {
   thoughtSignature?: string
   gemini?: {
-    groundingMetadata: GroundingMetadata
+    groundingMetadata?: GroundingMetadata
+    /**
+     * The step's built-in tool parts (`toolCall`, `toolResponse`,
+     * `executableCode`, `codeExecutionResult`), sent back unchanged on the
+     * next request. `afterCallId` is the function call each one followed.
+     *
+     * @see https://ai.google.dev/gemini-api/docs/generate-content/tool-combination
+     */
+    serverParts?: Array<{ part: Part; afterCallId?: string }>
   }
 }

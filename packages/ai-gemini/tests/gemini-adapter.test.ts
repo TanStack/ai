@@ -10,7 +10,7 @@ import {
   type SafetySetting,
 } from '@google/genai'
 import { GeminiTextAdapter } from '../src/adapters/text'
-import { googleSearchTool } from '../src/tools'
+import { codeExecutionTool, googleSearchTool } from '../src/tools'
 import { createGeminiSummarize } from '../src/adapters/summarize'
 import type { GeminiTextProviderOptions } from '../src/adapters/text'
 import type { Schema } from '@google/genai'
@@ -41,8 +41,11 @@ vi.mock('@google/genai', async () => {
 
     public getGenerativeModel = getGenerativeModelSpy
 
-    constructor(options: { apiKey: string }) {
+    public vertexai: boolean
+
+    constructor(options: { apiKey: string; vertexai?: boolean }) {
       constructorSpy(options)
+      this.vertexai = options.vertexai === true
     }
   }
 
@@ -799,6 +802,166 @@ describe('GeminiAdapter through AI', () => {
           chunk.toolCallName === 'google_search',
       ),
     ).toHaveLength(0)
+  })
+
+  describe('built-in tools beside function tools', () => {
+    const toolCallPart = {
+      toolCall: {
+        id: 'search_1',
+        toolType: 'GOOGLE_SEARCH_WEB',
+        args: { queries: ['utah news'] },
+      },
+      thoughtSignature: 'sig-search',
+    }
+    const toolResponsePart = {
+      toolResponse: {
+        id: 'search_1',
+        toolType: 'GOOGLE_SEARCH_WEB',
+        response: { search_suggestions: '<div></div>' },
+      },
+      thoughtSignature: 'sig-response',
+    }
+    const lookupTool: Tool = {
+      name: 'lookup_caucus',
+      description: 'Look up a caucus location',
+      execute: async () => ({ location: 'Library' }),
+    }
+    const textStream = () =>
+      createStream([
+        {
+          candidates: [
+            { content: { parts: [{ text: 'Done' }] }, finishReason: 'STOP' },
+          ],
+        },
+      ])
+
+    it('sets the flag and sends the built-in tool parts back in place', async () => {
+      mocks.generateContentStreamSpy
+        .mockResolvedValueOnce(
+          createStream([
+            {
+              candidates: [
+                {
+                  content: {
+                    parts: [
+                      toolCallPart,
+                      {
+                        functionCall: {
+                          id: 'call_1',
+                          name: 'lookup_caucus',
+                          args: { county: 'Salt Lake' },
+                        },
+                      },
+                      toolResponsePart,
+                    ],
+                  },
+                  finishReason: 'STOP',
+                },
+              ],
+            },
+          ]),
+        )
+        .mockResolvedValueOnce(textStream())
+
+      const received: Array<AdapterYieldChunk> = []
+      for await (const chunk of chat({
+        threadId: 'thread-1',
+        adapter: new GeminiTextAdapter(
+          { apiKey: 'test-key' },
+          'gemini-3.6-flash',
+        ),
+        tools: [googleSearchTool(), lookupTool],
+        messages: [{ role: 'user', content: 'Search and look up.' }],
+      })) {
+        received.push(chunk)
+      }
+
+      expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(2)
+      const [firstPayload] = mocks.generateContentStreamSpy.mock.calls[0]!
+      expect(firstPayload.config.toolConfig).toEqual({
+        includeServerSideToolInvocations: true,
+      })
+      expect(
+        received.find(
+          (chunk) =>
+            chunk.type === 'TOOL_CALL_START' &&
+            chunk.toolCallName === 'google_search',
+        ),
+      ).toMatchObject({ metadata: { providerExecuted: true } })
+
+      const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
+      const modelTurn = secondPayload.contents.find(
+        (content: any) => content.role === 'model',
+      )
+      expect(modelTurn.parts).toEqual([
+        toolCallPart,
+        {
+          functionCall: {
+            id: 'call_1',
+            name: 'lookup_caucus',
+            args: { county: 'Salt Lake' },
+          },
+        },
+        toolResponsePart,
+      ])
+    })
+
+    it('emits no provider call for a code run without function tools', async () => {
+      mocks.generateContentStreamSpy.mockResolvedValueOnce(
+        createStream([
+          {
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    { executableCode: { code: 'print(2**40)' } },
+                    { codeExecutionResult: { output: '1099511627776' } },
+                    { text: '1099511627776' },
+                  ],
+                },
+                finishReason: 'STOP',
+              },
+            ],
+          },
+        ]),
+      )
+
+      const received: Array<AdapterYieldChunk> = []
+      for await (const chunk of chat({
+        threadId: 'thread-1',
+        adapter: new GeminiTextAdapter(
+          { apiKey: 'test-key' },
+          'gemini-3.6-flash',
+        ),
+        tools: [codeExecutionTool()],
+        messages: [{ role: 'user', content: 'Compute 2**40.' }],
+      })) {
+        received.push(chunk)
+      }
+
+      expect(
+        received.filter((chunk) => chunk.type === 'TOOL_CALL_START'),
+      ).toHaveLength(0)
+    })
+
+    it('does not set the flag on Vertex AI, where the SDK rejects it', async () => {
+      mocks.generateContentStreamSpy.mockResolvedValueOnce(textStream())
+
+      for await (const _ of chat({
+        threadId: 'thread-1',
+        adapter: new GeminiTextAdapter(
+          { vertexai: true, project: 'p', location: 'us-central1' },
+          'gemini-3.6-flash',
+        ),
+        tools: [googleSearchTool(), lookupTool],
+        messages: [{ role: 'user', content: 'Search and look up.' }],
+      })) {
+        // consume
+      }
+
+      const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
+      expect(payload.config.toolConfig).toBeUndefined()
+    })
   })
 
   it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
