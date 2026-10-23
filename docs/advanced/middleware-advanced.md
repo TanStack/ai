@@ -637,7 +637,13 @@ A guard cannot change the arguments. To change them, use `onBeforeToolCall`.
 
 ### onAfterToolCall
 
-`onAfterToolCall` runs after each tool runs (or is skipped). Every middleware runs, in array order.
+`onAfterToolCall` runs after each tool runs (or is skipped). Hooks run in order.
+If one hook throws, later hooks do not run.
+The chat run ends through `onError`. Catch errors inside the hook when its work
+is optional.
+
+Durable response helpers also deliver and store the `RUN_ERROR`, even after an
+earlier tool iteration finished.
 
 ```typescript
 import { type ChatMiddleware } from "@tanstack/ai";

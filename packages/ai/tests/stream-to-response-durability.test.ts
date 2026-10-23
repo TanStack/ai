@@ -101,6 +101,72 @@ function fixedOffsetDurability(
 }
 
 describe('toServerSentEventsResponse with durability', () => {
+  it.each(['SSE', 'NDJSON'] as const)(
+    'delivers and persists a later after-tool error over %s',
+    async (format) => {
+      const { adapter } = createMockAdapter({
+        iterations: ['first', 'second'].map((id) => [
+          ev.runStarted(),
+          ev.toolStart(id, 'lookup'),
+          ev.toolArgs(id, '{}'),
+          ev.toolEnd(id),
+          ev.runFinished('tool_calls'),
+        ]),
+      })
+      const execute = vi.fn(() => 'found')
+      const onError = vi.fn()
+      const onAfterToolCall = vi.fn(() => {
+        if (onAfterToolCall.mock.calls.length === 2) {
+          throw new Error('second hook failed')
+        }
+      })
+      const stream = chat({
+        adapter,
+        threadId: 'thread-1',
+        messages: [{ role: 'user' as const, content: 'Look twice' }],
+        tools: [
+          toolDefinition({
+            name: 'lookup',
+            description: 'Return a value',
+          }).server(execute),
+        ],
+        middleware: [{ name: 'fail-second-hook', onAfterToolCall, onError }],
+      })
+      const durability = memoryStream(
+        new Request(`https://example.test/chat?runId=after-hook-${format}`, {
+          method: 'POST',
+        }),
+      )
+      const response = (
+        format === 'SSE' ? toServerSentEventsResponse : toHttpResponse
+      )(stream, { durability: { adapter: durability } })
+      const body = await readBody(response)
+      const events =
+        format === 'SSE' ? parseSseEvents(body) : parseNdjsonEvents(body)
+      const types = events.map((event) => field(event, 'type'))
+      expect(types).toContain(EventType.RUN_FINISHED)
+      expect(types.at(-1)).toBe(EventType.RUN_ERROR)
+      expect(types.filter((type) => type === EventType.RUN_ERROR)).toHaveLength(
+        1,
+      )
+      expect(field(events.at(-1)!, 'message')).toBe('second hook failed')
+      expect(
+        events.filter(
+          (event) => field(event, 'type') === EventType.TOOL_CALL_RESULT,
+        ),
+      ).toHaveLength(1)
+      expect(execute).toHaveBeenCalledTimes(2)
+      expect(onAfterToolCall).toHaveBeenCalledTimes(2)
+      expect(onError).toHaveBeenCalledOnce()
+
+      const stored = (await durability.snapshot()).map((entry) => entry.chunk)
+      expect(stored.at(-1)?.type).toBe(EventType.RUN_ERROR)
+      expect(
+        stored.filter((chunk) => chunk.type === EventType.RUN_ERROR),
+      ).toHaveLength(1)
+    },
+  )
+
   it('keeps persisting while a connected client does not read', async () => {
     const durability = memoryStream(
       new Request('https://example.test/api/chat?runId=unread-connected', {
