@@ -53,6 +53,11 @@ describe('pi agent to TanStack', () => {
       timestamp: 1,
     }
     const steer = { role: 'user' as const, content: 'Faster.', timestamp: 2 }
+    const secret = {
+      role: 'system' as const,
+      content: 'Secret rules.',
+      timestamp: 3,
+    }
     const events: Array<AgentEvent> = [
       { type: 'agent_start' },
       { type: 'turn_start' },
@@ -96,6 +101,7 @@ describe('pi agent to TanStack', () => {
       { type: 'message_end', message: result },
       { type: 'message_start', message: steer },
       { type: 'message_end', message: steer },
+      { type: 'message_end', message: secret },
       { type: 'turn_end', message: assistant, toolResults: [result] },
       { type: 'agent_end', messages: [assistant, result, steer] },
     ]
@@ -132,8 +138,9 @@ describe('pi agent to TanStack', () => {
       finishReason: 'tool_calls',
       metadata: { tanstack: { usage: { cost: 0.25 } } },
     })
-    // The prompt is not sent back to the client.
+    // The prompt is not sent back, and pi system messages stay on the server.
     expect(JSON.stringify(out)).not.toContain('"Go"')
+    expect(JSON.stringify(out)).not.toContain('Secret rules.')
   })
 })
 

@@ -65,6 +65,7 @@ export interface RunPiAgentOptions {
 }
 
 const DENIED = 'The user denied this tool call'
+const UNANSWERED = 'This tool call has no result'
 
 function isAssistant(
   message: AgentMessage | undefined,
@@ -159,6 +160,23 @@ function textResult(
     content: [{ type: 'text', text }],
     isError,
     timestamp: Date.now(),
+  }
+}
+
+/** The tool message that the TanStack client sends for an answered approval. */
+function isApprovalPlaceholder(message: ToolResultMessage): boolean {
+  const first = message.content[0]
+  if (message.content.length !== 1 || first?.type !== 'text') return false
+  try {
+    const value: unknown = JSON.parse(first.text)
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      'approved' in value &&
+      typeof value.approved === 'boolean'
+    )
+  } catch {
+    return false
   }
 }
 
@@ -275,12 +293,11 @@ export function runPiAgent(
       return
     }
 
-    // The client sends a placeholder tool message for an answered approval.
-    // The answer in `resume` replaces it.
+    // For an answered approval, the client sends a placeholder tool message
+    // (`{ approved, ... }`). The answer in `resume` replaces it. A real result
+    // stays, so a replayed answer cannot run the tool again.
     const resumed = new Set(
-      resume.map((item) =>
-        item.interruptId.replace(/^(approval_|client_tool_)/, ''),
-      ),
+      resume.map((item) => item.interruptId.replace(/^approval_/, '')),
     )
     for (let i = history.length - 1; i >= 0; i--) {
       const message = history[i]
@@ -288,7 +305,8 @@ export function runPiAgent(
         message &&
         'role' in message &&
         message.role === 'toolResult' &&
-        resumed.has(message.toolCallId)
+        resumed.has(message.toolCallId) &&
+        isApprovalPlaceholder(message)
       ) {
         history.splice(i, 1)
       }
@@ -309,16 +327,24 @@ export function runPiAgent(
     for (const call of assistant ? assistant.content : []) {
       if (!assistant) break
       if (call.type !== 'toolCall' || answered.has(call.id)) continue
-      const entry = resume.find(
-        (item) =>
-          item.interruptId === `approval_${call.id}` ||
-          item.interruptId === `client_tool_${call.id}`,
+      // Each answer kind fits one kind of tool, as in chat(): an approval
+      // runs only a tool in `needsApproval`, and a client output answers
+      // only a client tool. The history comes from the client, so any other
+      // pending call gets an error result and never runs.
+      const isClient = clientNames.has(call.name)
+      const isApproval = !isClient && needsApproval.includes(call.name)
+      const entry = resume.find((item) =>
+        isClient
+          ? item.interruptId === `client_tool_${call.id}`
+          : isApproval && item.interruptId === `approval_${call.id}`,
       )
       const payload: unknown = entry?.payload
-      if (!entry || entry.status === 'cancelled') {
+      if (!isClient && !isApproval) {
+        results.push(textResult(call, UNANSWERED, true))
+      } else if (!entry || entry.status === 'cancelled') {
         denied.add(call.id)
         results.push(textResult(call, DENIED, true))
-      } else if (entry.interruptId.startsWith('client_tool_')) {
+      } else if (isClient) {
         const error = errorOf(entry)
         results.push(
           error !== undefined

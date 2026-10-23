@@ -518,6 +518,12 @@ export interface FromPiAgentEventsOptions {
   interrupts?: ReadonlyMap<string, Interrupt>
   /** Tool results to send first: the answers to a resumed run's interrupts. */
   results?: ReadonlyArray<ToolResultMessage>
+  /**
+   * Which app messages (`CustomAgentMessages`) that pi adds mid-run go to the
+   * client as `pi.message` events. Mid-run user messages always go, and pi
+   * system messages never do. Default: none.
+   */
+  forwardMessage?: (message: AgentMessage) => boolean
 }
 
 /** A pi tool result as the AG-UI tool result event. */
@@ -560,8 +566,9 @@ function toolResultEvent(
  *
  * - `pi.tool-progress`: a partial tool result (`tool_execution_update`),
  *   with `toolCallId`, `toolName` and `partialResult`.
- * - `pi.message`: a message that pi adds mid-run, such as a steering or
- *   follow-up user message, or an app message.
+ * - `pi.message`: a user message that pi adds mid-run (steering or
+ *   follow-up), or an app message that `forwardMessage` allows. pi system
+ *   messages stay on the server.
  *
  * The cost of a model call is the TanStack usage `cost`.
  */
@@ -572,6 +579,7 @@ export async function* fromPiAgentEvents(
     runId,
     interrupts = new Map(),
     results = [],
+    forwardMessage = () => false,
   }: FromPiAgentEventsOptions,
 ): AsyncGenerator<StreamChunk> {
   let messageId = ''
@@ -670,7 +678,13 @@ export async function* fromPiAgentEvents(
           break
         }
         if (message.role !== 'assistant') {
-          if (prompted && role !== undefined) {
+          // pi system messages hold the prompt and the tool definitions, so
+          // they stay on the server. App messages need `forwardMessage`.
+          if (
+            prompted &&
+            role !== 'system' &&
+            (role === 'user' || forwardMessage(message))
+          ) {
             yield {
               type: EventType.CUSTOM,
               name: 'pi.message',

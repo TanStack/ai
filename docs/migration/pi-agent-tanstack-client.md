@@ -149,6 +149,7 @@ export function Approvals() {
 - The next request carries the answer. `runPiAgent` runs an approved call with the pi `beforeToolCall` and `afterToolCall` hooks, then continues the loop.
 - A denied call gets an error result with the `denied` outcome, and the model sees the denial.
 - The other tool calls of the same model call run at once.
+- The history comes from the client, as in a stateless `chat()` route. An approval runs only a tool in `needsApproval`, and never a call that already has a result. A pending call to any other pi tool gets an error result and does not run. If a person other than the user approves, keep the history on the server.
 
 ## 5. Run client tools
 
