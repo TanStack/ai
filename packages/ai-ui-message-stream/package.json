@@ -49,11 +49,6 @@
     "@tanstack/ai-client": "workspace:^",
     "ai": "^7.0.0"
   },
-  "peerDependenciesMeta": {
-    "@tanstack/ai-client": {
-      "optional": true
-    }
-  },
   "devDependencies": {
     "@ag-ui/core": "1.0.0",
     "@tanstack/ai": "workspace:*",
