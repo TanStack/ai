@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { Check, Loader2, Send, Square } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -9,14 +9,84 @@ import remarkGfm from 'remark-gfm'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { MCPAppResource } from '@tanstack/ai-react/mcp-apps'
 import type { UIMessage } from '@tanstack/ai-react'
-import { MCP_PROVIDERS, type McpProvider } from '@/lib/mcp-providers'
+import { MCP_PROVIDERS } from '@/lib/mcp-providers'
+import type { McpProvider } from '@/lib/mcp-providers'
 import { SANDBOX_PROXY_URL } from '@/lib/mcp-apps'
 
 type Part = UIMessage['parts'][number]
+type UIResource = Extract<Part, { type: 'ui-resource' }>
 
 // Reuse the MCP Apps sandbox proxy — Tier F artifacts render through the exact
 // same iframe path.
 const SANDBOX = { url: new URL(SANDBOX_PROXY_URL) }
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Read a create_artifact `dataSource` binding off the sibling tool-call part
+ * that shares the resource's toolCallId. Present only for live-bound artifacts.
+ */
+function dataSourceFor(
+  parts: Array<Part>,
+  toolCallId: string,
+): { name: string; params?: Record<string, unknown> } | undefined {
+  for (const p of parts) {
+    if (p.type !== 'tool-call' || p.id !== toolCallId) continue
+    let input: unknown = p.input
+    if (!isRecord(input) && typeof p.arguments === 'string') {
+      try {
+        input = JSON.parse(p.arguments)
+      } catch {
+        // ignore malformed partial JSON mid-stream
+      }
+    }
+    if (isRecord(input) && isRecord(input.dataSource)) {
+      const ds = input.dataSource
+      if (typeof ds.name !== 'string') continue
+      return {
+        name: ds.name,
+        params: isRecord(ds.params) ? ds.params : undefined,
+      }
+    }
+  }
+  return undefined
+}
+
+/**
+ * A live-bound Tier F artifact. Subscribes to the host data source over SSE and
+ * pushes each value into the frame via `toolInput` — AppRenderer forwards it to
+ * the guest as `ui/notifications/tool-input`, where `useHostData()` re-renders.
+ * Standard MCP Apps the whole way; no custom transport.
+ */
+function LiveArtifact({
+  part,
+  source,
+}: {
+  part: UIResource
+  source: { name: string; params?: Record<string, unknown> }
+}) {
+  const [data, setData] = useState<Record<string, unknown> | undefined>(
+    undefined,
+  )
+  const paramsKey = JSON.stringify(source.params ?? null)
+  useEffect(() => {
+    const qs = new URLSearchParams({ source: source.name })
+    if (source.params) qs.set('params', JSON.stringify(source.params))
+    const es = new EventSource(`/api/openui-live?${qs.toString()}`)
+    es.onmessage = (e) => {
+      try {
+        const value: unknown = JSON.parse(e.data)
+        if (isRecord(value)) setData(value)
+      } catch {
+        // ignore malformed event
+      }
+    }
+    return () => es.close()
+  }, [source.name, paramsKey])
+  return <MCPAppResource part={part} sandbox={SANDBOX} toolInput={data} />
+}
 
 // Tier F authoring prompts: one static (html-fragment), one interactive
 // (react-tsx with local state).
@@ -35,6 +105,11 @@ const SUGGESTIONS = [
     label: '✅ Todo list (React)',
     prompt:
       'Render a react-tsx artifact: a small todo list where I can type a task, press Enter to add it, and check items off. Keep all state local.',
+  },
+  {
+    label: '📈 Live spend monitor (React)',
+    prompt:
+      'Create a live spend monitor as a react-tsx artifact bound to the spendFeed data source. Show the running total large, and the latest delta underneath. Read the value with useHostData and default it.',
   },
 ]
 
@@ -102,16 +177,21 @@ function Messages({ messages }: { messages: Array<UIMessage> }) {
                   )
                 }
 
-                // A Tier F artifact — display-only, so no bridge is passed. Any
-                // interactivity lives inside the sandboxed iframe (local React
-                // state); there is no host round-trip in this demo.
+                // A Tier F artifact. No bridge is passed (no host tool-calls in
+                // this demo). A live-bound artifact gets a one-way data stream;
+                // otherwise interactivity is local React state inside the frame.
                 if (part.type === 'ui-resource') {
+                  const source = dataSourceFor(message.parts, part.toolCallId)
                   return (
                     <div
                       key={`ui-${index}`}
                       className="my-2 overflow-hidden rounded-lg border border-orange-500/20 bg-gray-900/40"
                     >
-                      <MCPAppResource part={part} sandbox={SANDBOX} />
+                      {source ? (
+                        <LiveArtifact part={part} source={source} />
+                      ) : (
+                        <MCPAppResource part={part} sandbox={SANDBOX} />
+                      )}
                     </div>
                   )
                 }

@@ -57,6 +57,7 @@ import { Route as ApiMcpTasksChatRouteImport } from './routes/api.mcp-tasks-chat
 import { Route as ApiMcpTasksServerRouteImport } from './routes/api.mcp-tasks-server'
 import { Route as ApiOpenrouterCombinedRouteImport } from './routes/api.openrouter-combined'
 import { Route as ApiOpenuiChatRouteImport } from './routes/api.openui-chat'
+import { Route as ApiOpenuiLiveRouteImport } from './routes/api.openui-live'
 import { Route as ApiPersistentChatRouteImport } from './routes/api.persistent-chat'
 import { Route as ApiResumableRouteImport } from './routes/api.resumable'
 import { Route as ApiSandboxRepoReportRouteImport } from './routes/api.sandbox-repo-report'
@@ -328,6 +329,11 @@ const ApiOpenuiChatRoute = ApiOpenuiChatRouteImport.update({
   path: '/api/openui-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOpenuiLiveRoute = ApiOpenuiLiveRouteImport.update({
+  id: '/api/openui-live',
+  path: '/api/openui-live',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPersistentChatRoute = ApiPersistentChatRouteImport.update({
   id: '/api/persistent-chat',
   path: '/api/persistent-chat',
@@ -534,6 +540,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-tasks-server': typeof ApiMcpTasksServerRoute
   '/api/openrouter-combined': typeof ApiOpenrouterCombinedRoute
   '/api/openui-chat': typeof ApiOpenuiChatRoute
+  '/api/openui-live': typeof ApiOpenuiLiveRoute
   '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-repo-report': typeof ApiSandboxRepoReportRoute
@@ -614,6 +621,7 @@ export interface FileRoutesByTo {
   '/api/mcp-tasks-server': typeof ApiMcpTasksServerRoute
   '/api/openrouter-combined': typeof ApiOpenrouterCombinedRoute
   '/api/openui-chat': typeof ApiOpenuiChatRoute
+  '/api/openui-live': typeof ApiOpenuiLiveRoute
   '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-repo-report': typeof ApiSandboxRepoReportRoute
@@ -695,6 +703,7 @@ export interface FileRoutesById {
   '/api/mcp-tasks-server': typeof ApiMcpTasksServerRoute
   '/api/openrouter-combined': typeof ApiOpenrouterCombinedRoute
   '/api/openui-chat': typeof ApiOpenuiChatRoute
+  '/api/openui-live': typeof ApiOpenuiLiveRoute
   '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-repo-report': typeof ApiSandboxRepoReportRoute
@@ -777,6 +786,7 @@ export interface FileRouteTypes {
     | '/api/mcp-tasks-server'
     | '/api/openrouter-combined'
     | '/api/openui-chat'
+    | '/api/openui-live'
     | '/api/persistent-chat'
     | '/api/resumable'
     | '/api/sandbox-repo-report'
@@ -857,6 +867,7 @@ export interface FileRouteTypes {
     | '/api/mcp-tasks-server'
     | '/api/openrouter-combined'
     | '/api/openui-chat'
+    | '/api/openui-live'
     | '/api/persistent-chat'
     | '/api/resumable'
     | '/api/sandbox-repo-report'
@@ -937,6 +948,7 @@ export interface FileRouteTypes {
     | '/api/mcp-tasks-server'
     | '/api/openrouter-combined'
     | '/api/openui-chat'
+    | '/api/openui-live'
     | '/api/persistent-chat'
     | '/api/resumable'
     | '/api/sandbox-repo-report'
@@ -1018,6 +1030,7 @@ export interface RootRouteChildren {
   ApiMcpTasksServerRoute: typeof ApiMcpTasksServerRoute
   ApiOpenrouterCombinedRoute: typeof ApiOpenrouterCombinedRoute
   ApiOpenuiChatRoute: typeof ApiOpenuiChatRoute
+  ApiOpenuiLiveRoute: typeof ApiOpenuiLiveRoute
   ApiPersistentChatRoute: typeof ApiPersistentChatRoute
   ApiResumableRoute: typeof ApiResumableRoute
   ApiSandboxRepoReportRoute: typeof ApiSandboxRepoReportRoute
@@ -1387,6 +1400,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOpenuiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/openui-live': {
+      id: '/api/openui-live'
+      path: '/api/openui-live'
+      fullPath: '/api/openui-live'
+      preLoaderRoute: typeof ApiOpenuiLiveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/persistent-chat': {
       id: '/api/persistent-chat'
       path: '/api/persistent-chat'
@@ -1660,6 +1680,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpTasksServerRoute: ApiMcpTasksServerRoute,
   ApiOpenrouterCombinedRoute: ApiOpenrouterCombinedRoute,
   ApiOpenuiChatRoute: ApiOpenuiChatRoute,
+  ApiOpenuiLiveRoute: ApiOpenuiLiveRoute,
   ApiPersistentChatRoute: ApiPersistentChatRoute,
   ApiResumableRoute: ApiResumableRoute,
   ApiSandboxRepoReportRoute: ApiSandboxRepoReportRoute,

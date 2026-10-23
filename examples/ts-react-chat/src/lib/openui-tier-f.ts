@@ -46,22 +46,69 @@ function htmlFragmentDoc(fragment: string): string {
 }
 
 /**
+ * Guest-side host bridge, served as the bare `@openui/host` import. It completes
+ * the MCP Apps `ui/initialize` handshake with the host (so AppRenderer starts
+ * forwarding data), then exposes `useHostData()` — a hook returning the latest
+ * value the host pushes via `ui/notifications/tool-input`. This is how a
+ * live-bound artifact receives streaming data, over the MCP Apps standard (no
+ * custom protocol). Returns `undefined` until the first value arrives.
+ */
+const HOST_MODULE = `import { useSyncExternalStore } from 'react'
+let current
+const subs = new Set()
+const set = (d) => { current = d; subs.forEach((f) => f()) }
+const P = window.parent
+let nextId = 1
+const pending = new Map()
+const send = (m) => P.postMessage(m, '*')
+window.addEventListener('message', (ev) => {
+  if (ev.source !== P) return
+  const m = ev.data
+  if (!m || m.jsonrpc !== '2.0') return
+  if (m.method === 'ping' && m.id != null) { send({ jsonrpc: '2.0', id: m.id, result: {} }); return }
+  if (m.method === 'ui/notifications/tool-input') { set(m.params && m.params.arguments); return }
+  if (m.id != null && pending.has(m.id)) {
+    const p = pending.get(m.id); pending.delete(m.id)
+    m.error ? p.reject(new Error(m.error.message)) : p.resolve(m.result)
+  }
+})
+const request = (method, params) => {
+  const id = nextId++
+  send({ jsonrpc: '2.0', id, method, params })
+  return new Promise((resolve, reject) => pending.set(id, { resolve, reject }))
+}
+;(async () => {
+  try {
+    await request('ui/initialize', { appInfo: { name: 'OpenUI Tier F', version: '1.0.0' }, appCapabilities: {}, protocolVersion: '2026-01-26' })
+    send({ jsonrpc: '2.0', method: 'ui/notifications/initialized', params: {} })
+  } catch (e) { /* host may not expect a handshake; data just won't arrive */ }
+})()
+export function useHostData() {
+  return useSyncExternalStore((cb) => { subs.add(cb); return () => subs.delete(cb) }, () => current, () => current)
+}
+`
+
+/**
  * Compile a react-tsx module to ESM and load it in an import-map shell. The
  * compiled code keeps its bare `react` / `react/jsx-runtime` imports; the shell
- * resolves them from esm.sh. The artifact must `export default` its component.
+ * resolves them from esm.sh. `@openui/host` resolves to the inlined bridge above
+ * so artifacts can `import { useHostData } from '@openui/host'`. The artifact
+ * must `export default` its component.
  *
- * ponytail: the import map only maps `react` + `react-dom`. A model that imports
+ * ponytail: the import map only maps react + `@openui/host`. A model that imports
  * another package won't resolve — acceptable for the demo; widen the map (or
  * bundle) if you need more.
  */
 function reactTsxDoc(compiled: string): string {
   const module = `data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`
+  const hostModule = `data:text/javascript;base64,${Buffer.from(HOST_MODULE).toString('base64')}`
   const importMap = JSON.stringify({
     imports: {
       react: `https://esm.sh/react@${REACT_VERSION}`,
       'react-dom': `https://esm.sh/react-dom@${REACT_VERSION}`,
       'react-dom/client': `https://esm.sh/react-dom@${REACT_VERSION}/client`,
       'react/jsx-runtime': `https://esm.sh/react@${REACT_VERSION}/jsx-runtime`,
+      '@openui/host': hostModule,
     },
   })
   return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><style>${STYLE}</style><script type="importmap">${importMap}</script></head><body><div id="root"></div><script type="module">
@@ -132,6 +179,22 @@ export function createArtifactTool() {
             'the component; import hooks from "react". For html-fragment, an ' +
             'HTML snippet (no <script> needed for static UI).',
         ),
+      dataSource: z
+        .object({
+          name: z.string().describe('Name of a host live data source.'),
+          params: z
+            .record(z.string(), z.unknown())
+            .optional()
+            .describe('Optional params for the source.'),
+        })
+        .optional()
+        .describe(
+          'Optional: bind a react-tsx artifact to a host live data source so it ' +
+            'updates in real time. Read the streamed value with ' +
+            '`import { useHostData } from "@openui/host"` — it returns undefined ' +
+            'until the first value, so always default it. Use only source names ' +
+            'listed in the system prompt.',
+        ),
     }),
     outputSchema: z.object({ status: z.string() }),
     metadata: {
@@ -169,5 +232,7 @@ export const TIER_F_SYSTEM_PROMPT = `You are an Open Generative UI agent in a ch
 Two kinds:
 - html-fragment: self-contained HTML/CSS for static or styled output. No <script> needed.
 - react-tsx: a React module for interactivity. It MUST \`export default\` the component and import hooks from "react" (e.g. \`import { useState } from 'react'\`). It runs sandboxed with no network or host access — keep all state local. Only "react" and "react-dom" are available to import.
+
+Live data: when the user wants a view that updates on its own (a monitor, ticker, feed), make a react-tsx artifact and set dataSource:{name,params} to one of the sources below. Read the streamed value with \`import { useHostData } from '@openui/host'\`. It returns undefined until the first value arrives, so always default it, e.g. \`const d = useHostData() || { total: 0 }\`. The host pushes the data; the artifact just renders what arrives.
 
 Keep artifacts compact and visually clean on a dark, transparent background.`

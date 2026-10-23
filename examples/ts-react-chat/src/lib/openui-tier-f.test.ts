@@ -46,4 +46,20 @@ describe('buildArtifactDoc', () => {
     if (out.ok) return
     expect(out.error.length).toBeGreaterThan(0)
   })
+
+  it('exposes the @openui/host live bridge in react-tsx artifacts', async () => {
+    const out = await buildArtifactDoc('react-tsx', 'export default () => null')
+    expect(out.ok).toBe(true)
+    if (!out.ok) return
+    const match = out.html.match(
+      /"@openui\/host":"data:text\/javascript;base64,([^"]+)"/,
+    )
+    expect(match).toBeTruthy()
+    if (!match) return
+    const bridge = Buffer.from(match[1], 'base64').toString()
+    // The bridge does the MCP Apps handshake and exposes the data hook.
+    expect(bridge).toContain('ui/initialize')
+    expect(bridge).toContain('ui/notifications/tool-input')
+    expect(bridge).toContain('export function useHostData')
+  })
 })

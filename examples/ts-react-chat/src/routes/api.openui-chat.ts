@@ -18,6 +18,12 @@ import {
 } from '@tanstack/ai'
 import { resolveTextAdapter } from '@/lib/mcp-provider-adapters'
 import { TIER_F_SYSTEM_PROMPT, createArtifactTool } from '@/lib/openui-tier-f'
+import { describeLiveSourcesForPrompt } from '@/lib/openui-live'
+
+const SYSTEM_PROMPT = `${TIER_F_SYSTEM_PROMPT}
+
+Live data sources available:
+${describeLiveSourcesForPrompt()}`
 
 export const Route = createFileRoute('/api/openui-chat')({
   server: {
@@ -40,7 +46,7 @@ export const Route = createFileRoute('/api/openui-chat')({
         try {
           const stream = chat({
             adapter: resolveTextAdapter(params.forwardedProps.provider),
-            systemPrompts: [TIER_F_SYSTEM_PROMPT],
+            systemPrompts: [SYSTEM_PROMPT],
             messages: params.messages,
             tools: [createArtifactTool()],
             toolExecution: 'sequential',
