@@ -36,6 +36,21 @@ Read the guide, then load the target API's own skill with
 `npx @tanstack/intent@latest load @tanstack/ai#ai-core`. Do not port from memory: a half-remembered mapping produces
 code that type-checks in neither SDK.
 
+To port one side at a time, `@tanstack/ai-ui-message-stream` connects the two
+SDKs over the AI SDK UI message stream:
+
+- Server first: keep AI SDK `useChat` and serve it from `chat()` with
+  `chat({ adapter, ...(await chatParamsFromAISDKRequest(request)) })` and
+  `toUIMessageStream`.
+  https://tanstack.com/ai/latest/docs/migration/ai-sdk-client-tanstack-server
+- Client first: keep the `streamText` route and pass
+  `fromChatTransport(new DefaultChatTransport({ api }), { threadId, tools })`
+  as the `connection` of TanStack `useChat`.
+  https://tanstack.com/ai/latest/docs/migration/tanstack-client-ai-sdk-server
+
+Tool approvals, client tools, activity, subagents and stream resume cross the
+bridge. Shared state goes from a TanStack server to an AI SDK client only.
+
 ## Upgrading TanStack AI itself
 
 Start with the version the app has, and the current release:

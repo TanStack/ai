@@ -11,6 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActivityTestRouteImport } from './routes/activity-test'
+import { Route as AiSdkClientRouteImport } from './routes/ai-sdk-client'
+import { Route as AiSdkResumeRouteImport } from './routes/ai-sdk-resume'
+import { Route as AiSdkServerRouteImport } from './routes/ai-sdk-server'
 import { Route as ByokRouteImport } from './routes/byok'
 import { Route as CallOwnershipRouteImport } from './routes/call-ownership'
 import { Route as ChatClientDefaultBridgeRouteImport } from './routes/chat-client-default-bridge'
@@ -52,6 +55,8 @@ import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
 import { Route as ApiActivityTestRouteImport } from './routes/api.activity-test'
 import { Route as ApiAdapterInputModalitiesRouteImport } from './routes/api.adapter-input-modalities'
+import { Route as ApiAiSdkClientRouteImport } from './routes/api.ai-sdk-client'
+import { Route as ApiAiSdkServerRouteImport } from './routes/api.ai-sdk-server'
 import { Route as ApiAnthropicAuthWireRouteImport } from './routes/api.anthropic-auth-wire'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
 import { Route as ApiAnthropicComputerToolsetWireRouteImport } from './routes/api.anthropic-computer-toolset-wire'
@@ -199,11 +204,12 @@ import { Route as ApiVoiceRouteImport } from './routes/api.voice'
 import { Route as ApiWebMcpPageToolsRouteImport } from './routes/api.web-mcp-page-tools'
 import { Route as ApiWorldRouteImport } from './routes/api.world'
 import { Route as ApiWrapFetchWireRouteImport } from './routes/api.wrap-fetch-wire'
+import { Route as ApiAiSdkResumeSplatRouteImport } from './routes/api.ai-sdk-resume.$'
 import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
-import { Route as ApiHarnessProtocolSplatRouteImport } from './routes/api.harness-protocol.$'
-import { Route as ApiHarnessSecretAnswerSplatRouteImport } from './routes/api.harness-secret-answer.$'
 import { Route as ApiHarnessHandoffSplatRouteImport } from './routes/api.harness-handoff.$'
 import { Route as ApiHarnessObservabilitySplatRouteImport } from './routes/api.harness-observability.$'
+import { Route as ApiHarnessProtocolSplatRouteImport } from './routes/api.harness-protocol.$'
+import { Route as ApiHarnessSecretAnswerSplatRouteImport } from './routes/api.harness-secret-answer.$'
 import { Route as ApiHarnessWaitsSplatRouteImport } from './routes/api.harness-waits.$'
 import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
 import { Route as ApiTranscriptionStreamRouteImport } from './routes/api.transcription.stream'
@@ -218,6 +224,21 @@ const IndexRoute = IndexRouteImport.update({
 const ActivityTestRoute = ActivityTestRouteImport.update({
   id: '/activity-test',
   path: '/activity-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AiSdkClientRoute = AiSdkClientRouteImport.update({
+  id: '/ai-sdk-client',
+  path: '/ai-sdk-client',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AiSdkResumeRoute = AiSdkResumeRouteImport.update({
+  id: '/ai-sdk-resume',
+  path: '/ai-sdk-resume',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AiSdkServerRoute = AiSdkServerRouteImport.update({
+  id: '/ai-sdk-server',
+  path: '/ai-sdk-server',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ByokRoute = ByokRouteImport.update({
@@ -429,6 +450,16 @@ const ApiAdapterInputModalitiesRoute =
     path: '/api/adapter-input-modalities',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAiSdkClientRoute = ApiAiSdkClientRouteImport.update({
+  id: '/api/ai-sdk-client',
+  path: '/api/ai-sdk-client',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAiSdkServerRoute = ApiAiSdkServerRouteImport.update({
+  id: '/api/ai-sdk-server',
+  path: '/api/ai-sdk-server',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAnthropicAuthWireRoute = ApiAnthropicAuthWireRouteImport.update({
   id: '/api/anthropic-auth-wire',
   path: '/api/anthropic-auth-wire',
@@ -1207,22 +1238,16 @@ const ApiWrapFetchWireRoute = ApiWrapFetchWireRouteImport.update({
   path: '/api/wrap-fetch-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAiSdkResumeSplatRoute = ApiAiSdkResumeSplatRouteImport.update({
+  id: '/api/ai-sdk-resume/$',
+  path: '/api/ai-sdk-resume/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
   id: '/stream',
   path: '/stream',
   getParentRoute: () => ApiAudioRoute,
 } as any)
-const ApiHarnessProtocolSplatRoute = ApiHarnessProtocolSplatRouteImport.update({
-  id: '/api/harness-protocol/$',
-  path: '/api/harness-protocol/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiHarnessSecretAnswerSplatRoute =
-  ApiHarnessSecretAnswerSplatRouteImport.update({
-    id: '/api/harness-secret-answer/$',
-    path: '/api/harness-secret-answer/$',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const ApiHarnessHandoffSplatRoute = ApiHarnessHandoffSplatRouteImport.update({
   id: '/api/harness-handoff/$',
   path: '/api/harness-handoff/$',
@@ -1232,6 +1257,17 @@ const ApiHarnessObservabilitySplatRoute =
   ApiHarnessObservabilitySplatRouteImport.update({
     id: '/api/harness-observability/$',
     path: '/api/harness-observability/$',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiHarnessProtocolSplatRoute = ApiHarnessProtocolSplatRouteImport.update({
+  id: '/api/harness-protocol/$',
+  path: '/api/harness-protocol/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHarnessSecretAnswerSplatRoute =
+  ApiHarnessSecretAnswerSplatRouteImport.update({
+    id: '/api/harness-secret-answer/$',
+    path: '/api/harness-secret-answer/$',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiHarnessWaitsSplatRoute = ApiHarnessWaitsSplatRouteImport.update({
@@ -1263,6 +1299,9 @@ const ApiVideoStreamRoute = ApiVideoStreamRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
+  '/ai-sdk-client': typeof AiSdkClientRoute
+  '/ai-sdk-resume': typeof AiSdkResumeRoute
+  '/ai-sdk-server': typeof AiSdkServerRoute
   '/byok': typeof ByokRoute
   '/call-ownership': typeof CallOwnershipRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
@@ -1303,6 +1342,8 @@ export interface FileRoutesByFullPath {
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
+  '/api/ai-sdk-client': typeof ApiAiSdkClientRoute
+  '/api/ai-sdk-server': typeof ApiAiSdkServerRoute
   '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-computer-toolset-wire': typeof ApiAnthropicComputerToolsetWireRoute
@@ -1451,11 +1492,12 @@ export interface FileRoutesByFullPath {
   '/api/world': typeof ApiWorldRoute
   '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider/': typeof ProviderIndexRoute
+  '/api/ai-sdk-resume/$': typeof ApiAiSdkResumeSplatRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
-  '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
-  '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
   '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
   '/api/harness-observability/$': typeof ApiHarnessObservabilitySplatRoute
+  '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
+  '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
   '/api/harness-waits/$': typeof ApiHarnessWaitsSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
@@ -1465,6 +1507,9 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
+  '/ai-sdk-client': typeof AiSdkClientRoute
+  '/ai-sdk-resume': typeof AiSdkResumeRoute
+  '/ai-sdk-server': typeof AiSdkServerRoute
   '/byok': typeof ByokRoute
   '/call-ownership': typeof CallOwnershipRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
@@ -1505,6 +1550,8 @@ export interface FileRoutesByTo {
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
+  '/api/ai-sdk-client': typeof ApiAiSdkClientRoute
+  '/api/ai-sdk-server': typeof ApiAiSdkServerRoute
   '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-computer-toolset-wire': typeof ApiAnthropicComputerToolsetWireRoute
@@ -1653,11 +1700,12 @@ export interface FileRoutesByTo {
   '/api/world': typeof ApiWorldRoute
   '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider': typeof ProviderIndexRoute
+  '/api/ai-sdk-resume/$': typeof ApiAiSdkResumeSplatRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
-  '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
-  '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
   '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
   '/api/harness-observability/$': typeof ApiHarnessObservabilitySplatRoute
+  '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
+  '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
   '/api/harness-waits/$': typeof ApiHarnessWaitsSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
@@ -1668,6 +1716,9 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
+  '/ai-sdk-client': typeof AiSdkClientRoute
+  '/ai-sdk-resume': typeof AiSdkResumeRoute
+  '/ai-sdk-server': typeof AiSdkServerRoute
   '/byok': typeof ByokRoute
   '/call-ownership': typeof CallOwnershipRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
@@ -1708,6 +1759,8 @@ export interface FileRoutesById {
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
+  '/api/ai-sdk-client': typeof ApiAiSdkClientRoute
+  '/api/ai-sdk-server': typeof ApiAiSdkServerRoute
   '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-computer-toolset-wire': typeof ApiAnthropicComputerToolsetWireRoute
@@ -1856,11 +1909,12 @@ export interface FileRoutesById {
   '/api/world': typeof ApiWorldRoute
   '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider/': typeof ProviderIndexRoute
+  '/api/ai-sdk-resume/$': typeof ApiAiSdkResumeSplatRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
-  '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
-  '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
   '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
   '/api/harness-observability/$': typeof ApiHarnessObservabilitySplatRoute
+  '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
+  '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
   '/api/harness-waits/$': typeof ApiHarnessWaitsSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
@@ -1872,6 +1926,9 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/activity-test'
+    | '/ai-sdk-client'
+    | '/ai-sdk-resume'
+    | '/ai-sdk-server'
     | '/byok'
     | '/call-ownership'
     | '/chat-client-default-bridge'
@@ -1912,6 +1969,8 @@ export interface FileRouteTypes {
     | '/$provider/$feature'
     | '/api/activity-test'
     | '/api/adapter-input-modalities'
+    | '/api/ai-sdk-client'
+    | '/api/ai-sdk-server'
     | '/api/anthropic-auth-wire'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-computer-toolset-wire'
@@ -2060,11 +2119,12 @@ export interface FileRouteTypes {
     | '/api/world'
     | '/api/wrap-fetch-wire'
     | '/$provider/'
+    | '/api/ai-sdk-resume/$'
     | '/api/audio/stream'
-    | '/api/harness-protocol/$'
-    | '/api/harness-secret-answer/$'
     | '/api/harness-handoff/$'
     | '/api/harness-observability/$'
+    | '/api/harness-protocol/$'
+    | '/api/harness-secret-answer/$'
     | '/api/harness-waits/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
@@ -2074,6 +2134,9 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/activity-test'
+    | '/ai-sdk-client'
+    | '/ai-sdk-resume'
+    | '/ai-sdk-server'
     | '/byok'
     | '/call-ownership'
     | '/chat-client-default-bridge'
@@ -2114,6 +2177,8 @@ export interface FileRouteTypes {
     | '/$provider/$feature'
     | '/api/activity-test'
     | '/api/adapter-input-modalities'
+    | '/api/ai-sdk-client'
+    | '/api/ai-sdk-server'
     | '/api/anthropic-auth-wire'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-computer-toolset-wire'
@@ -2262,11 +2327,12 @@ export interface FileRouteTypes {
     | '/api/world'
     | '/api/wrap-fetch-wire'
     | '/$provider'
+    | '/api/ai-sdk-resume/$'
     | '/api/audio/stream'
-    | '/api/harness-protocol/$'
-    | '/api/harness-secret-answer/$'
     | '/api/harness-handoff/$'
     | '/api/harness-observability/$'
+    | '/api/harness-protocol/$'
+    | '/api/harness-secret-answer/$'
     | '/api/harness-waits/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
@@ -2276,6 +2342,9 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/activity-test'
+    | '/ai-sdk-client'
+    | '/ai-sdk-resume'
+    | '/ai-sdk-server'
     | '/byok'
     | '/call-ownership'
     | '/chat-client-default-bridge'
@@ -2316,6 +2385,8 @@ export interface FileRouteTypes {
     | '/$provider/$feature'
     | '/api/activity-test'
     | '/api/adapter-input-modalities'
+    | '/api/ai-sdk-client'
+    | '/api/ai-sdk-server'
     | '/api/anthropic-auth-wire'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-computer-toolset-wire'
@@ -2464,11 +2535,12 @@ export interface FileRouteTypes {
     | '/api/world'
     | '/api/wrap-fetch-wire'
     | '/$provider/'
+    | '/api/ai-sdk-resume/$'
     | '/api/audio/stream'
-    | '/api/harness-protocol/$'
-    | '/api/harness-secret-answer/$'
     | '/api/harness-handoff/$'
     | '/api/harness-observability/$'
+    | '/api/harness-protocol/$'
+    | '/api/harness-secret-answer/$'
     | '/api/harness-waits/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
@@ -2479,6 +2551,9 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActivityTestRoute: typeof ActivityTestRoute
+  AiSdkClientRoute: typeof AiSdkClientRoute
+  AiSdkResumeRoute: typeof AiSdkResumeRoute
+  AiSdkServerRoute: typeof AiSdkServerRoute
   ByokRoute: typeof ByokRoute
   CallOwnershipRoute: typeof CallOwnershipRoute
   ChatClientDefaultBridgeRoute: typeof ChatClientDefaultBridgeRoute
@@ -2519,6 +2594,8 @@ export interface RootRouteChildren {
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiActivityTestRoute: typeof ApiActivityTestRoute
   ApiAdapterInputModalitiesRoute: typeof ApiAdapterInputModalitiesRoute
+  ApiAiSdkClientRoute: typeof ApiAiSdkClientRoute
+  ApiAiSdkServerRoute: typeof ApiAiSdkServerRoute
   ApiAnthropicAuthWireRoute: typeof ApiAnthropicAuthWireRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
   ApiAnthropicComputerToolsetWireRoute: typeof ApiAnthropicComputerToolsetWireRoute
@@ -2667,10 +2744,11 @@ export interface RootRouteChildren {
   ApiWorldRoute: typeof ApiWorldRoute
   ApiWrapFetchWireRoute: typeof ApiWrapFetchWireRoute
   ProviderIndexRoute: typeof ProviderIndexRoute
-  ApiHarnessProtocolSplatRoute: typeof ApiHarnessProtocolSplatRoute
-  ApiHarnessSecretAnswerSplatRoute: typeof ApiHarnessSecretAnswerSplatRoute
+  ApiAiSdkResumeSplatRoute: typeof ApiAiSdkResumeSplatRoute
   ApiHarnessHandoffSplatRoute: typeof ApiHarnessHandoffSplatRoute
   ApiHarnessObservabilitySplatRoute: typeof ApiHarnessObservabilitySplatRoute
+  ApiHarnessProtocolSplatRoute: typeof ApiHarnessProtocolSplatRoute
+  ApiHarnessSecretAnswerSplatRoute: typeof ApiHarnessSecretAnswerSplatRoute
   ApiHarnessWaitsSplatRoute: typeof ApiHarnessWaitsSplatRoute
 }
 
@@ -2688,6 +2766,27 @@ declare module '@tanstack/react-router' {
       path: '/activity-test'
       fullPath: '/activity-test'
       preLoaderRoute: typeof ActivityTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ai-sdk-client': {
+      id: '/ai-sdk-client'
+      path: '/ai-sdk-client'
+      fullPath: '/ai-sdk-client'
+      preLoaderRoute: typeof AiSdkClientRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ai-sdk-resume': {
+      id: '/ai-sdk-resume'
+      path: '/ai-sdk-resume'
+      fullPath: '/ai-sdk-resume'
+      preLoaderRoute: typeof AiSdkResumeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ai-sdk-server': {
+      id: '/ai-sdk-server'
+      path: '/ai-sdk-server'
+      fullPath: '/ai-sdk-server'
+      preLoaderRoute: typeof AiSdkServerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/byok': {
@@ -2975,6 +3074,20 @@ declare module '@tanstack/react-router' {
       path: '/api/adapter-input-modalities'
       fullPath: '/api/adapter-input-modalities'
       preLoaderRoute: typeof ApiAdapterInputModalitiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ai-sdk-client': {
+      id: '/api/ai-sdk-client'
+      path: '/api/ai-sdk-client'
+      fullPath: '/api/ai-sdk-client'
+      preLoaderRoute: typeof ApiAiSdkClientRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ai-sdk-server': {
+      id: '/api/ai-sdk-server'
+      path: '/api/ai-sdk-server'
+      fullPath: '/api/ai-sdk-server'
+      preLoaderRoute: typeof ApiAiSdkServerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/anthropic-auth-wire': {
@@ -4006,26 +4119,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWrapFetchWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/ai-sdk-resume/$': {
+      id: '/api/ai-sdk-resume/$'
+      path: '/api/ai-sdk-resume/$'
+      fullPath: '/api/ai-sdk-resume/$'
+      preLoaderRoute: typeof ApiAiSdkResumeSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/audio/stream': {
       id: '/api/audio/stream'
       path: '/stream'
       fullPath: '/api/audio/stream'
       preLoaderRoute: typeof ApiAudioStreamRouteImport
       parentRoute: typeof ApiAudioRoute
-    }
-    '/api/harness-protocol/$': {
-      id: '/api/harness-protocol/$'
-      path: '/api/harness-protocol/$'
-      fullPath: '/api/harness-protocol/$'
-      preLoaderRoute: typeof ApiHarnessProtocolSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/harness-secret-answer/$': {
-      id: '/api/harness-secret-answer/$'
-      path: '/api/harness-secret-answer/$'
-      fullPath: '/api/harness-secret-answer/$'
-      preLoaderRoute: typeof ApiHarnessSecretAnswerSplatRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/api/harness-handoff/$': {
       id: '/api/harness-handoff/$'
@@ -4039,6 +4145,20 @@ declare module '@tanstack/react-router' {
       path: '/api/harness-observability/$'
       fullPath: '/api/harness-observability/$'
       preLoaderRoute: typeof ApiHarnessObservabilitySplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/harness-protocol/$': {
+      id: '/api/harness-protocol/$'
+      path: '/api/harness-protocol/$'
+      fullPath: '/api/harness-protocol/$'
+      preLoaderRoute: typeof ApiHarnessProtocolSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/harness-secret-answer/$': {
+      id: '/api/harness-secret-answer/$'
+      path: '/api/harness-secret-answer/$'
+      fullPath: '/api/harness-secret-answer/$'
+      preLoaderRoute: typeof ApiHarnessSecretAnswerSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/harness-waits/$': {
@@ -4140,6 +4260,9 @@ const ApiVideoRouteWithChildren = ApiVideoRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActivityTestRoute: ActivityTestRoute,
+  AiSdkClientRoute: AiSdkClientRoute,
+  AiSdkResumeRoute: AiSdkResumeRoute,
+  AiSdkServerRoute: AiSdkServerRoute,
   ByokRoute: ByokRoute,
   CallOwnershipRoute: CallOwnershipRoute,
   ChatClientDefaultBridgeRoute: ChatClientDefaultBridgeRoute,
@@ -4180,6 +4303,8 @@ const rootRouteChildren: RootRouteChildren = {
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiActivityTestRoute: ApiActivityTestRoute,
   ApiAdapterInputModalitiesRoute: ApiAdapterInputModalitiesRoute,
+  ApiAiSdkClientRoute: ApiAiSdkClientRoute,
+  ApiAiSdkServerRoute: ApiAiSdkServerRoute,
   ApiAnthropicAuthWireRoute: ApiAnthropicAuthWireRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
   ApiAnthropicComputerToolsetWireRoute: ApiAnthropicComputerToolsetWireRoute,
@@ -4334,10 +4459,11 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWorldRoute: ApiWorldRoute,
   ApiWrapFetchWireRoute: ApiWrapFetchWireRoute,
   ProviderIndexRoute: ProviderIndexRoute,
-  ApiHarnessProtocolSplatRoute: ApiHarnessProtocolSplatRoute,
-  ApiHarnessSecretAnswerSplatRoute: ApiHarnessSecretAnswerSplatRoute,
+  ApiAiSdkResumeSplatRoute: ApiAiSdkResumeSplatRoute,
   ApiHarnessHandoffSplatRoute: ApiHarnessHandoffSplatRoute,
   ApiHarnessObservabilitySplatRoute: ApiHarnessObservabilitySplatRoute,
+  ApiHarnessProtocolSplatRoute: ApiHarnessProtocolSplatRoute,
+  ApiHarnessSecretAnswerSplatRoute: ApiHarnessSecretAnswerSplatRoute,
   ApiHarnessWaitsSplatRoute: ApiHarnessWaitsSplatRoute,
 }
 export const routeTree = rootRouteImport
