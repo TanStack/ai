@@ -474,6 +474,16 @@ export type {
 export * from './types'
 export { CONTEXT_OVERFLOW_CODE } from './activities/error-payload'
 
+// Model catalogs: each provider package exports its models at `./models`.
+export { modelCost } from './model-catalog'
+export type {
+  ModelCost,
+  ModelPrices,
+  ModelPriceTier,
+  ModelRates,
+  ModelRecord,
+} from './model-catalog'
+
 // One reasoning option for every provider: `chat({ reasoning })`.
 export {
   REASONING_LEVELS,

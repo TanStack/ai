@@ -50,6 +50,11 @@ jobs:
         continue-on-error: true
         run: pnpm exec tsx scripts/sync-provider-models.ts
 
+      - name: Sync model catalogs
+        id: catalogs
+        continue-on-error: true
+        run: pnpm generate:models:catalogs
+
       - name: Format
         run: pnpm format
 
@@ -97,6 +102,7 @@ jobs:
           - Converts to the internal adapter format
           - Syncs provider-specific model metadata for affected packages
           - Inserts new ElevenLabs text-to-speech, music, sound-effect, and voice-design models from modelschemas
+          - Writes each provider package's `./models` catalog (prices, limits, reasoning levels) from modelschemas
           - Creates a patch changeset for all changed packages
           PRBODY
           )
@@ -112,7 +118,8 @@ jobs:
           steps.fetch.outcome == 'failure' ||
           steps.convert.outcome == 'failure' ||
           steps.elevenlabs.outcome == 'failure' ||
-          steps.provider.outcome == 'failure'
+          steps.provider.outcome == 'failure' ||
+          steps.catalogs.outcome == 'failure'
         run: |
           echo "::error::A model sync step failed. Passing steps were still committed."
           exit 1
@@ -126,7 +133,8 @@ jobs:
             fetch=${{ steps.fetch.outcome }},
             convert=${{ steps.convert.outcome }},
             elevenlabs=${{ steps.elevenlabs.outcome }},
-            provider=${{ steps.provider.outcome }}
+            provider=${{ steps.provider.outcome }},
+            catalogs=${{ steps.catalogs.outcome }}
         shell: bash
         run: |
           gh label create sync-models --color B60205 --description "Daily model sync failures" --force

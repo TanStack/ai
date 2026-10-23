@@ -40,6 +40,10 @@
     "./pkce": {
       "types": "./dist/esm/pkce.d.ts",
       "import": "./dist/esm/pkce.js"
+    },
+    "./models": {
+      "types": "./dist/esm/models.d.ts",
+      "import": "./dist/esm/models.js"
     }
   },
   "files": [

@@ -36,6 +36,10 @@
     "./experimental": {
       "types": "./dist/esm/experimental/index.d.ts",
       "import": "./dist/esm/experimental/index.js"
+    },
+    "./models": {
+      "types": "./dist/esm/models.d.ts",
+      "import": "./dist/esm/models.js"
     }
   },
   "files": [

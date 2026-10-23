@@ -28,6 +28,14 @@
     "./byok": {
       "types": "./dist/esm/byok.d.ts",
       "import": "./dist/esm/byok.js"
+    },
+    "./models": {
+      "types": "./dist/esm/models.d.ts",
+      "import": "./dist/esm/models.js"
+    },
+    "./gateway-models": {
+      "types": "./dist/esm/gateway-models.d.ts",
+      "import": "./dist/esm/gateway-models.js"
     }
   },
   "files": [

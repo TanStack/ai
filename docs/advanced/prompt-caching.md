@@ -76,6 +76,8 @@ const stream = chat({
 
 From the second call of a conversation, most of the input comes from the cache.
 
+To turn this usage into a price, use `modelCost`. See [Model Catalog](./model-catalog#price-a-run).
+
 ## How it works
 
 - The cache key is the first of these that you set:

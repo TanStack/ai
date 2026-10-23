@@ -36,6 +36,13 @@ sources:
 > or from the provider's API/docs to recommend the most current model.
 > The model lists in this skill and its reference files may be outdated.
 > Always verify against the source before recommending a specific model.
+>
+> **Model data at runtime:** most provider packages export a `./models`
+> subpath (`import { models } from '@tanstack/ai-anthropic/models'`). Each
+> record has `id`, `contextWindow`, `maxOutputTokens`, `prices`, and
+> `reasoning`. `modelCost(model, usage)` from `@tanstack/ai` prices a call. A
+> value the source does not list is `undefined`, so never treat a missing
+> price as 0. See `docs/advanced/model-catalog.md`.
 
 ## Setup
 

@@ -40,6 +40,7 @@ import { execFileSync } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { writeSyncChangeset } from './model-sync/changeset'
 import {
   isRoutingAlias,
   toModelConstName,
@@ -700,52 +701,8 @@ async function main() {
   }
 
   if (allChangedPackages.size > 0) {
-    await createChangeset(allChangedPackages)
+    await writeSyncChangeset(ROOT, allChangedPackages)
   }
-}
-
-/**
- * Create or update the sync-models changeset file.
- * If one already exists, merges the package lists. Otherwise creates a new one.
- */
-async function createChangeset(changedPackages: Set<string>) {
-  const changesetDir = resolve(ROOT, '.changeset')
-  const { readdir } = await import('node:fs/promises')
-  const files = await readdir(changesetDir)
-  const existing = files.find(
-    (f) => f.startsWith('sync-models') && f.endsWith('.md'),
-  )
-
-  if (existing) {
-    const existingPath = resolve(changesetDir, existing)
-    const existingContent = await readFile(existingPath, 'utf-8')
-
-    // Merge existing packages into the set
-    const pkgRegex = /'([^']+)':\s*patch/g
-    let match
-    while ((match = pkgRegex.exec(existingContent)) !== null) {
-      changedPackages.add(match[1]!)
-    }
-
-    const content = buildChangesetContent(changedPackages)
-    await writeFile(existingPath, content, 'utf-8')
-    console.log(`\nChangeset updated: ${existingPath}`)
-  } else {
-    const changesetFile = resolve(changesetDir, 'sync-models.md')
-    const content = buildChangesetContent(changedPackages)
-    await writeFile(changesetFile, content, 'utf-8')
-    console.log(`\nChangeset created: ${changesetFile}`)
-  }
-
-  console.log(`  Packages: ${Array.from(changedPackages).sort().join(', ')}`)
-}
-
-function buildChangesetContent(packages: Set<string>): string {
-  const packageLines = Array.from(packages)
-    .sort()
-    .map((pkg) => `'${pkg}': patch`)
-    .join('\n')
-  return `---\n${packageLines}\n---\n\nUpdate model metadata from OpenRouter API\n`
 }
 
 main().catch((err) => {

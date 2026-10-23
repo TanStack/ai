@@ -1650,7 +1650,12 @@
           "label": "Prompt Caching",
           "to": "advanced/prompt-caching",
           "addedAt": "2026-10-09",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-10-23"
+        },
+        {
+          "label": "Model Catalog",
+          "to": "advanced/model-catalog",
+          "addedAt": "2026-10-23"
         },
         {
           "label": "Mid-Conversation Changes",

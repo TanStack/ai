@@ -32,6 +32,10 @@
     "./vertex": {
       "types": "./dist/esm/vertex/index.d.ts",
       "import": "./dist/esm/vertex/index.js"
+    },
+    "./models": {
+      "types": "./dist/esm/models.d.ts",
+      "import": "./dist/esm/models.js"
     }
   },
   "files": [

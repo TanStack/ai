@@ -32,6 +32,7 @@ export default mergeConfig(
   tanstackViteConfig({
     entry: [
       './src/index.ts',
+      './src/models.ts',
       './src/byok.ts',
       './src/tools/index.ts',
       './src/vertex/index.ts',

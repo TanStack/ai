@@ -31,6 +31,8 @@ export default mergeConfig(
   tanstackViteConfig({
     entry: [
       './src/index.ts',
+      './src/models.ts',
+      './src/azure-models.ts',
       './src/byok.ts',
       './src/compatible/index.ts',
       './src/siwc.ts',
