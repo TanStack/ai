@@ -42,6 +42,8 @@ import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
 import { Route as MessageHistoryPagingRouteImport } from './routes/message-history-paging'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
 import { Route as PersistenceDurabilityRouteImport } from './routes/persistence-durability'
+import { Route as PiAgentRouteImport } from './routes/pi-agent'
+import { Route as PiClientRouteImport } from './routes/pi-client'
 import { Route as SolidReactiveChatRouteImport } from './routes/solid-reactive-chat'
 import { Route as SubagentsTestRouteImport } from './routes/subagents-test'
 import { Route as SubagentsUiTestRouteImport } from './routes/subagents-ui-test'
@@ -177,6 +179,8 @@ import { Route as ApiOtelTranscriptionRouteImport } from './routes/api.otel-tran
 import { Route as ApiOtelUsageRouteImport } from './routes/api.otel-usage'
 import { Route as ApiOwnKeySchemaWireRouteImport } from './routes/api.own-key-schema-wire'
 import { Route as ApiPersistenceDurabilityRouteImport } from './routes/api.persistence-durability'
+import { Route as ApiPiAgentRouteImport } from './routes/api.pi-agent'
+import { Route as ApiPiClientRouteImport } from './routes/api.pi-client'
 import { Route as ApiPortableSkillsWireRouteImport } from './routes/api.portable-skills-wire'
 import { Route as ApiPromptCacheWireRouteImport } from './routes/api.prompt-cache-wire'
 import { Route as ApiProviderSearchMetadataWireRouteImport } from './routes/api.provider-search-metadata-wire'
@@ -382,6 +386,16 @@ const MiddlewareTestRoute = MiddlewareTestRouteImport.update({
 const PersistenceDurabilityRoute = PersistenceDurabilityRouteImport.update({
   id: '/persistence-durability',
   path: '/persistence-durability',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PiAgentRoute = PiAgentRouteImport.update({
+  id: '/pi-agent',
+  path: '/pi-agent',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PiClientRoute = PiClientRouteImport.update({
+  id: '/pi-client',
+  path: '/pi-client',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SolidReactiveChatRoute = SolidReactiveChatRouteImport.update({
@@ -1097,6 +1111,16 @@ const ApiPersistenceDurabilityRoute =
     path: '/api/persistence-durability',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPiAgentRoute = ApiPiAgentRouteImport.update({
+  id: '/api/pi-agent',
+  path: '/api/pi-agent',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPiClientRoute = ApiPiClientRouteImport.update({
+  id: '/api/pi-client',
+  path: '/api/pi-client',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPortableSkillsWireRoute = ApiPortableSkillsWireRouteImport.update({
   id: '/api/portable-skills-wire',
   path: '/api/portable-skills-wire',
@@ -1330,6 +1354,8 @@ export interface FileRoutesByFullPath {
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/pi-agent': typeof PiAgentRoute
+  '/pi-client': typeof PiClientRoute
   '/solid-reactive-chat': typeof SolidReactiveChatRoute
   '/subagents-test': typeof SubagentsTestRoute
   '/subagents-ui-test': typeof SubagentsUiTestRoute
@@ -1464,6 +1490,8 @@ export interface FileRoutesByFullPath {
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/own-key-schema-wire': typeof ApiOwnKeySchemaWireRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
+  '/api/pi-agent': typeof ApiPiAgentRoute
+  '/api/pi-client': typeof ApiPiClientRoute
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
   '/api/prompt-cache-wire': typeof ApiPromptCacheWireRoute
   '/api/provider-search-metadata-wire': typeof ApiProviderSearchMetadataWireRoute
@@ -1538,6 +1566,8 @@ export interface FileRoutesByTo {
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/pi-agent': typeof PiAgentRoute
+  '/pi-client': typeof PiClientRoute
   '/solid-reactive-chat': typeof SolidReactiveChatRoute
   '/subagents-test': typeof SubagentsTestRoute
   '/subagents-ui-test': typeof SubagentsUiTestRoute
@@ -1672,6 +1702,8 @@ export interface FileRoutesByTo {
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/own-key-schema-wire': typeof ApiOwnKeySchemaWireRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
+  '/api/pi-agent': typeof ApiPiAgentRoute
+  '/api/pi-client': typeof ApiPiClientRoute
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
   '/api/prompt-cache-wire': typeof ApiPromptCacheWireRoute
   '/api/provider-search-metadata-wire': typeof ApiProviderSearchMetadataWireRoute
@@ -1747,6 +1779,8 @@ export interface FileRoutesById {
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/pi-agent': typeof PiAgentRoute
+  '/pi-client': typeof PiClientRoute
   '/solid-reactive-chat': typeof SolidReactiveChatRoute
   '/subagents-test': typeof SubagentsTestRoute
   '/subagents-ui-test': typeof SubagentsUiTestRoute
@@ -1881,6 +1915,8 @@ export interface FileRoutesById {
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/own-key-schema-wire': typeof ApiOwnKeySchemaWireRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
+  '/api/pi-agent': typeof ApiPiAgentRoute
+  '/api/pi-client': typeof ApiPiClientRoute
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
   '/api/prompt-cache-wire': typeof ApiPromptCacheWireRoute
   '/api/provider-search-metadata-wire': typeof ApiProviderSearchMetadataWireRoute
@@ -1957,6 +1993,8 @@ export interface FileRouteTypes {
     | '/message-history-paging'
     | '/middleware-test'
     | '/persistence-durability'
+    | '/pi-agent'
+    | '/pi-client'
     | '/solid-reactive-chat'
     | '/subagents-test'
     | '/subagents-ui-test'
@@ -2091,6 +2129,8 @@ export interface FileRouteTypes {
     | '/api/otel-usage'
     | '/api/own-key-schema-wire'
     | '/api/persistence-durability'
+    | '/api/pi-agent'
+    | '/api/pi-client'
     | '/api/portable-skills-wire'
     | '/api/prompt-cache-wire'
     | '/api/provider-search-metadata-wire'
@@ -2165,6 +2205,8 @@ export interface FileRouteTypes {
     | '/message-history-paging'
     | '/middleware-test'
     | '/persistence-durability'
+    | '/pi-agent'
+    | '/pi-client'
     | '/solid-reactive-chat'
     | '/subagents-test'
     | '/subagents-ui-test'
@@ -2299,6 +2341,8 @@ export interface FileRouteTypes {
     | '/api/otel-usage'
     | '/api/own-key-schema-wire'
     | '/api/persistence-durability'
+    | '/api/pi-agent'
+    | '/api/pi-client'
     | '/api/portable-skills-wire'
     | '/api/prompt-cache-wire'
     | '/api/provider-search-metadata-wire'
@@ -2373,6 +2417,8 @@ export interface FileRouteTypes {
     | '/message-history-paging'
     | '/middleware-test'
     | '/persistence-durability'
+    | '/pi-agent'
+    | '/pi-client'
     | '/solid-reactive-chat'
     | '/subagents-test'
     | '/subagents-ui-test'
@@ -2507,6 +2553,8 @@ export interface FileRouteTypes {
     | '/api/otel-usage'
     | '/api/own-key-schema-wire'
     | '/api/persistence-durability'
+    | '/api/pi-agent'
+    | '/api/pi-client'
     | '/api/portable-skills-wire'
     | '/api/prompt-cache-wire'
     | '/api/provider-search-metadata-wire'
@@ -2582,6 +2630,8 @@ export interface RootRouteChildren {
   MessageHistoryPagingRoute: typeof MessageHistoryPagingRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   PersistenceDurabilityRoute: typeof PersistenceDurabilityRoute
+  PiAgentRoute: typeof PiAgentRoute
+  PiClientRoute: typeof PiClientRoute
   SolidReactiveChatRoute: typeof SolidReactiveChatRoute
   SubagentsTestRoute: typeof SubagentsTestRoute
   SubagentsUiTestRoute: typeof SubagentsUiTestRoute
@@ -2716,6 +2766,8 @@ export interface RootRouteChildren {
   ApiOtelUsageRoute: typeof ApiOtelUsageRoute
   ApiOwnKeySchemaWireRoute: typeof ApiOwnKeySchemaWireRoute
   ApiPersistenceDurabilityRoute: typeof ApiPersistenceDurabilityRoute
+  ApiPiAgentRoute: typeof ApiPiAgentRoute
+  ApiPiClientRoute: typeof ApiPiClientRoute
   ApiPortableSkillsWireRoute: typeof ApiPortableSkillsWireRoute
   ApiPromptCacheWireRoute: typeof ApiPromptCacheWireRoute
   ApiProviderSearchMetadataWireRoute: typeof ApiProviderSearchMetadataWireRoute
@@ -2983,6 +3035,20 @@ declare module '@tanstack/react-router' {
       path: '/persistence-durability'
       fullPath: '/persistence-durability'
       preLoaderRoute: typeof PersistenceDurabilityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pi-agent': {
+      id: '/pi-agent'
+      path: '/pi-agent'
+      fullPath: '/pi-agent'
+      preLoaderRoute: typeof PiAgentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pi-client': {
+      id: '/pi-client'
+      path: '/pi-client'
+      fullPath: '/pi-client'
+      preLoaderRoute: typeof PiClientRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/solid-reactive-chat': {
@@ -3930,6 +3996,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPersistenceDurabilityRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/pi-agent': {
+      id: '/api/pi-agent'
+      path: '/api/pi-agent'
+      fullPath: '/api/pi-agent'
+      preLoaderRoute: typeof ApiPiAgentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/pi-client': {
+      id: '/api/pi-client'
+      path: '/api/pi-client'
+      fullPath: '/api/pi-client'
+      preLoaderRoute: typeof ApiPiClientRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/portable-skills-wire': {
       id: '/api/portable-skills-wire'
       path: '/api/portable-skills-wire'
@@ -4291,6 +4371,8 @@ const rootRouteChildren: RootRouteChildren = {
   MessageHistoryPagingRoute: MessageHistoryPagingRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
   PersistenceDurabilityRoute: PersistenceDurabilityRoute,
+  PiAgentRoute: PiAgentRoute,
+  PiClientRoute: PiClientRoute,
   SolidReactiveChatRoute: SolidReactiveChatRoute,
   SubagentsTestRoute: SubagentsTestRoute,
   SubagentsUiTestRoute: SubagentsUiTestRoute,
@@ -4431,6 +4513,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOtelUsageRoute: ApiOtelUsageRoute,
   ApiOwnKeySchemaWireRoute: ApiOwnKeySchemaWireRoute,
   ApiPersistenceDurabilityRoute: ApiPersistenceDurabilityRoute,
+  ApiPiAgentRoute: ApiPiAgentRoute,
+  ApiPiClientRoute: ApiPiClientRoute,
   ApiPortableSkillsWireRoute: ApiPortableSkillsWireRoute,
   ApiPromptCacheWireRoute: ApiPromptCacheWireRoute,
   ApiProviderSearchMetadataWireRoute: ApiProviderSearchMetadataWireRoute,
