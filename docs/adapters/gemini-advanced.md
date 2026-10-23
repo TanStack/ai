@@ -415,6 +415,37 @@ Gemini has tools of its own, next to the function tools that you define. Import 
 
 For the concept, a comparison table, and type gating, see [Provider Tools](../tools/provider-tools.md).
 
+### Provider tools beside your own tools
+
+On Gemini 3, put provider tools and your function tools in one `tools` array. The model can search the web and call your tool in the same step.
+
+```typescript
+import { chat, toolDefinition } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+import { googleSearchTool } from "@tanstack/ai-gemini/tools";
+import { z } from "zod";
+
+const getOrder = toolDefinition({
+  name: "get_order",
+  description: "Get an order by its id",
+  inputSchema: z.object({ id: z.string() }),
+}).server(async ({ id }) => ({ id, status: "shipped" }));
+
+const stream = chat({
+  adapter: geminiText("gemini-3.8-flash"),
+  messages: [
+    { role: "user", content: "Where is order 42, and does the carrier report delays today?" },
+  ],
+  threadId: "thread-1",
+  tools: [googleSearchTool(), getOrder],
+});
+```
+
+The adapter does two things for this mix:
+
+- **The flag.** On the Gemini API, it sets `toolConfig.includeServerSideToolInvocations`, which Gemini needs to mix the two kinds of tools. The SDK rejects this flag on Vertex AI, so the adapter does not set it there. A `toolConfig` in `modelOptions` wins.
+- **The signed parts.** Gemini returns each run of a provider tool as signed parts. The adapter keeps them on a provider-executed tool call, in `metadata.gemini.serverParts`, and sends them back on the next request. If you store messages, keep that metadata.
+
 ### `codeExecutionTool`
 
 Gemini runs Python code in a sandbox and returns the results inline. It takes no arguments. Add it to the `tools` array.
