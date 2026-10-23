@@ -184,7 +184,8 @@ Use one connection for each thread. The rejoin after a reload needs a transport 
 ## What does not go through
 
 - AG-UI shared state. The AI SDK has no state.
-- Sources, generated files and message metadata.
+- Provider metadata on text parts, for example OpenAI item ids on text. TanStack keeps no metadata per text part.
+- Sources, citations and generated files arrive as custom events, not as message parts.
 
 For every event and message part, see [AI SDK bridge compatibility](./ai-sdk-compatibility).
 

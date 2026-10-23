@@ -2,6 +2,7 @@ import {
   EventType,
   INTERRUPT_BINDING_VERSION,
   RUN_ACCEPTED_EVENT,
+  getProviderExecutedMetadata,
   hashSchemaInput,
   normalizeApprovalSchema,
   readInterruptBinding,
@@ -10,11 +11,14 @@ import {
 import type {
   AnyClientTool,
   Interrupt,
+  RunFinishedEvent,
   StreamChunk,
+  ToolCallStartEvent,
   ToolResultOutcome,
 } from '@tanstack/ai'
 import type { FinishReason, ProviderMetadata, UIMessageChunk } from 'ai'
-import { DataParts, dataChunkEvent, isDataChunk } from './data-parts'
+import { DataParts, dataChunkEvent, isDataChunk, isRecord } from './data-parts'
+import type { AISDKApprovalFields, AISDKToolCallMetadata } from './messages'
 
 const TO_AI_SDK_FINISH: Partial<Record<string, FinishReason>> = {
   stop: 'stop',
@@ -66,10 +70,38 @@ function parseOutput(content: string | ReadonlyArray<unknown>): unknown {
   return parseJson(content) ?? content
 }
 
+/** A tool call that `toUIMessageStream` has seen. */
+interface ToolCallState {
+  name: string
+  args: string
+  /** `TOOL_CALL_START.metadata`, the TanStack `ToolCallPart.metadata`. */
+  metadata?: ToolCallStartEvent['metadata']
+}
+
+/**
+ * The tool call's TanStack metadata as AI SDK call provider metadata, under
+ * `tanstack`. `fromAISDKMessages` reads it back.
+ */
+function toolCallFields(tool: ToolCallState): {
+  providerMetadata?: ProviderMetadata
+  providerExecuted?: boolean
+} {
+  if (tool.metadata === undefined) return {}
+  return {
+    providerMetadata: { tanstack: tool.metadata },
+    ...(getProviderExecutedMetadata(tool) && { providerExecuted: true }),
+  }
+}
+
 /**
  * Convert the AG-UI event stream of `chat()` into an AI SDK UI message
  * stream. Serve it with the AI SDK's `createUIMessageStreamResponse`, and the
  * AI SDK `useChat` reads it like a `streamText` route.
+ *
+ * Each model call is one step. Its `RUN_FINISHED` metadata (model, response
+ * ids, finish reason) and usage go into the message metadata. A tool call's
+ * metadata goes into `providerMetadata.tanstack`. A provider-executed call
+ * gets a `providerExecuted` output and a `source-url` part for each source.
  *
  * A tool approval becomes a `tool-approval-request` chunk. Read the answer
  * with `chatParamsFromAISDKRequest`. The message metadata gets the paused
@@ -86,9 +118,12 @@ export function toUIMessageStream(
     let started = false
     let errored = false
     let finishReason: FinishReason | undefined
-    const tools = new Map<string, { name: string; args: string }>()
+    const tools = new Map<string, ToolCallState>()
     const signatures = new Map<string, string>()
     const dataParts = new DataParts()
+    // Each model call of chat() is one AI SDK step. It ends at RUN_FINISHED.
+    let inStep = false
+    const usage: Array<NonNullable<RunFinishedEvent['usage']>> = []
 
     function* start(messageId?: string): Generator<UIMessageChunk> {
       if (started) return
@@ -96,6 +131,18 @@ export function toUIMessageStream(
       yield messageId === undefined
         ? { type: 'start' }
         : { type: 'start', messageId }
+    }
+
+    function* startStep(): Generator<UIMessageChunk> {
+      if (inStep) return
+      inStep = true
+      yield { type: 'start-step' }
+    }
+
+    function* finishStep(): Generator<UIMessageChunk> {
+      if (!inStep) return
+      inStep = false
+      yield { type: 'finish-step' }
     }
 
     for await (const event of stream) {
@@ -113,6 +160,7 @@ export function toUIMessageStream(
       switch (event.type) {
         case EventType.TEXT_MESSAGE_START:
           yield* start(event.messageId)
+          yield* startStep()
           yield { type: 'text-start', id: event.messageId }
           break
         case EventType.TEXT_MESSAGE_CONTENT:
@@ -124,6 +172,7 @@ export function toUIMessageStream(
 
         case EventType.REASONING_MESSAGE_START:
           yield* start()
+          yield* startStep()
           yield { type: 'reasoning-start', id: event.messageId }
           break
         case EventType.REASONING_MESSAGE_CONTENT:
@@ -139,6 +188,18 @@ export function toUIMessageStream(
           // reasoning-end if an adapter ever sends it later.
           if (event.subtype === 'message') {
             signatures.set(event.entityId, event.encryptedValue)
+          }
+          // A tool call's signature (Gemini `thoughtSignature`) joins its
+          // metadata, as the TanStack client stores it. It goes out on
+          // `tool-input-available`.
+          if (event.subtype === 'tool-call') {
+            const tool = tools.get(event.entityId)
+            if (tool) {
+              tool.metadata = {
+                ...tool.metadata,
+                thoughtSignature: event.encryptedValue,
+              }
+            }
           }
           break
         case EventType.REASONING_MESSAGE_END: {
@@ -162,15 +223,23 @@ export function toUIMessageStream(
           break
         }
 
-        case EventType.TOOL_CALL_START:
+        case EventType.TOOL_CALL_START: {
           yield* start(event.parentMessageId)
-          tools.set(event.toolCallId, { name: event.toolCallName, args: '' })
+          yield* startStep()
+          const tool: ToolCallState = {
+            name: event.toolCallName,
+            args: '',
+            metadata: event.metadata,
+          }
+          tools.set(event.toolCallId, tool)
           yield {
             type: 'tool-input-start',
             toolCallId: event.toolCallId,
             toolName: event.toolCallName,
+            ...toolCallFields(tool),
           }
           break
+        }
         case EventType.TOOL_CALL_ARGS: {
           const tool = tools.get(event.toolCallId)
           if (tool) tool.args += event.delta
@@ -192,6 +261,26 @@ export function toUIMessageStream(
             toolCallId: event.toolCallId,
             toolName: tool.name,
             input,
+            ...toolCallFields(tool),
+          }
+          // The provider ran this call and sends no TOOL_CALL_RESULT. The AI
+          // SDK client marks it done with a provider-executed output.
+          const executed = getProviderExecutedMetadata(tool)
+          if (executed) {
+            yield {
+              type: 'tool-output-available',
+              toolCallId: event.toolCallId,
+              output: executed.sources ?? null,
+              providerExecuted: true,
+            }
+            for (const [index, source] of (executed.sources ?? []).entries()) {
+              yield {
+                type: 'source-url',
+                sourceId: `${event.toolCallId}-source-${index}`,
+                url: source.url,
+                ...(source.title !== undefined && { title: source.title }),
+              }
+            }
           }
           break
         }
@@ -241,6 +330,29 @@ export function toUIMessageStream(
           break
 
         case EventType.RUN_FINISHED: {
+          yield* finishStep()
+          // The model call's metadata (model, source, response ids) goes on
+          // the message, as the TanStack client keeps it. AI SDK merges each
+          // `message-metadata`. `tanstack.tokenUsage` lists each model call's
+          // AG-UI usage, under the TanStack key so it cannot clash with an
+          // app's own metadata.
+          if (event.usage !== undefined) usage.push(event.usage)
+          if (event.metadata !== undefined || usage.length > 0) {
+            const tanstack = event.metadata?.tanstack
+            yield* start()
+            yield {
+              type: 'message-metadata',
+              messageMetadata: {
+                ...event.metadata,
+                ...(usage.length > 0 && {
+                  tanstack: {
+                    ...(isRecord(tanstack) && tanstack),
+                    tokenUsage: [...usage],
+                  },
+                }),
+              },
+            }
+          }
           const reason = tanstackField(event.metadata, 'finishReason')
           if (typeof reason === 'string')
             finishReason = TO_AI_SDK_FINISH[reason]
@@ -287,6 +399,7 @@ export function toUIMessageStream(
 
     if (errored) return
     yield* start()
+    yield* finishStep()
     yield finishReason === undefined
       ? { type: 'finish' }
       : { type: 'finish', finishReason }
@@ -326,10 +439,18 @@ export interface FromUIMessageStreamOptions {
  * `resolveInterrupt(true)` or `client.resolveInterrupts(true)`. For another
  * tool, it is a generic interrupt: answer it with
  * `resolveInterrupt({ approved })`. The next request sends the tool part as
- * `approval-responded`. Sources, files
- * and step boundaries are skipped. A `data-<name>` part with an id and object
- * data becomes an activity of type `<name>`. Other data chunks become CUSTOM
- * events named `data-<name>`.
+ * `approval-responded`. An approval the route made itself (`isAutomatic`)
+ * asks nothing.
+ *
+ * A tool call keeps its AI SDK provider metadata, approval signature and
+ * `providerExecuted` flag in its metadata, and the message keeps the AI SDK
+ * message metadata as `metadata.aiSdk`, so `toAISDKMessages` sends them back.
+ * A provider-executed call is not run on the client. Steps become
+ * STEP_STARTED / STEP_FINISHED. Sources, files and citations become CUSTOM
+ * events named `source-url`, `source-document`, `file`, `reasoning-file` and
+ * `citations`. A `data-<name>` part with an id and object data becomes an
+ * activity of type `<name>`. Other data chunks become CUSTOM events named
+ * `data-<name>`.
  */
 export async function* fromUIMessageStream(
   stream: ReadableStream<UIMessageChunk>,
@@ -341,9 +462,42 @@ export async function* fromUIMessageStream(
   // part gets its own AG-UI message id.
   const reasoningIds = new Map<string, string>()
   let reasoningCount = 0
-  const tools = new Map<string, { started: boolean; hasArgs: boolean }>()
+  let stepCount = 0
+  // `text`: the input streams as raw text, not JSON, so only the final input
+  // becomes the arguments.
+  const tools = new Map<
+    string,
+    { hasArgs: boolean; text: boolean; ended?: boolean }
+  >()
+  // TOOL_CALL_END waits for the next chunk. An approval request or an output
+  // for the same call can still add metadata, and AG-UI allows no
+  // TOOL_CALL_ARGS after TOOL_CALL_END.
+  const pendingEnds = new Set<string>()
+  const toolMetadata = new Map<string, AISDKToolCallMetadata>()
   const inputs = new Map<string, { toolName: string; input: unknown }>()
   const approvals: Array<Interrupt> = []
+  // ponytail: shallow merge, where the AI SDK merges nested objects too.
+  let messageMetadata: unknown
+
+  function mergeMessageMetadata(value: unknown) {
+    if (value === undefined) return
+    messageMetadata =
+      isRecord(messageMetadata) && isRecord(value)
+        ? { ...messageMetadata, ...value }
+        : value
+  }
+
+  /** RUN_FINISHED metadata. The client merges it into the run's messages. */
+  function runMetadata(
+    tanstack?: Record<string, unknown>,
+  ): Record<string, unknown> | undefined {
+    if (tanstack === undefined && messageMetadata === undefined)
+      return undefined
+    return {
+      ...(tanstack && { tanstack }),
+      ...(messageMetadata !== undefined && { aiSdk: messageMetadata }),
+    }
+  }
 
   function* finished(
     metadata?: Record<string, unknown>,
@@ -360,6 +514,76 @@ export async function* fromUIMessageStream(
     }
   }
 
+  /**
+   * Add AI SDK fields to a tool call's metadata. The TanStack client keeps
+   * the metadata of TOOL_CALL_START and TOOL_CALL_ARGS on the tool-call
+   * part, so a started call gets the update on an empty TOOL_CALL_ARGS. The
+   * client replaces the `aiSdk` key, so each update carries all of it.
+   */
+  function* updateToolMetadata(
+    toolCallId: string,
+    providerExecuted: boolean | undefined,
+    aiSdk: NonNullable<AISDKToolCallMetadata['aiSdk']>,
+  ): Generator<StreamChunk> {
+    const current = toolMetadata.get(toolCallId)
+    const next: AISDKToolCallMetadata = {
+      ...current,
+      ...(providerExecuted === true && { providerExecuted: true }),
+      aiSdk: { ...current?.aiSdk, ...aiSdk },
+    }
+    toolMetadata.set(toolCallId, next)
+    // A started call takes the update until it ends. After the end the
+    // update stays off the stream.
+    const tool = tools.get(toolCallId)
+    if (tool && !tool.ended) {
+      yield {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId,
+        delta: '',
+        metadata: next,
+      }
+    }
+  }
+
+  /** The call metadata of a tool chunk, when it has any. */
+  function* callMetadata(chunk: {
+    toolCallId: string
+    providerExecuted?: boolean
+    providerMetadata?: ProviderMetadata
+  }): Generator<StreamChunk> {
+    if (chunk.providerExecuted !== true && chunk.providerMetadata === undefined)
+      return
+    yield* updateToolMetadata(
+      chunk.toolCallId,
+      chunk.providerExecuted,
+      chunk.providerMetadata === undefined
+        ? {}
+        : { callProviderMetadata: chunk.providerMetadata },
+    )
+  }
+
+  /** The result metadata of a tool chunk, for a call started in this stream. */
+  function* resultMetadata(chunk: {
+    toolCallId: string
+    providerMetadata?: ProviderMetadata
+  }): Generator<StreamChunk> {
+    if (chunk.providerMetadata === undefined || !tools.has(chunk.toolCallId))
+      return
+    yield* updateToolMetadata(chunk.toolCallId, undefined, {
+      resultProviderMetadata: chunk.providerMetadata,
+    })
+  }
+
+  /** End one waiting call, or every waiting call except `keep`. */
+  function* endTools(only?: string, keep?: string): Generator<StreamChunk> {
+    for (const toolCallId of only === undefined ? [...pendingEnds] : [only]) {
+      if (toolCallId === keep || !pendingEnds.delete(toolCallId)) continue
+      const tool = tools.get(toolCallId)
+      if (tool) tool.ended = true
+      yield { type: EventType.TOOL_CALL_END, toolCallId }
+    }
+  }
+
   function* ensureToolStarted(
     toolCallId: string,
     toolName: string,
@@ -367,13 +591,15 @@ export async function* fromUIMessageStream(
   ): Generator<StreamChunk> {
     let tool = tools.get(toolCallId)
     if (!tool) {
-      tool = { started: true, hasArgs: false }
+      tool = { hasArgs: false, text: false }
       tools.set(toolCallId, tool)
+      const metadata = toolMetadata.get(toolCallId)
       yield {
         type: EventType.TOOL_CALL_START,
         toolCallId,
         toolCallName: toolName,
         parentMessageId: messageId,
+        ...(metadata && { metadata }),
       }
     }
     if (!tool.hasArgs) {
@@ -389,11 +615,36 @@ export async function* fromUIMessageStream(
   yield { type: EventType.RUN_STARTED, threadId, runId }
 
   for await (const chunk of stream) {
-    // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- sources, files, steps and approvals are skipped; default maps data parts.
+    yield* endTools(
+      undefined,
+      'toolCallId' in chunk ? chunk.toolCallId : undefined,
+    )
+    // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- reset-step and custom parts are skipped; default maps data parts.
     switch (chunk.type) {
       case 'start':
         if (chunk.messageId !== undefined) messageId = chunk.messageId
+        mergeMessageMetadata(chunk.messageMetadata)
         break
+      case 'message-metadata':
+        mergeMessageMetadata(chunk.messageMetadata)
+        break
+
+      case 'start-step':
+        yield { type: EventType.STEP_STARTED, stepName: `step-${++stepCount}` }
+        break
+      case 'finish-step':
+        yield { type: EventType.STEP_FINISHED, stepName: `step-${stepCount}` }
+        break
+
+      // No TanStack part holds these. The app reads them in `onCustomEvent`.
+      case 'source-url':
+      case 'source-document':
+      case 'file':
+      case 'reasoning-file': {
+        const { type, ...value } = chunk
+        yield { type: EventType.CUSTOM, name: type, value }
+        break
+      }
 
       // Every AI SDK text part belongs to the one assistant message. The
       // TanStack client starts a new text segment on each START.
@@ -413,6 +664,13 @@ export async function* fromUIMessageStream(
         break
       case 'text-end':
         yield { type: EventType.TEXT_MESSAGE_END, messageId }
+        if (chunk.citations !== undefined) {
+          yield {
+            type: EventType.CUSTOM,
+            name: 'citations',
+            value: chunk.citations,
+          }
+        }
         break
 
       case 'reasoning-start': {
@@ -453,17 +711,25 @@ export async function* fromUIMessageStream(
         break
       }
 
-      case 'tool-input-start':
-        tools.set(chunk.toolCallId, { started: true, hasArgs: false })
+      case 'tool-input-start': {
+        yield* callMetadata(chunk)
+        const metadata = toolMetadata.get(chunk.toolCallId)
+        tools.set(chunk.toolCallId, {
+          hasArgs: false,
+          text: chunk.inputEncoding === 'text',
+        })
         yield {
           type: EventType.TOOL_CALL_START,
           toolCallId: chunk.toolCallId,
           toolCallName: chunk.toolName,
           parentMessageId: messageId,
+          ...(metadata && { metadata }),
         }
         break
+      }
       case 'tool-input-delta': {
         const tool = tools.get(chunk.toolCallId)
+        if (tool?.text) break
         if (tool) tool.hasArgs = true
         yield {
           type: EventType.TOOL_CALL_ARGS,
@@ -477,10 +743,28 @@ export async function* fromUIMessageStream(
           toolName: chunk.toolName,
           input: chunk.input,
         })
+        yield* callMetadata(chunk)
         yield* ensureToolStarted(chunk.toolCallId, chunk.toolName, chunk.input)
-        yield { type: EventType.TOOL_CALL_END, toolCallId: chunk.toolCallId }
+        pendingEnds.add(chunk.toolCallId)
         break
       case 'tool-approval-request': {
+        // The route approved or denied the call itself. The output or the
+        // denial follows, so there is nothing to ask.
+        if (chunk.isAutomatic === true) break
+        // The tool part keeps the fields the AI SDK route checks on the answer.
+        const approval: AISDKApprovalFields = {
+          ...(chunk.approvalDescriptor != null && {
+            descriptor: chunk.approvalDescriptor,
+          }),
+          ...(Object.hasOwn(chunk, 'inputSchemaInput') && {
+            inputSchemaInput: chunk.inputSchemaInput,
+          }),
+          ...(chunk.reason != null && { requestReason: chunk.reason }),
+          ...(chunk.signature != null && { signature: chunk.signature }),
+        }
+        if (Object.keys(approval).length > 0)
+          yield* updateToolMetadata(chunk.toolCallId, undefined, { approval })
+        yield* endTools(chunk.toolCallId)
         // `kind: 'approval'` shows the approval on the tool call.
         const call = inputs.get(chunk.toolCallId)
         const descriptor: Interrupt = {
@@ -531,6 +815,7 @@ export async function* fromUIMessageStream(
         break
       }
       case 'tool-output-denied':
+        yield* endTools(chunk.toolCallId)
         yield toolError(
           chunk.toolCallId,
           'The user denied this tool call',
@@ -538,6 +823,7 @@ export async function* fromUIMessageStream(
         )
         break
       case 'tool-input-error':
+        yield* callMetadata(chunk)
         yield* ensureToolStarted(chunk.toolCallId, chunk.toolName, chunk.input)
         yield { type: EventType.TOOL_CALL_END, toolCallId: chunk.toolCallId }
         yield toolError(chunk.toolCallId, chunk.errorText)
@@ -545,6 +831,8 @@ export async function* fromUIMessageStream(
       case 'tool-output-available':
         // A preliminary output is a progress update. Only the last one is the result.
         if (chunk.preliminary === true) break
+        yield* resultMetadata(chunk)
+        yield* endTools(chunk.toolCallId)
         yield {
           type: EventType.TOOL_CALL_RESULT,
           messageId: `${chunk.toolCallId}-result`,
@@ -557,6 +845,8 @@ export async function* fromUIMessageStream(
         }
         break
       case 'tool-output-error':
+        yield* resultMetadata(chunk)
+        yield* endTools(chunk.toolCallId)
         yield toolError(chunk.toolCallId, chunk.errorText)
         break
 
@@ -564,23 +854,27 @@ export async function* fromUIMessageStream(
         ended = true
         yield { type: EventType.RUN_ERROR, message: chunk.errorText }
         break
-      case 'abort':
+      case 'abort': {
         ended = true
+        const metadata = runMetadata()
         yield {
           type: EventType.RUN_FINISHED,
           threadId,
           runId,
           outcome: { type: 'cancelled' },
+          ...(metadata && { metadata }),
         }
         break
+      }
       case 'finish': {
         ended = true
+        mergeMessageMetadata(chunk.messageMetadata)
         const finishReason =
           chunk.finishReason === undefined
             ? undefined
             : FROM_AI_SDK_FINISH[chunk.finishReason]
         yield* finished(
-          finishReason == null ? undefined : { tanstack: { finishReason } },
+          runMetadata(finishReason == null ? undefined : { finishReason }),
         )
         break
       }
@@ -592,7 +886,8 @@ export async function* fromUIMessageStream(
     if (ended) return
   }
 
-  yield* finished()
+  yield* endTools()
+  yield* finished(runMetadata())
 }
 
 function toolError(
