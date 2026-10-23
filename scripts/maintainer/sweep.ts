@@ -13,7 +13,7 @@
  * Read/write via the GitHub API only; PR code is never checked out or
  * executed. Idempotent: safe to re-run at any time.
  *
- * Usage: tsx scripts/maintainer/sweep.ts [--dry-run]
+ * Usage: node scripts/maintainer/sweep.ts [--dry-run]
  */
 
 import process from 'node:process'
@@ -27,17 +27,39 @@ import {
 import { classifyAll } from './classify'
 import { collectSnapshot } from './collect'
 import { buildAckComment, buildReproComment } from './comments'
-import { loadConfig } from './config'
+import { isRosterMaintainer, loadConfig } from './config'
 import { createGitHubClient } from './github'
 import { computeLoad, requiresCoreReview, routeIssue, routePR } from './route'
 import { isDryRun, resolveToken, writeStepSummary } from './env'
 import type { Mutation } from './actions'
-import type { RepoSnapshot, ToolsetConfig } from './types'
+import type { PRItem, RepoSnapshot, ToolsetConfig } from './types'
 
 export interface SweepPlan {
   mutations: Array<Mutation>
   skippedAsSpam: Array<number>
   commentsSuppressedByCap: number
+}
+
+/** Roster login of a closed issue's assignee, when they did not author the PR. */
+function assigneeFromClosedIssue(
+  pr: PRItem,
+  issueByNumber: Map<number, { assignees: Array<string> }>,
+  config: ToolsetConfig,
+): string | null {
+  for (const number of pr.linkedIssues) {
+    const issue = issueByNumber.get(number)
+    if (!issue) continue
+    for (const login of issue.assignees) {
+      if (login.toLowerCase() === pr.author?.toLowerCase()) continue
+      if (!isRosterMaintainer(login, config)) continue
+      return (
+        config.maintainers.find(
+          (m) => m.github.toLowerCase() === login.toLowerCase(),
+        )?.github ?? null
+      )
+    }
+  }
+  return null
 }
 
 export function planSweep(
@@ -54,6 +76,9 @@ export function planSweep(
     snapshot.issues.map((issue) => issue.assignees),
   )
 
+  const issueByNumber = new Map(
+    snapshot.issues.map((issue) => [issue.number, issue]),
+  )
   const mutations: Array<Mutation> = []
   const skippedAsSpam: Array<number> = []
   let comments = 0
@@ -83,15 +108,18 @@ export function planSweep(
 
     let assignee = pr.assignees[0] ?? null
     if (assignee === null) {
-      const routed = routePR(
-        pr.files,
-        pr.author,
-        config,
-        prLoad,
-        pr.number,
-        snapshot.codeowners,
-        snapshot.recentlyClosed,
-      )
+      const fromIssue = assigneeFromClosedIssue(pr, issueByNumber, config)
+      const routed =
+        fromIssue ??
+        routePR(
+          pr.files,
+          pr.author,
+          config,
+          prLoad,
+          pr.number,
+          snapshot.codeowners,
+          snapshot.recentlyClosed,
+        )
       if (routed !== null) {
         mutations.push({ kind: 'assign', number: pr.number, assignee: routed })
         prLoad.set(routed, (prLoad.get(routed) ?? 0) + 1)

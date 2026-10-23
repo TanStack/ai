@@ -170,6 +170,63 @@ describe('planSweep', () => {
     expect(plan.commentsSuppressedByCap).toBe(2)
   })
 
+  it('assigns a PR to the roster assignee of the issue it closes, ahead of core review', () => {
+    const roster = {
+      ...config,
+      maintainers: config.maintainers.map((m) =>
+        m.github === 'alem' ? { ...m, github: 'AlemTuzlak' } : m,
+      ),
+    }
+    const snapshot = makeSnapshot({
+      codeowners: 'scripts/ @TanStack/tanstack-core',
+      prs: [
+        makePR({
+          number: 99,
+          files: ['scripts/a.ts'],
+          linkedIssues: [200],
+        }),
+      ],
+      issues: [makeIssue({ number: 200, assignees: ['jack'] })],
+    })
+    const assign = planSweep(snapshot, roster).mutations.find(
+      (m) => m.kind === 'assign' && m.number === 99,
+    )
+    expect(assign).toEqual({
+      kind: 'assign',
+      number: 99,
+      assignee: 'jack',
+    })
+  })
+
+  it('routes normally when the closed issue assignee authored the PR', () => {
+    const roster = {
+      ...config,
+      maintainers: config.maintainers.map((m) =>
+        m.github === 'alem' ? { ...m, github: 'AlemTuzlak' } : m,
+      ),
+    }
+    const snapshot = makeSnapshot({
+      codeowners: 'scripts/ @TanStack/tanstack-core',
+      prs: [
+        makePR({
+          number: 99,
+          author: 'jack',
+          files: ['scripts/a.ts'],
+          linkedIssues: [200],
+        }),
+      ],
+      issues: [makeIssue({ number: 200, assignees: ['jack'] })],
+    })
+    const assign = planSweep(snapshot, roster).mutations.find(
+      (m) => m.kind === 'assign' && m.number === 99,
+    )
+    expect(assign).toEqual({
+      kind: 'assign',
+      number: 99,
+      assignee: 'AlemTuzlak',
+    })
+  })
+
   it('spreads fallback assignments across maintainers', () => {
     const snapshot = makeSnapshot({
       prs: [11, 12, 13].map((n) => makePR({ number: n, files: ['README.md'] })),

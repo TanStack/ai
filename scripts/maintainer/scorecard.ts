@@ -3,7 +3,7 @@
  * Discord webhook (DISCORD_WEBHOOK_URL). With --dry-run (or when the webhook
  * is not configured) it prints the payload instead of posting.
  *
- * Usage: tsx scripts/maintainer/scorecard.ts [--dry-run]
+ * Usage: node scripts/maintainer/scorecard.ts [--dry-run]
  */
 
 import { readdir } from 'node:fs/promises'
