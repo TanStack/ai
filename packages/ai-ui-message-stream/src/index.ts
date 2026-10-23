@@ -1,6 +1,10 @@
 import { modelMessagesToUIMessages } from '@tanstack/ai'
 import type { ModelMessage, UIMessage } from '@tanstack/ai'
-import type { ConnectConnectionAdapter } from '@tanstack/ai-client'
+import { createReconnectTracker } from '@tanstack/ai-client'
+import type {
+  ConnectConnectionAdapter,
+  ReconnectOptions,
+} from '@tanstack/ai-client'
 import type {
   ChatTransport,
   UIMessage as AISDKUIMessage,
@@ -22,6 +26,7 @@ export {
   chatParamsFromAISDKRequestBody,
 } from './request'
 export type { AISDKChatParams } from './request'
+export { clientToolsFromAISDKBody } from './client-tools'
 export type { SubagentData } from './data-parts'
 
 function asUIMessages(
@@ -35,25 +40,26 @@ function asUIMessages(
   )
 }
 
-type ReconnectOptions = Parameters<
+type ReconnectRequest = Parameters<
   ChatTransport<AISDKUIMessage>['reconnectToStream']
 >[0]
 
 /**
  * Read `stream`, and when the connection drops, read the rest through
- * `transport.reconnectToStream`. A replayed prefix is skipped.
+ * `transport.reconnectToStream`, with the backoff and limits of the TanStack
+ * HTTP connections. A replayed prefix is skipped.
  */
 function reconnecting(
   transport: ChatTransport<AISDKUIMessage>,
   stream: ReadableStream<UIMessageChunk>,
-  options: ReconnectOptions,
+  request: ReconnectRequest,
+  reconnect: ReconnectOptions | undefined,
 ): ReadableStream<UIMessageChunk> {
+  const tracker = createReconnectTracker(reconnect)
   let reader = stream.getReader()
   let delivered = 0
   let skip = 0
-  // ponytail: a reconnect that delivers nothing new ends the stream with the
-  // error. Add attempts and backoff if one retry without progress is too few.
-  let deliveredAtReconnect: number | undefined
+  let deliveredAtLastDrop = 0
   return new ReadableStream({
     async pull(controller) {
       for (;;) {
@@ -69,10 +75,20 @@ function reconnecting(
           delivered++
           return controller.enqueue(value)
         } catch (error) {
-          if (options.abortSignal?.aborted) throw error
-          if (deliveredAtReconnect === delivered) throw error
-          deliveredAtReconnect = delivered
-          const resumed = await transport.reconnectToStream(options)
+          if (request.abortSignal?.aborted) throw error
+          // Throws StreamReconnectLimitError when the run is stuck.
+          await tracker.waitBeforeReconnect(
+            delivered > deliveredAtLastDrop,
+            request.abortSignal,
+          )
+          deliveredAtLastDrop = delivered
+          let resumed: ReadableStream<UIMessageChunk> | null
+          try {
+            resumed = await transport.reconnectToStream(request)
+          } catch {
+            // The old reader fails again, so the next pass waits and retries.
+            continue
+          }
           if (!resumed) throw error
           reader = resumed.getReader()
           skip = transport.resumeStreamIsReplay === true ? delivered : 0
@@ -93,23 +109,39 @@ function reconnecting(
  * request.
  *
  * When the stream drops, the adapter reconnects with
- * `transport.reconnectToStream` and continues the run. Set `threadId` to also
+ * `transport.reconnectToStream` and continues the run, with the same backoff
+ * as the TanStack HTTP connections (`reconnect` sets it). Set `threadId` to also
  * rejoin a run after a page reload (`joinRun`), with a chat `persistence`
  * adapter on the client. For that, the transport must replay the stream from
  * its start (`resumeStreamIsReplay`, true for `DefaultChatTransport`).
  *
  * Pass the same `tools` as `useChat({ tools })`, so a tool approval is a
  * `tool-approval` interrupt that `resolveInterrupt(true)` answers.
+ *
+ * Pass the same `outputSchema` as `useChat({ outputSchema })` when the route
+ * uses `Output.object({ schema })`, so the answer is a typed
+ * `structured-output` part.
+ *
+ * The client's tools (JSON Schema) go in the body as `clientTools`. Read them
+ * on the route with `clientToolsFromAISDKBody`, so the route needs no copy.
  */
 export function fromChatTransport(
   transport: ChatTransport<AISDKUIMessage>,
   {
     threadId,
     tools,
-  }: Pick<FromUIMessageStreamOptions, 'tools'> & { threadId?: string } = {},
+    outputSchema,
+    reconnect,
+  }: Pick<FromUIMessageStreamOptions, 'tools' | 'outputSchema'> & {
+    threadId?: string
+    /** Backoff and limits for reconnects after a dropped stream. */
+    reconnect?: ReconnectOptions
+  } = {},
 ): ConnectConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal, runContext) {
+      const { clientTools } = runContext
+      const body = clientTools?.length ? { ...data, clientTools } : data
       const stream = await transport.sendMessages({
         trigger: 'submit-message',
         chatId: runContext.threadId,
@@ -117,15 +149,20 @@ export function fromChatTransport(
         messages: toAISDKMessages(asUIMessages(messages)),
         abortSignal,
         ...(runContext.headers && { headers: runContext.headers }),
-        ...(data && { body: data }),
+        ...(body && { body }),
       })
       yield* fromUIMessageStream(
-        reconnecting(transport, stream, {
-          chatId: runContext.threadId,
-          abortSignal,
-          ...(runContext.headers && { headers: runContext.headers }),
-        }),
-        { ...runContext, tools },
+        reconnecting(
+          transport,
+          stream,
+          {
+            chatId: runContext.threadId,
+            abortSignal,
+            ...(runContext.headers && { headers: runContext.headers }),
+          },
+          reconnect,
+        ),
+        { ...runContext, tools, outputSchema },
       )
     },
     // A rejoin gets only the run id, and the AI SDK reconnects by chat id.
@@ -136,11 +173,15 @@ export function fromChatTransport(
           const stream = await transport.reconnectToStream(options)
           // Thrown before the first event, so the client drops its resume pointer.
           if (!stream) throw new Error(`No active stream for chat ${threadId}`)
-          yield* fromUIMessageStream(reconnecting(transport, stream, options), {
-            threadId,
-            runId,
-            tools,
-          })
+          yield* fromUIMessageStream(
+            reconnecting(transport, stream, options, reconnect),
+            {
+              threadId,
+              runId,
+              tools,
+              outputSchema,
+            },
+          )
         },
       }),
   }

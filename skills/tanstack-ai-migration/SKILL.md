@@ -46,7 +46,9 @@ place to stay: finish the port of the other side, then remove it.
   https://tanstack.com/ai/latest/docs/migration/ai-sdk-client-tanstack-server
 - Client first: keep the `streamText` route and pass
   `fromChatTransport(new DefaultChatTransport({ api }), { threadId, tools })`
-  as the `connection` of TanStack `useChat`.
+  as the `connection` of TanStack `useChat`. On the route,
+  `clientToolsFromAISDKBody(body, serverTools)` reads the client's tools, so
+  they need no copy there.
   https://tanstack.com/ai/latest/docs/migration/tanstack-client-ai-sdk-server
 
 Tool approvals, client tools, activity, subagents and stream resume cross the

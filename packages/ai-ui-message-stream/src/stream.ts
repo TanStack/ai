@@ -6,12 +6,14 @@ import {
   hashSchemaInput,
   normalizeApprovalSchema,
   readInterruptBinding,
+  validateWithStandardSchema,
   withInterruptBinding,
 } from '@tanstack/ai'
 import type {
   AnyClientTool,
   Interrupt,
   RunFinishedEvent,
+  SchemaInput,
   StreamChunk,
   ToolCallStartEvent,
   ToolResultOutcome,
@@ -427,6 +429,14 @@ export interface FromUIMessageStreamOptions {
    * one of them with `needsApproval: true` is a `tool-approval` interrupt.
    */
   tools?: ReadonlyArray<AnyClientTool>
+  /**
+   * The schema of the route's `Output.object({ schema })`, as passed to
+   * `useChat({ outputSchema })`. The answer text becomes a `structured-output`
+   * part with partial objects while it streams. At the end the text is
+   * checked against the schema: a valid answer is the part's `data`, and an
+   * invalid one ends the run with a RUN_ERROR.
+   */
+  outputSchema?: SchemaInput
 }
 
 /**
@@ -454,7 +464,12 @@ export interface FromUIMessageStreamOptions {
  */
 export async function* fromUIMessageStream(
   stream: ReadableStream<UIMessageChunk>,
-  { threadId, runId, tools: clientTools }: FromUIMessageStreamOptions,
+  {
+    threadId,
+    runId,
+    tools: clientTools,
+    outputSchema,
+  }: FromUIMessageStreamOptions,
 ): AsyncGenerator<StreamChunk> {
   let messageId = `${runId}-assistant`
   let ended = false
@@ -478,6 +493,40 @@ export async function* fromUIMessageStream(
   const approvals: Array<Interrupt> = []
   // ponytail: shallow merge, where the AI SDK merges nested objects too.
   let messageMetadata: unknown
+  // The answer text, once text starts with `outputSchema` set.
+  // ponytail: all text of the stream is the answer, so text in a tool-call
+  // step joins it. Start the answer per step if a route sends such text.
+  let structuredRaw: string | undefined
+
+  /**
+   * `structured-output.complete` with the checked answer, or a RUN_ERROR
+   * when the text is not JSON or fails the schema.
+   */
+  async function structuredEnd(): Promise<StreamChunk | undefined> {
+    if (structuredRaw === undefined) return undefined
+    const object = parseJson(structuredRaw)
+    const result =
+      object === undefined
+        ? undefined
+        : await validateWithStandardSchema(outputSchema, object)
+    if (result?.success) {
+      return {
+        type: EventType.CUSTOM,
+        name: 'structured-output.complete',
+        value: { object: result.data, raw: structuredRaw, messageId },
+      }
+    }
+    return {
+      type: EventType.RUN_ERROR,
+      code: 'structured-output-validation-failed',
+      message:
+        result === undefined
+          ? 'The structured output is not valid JSON'
+          : `The structured output does not match the schema: ${result.issues
+              .map((issue) => issue.message)
+              .join(', ')}`,
+    }
+  }
 
   function mergeMessageMetadata(value: unknown) {
     if (value === undefined) return
@@ -649,6 +698,16 @@ export async function* fromUIMessageStream(
       // Every AI SDK text part belongs to the one assistant message. The
       // TanStack client starts a new text segment on each START.
       case 'text-start':
+        // The TanStack client puts the text after this event in a
+        // `structured-output` part, as for `chat({ outputSchema })`.
+        if (outputSchema !== undefined && structuredRaw === undefined) {
+          structuredRaw = ''
+          yield {
+            type: EventType.CUSTOM,
+            name: 'structured-output.start',
+            value: { messageId },
+          }
+        }
         yield {
           type: EventType.TEXT_MESSAGE_START,
           messageId,
@@ -656,6 +715,7 @@ export async function* fromUIMessageStream(
         }
         break
       case 'text-delta':
+        if (structuredRaw !== undefined) structuredRaw += chunk.delta
         yield {
           type: EventType.TEXT_MESSAGE_CONTENT,
           messageId,
@@ -873,6 +933,9 @@ export async function* fromUIMessageStream(
           chunk.finishReason === undefined
             ? undefined
             : FROM_AI_SDK_FINISH[chunk.finishReason]
+        const end = await structuredEnd()
+        if (end) yield end
+        if (end?.type === EventType.RUN_ERROR) return
         yield* finished(
           runMetadata(finishReason == null ? undefined : { finishReason }),
         )
@@ -887,6 +950,9 @@ export async function* fromUIMessageStream(
   }
 
   yield* endTools()
+  const end = await structuredEnd()
+  if (end) yield end
+  if (end?.type === EventType.RUN_ERROR) return
   yield* finished(runMetadata())
 }
 

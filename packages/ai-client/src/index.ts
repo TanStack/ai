@@ -175,6 +175,8 @@ export {
   StreamTruncatedError,
   DurableStreamIncompleteError,
   StreamReconnectLimitError,
+  createReconnectTracker,
+  type ReconnectTracker,
   type ConnectConnectionAdapter,
   type ChatHydrateOptions,
   type ChatHydrationResult,
