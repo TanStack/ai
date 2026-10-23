@@ -69,8 +69,11 @@ export async function POST(request: Request) {
 import { chat } from '@tanstack/ai'
 import { fromPiMessages, toPiAgentEvents } from '@tanstack/ai-pi-stream'
 
+// From a client request, keep the messages only. Set the system prompt on
+// the server, so a client cannot change it.
+const { messages } = fromPiMessages(body.messages)
 const events = toPiAgentEvents(
-  chat({ adapter, threadId, ...fromPiMessages(piMessages) }),
+  chat({ adapter, threadId, messages, systemPrompts: ['Be helpful.'] }),
 )
 for await (const event of events) render(event)
 ```

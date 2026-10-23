@@ -195,7 +195,11 @@ function isMessage(message: AgentMessage): message is Message {
 /**
  * Convert pi messages, such as `agent.state.messages` or the `agent_end`
  * messages, into `chat()` params: the `ModelMessage` history and the system
- * prompts. Spread the result into `chat()`.
+ * prompts.
+ *
+ * Spread the result into `chat()` only for a history the server owns. For
+ * messages from a client request, use `messages` and set the system prompts
+ * on the server. Otherwise the client controls the system prompt.
  *
  * App-specific pi messages (declared with `CustomAgentMessages`) are skipped.
  */

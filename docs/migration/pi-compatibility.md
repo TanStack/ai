@@ -46,7 +46,7 @@ Each row has one of these results:
 | Errors and aborts                         | 🔄 Mapped to `RUN_ERROR`                                                  | 🔄 Mapped to an assistant message with `stopReason: 'error'`                  |
 | Text and base64 images from the user      | ✅ Same                                                                   | ✅ Same                                                                       |
 | Image URLs, audio, video and documents    | ❌ Dropped (pi user messages take text and base64 images)                 | ❌ Dropped (pi user messages take text and base64 images)                     |
-| System prompts                            | 🔄 Mapped to the leading pi system message                                | 🧩 Grouped. Every pi system message becomes one of the `systemPrompts`.       |
+| System prompts                            | 🔄 Mapped to the leading pi system message                                | 🧩 Grouped. Every pi system message becomes one of the `systemPrompts`. From a client request, set them on the server instead. |
 | Steering and follow-up messages of pi     | ❌ Dropped from the stream (AG-UI has no user message event)              | ❌ Dropped (`chat()` has none)                                                |
 | Custom pi messages (`CustomAgentMessages`) | ❌ Dropped                                                               | ❌ Dropped                                                                    |
 | Steps, state, activity and custom events  | ❌ Dropped (pi has none)                                                  | ❌ Dropped (pi has none)                                                      |

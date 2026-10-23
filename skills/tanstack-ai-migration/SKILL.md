@@ -62,8 +62,10 @@ converts pi agent events and pi messages in both directions:
   Build the pi history with
   `toPiMessages(convertMessagesToModelMessages(messages))`.
   https://tanstack.com/ai/latest/docs/migration/pi-agent-tanstack-client
-- Server first: `chat({ adapter, threadId, ...fromPiMessages(body.messages) })`,
-  then stream `toPiAgentEvents(stream)` to the pi UI.
+- Server first: `chat({ adapter, threadId, systemPrompts, messages: fromPiMessages(body.messages).messages })`,
+  then stream `toPiAgentEvents(stream)` to the pi UI. Set `systemPrompts` on
+  the server. Do not use the `systemPrompts` that `fromPiMessages` reads from
+  a client request: then the client controls the system prompt.
   https://tanstack.com/ai/latest/docs/migration/pi-client-tanstack-server
 
 Tool approvals, client tools and subagents do not cross. See

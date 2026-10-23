@@ -48,14 +48,16 @@ import { fromPiMessages, toPiAgentEvents } from '@tanstack/ai-pi-stream'
 
 export async function POST(request: Request) {
   const body = await request.json()
-  const { messages, systemPrompts } = fromPiMessages(body.messages)
+  // The client sends the history. Keep its messages, and set the system
+  // prompt here, so a client cannot change it.
+  const { messages } = fromPiMessages(body.messages)
 
   const events = toPiAgentEvents(
     chat({
       adapter: anthropicText('claude-fable-5-1'),
       threadId: body.threadId,
       messages,
-      systemPrompts,
+      systemPrompts: ['You are a helpful assistant.'],
     }),
   )
 
@@ -74,6 +76,7 @@ export async function POST(request: Request) {
 }
 ```
 
+- The route sets the system prompt. A `system` message in the request is a client value, so the route does not use the `systemPrompts` that `fromPiMessages` returns.
 - Each model call of `chat()` is one pi turn with one assistant message.
 - The server tools of `chat()` show as `tool_execution_start` and `tool_execution_end`, then a `toolResult` message.
 - `agent_end` carries the new messages of the run. The prompt stays on the client.

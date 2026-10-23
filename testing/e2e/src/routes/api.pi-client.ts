@@ -31,7 +31,8 @@ export const Route = createFileRoute('/api/pi-client')({
             adapter: fake,
             threadId: body.threadId,
             tools: [getWeather],
-            ...fromPiMessages(body.messages),
+            // A client request: keep its messages, not its system prompts.
+            messages: fromPiMessages(body.messages).messages,
           }),
         )
         const encoder = new TextEncoder()
