@@ -10,6 +10,7 @@ import {
   Image,
   ImagePlus,
   Layers,
+  LayoutTemplate,
   Mic,
   Music,
   PauseCircle,
@@ -262,6 +263,13 @@ function Messages({
             >
               <Layers size={24} className="text-orange-400" />
               <span className="text-sm text-gray-300">App Studio</span>
+            </Link>
+            <Link
+              to="/openui"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <LayoutTemplate size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Open Gen UI</span>
             </Link>
           </div>
         </div>
