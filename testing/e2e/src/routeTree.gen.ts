@@ -102,6 +102,7 @@ import { Route as ApiForeignClientToolRouteImport } from './routes/api.foreign-c
 import { Route as ApiForeignInterruptRouteImport } from './routes/api.foreign-interrupt'
 import { Route as ApiGeminiImageGaModelsRouteImport } from './routes/api.gemini-image-ga-models'
 import { Route as ApiGeminiNativeImageWireRouteImport } from './routes/api.gemini-native-image-wire'
+import { Route as ApiGeminiServerToolsWireRouteImport } from './routes/api.gemini-server-tools-wire'
 import { Route as ApiGenerationPersistenceResumeRouteImport } from './routes/api.generation-persistence-resume'
 import { Route as ApiGenerationPersistenceServerRouteImport } from './routes/api.generation-persistence-server'
 import { Route as ApiHarnessAgentTreeRouteImport } from './routes/api.harness-agent-tree'
@@ -200,10 +201,10 @@ import { Route as ApiWebMcpPageToolsRouteImport } from './routes/api.web-mcp-pag
 import { Route as ApiWorldRouteImport } from './routes/api.world'
 import { Route as ApiWrapFetchWireRouteImport } from './routes/api.wrap-fetch-wire'
 import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
-import { Route as ApiHarnessProtocolSplatRouteImport } from './routes/api.harness-protocol.$'
-import { Route as ApiHarnessSecretAnswerSplatRouteImport } from './routes/api.harness-secret-answer.$'
 import { Route as ApiHarnessHandoffSplatRouteImport } from './routes/api.harness-handoff.$'
 import { Route as ApiHarnessObservabilitySplatRouteImport } from './routes/api.harness-observability.$'
+import { Route as ApiHarnessProtocolSplatRouteImport } from './routes/api.harness-protocol.$'
+import { Route as ApiHarnessSecretAnswerSplatRouteImport } from './routes/api.harness-secret-answer.$'
 import { Route as ApiHarnessWaitsSplatRouteImport } from './routes/api.harness-waits.$'
 import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
 import { Route as ApiTranscriptionStreamRouteImport } from './routes/api.transcription.stream'
@@ -696,6 +697,12 @@ const ApiGeminiNativeImageWireRoute =
   ApiGeminiNativeImageWireRouteImport.update({
     id: '/api/gemini-native-image-wire',
     path: '/api/gemini-native-image-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiGeminiServerToolsWireRoute =
+  ApiGeminiServerToolsWireRouteImport.update({
+    id: '/api/gemini-server-tools-wire',
+    path: '/api/gemini-server-tools-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiGenerationPersistenceResumeRoute =
@@ -1212,17 +1219,6 @@ const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
   path: '/stream',
   getParentRoute: () => ApiAudioRoute,
 } as any)
-const ApiHarnessProtocolSplatRoute = ApiHarnessProtocolSplatRouteImport.update({
-  id: '/api/harness-protocol/$',
-  path: '/api/harness-protocol/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiHarnessSecretAnswerSplatRoute =
-  ApiHarnessSecretAnswerSplatRouteImport.update({
-    id: '/api/harness-secret-answer/$',
-    path: '/api/harness-secret-answer/$',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const ApiHarnessHandoffSplatRoute = ApiHarnessHandoffSplatRouteImport.update({
   id: '/api/harness-handoff/$',
   path: '/api/harness-handoff/$',
@@ -1232,6 +1228,17 @@ const ApiHarnessObservabilitySplatRoute =
   ApiHarnessObservabilitySplatRouteImport.update({
     id: '/api/harness-observability/$',
     path: '/api/harness-observability/$',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiHarnessProtocolSplatRoute = ApiHarnessProtocolSplatRouteImport.update({
+  id: '/api/harness-protocol/$',
+  path: '/api/harness-protocol/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHarnessSecretAnswerSplatRoute =
+  ApiHarnessSecretAnswerSplatRouteImport.update({
+    id: '/api/harness-secret-answer/$',
+    path: '/api/harness-secret-answer/$',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiHarnessWaitsSplatRoute = ApiHarnessWaitsSplatRouteImport.update({
@@ -1353,6 +1360,7 @@ export interface FileRoutesByFullPath {
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
+  '/api/gemini-server-tools-wire': typeof ApiGeminiServerToolsWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/harness-agent-tree': typeof ApiHarnessAgentTreeRoute
@@ -1452,10 +1460,10 @@ export interface FileRoutesByFullPath {
   '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
-  '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
-  '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
   '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
   '/api/harness-observability/$': typeof ApiHarnessObservabilitySplatRoute
+  '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
+  '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
   '/api/harness-waits/$': typeof ApiHarnessWaitsSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
@@ -1555,6 +1563,7 @@ export interface FileRoutesByTo {
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
+  '/api/gemini-server-tools-wire': typeof ApiGeminiServerToolsWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/harness-agent-tree': typeof ApiHarnessAgentTreeRoute
@@ -1654,10 +1663,10 @@ export interface FileRoutesByTo {
   '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
-  '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
-  '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
   '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
   '/api/harness-observability/$': typeof ApiHarnessObservabilitySplatRoute
+  '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
+  '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
   '/api/harness-waits/$': typeof ApiHarnessWaitsSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
@@ -1758,6 +1767,7 @@ export interface FileRoutesById {
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
+  '/api/gemini-server-tools-wire': typeof ApiGeminiServerToolsWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/harness-agent-tree': typeof ApiHarnessAgentTreeRoute
@@ -1857,10 +1867,10 @@ export interface FileRoutesById {
   '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
-  '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
-  '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
   '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
   '/api/harness-observability/$': typeof ApiHarnessObservabilitySplatRoute
+  '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
+  '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
   '/api/harness-waits/$': typeof ApiHarnessWaitsSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
@@ -1962,6 +1972,7 @@ export interface FileRouteTypes {
     | '/api/foreign-interrupt'
     | '/api/gemini-image-ga-models'
     | '/api/gemini-native-image-wire'
+    | '/api/gemini-server-tools-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/harness-agent-tree'
@@ -2061,10 +2072,10 @@ export interface FileRouteTypes {
     | '/api/wrap-fetch-wire'
     | '/$provider/'
     | '/api/audio/stream'
-    | '/api/harness-protocol/$'
-    | '/api/harness-secret-answer/$'
     | '/api/harness-handoff/$'
     | '/api/harness-observability/$'
+    | '/api/harness-protocol/$'
+    | '/api/harness-secret-answer/$'
     | '/api/harness-waits/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
@@ -2164,6 +2175,7 @@ export interface FileRouteTypes {
     | '/api/foreign-interrupt'
     | '/api/gemini-image-ga-models'
     | '/api/gemini-native-image-wire'
+    | '/api/gemini-server-tools-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/harness-agent-tree'
@@ -2263,10 +2275,10 @@ export interface FileRouteTypes {
     | '/api/wrap-fetch-wire'
     | '/$provider'
     | '/api/audio/stream'
-    | '/api/harness-protocol/$'
-    | '/api/harness-secret-answer/$'
     | '/api/harness-handoff/$'
     | '/api/harness-observability/$'
+    | '/api/harness-protocol/$'
+    | '/api/harness-secret-answer/$'
     | '/api/harness-waits/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
@@ -2366,6 +2378,7 @@ export interface FileRouteTypes {
     | '/api/foreign-interrupt'
     | '/api/gemini-image-ga-models'
     | '/api/gemini-native-image-wire'
+    | '/api/gemini-server-tools-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/harness-agent-tree'
@@ -2465,10 +2478,10 @@ export interface FileRouteTypes {
     | '/api/wrap-fetch-wire'
     | '/$provider/'
     | '/api/audio/stream'
-    | '/api/harness-protocol/$'
-    | '/api/harness-secret-answer/$'
     | '/api/harness-handoff/$'
     | '/api/harness-observability/$'
+    | '/api/harness-protocol/$'
+    | '/api/harness-secret-answer/$'
     | '/api/harness-waits/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
@@ -2569,6 +2582,7 @@ export interface RootRouteChildren {
   ApiForeignInterruptRoute: typeof ApiForeignInterruptRoute
   ApiGeminiImageGaModelsRoute: typeof ApiGeminiImageGaModelsRoute
   ApiGeminiNativeImageWireRoute: typeof ApiGeminiNativeImageWireRoute
+  ApiGeminiServerToolsWireRoute: typeof ApiGeminiServerToolsWireRoute
   ApiGenerationPersistenceResumeRoute: typeof ApiGenerationPersistenceResumeRoute
   ApiGenerationPersistenceServerRoute: typeof ApiGenerationPersistenceServerRoute
   ApiHarnessAgentTreeRoute: typeof ApiHarnessAgentTreeRoute
@@ -2667,10 +2681,10 @@ export interface RootRouteChildren {
   ApiWorldRoute: typeof ApiWorldRoute
   ApiWrapFetchWireRoute: typeof ApiWrapFetchWireRoute
   ProviderIndexRoute: typeof ProviderIndexRoute
-  ApiHarnessProtocolSplatRoute: typeof ApiHarnessProtocolSplatRoute
-  ApiHarnessSecretAnswerSplatRoute: typeof ApiHarnessSecretAnswerSplatRoute
   ApiHarnessHandoffSplatRoute: typeof ApiHarnessHandoffSplatRoute
   ApiHarnessObservabilitySplatRoute: typeof ApiHarnessObservabilitySplatRoute
+  ApiHarnessProtocolSplatRoute: typeof ApiHarnessProtocolSplatRoute
+  ApiHarnessSecretAnswerSplatRoute: typeof ApiHarnessSecretAnswerSplatRoute
   ApiHarnessWaitsSplatRoute: typeof ApiHarnessWaitsSplatRoute
 }
 
@@ -3325,6 +3339,13 @@ declare module '@tanstack/react-router' {
       path: '/api/gemini-native-image-wire'
       fullPath: '/api/gemini-native-image-wire'
       preLoaderRoute: typeof ApiGeminiNativeImageWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/gemini-server-tools-wire': {
+      id: '/api/gemini-server-tools-wire'
+      path: '/api/gemini-server-tools-wire'
+      fullPath: '/api/gemini-server-tools-wire'
+      preLoaderRoute: typeof ApiGeminiServerToolsWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/generation-persistence-resume': {
@@ -4013,20 +4034,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAudioStreamRouteImport
       parentRoute: typeof ApiAudioRoute
     }
-    '/api/harness-protocol/$': {
-      id: '/api/harness-protocol/$'
-      path: '/api/harness-protocol/$'
-      fullPath: '/api/harness-protocol/$'
-      preLoaderRoute: typeof ApiHarnessProtocolSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/harness-secret-answer/$': {
-      id: '/api/harness-secret-answer/$'
-      path: '/api/harness-secret-answer/$'
-      fullPath: '/api/harness-secret-answer/$'
-      preLoaderRoute: typeof ApiHarnessSecretAnswerSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/harness-handoff/$': {
       id: '/api/harness-handoff/$'
       path: '/api/harness-handoff/$'
@@ -4039,6 +4046,20 @@ declare module '@tanstack/react-router' {
       path: '/api/harness-observability/$'
       fullPath: '/api/harness-observability/$'
       preLoaderRoute: typeof ApiHarnessObservabilitySplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/harness-protocol/$': {
+      id: '/api/harness-protocol/$'
+      path: '/api/harness-protocol/$'
+      fullPath: '/api/harness-protocol/$'
+      preLoaderRoute: typeof ApiHarnessProtocolSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/harness-secret-answer/$': {
+      id: '/api/harness-secret-answer/$'
+      path: '/api/harness-secret-answer/$'
+      fullPath: '/api/harness-secret-answer/$'
+      preLoaderRoute: typeof ApiHarnessSecretAnswerSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/harness-waits/$': {
@@ -4235,6 +4256,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiForeignInterruptRoute: ApiForeignInterruptRoute,
   ApiGeminiImageGaModelsRoute: ApiGeminiImageGaModelsRoute,
   ApiGeminiNativeImageWireRoute: ApiGeminiNativeImageWireRoute,
+  ApiGeminiServerToolsWireRoute: ApiGeminiServerToolsWireRoute,
   ApiGenerationPersistenceResumeRoute: ApiGenerationPersistenceResumeRoute,
   ApiGenerationPersistenceServerRoute: ApiGenerationPersistenceServerRoute,
   ApiHarnessAgentTreeRoute: ApiHarnessAgentTreeRoute,
@@ -4334,10 +4356,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWorldRoute: ApiWorldRoute,
   ApiWrapFetchWireRoute: ApiWrapFetchWireRoute,
   ProviderIndexRoute: ProviderIndexRoute,
-  ApiHarnessProtocolSplatRoute: ApiHarnessProtocolSplatRoute,
-  ApiHarnessSecretAnswerSplatRoute: ApiHarnessSecretAnswerSplatRoute,
   ApiHarnessHandoffSplatRoute: ApiHarnessHandoffSplatRoute,
   ApiHarnessObservabilitySplatRoute: ApiHarnessObservabilitySplatRoute,
+  ApiHarnessProtocolSplatRoute: ApiHarnessProtocolSplatRoute,
+  ApiHarnessSecretAnswerSplatRoute: ApiHarnessSecretAnswerSplatRoute,
   ApiHarnessWaitsSplatRoute: ApiHarnessWaitsSplatRoute,
 }
 export const routeTree = rootRouteImport
