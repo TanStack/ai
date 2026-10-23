@@ -1,0 +1,27 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[ai-sdk-approval] buy the stratocaster",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "addToCart",
+            "arguments": "{\"guitarId\":\"1\",\"quantity\":1}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[ai-sdk-approval] buy the stratocaster",
+        "hasToolResult": true
+      },
+      "response": {
+        "content": "The Stratocaster is in your cart."
+      }
+    }
+  ]
+}
