@@ -12,6 +12,8 @@
     "postinstall": "playwright install chromium"
   },
   "dependencies": {
+    "@ai-sdk/openai": "4.0.99",
+    "@ai-sdk/react": "4.0.152",
     "@anthropic-ai/sdk": "^0.135.0",
     "@copilotkit/aimock": "^1.34.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -54,6 +56,7 @@
     "@tanstack/ai-skills": "workspace:*",
     "@tanstack/ai-solid": "workspace:*",
     "@tanstack/ai-typesafe": "workspace:*",
+    "@tanstack/ai-ui-message-stream": "workspace:*",
     "@tanstack/ai-vercel-gateway": "workspace:*",
     "@tanstack/ai-vertex": "workspace:*",
     "@tanstack/ai-worldlabs": "workspace:*",
@@ -62,6 +65,7 @@
     "@tanstack/react-ai-devtools": "workspace:*",
     "@tanstack/react-router": "^1.170.41",
     "@tanstack/react-start": "^1.168.60",
+    "ai": "7.0.148",
     "arktype": "^2.1.28",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",

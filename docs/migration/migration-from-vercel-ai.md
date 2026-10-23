@@ -25,6 +25,11 @@ Move a Vercel AI SDK app (`ai` and `@ai-sdk/*`) to TanStack AI by swapping the p
 
 Do the steps below in order. The "Before" samples are AI SDK v5 and v6 code. Where v4 is different, the page says so. For every other API, see [Vercel AI SDK: full API mapping](./migration-from-vercel-ai-advanced).
 
+To move one side at a time, connect the two SDKs over the AI SDK UI message stream:
+
+- Server first: [AI SDK useChat with a TanStack AI server](./ai-sdk-client-tanstack-server).
+- Client first: [TanStack useChat with an AI SDK server](./tanstack-client-ai-sdk-server).
+
 ## Port a chat app
 
 ### 1. Swap the packages
