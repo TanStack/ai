@@ -20,7 +20,7 @@ export interface SubagentData extends Omit<
 /** An AI SDK `data-<name>` chunk. */
 export type DataChunk = Extract<UIMessageChunk, { type: `data-${string}` }>
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 

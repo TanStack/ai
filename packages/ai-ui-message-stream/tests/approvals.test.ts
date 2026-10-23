@@ -74,7 +74,9 @@ describe('TanStack server, AI SDK client: approvals', () => {
     }))
       first = message
     // The message keeps the paused TanStack run id.
-    expect(first?.metadata).toEqual({ tanstack: { runId: runs[0]?.runId } })
+    expect(first?.metadata).toMatchObject({
+      tanstack: { runId: runs[0]?.runId },
+    })
     const requested = first?.parts.find((p) => p.type === 'tool-deleteFile')
     expect(requested).toMatchObject({
       state: 'approval-requested',
@@ -135,11 +137,13 @@ describe('TanStack server, AI SDK client: approvals', () => {
     const { execute, second } = await run(true)
     expect(execute).toHaveBeenCalledTimes(1)
     expect(second.parts).toMatchObject([
+      { type: 'step-start' },
       {
         type: 'tool-deleteFile',
         state: 'output-available',
         output: { deleted: true },
       },
+      { type: 'step-start' },
       { type: 'text', text: 'Result: {"deleted":true}' },
     ])
   })
@@ -148,11 +152,13 @@ describe('TanStack server, AI SDK client: approvals', () => {
     const { execute, second } = await run(false)
     expect(execute).not.toHaveBeenCalled()
     expect(second.parts).toMatchObject([
+      { type: 'step-start' },
       {
         type: 'tool-deleteFile',
         state: 'output-denied',
         approval: { approved: false },
       },
+      { type: 'step-start' },
       { type: 'text', text: expect.stringContaining('Result:') },
     ])
   })
@@ -212,6 +218,7 @@ describe('TanStack server, AI SDK client: approvals', () => {
     }))
       message = m
     expect(message?.parts).toMatchObject([
+      { type: 'step-start' },
       { type: 'tool-researcher', toolCallId: 'call-1' },
       {
         type: 'data-subagent',

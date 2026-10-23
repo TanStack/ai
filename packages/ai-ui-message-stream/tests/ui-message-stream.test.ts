@@ -109,6 +109,7 @@ describe('TanStack server, AI SDK client', () => {
     }
 
     expect(assistant?.parts).toMatchObject([
+      { type: 'step-start' },
       {
         type: 'reasoning',
         text: 'Plan.',
@@ -196,8 +197,10 @@ describe('TanStack server, AI SDK client', () => {
     }
     const first = await turn([user])
     expect(first.parts).toMatchObject([
+      { type: 'step-start' },
       { type: 'reasoning', text: 'Plan.' },
       { type: 'tool-weather', state: 'output-available', output: { temp: 72 } },
+      { type: 'step-start' },
       { type: 'tool-ask', state: 'input-available', input: { q: 'Units?' } },
     ])
 
@@ -212,6 +215,7 @@ describe('TanStack server, AI SDK client', () => {
     }
     const second = await turn([user, answered])
     expect(second.parts).toMatchObject([
+      { type: 'step-start' },
       { type: 'text', text: 'Answer: Fahrenheit' },
     ])
   })
@@ -280,6 +284,7 @@ describe('AI SDK server, TanStack client', () => {
     for (const event of out) EventSchemas.parse(event)
     expect(out.map((e) => e.type)).toEqual([
       'RUN_STARTED',
+      'STEP_STARTED',
       'REASONING_MESSAGE_START',
       'REASONING_MESSAGE_CONTENT',
       'REASONING_ENCRYPTED_VALUE',
@@ -290,8 +295,64 @@ describe('AI SDK server, TanStack client', () => {
       'TOOL_CALL_START',
       'TOOL_CALL_ARGS',
       'TOOL_CALL_END',
+      'STEP_FINISHED',
       'RUN_FINISHED',
     ])
+  })
+
+  it('keeps the AG-UI tool call order when metadata comes late', async () => {
+    const out: Array<StreamChunk> = []
+    for await (const event of fromUIMessageStream(
+      chunkStream([
+        { type: 'start', messageId: 'a-1' },
+        { type: 'tool-input-start', toolCallId: 'c-1', toolName: 'pay' },
+        { type: 'tool-input-delta', toolCallId: 'c-1', inputTextDelta: '{}' },
+        {
+          type: 'tool-input-available',
+          toolCallId: 'c-1',
+          toolName: 'pay',
+          input: {},
+        },
+        {
+          type: 'tool-approval-request',
+          approvalId: 'ap-1',
+          toolCallId: 'c-1',
+          signature: 'sig',
+        },
+        {
+          type: 'tool-input-available',
+          toolCallId: 'c-2',
+          toolName: 'search',
+          input: {},
+          providerExecuted: true,
+        },
+        {
+          type: 'tool-output-available',
+          toolCallId: 'c-2',
+          output: 'found',
+          providerExecuted: true,
+          providerMetadata: { openai: { itemId: 'ws-1' } },
+        },
+        { type: 'finish' },
+      ]),
+      { threadId: 't', runId: 'r' },
+    )) {
+      out.push(event)
+    }
+    for (const event of out) EventSchemas.parse(event)
+
+    // Per call: START, ARGS..., END, then RESULT. No ARGS after END.
+    for (const id of ['c-1', 'c-2']) {
+      const types = out
+        .filter((e) => 'toolCallId' in e && e.toolCallId === id)
+        .map((e): string => e.type)
+      const end = types.indexOf('TOOL_CALL_END')
+      expect(types[0]).toBe('TOOL_CALL_START')
+      expect(end).toBeGreaterThan(0)
+      expect(types.lastIndexOf('TOOL_CALL_ARGS')).toBeLessThan(end)
+      const result = types.indexOf('TOOL_CALL_RESULT')
+      if (result !== -1) expect(result).toBeGreaterThan(end)
+    }
   })
 
   it('runs a client tool and sends its output and reasoning back', async () => {
