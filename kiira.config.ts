@@ -37,6 +37,9 @@ export default defineConfig({
     '@ai-sdk/anthropic': '^4.0.0',
     '@ai-sdk/google': '^4.0.0',
     '@ai-sdk/react': '^4.0.0',
+    // pi (the @tanstack/ai-pi-stream bridge pages)
+    '@earendil-works/pi-ai': '^1.4.0',
+    '@earendil-works/pi-agent-core': '^1.4.0',
     // Provider SDKs / schema libraries shown in examples
     openai: '^6.0.0',
     arktype: '^2.0.0',

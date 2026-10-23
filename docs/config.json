@@ -166,6 +166,11 @@
           "to": "comparison/vercel-ai-sdk",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "TanStack AI vs pi",
+          "to": "comparison/pi",
+          "addedAt": "2026-10-23"
         }
       ],
       "tab": "get-started"
@@ -1971,6 +1976,21 @@
         {
           "label": "AI SDK bridge compatibility",
           "to": "migration/ai-sdk-compatibility",
+          "addedAt": "2026-10-23"
+        },
+        {
+          "label": "TanStack useChat with a pi agent",
+          "to": "migration/pi-agent-tanstack-client",
+          "addedAt": "2026-10-23"
+        },
+        {
+          "label": "pi UI with a TanStack AI server",
+          "to": "migration/pi-client-tanstack-server",
+          "addedAt": "2026-10-23"
+        },
+        {
+          "label": "pi bridge compatibility",
+          "to": "migration/pi-compatibility",
           "addedAt": "2026-10-23"
         },
         {
