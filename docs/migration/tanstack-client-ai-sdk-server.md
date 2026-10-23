@@ -17,7 +17,10 @@ keywords:
 
 Point TanStack AI `useChat` at a Vercel AI SDK route. Wrap an AI SDK `ChatTransport` with `fromChatTransport`, and pass it as the `connection`. Your `streamText` route does not change.
 
-Use this page to move the client first, for example to use `useChat` in a framework that the AI SDK does not cover. To move the server first, see [AI SDK useChat with a TanStack AI server](./ai-sdk-client-tanstack-server).
+Use this page to move the client first. To move the server first, see [AI SDK useChat with a TanStack AI server](./ai-sdk-client-tanstack-server).
+
+> [!WARNING]
+> This bridge is a stop gap while you port. Some features change shape or are dropped on the way (see [AI SDK bridge compatibility](./ai-sdk-compatibility)). When the client works, port the route to `chat()` with the [migration guide](./migration-from-vercel-ai), then remove the bridge.
 
 ## 1. Install the packages
 
@@ -182,6 +185,8 @@ Use one connection for each thread. The rejoin after a reload needs a transport 
 
 - AG-UI shared state. The AI SDK has no state.
 - Sources, generated files and message metadata.
+
+For every event and message part, see [AI SDK bridge compatibility](./ai-sdk-compatibility).
 
 ## Done
 

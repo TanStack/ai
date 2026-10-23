@@ -37,7 +37,8 @@ Read the guide, then load the target API's own skill with
 code that type-checks in neither SDK.
 
 To port one side at a time, `@tanstack/ai-ui-message-stream` connects the two
-SDKs over the AI SDK UI message stream:
+SDKs over the AI SDK UI message stream. It is a stop gap while porting, not a
+place to stay: finish the port of the other side, then remove it.
 
 - Server first: keep AI SDK `useChat` and serve it from `chat()` with
   `chat({ adapter, ...(await chatParamsFromAISDKRequest(request)) })` and
