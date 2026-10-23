@@ -221,7 +221,7 @@ export function Recipe() {
 }
 ```
 
-If the text is not valid JSON for the schema, the run ends with an error.
+If the text is not valid JSON for the schema, the run ends with an error. All text of the reply counts as the answer, so a route that also writes text in a step that calls tools fails the check.
 
 ## 6. Load a saved chat
 
