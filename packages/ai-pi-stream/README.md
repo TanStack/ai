@@ -36,56 +36,56 @@ pnpm add @tanstack/ai-pi-stream @tanstack/ai @earendil-works/pi-agent-core @eare
 ## TanStack AI client, pi agent
 
 ```ts
-import { agentLoop } from '@earendil-works/pi-agent-core'
-import {
-  chatParamsFromRequest,
-  convertMessagesToModelMessages,
-  toServerSentEventsResponse,
-} from '@tanstack/ai'
-import { fromPiAgentEvents, toPiMessages } from '@tanstack/ai-pi-stream'
+import { chatParamsFromRequest, toServerSentEventsResponse } from '@tanstack/ai'
+import { runPiAgent } from '@tanstack/ai-pi-stream'
 
 export async function POST(request: Request) {
-  const { messages, threadId, runId } = await chatParamsFromRequest(request)
-  const history = toPiMessages(convertMessagesToModelMessages(messages))
-  const prompt = history.pop()
-
-  const events = agentLoop(
-    prompt ? [prompt] : [],
-    { messages: history, tools },
-    { model, convertToLlm: (piMessages) => piMessages },
-    request.signal,
-    streamFn,
-  )
-
   return toServerSentEventsResponse(
-    fromPiAgentEvents(events, { threadId, runId }),
+    runPiAgent(await chatParamsFromRequest(request), {
+      config: { model, convertToLlm: (piMessages) => piMessages },
+      streamFn,
+      tools,
+      needsApproval: ['deleteFile'],
+      systemPrompts: ['Be helpful.'],
+    }),
   )
 }
 ```
+
+A pi tool in `needsApproval` pauses for a `useChat` approval. The client tools of `useChat` run in the browser.
 
 ## pi client, TanStack AI server
 
 ```ts
 import { chat } from '@tanstack/ai'
-import { fromPiMessages, toPiAgentEvents } from '@tanstack/ai-pi-stream'
+import {
+  chatParamsFromPiRequest,
+  toPiAgentEvents,
+} from '@tanstack/ai-pi-stream'
 
-// From a client request, keep the messages only. Set the system prompt on
-// the server, so a client cannot change it.
-const { messages } = fromPiMessages(body.messages)
-const events = toPiAgentEvents(
-  chat({ adapter, threadId, messages, systemPrompts: ['Be helpful.'] }),
-)
-for await (const event of events) render(event)
+export async function POST(request: Request) {
+  const events = toPiAgentEvents(
+    chat({
+      adapter,
+      systemPrompts: ['Be helpful.'],
+      ...(await chatParamsFromPiRequest(request)),
+    }),
+  )
+  // Stream the events to the pi client, for example one JSON line each.
+}
 ```
+
+`chatParamsFromPiRequest` drops the client's system messages, so the server sets the system prompt. Approvals arrive as `tanstack-interrupt` pi messages and go back as `resume`.
 
 ## API
 
-| Export                                             | Direction                                              |
-| -------------------------------------------------- | ------------------------------------------------------ |
-| `fromPiAgentEvents(events, { threadId, runId })`   | pi agent events to AG-UI events, for `useChat`         |
-| `toPiAgentEvents(stream, { model })`               | `chat()` events to pi agent events                     |
-| `toPiMessages(messages, { systemPrompts, model })` | TanStack `ModelMessage`s to pi messages                |
-| `fromPiMessages(messages)`                         | pi messages to `chat()` `messages` and `systemPrompts` |
+| Export                                           | Direction                                                           |
+| ------------------------------------------------ | ------------------------------------------------------------------- |
+| `runPiAgent(params, options)`                    | A pi agent for a `useChat` request, with approvals and client tools |
+| `chatParamsFromPiRequest(request)`               | A pi client request to `chat()` params, with `resume`               |
+| `fromPiAgentEvents(events, { threadId, runId })` | pi agent events to AG-UI events                                     |
+| `toPiAgentEvents(stream, { model })`             | `chat()` events to pi agent events                                  |
+| `toPiMessages` / `fromPiMessages`                | The history in each direction                                       |
 
 ## Docs
 

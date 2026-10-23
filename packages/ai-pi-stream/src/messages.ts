@@ -117,12 +117,14 @@ export function toPiMessages(
     }
     if (message.role === 'tool') {
       const toolCallId = message.toolCallId ?? ''
-      const text = textOf(message.content)
       out.push({
         role: 'toolResult',
         toolCallId,
         toolName: toolNames.get(toolCallId) ?? '',
-        content: [{ type: 'text', text: message.error ?? text }],
+        content:
+          message.error === undefined
+            ? toPiToolContent(message.content)
+            : [{ type: 'text', text: message.error }],
         isError: message.error !== undefined,
         timestamp: at,
       })
@@ -184,6 +186,54 @@ export function toolResultText(message: Pick<ToolResultMessage, 'content'>) {
     .join('')
 }
 
+/**
+ * pi tool result content as TanStack tool content: the text, or content
+ * parts when there are images.
+ */
+export function fromPiToolContent(
+  content: ToolResultMessage['content'],
+): string | Array<ContentPart> {
+  if (content.every((part) => part.type === 'text')) {
+    return content.map((part) => part.text).join('')
+  }
+  return fromPiContent(content)
+}
+
+/**
+ * TanStack tool content as pi tool result content. A string that holds a
+ * JSON content-part array (the AG-UI wire form of a multimodal result) is
+ * read as parts.
+ */
+export function toPiToolContent(
+  content: string | null | Array<ContentPart>,
+): Array<TextContent | ImageContent> {
+  let value: unknown = content
+  if (typeof content === 'string' && content.startsWith('[')) {
+    try {
+      value = JSON.parse(content)
+    } catch {
+      value = content
+    }
+  }
+  if (Array.isArray(value) && value.every(isContentPart)) {
+    const parts = toPiContent(value)
+    return typeof parts === 'string' ? [{ type: 'text', text: parts }] : parts
+  }
+  return [{ type: 'text', text: textOf(content) }]
+}
+
+function isContentPart(value: unknown): value is ContentPart {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'type' in value &&
+    typeof value.type === 'string' &&
+    (value.type === 'text'
+      ? 'content' in value
+      : 'source' in value && typeof value.source === 'object')
+  )
+}
+
 function isMessage(message: AgentMessage): message is Message {
   return (
     typeof message === 'object' &&
@@ -232,7 +282,7 @@ export function fromPiMessages(messages: ReadonlyArray<AgentMessage>): {
         out.push({
           role: 'tool',
           toolCallId: message.toolCallId,
-          content: text,
+          content: fromPiToolContent(message.content),
           ...(message.isError && { error: text }),
           createdAt: new Date(message.timestamp),
         })

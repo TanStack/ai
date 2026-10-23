@@ -57,18 +57,21 @@ bridge. Shared state goes from a TanStack server to an AI SDK client only.
 From pi (`@earendil-works/pi-ai`, `pi-agent-core`), `@tanstack/ai-pi-stream`
 converts pi agent events and pi messages in both directions:
 
-- Client first: run the pi `agentLoop()` on the route and serve
-  `toServerSentEventsResponse(fromPiAgentEvents(events, { threadId, runId }))`.
-  Build the pi history with
-  `toPiMessages(convertMessagesToModelMessages(messages))`.
+- Client first: serve
+  `toServerSentEventsResponse(runPiAgent(await chatParamsFromRequest(request), { config, streamFn, tools, needsApproval, systemPrompts }))`.
+  pi tools in `needsApproval` pause for a `useChat` approval, and the client
+  tools of `useChat` run in the browser. For a hand-run `agentLoop()`, use
+  `fromPiAgentEvents` and `toPiMessages`.
   https://tanstack.com/ai/latest/docs/migration/pi-agent-tanstack-client
-- Server first: `chat({ adapter, threadId, systemPrompts, messages: fromPiMessages(body.messages).messages })`,
-  then stream `toPiAgentEvents(stream)` to the pi UI. Set `systemPrompts` on
-  the server. Do not use the `systemPrompts` that `fromPiMessages` reads from
-  a client request: then the client controls the system prompt.
+- Server first:
+  `chat({ adapter, systemPrompts, ...(await chatParamsFromPiRequest(request)) })`,
+  then stream `toPiAgentEvents(stream)` to the pi UI. `chatParamsFromPiRequest`
+  drops the client's system messages, so the server sets `systemPrompts`.
+  Approvals arrive as `tanstack-interrupt` pi messages and go back as `resume`.
   https://tanstack.com/ai/latest/docs/migration/pi-client-tanstack-server
 
-Tool approvals, client tools and subagents do not cross. See
+What does not cross is what one side cannot hold: image URLs, audio, video
+and documents sent to pi, and structured output and subagents from pi. See
 https://tanstack.com/ai/latest/docs/migration/pi-compatibility
 
 ## Upgrading TanStack AI itself

@@ -1,5 +1,11 @@
-import { EventType, toSpecTokenUsage, withTanstackMetadata } from '@tanstack/ai'
+import {
+  EventType,
+  readInterruptBinding,
+  toSpecTokenUsage,
+  withTanstackMetadata,
+} from '@tanstack/ai'
 import type {
+  Interrupt,
   RunFinishedEvent,
   SpecTokenUsage,
   StreamChunk,
@@ -14,10 +20,19 @@ import type {
   ToolResultMessage,
   Usage,
 } from '@earendil-works/pi-ai'
-import { emptyUsage, parseJsonObject, toolResultText } from './messages'
+import {
+  emptyUsage,
+  fromPiToolContent,
+  parseJsonObject,
+  toPiToolContent,
+} from './messages'
 import type { PiModelFields } from './messages'
+import type { PiBridgeEvent, TanStackPiMessage } from './request'
 
 type FinishReason = RunFinishedEvent['finishReason']
+
+/** TanStack marks a redacted thinking block by this reasoning message id prefix. */
+const REDACTED_PREFIX = 'redacted_thinking-'
 
 function toPiStopReason(reason: FinishReason): StopReason {
   if (reason === 'tool_calls') return 'toolUse'
@@ -39,14 +54,22 @@ function tanstackField(metadata: unknown, key: string): unknown {
   return Reflect.get(tanstack, key)
 }
 
-function stringField(value: unknown, key: string): string | undefined {
-  if (typeof value !== 'object' || value === null) return undefined
-  const field: unknown = Reflect.get(value, key)
-  return typeof field === 'string' ? field : undefined
+function field(value: unknown, key: string): unknown {
+  return typeof value === 'object' && value !== null
+    ? Reflect.get(value, key)
+    : undefined
 }
 
-/** TanStack run usage as one pi `Usage`. The AG-UI counts include the cache. */
-function toPiUsage(usage: RunFinishedEvent['usage']): Usage {
+function stringField(value: unknown, key: string): string | undefined {
+  const found = field(value, key)
+  return typeof found === 'string' ? found : undefined
+}
+
+/**
+ * TanStack run usage as one pi `Usage`. The AG-UI counts include the cache.
+ * The cost is the TanStack `cost`, on the usage or in `metadata.tanstack`.
+ */
+function toPiUsage(usage: RunFinishedEvent['usage'], metadata: unknown): Usage {
   const list =
     usage === undefined
       ? []
@@ -66,6 +89,10 @@ function toPiUsage(usage: RunFinishedEvent['usage']): Usage {
       out.reasoning = (out.reasoning ?? 0) + entry.reasoningTokens
     }
   }
+  const cost =
+    field(Array.isArray(usage) ? undefined : usage, 'cost') ??
+    field(tanstackField(metadata, 'usage'), 'cost')
+  if (typeof cost === 'number') out.cost.total = cost
   return out
 }
 
@@ -101,6 +128,26 @@ interface Turn {
   args: Map<string, string>
 }
 
+/** The AG-UI events that `toPiAgentEvents` maps to pi events. */
+const MAPPED_EVENTS: ReadonlySet<string> = new Set([
+  EventType.RUN_STARTED,
+  EventType.RUN_FINISHED,
+  EventType.RUN_ERROR,
+  EventType.TEXT_MESSAGE_START,
+  EventType.TEXT_MESSAGE_CONTENT,
+  EventType.TEXT_MESSAGE_END,
+  EventType.REASONING_START,
+  EventType.REASONING_END,
+  EventType.REASONING_MESSAGE_START,
+  EventType.REASONING_MESSAGE_CONTENT,
+  EventType.REASONING_MESSAGE_END,
+  EventType.REASONING_ENCRYPTED_VALUE,
+  EventType.TOOL_CALL_START,
+  EventType.TOOL_CALL_ARGS,
+  EventType.TOOL_CALL_END,
+  EventType.TOOL_CALL_RESULT,
+])
+
 /**
  * Convert the AG-UI event stream of `chat()` into pi agent events, the
  * `AgentEvent`s of `@earendil-works/pi-agent-core`. A pi UI that reads
@@ -111,29 +158,40 @@ interface Turn {
  * messages of that turn. `agent_end` carries the messages of the run, without
  * the prompt messages, which `chat()` does not stream.
  *
+ * Two kinds of pi message carry what pi has no type for. They come as
+ * `message_start` and `message_end`, and are not in the `agent_end` list:
+ *
+ * - `tanstack-interrupt`: the run paused for a tool approval, a client tool
+ *   or another interrupt. Answer it with `resume` on the next request.
+ * - `tanstack-event`: state, activity, steps, custom events and subagent
+ *   events, as the AG-UI event.
+ *
  * Pass `model` (the pi model fields) to stamp the assistant messages.
  * Otherwise they get the provider and model of the `chat()` adapter, and an
  * empty `api`.
- *
- * Events with no pi equivalent are dropped: steps, state, activity, custom
- * events, subagent events and approval interrupts.
  */
 export async function* toPiAgentEvents(
   stream: AsyncIterable<StreamChunk>,
   { model }: { model?: PiModelFields } = {},
-): AsyncGenerator<AgentEvent> {
+): AsyncGenerator<PiBridgeEvent> {
   const messages: Array<AgentMessage> = []
   let fields: PiModelFields = model ?? { api: '', provider: '', model: '' }
   let started = false
   let turn: Turn | undefined
 
-  function* start(): Generator<AgentEvent> {
+  function* start(): Generator<PiBridgeEvent> {
     if (started) return
     started = true
     yield { type: 'agent_start' }
   }
 
-  function* endTurn(): Generator<AgentEvent> {
+  function* custom(message: TanStackPiMessage): Generator<PiBridgeEvent> {
+    yield* start()
+    yield { type: 'message_start', message }
+    yield { type: 'message_end', message }
+  }
+
+  function* endTurn(): Generator<PiBridgeEvent> {
     if (!turn) return
     yield* endMessage({})
     yield {
@@ -145,7 +203,7 @@ export async function* toPiAgentEvents(
   }
 
   /** The open assistant message. A new model call starts a new turn. */
-  function* open(): Generator<AgentEvent, Turn> {
+  function* open(): Generator<PiBridgeEvent, Turn> {
     if (turn && !turn.ended) return turn
     yield* start()
     yield* endTurn()
@@ -172,7 +230,7 @@ export async function* toPiAgentEvents(
 
   function* endMessage(
     final: Partial<AssistantMessage>,
-  ): Generator<AgentEvent> {
+  ): Generator<PiBridgeEvent> {
     if (!turn || turn.ended) return
     turn.ended = true
     Object.assign(turn.message, { stopReason: 'stop' }, final)
@@ -202,9 +260,14 @@ export async function* toPiAgentEvents(
   }
 
   for await (const event of stream) {
-    if ('subagentRunId' in event && event.subagentRunId !== undefined) continue
+    const subagent =
+      'subagentRunId' in event && event.subagentRunId !== undefined
+    if (subagent || !MAPPED_EVENTS.has(event.type)) {
+      yield* custom({ role: 'tanstack-event', event, timestamp: Date.now() })
+      continue
+    }
 
-    // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- events with no pi equivalent are dropped.
+    // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- the other events become tanstack-event messages above.
     switch (event.type) {
       case EventType.RUN_STARTED: {
         yield* start()
@@ -257,7 +320,13 @@ export async function* toPiAgentEvents(
       case EventType.REASONING_MESSAGE_START: {
         const current = yield* open()
         const at =
-          current.message.content.push({ type: 'thinking', thinking: '' }) - 1
+          current.message.content.push({
+            type: 'thinking',
+            thinking: '',
+            ...(event.messageId.startsWith(REDACTED_PREFIX) && {
+              redacted: true,
+            }),
+          }) - 1
         current.index.set(`reasoning:${event.messageId}`, at)
         yield update(current, { type: 'thinking_start', contentIndex: at })
         break
@@ -359,11 +428,11 @@ export async function* toPiAgentEvents(
         }
         const isError =
           tanstackField(event.metadata, 'state') === 'output-error'
-        const text =
+        const content = toPiToolContent(
           typeof event.content === 'string'
             ? event.content
-            : JSON.stringify(event.content)
-        const content = [{ type: 'text' as const, text }]
+            : JSON.stringify(event.content),
+        )
         yield {
           type: 'tool_execution_end',
           toolCallId: call.id,
@@ -394,15 +463,24 @@ export async function* toPiAgentEvents(
           (tanstackField(event.metadata, 'finishReason') as FinishReason)
         const responseId =
           event.responseId ??
-          stringField(
-            Reflect.get(event.metadata ?? {}, 'tanstack'),
-            'responseId',
-          )
+          stringField(event.metadata?.tanstack, 'responseId')
         yield* endMessage({
           stopReason: toPiStopReason(finishReason),
-          usage: toPiUsage(event.usage),
+          usage: toPiUsage(event.usage, event.metadata),
           ...(responseId !== undefined && { responseId }),
         })
+        if (event.outcome?.type === 'interrupt') {
+          const { interrupts } = event.outcome
+          yield* custom({
+            role: 'tanstack-interrupt',
+            runId:
+              (interrupts[0] &&
+                readInterruptBinding(interrupts[0])?.interruptedRunId) ??
+              event.runId,
+            interrupts,
+            timestamp: Date.now(),
+          })
+        }
         break
       }
 
@@ -411,7 +489,7 @@ export async function* toPiAgentEvents(
         yield* endMessage({
           stopReason: 'error',
           errorMessage: event.message,
-          usage: toPiUsage(event.usage),
+          usage: toPiUsage(event.usage, event.metadata),
         })
         yield* endTurn()
         yield { type: 'agent_end', messages }
@@ -428,37 +506,141 @@ type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
   ? Omit<T, K>
   : never
 
+/** Options for {@link fromPiAgentEvents}. */
+export interface FromPiAgentEventsOptions {
+  threadId: string
+  runId: string
+  /**
+   * The tool calls that the run paused, with the interrupt to send for each.
+   * Their blocked pi tool results stay off the stream, and the turn ends
+   * with an interrupt. `runPiAgent` fills it while the loop runs.
+   */
+  interrupts?: ReadonlyMap<string, Interrupt>
+  /** Tool results to send first: the answers to a resumed run's interrupts. */
+  results?: ReadonlyArray<ToolResultMessage>
+}
+
+/** A pi tool result as the AG-UI tool result event. */
+function toolResultEvent(
+  message: ToolResultMessage,
+  messageId: string,
+): ToolCallResultEvent {
+  const content = fromPiToolContent(message.content)
+  const result: ToolCallResultEvent = {
+    type: EventType.TOOL_CALL_RESULT,
+    messageId,
+    toolCallId: message.toolCallId,
+    // The AG-UI wire form of a multimodal result is the JSON parts.
+    content:
+      typeof content !== 'string'
+        ? JSON.stringify(content)
+        : content ||
+          (message.details === undefined
+            ? ''
+            : JSON.stringify(message.details)),
+    role: 'tool',
+  }
+  return message.isError
+    ? withTanstackMetadata(result, { state: 'output-error' })
+    : result
+}
+
 /**
  * Convert pi agent events, from `agentLoop()` or `Agent.subscribe()`, into the
  * AG-UI events of `chat()`. Serve them with `toServerSentEventsResponse`, and
  * TanStack `useChat` reads the pi agent like a `chat()` route.
  *
  * Each pi assistant message ends with a `RUN_FINISHED`, as each model call
- * of `chat()` does. A tool result becomes a `TOOL_CALL_RESULT`, an error tool
- * result with the `output-error` state. An assistant message that stopped
- * with an error or an abort becomes a `RUN_ERROR`.
+ * of `chat()` does. A tool-use message ends after its tool results. A tool
+ * result becomes a `TOOL_CALL_RESULT`, an error tool result with the
+ * `output-error` state. An assistant message that stopped with an error or an
+ * abort becomes a `RUN_ERROR`.
  *
- * Partial tool results (`tool_execution_update`) and the user, system and
- * custom messages that pi adds mid-run have no AG-UI event, and are dropped.
+ * pi data that has no AG-UI event becomes a `CUSTOM` event:
+ *
+ * - `pi.tool-progress`: a partial tool result (`tool_execution_update`),
+ *   with `toolCallId`, `toolName` and `partialResult`.
+ * - `pi.message`: a message that pi adds mid-run, such as a steering or
+ *   follow-up user message, or an app message.
+ *
+ * The cost of a model call is the TanStack usage `cost`.
  */
 export async function* fromPiAgentEvents(
   events: AsyncIterable<AgentEvent>,
-  { threadId, runId }: { threadId: string; runId: string },
+  {
+    threadId,
+    runId,
+    interrupts = new Map(),
+    results = [],
+  }: FromPiAgentEventsOptions,
 ): AsyncGenerator<StreamChunk> {
   let messageId = ''
   let count = 0
   let finished = false
+  // The prompt comes before the first assistant message. The client sent it.
+  let prompted = false
+  // A tool-use message ends at turn_end, after its tool results, so a paused
+  // call can end the run with an interrupt.
+  let pending: AssistantMessage | undefined
   const argsSent = new Set<string>()
-  const reasoningId = (index: number) => `${messageId}-reasoning-${index}`
+  const reasoningIds = new Map<number, string>()
+
+  function reasoningId(
+    index: number,
+    block?: AssistantMessage['content'][number],
+  ): string {
+    const known = reasoningIds.get(index)
+    if (known !== undefined) return known
+    const redacted = block?.type === 'thinking' && block.redacted === true
+    const id = `${redacted ? REDACTED_PREFIX : ''}${messageId}-reasoning-${index}`
+    reasoningIds.set(index, id)
+    return id
+  }
+
+  function finishedEvent(message: AssistantMessage): StreamChunk {
+    const paused = message.content.flatMap((block) => {
+      const interrupt =
+        block.type === 'toolCall' ? interrupts.get(block.id) : undefined
+      return interrupt ? [interrupt] : []
+    })
+    const event: RunFinishedEvent = {
+      type: EventType.RUN_FINISHED,
+      threadId,
+      runId,
+      model: message.model,
+      finishReason: fromPiStopReason(message.stopReason),
+      ...(message.responseId !== undefined && {
+        responseId: message.responseId,
+      }),
+      usage: fromPiUsage(message),
+      ...(paused.length > 0 && {
+        outcome: { type: 'interrupt', interrupts: paused },
+      }),
+    }
+    const cost = message.usage.cost.total
+    return cost > 0 ? withTanstackMetadata(event, { usage: { cost } }) : event
+  }
+
+  function* flush(): Generator<StreamChunk> {
+    if (!pending) return
+    const message = pending
+    pending = undefined
+    finished = true
+    yield finishedEvent(message)
+  }
 
   yield { type: EventType.RUN_STARTED, threadId, runId }
+  for (const result of results) yield toolResultEvent(result, result.toolCallId)
 
   for await (const event of events) {
-    // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- turn and tool execution events carry nothing the messages do not.
+    // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- turn_start, tool_execution_start and _end carry nothing the messages do not.
     switch (event.type) {
       case 'message_start':
         if ('role' in event.message && event.message.role === 'assistant') {
+          yield* flush()
+          prompted = true
           messageId = `${runId}-${++count}`
+          reasoningIds.clear()
         }
         break
 
@@ -466,27 +648,37 @@ export async function* fromPiAgentEvents(
         yield* fromAssistantEvent(event.assistantMessageEvent)
         break
 
+      case 'tool_execution_update':
+        yield {
+          type: EventType.CUSTOM,
+          name: 'pi.tool-progress',
+          value: {
+            toolCallId: event.toolCallId,
+            toolName: event.toolName,
+            partialResult: event.partialResult,
+          },
+        }
+        break
+
       case 'message_end': {
         const message = event.message
-        if (!('role' in message)) break
+        const role = 'role' in message ? message.role : undefined
         if (message.role === 'toolResult') {
-          const text = toolResultText(message)
-          const result: ToolCallResultEvent = {
-            type: EventType.TOOL_CALL_RESULT,
-            messageId,
-            toolCallId: message.toolCallId,
-            content:
-              text ||
-              (message.details === undefined
-                ? ''
-                : JSON.stringify(message.details)),
-            role: 'tool',
+          if (!interrupts.has(message.toolCallId)) {
+            yield toolResultEvent(message, messageId)
           }
-          yield message.isError
-            ? withTanstackMetadata(result, { state: 'output-error' })
-            : result
+          break
         }
-        if (message.role !== 'assistant') break
+        if (message.role !== 'assistant') {
+          if (prompted && role !== undefined) {
+            yield {
+              type: EventType.CUSTOM,
+              name: 'pi.message',
+              value: message,
+            }
+          }
+          break
+        }
         // A pi provider can set the signatures only on the final message.
         for (const [index, block] of message.content.entries()) {
           const encryptedValue =
@@ -499,7 +691,8 @@ export async function* fromPiAgentEvents(
           yield {
             type: EventType.REASONING_ENCRYPTED_VALUE,
             subtype: block.type === 'toolCall' ? 'tool-call' : 'message',
-            entityId: block.type === 'toolCall' ? block.id : reasoningId(index),
+            entityId:
+              block.type === 'toolCall' ? block.id : reasoningId(index, block),
             encryptedValue,
           }
         }
@@ -516,22 +709,21 @@ export async function* fromPiAgentEvents(
           }
           return
         }
-        finished = true
-        yield {
-          type: EventType.RUN_FINISHED,
-          threadId,
-          runId,
-          model: message.model,
-          finishReason: fromPiStopReason(message.stopReason),
-          ...(message.responseId !== undefined && {
-            responseId: message.responseId,
-          }),
-          usage: fromPiUsage(message),
+        if (message.stopReason === 'toolUse') {
+          pending = message
+          break
         }
+        finished = true
+        yield finishedEvent(message)
         break
       }
 
+      case 'turn_end':
+        yield* flush()
+        break
+
       case 'agent_end':
+        yield* flush()
         if (!finished) {
           yield {
             type: EventType.RUN_FINISHED,
@@ -543,6 +735,7 @@ export async function* fromPiAgentEvents(
         return
     }
   }
+  yield* flush()
 
   function* fromAssistantEvent(
     event: AssistantMessageEvent,
@@ -570,7 +763,10 @@ export async function* fromPiAgentEvents(
       case 'thinking_start':
         yield {
           type: EventType.REASONING_MESSAGE_START,
-          messageId: reasoningId(event.contentIndex),
+          messageId: reasoningId(
+            event.contentIndex,
+            event.partial.content[event.contentIndex],
+          ),
           role: 'reasoning',
         }
         break

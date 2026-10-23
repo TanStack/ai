@@ -2,18 +2,20 @@
 title: TanStack useChat with a pi agent
 id: pi-agent-tanstack-client
 order: 6
-description: "Put TanStack AI useChat in front of a pi agent. Convert the pi agent events to AG-UI events with fromPiAgentEvents and serve them as server-sent events. The pi agent loop does not change."
+description: "Put TanStack AI useChat in front of a pi agent. runPiAgent runs the pi agent loop for a useChat request and streams AG-UI events, with tool approvals and client tools. The pi agent and its tools do not change."
 keywords:
   - tanstack ai
   - pi
   - pi-agent-core
   - agentLoop
   - useChat
+  - runPiAgent
   - fromPiAgentEvents
+  - tool approval
   - migration
 ---
 
-Put TanStack AI `useChat` in front of a pi agent. Wrap the pi `agentLoop()` stream with `fromPiAgentEvents`, and serve it with `toServerSentEventsResponse`. The pi agent and its tools do not change.
+Put TanStack AI `useChat` in front of a pi agent. `runPiAgent` runs the pi agent loop for a `useChat` request and returns AG-UI events. Serve them with `toServerSentEventsResponse`. The pi agent and its tools do not change.
 
 Use this page to move the client first. To move the server first, see [pi UI with a TanStack AI server](./pi-client-tanstack-server).
 
@@ -35,51 +37,54 @@ vanilla: @tanstack/ai @tanstack/ai-client @tanstack/ai-pi-stream @earendil-works
 
 <!-- ::end:tabs -->
 
-## 2. Serve the pi agent as AG-UI events
+## 2. Serve the pi agent
 
-The route reads the `useChat` request and converts the history to pi messages. The last message is the new prompt. Then the route runs the pi agent loop and converts its events:
+The route reads the `useChat` request and passes it to `runPiAgent` with the pi loop config, the model call and the pi tools:
 
 ```typescript
-import { agentLoop } from '@earendil-works/pi-agent-core'
-import { createModels } from '@earendil-works/pi-ai'
+import { createModels, Type } from '@earendil-works/pi-ai'
 import { anthropicProvider } from '@earendil-works/pi-ai/providers/anthropic'
-import {
-  chatParamsFromRequest,
-  convertMessagesToModelMessages,
-  toServerSentEventsResponse,
-} from '@tanstack/ai'
-import { fromPiAgentEvents, toPiMessages } from '@tanstack/ai-pi-stream'
+import type { AgentTool } from '@earendil-works/pi-agent-core'
+import { chatParamsFromRequest, toServerSentEventsResponse } from '@tanstack/ai'
+import { runPiAgent } from '@tanstack/ai-pi-stream'
 
 const models = createModels()
 models.setProvider(anthropicProvider())
+
+const deleteParams = Type.Object({ path: Type.String() })
+const deleteFile: AgentTool<typeof deleteParams> = {
+  name: 'deleteFile',
+  label: 'Delete file',
+  description: 'Delete a file',
+  parameters: deleteParams,
+  execute: async (_id, { path }) => ({
+    content: [{ type: 'text', text: `Deleted ${path}` }],
+    details: undefined,
+  }),
+}
 
 export async function POST(request: Request) {
   const model = models.getModel('anthropic', 'claude-fable-5-1')
   if (!model) throw new Error('Model not found')
 
-  const { messages, threadId, runId } = await chatParamsFromRequest(request)
-  const history = toPiMessages(convertMessagesToModelMessages(messages), {
-    systemPrompts: ['You are a helpful assistant.'],
-    model: { api: model.api, provider: model.provider, model: model.id },
-  })
-  const prompt = history.pop()
-
-  const events = agentLoop(
-    prompt ? [prompt] : [],
-    { messages: history, tools: [] },
-    { model, convertToLlm: (piMessages) => piMessages },
-    request.signal,
-    models.streamSimple.bind(models),
-  )
+  const params = await chatParamsFromRequest(request)
 
   return toServerSentEventsResponse(
-    fromPiAgentEvents(events, { threadId, runId }),
+    runPiAgent(params, {
+      config: { model, convertToLlm: (piMessages) => piMessages },
+      streamFn: models.streamSimple.bind(models),
+      tools: [deleteFile],
+      needsApproval: ['deleteFile'],
+      systemPrompts: ['You are a helpful assistant.'],
+      signal: request.signal,
+    }),
   )
 }
 ```
 
-- `model` stamps the history with the pi model. Then pi sends the reasoning signatures back to the same model.
-- Add your pi tools to `tools`. `useChat` shows their calls and results.
+- The last message of the history is the prompt. The rest becomes pi messages, stamped with the pi model, so pi sends the reasoning signatures back to the same model.
+- `systemPrompts` is set on the server. The request cannot change it.
+- To run the pi loop yourself, convert its events with `fromPiAgentEvents(agentLoop(...), { threadId, runId })` and the history with `toPiMessages`. You then handle approvals and client tools yourself.
 
 ## 3. Connect useChat
 
@@ -112,4 +117,64 @@ export function Chat() {
 
 Each pi assistant message is one assistant message in `messages`, the same as each model call of `chat()`. Thinking, tool calls and tool results show as `thinking`, `tool-call` and `tool-result` parts.
 
-Send a message. The pi agent replies in `useChat`, and the next request sends pi the whole history, signatures included.
+## 4. Approve pi tool calls
+
+A pi tool in `needsApproval` pauses the run before it runs. The approval shows in `interrupts`. Answer it with `resolveInterrupt({ approved })`:
+
+```tsx
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+
+export function Approvals() {
+  const { interrupts } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
+  })
+
+  return interrupts.map((interrupt) =>
+    interrupt.kind === 'generic' && interrupt.metadata?.kind === 'approval' ? (
+      <div key={interrupt.id}>
+        Run {String(interrupt.metadata.toolName)}?
+        <button onClick={() => interrupt.resolveInterrupt({ approved: true })}>
+          Yes
+        </button>
+        <button onClick={() => interrupt.resolveInterrupt({ approved: false })}>
+          No
+        </button>
+      </div>
+    ) : null,
+  )
+}
+```
+
+- The next request carries the answer. `runPiAgent` runs an approved call with the pi `beforeToolCall` and `afterToolCall` hooks, then continues the loop.
+- A denied call gets an error result with the `denied` outcome, and the model sees the denial.
+- The other tool calls of the same model call run at once.
+
+## 5. Run client tools
+
+Pass a client tool to `useChat`, as for a `chat()` route. The request sends its name, description and JSON Schema, and `runPiAgent` declares it to pi:
+
+```tsx
+import { toolDefinition } from '@tanstack/ai'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { z } from 'zod'
+
+const getLocation = toolDefinition({
+  name: 'getLocation',
+  description: 'Get the location of the user',
+  inputSchema: z.object({}),
+}).client(() => ({ city: 'Sydney' }))
+
+export function ChatWithLocation() {
+  const { messages } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
+    tools: [getLocation],
+  })
+  return <pre>{JSON.stringify(messages, null, 2)}</pre>
+}
+```
+
+When pi calls the tool, the run pauses. `useChat` runs the tool in the browser and sends the output. pi continues from that result.
+
+Send a message. The pi agent replies in `useChat`, asks before it deletes a file, and the next request sends pi the whole history, signatures included.

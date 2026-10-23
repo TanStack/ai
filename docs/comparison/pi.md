@@ -42,7 +42,7 @@ TanStack AI also does the hard parts. Each one is its own package, so you load o
 
 ## Use both
 
-Keep a pi agent and put TanStack `useChat` in front of it, or serve a pi UI from `chat()`. `@tanstack/ai-pi-stream` converts the events and the message history in both directions:
+Keep a pi agent and put TanStack `useChat` in front of it, or serve a pi UI from `chat()`. `@tanstack/ai-pi-stream` converts the events and the message history in both directions. Tool approvals and client tools cross too:
 
 - [TanStack useChat with a pi agent](../migration/pi-agent-tanstack-client)
 - [pi UI with a TanStack AI server](../migration/pi-client-tanstack-server)
