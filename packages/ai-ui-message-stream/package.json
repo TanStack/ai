@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-ui-message-stream",
   "version": "0.0.1",
-  "description": "Connect TanStack AI to the Vercel AI SDK UI message stream: serve AI SDK useChat from chat(), or call an AI SDK route from TanStack useChat.",
+  "description": "A stop gap for porting from the Vercel AI SDK one side at a time: serve AI SDK useChat from chat(), or call an AI SDK route from TanStack useChat, over the AI SDK UI message stream.",
   "author": "",
   "license": "MIT",
   "repository": {

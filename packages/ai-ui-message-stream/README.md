@@ -25,6 +25,8 @@ Connect TanStack AI to the Vercel AI SDK UI message stream, the wire format of t
 - Serve AI SDK `useChat` from TanStack AI `chat()`.
 - Call an AI SDK `streamText` route from TanStack AI `useChat`.
 
+This package is a stop gap while you port an app from the AI SDK one side at a time. Some features change shape or are dropped on the way. See the [compatibility table](https://tanstack.com/ai/latest/docs/migration/ai-sdk-compatibility). When both sides use TanStack AI, remove it.
+
 ## Installation
 
 ```bash

@@ -1969,6 +1969,11 @@
           "addedAt": "2026-10-23"
         },
         {
+          "label": "AI SDK bridge compatibility",
+          "to": "migration/ai-sdk-compatibility",
+          "addedAt": "2026-10-23"
+        },
+        {
           "label": "AG-UI Client Compliance",
           "to": "migration/ag-ui-compliance",
           "addedAt": "2026-05-16",

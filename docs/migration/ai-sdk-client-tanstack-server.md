@@ -19,6 +19,9 @@ Serve the AI SDK `useChat` hook from TanStack AI `chat()`. Read the request with
 
 Use this page to move the server first. To move the client first, see [TanStack useChat with an AI SDK server](./tanstack-client-ai-sdk-server).
 
+> [!WARNING]
+> This bridge is a stop gap while you port. Some features change shape or are dropped on the way (see [AI SDK bridge compatibility](./ai-sdk-compatibility)). When the server works, port the client to TanStack `useChat` with the [migration guide](./migration-from-vercel-ai), then remove the bridge.
+
 ## 1. Install the packages
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
@@ -251,6 +254,8 @@ export async function GET(request: Request) {
 - A change to shared state on the client. The AI SDK client does not send state.
 - The `reason` text of an approval answer.
 - A `stop()` on the client stops the reading, not the run. To stop the run, pass an `abortController` to `chat()`.
+
+For every event and message part, see [AI SDK bridge compatibility](./ai-sdk-compatibility).
 
 ## Done
 
