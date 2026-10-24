@@ -82,12 +82,8 @@ export const LLMGATEWAY_CHAT_MODELS = [
   'glm-5.3-flash',
   'glm-5v-turbo',
   'glm-image',
-  'gpt-3.5-turbo',
-  'gpt-4',
-  'gpt-4-turbo',
   'gpt-4.1',
   'gpt-4.1-mini',
-  'gpt-4.1-nano',
   'gpt-4o',
   'gpt-4o-mini',
   'gpt-4o-mini-transcribe',
@@ -149,6 +145,8 @@ export const LLMGATEWAY_CHAT_MODELS = [
   'kimi-k2.7-code-highspeed',
   'kimi-k3',
   'kimi-k3-fast',
+  'kimi-k3.1-pro',
+  'kimi-k3.1-pro-highspeed',
   'ling-3.0-flash',
   'ling-3.0-flash-vl',
   'llama-3-70b-instruct',
@@ -158,8 +156,6 @@ export const LLMGATEWAY_CHAT_MODELS = [
   'llama-3.3-70b-instruct',
   'llama-4-maverick-17b-instruct',
   'llama-4-scout-17b-instruct',
-  'mimo-v2.5',
-  'mimo-v2.5-pro',
   'mimo-v2.6-flash',
   'mimo-v2.6-pro',
   'minimax-m2',
@@ -189,10 +185,7 @@ export const LLMGATEWAY_CHAT_MODELS = [
   'muse-spark-1.3-contributor',
   'muse-wonder-1.0',
   'nemotron-3-ultra-550b',
-  'o1',
   'o3',
-  'o3-mini',
-  'o4-mini',
   'qwen-flash',
   'qwen-image-2.1-pro',
   'qwen-image-2.1-turbo',
@@ -334,12 +327,8 @@ export type LLMGatewayModelInputModalitiesByName = {
   'glm-5.3-flash': readonly ['text', 'image']
   'glm-5v-turbo': readonly ['text', 'image']
   'glm-image': readonly ['text']
-  'gpt-3.5-turbo': readonly ['text']
-  'gpt-4': readonly ['text']
-  'gpt-4-turbo': readonly ['text', 'image']
   'gpt-4.1': readonly ['text', 'image']
   'gpt-4.1-mini': readonly ['text', 'image']
-  'gpt-4.1-nano': readonly ['text', 'image']
   'gpt-4o': readonly ['text', 'image']
   'gpt-4o-mini': readonly ['text', 'image']
   'gpt-4o-mini-transcribe': readonly ['text', 'audio']
@@ -401,6 +390,8 @@ export type LLMGatewayModelInputModalitiesByName = {
   'kimi-k2.7-code-highspeed': readonly ['text', 'image']
   'kimi-k3': readonly ['text', 'image']
   'kimi-k3-fast': readonly ['text', 'image']
+  'kimi-k3.1-pro': readonly ['text', 'image']
+  'kimi-k3.1-pro-highspeed': readonly ['text', 'image']
   'ling-3.0-flash': readonly ['text']
   'ling-3.0-flash-vl': readonly ['text', 'image']
   'llama-3-70b-instruct': readonly ['text']
@@ -410,8 +401,6 @@ export type LLMGatewayModelInputModalitiesByName = {
   'llama-3.3-70b-instruct': readonly ['text']
   'llama-4-maverick-17b-instruct': readonly ['text', 'image']
   'llama-4-scout-17b-instruct': readonly ['text', 'image']
-  'mimo-v2.5': readonly ['text', 'image', 'audio']
-  'mimo-v2.5-pro': readonly ['text']
   'mimo-v2.6-flash': readonly ['text', 'image', 'audio']
   'mimo-v2.6-pro': readonly ['text', 'image', 'audio']
   'minimax-m2': readonly ['text']
@@ -441,10 +430,7 @@ export type LLMGatewayModelInputModalitiesByName = {
   'muse-spark-1.3-contributor': readonly ['text', 'image']
   'muse-wonder-1.0': readonly ['text', 'image']
   'nemotron-3-ultra-550b': readonly ['text', 'image']
-  o1: readonly ['text', 'image']
   o3: readonly ['text', 'image']
-  'o3-mini': readonly ['text']
-  'o4-mini': readonly ['text', 'image']
   'qwen-flash': readonly ['text']
   'qwen-image-2.1-pro': readonly ['text', 'image']
   'qwen-image-2.1-turbo': readonly ['text', 'image']
@@ -580,12 +566,8 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   'glm-5.3-flash': ['text', 'image'] as const,
   'glm-5v-turbo': ['text', 'image'] as const,
   'glm-image': ['text'] as const,
-  'gpt-3.5-turbo': ['text'] as const,
-  'gpt-4': ['text'] as const,
-  'gpt-4-turbo': ['text', 'image'] as const,
   'gpt-4.1': ['text', 'image'] as const,
   'gpt-4.1-mini': ['text', 'image'] as const,
-  'gpt-4.1-nano': ['text', 'image'] as const,
   'gpt-4o': ['text', 'image'] as const,
   'gpt-4o-mini': ['text', 'image'] as const,
   'gpt-4o-mini-transcribe': ['text', 'audio'] as const,
@@ -647,6 +629,8 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   'kimi-k2.7-code-highspeed': ['text', 'image'] as const,
   'kimi-k3': ['text', 'image'] as const,
   'kimi-k3-fast': ['text', 'image'] as const,
+  'kimi-k3.1-pro': ['text', 'image'] as const,
+  'kimi-k3.1-pro-highspeed': ['text', 'image'] as const,
   'ling-3.0-flash': ['text'] as const,
   'ling-3.0-flash-vl': ['text', 'image'] as const,
   'llama-3-70b-instruct': ['text'] as const,
@@ -656,8 +640,6 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   'llama-3.3-70b-instruct': ['text'] as const,
   'llama-4-maverick-17b-instruct': ['text', 'image'] as const,
   'llama-4-scout-17b-instruct': ['text', 'image'] as const,
-  'mimo-v2.5': ['text', 'image', 'audio'] as const,
-  'mimo-v2.5-pro': ['text'] as const,
   'mimo-v2.6-flash': ['text', 'image', 'audio'] as const,
   'mimo-v2.6-pro': ['text', 'image', 'audio'] as const,
   'minimax-m2': ['text'] as const,
@@ -687,10 +669,7 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   'muse-spark-1.3-contributor': ['text', 'image'] as const,
   'muse-wonder-1.0': ['text', 'image'] as const,
   'nemotron-3-ultra-550b': ['text', 'image'] as const,
-  o1: ['text', 'image'] as const,
   o3: ['text', 'image'] as const,
-  'o3-mini': ['text'] as const,
-  'o4-mini': ['text', 'image'] as const,
   'qwen-flash': ['text'] as const,
   'qwen-image-2.1-pro': ['text', 'image'] as const,
   'qwen-image-2.1-turbo': ['text', 'image'] as const,
@@ -980,10 +959,10 @@ const LLMGATEWAY_REASONING = {
   'kimi-k2.7-code-highspeed': EFFORT_LOW_TO_MAX,
   'kimi-k3': EFFORT_NONE_MINIMAL_TO_MAX,
   'kimi-k3-fast': EFFORT_NONE_LOW_TO_MAX,
+  'kimi-k3.1-pro': EFFORT_LOW_HIGH_MAX,
+  'kimi-k3.1-pro-highspeed': EFFORT_LOW_HIGH_MAX,
   'ling-3.0-flash': EFFORT_NONE,
   'ling-3.0-flash-vl': EFFORT_NONE_LOW_TO_HIGH,
-  'mimo-v2.5': EFFORT_NONE_LOW_TO_HIGH,
-  'mimo-v2.5-pro': EFFORT_NONE_LOW_TO_HIGH,
   'mimo-v2.6-flash': EFFORT_NONE_LOW_TO_HIGH,
   'mimo-v2.6-pro': EFFORT_NONE_LOW_TO_HIGH,
   'minimax-m2': EFFORT_LOW_TO_MAX,
@@ -1002,8 +981,6 @@ const LLMGATEWAY_REASONING = {
   'muse-spark-1.3': EFFORT_MINIMAL_TO_XHIGH,
   'muse-spark-1.3-contributor': EFFORT_MINIMAL_TO_XHIGH,
   'muse-wonder-1.0': EFFORT_MINIMAL_TO_XHIGH,
-  o1: EFFORT_LOW_TO_HIGH,
-  'o4-mini': EFFORT_LOW_TO_HIGH,
   'qwen3.5-122b-a10b': EFFORT_NONE_MINIMAL_TO_MAX,
   'qwen3.5-27b': EFFORT_NONE_MINIMAL_TO_MAX,
   'qwen3.5-35b-a3b': EFFORT_NONE_MINIMAL_TO_MAX,

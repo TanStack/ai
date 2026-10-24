@@ -2240,19 +2240,19 @@
     ],
     "knowledge": "2024-10",
     "pricing": {
-      "input": "0.0000003",
-      "output": "0.0000025",
-      "input_cache_read": "0.000000075",
+      "input": "0.00000033",
+      "output": "0.00000275",
+      "input_cache_read": "0.0000000825",
       "regional": {
         "eu": {
-          "input": "0.00000039",
-          "output": "0.00000327",
-          "input_cache_read": "0.000000075"
+          "input": "0.000000429",
+          "output": "0.000003597",
+          "input_cache_read": "0.0000001072"
         },
         "us": {
-          "input": "0.0000003",
-          "output": "0.0000025",
-          "input_cache_read": "0.000000075"
+          "input": "0.00000033",
+          "output": "0.00000275",
+          "input_cache_read": "0.0000000825"
         }
       }
     }
@@ -2291,10 +2291,12 @@
     "pricing": {
       "input": "0.00000006",
       "output": "0.00000024",
+      "input_cache_read": "0.000000015",
       "regional": {
         "eu": {
           "input": "0.000000078",
-          "output": "0.000000312"
+          "output": "0.000000312",
+          "input_cache_read": "0.0000000195"
         }
       }
     }
@@ -2333,10 +2335,12 @@
     "pricing": {
       "input": "0.000000035",
       "output": "0.00000014",
+      "input_cache_read": "0.0000000087",
       "regional": {
         "eu": {
           "input": "0.000000046",
-          "output": "0.000000184"
+          "output": "0.000000184",
+          "input_cache_read": "0.0000000115"
         }
       }
     }
@@ -2375,10 +2379,12 @@
     "pricing": {
       "input": "0.0000008",
       "output": "0.0000032",
+      "input_cache_read": "0.0000002",
       "regional": {
         "eu": {
           "input": "0.00000105",
-          "output": "0.0000042"
+          "output": "0.0000042",
+          "input_cache_read": "0.0000002625"
         }
       }
     }
@@ -13186,18 +13192,18 @@
     "released": 1792368000,
     "owned_by": "minimax",
     "name": "MiniMax-M3.1-Flash",
-    "description": "MiniMax-M3.1-Flash is MiniMax's M-series language model for agent reasoning, tool use, coding, and long-context tasks, with a 1,000,000-token context window. Compared with MiniMax-M3, it adds always-on reasoning and adjustable reasoning effort, allowing developers to tune reasoning effort for different tasks.",
-    "context_window": 1000000,
-    "max_tokens": 524288,
+    "description": "MiniMax-M3.1-Flash is MiniMax’s multimodal M-series model for agent reasoning, tool use, coding, and long-context tasks. Fireworks serves the final weights with hybrid MXFP8 and NVFP4 expert precision, text and image inputs, structured outputs, and implicit prompt caching.",
+    "context_window": 1048576,
+    "max_tokens": 1048576,
     "type": "language",
-    "zdr": "none",
-    "no_training": "none",
+    "zdr": "some",
+    "no_training": "some",
     "tags": [
       "implicit-caching",
       "reasoning",
+      "structured-output",
       "tool-use",
       "vision",
-      "structured-output",
       "open-weights"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -13224,8 +13230,10 @@
       }
     ],
     "pricing": {
-      "input": "0",
-      "output": "0"
+      "input": "0.00000015",
+      "output": "0.0000006",
+      "input_cache_read": "0.000000015",
+      "varies_by_provider": true
     }
   },
   {
@@ -14094,6 +14102,108 @@
     }
   },
   {
+    "id": "moonshotai/kimi-k3.1-pro",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1792713600,
+    "owned_by": "moonshotai",
+    "name": "Kimi K3.1 Pro",
+    "description": "Kimi K3.1 Pro is a frontier model from Moonshot AI for complex reasoning, coding, and agentic workflows, with support for vision, tool use, structured outputs, and long-context tasks.",
+    "context_window": 1048576,
+    "max_tokens": 1048576,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": [
+      "implicit-caching",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision",
+      "open-weights"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "high", "max"]
+      }
+    ],
+    "pricing": {
+      "input": "0.000002",
+      "output": "0.00001",
+      "input_cache_read": "0.0000002",
+      "input_cache_write": "0.000002"
+    }
+  },
+  {
+    "id": "moonshotai/kimi-k3.1-pro-highspeed",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1792713600,
+    "owned_by": "moonshotai",
+    "name": "Kimi K3.1 Pro Highspeed",
+    "description": "Kimi K3.1 Pro Highspeed is the high-speed variant of Moonshot AI’s frontier Kimi K3.1 Pro model for complex reasoning, coding, and agentic workflows, with vision, tool use, structured outputs, and long-context support.",
+    "context_window": 1048576,
+    "max_tokens": 1048576,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": [
+      "implicit-caching",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision",
+      "open-weights"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "high", "max"]
+      }
+    ],
+    "pricing": {
+      "input": "0.000004",
+      "output": "0.00002",
+      "input_cache_read": "0.0000002",
+      "input_cache_write": "0.000004"
+    }
+  },
+  {
     "id": "morph/morph-v3-fast",
     "object": "model",
     "created": 1755815280,
@@ -14559,72 +14669,6 @@
     }
   },
   {
-    "id": "openai/gpt-3.5-turbo",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1677628800,
-    "owned_by": "openai",
-    "name": "GPT-3.5 Turbo",
-    "description": "OpenAI's most capable and cost effective model in the GPT-3.5 family optimized for chat purposes, but also works well for traditional completions tasks.",
-    "context_window": 16385,
-    "max_tokens": 4096,
-    "type": "language",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": ["tool-use"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice"
-    ],
-    "temperature": true,
-    "knowledge": "2021-09-01",
-    "pricing": {
-      "input": "0.0000005",
-      "output": "0.0000015"
-    }
-  },
-  {
-    "id": "openai/gpt-4-turbo",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1712620800,
-    "owned_by": "openai",
-    "name": "GPT-4 Turbo",
-    "description": "gpt-4-turbo from OpenAI has broad general knowledge and domain expertise allowing it to follow complex instructions in natural language and solve difficult problems accurately. It has a knowledge cutoff of April 2023 and a 128,000 token context window.",
-    "context_window": 128000,
-    "max_tokens": 4096,
-    "type": "language",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": ["tool-use", "vision"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice"
-    ],
-    "temperature": true,
-    "knowledge": "2023-12-01",
-    "pricing": {
-      "input": "0.00001",
-      "output": "0.00003"
-    }
-  },
-  {
     "id": "openai/gpt-4.1",
     "object": "model",
     "created": 1755815280,
@@ -14931,8 +14975,7 @@
       "tool-use",
       "vision",
       "web-search",
-      "structured-output",
-      "fast"
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -14953,108 +14996,8 @@
     "pricing": {
       "input": "0.0000001",
       "output": "0.0000004",
-      "input_cache_read": "0.000000025",
-      "web_search": "10",
-      "service_tiers": {
-        "priority": {
-          "input": "0.0000002",
-          "output": "0.0000008",
-          "input_cache_read": "0.00000005"
-        }
-      },
-      "varies_by_provider": true,
-      "fast": {
-        "input": "0.0000002",
-        "output": "0.0000008",
-        "input_cache_read": "0.00000005"
-      }
-    }
-  },
-  {
-    "id": "openai/gpt-4.1-nano-batch",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1744588800,
-    "owned_by": "openai",
-    "name": "GPT-4.1 nano (Batch)",
-    "description": "GPT-4.1 nano is the fastest, most cost-effective GPT 4.1 model.",
-    "context_window": 1047576,
-    "max_tokens": 32768,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": [
-      "file-input",
-      "implicit-caching",
-      "tool-use",
-      "vision",
-      "structured-output"
-    ],
-    "supported_specifications": ["v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "response_format",
-      "structured_outputs"
-    ],
-    "temperature": true,
-    "knowledge": "2024-06-01",
-    "pricing": {
-      "input": "0.00000005",
-      "output": "0.0000002",
-      "input_cache_read": "0.0000000125"
-    }
-  },
-  {
-    "id": "openai/gpt-4.1-nano-fast",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1744588800,
-    "owned_by": "openai",
-    "name": "GPT-4.1 nano (Fast)",
-    "description": "GPT-4.1 nano is the fastest, most cost-effective GPT 4.1 model.",
-    "context_window": 1047576,
-    "max_tokens": 32768,
-    "type": "language",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": [
-      "file-input",
-      "implicit-caching",
-      "tool-use",
-      "vision",
-      "web-search",
-      "structured-output",
-      "fast"
-    ],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "response_format",
-      "structured_outputs"
-    ],
-    "temperature": true,
-    "knowledge": "2024-06-01",
-    "pricing": {
-      "input": "0.0000002",
-      "output": "0.0000008",
-      "input_cache_read": "0.00000005",
-      "web_search": "10"
+      "input_cache_read": "0.00000003",
+      "web_search": "14"
     }
   },
   {
@@ -22480,31 +22423,6 @@
     }
   },
   {
-    "id": "openai/gpt-image-1",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1742860800,
-    "owned_by": "openai",
-    "name": "GPT Image 1",
-    "description": "GPT Image 1 is OpenAI's new state-of-the-art image generation model. It is a natively multimodal language model that accepts both text and image inputs, and produces image outputs.",
-    "context_window": 0,
-    "max_tokens": 0,
-    "type": "image",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": ["image-generation", "implicit-caching"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["image"]
-    },
-    "pricing": {
-      "input": "0.000005",
-      "output": "0.00004",
-      "input_cache_read": "0.00000125"
-    }
-  },
-  {
     "id": "openai/gpt-image-1-mini",
     "object": "model",
     "created": 1755815280,
@@ -23072,7 +22990,8 @@
     "pricing": {
       "input": "0.000015",
       "output": "0.00006",
-      "input_cache_read": "0.0000075"
+      "input_cache_read": "0.0000075",
+      "web_search": "14"
     }
   },
   {
@@ -23238,7 +23157,8 @@
     "pricing": {
       "input": "0.0000011",
       "output": "0.0000044",
-      "input_cache_read": "0.00000055"
+      "input_cache_read": "0.00000055",
+      "web_search": "14"
     }
   },
   {
@@ -23312,8 +23232,7 @@
       "tool-use",
       "vision",
       "web-search",
-      "structured-output",
-      "fast"
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -23342,77 +23261,7 @@
       "input": "0.0000011",
       "output": "0.0000044",
       "input_cache_read": "0.000000275",
-      "web_search": "10",
-      "service_tiers": {
-        "priority": {
-          "input": "0.000002",
-          "output": "0.000008",
-          "input_cache_read": "0.0000005"
-        },
-        "flex": {
-          "input": "0.00000055",
-          "output": "0.0000022",
-          "input_cache_read": "0.000000138"
-        }
-      },
-      "fast": {
-        "input": "0.000002",
-        "output": "0.000008",
-        "input_cache_read": "0.0000005"
-      }
-    }
-  },
-  {
-    "id": "openai/o4-mini-fast",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1744761600,
-    "owned_by": "openai",
-    "name": "o4-mini (Fast)",
-    "description": "OpenAI's o4-mini delivers fast, cost-efficient reasoning with exceptional performance for its size, particularly excelling in math (best-performing on AIME benchmarks), coding, and visual tasks.",
-    "context_window": 200000,
-    "max_tokens": 100000,
-    "type": "language",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": [
-      "file-input",
-      "implicit-caching",
-      "reasoning",
-      "tool-use",
-      "vision",
-      "web-search",
-      "structured-output",
-      "fast"
-    ],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning",
-      "response_format",
-      "structured_outputs"
-    ],
-    "temperature": false,
-    "reasoning_options": [
-      {
-        "type": "effort",
-        "values": ["low", "medium", "high"]
-      }
-    ],
-    "knowledge": "2024-06-01",
-    "pricing": {
-      "input": "0.000002",
-      "output": "0.000008",
-      "input_cache_read": "0.0000005",
-      "web_search": "10"
+      "web_search": "14"
     }
   },
   {
@@ -24589,111 +24438,6 @@
     "pricing": {
       "input": "0.00000005",
       "output": "0"
-    }
-  },
-  {
-    "id": "spacexai/grok-4.1-fast-non-reasoning",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1763510400,
-    "owned_by": "spacexai",
-    "name": "Grok 4.1 Fast Non-Reasoning",
-    "description": "",
-    "context_window": 1000000,
-    "max_tokens": 1000000,
-    "type": "language",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": [
-      "tool-use",
-      "file-input",
-      "vision",
-      "implicit-caching",
-      "structured-output"
-    ],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning",
-      "response_format",
-      "structured_outputs"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
-    "pricing": {
-      "input": "0.0000002",
-      "output": "0.0000005",
-      "input_cache_read": "0.00000005"
-    }
-  },
-  {
-    "id": "spacexai/grok-4.1-fast-reasoning",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1763510400,
-    "owned_by": "spacexai",
-    "name": "Grok 4.1 Fast Reasoning",
-    "description": "",
-    "context_window": 1000000,
-    "max_tokens": 1000000,
-    "type": "language",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": [
-      "reasoning",
-      "file-input",
-      "vision",
-      "tool-use",
-      "implicit-caching",
-      "structured-output"
-    ],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning",
-      "response_format",
-      "structured_outputs"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
-    "pricing": {
-      "input": "0.0000002",
-      "output": "0.0000005",
-      "input_cache_read": "0.00000005"
     }
   },
   {
@@ -28346,9 +28090,9 @@
       }
     ],
     "pricing": {
-      "input": "0.0000014",
-      "output": "0.0000044",
-      "input_cache_read": "0.00000014",
+      "input": "0.0000012",
+      "output": "0.000004",
+      "input_cache_read": "0.0000002",
       "varies_by_provider": true,
       "fast": {
         "input": "0.0000021",
@@ -28357,9 +28101,9 @@
       },
       "regional": {
         "us": {
-          "input": "0.0000014",
-          "output": "0.0000044",
-          "input_cache_read": "0.00000014"
+          "input": "0.0000021",
+          "output": "0.0000066",
+          "input_cache_read": "0.00000039"
         }
       }
     }
