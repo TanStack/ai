@@ -2,6 +2,7 @@ import { EventType } from '@tanstack/ai'
 import { ChatClient } from '@tanstack/ai-client'
 import { act, render, renderHook, waitFor } from '@testing-library/react'
 import {
+  Activity,
   StrictMode,
   Suspense,
   createElement,
@@ -3182,6 +3183,191 @@ describe('useChat', () => {
       expect(onChunk).toHaveBeenCalledWith(
         expect.objectContaining({ type: EventType.TEXT_MESSAGE_CONTENT }),
       )
+    })
+  })
+
+  describe('inside a hidden <Activity>', () => {
+    // React keeps a hidden Activity's state and memos but runs its effect
+    // cleanups, then runs the effects again when it shows. A view hidden for
+    // longer than a tick must come back with a working client.
+    function createRunServer() {
+      const chunks: Array<StreamChunk> = []
+      const waiters = new Set<() => void>()
+      let done = false
+      const push = (...next: Array<StreamChunk>) => {
+        chunks.push(...next)
+        for (const wake of waiters) wake()
+        waiters.clear()
+      }
+      // The run's durable log: from the start, then live until it ends.
+      async function* tail(signal?: AbortSignal) {
+        let read = 0
+        for (;;) {
+          if (signal?.aborted) return
+          if (read < chunks.length) {
+            yield chunks[read++]!
+            continue
+          }
+          if (done) return
+          await new Promise<void>((resolve) => {
+            waiters.add(resolve)
+            signal?.addEventListener('abort', () => resolve(), { once: true })
+          })
+        }
+      }
+      const hydrate = vi.fn(async () => ({
+        messages: [],
+        activeRun: chunks.length > 0 && !done ? { runId: 'r1' } : null,
+        interrupts: null,
+      }))
+      const joinRun = vi.fn((_runId: string, signal?: AbortSignal) =>
+        tail(signal),
+      )
+      const connection: ResumableConnectConnectionAdapter = {
+        connect: (_messages, _data, signal) => {
+          push(
+            {
+              type: EventType.RUN_STARTED,
+              runId: 'r1',
+              threadId: 't1',
+              timestamp: 1,
+            },
+            {
+              type: EventType.TEXT_MESSAGE_START,
+              messageId: 'a1',
+              role: 'assistant',
+              timestamp: 2,
+            },
+          )
+          return tail(signal)
+        },
+        joinRun,
+        hydrate,
+      }
+      return {
+        connection,
+        hydrate,
+        joinRun,
+        say: (delta: string) =>
+          push({
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'a1',
+            delta,
+            timestamp: 3,
+          }),
+        finish: () => {
+          push(
+            { type: EventType.TEXT_MESSAGE_END, messageId: 'a1', timestamp: 4 },
+            {
+              type: EventType.RUN_FINISHED,
+              runId: 'r1',
+              threadId: 't1',
+              finishReason: 'stop',
+              timestamp: 5,
+            },
+          )
+          done = true
+        },
+      }
+    }
+
+    function renderInActivity(connection: ResumableConnectConnectionAdapter) {
+      let mode: 'visible' | 'hidden' = 'visible'
+      const rendered = renderHook(
+        ({ threadId }: { threadId: string }) =>
+          useChat({ connection, threadId, persistence: true }),
+        {
+          initialProps: { threadId: 't1' },
+          wrapper: ({ children }) =>
+            createElement(Activity, { mode, children }),
+        },
+      )
+      const show = (shown: boolean, threadId = 't1') => {
+        mode = shown ? 'visible' : 'hidden'
+        rendered.rerender({ threadId })
+      }
+      return { ...rendered, show }
+    }
+
+    const assistantText = (messages: ReadonlyArray<UIMessage>) => {
+      const part = messages
+        .find((m) => m.role === 'assistant')
+        ?.parts.find((p) => p.type === 'text')
+      return part && 'content' in part ? part.content : undefined
+    }
+    // Longer than the tick the hook waits before it disposes a client whose
+    // effects did not run again.
+    const outlastDisposal = () =>
+      act(() => new Promise<void>((resolve) => setTimeout(resolve, 10)))
+
+    it('rejoins the run a hidden view left when it shows again', async () => {
+      const server = createRunServer()
+      const { result, show } = renderInActivity(server.connection)
+      await waitFor(() => expect(result.current.isHydrating).toBe(false))
+
+      act(() => {
+        void result.current.sendMessage('hi')
+      })
+      server.say('Hel')
+      await waitFor(() =>
+        expect(assistantText(result.current.messages)).toBe('Hel'),
+      )
+
+      act(() => show(false))
+      await outlastDisposal()
+      server.say('lo')
+      act(() => show(true))
+      server.finish()
+
+      await waitFor(() =>
+        expect(assistantText(result.current.messages)).toBe('Hello'),
+      )
+      expect(server.joinRun).toHaveBeenCalledWith('r1', expect.anything())
+      expect(result.current.status).toBe('ready')
+    })
+
+    it('keeps the transcript on screen and can send again after an idle hide', async () => {
+      const server = createRunServer()
+      const { result, show } = renderInActivity(server.connection)
+      await waitFor(() => expect(result.current.isHydrating).toBe(false))
+      act(() => {
+        void result.current.sendMessage('hi')
+      })
+      server.say('Hello')
+      server.finish()
+      await waitFor(() => expect(result.current.status).toBe('ready'))
+
+      act(() => show(false))
+      await outlastDisposal()
+      act(() => show(true))
+
+      expect(assistantText(result.current.messages)).toBe('Hello')
+      await waitFor(() => expect(result.current.isHydrating).toBe(false))
+      await act(async () => {
+        await result.current.sendMessage('again')
+      })
+      expect(
+        result.current.messages.filter((m) => m.role === 'user'),
+      ).toHaveLength(2)
+    })
+
+    it('starts another thread empty when it shows on a new threadId', async () => {
+      const server = createRunServer()
+      const { result, show } = renderInActivity(server.connection)
+      await waitFor(() => expect(result.current.isHydrating).toBe(false))
+      act(() => {
+        void result.current.sendMessage('hi')
+      })
+      server.say('Hello')
+      server.finish()
+      await waitFor(() => expect(result.current.status).toBe('ready'))
+
+      act(() => show(false))
+      await outlastDisposal()
+      act(() => show(true, 't2'))
+
+      await waitFor(() => expect(result.current.isHydrating).toBe(false))
+      expect(result.current.messages).toEqual([])
     })
   })
 })
