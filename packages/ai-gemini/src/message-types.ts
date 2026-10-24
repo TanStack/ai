@@ -188,10 +188,12 @@ export interface GeminiToolCallMetadata extends ProviderExecutedToolMetadata {
     /**
      * The step's built-in tool parts (`toolCall`, `toolResponse`,
      * `executableCode`, `codeExecutionResult`), sent back unchanged on the
-     * next request. `afterCallId` is the function call each one followed.
+     * next request. `afterCallId` is the function call each one followed, and
+     * `afterText` is set when text came between that call (or the start) and
+     * the part.
      *
      * @see https://ai.google.dev/gemini-api/docs/generate-content/tool-combination
      */
-    serverParts?: Array<{ part: Part; afterCallId?: string }>
+    serverParts?: Array<{ part: Part; afterCallId?: string; afterText?: true }>
   }
 }

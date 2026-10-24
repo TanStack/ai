@@ -897,8 +897,13 @@ export class GeminiTextAdapter<
       options.tools?.some(
         (tool) => getGeminiProviderToolKind(tool) === undefined,
       ) ?? false
-    const serverParts: Array<{ part: Part; afterCallId?: string }> = []
+    const serverParts: Array<{
+      part: Part
+      afterCallId?: string
+      afterText?: true
+    }> = []
     let lastCallId: string | undefined
+    let textSinceCall = false
     const adapterName = this.name
 
     const emitGroundingToolCall = function* (): Generator<AdapterYieldChunk> {
@@ -990,8 +995,10 @@ export class GeminiTextAdapter<
             serverParts.push({
               part,
               ...(lastCallId !== undefined && { afterCallId: lastCallId }),
+              ...(textSinceCall && { afterText: true }),
             })
           }
+          if (part.text?.trim() && !part.thought) textSinceCall = true
 
           if (part.text) {
             if (part.thought) {
@@ -1073,6 +1080,7 @@ export class GeminiTextAdapter<
               `${functionCall.name}_${Date.now()}_${nextToolIndex}`
             const functionArgs = functionCall.args || {}
             lastCallId = toolCallId
+            textSinceCall = false
 
             // Gemini emits thoughtSignature as a Part-level sibling of
             // functionCall (per @google/genai Part type), not nested inside
@@ -1492,9 +1500,10 @@ export class GeminiTextAdapter<
         }
 
         // Built-in tool parts go back where the model put them: after the
-        // function call they followed, else before the first part that is
-        // not a thought. Gemini rejects the step when they are missing or
-        // out of place. The SDK throws on them for Vertex AI.
+        // function call they followed (or before the first part that is not
+        // a thought), or after the text that came between. Gemini rejects the
+        // step when they are missing or out of place. The SDK throws on them
+        // for Vertex AI.
         const serverParts = this.client.vertexai
           ? []
           : (msg.toolCalls ?? []).flatMap(
@@ -1503,22 +1512,37 @@ export class GeminiTextAdapter<
                   ?.gemini?.serverParts ?? [],
             )
         if (serverParts.length > 0) {
-          const after = (id: string | undefined) =>
+          const lastText = new Map<string | undefined, number>()
+          let segment: string | undefined
+          parts.forEach((part, index) => {
+            if (part.functionCall) segment = part.functionCall.id
+            else if (part.text && !part.thought) lastText.set(segment, index)
+          })
+          const after = (id: string | undefined, text: boolean) =>
             serverParts
-              .filter(({ afterCallId }) => afterCallId === id)
+              .filter(
+                ({ afterCallId, afterText }) =>
+                  afterCallId === id &&
+                  (afterText === true && lastText.has(id)) === text,
+              )
               .map(({ part }) => part)
           const callIds = new Set(
             parts.flatMap((part) => part.functionCall?.id ?? []),
           )
           const first = parts.findIndex((part) => !part.thought)
-          const withServerParts = parts.flatMap((part, index) => [
-            ...(index === first ? after(undefined) : []),
-            part,
-            ...(part.functionCall?.id !== undefined
-              ? after(part.functionCall.id)
-              : []),
-          ])
-          if (first === -1) withServerParts.push(...after(undefined))
+          segment = undefined
+          const withServerParts = parts.flatMap((part, index) => {
+            if (part.functionCall) segment = part.functionCall.id
+            return [
+              ...(index === first ? after(undefined, false) : []),
+              part,
+              ...(part.functionCall?.id !== undefined
+                ? after(part.functionCall.id, false)
+                : []),
+              ...(lastText.get(segment) === index ? after(segment, true) : []),
+            ]
+          })
+          if (first === -1) withServerParts.push(...after(undefined, false))
           // A part whose call is not in this message goes last, not lost.
           withServerParts.push(
             ...serverParts
@@ -1643,16 +1667,19 @@ export class GeminiTextAdapter<
     // `functionCallingConfig` wins, and a `retrievalConfig` alone keeps this one.
     const tools = convertToolsToProviderFormat(options.tools)
     const hasFunctions = tools.some((tool) => 'functionDeclarations' in tool)
-    const functionCallingConfig =
-      options.toolChoice !== undefined && hasFunctions
-        ? toGeminiFunctionCallingConfig(options.toolChoice)
-        : undefined
     // The Gemini API needs this flag to mix built-in tools with function
-    // declarations. The SDK throws on it for Vertex AI.
+    // declarations, and rejects AUTO mode with it. The SDK throws on it for
+    // Vertex AI.
     const includeServerSideToolInvocations =
       !this.client.vertexai &&
       hasFunctions &&
       tools.some((tool) => !('functionDeclarations' in tool))
+    const functionCallingConfig =
+      options.toolChoice === 'auto' && includeServerSideToolInvocations
+        ? { mode: FunctionCallingConfigMode.VALIDATED }
+        : options.toolChoice !== undefined && hasFunctions
+          ? toGeminiFunctionCallingConfig(options.toolChoice)
+          : undefined
 
     // Vendor `GenerateContentConfig` fields are `field?: T` (no `| undefined`)
     // under EOPT, so spread each common option only when present rather than

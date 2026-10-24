@@ -115,6 +115,36 @@ describe('Gemini toolConfig.functionCallingConfig', () => {
     expect(body).not.toHaveProperty('toolConfig')
   })
 
+  it('sends VALIDATED for auto when built-in tools sit beside function tools', async () => {
+    const body = await sentBody(
+      { tools: [googleSearchTool(), weatherTool], toolChoice: 'auto' },
+      {},
+    )
+    expect(body).toHaveProperty('toolConfig', {
+      functionCallingConfig: { mode: 'VALIDATED' },
+      includeServerSideToolInvocations: true,
+    })
+  })
+
+  it('lets modelOptions override the mode beside built-in tools', async () => {
+    const body = await sentBody(
+      {
+        tools: [googleSearchTool(), weatherTool],
+        toolChoice: 'auto',
+        modelOptions: {
+          toolConfig: {
+            functionCallingConfig: { mode: FunctionCallingConfigMode.ANY },
+          },
+        },
+      },
+      {},
+    )
+    expect(body).toHaveProperty('toolConfig', {
+      functionCallingConfig: { mode: 'ANY' },
+      includeServerSideToolInvocations: true,
+    })
+  })
+
   it('lets a functionCallingConfig in modelOptions win', async () => {
     const body = await sentBody(
       {

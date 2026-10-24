@@ -906,6 +906,63 @@ describe('GeminiAdapter through AI', () => {
       ])
     })
 
+    const functionCallPart = (id: string) => ({
+      functionCall: { id, name: 'lookup_caucus', args: { county: 'Utah' } },
+    })
+
+    it.each([
+      {
+        label: 'at the start',
+        parts: [
+          { text: 'Searching first.' },
+          toolCallPart,
+          toolResponsePart,
+          functionCallPart('call_1'),
+        ],
+      },
+      {
+        label: 'after a function call',
+        parts: [
+          functionCallPart('call_1'),
+          { text: 'Searching next.' },
+          toolCallPart,
+          toolResponsePart,
+          functionCallPart('call_2'),
+        ],
+      },
+    ])(
+      'sends built-in tool parts back after text $label',
+      async ({ parts }) => {
+        mocks.generateContentStreamSpy
+          .mockResolvedValueOnce(
+            createStream([
+              {
+                candidates: [{ content: { parts }, finishReason: 'STOP' }],
+              },
+            ]),
+          )
+          .mockResolvedValueOnce(textStream())
+
+        for await (const _ of chat({
+          threadId: 'thread-1',
+          adapter: new GeminiTextAdapter(
+            { apiKey: 'test-key' },
+            'gemini-3.6-flash',
+          ),
+          tools: [googleSearchTool(), lookupTool],
+          messages: [{ role: 'user', content: 'Search and look up.' }],
+        })) {
+          // consume
+        }
+
+        const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
+        const modelTurn = secondPayload.contents.find(
+          (content: any) => content.role === 'model',
+        )
+        expect(modelTurn.parts).toEqual(parts)
+      },
+    )
+
     it('emits no provider call for a code run without function tools', async () => {
       mocks.generateContentStreamSpy.mockResolvedValueOnce(
         createStream([
