@@ -125,7 +125,7 @@ State values are plain React values. The hook renders again when they change.
 
 You can keep a chat mounted while it is hidden, for example in `<Activity mode="hidden">`. A hidden chat holds no connection to the server.
 
-When the chat shows again, `useChat` starts a new client with the messages that were on screen. With `persistence: true`, the client loads the thread again and joins the run that is in progress.
+When the chat shows again, `useChat` starts a new client for the same thread, with the messages that were on screen. With `persistence: true`, the client loads the thread again and joins the run that is in progress.
 
 ```tsx
 import { Activity, useState } from "react";

@@ -3339,10 +3339,14 @@ describe('useChat', () => {
 
       act(() => show(false))
       await outlastDisposal()
+      const loads = server.hydrate.mock.calls.length
       act(() => show(true))
 
       // The new client loads the thread, and the server sends no messages.
-      await waitFor(() => expect(result.current.isHydrating).toBe(false))
+      await waitFor(() => {
+        expect(server.hydrate.mock.calls.length).toBeGreaterThan(loads)
+        expect(result.current.isHydrating).toBe(false)
+      })
       expect(assistantText(result.current.messages)).toBe('Hello')
     })
 
