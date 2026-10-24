@@ -607,6 +607,8 @@ export function sessionHandle<THarness extends AnyHarness>({
       revert: (options: Parameters<Session<THarness>['revert']>[0]) =>
         acting('send', (target) => target.revert(as(options))),
       unrevert: () => acting('send', (target) => target.unrevert()),
+      seed: (options: Parameters<Session<THarness>['seed']>[0]) =>
+        acting('send', (target) => target.seed(options)),
       moveToolCallToBackground: (
         options?: Parameters<Session<THarness>['moveToolCallToBackground']>[0],
       ) =>

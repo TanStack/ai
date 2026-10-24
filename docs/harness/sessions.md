@@ -2,7 +2,7 @@
 title: List, rename, and fork sessions
 id: harness-sessions
 order: 4
-description: "Show a sidebar of past chats with titles and a live status. Rename, archive, remove, fork, and revert a chat, and keep typed app data on each one."
+description: "Show a sidebar of past chats with titles and a live status. Rename, archive, remove, fork, revert, and seed a chat, and keep typed app data on each one."
 keywords:
   - tanstack ai
   - harness
@@ -154,6 +154,39 @@ await session.unrevert()
 - The session saves the revert in the log. A restart keeps it.
 - Each change sends a `harness.revert` event. Read the transcript again when it arrives.
 - `revert` and `unrevert` refuse with `busy` when the session is not idle, or when another host runs the thread. `revert` refuses with `unknown_message` for an id that is not in the transcript.
+
+## Start a session from an existing conversation
+
+`session.seed` writes messages that exist already into an empty thread. The next turn reads them. Use it for the chats that your app kept before it used the harness. A turn reads only the session log, and `POST run` takes only the last user message of the request.
+
+```ts group=harness-sessions
+import { convertMessagesToModelMessages } from '@tanstack/ai'
+import type { UIMessage } from '@tanstack/ai'
+
+declare function loadOldChat(chatId: string): Promise<Array<UIMessage>>
+
+const imported = await host.open(assistant, {
+  threadId: 'chat-old-7',
+  user: { id: 'ada' },
+})
+const receipt = await imported.seed({
+  messages: convertMessagesToModelMessages(await loadOldChat('chat-old-7')),
+})
+if (receipt.status === 'rejected') throw new Error(receipt.reason)
+await imported.send('Where did we leave off?')
+```
+
+- `messages` are model messages. Each one needs an `id`, and a tool result needs its `toolCallId`. A message with neither throws.
+- The transcript keeps the messages as they are, with their ids.
+- A retry is safe. When the transcript starts with the same messages (the same roles and ids), `seed` accepts and writes nothing. Seeds run one at a time, so when two seeds of an empty thread start at once, only one writes.
+- An empty `messages` is accepted in an empty thread only. It writes nothing.
+- `seed` refuses with:
+  - `not_empty` for a thread with other messages.
+  - `open_tool_call` for a tool call with no result.
+  - `unknown_tool_call` for a tool result with no call before it in `messages`.
+  - `busy` while a turn runs or another host runs the thread.
+- With host `access`, `seed` needs the `send` action.
+- The seeded messages belong to no input, so `host.sessions.eraseUser` does not find them. A media part keeps its source, and the host does not copy it into the media store of the thread.
 
 ## Rename and remove a session
 
@@ -327,7 +360,7 @@ stopListening()
 ## What you have now
 
 - A sidebar of past chats, newest first, with a title for each.
-- Rename, archive, remove, fork, and revert from your server code.
+- Rename, archive, remove, fork, revert, and seed from your server code.
 - Typed app data on each session, such as the pinned files of a chat.
 - A status for each chat that stays current.
 - A listener that runs your code when a session sends an event.

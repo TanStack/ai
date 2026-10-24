@@ -1140,7 +1140,7 @@
           "label": "List, rename, and fork sessions",
           "to": "harness/sessions",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-10-23"
         },
         {
           "label": "Lifecycle and retention",

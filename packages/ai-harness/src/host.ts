@@ -25,6 +25,7 @@ import {
   createInputId,
   createMessageId,
   offeredInputRecord,
+  settledMessages,
   storedUser,
 } from './session/helpers'
 import { observedSession } from './session/observed-session'
@@ -1501,24 +1502,6 @@ function keptRecordsOf(harness: AnyHarness) {
     }
   }
   return keep
-}
-
-/**
- * The messages of `messages` up to the last point where each tool call has
- * its result. A running turn can have a call with no result yet: it does
- * not move.
- */
-function settledMessages(messages: ReadonlyArray<ModelMessage>) {
-  const open = new Set<string>()
-  let end = 0
-  messages.forEach((message, index) => {
-    for (const call of message.toolCalls ?? []) open.add(call.id)
-    if (message.role === 'tool' && message.toolCallId) {
-      open.delete(message.toolCallId)
-    }
-    if (open.size === 0) end = index + 1
-  })
-  return messages.slice(0, end)
 }
 
 /** One link of the index `metadata` of a transfer. */
