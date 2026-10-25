@@ -2,15 +2,15 @@
   <picture>
     <source
       media="(prefers-color-scheme: dark)"
-      srcset="https://tanstack.com/api/readme/ai.png?framework=react&theme=dark"
+      srcset="https://tanstack.com/api/readme/ai.png?theme=dark"
     />
     <source
       media="(prefers-color-scheme: light)"
-      srcset="https://tanstack.com/api/readme/ai.png?framework=react"
+      srcset="https://tanstack.com/api/readme/ai.png"
     />
     <img
-      src="https://tanstack.com/api/readme/ai.png?framework=react"
-      alt="TanStack React AI"
+      src="https://tanstack.com/api/readme/ai.png"
+      alt="TanStack AI"
       width="900"
     />
   </picture>

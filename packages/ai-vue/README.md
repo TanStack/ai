@@ -2,15 +2,15 @@
   <picture>
     <source
       media="(prefers-color-scheme: dark)"
-      srcset="https://tanstack.com/api/readme/ai.png?framework=vue&theme=dark"
+      srcset="https://tanstack.com/api/readme/ai.png?theme=dark"
     />
     <source
       media="(prefers-color-scheme: light)"
-      srcset="https://tanstack.com/api/readme/ai.png?framework=vue"
+      srcset="https://tanstack.com/api/readme/ai.png"
     />
     <img
-      src="https://tanstack.com/api/readme/ai.png?framework=vue"
-      alt="TanStack Vue AI"
+      src="https://tanstack.com/api/readme/ai.png"
+      alt="TanStack AI"
       width="900"
     />
   </picture>

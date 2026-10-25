@@ -15,4 +15,4 @@
 '@tanstack/svelte-ai-devtools': patch
 ---
 
-Show each package's own npm download and bundle-size badges. Framework packages use their framework banner. Partner logos use image URLs that load.
+Show each package's own npm download and bundle-size badges. Partner logos use image URLs that load.

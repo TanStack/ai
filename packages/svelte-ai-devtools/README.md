@@ -2,15 +2,15 @@
   <picture>
     <source
       media="(prefers-color-scheme: dark)"
-      srcset="https://tanstack.com/api/readme/ai.png?framework=svelte&theme=dark"
+      srcset="https://tanstack.com/api/readme/ai.png?theme=dark"
     />
     <source
       media="(prefers-color-scheme: light)"
-      srcset="https://tanstack.com/api/readme/ai.png?framework=svelte"
+      srcset="https://tanstack.com/api/readme/ai.png"
     />
     <img
-      src="https://tanstack.com/api/readme/ai.png?framework=svelte"
-      alt="TanStack Svelte AI"
+      src="https://tanstack.com/api/readme/ai.png"
+      alt="TanStack AI"
       width="900"
     />
   </picture>
