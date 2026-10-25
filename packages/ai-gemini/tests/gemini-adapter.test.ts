@@ -963,6 +963,56 @@ describe('GeminiAdapter through AI', () => {
       },
     )
 
+    it('sends code execution parts back beside a function tool', async () => {
+      const codePart = {
+        executableCode: { code: 'print(2**40)' },
+        thoughtSignature: 'sig-code',
+      }
+      const resultPart = {
+        codeExecutionResult: { output: '1099511627776' },
+        thoughtSignature: 'sig-result',
+      }
+      const callPart = {
+        functionCall: {
+          id: 'call_1',
+          name: 'lookup_caucus',
+          args: { county: 'Salt Lake' },
+        },
+      }
+      mocks.generateContentStreamSpy
+        .mockResolvedValueOnce(
+          createStream([
+            {
+              candidates: [
+                {
+                  content: { parts: [codePart, callPart, resultPart] },
+                  finishReason: 'STOP',
+                },
+              ],
+            },
+          ]),
+        )
+        .mockResolvedValueOnce(textStream())
+
+      for await (const _ of chat({
+        threadId: 'thread-1',
+        adapter: new GeminiTextAdapter(
+          { apiKey: 'test-key' },
+          'gemini-3.6-flash',
+        ),
+        tools: [codeExecutionTool(), lookupTool],
+        messages: [{ role: 'user', content: 'Compute and look up.' }],
+      })) {
+        // consume
+      }
+
+      const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
+      const modelTurn = secondPayload.contents.find(
+        (content: any) => content.role === 'model',
+      )
+      expect(modelTurn.parts).toEqual([codePart, callPart, resultPart])
+    })
+
     it('emits no provider call for a code run without function tools', async () => {
       mocks.generateContentStreamSpy.mockResolvedValueOnce(
         createStream([
@@ -1018,6 +1068,93 @@ describe('GeminiAdapter through AI', () => {
 
       const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
       expect(payload.config.toolConfig).toBeUndefined()
+    })
+
+    it('throws on Vertex AI when the next step must send toolCall parts', async () => {
+      mocks.generateContentStreamSpy.mockResolvedValueOnce(
+        createStream([
+          {
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    toolCallPart,
+                    {
+                      functionCall: {
+                        id: 'call_1',
+                        name: 'lookup_caucus',
+                        args: { county: 'Salt Lake' },
+                      },
+                    },
+                    toolResponsePart,
+                  ],
+                },
+                finishReason: 'STOP',
+              },
+            ],
+          },
+        ]),
+      )
+
+      await expect(async () => {
+        for await (const _ of chat({
+          threadId: 'thread-1',
+          adapter: new GeminiTextAdapter(
+            { vertexai: true, project: 'p', location: 'us-central1' },
+            'gemini-3.6-flash',
+          ),
+          tools: [googleSearchTool(), lookupTool],
+          messages: [{ role: 'user', content: 'Search and look up.' }],
+        })) {
+          // consume
+        }
+      }).rejects.toThrow(/toolCall or toolResponse/)
+      expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
+    })
+
+    it('sends code execution parts back on Vertex AI', async () => {
+      const codePart = { executableCode: { code: 'print(1)' } }
+      const resultPart = { codeExecutionResult: { output: '1' } }
+      const callPart = {
+        functionCall: {
+          id: 'call_1',
+          name: 'lookup_caucus',
+          args: { county: 'Salt Lake' },
+        },
+      }
+      mocks.generateContentStreamSpy
+        .mockResolvedValueOnce(
+          createStream([
+            {
+              candidates: [
+                {
+                  content: { parts: [codePart, callPart, resultPart] },
+                  finishReason: 'STOP',
+                },
+              ],
+            },
+          ]),
+        )
+        .mockResolvedValueOnce(textStream())
+
+      for await (const _ of chat({
+        threadId: 'thread-1',
+        adapter: new GeminiTextAdapter(
+          { vertexai: true, project: 'p', location: 'us-central1' },
+          'gemini-3.6-flash',
+        ),
+        tools: [codeExecutionTool(), lookupTool],
+        messages: [{ role: 'user', content: 'Compute and look up.' }],
+      })) {
+        // consume
+      }
+
+      const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
+      const modelTurn = secondPayload.contents.find(
+        (content: any) => content.role === 'model',
+      )
+      expect(modelTurn.parts).toEqual([codePart, callPart, resultPart])
+      expect(secondPayload.config.toolConfig).toBeUndefined()
     })
   })
 

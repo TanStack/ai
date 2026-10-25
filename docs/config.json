@@ -1704,7 +1704,7 @@
           "label": "Google Gemini: Advanced",
           "to": "adapters/gemini-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-10-23"
+          "updatedAt": "2026-10-25"
         },
         {
           "label": "Google Vertex AI",

@@ -1499,18 +1499,26 @@ export class GeminiTextAdapter<
           )
         }
 
-        // Built-in tool parts go back where the model put them: after the
-        // function call they followed (or before the first part that is not
-        // a thought), or after the text that came between. Gemini rejects the
-        // step when they are missing or out of place. The SDK throws on them
-        // for Vertex AI.
-        const serverParts = this.client.vertexai
-          ? []
-          : (msg.toolCalls ?? []).flatMap(
-              (toolCall) =>
-                (toolCall.metadata as GeminiToolCallMetadata | undefined)
-                  ?.gemini?.serverParts ?? [],
-            )
+        // Built-in tool parts go back after the function call they followed,
+        // or after the text that came between. Gemini rejects a step that
+        // drops them. Vertex AI rejects toolCall and toolResponse parts, so
+        // those throw here instead of going out missing.
+        const storedServerParts = (msg.toolCalls ?? []).flatMap(
+          (toolCall) =>
+            (toolCall.metadata as GeminiToolCallMetadata | undefined)?.gemini
+              ?.serverParts ?? [],
+        )
+        if (
+          this.client.vertexai &&
+          storedServerParts.some(
+            ({ part }) => part.toolCall || part.toolResponse,
+          )
+        ) {
+          throw new Error(
+            'Vertex AI cannot send built-in toolCall or toolResponse parts. Use the Gemini API to mix those tools with function tools.',
+          )
+        }
+        const serverParts = storedServerParts
         if (serverParts.length > 0) {
           const lastText = new Map<string | undefined, number>()
           let segment: string | undefined

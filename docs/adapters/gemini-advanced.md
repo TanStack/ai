@@ -443,8 +443,8 @@ const stream = chat({
 
 The adapter does two things for this mix:
 
-- **The flag.** On the Gemini API, it sets `toolConfig.includeServerSideToolInvocations`, which Gemini needs to mix the two kinds of tools. The SDK rejects this flag on Vertex AI, so the adapter does not set it there. A `toolConfig` in `modelOptions` wins.
-- **The signed parts.** Gemini returns each run of a provider tool as signed parts. The adapter keeps them on a provider-executed tool call, in `metadata.gemini.serverParts`, and sends them back on the next request. If you store messages, keep that metadata.
+- **The flag.** On the Gemini API, it sets `toolConfig.includeServerSideToolInvocations`, which Gemini needs to mix the two kinds of tools. The SDK rejects this flag on Vertex AI, so the adapter does not set it there. A `toolConfig` in `modelOptions` wins key by key.
+- **The signed parts.** Gemini returns each run of a provider tool as signed parts. The adapter keeps them on a provider-executed tool call, in `metadata.gemini.serverParts`, and sends them back on the next request. If you store messages, keep that metadata. On Vertex AI, a next step that must send `toolCall` or `toolResponse` parts throws. `executableCode` and `codeExecutionResult` parts are sent back.
 
 ### `codeExecutionTool`
 
