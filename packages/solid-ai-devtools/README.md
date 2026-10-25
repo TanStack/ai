@@ -25,11 +25,11 @@
   <a href="https://github.com/TanStack/ai" target="_parent">
     <img alt="GitHub stars" src="https://img.shields.io/github/stars/TanStack/ai.svg?style=social&label=Star" />
   </a>
-  <a href="https://github.com/TanStack/ai/releases" target="_parent">
-    <img alt="Release" src="https://img.shields.io/github/v/release/tanstack/ai" />
+  <a href="https://www.npmjs.com/package/@tanstack/solid-ai-devtools" target="_parent">
+    <img alt="npm version" src="https://img.shields.io/npm/v/@tanstack/solid-ai-devtools.svg" />
   </a>
-  <a href="https://bundlephobia.com/result?p=@tanstack/solid-ai-devtools@latest" target="_parent">
-    <img alt="Bundle size" src="https://badgen.net/bundlephobia/minzip/@tanstack/solid-ai-devtools@latest" />
+  <a href="https://bundlejs.com/?q=%40tanstack%2Fsolid-ai-devtools" target="_parent">
+    <img alt="Bundle size" src="https://deno.bundlejs.com/?q=%40tanstack%2Fsolid-ai-devtools&badge" />
   </a>
   <a href="https://twitter.com/tan_stack">
     <img alt="Follow @TanStack" src="https://img.shields.io/twitter/follow/tan_stack.svg?style=social" />

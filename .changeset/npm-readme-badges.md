@@ -1,5 +1,6 @@
 ---
 '@tanstack/ai': patch
+'@tanstack/ai-angular': patch
 '@tanstack/ai-client': patch
 '@tanstack/ai-devtools-core': patch
 '@tanstack/ai-gemini': patch
@@ -15,4 +16,4 @@
 '@tanstack/svelte-ai-devtools': patch
 ---
 
-Show each package's own npm download and bundle-size badges. Partner logos use image URLs that load.
+Show each package's own npm download count and npm version. The bundle-size badge uses bundlejs. Partner logos use image URLs that load.
