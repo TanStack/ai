@@ -5,6 +5,7 @@ import type {
   ConnectConnectionAdapter,
   ReconnectOptions,
 } from '@tanstack/ai-client'
+import { APICallError } from 'ai'
 import type {
   ChatTransport,
   UIMessage as AISDKUIMessage,
@@ -15,6 +16,7 @@ import { fromUIMessageStream } from './stream'
 import type { FromUIMessageStreamOptions } from './stream'
 
 export { fromAISDKMessages, toAISDKMessages } from './messages'
+export type { AISDKApprovalFields, AISDKToolCallMetadata } from './messages'
 export { fromUIMessageStream, toUIMessageStream } from './stream'
 export type { FromUIMessageStreamOptions } from './stream'
 export {
@@ -44,10 +46,22 @@ type ReconnectRequest = Parameters<
   ChatTransport<AISDKUIMessage>['reconnectToStream']
 >[0]
 
+/** The chunks that end an AI SDK UI message stream. */
+const TERMINAL_CHUNKS = new Set<UIMessageChunk['type']>([
+  'finish',
+  'error',
+  'abort',
+])
+
 /**
  * Read `stream`, and when the connection drops, read the rest through
  * `transport.reconnectToStream`, with the backoff and limits of the TanStack
  * HTTP connections. A replayed prefix is skipped.
+ *
+ * A stream that ends before its `finish` chunk also reconnects, as the
+ * TanStack durable connections do. When the route has nothing to resume (a
+ * 204, or a 4xx such as a route with no resume `GET`), that stream ends there
+ * and a dropped one fails with its own error.
  */
 function reconnecting(
   transport: ChatTransport<AISDKUIMessage>,
@@ -60,43 +74,73 @@ function reconnecting(
   let delivered = 0
   let skip = 0
   let deliveredAtLastDrop = 0
+  let terminated = false
   return new ReadableStream({
     async pull(controller) {
       for (;;) {
+        // undefined: the stream ended cleanly before its terminal chunk.
+        let failure: unknown
         try {
           const { done, value } = await reader.read()
-          if (done) return controller.close()
-          // ponytail: skips by count, so the replay must repeat the chunks in
-          // the same order, as the AI SDK resumable streams do.
-          if (skip > 0) {
-            skip--
-            continue
+          if (!done) {
+            // ponytail: skips by count, so the replay must repeat the chunks
+            // in the same order, as the AI SDK resumable streams do.
+            if (skip > 0) {
+              skip--
+              continue
+            }
+            delivered++
+            if (TERMINAL_CHUNKS.has(value.type)) terminated = true
+            return controller.enqueue(value)
           }
-          delivered++
-          return controller.enqueue(value)
+          if (terminated) return controller.close()
         } catch (error) {
-          if (request.abortSignal?.aborted) throw error
-          // Throws StreamReconnectLimitError when the run is stuck.
-          await tracker.waitBeforeReconnect(
-            delivered > deliveredAtLastDrop,
-            request.abortSignal,
-          )
-          deliveredAtLastDrop = delivered
-          let resumed: ReadableStream<UIMessageChunk> | null
-          try {
-            resumed = await transport.reconnectToStream(request)
-          } catch {
-            // The old reader fails again, so the next pass waits and retries.
-            continue
-          }
-          if (!resumed) throw error
-          reader = resumed.getReader()
-          skip = transport.resumeStreamIsReplay === true ? delivered : 0
+          failure = error
         }
+        // Nothing can resume it: close a clean end, rethrow a failure.
+        const giveUp = () => {
+          if (failure === undefined) return controller.close()
+          throw failure
+        }
+        if (request.abortSignal?.aborted) return giveUp()
+        // Throws StreamReconnectLimitError when the run is stuck.
+        await tracker.waitBeforeReconnect(
+          delivered > deliveredAtLastDrop,
+          request.abortSignal,
+        )
+        deliveredAtLastDrop = delivered
+        let resumed: ReadableStream<UIMessageChunk> | null
+        try {
+          resumed = await transport.reconnectToStream(request)
+        } catch (error) {
+          // A 4xx: the route cannot resume this chat.
+          if (APICallError.isInstance(error) && !error.isRetryable)
+            return giveUp()
+          // The old reader ends or fails again, so the next pass retries.
+          continue
+        }
+        if (!resumed) return giveUp()
+        reader = resumed.getReader()
+        skip = transport.resumeStreamIsReplay === true ? delivered : 0
       }
     },
     cancel: (reason) => reader.cancel(reason),
   })
+}
+
+/** Options for {@link fromChatTransport}. */
+export interface FromChatTransportOptions extends Pick<
+  FromUIMessageStreamOptions,
+  'tools' | 'outputSchema'
+> {
+  /**
+   * The chat id, to rejoin a run after a page reload. The adapter has
+   * `joinRun` only when this is set and the transport replays the stream
+   * from its start (`resumeStreamIsReplay`).
+   */
+  threadId?: string
+  /** Backoff and limits for reconnects after a dropped stream. */
+  reconnect?: ReconnectOptions
 }
 
 /**
@@ -127,16 +171,7 @@ function reconnecting(
  */
 export function fromChatTransport(
   transport: ChatTransport<AISDKUIMessage>,
-  {
-    threadId,
-    tools,
-    outputSchema,
-    reconnect,
-  }: Pick<FromUIMessageStreamOptions, 'tools' | 'outputSchema'> & {
-    threadId?: string
-    /** Backoff and limits for reconnects after a dropped stream. */
-    reconnect?: ReconnectOptions
-  } = {},
+  { threadId, tools, outputSchema, reconnect }: FromChatTransportOptions = {},
 ): ConnectConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal, runContext) {

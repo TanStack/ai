@@ -24,6 +24,15 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/** The parsed JSON, or undefined when `text` is not JSON. */
+export function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return undefined
+  }
+}
+
 /**
  * Turns AG-UI activity, state and subagent events into AI SDK data chunks.
  * Each chunk has an `id`, so the AI SDK client replaces the data part in place
@@ -166,9 +175,11 @@ export function isDataChunk(chunk: UIMessageChunk): chunk is DataChunk {
 /**
  * The AG-UI event for an AI SDK data chunk. A persistent chunk with an `id`
  * and object data is an activity, so the TanStack client shows it as an
- * activity message and replaces it when the same `id` comes again. AG-UI
- * activity content must be an object, so other data, transient chunks and
- * chunks without an `id` stay CUSTOM events named `data-<name>`.
+ * activity message and replaces it when the same `data-<name>` and `id` come
+ * again. The activity id is `data-<name>:<id>`: the AI SDK keys a data part by
+ * its type and id, and AG-UI keys a message by its id only. AG-UI activity
+ * content must be an object, so other data, transient chunks and chunks
+ * without an `id` stay CUSTOM events named `data-<name>`.
  */
 export function dataChunkEvent(chunk: DataChunk): StreamChunk {
   if (
@@ -178,7 +189,7 @@ export function dataChunkEvent(chunk: DataChunk): StreamChunk {
   )
     return {
       type: EventType.ACTIVITY_SNAPSHOT,
-      messageId: chunk.id,
+      messageId: `${chunk.type}:${chunk.id}`,
       activityType: chunk.type.slice('data-'.length),
       content: chunk.data,
       replace: true,

@@ -15,14 +15,23 @@ import type {
   RunFinishedEvent,
   SchemaInput,
   StreamChunk,
+  TanStackRunMetadata,
   ToolCallStartEvent,
   ToolResultOutcome,
 } from '@tanstack/ai'
 import type { FinishReason, ProviderMetadata, UIMessageChunk } from 'ai'
-import { DataParts, dataChunkEvent, isDataChunk, isRecord } from './data-parts'
+import {
+  DataParts,
+  dataChunkEvent,
+  isDataChunk,
+  isRecord,
+  parseJson,
+} from './data-parts'
 import type { AISDKApprovalFields, AISDKToolCallMetadata } from './messages'
 
-const TO_AI_SDK_FINISH: Partial<Record<string, FinishReason>> = {
+type TanStackFinishReason = NonNullable<TanStackRunMetadata['finishReason']>
+
+const TO_AI_SDK_FINISH: Record<TanStackFinishReason, FinishReason> = {
   stop: 'stop',
   length: 'length',
   content_filter: 'content-filter',
@@ -31,7 +40,7 @@ const TO_AI_SDK_FINISH: Partial<Record<string, FinishReason>> = {
 
 const FROM_AI_SDK_FINISH: Record<
   FinishReason,
-  'stop' | 'length' | 'content_filter' | null
+  Exclude<TanStackFinishReason, 'tool_calls'> | null
 > = {
   stop: 'stop',
   length: 'length',
@@ -56,14 +65,6 @@ export function tanstackField(metadata: unknown, key: string): unknown {
   return typeof tanstack === 'object' && tanstack !== null && key in tanstack
     ? Reflect.get(tanstack, key)
     : undefined
-}
-
-function parseJson(text: string): unknown {
-  try {
-    return JSON.parse(text)
-  } catch {
-    return undefined
-  }
 }
 
 /** Tool output as the AI SDK client renders it: parsed JSON, else the text. */
@@ -127,12 +128,12 @@ export function toUIMessageStream(
     let inStep = false
     const usage: Array<NonNullable<RunFinishedEvent['usage']>> = []
 
-    function* start(messageId?: string): Generator<UIMessageChunk> {
+    // No message id: the AI SDK client keeps its own. A chat() message id
+    // would make a continuation after a client tool a second message.
+    function* start(): Generator<UIMessageChunk> {
       if (started) return
       started = true
-      yield messageId === undefined
-        ? { type: 'start' }
-        : { type: 'start', messageId }
+      yield { type: 'start' }
     }
 
     function* startStep(): Generator<UIMessageChunk> {
@@ -161,7 +162,7 @@ export function toUIMessageStream(
       // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- steps and message snapshots have no AI SDK chunk; default skips them.
       switch (event.type) {
         case EventType.TEXT_MESSAGE_START:
-          yield* start(event.messageId)
+          yield* start()
           yield* startStep()
           yield { type: 'text-start', id: event.messageId }
           break
@@ -226,7 +227,7 @@ export function toUIMessageStream(
         }
 
         case EventType.TOOL_CALL_START: {
-          yield* start(event.parentMessageId)
+          yield* start()
           yield* startStep()
           const tool: ToolCallState = {
             name: event.toolCallName,
@@ -258,6 +259,18 @@ export function toUIMessageStream(
           const input =
             tanstackField(event.metadata, 'input') ??
             (tool.args === '' ? {} : parseJson(tool.args))
+          // The AI SDK client must not run a call with broken arguments.
+          if (input === undefined) {
+            yield {
+              type: 'tool-input-error',
+              toolCallId: event.toolCallId,
+              toolName: tool.name,
+              input: tool.args,
+              errorText: 'The tool call arguments are not valid JSON.',
+              ...toolCallFields(tool),
+            }
+            break
+          }
           yield {
             type: 'tool-input-available',
             toolCallId: event.toolCallId,
@@ -355,9 +368,8 @@ export function toUIMessageStream(
               },
             }
           }
-          const reason = tanstackField(event.metadata, 'finishReason')
-          if (typeof reason === 'string')
-            finishReason = TO_AI_SDK_FINISH[reason]
+          const reason = event.metadata?.tanstack?.finishReason
+          if (reason != null) finishReason = TO_AI_SDK_FINISH[reason]
           // A tool approval pauses the run. A client tool needs no chunk: the
           // AI SDK client runs a tool call that has no output. A subagent's
           // tool call is not in this message (the AI SDK client throws on an
@@ -410,9 +422,19 @@ export function toUIMessageStream(
   const iterator = convert()
   return new ReadableStream<UIMessageChunk>({
     async pull(controller) {
-      const { done, value } = await iterator.next()
-      if (done) controller.close()
-      else controller.enqueue(value)
+      try {
+        const { done, value } = await iterator.next()
+        if (done) controller.close()
+        else controller.enqueue(value)
+      } catch (error) {
+        // chat() throws on a provider or tool failure. The AI SDK client
+        // shows `errorText`. An errored body is only a network error there.
+        controller.enqueue({
+          type: 'error',
+          errorText: error instanceof Error ? error.message : String(error),
+        })
+        controller.close()
+      }
     },
     async cancel() {
       await iterator.return(undefined)

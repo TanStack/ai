@@ -235,6 +235,31 @@ describe('TanStack server, AI SDK client: approvals', () => {
     expect(error).toBeInstanceOf(Response)
     expect(error instanceof Response && error.status).toBe(400)
   })
+
+  it('rejects an approval answer with no paused run id', async () => {
+    // A history that `toUIMessageStream` did not make has no run to resume.
+    const assistant: UIMessage = {
+      id: 'a-1',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'dynamic-tool',
+          toolName: 'deleteFile',
+          toolCallId: 'call-1',
+          input: { path: 'a.txt' },
+          state: 'approval-responded',
+          approval: { id: 'ap-1', approved: true },
+        },
+      ],
+    }
+    const error: unknown = await chatParamsFromAISDKRequest(
+      new Request('http://x/api/chat', {
+        method: 'POST',
+        body: JSON.stringify({ id: 'chat-1', messages: [assistant] }),
+      }),
+    ).catch((e: unknown) => e)
+    expect(error instanceof Response && error.status).toBe(400)
+  })
 })
 
 describe('AI SDK server, TanStack client: approvals', () => {
@@ -383,7 +408,11 @@ describe('AI SDK server, TanStack client: approvals', () => {
       false,
     )
     expect(client.getMessages().flatMap((m) => m.parts)).toContainEqual(
-      expect.objectContaining({ type: 'tool-result', toolCallId: 'c-1' }),
+      expect.objectContaining({
+        type: 'tool-result',
+        toolCallId: 'c-1',
+        content: '{"deleted":true}',
+      }),
     )
   })
 })

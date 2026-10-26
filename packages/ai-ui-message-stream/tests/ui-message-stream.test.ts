@@ -175,7 +175,11 @@ describe('TanStack server, AI SDK client', () => {
       inputSchema: z.object({ q: z.string() }),
     })
 
-    async function turn(messages: Array<UIMessage>): Promise<UIMessage> {
+    /** `message`: the assistant message that a continuation streams into. */
+    async function turn(
+      messages: Array<UIMessage>,
+      message?: UIMessage,
+    ): Promise<UIMessage> {
       const stream = toUIMessageStream(
         chat({
           adapter: fake,
@@ -185,8 +189,8 @@ describe('TanStack server, AI SDK client', () => {
         }),
       )
       let last: UIMessage | undefined
-      for await (const message of readUIMessageStream({ stream }))
-        last = message
+      for await (const next of readUIMessageStream({ message, stream }))
+        last = next
       return last!
     }
 
@@ -207,14 +211,19 @@ describe('TanStack server, AI SDK client', () => {
     // The AI SDK client runs `ask` and posts the history with its output.
     const answered: UIMessage = {
       ...first,
+      id: 'a-1',
       parts: first.parts.map((part) =>
         part.type === 'tool-ask' && part.state === 'input-available'
           ? { ...part, state: 'output-available', output: 'Fahrenheit' }
           : part,
       ),
     }
-    const second = await turn([user, answered])
-    expect(second.parts).toMatchObject([
+    // The AI SDK client continues the same message. A new id would make
+    // `useChat` push a second assistant message with the old parts.
+    const before = answered.parts.length
+    const second = await turn([user, answered], answered)
+    expect(second.id).toBe('a-1')
+    expect(second.parts.slice(before)).toMatchObject([
       { type: 'step-start' },
       { type: 'text', text: 'Answer: Fahrenheit' },
     ])

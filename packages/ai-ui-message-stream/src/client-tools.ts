@@ -1,9 +1,6 @@
 import { jsonSchema, tool } from 'ai'
 import type { ToolSet } from 'ai'
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
+import { isRecord } from './data-parts'
 
 /**
  * Add the tools that a TanStack `useChat` client declares (`clientTools` in

@@ -1,21 +1,20 @@
 import { isToolUIPart, validateUIMessages } from 'ai'
 import { fromAISDKMessages } from './messages'
 import { tanstackField } from './stream'
-import type { RunAgentResumeItem, UIMessage } from '@tanstack/ai'
+import type { RunAgentResumeItem, TextOptions, UIMessage } from '@tanstack/ai'
 import type { UIMessage as AISDKUIMessage } from 'ai'
 
-/** What `chat()` needs from an AI SDK `useChat` request. */
-export interface AISDKChatParams {
-  /** The AI SDK chat id. */
-  threadId: string
+/**
+ * What `chat()` needs from an AI SDK `useChat` request. `threadId` is the AI
+ * SDK chat id. `resume` holds the user's answers to tool approvals, when there
+ * are any. `parentRunId` comes with `resume`: the paused TanStack run, from the
+ * last assistant message's `metadata.tanstack.runId`.
+ */
+export interface AISDKChatParams extends Pick<
+  TextOptions,
+  'threadId' | 'resume' | 'parentRunId'
+> {
   messages: Array<UIMessage>
-  /** The user's answers to tool approvals, when there are any. */
-  resume?: Array<RunAgentResumeItem>
-  /**
-   * Set with `resume`: the paused TanStack run, from the last assistant
-   * message's `metadata.tanstack.runId`, else the chat id.
-   */
-  parentRunId?: string
 }
 
 /**
@@ -25,8 +24,8 @@ export interface AISDKChatParams {
  * A tool part in `approval-responded` state becomes a resume item, so
  * `chat()` runs or denies the paused tool call.
  *
- * @throws An error when the body is not a chat request or a message is not
- *   a valid AI SDK `UIMessage`.
+ * @throws An error when the body is not a chat request, a message is not a
+ *   valid AI SDK `UIMessage`, or an approval answer has no paused run id.
  */
 export async function chatParamsFromAISDKRequestBody(
   body: unknown,
@@ -59,19 +58,19 @@ export async function chatParamsFromAISDKRequestBody(
     ),
   )
 
+  const params = { threadId: body.id, messages: fromAISDKMessages(messages) }
+  if (resume.length === 0) return params
   // `toUIMessageStream` puts the run id in the message metadata.
   const runId = tanstackField(
     messages.filter((m) => m.role === 'assistant').at(-1)?.metadata,
     'runId',
   )
-  return {
-    threadId: body.id,
-    messages: fromAISDKMessages(messages),
-    ...(resume.length > 0 && {
-      resume,
-      parentRunId: typeof runId === 'string' ? runId : body.id,
-    }),
+  if (typeof runId !== 'string') {
+    throw new Error(
+      'An approval answer needs `metadata.tanstack.runId` on the last assistant message.',
+    )
   }
+  return { ...params, resume, parentRunId: runId }
 }
 
 /**

@@ -37,6 +37,9 @@ export function toResumableUIMessageStreamResponse(
     durability: { adapter: durability },
   })
     .body?.pipeTo(new WritableStream())
-    .catch(() => {})
+    // The log holds the RUN_ERROR for the client. This keeps it in the logs.
+    .catch((error: unknown) => {
+      console.error('toResumableUIMessageStreamResponse: the run failed', error)
+    })
   return resumeUIMessageStreamResponse(durability)
 }

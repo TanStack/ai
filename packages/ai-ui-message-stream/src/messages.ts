@@ -20,22 +20,12 @@ import type {
   UITools,
 } from 'ai'
 
-type AISDKPart = UIMessagePart<UIDataTypes, UITools>
+import { isRecord, parseJson } from './data-parts'
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
+type AISDKPart = UIMessagePart<UIDataTypes, UITools>
 
 function isProviderMetadata(value: unknown): value is ProviderMetadata {
   return isRecord(value) && Object.values(value).every(isRecord)
-}
-
-function parseJson(text: string): unknown {
-  try {
-    return JSON.parse(text)
-  } catch {
-    return undefined
-  }
 }
 
 const DATA_URL = /^data:([^;,]+)?(?:;[^,]*)?;base64,(.*)$/s

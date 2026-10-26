@@ -219,7 +219,7 @@ describe('dataChunkEvent (AI SDK server, TanStack client)', () => {
     EventSchemas.parse(event)
     expect(event).toEqual({
       type: EventType.ACTIVITY_SNAPSHOT,
-      messageId: 'w-1',
+      messageId: 'data-weather:w-1',
       activityType: 'weather',
       content: { city: 'Oslo' },
       replace: true,
@@ -242,11 +242,13 @@ describe('dataChunkEvent (AI SDK server, TanStack client)', () => {
     })
   })
 
-  it('shows the activity in the TanStack client and replaces it by id', async () => {
+  it('shows the activity in the TanStack client and replaces it by type and id', async () => {
     const chunks: Array<UIMessageChunk> = [
       { type: 'start', messageId: 'a' },
       { type: 'text-start', id: '0' },
       { type: 'data-weather', id: 'w-1', data: { city: 'Oslo' } },
+      // Another data type with the same id is another part.
+      { type: 'data-search', id: 'w-1', data: { query: 'Oslo' } },
       { type: 'data-weather', id: 'w-1', data: { city: 'Bergen' } },
       { type: 'text-delta', id: '0', delta: 'Sunny.' },
       { type: 'text-end', id: '0' },
@@ -283,6 +285,16 @@ describe('dataChunkEvent (AI SDK server, TanStack client)', () => {
               type: 'activity',
               activityType: 'weather',
               content: { city: 'Bergen' },
+            },
+          ],
+        ],
+        [
+          'activity',
+          [
+            {
+              type: 'activity',
+              activityType: 'search',
+              content: { query: 'Oslo' },
             },
           ],
         ],
