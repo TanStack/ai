@@ -340,8 +340,12 @@ export function useChat<
             client.stop()
           }
           client.dispose()
-          disposedClientRef.current = { client, threadId }
-          setClientRevision((revision) => revision + 1)
+          // Replace it only if the hook has no newer client: on a new
+          // threadId the new client is active by now, and stays.
+          if (activeClientRef.current === null) {
+            disposedClientRef.current = { client, threadId }
+            setClientRevision((revision) => revision + 1)
+          }
           if (cleanupDisposalRef.current === disposal) {
             cleanupDisposalRef.current = null
           }
