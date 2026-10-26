@@ -53,8 +53,9 @@ export function useChat<
   } | null>(null)
   // A client the deferred teardown disposed while the hook stayed mounted: a
   // hidden `<Activity>` keeps state and memos, runs the effect cleanups, and
-  // runs the effects again when it shows. The setup then replaces the client,
-  // starting from the messages it had on screen for the same thread.
+  // runs the effects again when it shows. The teardown replaces the client,
+  // which starts from the messages it had on screen for the same thread, so
+  // the hook never renders a disposed client.
   const disposedClientRef = useRef<{
     client: ChatClient
     threadId: string | undefined
@@ -300,10 +301,6 @@ export function useChat<
   }, [client, startPersistenceHydration])
 
   useEffect(() => {
-    if (disposedClientRef.current?.client === client) {
-      setClientRevision((revision) => revision + 1)
-      return
-    }
     disposedClientRef.current = null
     // The options this client was made with, as committed alongside it.
     const threadId = optionsRef.current.threadId
@@ -330,8 +327,8 @@ export function useChat<
       // (`resumeInFlightRun`) and can wipe the durable resume pointer before
       // the first chunk. Real teardown lives in the deferred dispose path
       // below, which only runs when the client is not remounted. A hidden
-      // `<Activity>` runs it too and keeps the hook: the setup above replaces
-      // the disposed client when the view shows again.
+      // `<Activity>` runs it too and keeps the hook: the teardown then replaces
+      // the disposed client.
       // Subscribe/unsubscribe on `options.live` is still owned by the
       // dedicated effect above for live toggles.
       const disposal = {
@@ -344,6 +341,7 @@ export function useChat<
           }
           client.dispose()
           disposedClientRef.current = { client, threadId }
+          setClientRevision((revision) => revision + 1)
           if (cleanupDisposalRef.current === disposal) {
             cleanupDisposalRef.current = null
           }
