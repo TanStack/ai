@@ -31,7 +31,7 @@ Both are open-source TypeScript toolkits under the MIT license. Both stream mode
 
 So the two toolkits solve different problems:
 
-- **pi** gives you an agent to embed. You own the process, and the events never leave it.
+- **pi** gives you an agent to embed. You own the process, and by default the events stay in it. `pi-protocol` and RPC mode can send them to another process.
 - **TanStack AI** gives you a client and a server that talk to each other. The protocol, the approvals, the reconnects and the saved history are part of the toolkit.
 
 ## Pick TanStack AI when
@@ -44,13 +44,13 @@ So the two toolkits solve different problems:
 
 TanStack AI also has these, each in its own package:
 
-- **Coding-agent harnesses.** Run Claude Code, Codex, OpenCode, Grok Build, or any ACP agent as a chat backend, in a local process or a sandbox. See [Harness](../harness/overview).
+- **Coding-agent harnesses.** Run Claude Code, Codex, OpenCode, Grok Build, or any ACP agent as a chat backend, in a local process or a sandbox. The harness is experimental. See [Coding agents](../harness/coding-agents).
 - **Subagents.** A tool can run a child agent, and the client shows its run as a card. See [Subagents](../chat/subagents).
 - **Media beyond chat.** Images, video, speech, transcription, music and realtime voice use the same adapters and persistence as chat. See [Generations](../media/generations).
 
 ## Pick pi when
 
-- **Your product is a terminal coding agent.** `pi-coding-agent` is a CLI with read, bash, edit and write tools, sessions, extensions and skills.
+- **Your product is a terminal coding agent.** `pi-coding-agent` is a terminal agent that reads, edits and runs code in your repo. It saves sessions and loads extensions and skills.
 - **Your agent has no browser client.** A bot, a CLI or a job reads the agent events in the same Node process.
 - **The agent must run on the user's machine.** In a browser app, `streamProxy` keeps the loop and the tools in the browser.
 - **You sign in with a model subscription.** pi has OAuth logins for Claude Pro and Max, ChatGPT, GitHub Copilot and OpenRouter.
@@ -60,10 +60,10 @@ TanStack AI also has these, each in its own package:
 | pi                                                                                | TanStack AI                                                        |
 | --------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
 | `@earendil-works/pi-ai`                                                           | `@tanstack/ai` and one adapter package per provider                |
-| `createModels()`, `setProvider(anthropicProvider())`, `getModel('anthropic', id)` | `anthropicText(id)` from `@tanstack/ai-anthropic`                  |
+| `createModels()`, `setProvider(anthropicProvider())`, `models.getModel('anthropic', id)` | `anthropicText(id)` from `@tanstack/ai-anthropic`                  |
 | `models.streamSimple(model, context)`                                             | `chat({ adapter, messages })`                                      |
 | `models.completeSimple(model, context)`                                           | `chat({ adapter, messages, stream: false })`                       |
-| The leading `system` message                                                      | `systemPrompts: ['...']`                                           |
+| `systemPrompt` in the context                                                     | `systemPrompts: ['...']`                                           |
 | `AgentTool` with TypeBox `parameters` and `execute`                               | `toolDefinition({ inputSchema }).server(fn)`                       |
 | `agentLoop()` or the `Agent` class                                                | `chat({ tools })`, which runs the loop                             |
 | `beforeToolCall` / `afterToolCall`                                                | `middleware: [...]` with tool call hooks                           |
@@ -84,20 +84,20 @@ Versions: pi `1.4` and TanStack AI 1.0.
 | Wire protocol          | In-process `AgentEvent` objects. Remote sessions over CBOR (`pi-protocol`)    | Native AG-UI, in both directions                                                                                      |
 | Providers              | About 35 in `pi-ai`, plus any OpenAI-compatible API                           | OpenAI, Anthropic, Gemini, Vertex, Bedrock, Grok, Groq, Mistral, OpenRouter, and more. Any OpenAI-compatible endpoint |
 | Subscription logins    | OAuth for Claude Pro and Max, ChatGPT, GitHub Copilot, OpenRouter (Node only) | API keys                                                                                                              |
-| UI                     | `pi-tui` for the terminal, `pi-web-ui` components                             | React, Solid, Vue, Svelte, Preact, Angular, Octane, Remix, React Native                                               |
+| UI                     | `pi-tui` for the terminal                                                     | React, Solid, Vue, Svelte, Preact, Angular, Octane, Remix, React Native                                               |
 | Tools                  | `AgentTool` with a TypeBox schema, run in the agent                           | One `toolDefinition()`, with `.server()` and `.client()`                                                              |
 | Tool approval          | `beforeToolCall` can block a call                                             | Per-tool `needsApproval`, with batched approvals and interrupts                                                       |
-| Steering and follow-up | Built-in queues on the `Agent`                                                | A message queue in `useChat`                                                                                          |
-| Subagents              | Not built in                                                                  | Built in, with a card per child run                                                                                   |
+| Steering and follow-up | Built-in queues on the `Agent`                                                | A message queue in `useChat`. The harness also steers a running turn (experimental)                                   |
+| Subagents              | Task-owned child conversations in `pi-durable` (experimental)                 | Built in, with a card per child run                                                                                   |
 | Structured output      | Constrained sampling for tool arguments                                       | Typed message part, streamed with tools and kept in the history                                                       |
-| Token usage            | Usage and cost on each assistant message                                      | Usage on each model call                                                                                              |
-| Persistence            | SQLite session backends. `pi-durable` is experimental                         | `withPersistence` middleware, server or browser stores                                                                |
+| Token usage            | Usage and cost on each assistant message                                      | Usage on each model call, and cost when the provider reports it                                                       |
+| Persistence            | JSONL session files with branching. `pi-durable` is experimental              | `withPersistence` middleware, server or browser stores                                                                |
 | Resumable streams      | `pi-durable` resumes a turn after a crash (experimental)                      | Built in. `useChat` reconnects by itself                                                                              |
 | MCP client             | `pi-mcp`: stdio and Streamable HTTP                                           | `@tanstack/ai-mcp`: multi-server pools, generated types, lazy tools, managed lifecycle                                |
 | Code Mode              | `pi-codemode`: QuickJS on Node, Bun and Cloudflare                            | 6 isolate drivers: Node, QuickJS WASM, QuickJS Bun, Cloudflare, Daytona, E2B                                          |
 | Coding agents          | `pi-coding-agent`, a CLI with extensions, skills and themes                   | Claude Code, Codex, OpenCode, Grok Build, and any ACP agent, on a local process or a sandbox                          |
 | Image                  | Image generation through OpenRouter                                           | Stable, typed per model                                                                                               |
 | Video, speech, music   | Not built in                                                                  | Stable                                                                                                                |
-| Realtime voice         | Not built in                                                                  | Stable: OpenAI, Grok, ElevenLabs                                                                                      |
+| Realtime voice         | Not built in                                                                  | Stable: OpenAI, Gemini, Grok, ElevenLabs                                                                              |
 
 To try TanStack AI, start with the [Quick Start](../getting-started/quick-start).
