@@ -56,15 +56,6 @@ interface ModelMeta<TProviderOptions = unknown> {
   max_input_tokens?: number
   max_output_tokens?: number
   knowledge_cutoff?: string
-  pricing?: {
-    input: {
-      normal: number
-      cached?: number
-    }
-    output: {
-      normal: number
-    }
-  }
   /**
    * Type-level description of which provider options this model supports.
    */
@@ -89,14 +80,6 @@ const GEMINI_3_1_PRO = {
       'thinking',
     ],
     tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
-  },
-  pricing: {
-    input: {
-      normal: 2.5,
-    },
-    output: {
-      normal: 15,
-    },
   },
   reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
@@ -124,14 +107,6 @@ const GEMINI_3_FLASH = {
     ],
     tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
   },
-  pricing: {
-    input: {
-      normal: 0.5,
-    },
-    output: {
-      normal: 3,
-    },
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
@@ -156,14 +131,6 @@ const GEMINI_3_PRO_IMAGE = {
     output: ['text', 'image'],
     capabilities: ['batch_api', 'structured_output', 'thinking'],
     tools: ['google_search'],
-  },
-  pricing: {
-    input: {
-      normal: 2,
-    },
-    output: {
-      normal: 0.134,
-    },
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
@@ -190,14 +157,6 @@ const GEMINI_3_1_FLASH_IMAGE = {
     capabilities: ['batch_api', 'thinking'],
     tools: ['google_search'],
   },
-  pricing: {
-    input: {
-      normal: 0.5,
-    },
-    output: {
-      normal: 3,
-    },
-  },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
@@ -219,14 +178,6 @@ const GEMINI_3_1_FLASH_LITE_IMAGE = {
     output: ['text', 'image'],
     capabilities: ['batch_api', 'structured_output', 'thinking'],
     tools: ['google_search'],
-  },
-  pricing: {
-    input: {
-      normal: 0.25,
-    },
-    output: {
-      normal: 1.5,
-    },
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
@@ -252,14 +203,6 @@ const GEMINI_NANO_BANANA_2_1 = {
     capabilities: ['batch_api', 'thinking'],
     tools: ['google_search'],
   },
-  pricing: {
-    input: {
-      normal: 1.5,
-    },
-    output: {
-      normal: 7.5,
-    },
-  },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
@@ -283,14 +226,6 @@ const GEMINI_3_1_FLASH_LITE = {
       'thinking',
     ],
     tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
-  },
-  pricing: {
-    input: {
-      normal: 0.25,
-    },
-    output: {
-      normal: 1.5,
-    },
   },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
@@ -317,14 +252,6 @@ const GEMINI_3_1_FLASH_LITE_PREVIEW = {
       'thinking',
     ],
     tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
-  },
-  pricing: {
-    input: {
-      normal: 0.25,
-    },
-    output: {
-      normal: 1.5,
-    },
   },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
@@ -358,14 +285,6 @@ const GEMINI_2_5_PRO = {
       'url_context',
     ],
   },
-  pricing: {
-    input: {
-      normal: 2.5,
-    },
-    output: {
-      normal: 15,
-    },
-  },
   reasoning: BUDGET_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
@@ -384,14 +303,6 @@ const GEMINI_2_5_PRO_TTS = {
     input: ['text'],
     output: ['audio'],
     capabilities: ['audio_generation'],
-  },
-  pricing: {
-    input: {
-      normal: 2.5,
-    },
-    output: {
-      normal: 15,
-    },
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
@@ -423,14 +334,6 @@ const GEMINI_2_5_FLASH = {
       'url_context',
     ],
   },
-  pricing: {
-    input: {
-      normal: 1,
-    },
-    output: {
-      normal: 2.5,
-    },
-  },
   reasoning: BUDGET_OFF_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
@@ -458,15 +361,6 @@ const GEMINI_2_5_FLASH_LIVE = {
       'thinking',
     ],
   },
-  pricing: {
-    // todo find this info
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0,
-    },
-  },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
   GeminiSafetyOptions &
@@ -483,14 +377,6 @@ const GEMINI_2_5_FLASH_TTS = {
     input: ['text'],
     output: ['audio'],
     capabilities: ['audio_generation', 'batch_api'],
-  },
-  pricing: {
-    input: {
-      normal: 1,
-    },
-    output: {
-      normal: 2.5,
-    },
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
@@ -514,14 +400,6 @@ const GEMINI_3_1_FLASH_TTS = {
     output: ['audio'],
     capabilities: ['audio_generation', 'batch_api'],
   },
-  pricing: {
-    input: {
-      normal: 0.5,
-    },
-    output: {
-      normal: 10,
-    },
-  },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
@@ -543,14 +421,6 @@ const LYRIA_3_PRO = {
     output: ['audio'],
     capabilities: ['audio_generation'],
   },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0,
-    },
-  },
 } as const satisfies ModelMeta
 
 /**
@@ -564,14 +434,6 @@ const LYRIA_3_CLIP = {
     input: ['text', 'image'],
     output: ['audio'],
     capabilities: ['audio_generation'],
-  },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0,
-    },
   },
 } as const satisfies ModelMeta
 
@@ -592,14 +454,6 @@ const GEMINI_2_5_FLASH_LITE = {
     ],
     tools: ['code_execution', 'google_maps', 'google_search', 'url_context'],
   },
-  pricing: {
-    input: {
-      normal: 0.1,
-    },
-    output: {
-      normal: 0.4,
-    },
-  },
   reasoning: BUDGET_OFF_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
@@ -610,8 +464,7 @@ const GEMINI_2_5_FLASH_LITE = {
 >
 
 /**
- * Veo video generation models. Pricing is per second of generated video
- * (audio+video rate where the model supports audio).
+ * Veo video generation models.
  * @experimental Veo video generation is an experimental feature and may change.
  */
 const VEO_3_1_PREVIEW = {
@@ -621,14 +474,6 @@ const VEO_3_1_PREVIEW = {
   supports: {
     input: ['text', 'image'],
     output: ['video', 'audio'],
-  },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0.4,
-    },
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
@@ -645,14 +490,6 @@ const VEO_3_1_FAST_PREVIEW = {
     input: ['text', 'image'],
     output: ['video', 'audio'],
   },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0.15,
-    },
-  },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
@@ -668,14 +505,6 @@ const VEO_3_1_LITE_PREVIEW = {
     input: ['text', 'image'],
     output: ['video', 'audio'],
   },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0.05,
-    },
-  },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
@@ -688,8 +517,7 @@ const VEO_3_1_LITE_PREVIEW = {
  * conversational editing. Serves only the Interactions API
  * (`generateContent` rejects it), so it routes through the
  * interactions-based path of the video adapter, not Veo's
- * `:predictLongRunning` flow. Pricing is per second of generated video
- * ($0.10/sec). 360p / 720p (default) / 1080p / 4k at 24 FPS, 3–10 second
+ * `:predictLongRunning` flow. 360p / 720p (default) / 1080p / 4k at 24 FPS, 3–10 second
  * clips (default 10s).
  * @see https://ai.google.dev/gemini-api/docs/models/gemini-omni-flash
  * @experimental Omni video generation is an experimental feature and may change.
@@ -701,14 +529,6 @@ const GEMINI_OMNI_1_1_FLASH = {
   supports: {
     input: ['text', 'image', 'video'],
     output: ['video', 'audio'],
-  },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0.1,
-    },
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
@@ -741,15 +561,6 @@ const GEMINI_3_8_FLASH = {
       'url_context',
       'computer_use',
     ],
-  },
-  pricing: {
-    input: {
-      normal: 0.75,
-      cached: 0.075,
-    },
-    output: {
-      normal: 3.75,
-    },
   },
   reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
@@ -785,17 +596,6 @@ const GEMINI_3_7_FLASH = {
       'computer_use',
     ],
   },
-  // Currently 50% off through the end of 2026.
-  // https://ai.google.dev/gemini-api/docs/pricing#gemini-3.7-flash
-  pricing: {
-    input: {
-      normal: 0.75,
-      cached: 0.075,
-    },
-    output: {
-      normal: 3.75,
-    },
-  },
   reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
@@ -830,15 +630,6 @@ const GEMINI_3_6_FLASH = {
       'computer_use',
     ],
   },
-  pricing: {
-    input: {
-      normal: 1.5,
-      cached: 0.15,
-    },
-    output: {
-      normal: 7.5,
-    },
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
@@ -870,15 +661,6 @@ const GEMINI_3_5_FLASH = {
       'url_context',
       'computer_use',
     ],
-  },
-  pricing: {
-    input: {
-      normal: 1.5,
-      cached: 0.15,
-    },
-    output: {
-      normal: 9,
-    },
   },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
@@ -913,15 +695,6 @@ const GEMINI_3_5_FLASH_LITE = {
       'url_context',
     ],
   },
-  pricing: {
-    input: {
-      normal: 0.3,
-      cached: 0.03,
-    },
-    output: {
-      normal: 2.5,
-    },
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
@@ -940,15 +713,6 @@ const GEMINI_4_ARGON = {
     output: ['text'],
     capabilities: ['function_calling', 'structured_output', 'thinking'],
     tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
-  },
-  pricing: {
-    input: {
-      normal: 2,
-      cached: 0.1,
-    },
-    output: {
-      normal: 10,
-    },
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &

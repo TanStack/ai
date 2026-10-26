@@ -342,7 +342,7 @@ const EFFORT_NONE_LOW_TO_XHIGH = {
 
 const GPT5_2 = {
   name: 'gpt-5.2',
-  // ...supports, pricing
+  // ...supports
   reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 

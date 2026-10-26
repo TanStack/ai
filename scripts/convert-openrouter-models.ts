@@ -47,21 +47,6 @@ function mapInputModality(modality: string): InputModality | null {
   return mapping[modality.toLowerCase()] || null
 }
 
-function convertPricing(priceStr: string, isImage: boolean = false): number {
-  // OpenRouter pricing is typically per token (in dollars)
-  // Convert to number
-  const price = parseFloat(priceStr)
-  if (isImage) {
-    return isNaN(price) ? 0 : price
-  }
-  return finalPrice(isNaN(price) ? 0 : price)
-}
-function finalPrice(price: number): number {
-  // Ensure price is non-negative and rounded to avoid floating-point errors
-  const result = price * 1_000_000
-  // Round to a reasonable number of decimal places
-  return Math.round(result * 1e10) / 1e10
-}
 const perModelProviderOptions: Record<string, string> = {}
 const perModelInputModalities: Record<string, string> = {}
 
@@ -358,16 +343,6 @@ function generateModelMetaString(model: OpenRouterModel): string {
   if (outputModalities.includes('video')) {
     videoModels.add(`${constName}.id`)
   }
-  const inputPrice = convertPricing(model.pricing.prompt)
-  const outputPrice = convertPricing(model.pricing.completion)
-  const imagePrice = convertPricing(model.pricing.image ?? '0', true)
-  const inputCacheReadPrice = convertPricing(
-    model.pricing.input_cache_read ?? '0',
-  )
-  const inputCacheWritePrice = convertPricing(
-    model.pricing.input_cache_write ?? '0',
-  )
-
   const paramNameMap: Record<string, string> = {
     max_tokens: 'maxCompletionTokens',
     frequency_penalty: 'frequencyPenalty',
@@ -435,18 +410,6 @@ function generateModelMetaString(model: OpenRouterModel): string {
     )
   }
 
-  lines.push(`    pricing: {`)
-  lines.push(`      text: {`)
-  lines.push(`        input: {`)
-  lines.push(`          normal: ${inputPrice},`)
-  lines.push(`          cached: ${inputCacheReadPrice + inputCacheWritePrice},`)
-  lines.push(`        },`)
-  lines.push(`        output: {`)
-  lines.push(`          normal: ${outputPrice},`)
-  lines.push(`        },`)
-  lines.push(`      },`)
-  lines.push(`      image: ${imagePrice},`)
-  lines.push(`    },`)
   const reasoning = existingReasoning[model.id]
   if (reasoning) {
     lines.push(`    reasoning: ${reasoningShapeName(reasoning)},`)

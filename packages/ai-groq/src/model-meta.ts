@@ -15,16 +15,12 @@ const EFFORT_NONE_LOW_TO_HIGH = {
 } as const
 
 /**
- * Internal metadata structure describing a Groq model's capabilities and pricing.
+ * Internal metadata structure describing a Groq model's capabilities.
  */
 interface ModelMeta<TProviderOptions = unknown> {
   name: string
   context_window?: number
   max_completion_tokens?: number
-  pricing: {
-    input?: { normal: number; cached?: number }
-    output?: { normal: number }
-  }
   supports: {
     input: Array<'text' | 'image' | 'audio'>
     output: Array<'text' | 'audio'>
@@ -55,14 +51,6 @@ const LLAMA_PROMPT_GUARD_2_86M = {
   name: 'meta-llama/llama-prompt-guard-2-86m',
   context_window: 512,
   max_completion_tokens: 512,
-  pricing: {
-    input: {
-      normal: 0.04,
-    },
-    output: {
-      normal: 0.04,
-    },
-  },
   supports: {
     input: ['text'],
     output: ['text'],
@@ -76,14 +64,6 @@ const LLAMA_PROMPT_GUARD_2_22M = {
   name: 'meta-llama/llama-prompt-guard-2-22m',
   context_window: 512,
   max_completion_tokens: 512,
-  pricing: {
-    input: {
-      normal: 0.03,
-    },
-    output: {
-      normal: 0.03,
-    },
-  },
   supports: {
     input: ['text'],
     output: ['text'],
@@ -97,15 +77,6 @@ const GPT_OSS_120B = {
   name: 'openai/gpt-oss-120b',
   context_window: 131_072,
   max_completion_tokens: 65_536,
-  pricing: {
-    input: {
-      normal: 0.15,
-      cached: 0.075,
-    },
-    output: {
-      normal: 0.6,
-    },
-  },
   supports: {
     input: ['text'],
     output: ['text'],
@@ -128,15 +99,6 @@ const GPT_OSS_SAFEGUARD_20B = {
   name: 'openai/gpt-oss-safeguard-20b',
   context_window: 131_072,
   max_completion_tokens: 65_536,
-  pricing: {
-    input: {
-      normal: 0.075,
-      cached: 0.037,
-    },
-    output: {
-      normal: 0.3,
-    },
-  },
   supports: {
     input: ['text'],
     output: ['text'],
@@ -160,15 +122,6 @@ const GPT_OSS_20B = {
   name: 'openai/gpt-oss-20b',
   context_window: 131_072,
   max_completion_tokens: 65_536,
-  pricing: {
-    input: {
-      normal: 0.075,
-      cached: 0.037,
-    },
-    output: {
-      normal: 0.3,
-    },
-  },
   supports: {
     input: ['text'],
     output: ['text'],
@@ -191,14 +144,6 @@ const QWEN_QWEN3_8_27B = {
   name: 'qwen/qwen3.8-27b',
   context_window: 131_072,
   max_completion_tokens: 16_384,
-  pricing: {
-    input: {
-      normal: 0.8,
-    },
-    output: {
-      normal: 4,
-    },
-  },
   supports: {
     input: ['text', 'image'],
     output: ['text'],
@@ -349,11 +294,6 @@ export type GroqTranscriptionModel = (typeof GROQ_TRANSCRIPTION_MODELS)[number]
 
 const ORPHEUS_V1_ENGLISH = {
   name: 'canopylabs/orpheus-v1-english',
-  pricing: {
-    input: {
-      normal: 22,
-    },
-  },
   supports: {
     input: ['text'],
     output: ['audio'],
@@ -364,11 +304,6 @@ const ORPHEUS_V1_ENGLISH = {
 
 const ORPHEUS_ARABIC_SAUDI = {
   name: 'canopylabs/orpheus-arabic-saudi',
-  pricing: {
-    input: {
-      normal: 40,
-    },
-  },
   supports: {
     input: ['text'],
     output: ['audio'],

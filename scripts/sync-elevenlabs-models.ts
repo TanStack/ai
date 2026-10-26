@@ -2,14 +2,17 @@
  * Inserts new ElevenLabs model ids into
  * `packages/ai-elevenlabs/src/model-meta.ts`.
  *
- * Text-to-speech: https://modelschemas.com/v1/models?provider=elevenlabs
- * Music: request schema `v1/music` (compose). That enum is the SDK
- * `MusicModelId` set.
- * Sound effects: `v1/sound-generation`.
- * Voice design: `v1/text-to-voice/design`.
+ * Reads modelschemas through `@modelschemas/client`:
+ * - Text-to-speech: `listModels` for provider `elevenlabs`.
+ * - Music: request schema `v1/music` (compose). That enum is the SDK
+ *   `MusicModelId` set.
+ * - Sound effects: `v1/sound-generation`.
+ * - Voice design: `v1/text-to-voice/design`.
  *
  * Usage:
  *   pnpm tsx scripts/sync-elevenlabs-models.ts
+ *
+ * Optional: MODELSCHEMAS_API_KEY raises the modelschemas rate limit.
  *
  * Runs as part of `pnpm generate:models` (the daily Sync Model Metadata
  * workflow). Only adds missing ids. Transcription stays hand-maintained:
@@ -26,9 +29,12 @@ import {
   ttsModelIdsFromCatalog,
 } from './model-sync/elevenlabs'
 import type { ElevenLabsCatalogModel } from './model-sync/elevenlabs'
+import {
+  createSyncClient,
+  getInputSchema,
+  listRawModels,
+} from './model-sync/modelschemas'
 
-const CATALOG_URL = 'https://modelschemas.com/v1/models?provider=elevenlabs'
-const SCHEMA_ROOT = 'https://modelschemas.com/v1/schemas/elevenlabs/audio'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const META_FILE = resolve(
   __dirname,
@@ -40,41 +46,34 @@ interface CatalogResponse {
   models?: Array<ElevenLabsCatalogModel>
 }
 
-function schemaUrl(endpointId: string): string {
-  return `${SCHEMA_ROOT}/${endpointId}?kind=input`
-}
-
-async function readJson(url: string): Promise<unknown> {
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new Error(
-      `modelschemas ${response.status} ${response.statusText} for ${url}`,
-    )
-  }
-  return response.json()
-}
-
-function unwrapSchema(payload: unknown, url: string): unknown {
+function unwrapSchema(payload: unknown, endpointId: string): unknown {
   if (
     typeof payload !== 'object' ||
     payload === null ||
     !('schema' in payload)
   ) {
-    throw new Error(`modelschemas response has no schema for ${url}`)
+    throw new Error(`modelschemas response has no schema for ${endpointId}`)
   }
   return payload.schema
 }
 
 async function main() {
-  const musicUrl = schemaUrl('v1/music')
-  const sfxUrl = schemaUrl('v1/sound-generation')
-  const voiceUrl = schemaUrl('v1/text-to-voice/design')
-  const [catalogPayload, musicPayload, sfxPayload, voicePayload] =
+  const client = createSyncClient()
+  const schema = async (endpointId: string) =>
+    unwrapSchema(
+      await getInputSchema(client, {
+        provider: 'elevenlabs',
+        activity: 'audio',
+        endpointId,
+      }),
+      endpointId,
+    )
+  const [catalogPayload, musicSchema, sfxSchema, voiceSchema] =
     await Promise.all([
-      readJson(CATALOG_URL),
-      readJson(musicUrl),
-      readJson(sfxUrl),
-      readJson(voiceUrl),
+      listRawModels(client, 'elevenlabs'),
+      schema('v1/music'),
+      schema('v1/sound-generation'),
+      schema('v1/text-to-voice/design'),
     ])
 
   const body = catalogPayload as CatalogResponse
@@ -94,14 +93,14 @@ async function main() {
       'ELEVENLABS_AUDIO_MODELS',
       'audio',
       [
-        ...modelIdsFromRequestSchema(unwrapSchema(musicPayload, musicUrl)),
-        ...modelIdsFromRequestSchema(unwrapSchema(sfxPayload, sfxUrl)),
+        ...modelIdsFromRequestSchema(musicSchema),
+        ...modelIdsFromRequestSchema(sfxSchema),
       ],
     ],
     [
       'ELEVENLABS_VOICE_MODELS',
       'voice',
-      modelIdsFromRequestSchema(unwrapSchema(voicePayload, voiceUrl)),
+      modelIdsFromRequestSchema(voiceSchema),
     ],
   ]
   if (groups.some(([, , ids]) => ids.length === 0)) {

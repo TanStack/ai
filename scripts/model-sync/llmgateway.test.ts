@@ -1,16 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { catalogRowToMeta, pricePerMillion } from './llmgateway'
+import { catalogRowToMeta } from './llmgateway'
 
 const minimax = {
   id: 'minimax-m3.1-flash',
   architecture: {
     input_modalities: ['text', 'image'],
     output_modalities: ['text'],
-  },
-  pricing: {
-    prompt: '0.15e-6',
-    completion: '0.6e-6',
-    input_cache_read: '0.015e-6',
   },
   context_length: 1048576,
   max_output: 524288,
@@ -28,18 +23,8 @@ const minimax = {
 }
 
 describe('LLM Gateway catalog rows', () => {
-  it('scales per-token prices to USD per million', () => {
-    expect(pricePerMillion('2.0e-6')).toBe(2)
-    expect(pricePerMillion('0.15e-6')).toBe(0.15)
-    expect(pricePerMillion('0')).toBeUndefined()
-  })
-
-  it('maps reasoning efforts and prices for a chat row', () => {
+  it('maps reasoning efforts for a chat row', () => {
     const meta = catalogRowToMeta(minimax)
-    expect(meta?.pricing).toEqual({
-      input: { normal: 0.15, cached: 0.015 },
-      output: { normal: 0.6 },
-    })
     expect(meta?.reasoning).toEqual({
       levels: {
         low: 'low',

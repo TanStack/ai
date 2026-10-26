@@ -58,6 +58,8 @@ export default defineConfig({
     '@cloudflare/workers-types': '^4.20260317.1',
     '@decartai/tanstack-ai-adapter': '^0.0.2',
     '@mynthio/tanstack-ai-adapter': '^0.0.14',
+    // Live model prices (docs/advanced/model-prices.md)
+    '@modelschemas/rate-card': '^0.2.1',
     '@cencori/ai-sdk': '^0.4.0',
     '@soniox/tanstack-ai-adapter': '^0.1.2',
     '@upstash/agentkit-tanstack-ai': '^0.1.1',

@@ -90,6 +90,8 @@ lockfile shows which package manager to use.
 
 Things that trip agents up:
 
+- Model prices: never from memory and never from `model-meta.ts` (it has
+  none). Read them live from modelschemas, as in `docs/advanced/model-prices.md`.
 - Model ids: never from memory. Most adapters ship them in
   `node_modules/@tanstack/ai-<provider>/src/model-meta.ts`; take the newest id
   with the capability the task needs.

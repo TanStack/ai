@@ -59,7 +59,6 @@ export interface LlmGatewayCatalogRow {
     input_modalities?: unknown
     output_modalities?: unknown
   }
-  pricing?: Record<string, unknown>
   context_length?: unknown
   max_output?: unknown
   supported_parameters?: unknown
@@ -72,10 +71,6 @@ export interface LlmGatewayModelMeta {
   id: string
   contextWindow?: number
   maxCompletionTokens?: number
-  pricing: {
-    input?: { normal: number; cached?: number }
-    output?: { normal: number }
-  }
   input: Array<LlmGatewayInput>
   features: Array<LlmGatewayFeature>
   reasoning?: ReasoningShape
@@ -107,14 +102,6 @@ function positiveInt(value: unknown): number | undefined {
   const n = typeof value === 'number' ? value : Number(value)
   if (!Number.isInteger(n) || n <= 0) return undefined
   return n
-}
-
-/** Catalog prices are USD per token. Model meta stores USD per million. */
-export function pricePerMillion(value: unknown): number | undefined {
-  if (typeof value !== 'string' && typeof value !== 'number') return undefined
-  const perToken = typeof value === 'number' ? value : Number(value)
-  if (!Number.isFinite(perToken) || perToken <= 0) return undefined
-  return Math.round(perToken * 1e6 * 1e6) / 1e6
 }
 
 function inputOf(row: LlmGatewayCatalogRow): Array<LlmGatewayInput> {
@@ -181,9 +168,6 @@ export function catalogRowToMeta(
     flags.add('vision')
   }
 
-  const normal = pricePerMillion(row.pricing?.prompt)
-  const cached = pricePerMillion(row.pricing?.input_cache_read)
-  const output = pricePerMillion(row.pricing?.completion)
   const maxFromProvider = providers
     .map((provider) => positiveInt(provider.max_output))
     .find((value) => value !== undefined)
@@ -192,13 +176,6 @@ export function catalogRowToMeta(
     id: row.id,
     contextWindow: positiveInt(row.context_length),
     maxCompletionTokens: positiveInt(row.max_output) ?? maxFromProvider,
-    pricing: {
-      input:
-        normal === undefined
-          ? undefined
-          : { normal, ...(cached === undefined ? {} : { cached }) },
-      output: output === undefined ? undefined : { normal: output },
-    },
     input,
     features: FEATURE_ORDER.filter((feature) => flags.has(feature)),
     reasoning,

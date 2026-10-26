@@ -32,15 +32,6 @@ interface ModelMeta {
   max_output_tokens?: number
   context_window?: number
   knowledge_cutoff?: string
-  pricing?: {
-    input: {
-      normal: number
-      cached?: number
-    }
-    output: {
-      normal: number
-    }
-  }
   /** The model's data for `chat({ reasoning })`. None: it does not reason. */
   reasoning?: ModelReasoning
 }
@@ -54,15 +45,6 @@ const GROK_4_5 = {
     capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
     tools: [],
   },
-  pricing: {
-    input: {
-      normal: 2,
-      cached: 0.3,
-    },
-    output: {
-      normal: 6,
-    },
-  },
   reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta
 
@@ -74,15 +56,6 @@ const GROK_4_6 = {
     output: ['text'],
     capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
     tools: [],
-  },
-  pricing: {
-    input: {
-      normal: 2,
-      cached: 0.5,
-    },
-    output: {
-      normal: 6,
-    },
   },
   reasoning: EFFORT_LOW_TO_XHIGH,
 } as const satisfies ModelMeta
@@ -96,15 +69,6 @@ const GROK_4_7 = {
     output: ['text'],
     capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
     tools: [],
-  },
-  pricing: {
-    input: {
-      normal: 1.6,
-      cached: 0.4,
-    },
-    output: {
-      normal: 4.8,
-    },
   },
   reasoning: EFFORT_LOW_TO_XHIGH,
 } as const satisfies ModelMeta
@@ -122,20 +86,12 @@ const GROK_RESPONSES_TOOLS = [
   'mcp',
 ] as const satisfies ReadonlyArray<GrokProviderToolKind>
 
-// Imagine API image models. Pricing is per generated image (output only).
+// Imagine API image models.
 const GROK_IMAGINE_IMAGE = {
   name: 'grok-imagine-image',
   supports: {
     input: ['text', 'image'],
     output: ['image'],
-  },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0.02,
-    },
   },
 } as const satisfies ModelMeta
 
@@ -144,14 +100,6 @@ const GROK_IMAGINE_IMAGE_QUALITY = {
   supports: {
     input: ['text', 'image'],
     output: ['image'],
-  },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0.05,
-    },
   },
 } as const satisfies ModelMeta
 
@@ -163,18 +111,9 @@ const GROK_IMAGINE_IMAGE_2_0 = {
     input: ['text', 'image'],
     output: ['image'],
   },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0.04,
-    },
-  },
 } as const satisfies ModelMeta
 
-// Imagine API video models. Pricing is per second of generated video
-// (output only); generated videos carry an audio track.
+// Imagine API video models. Generated videos carry an audio track.
 //
 // Both models support text-to-video and image-to-video (a starting-frame
 // image is optional). grok-imagine-video-1.5 is the documented default: it
@@ -189,15 +128,6 @@ const GROK_IMAGINE_VIDEO = {
     input: ['text', 'image', 'video'],
     output: ['video', 'audio'],
   },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      // per second of video
-      normal: 0.05,
-    },
-  },
 } as const satisfies ModelMeta
 
 const GROK_IMAGINE_VIDEO_1_5 = {
@@ -205,15 +135,6 @@ const GROK_IMAGINE_VIDEO_1_5 = {
   supports: {
     input: ['text', 'image'],
     output: ['video', 'audio'],
-  },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      // per second of video
-      normal: 0.08,
-    },
   },
 } as const satisfies ModelMeta
 
@@ -226,15 +147,6 @@ const GROK_4_3 = {
     capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
     tools: GROK_RESPONSES_TOOLS,
   },
-  pricing: {
-    input: {
-      normal: 1.25,
-      cached: 0.2,
-    },
-    output: {
-      normal: 2.5,
-    },
-  },
   reasoning: EFFORT_NONE_LOW_TO_HIGH,
 } as const satisfies ModelMeta
 
@@ -246,15 +158,6 @@ const GROK_BUILD_0_1 = {
     output: ['text'],
     capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
     tools: GROK_RESPONSES_TOOLS,
-  },
-  pricing: {
-    input: {
-      normal: 1,
-      cached: 0.2,
-    },
-    output: {
-      normal: 2,
-    },
   },
 } as const satisfies ModelMeta
 

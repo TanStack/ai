@@ -71,6 +71,31 @@ describe('buildProviderSupportsBody', () => {
     expect(body).toContain('thinking')
   })
 
+  it('writes Groq features without copying hosted tools', () => {
+    const body = buildProviderSupportsBody({
+      provider: 'groq',
+      inputModalities: ['text'],
+      supportedParameters: ['tools', 'structured_outputs'],
+    })
+    expect(body).toContain("endpoints: ['chat']")
+    expect(body).toContain('tools: [] as const')
+    expect(body).toContain("'json_schema'")
+    expect(body).not.toContain('browser_search')
+  })
+
+  it('writes BytePlus capabilities but leaves structured outputs to the probed list', () => {
+    const body = buildProviderSupportsBody({
+      provider: 'byteplus',
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      supportedParameters: ['tools', 'reasoning', 'structured_outputs'],
+    })
+    expect(body).toContain('tool_calling')
+    expect(body).toContain('reasoning')
+    expect(body).toContain('tools: [] as const')
+    expect(body).not.toContain('structured_outputs')
+  })
+
   it('lists Grok server tools', () => {
     const body = buildProviderSupportsBody({
       provider: 'grok',
@@ -88,7 +113,6 @@ describe('buildAnthropicProviderOptionsType', () => {
   it('uses max_tokens and no sampling when sampling is not listed', () => {
     const type = buildAnthropicProviderOptionsType({
       supportedParameters: ['max_tokens', 'reasoning', 'tools'],
-      hasCachedPricing: true,
     })
     expect(type).toContain('AnthropicCacheControlOptions')
     expect(type).toContain('AnthropicMaxTokensOptions')

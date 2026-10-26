@@ -105,15 +105,6 @@ interface ModelMeta<
   context_window?: number
   max_output_tokens?: number
   knowledge_cutoff?: string
-  pricing: {
-    input: {
-      normal: number
-      cached?: number
-    }
-    output: {
-      normal: number
-    }
-  }
   /**
    * Type-level description of which provider options this model supports.
    */
@@ -138,14 +129,6 @@ const CLAUDE_OPUS_4_6 = {
   context_window: 200_000,
   max_output_tokens: 128_000,
   knowledge_cutoff: '2025-05-01',
-  pricing: {
-    input: {
-      normal: 5,
-    },
-    output: {
-      normal: 25,
-    },
-  },
   supports: {
     input: ['text', 'image', 'document'],
     extended_thinking: true,
@@ -180,14 +163,6 @@ const CLAUDE_OPUS_4_5 = {
   context_window: 200_000,
   max_output_tokens: 32_000,
   knowledge_cutoff: '2025-11-01',
-  pricing: {
-    input: {
-      normal: 15,
-    },
-    output: {
-      normal: 75,
-    },
-  },
   supports: {
     input: ['text', 'image', 'document'],
     extended_thinking: true,
@@ -223,14 +198,6 @@ const CLAUDE_SONNET_4_6 = {
   context_window: 1_000_000,
   max_output_tokens: 64_000,
   knowledge_cutoff: '2025-08-01',
-  pricing: {
-    input: {
-      normal: 3,
-    },
-    output: {
-      normal: 15,
-    },
-  },
   supports: {
     input: ['text', 'image', 'document'],
     extended_thinking: true,
@@ -265,14 +232,6 @@ const CLAUDE_SONNET_4_5 = {
   context_window: 200_000,
   max_output_tokens: 64_000,
   knowledge_cutoff: '2025-09-29',
-  pricing: {
-    input: {
-      normal: 3,
-    },
-    output: {
-      normal: 15,
-    },
-  },
   supports: {
     input: ['text', 'image', 'document'],
     extended_thinking: true,
@@ -306,14 +265,6 @@ const CLAUDE_HAIKU_4_5 = {
   context_window: 200_000,
   max_output_tokens: 64_000,
   knowledge_cutoff: '2025-10-01',
-  pricing: {
-    input: {
-      normal: 1,
-    },
-    output: {
-      normal: 5,
-    },
-  },
   supports: {
     input: ['text', 'image', 'document'],
     extended_thinking: true,
@@ -365,15 +316,6 @@ const CLAUDE_OPUS_4_7 = {
       'memory',
     ],
   },
-  pricing: {
-    input: {
-      normal: 5,
-      cached: 0.5,
-    },
-    output: {
-      normal: 25,
-    },
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   AnthropicCacheControlOptions &
@@ -410,15 +352,6 @@ const CLAUDE_OPUS_4_8 = {
       'text_editor',
       'memory',
     ],
-  },
-  pricing: {
-    input: {
-      normal: 5,
-      cached: 0.5,
-    },
-    output: {
-      normal: 25,
-    },
   },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const satisfies ModelMeta<
@@ -460,15 +393,6 @@ const CLAUDE_FABLE_5 = {
       'memory',
     ],
   },
-  pricing: {
-    input: {
-      normal: 10,
-      cached: 1,
-    },
-    output: {
-      normal: 50,
-    },
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   AnthropicCacheControlOptions &
@@ -486,7 +410,7 @@ const CLAUDE_FABLE_5 = {
 // runs adaptive); `{type: 'disabled'}` opts out, but the manual
 // `{type: 'enabled', budget_tokens}` shape and non-default sampling
 // parameters (`temperature`, `top_p`, `top_k`) are rejected with a 400.
-// No Priority Tier. $2/$10 per MTok is the standard price.
+// No Priority Tier.
 const CLAUDE_SONNET_5 = {
   name: 'claude-sonnet-5',
   id: 'claude-sonnet-5',
@@ -507,15 +431,6 @@ const CLAUDE_SONNET_5 = {
       'text_editor',
       'memory',
     ],
-  },
-  pricing: {
-    input: {
-      normal: 2,
-      cached: 0.2,
-    },
-    output: {
-      normal: 10,
-    },
   },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
@@ -558,15 +473,6 @@ const CLAUDE_OPUS_5 = {
       'memory',
     ],
   },
-  pricing: {
-    input: {
-      normal: 5,
-      cached: 0.5,
-    },
-    output: {
-      normal: 25,
-    },
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
@@ -599,15 +505,6 @@ const CLAUDE_FABLE_5_1 = {
       'text_editor',
       'memory',
     ],
-  },
-  pricing: {
-    input: {
-      normal: 10,
-      cached: 0.25,
-    },
-    output: {
-      normal: 50,
-    },
   },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const satisfies ModelMeta<
@@ -642,15 +539,6 @@ const CLAUDE_OPUS_5_5 = {
       'text_editor',
       'memory',
     ],
-  },
-  pricing: {
-    input: {
-      normal: 4,
-      cached: 0.2,
-    },
-    output: {
-      normal: 20,
-    },
   },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const satisfies ModelMeta<
@@ -692,15 +580,6 @@ const CLAUDE_SONNET_5_5 = {
       'memory',
     ],
   },
-  pricing: {
-    input: {
-      normal: 2,
-      cached: 0.1,
-    },
-    output: {
-      normal: 10,
-    },
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   AnthropicCacheControlOptions &
@@ -715,7 +594,7 @@ const CLAUDE_SONNET_5_5 = {
 >
 
 // Claude Haiku 5.5: `disabled` thinking 400s at xhigh/max (the types cannot
-// say so). Pricing is the <=100K-token tier.
+// say so).
 const CLAUDE_HAIKU_5_5 = {
   name: 'claude-haiku-5-5',
   id: 'claude-haiku-5-5',
@@ -736,15 +615,6 @@ const CLAUDE_HAIKU_5_5 = {
       'text_editor',
       'memory',
     ],
-  },
-  pricing: {
-    input: {
-      normal: 0.1,
-      cached: 0.01,
-    },
-    output: {
-      normal: 0.5,
-    },
   },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<

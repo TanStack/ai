@@ -117,15 +117,6 @@ interface ModelMeta<TProviderOptions = unknown> {
   context_window?: number
   max_output_tokens?: number
   knowledge_cutoff?: string
-  pricing: {
-    input: {
-      normal: number
-      cached?: number
-    }
-    output: {
-      normal: number
-    }
-  }
   /**
    * Type-level description of which provider options this model supports.
    */
@@ -163,15 +154,6 @@ const GPT5_2 = {
       'apply_patch',
     ],
   },
-  pricing: {
-    input: {
-      normal: 1.75,
-      cached: 0.175,
-    },
-    output: {
-      normal: 14,
-    },
-  },
   reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -204,14 +186,6 @@ const GPT5_2_PRO = {
       'apply_patch',
     ],
   },
-  pricing: {
-    input: {
-      normal: 21,
-    },
-    output: {
-      normal: 168,
-    },
-  },
   reasoning: EFFORT_MEDIUM_TO_XHIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -238,15 +212,6 @@ const GPT5_2_CHAT = {
       'code_interpreter',
       'mcp',
     ],
-  },
-  pricing: {
-    input: {
-      normal: 1.75,
-      cached: 0.175,
-    },
-    output: {
-      normal: 14,
-    },
   },
   reasoning: EFFORT_MEDIUM,
 } as const satisfies ModelMeta<
@@ -285,15 +250,6 @@ const GPT5_1 = {
       'apply_patch',
     ],
   },
-  pricing: {
-    input: {
-      normal: 1.25,
-      cached: 0.125,
-    },
-    output: {
-      normal: 10,
-    },
-  },
   reasoning: EFFORT_NONE_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -321,15 +277,6 @@ const GPT5_1_CODEX = {
       'shell',
       'apply_patch',
     ],
-  },
-  pricing: {
-    input: {
-      normal: 1.25,
-      cached: 0.125,
-    },
-    output: {
-      normal: 10,
-    },
   },
   reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
@@ -369,15 +316,6 @@ const GPT5 = {
       'apply_patch',
     ],
   },
-  pricing: {
-    input: {
-      normal: 1.25,
-      cached: 0.125,
-    },
-    output: {
-      normal: 10,
-    },
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -411,15 +349,6 @@ const GPT5_MINI = {
       'apply_patch',
     ],
   },
-  pricing: {
-    input: {
-      normal: 0.25,
-      cached: 0.025,
-    },
-    output: {
-      normal: 2,
-    },
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -434,15 +363,6 @@ const GPT5_NANO = {
   context_window: 400_000,
   max_output_tokens: 128_000,
   knowledge_cutoff: '2024-05-31',
-  pricing: {
-    input: {
-      normal: 0.05,
-      cached: 0.005,
-    },
-    output: {
-      normal: 0.4,
-    },
-  },
   supports: {
     input: ['text', 'image', 'document'],
     output: ['text'],
@@ -476,14 +396,6 @@ const GPT5_PRO = {
   context_window: 400_000,
   max_output_tokens: 272_000,
   knowledge_cutoff: '2024-09-30',
-  pricing: {
-    input: {
-      normal: 15,
-    },
-    output: {
-      normal: 120,
-    },
-  },
   supports: {
     input: ['text', 'image', 'document'],
     output: ['text'],
@@ -517,15 +429,6 @@ const GPT5_CODEX = {
   context_window: 400_000,
   max_output_tokens: 128_000,
   knowledge_cutoff: '2024-09-30',
-  pricing: {
-    input: {
-      normal: 1.25,
-      cached: 0.125,
-    },
-    output: {
-      normal: 10,
-    },
-  },
   supports: {
     input: ['text', 'image', 'document'],
     output: ['text', 'image'],
@@ -555,15 +458,6 @@ const GPT5_CODEX = {
  */
 const SORA2 = {
   name: 'sora-2',
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      // per second of video
-      normal: 0.1,
-    },
-  },
   supports: {
     input: ['text', 'image'],
     output: ['video', 'audio'],
@@ -580,15 +474,6 @@ const SORA2 = {
  */
 const SORA2_PRO = {
   name: 'sora-2-pro',
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      // per second of video
-      normal: 0.5,
-    },
-  },
   supports: {
     input: ['text', 'image'],
     output: ['video', 'audio'],
@@ -602,15 +487,6 @@ const SORA2_PRO = {
 const GPT_IMAGE_1 = {
   name: 'gpt-image-1',
   // todo fix for images
-  pricing: {
-    input: {
-      normal: 5,
-      cached: 1.25,
-    },
-    output: {
-      normal: 0.1,
-    },
-  },
   supports: {
     input: ['text', 'image'],
     output: ['image'],
@@ -625,15 +501,6 @@ const GPT_IMAGE_1 = {
 const GPT_IMAGE_1_MINI = {
   name: 'gpt-image-1-mini',
   // todo fix for images
-  pricing: {
-    input: {
-      normal: 2,
-      cached: 0.2,
-    },
-    output: {
-      normal: 0.03,
-    },
-  },
   supports: {
     input: ['text', 'image'],
     output: ['image'],
@@ -647,15 +514,6 @@ const GPT_IMAGE_1_MINI = {
 
 const GPT_IMAGE_2_5_FLARE = {
   name: 'gpt-image-2.5-flare',
-  pricing: {
-    input: {
-      normal: 5,
-      cached: 1.25,
-    },
-    output: {
-      normal: 30,
-    },
-  },
   supports: {
     input: ['text', 'image'],
     output: ['image'],
@@ -668,15 +526,6 @@ const GPT_IMAGE_2_5_FLARE = {
 
 const GPT_IMAGE_2_5_SUNBURST = {
   name: 'gpt-image-2.5-sunburst',
-  pricing: {
-    input: {
-      normal: 5,
-      cached: 1.25,
-    },
-    output: {
-      normal: 30,
-    },
-  },
   supports: {
     input: ['text', 'image'],
     output: ['image'],
@@ -690,15 +539,6 @@ const GPT_IMAGE_2_5_SUNBURST = {
 const GPT_IMAGE_2 = {
   name: 'gpt-image-2',
   knowledge_cutoff: '2026-04-21',
-  pricing: {
-    input: {
-      normal: 5,
-      cached: 1.25,
-    },
-    output: {
-      normal: 30,
-    },
-  },
   supports: {
     input: ['text', 'image'],
     output: ['image'],
@@ -714,15 +554,6 @@ const O3_DEEP_RESEARCH = {
   context_window: 200_000,
   max_output_tokens: 100_000,
   knowledge_cutoff: '2024-01-01',
-  pricing: {
-    input: {
-      normal: 10,
-      cached: 2.5,
-    },
-    output: {
-      normal: 40,
-    },
-  },
   supports: {
     input: ['text', 'image'],
     output: ['text'],
@@ -751,15 +582,6 @@ const O4_MINI_DEEP_RESEARCH = {
   context_window: 200_000,
   max_output_tokens: 100_000,
   knowledge_cutoff: '2024-01-01',
-  pricing: {
-    input: {
-      normal: 2,
-      cached: 0.5,
-    },
-    output: {
-      normal: 8,
-    },
-  },
   supports: {
     input: ['text', 'image'],
     output: ['text'],
@@ -788,14 +610,6 @@ const O3_PRO = {
   context_window: 200_000,
   max_output_tokens: 100_000,
   knowledge_cutoff: '2024-01-01',
-  pricing: {
-    input: {
-      normal: 20,
-    },
-    output: {
-      normal: 80,
-    },
-  },
   supports: {
     input: ['text', 'image', 'document'],
     output: ['text'],
@@ -829,15 +643,6 @@ const GPT_AUDIO = {
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: '2023-10-01',
-  pricing: {
-    // todo add  audio tokens to input output
-    input: {
-      normal: 2.5,
-    },
-    output: {
-      normal: 10,
-    },
-  },
   supports: {
     input: ['text', 'audio'],
     output: ['text', 'audio'],
@@ -857,16 +662,6 @@ const GPT_AUDIO = {
   context_window: 32_000,
   max_output_tokens: 4_096,
   knowledge_cutoff: '2023-10-01',
-  pricing: {
-    // todo add  audio tokens to input output
-    input: {
-      normal: 4,
-      cached: 0.5,
-    },
-    output: {
-      normal: 16,
-    },
-  },
   supports: {
     input: ['text', 'audio', 'image'],
     output: ['text', 'audio'],
@@ -885,16 +680,6 @@ const GPT_REALTIME_MINI = {
   context_window: 32_000,
   max_output_tokens: 4_096,
   knowledge_cutoff: '2023-10-01',
-  pricing: {
-    // todo add  audio and image tokens to input output
-    input: {
-      normal: 0.6,
-      cached: 0.06,
-    },
-    output: {
-      normal: 2.4,
-    },
-  },
   supports: {
     input: ['text', 'audio', 'image'],
     output: ['text', 'audio'],
@@ -913,15 +698,6 @@ const GPT_AUDIO_MINI = {
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: '2023-10-01',
-  pricing: {
-    // todo add  audio tokens to input output
-    input: {
-      normal: 0.6,
-    },
-    output: {
-      normal: 2.4,
-    },
-  },
   supports: {
     input: ['text', 'audio'],
     output: ['text', 'audio'],
@@ -941,15 +717,6 @@ const O3 = {
   context_window: 200_000,
   max_output_tokens: 100_000,
   knowledge_cutoff: '2024-01-01',
-  pricing: {
-    input: {
-      normal: 2,
-      cached: 0.5,
-    },
-    output: {
-      normal: 8,
-    },
-  },
   supports: {
     input: ['text', 'image', 'document'],
     output: ['text'],
@@ -983,15 +750,6 @@ const O4_MINI = {
   context_window: 200_000,
   max_output_tokens: 100_000,
   knowledge_cutoff: '2024-01-01',
-  pricing: {
-    input: {
-      normal: 1.1,
-      cached: 0.275,
-    },
-    output: {
-      normal: 4.4,
-    },
-  },
   supports: {
     input: ['text', 'image', 'document'],
     output: ['text'],
@@ -1030,15 +788,6 @@ const GPT4_1 = {
   context_window: 1_047_576,
   max_output_tokens: 32_768,
   knowledge_cutoff: '2024-01-01',
-  pricing: {
-    input: {
-      normal: 2,
-      cached: 0.5,
-    },
-    output: {
-      normal: 8,
-    },
-  },
   supports: {
     input: ['text', 'image', 'document'],
     output: ['text'],
@@ -1083,15 +832,6 @@ const GPT4_1_MINI = {
   context_window: 1_047_576,
   max_output_tokens: 32_768,
   knowledge_cutoff: '2024-01-01',
-  pricing: {
-    input: {
-      normal: 0.4,
-      cached: 0.1,
-    },
-    output: {
-      normal: 1.6,
-    },
-  },
   supports: {
     input: ['text', 'image', 'document'],
     output: ['text'],
@@ -1135,15 +875,6 @@ const GPT4_1_NANO = {
   context_window: 1_047_576,
   max_output_tokens: 32_768,
   knowledge_cutoff: '2024-01-01',
-  pricing: {
-    input: {
-      normal: 0.1,
-      cached: 0.025,
-    },
-    output: {
-      normal: 0.4,
-    },
-  },
   supports: {
     input: ['text', 'image', 'document'],
     output: ['text'],
@@ -1188,14 +919,6 @@ const O1_PRO = {
   context_window: 200_000,
   max_output_tokens: 100_000,
   knowledge_cutoff: '2023-10-01',
-  pricing: {
-    input: {
-      normal: 150,
-    },
-    output: {
-      normal: 600,
-    },
-  },
   supports: {
     input: ['text', 'image', 'document'],
     output: ['text'],
@@ -1217,14 +940,6 @@ const GPT_4O_MINI_SEARCH_PREVIEW = {
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: '2023-10-01',
-  pricing: {
-    input: {
-      normal: 0.15,
-    },
-    output: {
-      normal: 0.6,
-    },
-  },
   supports: {
     input: ['text'],
     output: ['text'],
@@ -1241,14 +956,6 @@ const GPT_4O_SEARCH_PREVIEW = {
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: '2023-10-01',
-  pricing: {
-    input: {
-      normal: 2.5,
-    },
-    output: {
-      normal: 10,
-    },
-  },
   supports: {
     input: ['text'],
     output: ['text'],
@@ -1265,15 +972,6 @@ const O3_MINI = {
   context_window: 200_000,
   max_output_tokens: 100_000,
   knowledge_cutoff: '2023-10-01',
-  pricing: {
-    input: {
-      normal: 1.1,
-      cached: 0.55,
-    },
-    output: {
-      normal: 4.4,
-    },
-  },
   supports: {
     input: ['text'],
     output: ['text'],
@@ -1306,16 +1004,6 @@ const O3_MINI = {
   context_window: 16_000,
   max_output_tokens: 4_096,
   knowledge_cutoff: '2023-10-01',
-  pricing: {
-    // todo add audio tokens
-    input: {
-      normal: 0.6,
-      cached: 0.3,
-    },
-    output: {
-      normal: 2.4,
-    },
-  },
   supports: {
     input: ['text', 'audio'],
     output: ['text', 'audio'],
@@ -1334,15 +1022,6 @@ const O1 = {
   context_window: 200_000,
   max_output_tokens: 100_000,
   knowledge_cutoff: '2023-10-01',
-  pricing: {
-    input: {
-      normal: 15,
-      cached: 7.5,
-    },
-    output: {
-      normal: 60,
-    },
-  },
   supports: {
     input: ['text', 'image', 'document'],
     output: ['text'],
@@ -1361,14 +1040,6 @@ const O1 = {
 
 /* const OMNI_MODERATION = {
   name: 'omni-moderation',
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0,
-    },
-  },
   supports: {
     input: ['text', 'image'],
     output: ['text'],
@@ -1384,15 +1055,6 @@ const GPT_4O = {
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: '2023-10-01',
-  pricing: {
-    input: {
-      normal: 2.5,
-      cached: 1.25,
-    },
-    output: {
-      normal: 10,
-    },
-  },
   supports: {
     input: ['text', 'image', 'document'],
     output: ['text'],
@@ -1432,15 +1094,6 @@ const GPT_4O_MINI = {
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: '2023-10-01',
-  pricing: {
-    input: {
-      normal: 0.15,
-      cached: 0.075,
-    },
-    output: {
-      normal: 0.6,
-    },
-  },
   supports: {
     input: ['text', 'image', 'document'],
     output: ['text'],
@@ -1479,16 +1132,6 @@ const GPT_4O_MINI = {
   context_window: 32_000,
   max_output_tokens: 4_096,
   knowledge_cutoff: '2023-10-01',
-  pricing: {
-    // todo add  audio tokens to input output
-    input: {
-      normal: 5,
-      cached: 2.5,
-    },
-    output: {
-      normal: 20,
-    },
-  },
   supports: {
     input: ['text', 'audio'],
     output: ['text', 'audio'],
@@ -1507,14 +1150,6 @@ const GPT_4_TURBO = {
   context_window: 128_000,
   max_output_tokens: 4_096,
   knowledge_cutoff: '2023-12-01',
-  pricing: {
-    input: {
-      normal: 10,
-    },
-    output: {
-      normal: 30,
-    },
-  },
   supports: {
     input: ['text', 'image'],
     output: ['text'],
@@ -1534,15 +1169,6 @@ const GPT_5_1_CODEX_MINI = {
   context_window: 400_000,
   max_output_tokens: 128_000,
   knowledge_cutoff: '2024-09-30',
-  pricing: {
-    input: {
-      normal: 0.25,
-      cached: 0.025,
-    },
-    output: {
-      normal: 2,
-    },
-  },
   supports: {
     input: ['text', 'image'],
     output: ['text', 'image'],
@@ -1571,14 +1197,6 @@ const GPT_3_5_TURBO = {
   context_window: 16_385,
   max_output_tokens: 4_096,
   knowledge_cutoff: '2021-09-01',
-  pricing: {
-    input: {
-      normal: 0.5,
-    },
-    output: {
-      normal: 1.5,
-    },
-  },
   supports: {
     input: ['text'],
     output: ['text'],
@@ -1595,14 +1213,6 @@ const GPT_4 = {
   context_window: 8_192,
   max_output_tokens: 8_192,
   knowledge_cutoff: '2023-12-01',
-  pricing: {
-    input: {
-      normal: 30,
-    },
-    output: {
-      normal: 60,
-    },
-  },
   supports: {
     input: ['text'],
     output: ['text'],
@@ -1625,15 +1235,6 @@ const GPT_4O_MINI_TRANSCRIBE = {
   context_window: 16_000,
   max_output_tokens: 2_000,
   knowledge_cutoff: '2024-01-01',
-  pricing: {
-    // todo audio tokens
-    input: {
-      normal: 1.25,
-    },
-    output: {
-      normal: 5,
-    },
-  },
   supports: {
     input: ['audio', 'text'],
     output: ['text'],
@@ -1646,15 +1247,6 @@ const GPT_4O_MINI_TRANSCRIBE = {
 
 const GPT_4O_MINI_TTS = {
   name: 'gpt-4o-mini-tts',
-  pricing: {
-    // todo audio tokens
-    input: {
-      normal: 0.6,
-    },
-    output: {
-      normal: 12,
-    },
-  },
   supports: {
     input: ['text'],
     output: ['audio'],
@@ -1670,15 +1262,6 @@ const GPT_4O_TRANSCRIBE = {
   context_window: 16_000,
   max_output_tokens: 2_000,
   knowledge_cutoff: '2024-06-01',
-  pricing: {
-    // todo audio tokens
-    input: {
-      normal: 2.5,
-    },
-    output: {
-      normal: 10,
-    },
-  },
   supports: {
     input: ['audio', 'text'],
     output: ['text'],
@@ -1694,15 +1277,6 @@ const GPT_4O_TRANSCRIBE_DIARIZE = {
   context_window: 16_000,
   max_output_tokens: 2_000,
   knowledge_cutoff: '2024-06-01',
-  pricing: {
-    // todo audio tokens
-    input: {
-      normal: 2.5,
-    },
-    output: {
-      normal: 10,
-    },
-  },
   supports: {
     input: ['audio', 'text'],
     output: ['text'],
@@ -1718,15 +1292,6 @@ const GPT_5_1_CHAT = {
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: '2024-09-30',
-  pricing: {
-    input: {
-      normal: 1.25,
-      cached: 0.125,
-    },
-    output: {
-      normal: 10,
-    },
-  },
   supports: {
     input: ['text', 'image'],
     output: ['text'],
@@ -1754,15 +1319,6 @@ const GPT_5_CHAT = {
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: '2024-09-30',
-  pricing: {
-    input: {
-      normal: 1.25,
-      cached: 0.125,
-    },
-    output: {
-      normal: 10,
-    },
-  },
   supports: {
     input: ['text', 'image'],
     output: ['text'],
@@ -1787,15 +1343,6 @@ const GPT_5_CHAT = {
 
 /* const TTS_1 = {
   name: 'tts-1',
-  pricing: {
-    // todo figure out pricing
-    input: {
-      normal: 15,
-    },
-    output: {
-      normal: 15,
-    },
-  },
   supports: {
     input: ['text'],
     output: ['audio'],
@@ -1808,15 +1355,6 @@ const GPT_5_CHAT = {
 
 const TTS_1_HD = {
   name: 'tts-1-hd',
-  pricing: {
-    // todo figure out pricing
-    input: {
-      normal: 30,
-    },
-    output: {
-      normal: 30,
-    },
-  },
   supports: {
     input: ['text'],
     output: ['audio'],
@@ -1857,15 +1395,6 @@ const GPT_5_4_MINI = {
       'apply_patch',
     ],
   },
-  pricing: {
-    input: {
-      normal: 0.75,
-      cached: 0.075,
-    },
-    output: {
-      normal: 4.5,
-    },
-  },
   reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -1903,15 +1432,6 @@ const GPT_5_4_NANO = {
       'apply_patch',
     ],
   },
-  pricing: {
-    input: {
-      normal: 0.2,
-      cached: 0.02,
-    },
-    output: {
-      normal: 1.25,
-    },
-  },
   reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -1948,15 +1468,6 @@ const GPT_5_4_IMAGE_2 = {
       'shell',
       'apply_patch',
     ],
-  },
-  pricing: {
-    input: {
-      normal: 8,
-      cached: 2,
-    },
-    output: {
-      normal: 15,
-    },
   },
   reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const satisfies ModelMeta<
@@ -1997,15 +1508,6 @@ const GPT_5_6_SOL = {
       'apply_patch',
     ],
   },
-  pricing: {
-    input: {
-      normal: 5,
-      cached: 0.5,
-    },
-    output: {
-      normal: 30,
-    },
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -2044,15 +1546,6 @@ const GPT_5_6_TERRA = {
       'shell',
       'apply_patch',
     ],
-  },
-  pricing: {
-    input: {
-      normal: 2,
-      cached: 0.2,
-    },
-    output: {
-      normal: 12,
-    },
   },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
@@ -2093,15 +1586,6 @@ const GPT_5_6_LUNA = {
       'apply_patch',
     ],
   },
-  pricing: {
-    input: {
-      normal: 0.2,
-      cached: 0.02,
-    },
-    output: {
-      normal: 1.2,
-    },
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -2140,15 +1624,6 @@ const GPT_5_5 = {
       'apply_patch',
     ],
   },
-  pricing: {
-    input: {
-      normal: 5,
-      cached: 0.5,
-    },
-    output: {
-      normal: 30,
-    },
-  },
   reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -2185,14 +1660,6 @@ const GPT_5_5_PRO = {
       'shell',
       'apply_patch',
     ],
-  },
-  pricing: {
-    input: {
-      normal: 30,
-    },
-    output: {
-      normal: 180,
-    },
   },
   reasoning: EFFORT_MEDIUM_TO_XHIGH,
 } as const satisfies ModelMeta<
@@ -2231,15 +1698,6 @@ const GPT_CHAT_LATEST = {
       'apply_patch',
     ],
   },
-  pricing: {
-    input: {
-      normal: 5,
-      cached: 0.5,
-    },
-    output: {
-      normal: 30,
-    },
-  },
   reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -2259,15 +1717,6 @@ const GPT_5_6_LUNA_PRO = {
     endpoints: ['chat', 'chat-completions'],
     features: ['streaming', 'function_calling', 'structured_outputs'],
     tools: [],
-  },
-  pricing: {
-    input: {
-      normal: 0.2,
-      cached: 0.02,
-    },
-    output: {
-      normal: 1.2,
-    },
   },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
@@ -2289,15 +1738,6 @@ const GPT_5_6_SOL_PRO = {
     features: ['streaming', 'function_calling', 'structured_outputs'],
     tools: [],
   },
-  pricing: {
-    input: {
-      normal: 2.5,
-      cached: 0.25,
-    },
-    output: {
-      normal: 15,
-    },
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -2317,15 +1757,6 @@ const GPT_5_6_TERRA_PRO = {
     endpoints: ['chat', 'chat-completions'],
     features: ['streaming', 'function_calling', 'structured_outputs'],
     tools: [],
-  },
-  pricing: {
-    input: {
-      normal: 2,
-      cached: 0.2,
-    },
-    output: {
-      normal: 12,
-    },
   },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
@@ -2358,15 +1789,6 @@ const GPT_6_ASTRA = {
       'apply_patch',
     ],
   },
-  pricing: {
-    input: {
-      normal: 10,
-      cached: 1,
-    },
-    output: {
-      normal: 50,
-    },
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -2386,15 +1808,6 @@ const GPT_6_ASTRA_PRO = {
     endpoints: ['chat', 'chat-completions'],
     features: ['streaming', 'function_calling', 'structured_outputs'],
     tools: [],
-  },
-  pricing: {
-    input: {
-      normal: 10,
-      cached: 1,
-    },
-    output: {
-      normal: 50,
-    },
   },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const satisfies ModelMeta<
@@ -2427,15 +1840,6 @@ const GPT_6_LUNA = {
       'apply_patch',
     ],
   },
-  pricing: {
-    input: {
-      normal: 0.1,
-      cached: 0.01,
-    },
-    output: {
-      normal: 0.5,
-    },
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -2455,15 +1859,6 @@ const GPT_6_LUNA_PRO = {
     endpoints: ['chat', 'chat-completions'],
     features: ['streaming', 'function_calling', 'structured_outputs'],
     tools: [],
-  },
-  pricing: {
-    input: {
-      normal: 0.1,
-      cached: 0.01,
-    },
-    output: {
-      normal: 0.5,
-    },
   },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
@@ -2496,15 +1891,6 @@ const GPT_6_SOL = {
       'apply_patch',
     ],
   },
-  pricing: {
-    input: {
-      normal: 2,
-      cached: 0.2,
-    },
-    output: {
-      normal: 10,
-    },
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -2524,15 +1910,6 @@ const GPT_6_SOL_PRO = {
     endpoints: ['chat', 'chat-completions'],
     features: ['streaming', 'function_calling', 'structured_outputs'],
     tools: [],
-  },
-  pricing: {
-    input: {
-      normal: 2,
-      cached: 0.2,
-    },
-    output: {
-      normal: 10,
-    },
   },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
@@ -2566,15 +1943,6 @@ const GPT_6_1_SOL = {
       'apply_patch',
     ],
   },
-  pricing: {
-    input: {
-      normal: 2,
-      cached: 0.1,
-    },
-    output: {
-      normal: 10,
-    },
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -2606,15 +1974,6 @@ const GPT_6_1_SOL_PRO = {
       'shell',
       'apply_patch',
     ],
-  },
-  pricing: {
-    input: {
-      normal: 2,
-      cached: 0.1,
-    },
-    output: {
-      normal: 10,
-    },
   },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const satisfies ModelMeta<

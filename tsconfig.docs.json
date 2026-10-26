@@ -41,6 +41,12 @@
         "./node_modules/.kiira/node_modules/@fal-ai/client/src/realtime/index.d.ts",
         "./examples/ts-react-media/node_modules/@fal-ai/client/src/realtime/index.d.ts"
       ],
+      "@modelschemas/rate-card/evaluator": [
+        "./node_modules/.kiira/node_modules/@modelschemas/rate-card/dist/evaluator.d.ts"
+      ],
+      "@modelschemas/rate-card/schema": [
+        "./node_modules/.kiira/node_modules/@modelschemas/rate-card/dist/rate-card.schema.d.ts"
+      ],
       "@upstash/agentkit-tanstack-ai/persistence": [
         "./node_modules/.kiira/node_modules/@upstash/agentkit-tanstack-ai/dist/persistence.d.ts"
       ],

@@ -231,18 +231,6 @@ const _ANTHROPIC_CLAUDE_FABLE_LATEST = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 10,
-        cached: 12.75,
-      },
-      output: {
-        normal: 50,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const _ANTHROPIC_CLAUDE_HAIKU_LATEST = {
@@ -262,18 +250,6 @@ const _ANTHROPIC_CLAUDE_HAIKU_LATEST = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0.135,
-      },
-      output: {
-        normal: 0.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const _ANTHROPIC_CLAUDE_OPUS_LATEST = {
@@ -293,18 +269,6 @@ const _ANTHROPIC_CLAUDE_OPUS_LATEST = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 4,
-        cached: 5.2,
-      },
-      output: {
-        normal: 20,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const _ANTHROPIC_CLAUDE_SONNET_LATEST = {
@@ -324,18 +288,6 @@ const _ANTHROPIC_CLAUDE_SONNET_LATEST = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 2.6,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const _DEEPSEEK_DEEPSEEK_FLASH_LATEST = {
@@ -364,18 +316,6 @@ const _DEEPSEEK_DEEPSEEK_FLASH_LATEST = {
   },
   context_window: 1048576,
   max_output_tokens: 943718,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.07,
-        cached: 0.008,
-      },
-      output: {
-        normal: 0.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_HIGH_MAX,
 } as const
 const _DEEPSEEK_DEEPSEEK_PRO_LATEST = {
@@ -402,18 +342,6 @@ const _DEEPSEEK_DEEPSEEK_PRO_LATEST = {
   },
   context_window: 1048576,
   max_output_tokens: 393216,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.2235,
-        cached: 0.22,
-      },
-      output: {
-        normal: 8,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_HIGH_MAX,
 } as const
 const _DEEPSEEK_DEEPSEEK_V4_FLASH_LATEST = {
@@ -441,18 +369,6 @@ const _DEEPSEEK_DEEPSEEK_V4_FLASH_LATEST = {
   },
   context_window: 1048576,
   max_output_tokens: 943718,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.0475,
-        cached: 0.028,
-      },
-      output: {
-        normal: 0.1568,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_HIGH_MAX,
 } as const
 const _GOOGLE_GEMINI_FLASH_LATEST = {
@@ -474,18 +390,6 @@ const _GOOGLE_GEMINI_FLASH_LATEST = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.75,
-        cached: 0.1166666667,
-      },
-      output: {
-        normal: 3.75,
-      },
-    },
-    image: 7.5e-7,
-  },
   reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const _GOOGLE_GEMINI_PRO_LATEST = {
@@ -507,18 +411,6 @@ const _GOOGLE_GEMINI_PRO_LATEST = {
   },
   context_window: 1048576,
   max_output_tokens: 943718,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 0.2875,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0.000002,
-  },
   reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const _MOONSHOTAI_KIMI_LATEST = {
@@ -545,18 +437,6 @@ const _MOONSHOTAI_KIMI_LATEST = {
   },
   context_window: 1048576,
   max_output_tokens: 943718,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.238,
-        cached: 0.228,
-      },
-      output: {
-        normal: 16,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_HIGH_MAX,
 } as const
 const _OPENAI_GPT_ASTRA_LATEST = {
@@ -576,18 +456,6 @@ const _OPENAI_GPT_ASTRA_LATEST = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 10,
-        cached: 13.5,
-      },
-      output: {
-        normal: 50,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const _OPENAI_GPT_LUNA_LATEST = {
@@ -607,18 +475,6 @@ const _OPENAI_GPT_LUNA_LATEST = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0.135,
-      },
-      output: {
-        normal: 0.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const _OPENAI_GPT_MINI_LATEST = {
@@ -638,18 +494,6 @@ const _OPENAI_GPT_MINI_LATEST = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.75,
-        cached: 0.075,
-      },
-      output: {
-        normal: 4.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const _OPENAI_GPT_SOL_LATEST = {
@@ -669,18 +513,6 @@ const _OPENAI_GPT_SOL_LATEST = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 2.6,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const _OPENAI_GPT_TERRA_LATEST = {
@@ -700,18 +532,6 @@ const _OPENAI_GPT_TERRA_LATEST = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 2.7,
-      },
-      output: {
-        normal: 12,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const _UNBIASED_PARETO_LATEST = {
@@ -724,18 +544,6 @@ const _UNBIASED_PARETO_LATEST = {
   },
   context_window: 1048576,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.8,
-        cached: 0.03,
-      },
-      output: {
-        normal: 3.2,
-      },
-    },
-    image: 0,
-  },
 } as const
 const _X_AI_GROK_LATEST = {
   id: '~x-ai/grok-latest',
@@ -757,18 +565,6 @@ const _X_AI_GROK_LATEST = {
   },
   context_window: 500000,
   max_output_tokens: 450000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 0.5,
-      },
-      output: {
-        normal: 6,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_XHIGH,
 } as const
 const _Z_AI_GLM_FLASH_LATEST = {
@@ -796,18 +592,6 @@ const _Z_AI_GLM_FLASH_LATEST = {
   },
   context_window: 1048576,
   max_output_tokens: 943718,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.0052,
-        cached: 0.0052,
-      },
-      output: {
-        normal: 0.1985,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const _Z_AI_GLM_LATEST = {
@@ -835,18 +619,6 @@ const _Z_AI_GLM_LATEST = {
   },
   context_window: 1048576,
   max_output_tokens: 943718,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.079,
-        cached: 0.078,
-      },
-      output: {
-        normal: 1.4,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const AION_LABS_AION_2_0 = {
@@ -866,18 +638,6 @@ const AION_LABS_AION_2_0 = {
   },
   context_window: 131072,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.8,
-        cached: 0.2,
-      },
-      output: {
-        normal: 1.6,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const AION_LABS_AION_3_0 = {
@@ -897,18 +657,6 @@ const AION_LABS_AION_3_0 = {
   },
   context_window: 131072,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 3,
-        cached: 0.75,
-      },
-      output: {
-        normal: 6,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const AION_LABS_AION_3_0_MINI = {
@@ -928,18 +676,6 @@ const AION_LABS_AION_3_0_MINI = {
   },
   context_window: 131072,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.7,
-        cached: 0.18,
-      },
-      output: {
-        normal: 1.4,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const AION_LABS_AION_3_5 = {
@@ -959,18 +695,6 @@ const AION_LABS_AION_3_5 = {
   },
   context_window: 262144,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 3,
-        cached: 0.75,
-      },
-      output: {
-        normal: 6,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const AION_LABS_AION_3_5_MINI = {
@@ -990,18 +714,6 @@ const AION_LABS_AION_3_5_MINI = {
   },
   context_window: 262144,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.7,
-        cached: 0.18,
-      },
-      output: {
-        normal: 1.4,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const AION_LABS_AION_RP_LLAMA_3_1_8B = {
@@ -1014,18 +726,6 @@ const AION_LABS_AION_RP_LLAMA_3_1_8B = {
   },
   context_window: 32768,
   max_output_tokens: 29491,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.8,
-        cached: 0,
-      },
-      output: {
-        normal: 1.6,
-      },
-    },
-    image: 0,
-  },
 } as const
 const AMAZON_NOVA_2_LITE_V1 = {
   id: 'amazon/nova-2-lite-v1',
@@ -1044,18 +744,6 @@ const AMAZON_NOVA_2_LITE_V1 = {
   },
   context_window: 1000000,
   max_output_tokens: 65535,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.3,
-        cached: 0,
-      },
-      output: {
-        normal: 2.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const AMAZON_NOVA_LITE_V1 = {
@@ -1068,18 +756,6 @@ const AMAZON_NOVA_LITE_V1 = {
   },
   context_window: 300000,
   max_output_tokens: 5120,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.06,
-        cached: 0,
-      },
-      output: {
-        normal: 0.24,
-      },
-    },
-    image: 0,
-  },
 } as const
 const AMAZON_NOVA_MICRO_V1 = {
   id: 'amazon/nova-micro-v1',
@@ -1091,18 +767,6 @@ const AMAZON_NOVA_MICRO_V1 = {
   },
   context_window: 128000,
   max_output_tokens: 5120,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.035,
-        cached: 0,
-      },
-      output: {
-        normal: 0.14,
-      },
-    },
-    image: 0,
-  },
 } as const
 const AMAZON_NOVA_PREMIER_V1 = {
   id: 'amazon/nova-premier-v1',
@@ -1114,18 +778,6 @@ const AMAZON_NOVA_PREMIER_V1 = {
   },
   context_window: 1000000,
   max_output_tokens: 32000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2.5,
-        cached: 0.625,
-      },
-      output: {
-        normal: 12.5,
-      },
-    },
-    image: 0,
-  },
 } as const
 const AMAZON_NOVA_PRO_V1 = {
   id: 'amazon/nova-pro-v1',
@@ -1137,18 +789,6 @@ const AMAZON_NOVA_PRO_V1 = {
   },
   context_window: 300000,
   max_output_tokens: 5120,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.8,
-        cached: 0,
-      },
-      output: {
-        normal: 3.2,
-      },
-    },
-    image: 0,
-  },
 } as const
 const ANTHRACITE_ORG_MAGNUM_V4_72B = {
   id: 'anthracite-org/magnum-v4-72b',
@@ -1172,18 +812,6 @@ const ANTHRACITE_ORG_MAGNUM_V4_72B = {
   },
   context_window: 32768,
   max_output_tokens: 4096,
-  pricing: {
-    text: {
-      input: {
-        normal: 2.5,
-        cached: 0,
-      },
-      output: {
-        normal: 5,
-      },
-    },
-    image: 0,
-  },
 } as const
 const ANTHROPIC_CLAUDE_FABLE_5 = {
   id: 'anthropic/claude-fable-5',
@@ -1202,18 +830,6 @@ const ANTHROPIC_CLAUDE_FABLE_5 = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 10,
-        cached: 13.5,
-      },
-      output: {
-        normal: 50,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_FABLE_5_BATCH = {
@@ -1232,18 +848,6 @@ const ANTHROPIC_CLAUDE_FABLE_5_BATCH = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 5,
-        cached: 6.75,
-      },
-      output: {
-        normal: 25,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_FABLE_5_1 = {
@@ -1263,18 +867,6 @@ const ANTHROPIC_CLAUDE_FABLE_5_1 = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 10,
-        cached: 12.75,
-      },
-      output: {
-        normal: 50,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_FABLE_5_1_BATCH = {
@@ -1293,18 +885,6 @@ const ANTHROPIC_CLAUDE_FABLE_5_1_BATCH = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 5,
-        cached: 6.375,
-      },
-      output: {
-        normal: 25,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_HAIKU_4_5 = {
@@ -1326,18 +906,6 @@ const ANTHROPIC_CLAUDE_HAIKU_4_5 = {
   },
   context_window: 200000,
   max_output_tokens: 64000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1,
-        cached: 1.35,
-      },
-      output: {
-        normal: 5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const ANTHROPIC_CLAUDE_HAIKU_4_5_BATCH = {
@@ -1358,18 +926,6 @@ const ANTHROPIC_CLAUDE_HAIKU_4_5_BATCH = {
   },
   context_window: 200000,
   max_output_tokens: 64000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.5,
-        cached: 0.675,
-      },
-      output: {
-        normal: 2.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_TO_HIGH,
 } as const
 const ANTHROPIC_CLAUDE_HAIKU_5_5 = {
@@ -1389,18 +945,6 @@ const ANTHROPIC_CLAUDE_HAIKU_5_5 = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0.135,
-      },
-      output: {
-        normal: 0.5,
-      },
-    },
-    image: 0,
-  },
 } as const
 const ANTHROPIC_CLAUDE_HAIKU_5_5_BATCH = {
   id: 'anthropic/claude-haiku-5.5:batch',
@@ -1418,18 +962,6 @@ const ANTHROPIC_CLAUDE_HAIKU_5_5_BATCH = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.05,
-        cached: 0.0675,
-      },
-      output: {
-        normal: 0.25,
-      },
-    },
-    image: 0,
-  },
 } as const
 const ANTHROPIC_CLAUDE_OPUS_4_1 = {
   id: 'anthropic/claude-opus-4.1',
@@ -1448,18 +980,6 @@ const ANTHROPIC_CLAUDE_OPUS_4_1 = {
   },
   context_window: 200000,
   max_output_tokens: 32000,
-  pricing: {
-    text: {
-      input: {
-        normal: 15,
-        cached: 20.25,
-      },
-      output: {
-        normal: 75,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_4_1_BATCH = {
@@ -1479,18 +999,6 @@ const ANTHROPIC_CLAUDE_OPUS_4_1_BATCH = {
   },
   context_window: 200000,
   max_output_tokens: 32000,
-  pricing: {
-    text: {
-      input: {
-        normal: 7.5,
-        cached: 10.125,
-      },
-      output: {
-        normal: 37.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_TO_HIGH,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_4_5 = {
@@ -1511,18 +1019,6 @@ const ANTHROPIC_CLAUDE_OPUS_4_5 = {
   },
   context_window: 200000,
   max_output_tokens: 64000,
-  pricing: {
-    text: {
-      input: {
-        normal: 5,
-        cached: 6.75,
-      },
-      output: {
-        normal: 25,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_4_5_BATCH = {
@@ -1542,18 +1038,6 @@ const ANTHROPIC_CLAUDE_OPUS_4_5_BATCH = {
   },
   context_window: 200000,
   max_output_tokens: 64000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2.5,
-        cached: 3.375,
-      },
-      output: {
-        normal: 12.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_TO_HIGH,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_4_6 = {
@@ -1575,18 +1059,6 @@ const ANTHROPIC_CLAUDE_OPUS_4_6 = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 5,
-        cached: 6.75,
-      },
-      output: {
-        normal: 25,
-      },
-    },
-    image: 0,
-  },
   reasoning: BUDGET_NONE_LOW_TO_HIGH_MAX,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_4_6_BATCH = {
@@ -1607,18 +1079,6 @@ const ANTHROPIC_CLAUDE_OPUS_4_6_BATCH = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2.5,
-        cached: 3.375,
-      },
-      output: {
-        normal: 12.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_HIGH_MAX,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_4_7 = {
@@ -1638,18 +1098,6 @@ const ANTHROPIC_CLAUDE_OPUS_4_7 = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 5,
-        cached: 6.75,
-      },
-      output: {
-        normal: 25,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_4_7_BATCH = {
@@ -1668,18 +1116,6 @@ const ANTHROPIC_CLAUDE_OPUS_4_7_BATCH = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2.5,
-        cached: 3.375,
-      },
-      output: {
-        normal: 12.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_4_8 = {
@@ -1699,18 +1135,6 @@ const ANTHROPIC_CLAUDE_OPUS_4_8 = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 5,
-        cached: 6.75,
-      },
-      output: {
-        normal: 25,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_4_8_BATCH = {
@@ -1729,18 +1153,6 @@ const ANTHROPIC_CLAUDE_OPUS_4_8_BATCH = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2.5,
-        cached: 3.375,
-      },
-      output: {
-        normal: 12.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_5 = {
@@ -1760,18 +1172,6 @@ const ANTHROPIC_CLAUDE_OPUS_5 = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 5,
-        cached: 6.75,
-      },
-      output: {
-        normal: 25,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_5_BATCH = {
@@ -1790,18 +1190,6 @@ const ANTHROPIC_CLAUDE_OPUS_5_BATCH = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2.5,
-        cached: 3.375,
-      },
-      output: {
-        normal: 12.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_5_5 = {
@@ -1821,18 +1209,6 @@ const ANTHROPIC_CLAUDE_OPUS_5_5 = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 4,
-        cached: 5.2,
-      },
-      output: {
-        normal: 20,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_5_5_BATCH = {
@@ -1851,18 +1227,6 @@ const ANTHROPIC_CLAUDE_OPUS_5_5_BATCH = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 2.6,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_SONNET_4_5 = {
@@ -1884,18 +1248,6 @@ const ANTHROPIC_CLAUDE_SONNET_4_5 = {
   },
   context_window: 1000000,
   max_output_tokens: 64000,
-  pricing: {
-    text: {
-      input: {
-        normal: 3,
-        cached: 4.05,
-      },
-      output: {
-        normal: 15,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const ANTHROPIC_CLAUDE_SONNET_4_5_BATCH = {
@@ -1916,18 +1268,6 @@ const ANTHROPIC_CLAUDE_SONNET_4_5_BATCH = {
   },
   context_window: 1000000,
   max_output_tokens: 64000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.5,
-        cached: 2.025,
-      },
-      output: {
-        normal: 7.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_TO_HIGH,
 } as const
 const ANTHROPIC_CLAUDE_SONNET_4_6 = {
@@ -1949,18 +1289,6 @@ const ANTHROPIC_CLAUDE_SONNET_4_6 = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 3,
-        cached: 4.05,
-      },
-      output: {
-        normal: 15,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_HIGH_MAX,
 } as const
 const ANTHROPIC_CLAUDE_SONNET_4_6_BATCH = {
@@ -1981,18 +1309,6 @@ const ANTHROPIC_CLAUDE_SONNET_4_6_BATCH = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.5,
-        cached: 2.025,
-      },
-      output: {
-        normal: 7.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_HIGH_MAX,
 } as const
 const ANTHROPIC_CLAUDE_SONNET_5 = {
@@ -2012,18 +1328,6 @@ const ANTHROPIC_CLAUDE_SONNET_5 = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 2.7,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_SONNET_5_BATCH = {
@@ -2042,18 +1346,6 @@ const ANTHROPIC_CLAUDE_SONNET_5_BATCH = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1,
-        cached: 1.35,
-      },
-      output: {
-        normal: 5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_SONNET_5_5 = {
@@ -2073,18 +1365,6 @@ const ANTHROPIC_CLAUDE_SONNET_5_5 = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 2.6,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_SONNET_5_5_BATCH = {
@@ -2103,18 +1383,6 @@ const ANTHROPIC_CLAUDE_SONNET_5_5_BATCH = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1,
-        cached: 1.3,
-      },
-      output: {
-        normal: 5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const ARCEE_AI_TRINITY_LARGE_THINKING = {
@@ -2133,18 +1401,6 @@ const ARCEE_AI_TRINITY_LARGE_THINKING = {
   },
   context_window: 262144,
   max_output_tokens: 80000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.25,
-        cached: 0.06,
-      },
-      output: {
-        normal: 0.8,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const BYTEDANCE_SEED_SEED_1_6 = {
@@ -2166,18 +1422,6 @@ const BYTEDANCE_SEED_SEED_1_6 = {
   },
   context_window: 262144,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.25,
-        cached: 0,
-      },
-      output: {
-        normal: 2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const BYTEDANCE_SEED_SEED_1_6_FLASH = {
@@ -2199,18 +1443,6 @@ const BYTEDANCE_SEED_SEED_1_6_FLASH = {
   },
   context_window: 262144,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.075,
-        cached: 0,
-      },
-      output: {
-        normal: 0.3,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const BYTEDANCE_SEED_SEED_2_1_TURBO = {
@@ -2232,18 +1464,6 @@ const BYTEDANCE_SEED_SEED_2_1_TURBO = {
   },
   context_window: 262144,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.5,
-        cached: 0,
-      },
-      output: {
-        normal: 2.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const BYTEDANCE_SEED_SEED_2_0_CODE = {
@@ -2265,18 +1485,6 @@ const BYTEDANCE_SEED_SEED_2_0_CODE = {
   },
   context_window: 262144,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.5,
-        cached: 0,
-      },
-      output: {
-        normal: 3,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_HIGH,
 } as const
 const BYTEDANCE_SEED_SEED_2_0_LITE = {
@@ -2298,18 +1506,6 @@ const BYTEDANCE_SEED_SEED_2_0_LITE = {
   },
   context_window: 262144,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.25,
-        cached: 0,
-      },
-      output: {
-        normal: 2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_MINIMAL_TO_HIGH,
 } as const
 const BYTEDANCE_SEED_SEED_2_0_MINI = {
@@ -2331,18 +1527,6 @@ const BYTEDANCE_SEED_SEED_2_0_MINI = {
   },
   context_window: 262144,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0,
-      },
-      output: {
-        normal: 0.4,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_MINIMAL_TO_HIGH,
 } as const
 const BYTEDANCE_UI_TARS_1_5_7B = {
@@ -2366,18 +1550,6 @@ const BYTEDANCE_UI_TARS_1_5_7B = {
   },
   context_window: 128000,
   max_output_tokens: 2048,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0.1,
-      },
-      output: {
-        normal: 0.2,
-      },
-    },
-    image: 0,
-  },
 } as const
 const COGNITIVECOMPUTATIONS_DOLPHIN_MISTRAL_24B_VENICE_EDITION = {
   id: 'cognitivecomputations/dolphin-mistral-24b-venice-edition',
@@ -2397,18 +1569,6 @@ const COGNITIVECOMPUTATIONS_DOLPHIN_MISTRAL_24B_VENICE_EDITION = {
   },
   context_window: 128000,
   max_output_tokens: 8192,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.2,
-        cached: 0,
-      },
-      output: {
-        normal: 0.9,
-      },
-    },
-    image: 0,
-  },
 } as const
 const COHERE_COMMAND_A = {
   id: 'cohere/command-a',
@@ -2429,18 +1589,6 @@ const COHERE_COMMAND_A = {
   },
   context_window: 256000,
   max_output_tokens: 8192,
-  pricing: {
-    text: {
-      input: {
-        normal: 2.5,
-        cached: 0,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0,
-  },
 } as const
 const COHERE_COMMAND_A_PLUS = {
   id: 'cohere/command-a-plus',
@@ -2462,18 +1610,6 @@ const COHERE_COMMAND_A_PLUS = {
   },
   context_window: 192000,
   max_output_tokens: 64000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.3,
-        cached: 0.15,
-      },
-      output: {
-        normal: 1.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const COHERE_COMMAND_R_08_2024 = {
@@ -2496,18 +1632,6 @@ const COHERE_COMMAND_R_08_2024 = {
   },
   context_window: 128000,
   max_output_tokens: 4000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.15,
-        cached: 0,
-      },
-      output: {
-        normal: 0.6,
-      },
-    },
-    image: 0,
-  },
 } as const
 const COHERE_COMMAND_R_PLUS_08_2024 = {
   id: 'cohere/command-r-plus-08-2024',
@@ -2529,18 +1653,6 @@ const COHERE_COMMAND_R_PLUS_08_2024 = {
   },
   context_window: 128000,
   max_output_tokens: 4000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2.5,
-        cached: 0,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0,
-  },
 } as const
 const COHERE_COMMAND_R7B_12_2024 = {
   id: 'cohere/command-r7b-12-2024',
@@ -2561,18 +1673,6 @@ const COHERE_COMMAND_R7B_12_2024 = {
   },
   context_window: 128000,
   max_output_tokens: 4000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.0375,
-        cached: 0,
-      },
-      output: {
-        normal: 0.15,
-      },
-    },
-    image: 0,
-  },
 } as const
 const COHERE_NORTH_MINI_CODE_FREE = {
   id: 'cohere/north-mini-code:free',
@@ -2594,18 +1694,6 @@ const COHERE_NORTH_MINI_CODE_FREE = {
   },
   context_window: 256000,
   max_output_tokens: 64000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const DEEPSEEK_DEEPSEEK_CHAT = {
@@ -2629,18 +1717,6 @@ const DEEPSEEK_DEEPSEEK_CHAT = {
   },
   context_window: 163840,
   max_output_tokens: 16000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.2574,
-        cached: 0,
-      },
-      output: {
-        normal: 1.0287,
-      },
-    },
-    image: 0,
-  },
 } as const
 const DEEPSEEK_DEEPSEEK_CHAT_V3_0324 = {
   id: 'deepseek/deepseek-chat-v3-0324',
@@ -2662,18 +1738,6 @@ const DEEPSEEK_DEEPSEEK_CHAT_V3_0324 = {
   },
   context_window: 163840,
   max_output_tokens: 115200,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.29,
-        cached: 0.11,
-      },
-      output: {
-        normal: 1.14,
-      },
-    },
-    image: 0,
-  },
 } as const
 const DEEPSEEK_DEEPSEEK_CHAT_V3_1 = {
   id: 'deepseek/deepseek-chat-v3.1',
@@ -2699,18 +1763,6 @@ const DEEPSEEK_DEEPSEEK_CHAT_V3_1 = {
   },
   context_window: 163840,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.25,
-        cached: 0.13,
-      },
-      output: {
-        normal: 0.95,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const DEEPSEEK_DEEPSEEK_R1_0528 = {
@@ -2737,18 +1789,6 @@ const DEEPSEEK_DEEPSEEK_R1_0528 = {
   },
   context_window: 163840,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.5,
-        cached: 0.35,
-      },
-      output: {
-        normal: 2.15,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const DEEPSEEK_DEEPSEEK_V3_1_TERMINUS = {
@@ -2770,18 +1810,6 @@ const DEEPSEEK_DEEPSEEK_V3_1_TERMINUS = {
   },
   context_window: 163840,
   max_output_tokens: 147456,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.27,
-        cached: 0,
-      },
-      output: {
-        normal: 1,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const DEEPSEEK_DEEPSEEK_V3_2 = {
@@ -2808,18 +1836,6 @@ const DEEPSEEK_DEEPSEEK_V3_2 = {
   },
   context_window: 163840,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.28,
-        cached: 0.028,
-      },
-      output: {
-        normal: 0.42,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const DEEPSEEK_DEEPSEEK_V3_2_EXP = {
@@ -2840,18 +1856,6 @@ const DEEPSEEK_DEEPSEEK_V3_2_EXP = {
   },
   context_window: 163840,
   max_output_tokens: 147456,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.27,
-        cached: 0,
-      },
-      output: {
-        normal: 0.41,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const DEEPSEEK_DEEPSEEK_V4_FLASH = {
@@ -2879,18 +1883,6 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH = {
   },
   context_window: 1048576,
   max_output_tokens: 943717,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.091,
-        cached: 0.0182,
-      },
-      output: {
-        normal: 0.182,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_HIGH_XHIGH,
 } as const
 const DEEPSEEK_DEEPSEEK_V4_FLASH_0731 = {
@@ -2918,18 +1910,6 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH_0731 = {
   },
   context_window: 1048576,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.44,
-        cached: 0.014,
-      },
-      output: {
-        normal: 1.32,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_HIGH_MAX,
 } as const
 const DEEPSEEK_DEEPSEEK_V4_FLASH_VISION_EXP = {
@@ -2956,18 +1936,6 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH_VISION_EXP = {
   },
   context_window: 1048576,
   max_output_tokens: 262144,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.2156,
-        cached: 0.00686,
-      },
-      output: {
-        normal: 0.6468,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_HIGH_MAX,
 } as const
 const DEEPSEEK_DEEPSEEK_V4_PRO = {
@@ -2995,18 +1963,6 @@ const DEEPSEEK_DEEPSEEK_V4_PRO = {
   },
   context_window: 1048576,
   max_output_tokens: 384000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.95526,
-        cached: 0.079605,
-      },
-      output: {
-        normal: 1.91052,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_HIGH_XHIGH,
 } as const
 const DEEPSEEK_DEEPSEEK_V4_PRO_0813 = {
@@ -3033,18 +1989,6 @@ const DEEPSEEK_DEEPSEEK_V4_PRO_0813 = {
   },
   context_window: 1048576,
   max_output_tokens: 393216,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.66,
-        cached: 0.022,
-      },
-      output: {
-        normal: 1.98,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_HIGH_MAX,
 } as const
 const DEEPSEEK_DEEPSEEK_V4_1_FLASH = {
@@ -3071,18 +2015,6 @@ const DEEPSEEK_DEEPSEEK_V4_1_FLASH = {
   },
   context_window: 1048576,
   max_output_tokens: 943718,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.3,
-        cached: 0.006,
-      },
-      output: {
-        normal: 1.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_HIGH_MAX,
 } as const
 const DEEPSEEK_DEEPSEEK_V4_1_FLASH_1017 = {
@@ -3111,18 +2043,6 @@ const DEEPSEEK_DEEPSEEK_V4_1_FLASH_1017 = {
   },
   context_window: 1048576,
   max_output_tokens: 393216,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.15,
-        cached: 0.003,
-      },
-      output: {
-        normal: 0.6,
-      },
-    },
-    image: 0,
-  },
 } as const
 const DEEPSEEK_DEEPSEEK_V4_1_FLASH_BATCH = {
   id: 'deepseek/deepseek-v4.1-flash:batch',
@@ -3148,18 +2068,6 @@ const DEEPSEEK_DEEPSEEK_V4_1_FLASH_BATCH = {
   },
   context_window: 1048576,
   max_output_tokens: 384000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.05,
-        cached: 0.004,
-      },
-      output: {
-        normal: 0.15,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const DOTS_STUDIO_DOTS_3_NOTE_PREVIEW_FREE = {
@@ -3179,18 +2087,6 @@ const DOTS_STUDIO_DOTS_3_NOTE_PREVIEW_FREE = {
   },
   context_window: 512000,
   max_output_tokens: 460800,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const ELORIAN_GLIMPSE = {
@@ -3216,18 +2112,6 @@ const ELORIAN_GLIMPSE = {
   },
   context_window: 262144,
   max_output_tokens: 256000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.6,
-        cached: 0.06,
-      },
-      output: {
-        normal: 3,
-      },
-    },
-    image: 0,
-  },
 } as const
 const FIREWORKS_EMBER_1 = {
   id: 'fireworks/ember-1',
@@ -3252,18 +2136,6 @@ const FIREWORKS_EMBER_1 = {
   },
   context_window: 1048576,
   max_output_tokens: 943718,
-  pricing: {
-    text: {
-      input: {
-        normal: 3,
-        cached: 0.3,
-      },
-      output: {
-        normal: 15,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_HIGH_MAX,
 } as const
 const GOOGLE_GEMINI_2_5_FLASH = {
@@ -3285,18 +2157,6 @@ const GOOGLE_GEMINI_2_5_FLASH = {
   },
   context_window: 1048576,
   max_output_tokens: 65535,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.3,
-        cached: 0.1133333333,
-      },
-      output: {
-        normal: 2.5,
-      },
-    },
-    image: 3e-7,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const GOOGLE_GEMINI_2_5_FLASH_IMAGE = {
@@ -3316,18 +2176,6 @@ const GOOGLE_GEMINI_2_5_FLASH_IMAGE = {
   },
   context_window: 32768,
   max_output_tokens: 8192,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.3,
-        cached: 0.1133333333,
-      },
-      output: {
-        normal: 2.5,
-      },
-    },
-    image: 3e-7,
-  },
 } as const
 const GOOGLE_GEMINI_2_5_FLASH_LITE = {
   id: 'google/gemini-2.5-flash-lite',
@@ -3348,18 +2196,6 @@ const GOOGLE_GEMINI_2_5_FLASH_LITE = {
   },
   context_window: 1048576,
   max_output_tokens: 65535,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0.0933333333,
-      },
-      output: {
-        normal: 0.4,
-      },
-    },
-    image: 1e-7,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const GOOGLE_GEMINI_2_5_PRO = {
@@ -3380,18 +2216,6 @@ const GOOGLE_GEMINI_2_5_PRO = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.25,
-        cached: 0.5,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0.00000125,
-  },
   reasoning: BUDGET_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_2_5_PRO_PREVIEW = {
@@ -3413,18 +2237,6 @@ const GOOGLE_GEMINI_2_5_PRO_PREVIEW = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.25,
-        cached: 0.5,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0.00000125,
-  },
   reasoning: BUDGET_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_FLASH_PREVIEW = {
@@ -3446,18 +2258,6 @@ const GOOGLE_GEMINI_3_FLASH_PREVIEW = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.5,
-        cached: 0.13333333330000002,
-      },
-      output: {
-        normal: 3,
-      },
-    },
-    image: 5e-7,
-  },
   reasoning: EFFORT_NONE_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_FLASH_PREVIEW_BATCH = {
@@ -3479,18 +2279,6 @@ const GOOGLE_GEMINI_3_FLASH_PREVIEW_BATCH = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.25,
-        cached: 0,
-      },
-      output: {
-        normal: 1.5,
-      },
-    },
-    image: 2.5e-7,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_PRO_IMAGE = {
@@ -3512,18 +2300,6 @@ const GOOGLE_GEMINI_3_PRO_IMAGE = {
   },
   context_window: 131072,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 0.575,
-      },
-      output: {
-        normal: 12,
-      },
-    },
-    image: 0.000002,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_PRO_IMAGE_PREVIEW = {
@@ -3544,18 +2320,6 @@ const GOOGLE_GEMINI_3_PRO_IMAGE_PREVIEW = {
   },
   context_window: 65536,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 0.575,
-      },
-      output: {
-        normal: 12,
-      },
-    },
-    image: 0.000002,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_1_FLASH_IMAGE = {
@@ -3575,18 +2339,6 @@ const GOOGLE_GEMINI_3_1_FLASH_IMAGE = {
   },
   context_window: 131072,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.5,
-        cached: 0,
-      },
-      output: {
-        normal: 3,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_MINIMAL_HIGH,
 } as const
 const GOOGLE_GEMINI_3_1_FLASH_IMAGE_PREVIEW = {
@@ -3606,18 +2358,6 @@ const GOOGLE_GEMINI_3_1_FLASH_IMAGE_PREVIEW = {
   },
   context_window: 65536,
   max_output_tokens: 58982,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.5,
-        cached: 0,
-      },
-      output: {
-        normal: 3,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_MINIMAL_HIGH,
 } as const
 const GOOGLE_GEMINI_3_1_FLASH_LITE = {
@@ -3639,18 +2379,6 @@ const GOOGLE_GEMINI_3_1_FLASH_LITE = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.25,
-        cached: 0.1083333333,
-      },
-      output: {
-        normal: 1.5,
-      },
-    },
-    image: 2.5e-7,
-  },
   reasoning: EFFORT_NONE_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_1_FLASH_LITE_IMAGE = {
@@ -3670,18 +2398,6 @@ const GOOGLE_GEMINI_3_1_FLASH_LITE_IMAGE = {
   },
   context_window: 65536,
   max_output_tokens: 58982,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.25,
-        cached: 0,
-      },
-      output: {
-        normal: 1.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_MINIMAL_HIGH,
 } as const
 const GOOGLE_GEMINI_3_1_FLASH_LITE_PREVIEW = {
@@ -3702,18 +2418,6 @@ const GOOGLE_GEMINI_3_1_FLASH_LITE_PREVIEW = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.25,
-        cached: 0.1083333333,
-      },
-      output: {
-        normal: 1.5,
-      },
-    },
-    image: 2.5e-7,
-  },
   reasoning: EFFORT_NONE_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_1_FLASH_LITE_BATCH = {
@@ -3735,18 +2439,6 @@ const GOOGLE_GEMINI_3_1_FLASH_LITE_BATCH = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.125,
-        cached: 0.0125,
-      },
-      output: {
-        normal: 0.75,
-      },
-    },
-    image: 1.25e-7,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_1_PRO_PREVIEW = {
@@ -3768,18 +2460,6 @@ const GOOGLE_GEMINI_3_1_PRO_PREVIEW = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 0.575,
-      },
-      output: {
-        normal: 12,
-      },
-    },
-    image: 0.000002,
-  },
   reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS = {
@@ -3800,18 +2480,6 @@ const GOOGLE_GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 0.575,
-      },
-      output: {
-        normal: 12,
-      },
-    },
-    image: 0.000002,
-  },
   reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_1_PRO_PREVIEW_BATCH = {
@@ -3833,18 +2501,6 @@ const GOOGLE_GEMINI_3_1_PRO_PREVIEW_BATCH = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 1,
-        cached: 0,
-      },
-      output: {
-        normal: 6,
-      },
-    },
-    image: 0.000001,
-  },
   reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_5_FLASH = {
@@ -3866,18 +2522,6 @@ const GOOGLE_GEMINI_3_5_FLASH = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.5,
-        cached: 0.2333333333,
-      },
-      output: {
-        normal: 9,
-      },
-    },
-    image: 0.0000015,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_5_FLASH_LITE = {
@@ -3899,18 +2543,6 @@ const GOOGLE_GEMINI_3_5_FLASH_LITE = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.3,
-        cached: 0.1133333333,
-      },
-      output: {
-        normal: 2.5,
-      },
-    },
-    image: 3e-7,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_5_FLASH_LITE_BATCH = {
@@ -3930,18 +2562,6 @@ const GOOGLE_GEMINI_3_5_FLASH_LITE_BATCH = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.15,
-        cached: 0.015,
-      },
-      output: {
-        normal: 1.25,
-      },
-    },
-    image: 1.5e-7,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_5_FLASH_BATCH = {
@@ -3963,18 +2583,6 @@ const GOOGLE_GEMINI_3_5_FLASH_BATCH = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.75,
-        cached: 0.075,
-      },
-      output: {
-        normal: 4.5,
-      },
-    },
-    image: 7.5e-7,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_6_FLASH = {
@@ -3996,18 +2604,6 @@ const GOOGLE_GEMINI_3_6_FLASH = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.75,
-        cached: 0.1166666667,
-      },
-      output: {
-        normal: 3.75,
-      },
-    },
-    image: 7.5e-7,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_6_FLASH_BATCH = {
@@ -4027,18 +2623,6 @@ const GOOGLE_GEMINI_3_6_FLASH_BATCH = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.375,
-        cached: 0.0791666667,
-      },
-      output: {
-        normal: 1.875,
-      },
-    },
-    image: 3.75e-7,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_7_FLASH = {
@@ -4060,18 +2644,6 @@ const GOOGLE_GEMINI_3_7_FLASH = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.75,
-        cached: 0.1166666667,
-      },
-      output: {
-        normal: 3.75,
-      },
-    },
-    image: 7.5e-7,
-  },
   reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_7_FLASH_BATCH = {
@@ -4091,18 +2663,6 @@ const GOOGLE_GEMINI_3_7_FLASH_BATCH = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.375,
-        cached: 0.0791666667,
-      },
-      output: {
-        normal: 1.875,
-      },
-    },
-    image: 3.75e-7,
-  },
   reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_8_FLASH = {
@@ -4124,18 +2684,6 @@ const GOOGLE_GEMINI_3_8_FLASH = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.825,
-        cached: 0.12416666670000001,
-      },
-      output: {
-        normal: 4.125,
-      },
-    },
-    image: 8.25e-7,
-  },
   reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_8_FLASH_BATCH = {
@@ -4155,18 +2703,6 @@ const GOOGLE_GEMINI_3_8_FLASH_BATCH = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.375,
-        cached: 0.0791666667,
-      },
-      output: {
-        normal: 1.875,
-      },
-    },
-    image: 3.75e-7,
-  },
   reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_4_ARGON = {
@@ -4188,18 +2724,6 @@ const GOOGLE_GEMINI_4_ARGON = {
   },
   context_window: 1048576,
   max_output_tokens: 943718,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 0.2875,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0.000002,
-  },
 } as const
 const GOOGLE_GEMINI_4_ARGON_BATCH = {
   id: 'google/gemini-4-argon:batch',
@@ -4220,18 +2744,6 @@ const GOOGLE_GEMINI_4_ARGON_BATCH = {
   },
   context_window: 1048576,
   max_output_tokens: 943718,
-  pricing: {
-    text: {
-      input: {
-        normal: 1,
-        cached: 0.2375,
-      },
-      output: {
-        normal: 5,
-      },
-    },
-    image: 0.000001,
-  },
 } as const
 const GOOGLE_GEMINI_NANO_BANANA_2_1 = {
   id: 'google/gemini-nano-banana-2.1',
@@ -4251,18 +2763,6 @@ const GOOGLE_GEMINI_NANO_BANANA_2_1 = {
   },
   context_window: 65536,
   max_output_tokens: 58982,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.5,
-        cached: 0,
-      },
-      output: {
-        normal: 7.5,
-      },
-    },
-    image: 0,
-  },
 } as const
 const GOOGLE_GEMMA_2_27B_IT = {
   id: 'google/gemma-2-27b-it',
@@ -4283,18 +2783,6 @@ const GOOGLE_GEMMA_2_27B_IT = {
   },
   context_window: 8192,
   max_output_tokens: 2048,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.65,
-        cached: 0,
-      },
-      output: {
-        normal: 0.65,
-      },
-    },
-    image: 0,
-  },
 } as const
 const GOOGLE_GEMMA_3_12B_IT = {
   id: 'google/gemma-3-12b-it',
@@ -4317,18 +2805,6 @@ const GOOGLE_GEMMA_3_12B_IT = {
   },
   context_window: 131072,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.05,
-        cached: 0,
-      },
-      output: {
-        normal: 0.15,
-      },
-    },
-    image: 0,
-  },
 } as const
 const GOOGLE_GEMMA_3_27B_IT = {
   id: 'google/gemma-3-27b-it',
@@ -4353,18 +2829,6 @@ const GOOGLE_GEMMA_3_27B_IT = {
   },
   context_window: 131072,
   max_output_tokens: 117964,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.08,
-        cached: 0.04,
-      },
-      output: {
-        normal: 0.35,
-      },
-    },
-    image: 0,
-  },
 } as const
 const GOOGLE_GEMMA_3_4B_IT = {
   id: 'google/gemma-3-4b-it',
@@ -4388,18 +2852,6 @@ const GOOGLE_GEMMA_3_4B_IT = {
   },
   context_window: 131072,
   max_output_tokens: 117964,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.04,
-        cached: 0.02,
-      },
-      output: {
-        normal: 0.05,
-      },
-    },
-    image: 0,
-  },
 } as const
 const GOOGLE_GEMMA_4_26B_A4B_IT = {
   id: 'google/gemma-4-26b-a4b-it',
@@ -4425,18 +2877,6 @@ const GOOGLE_GEMMA_4_26B_A4B_IT = {
   },
   context_window: 262144,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.09,
-        cached: 0.05,
-      },
-      output: {
-        normal: 0.3,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const GOOGLE_GEMMA_4_26B_A4B_IT_FREE = {
@@ -4457,18 +2897,6 @@ const GOOGLE_GEMMA_4_26B_A4B_IT_FREE = {
   },
   context_window: 262144,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const GOOGLE_GEMMA_4_31B_IT = {
@@ -4495,18 +2923,6 @@ const GOOGLE_GEMMA_4_31B_IT = {
   },
   context_window: 262144,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.2,
-        cached: 0,
-      },
-      output: {
-        normal: 0.4,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const GOOGLE_GEMMA_4_31B_IT_FREE = {
@@ -4527,18 +2943,6 @@ const GOOGLE_GEMMA_4_31B_IT_FREE = {
   },
   context_window: 262144,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const GOOGLE_LYRIA_3_CLIP_PREVIEW = {
@@ -4557,18 +2961,6 @@ const GOOGLE_LYRIA_3_CLIP_PREVIEW = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
 } as const
 const GOOGLE_LYRIA_3_PRO_PREVIEW = {
   id: 'google/lyria-3-pro-preview',
@@ -4586,18 +2978,6 @@ const GOOGLE_LYRIA_3_PRO_PREVIEW = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
 } as const
 const GRYPHE_MYTHOMAX_L2_13B = {
   id: 'gryphe/mythomax-l2-13b',
@@ -4621,18 +3001,6 @@ const GRYPHE_MYTHOMAX_L2_13B = {
   },
   context_window: 8192,
   max_output_tokens: 3686,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.08,
-        cached: 0,
-      },
-      output: {
-        normal: 0.11,
-      },
-    },
-    image: 0,
-  },
 } as const
 const IBM_GRANITE_GRANITE_4_0_H_MICRO = {
   id: 'ibm-granite/granite-4.0-h-micro',
@@ -4656,18 +3024,6 @@ const IBM_GRANITE_GRANITE_4_0_H_MICRO = {
   },
   context_window: 131000,
   max_output_tokens: 117900,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.017,
-        cached: 0,
-      },
-      output: {
-        normal: 0.112,
-      },
-    },
-    image: 0,
-  },
 } as const
 const IBM_GRANITE_GRANITE_4_2_8B = {
   id: 'ibm-granite/granite-4.2-8b',
@@ -4693,18 +3049,6 @@ const IBM_GRANITE_GRANITE_4_2_8B = {
   },
   context_window: 131072,
   max_output_tokens: 117964,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.06,
-        cached: 0.015,
-      },
-      output: {
-        normal: 0.25,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_HIGH,
 } as const
 const INCEPTION_MERCURY_2 = {
@@ -4724,18 +3068,6 @@ const INCEPTION_MERCURY_2 = {
   },
   context_window: 128000,
   max_output_tokens: 50000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.25,
-        cached: 0.025,
-      },
-      output: {
-        normal: 0.75,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_HIGH,
 } as const
 const INCEPTION_MERCURY_2_5 = {
@@ -4755,18 +3087,6 @@ const INCEPTION_MERCURY_2_5 = {
   },
   context_window: 260000,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.04,
-        cached: 0.004,
-      },
-      output: {
-        normal: 0.15,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_HIGH,
 } as const
 const INCEPTION_MERCURY_3 = {
@@ -4786,18 +3106,6 @@ const INCEPTION_MERCURY_3 = {
   },
   context_window: 1000000,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0.01,
-      },
-      output: {
-        normal: 0.35,
-      },
-    },
-    image: 0,
-  },
 } as const
 const INCLUSIONAI_LING_3_0_FLASH = {
   id: 'inclusionai/ling-3.0-flash',
@@ -4823,18 +3131,6 @@ const INCLUSIONAI_LING_3_0_FLASH = {
   },
   context_window: 262144,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.021,
-        cached: 0.0042,
-      },
-      output: {
-        normal: 0.063,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const INCLUSIONAI_LING_3_0_FLASH_VL = {
@@ -4859,18 +3155,6 @@ const INCLUSIONAI_LING_3_0_FLASH_VL = {
   },
   context_window: 131072,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.06,
-        cached: 0.012,
-      },
-      output: {
-        normal: 0.18,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const INCLUSIONAI_LING_3_1_FLASH = {
@@ -4897,18 +3181,6 @@ const INCLUSIONAI_LING_3_1_FLASH = {
   },
   context_window: 262144,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.075,
-        cached: 0.015,
-      },
-      output: {
-        normal: 0.225,
-      },
-    },
-    image: 0,
-  },
 } as const
 const INFERENCE_NET_SCHEMATRON_V2_SMALL = {
   id: 'inference-net/schematron-v2-small',
@@ -4930,18 +3202,6 @@ const INFERENCE_NET_SCHEMATRON_V2_SMALL = {
   },
   context_window: 128000,
   max_output_tokens: 4096,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.05,
-        cached: 0.05,
-      },
-      output: {
-        normal: 0.23,
-      },
-    },
-    image: 0,
-  },
 } as const
 const INFERENCE_NET_SCHEMATRON_V2_TURBO = {
   id: 'inference-net/schematron-v2-turbo',
@@ -4963,18 +3223,6 @@ const INFERENCE_NET_SCHEMATRON_V2_TURBO = {
   },
   context_window: 128000,
   max_output_tokens: 8192,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.03,
-        cached: 0.03,
-      },
-      output: {
-        normal: 0.15,
-      },
-    },
-    image: 0,
-  },
 } as const
 const LIQUID_LFM_2_5_2_6B_FREE = {
   id: 'liquid/lfm-2.5-2.6b:free',
@@ -4999,18 +3247,6 @@ const LIQUID_LFM_2_5_2_6B_FREE = {
   },
   context_window: 65536,
   max_output_tokens: 8192,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const LIQUID_LFM_2_5_24B_A2B = {
@@ -5036,18 +3272,6 @@ const LIQUID_LFM_2_5_24B_A2B = {
   },
   context_window: 128000,
   max_output_tokens: 8192,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.05,
-        cached: 0.025,
-      },
-      output: {
-        normal: 0.7,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MANCER_WEAVER = {
   id: 'mancer/weaver',
@@ -5071,18 +3295,6 @@ const MANCER_WEAVER = {
   },
   context_window: 8000,
   max_output_tokens: 6000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.4,
-        cached: 0,
-      },
-      output: {
-        normal: 0.75,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MEITUAN_LONGCAT_2_0 = {
   id: 'meituan/longcat-2.0',
@@ -5105,18 +3317,6 @@ const MEITUAN_LONGCAT_2_0 = {
   },
   context_window: 1048756,
   max_output_tokens: 262144,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.3,
-        cached: 0.006,
-      },
-      output: {
-        normal: 1.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: BUDGET_OFF_HIGH,
 } as const
 const META_LLAMA_LLAMA_3_1_70B_INSTRUCT = {
@@ -5140,18 +3340,6 @@ const META_LLAMA_LLAMA_3_1_70B_INSTRUCT = {
   },
   context_window: 131072,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.4,
-        cached: 0,
-      },
-      output: {
-        normal: 0.4,
-      },
-    },
-    image: 0,
-  },
 } as const
 const META_LLAMA_LLAMA_3_1_8B_INSTRUCT = {
   id: 'meta-llama/llama-3.1-8b-instruct',
@@ -5176,18 +3364,6 @@ const META_LLAMA_LLAMA_3_1_8B_INSTRUCT = {
   },
   context_window: 131072,
   max_output_tokens: 117964,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.05,
-        cached: 0.025,
-      },
-      output: {
-        normal: 0.08,
-      },
-    },
-    image: 0,
-  },
 } as const
 const META_LLAMA_LLAMA_3_2_1B_INSTRUCT = {
   id: 'meta-llama/llama-3.2-1b-instruct',
@@ -5208,18 +3384,6 @@ const META_LLAMA_LLAMA_3_2_1B_INSTRUCT = {
   },
   context_window: 60000,
   max_output_tokens: 54000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.027,
-        cached: 0,
-      },
-      output: {
-        normal: 0.201,
-      },
-    },
-    image: 0,
-  },
 } as const
 const META_LLAMA_LLAMA_3_2_3B_INSTRUCT = {
   id: 'meta-llama/llama-3.2-3b-instruct',
@@ -5242,18 +3406,6 @@ const META_LLAMA_LLAMA_3_2_3B_INSTRUCT = {
   },
   context_window: 131072,
   max_output_tokens: 72000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.0509,
-        cached: 0,
-      },
-      output: {
-        normal: 0.335,
-      },
-    },
-    image: 0,
-  },
 } as const
 const META_LLAMA_LLAMA_3_3_70B_INSTRUCT = {
   id: 'meta-llama/llama-3.3-70b-instruct',
@@ -5278,18 +3430,6 @@ const META_LLAMA_LLAMA_3_3_70B_INSTRUCT = {
   },
   context_window: 131072,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0,
-      },
-      output: {
-        normal: 0.32,
-      },
-    },
-    image: 0,
-  },
 } as const
 const META_LLAMA_LLAMA_4_MAVERICK = {
   id: 'meta-llama/llama-4-maverick',
@@ -5314,18 +3454,6 @@ const META_LLAMA_LLAMA_4_MAVERICK = {
   },
   context_window: 524288,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1875,
-        cached: 0.05,
-      },
-      output: {
-        normal: 0.6525,
-      },
-    },
-    image: 0,
-  },
 } as const
 const META_LLAMA_LLAMA_4_SCOUT = {
   id: 'meta-llama/llama-4-scout',
@@ -5348,18 +3476,6 @@ const META_LLAMA_LLAMA_4_SCOUT = {
   },
   context_window: 1310720,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0,
-      },
-      output: {
-        normal: 0.3,
-      },
-    },
-    image: 0,
-  },
 } as const
 const META_LLAMA_LLAMA_GUARD_4_12B = {
   id: 'meta-llama/llama-guard-4-12b',
@@ -5380,18 +3496,6 @@ const META_LLAMA_LLAMA_GUARD_4_12B = {
   },
   context_window: 163840,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.18,
-        cached: 0,
-      },
-      output: {
-        normal: 0.18,
-      },
-    },
-    image: 0,
-  },
 } as const
 const META_MUSE_GLIMMER_30B = {
   id: 'meta/muse-glimmer-30b',
@@ -5415,18 +3519,6 @@ const META_MUSE_GLIMMER_30B = {
   },
   context_window: 131072,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.3,
-        cached: 0.04,
-      },
-      output: {
-        normal: 1.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_XHIGH,
 } as const
 const META_MUSE_SPARK_1_1 = {
@@ -5446,18 +3538,6 @@ const META_MUSE_SPARK_1_1 = {
   },
   context_window: 1048576,
   max_output_tokens: 943718,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.25,
-        cached: 0.15,
-      },
-      output: {
-        normal: 4.25,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_XHIGH,
 } as const
 const META_MUSE_SPARK_1_2 = {
@@ -5477,18 +3557,6 @@ const META_MUSE_SPARK_1_2 = {
   },
   context_window: 1048576,
   max_output_tokens: 943718,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.25,
-        cached: 0.15,
-      },
-      output: {
-        normal: 4.25,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_XHIGH,
 } as const
 const META_MUSE_SPARK_1_2_CONTRIBUTOR = {
@@ -5508,18 +3576,6 @@ const META_MUSE_SPARK_1_2_CONTRIBUTOR = {
   },
   context_window: 1048576,
   max_output_tokens: 943718,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0.002,
-      },
-      output: {
-        normal: 0.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_XHIGH,
 } as const
 const META_MUSE_SPARK_1_3 = {
@@ -5539,18 +3595,6 @@ const META_MUSE_SPARK_1_3 = {
   },
   context_window: 1048576,
   max_output_tokens: 943718,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.25,
-        cached: 0.15,
-      },
-      output: {
-        normal: 4.25,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_MAX,
 } as const
 const META_MUSE_SPARK_1_3_CONTRIBUTOR = {
@@ -5570,18 +3614,6 @@ const META_MUSE_SPARK_1_3_CONTRIBUTOR = {
   },
   context_window: 1048576,
   max_output_tokens: 943718,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0.002,
-      },
-      output: {
-        normal: 0.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_MAX,
 } as const
 const META_MUSE_SPARK_OPEN = {
@@ -5608,18 +3640,6 @@ const META_MUSE_SPARK_OPEN = {
   },
   context_window: 1048576,
   max_output_tokens: 943718,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.25,
-        cached: 0.15,
-      },
-      output: {
-        normal: 4.25,
-      },
-    },
-    image: 0,
-  },
 } as const
 const META_MUSE_WONDER = {
   id: 'meta/muse-wonder',
@@ -5638,18 +3658,6 @@ const META_MUSE_WONDER = {
   },
   context_window: 1048576,
   max_output_tokens: 943718,
-  pricing: {
-    text: {
-      input: {
-        normal: 4,
-        cached: 0.2,
-      },
-      output: {
-        normal: 20,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MICROSOFT_PHI_4 = {
   id: 'microsoft/phi-4',
@@ -5671,18 +3679,6 @@ const MICROSOFT_PHI_4 = {
   },
   context_window: 16384,
   max_output_tokens: 14745,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.07,
-        cached: 0,
-      },
-      output: {
-        normal: 0.14,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MINIMAX_MINIMAX_01 = {
   id: 'minimax/minimax-01',
@@ -5694,18 +3690,6 @@ const MINIMAX_MINIMAX_01 = {
   },
   context_window: 1000192,
   max_output_tokens: 900172,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.2,
-        cached: 0,
-      },
-      output: {
-        normal: 1.1,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MINIMAX_MINIMAX_M1 = {
   id: 'minimax/minimax-m1',
@@ -5727,18 +3711,6 @@ const MINIMAX_MINIMAX_M1 = {
   },
   context_window: 1000000,
   max_output_tokens: 40000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.55,
-        cached: 0,
-      },
-      output: {
-        normal: 2.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const MINIMAX_MINIMAX_M2 = {
@@ -5764,18 +3736,6 @@ const MINIMAX_MINIMAX_M2 = {
   },
   context_window: 204800,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.255,
-        cached: 0,
-      },
-      output: {
-        normal: 1.02,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const MINIMAX_MINIMAX_M2_HER = {
@@ -5788,18 +3748,6 @@ const MINIMAX_MINIMAX_M2_HER = {
   },
   context_window: 65536,
   max_output_tokens: 2048,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.3,
-        cached: 0.03,
-      },
-      output: {
-        normal: 1.2,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MINIMAX_MINIMAX_M2_1 = {
   id: 'minimax/minimax-m2.1',
@@ -5818,18 +3766,6 @@ const MINIMAX_MINIMAX_M2_1 = {
   },
   context_window: 204800,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.3,
-        cached: 0.03,
-      },
-      output: {
-        normal: 1.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const MINIMAX_MINIMAX_M2_5 = {
@@ -5856,18 +3792,6 @@ const MINIMAX_MINIMAX_M2_5 = {
   },
   context_window: 204800,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.27,
-        cached: 0.03,
-      },
-      output: {
-        normal: 0.95,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const MINIMAX_MINIMAX_M2_7 = {
@@ -5892,18 +3816,6 @@ const MINIMAX_MINIMAX_M2_7 = {
   },
   context_window: 204800,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.3,
-        cached: 0.06,
-      },
-      output: {
-        normal: 1.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const MINIMAX_MINIMAX_M3 = {
@@ -5930,18 +3842,6 @@ const MINIMAX_MINIMAX_M3 = {
   },
   context_window: 1048576,
   max_output_tokens: 512000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.3,
-        cached: 0.06,
-      },
-      output: {
-        normal: 1.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const MINIMAX_MINIMAX_M3_1_FLASH_FREE = {
@@ -5961,18 +3861,6 @@ const MINIMAX_MINIMAX_M3_1_FLASH_FREE = {
   },
   context_window: 1000000,
   max_output_tokens: 524288,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MISTRALAI_CODESTRAL_2508 = {
   id: 'mistralai/codestral-2508',
@@ -5994,18 +3882,6 @@ const MISTRALAI_CODESTRAL_2508 = {
   },
   context_window: 256000,
   max_output_tokens: 204800,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.3,
-        cached: 0.03,
-      },
-      output: {
-        normal: 0.9,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MISTRALAI_CODESTRAL_2508_BATCH = {
   id: 'mistralai/codestral-2508:batch',
@@ -6027,18 +3903,6 @@ const MISTRALAI_CODESTRAL_2508_BATCH = {
   },
   context_window: 256000,
   max_output_tokens: 204800,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.15,
-        cached: 0.015,
-      },
-      output: {
-        normal: 0.45,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MISTRALAI_DEVSTRAL_2512 = {
   id: 'mistralai/devstral-2512',
@@ -6060,18 +3924,6 @@ const MISTRALAI_DEVSTRAL_2512 = {
   },
   context_window: 262144,
   max_output_tokens: 209715,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.4,
-        cached: 0.04,
-      },
-      output: {
-        normal: 2,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MISTRALAI_MINISTRAL_14B_2512 = {
   id: 'mistralai/ministral-14b-2512',
@@ -6093,18 +3945,6 @@ const MISTRALAI_MINISTRAL_14B_2512 = {
   },
   context_window: 262144,
   max_output_tokens: 209715,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.2,
-        cached: 0.02,
-      },
-      output: {
-        normal: 0.2,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MISTRALAI_MINISTRAL_3B_2512 = {
   id: 'mistralai/ministral-3b-2512',
@@ -6126,18 +3966,6 @@ const MISTRALAI_MINISTRAL_3B_2512 = {
   },
   context_window: 131072,
   max_output_tokens: 104857,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0.01,
-      },
-      output: {
-        normal: 0.1,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MISTRALAI_MINISTRAL_8B_2512 = {
   id: 'mistralai/ministral-8b-2512',
@@ -6159,18 +3987,6 @@ const MISTRALAI_MINISTRAL_8B_2512 = {
   },
   context_window: 262144,
   max_output_tokens: 209715,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.15,
-        cached: 0.015,
-      },
-      output: {
-        normal: 0.15,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MISTRALAI_MINISTRAL_8B_2512_BATCH = {
   id: 'mistralai/ministral-8b-2512:batch',
@@ -6192,18 +4008,6 @@ const MISTRALAI_MINISTRAL_8B_2512_BATCH = {
   },
   context_window: 262144,
   max_output_tokens: 209715,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.075,
-        cached: 0.0075,
-      },
-      output: {
-        normal: 0.075,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MISTRALAI_MISTRAL_LARGE = {
   id: 'mistralai/mistral-large',
@@ -6225,18 +4029,6 @@ const MISTRALAI_MISTRAL_LARGE = {
   },
   context_window: 128000,
   max_output_tokens: 102400,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 0.2,
-      },
-      output: {
-        normal: 6,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MISTRALAI_MISTRAL_LARGE_2407 = {
   id: 'mistralai/mistral-large-2407',
@@ -6258,18 +4050,6 @@ const MISTRALAI_MISTRAL_LARGE_2407 = {
   },
   context_window: 131072,
   max_output_tokens: 104857,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 0.2,
-      },
-      output: {
-        normal: 6,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MISTRALAI_MISTRAL_LARGE_2512 = {
   id: 'mistralai/mistral-large-2512',
@@ -6291,18 +4071,6 @@ const MISTRALAI_MISTRAL_LARGE_2512 = {
   },
   context_window: 262144,
   max_output_tokens: 209715,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.5,
-        cached: 0.05,
-      },
-      output: {
-        normal: 1.5,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MISTRALAI_MISTRAL_LARGE_2512_BATCH = {
   id: 'mistralai/mistral-large-2512:batch',
@@ -6324,18 +4092,6 @@ const MISTRALAI_MISTRAL_LARGE_2512_BATCH = {
   },
   context_window: 262144,
   max_output_tokens: 209715,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.25,
-        cached: 0.025,
-      },
-      output: {
-        normal: 0.75,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MISTRALAI_MISTRAL_LARGE_4_0 = {
   id: 'mistralai/mistral-large-4-0',
@@ -6360,18 +4116,6 @@ const MISTRALAI_MISTRAL_LARGE_4_0 = {
   },
   context_window: 1048576,
   max_output_tokens: 262144,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.36,
-        cached: 0.14,
-      },
-      output: {
-        normal: 4.18,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MISTRALAI_MISTRAL_MEDIUM_3 = {
   id: 'mistralai/mistral-medium-3',
@@ -6393,18 +4137,6 @@ const MISTRALAI_MISTRAL_MEDIUM_3 = {
   },
   context_window: 131072,
   max_output_tokens: 104857,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.4,
-        cached: 0.04,
-      },
-      output: {
-        normal: 2,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MISTRALAI_MISTRAL_MEDIUM_3_5 = {
   id: 'mistralai/mistral-medium-3-5',
@@ -6427,18 +4159,6 @@ const MISTRALAI_MISTRAL_MEDIUM_3_5 = {
   },
   context_window: 262144,
   max_output_tokens: 209715,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.5,
-        cached: 0,
-      },
-      output: {
-        normal: 7.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_HIGH,
 } as const
 const MISTRALAI_MISTRAL_MEDIUM_3_5_BATCH = {
@@ -6462,18 +4182,6 @@ const MISTRALAI_MISTRAL_MEDIUM_3_5_BATCH = {
   },
   context_window: 262144,
   max_output_tokens: 209715,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.75,
-        cached: 0,
-      },
-      output: {
-        normal: 3.75,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_HIGH,
 } as const
 const MISTRALAI_MISTRAL_MEDIUM_3_1 = {
@@ -6496,18 +4204,6 @@ const MISTRALAI_MISTRAL_MEDIUM_3_1 = {
   },
   context_window: 131072,
   max_output_tokens: 104857,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.4,
-        cached: 0.04,
-      },
-      output: {
-        normal: 2,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MISTRALAI_MISTRAL_MEDIUM_3_1_BATCH = {
   id: 'mistralai/mistral-medium-3.1:batch',
@@ -6529,18 +4225,6 @@ const MISTRALAI_MISTRAL_MEDIUM_3_1_BATCH = {
   },
   context_window: 131072,
   max_output_tokens: 104857,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.2,
-        cached: 0.02,
-      },
-      output: {
-        normal: 1,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MISTRALAI_MISTRAL_NEMO = {
   id: 'mistralai/mistral-nemo',
@@ -6565,18 +4249,6 @@ const MISTRALAI_MISTRAL_NEMO = {
   },
   context_window: 131072,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.029,
-        cached: 0,
-      },
-      output: {
-        normal: 0.03,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MISTRALAI_MISTRAL_SABA = {
   id: 'mistralai/mistral-saba',
@@ -6598,18 +4270,6 @@ const MISTRALAI_MISTRAL_SABA = {
   },
   context_window: 32768,
   max_output_tokens: 26214,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.2,
-        cached: 0.02,
-      },
-      output: {
-        normal: 0.6,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MISTRALAI_MISTRAL_SMALL_24B_INSTRUCT_2501 = {
   id: 'mistralai/mistral-small-24b-instruct-2501',
@@ -6631,18 +4291,6 @@ const MISTRALAI_MISTRAL_SMALL_24B_INSTRUCT_2501 = {
   },
   context_window: 32768,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.05,
-        cached: 0,
-      },
-      output: {
-        normal: 0.08,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MISTRALAI_MISTRAL_SMALL_2603 = {
   id: 'mistralai/mistral-small-2603',
@@ -6665,18 +4313,6 @@ const MISTRALAI_MISTRAL_SMALL_2603 = {
   },
   context_window: 262144,
   max_output_tokens: 209715,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.15,
-        cached: 0.015,
-      },
-      output: {
-        normal: 0.6,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_HIGH,
 } as const
 const MISTRALAI_MISTRAL_SMALL_2603_BATCH = {
@@ -6700,18 +4336,6 @@ const MISTRALAI_MISTRAL_SMALL_2603_BATCH = {
   },
   context_window: 262144,
   max_output_tokens: 209715,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.075,
-        cached: 0.0075,
-      },
-      output: {
-        normal: 0.3,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_HIGH,
 } as const
 const MISTRALAI_MISTRAL_SMALL_3_1_24B_INSTRUCT = {
@@ -6736,18 +4360,6 @@ const MISTRALAI_MISTRAL_SMALL_3_1_24B_INSTRUCT = {
   },
   context_window: 128000,
   max_output_tokens: 102400,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.351,
-        cached: 0,
-      },
-      output: {
-        normal: 0.555,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MISTRALAI_MISTRAL_SMALL_3_2_24B_INSTRUCT = {
   id: 'mistralai/mistral-small-3.2-24b-instruct',
@@ -6772,18 +4384,6 @@ const MISTRALAI_MISTRAL_SMALL_3_2_24B_INSTRUCT = {
   },
   context_window: 256000,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.09375,
-        cached: 0,
-      },
-      output: {
-        normal: 0.25,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MISTRALAI_MIXTRAL_8X22B_INSTRUCT = {
   id: 'mistralai/mixtral-8x22b-instruct',
@@ -6805,18 +4405,6 @@ const MISTRALAI_MIXTRAL_8X22B_INSTRUCT = {
   },
   context_window: 65536,
   max_output_tokens: 52428,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 0.2,
-      },
-      output: {
-        normal: 6,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MISTRALAI_VOXTRAL_SMALL_24B_2507 = {
   id: 'mistralai/voxtral-small-24b-2507',
@@ -6838,18 +4426,6 @@ const MISTRALAI_VOXTRAL_SMALL_24B_2507 = {
   },
   context_window: 32768,
   max_output_tokens: 26214,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0.01,
-      },
-      output: {
-        normal: 0.3,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MOONDREAM_MOONDREAM3_PREVIEW = {
   id: 'moondream/moondream3-preview',
@@ -6867,18 +4443,6 @@ const MOONDREAM_MOONDREAM3_PREVIEW = {
   },
   context_window: 32000,
   max_output_tokens: 4096,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.3,
-        cached: 0,
-      },
-      output: {
-        normal: 2.5,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MOONDREAM_MOONDREAM3_1_9B_A2B = {
   id: 'moondream/moondream3.1-9b-a2b',
@@ -6896,18 +4460,6 @@ const MOONDREAM_MOONDREAM3_1_9B_A2B = {
   },
   context_window: 32000,
   max_output_tokens: 4096,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.3,
-        cached: 0,
-      },
-      output: {
-        normal: 2.5,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MOONSHOTAI_KIMI_K2 = {
   id: 'moonshotai/kimi-k2',
@@ -6928,18 +4480,6 @@ const MOONSHOTAI_KIMI_K2 = {
   },
   context_window: 131072,
   max_output_tokens: 98304,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.57,
-        cached: 0,
-      },
-      output: {
-        normal: 2.3,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MOONSHOTAI_KIMI_K2_0905 = {
   id: 'moonshotai/kimi-k2-0905',
@@ -6961,18 +4501,6 @@ const MOONSHOTAI_KIMI_K2_0905 = {
   },
   context_window: 262144,
   max_output_tokens: 98304,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.6,
-        cached: 0,
-      },
-      output: {
-        normal: 2.5,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MOONSHOTAI_KIMI_K2_THINKING = {
   id: 'moonshotai/kimi-k2-thinking',
@@ -6997,18 +4525,6 @@ const MOONSHOTAI_KIMI_K2_THINKING = {
   },
   context_window: 262144,
   max_output_tokens: 98304,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.6,
-        cached: 0.15,
-      },
-      output: {
-        normal: 2.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const MOONSHOTAI_KIMI_K2_5 = {
@@ -7035,18 +4551,6 @@ const MOONSHOTAI_KIMI_K2_5 = {
   },
   context_window: 262144,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.5,
-        cached: 0.15,
-      },
-      output: {
-        normal: 2.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const MOONSHOTAI_KIMI_K2_6 = {
@@ -7074,18 +4578,6 @@ const MOONSHOTAI_KIMI_K2_6 = {
   },
   context_window: 262144,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.65,
-        cached: 0.15,
-      },
-      output: {
-        normal: 3.41,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const MOONSHOTAI_KIMI_K2_7_CODE = {
@@ -7113,18 +4605,6 @@ const MOONSHOTAI_KIMI_K2_7_CODE = {
   },
   context_window: 262144,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.6712,
-        cached: 0.18,
-      },
-      output: {
-        normal: 3.35,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const MOONSHOTAI_KIMI_K3 = {
@@ -7151,18 +4631,6 @@ const MOONSHOTAI_KIMI_K3 = {
   },
   context_window: 1048576,
   max_output_tokens: 943718,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.239,
-        cached: 0.21,
-      },
-      output: {
-        normal: 11.936,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_HIGH_MAX,
 } as const
 const MOONSHOTAI_KIMI_K3_BATCH = {
@@ -7187,18 +4655,6 @@ const MOONSHOTAI_KIMI_K3_BATCH = {
   },
   context_window: 1048576,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 2.28,
-        cached: 0.228,
-      },
-      output: {
-        normal: 11.4,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const MORPH_MORPH_V3_FAST = {
@@ -7218,18 +4674,6 @@ const MORPH_MORPH_V3_FAST = {
   },
   context_window: 262144,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.8,
-        cached: 0,
-      },
-      output: {
-        normal: 1.2,
-      },
-    },
-    image: 0,
-  },
 } as const
 const MORPH_MORPH_V3_LARGE = {
   id: 'morph/morph-v3-large',
@@ -7248,18 +4692,6 @@ const MORPH_MORPH_V3_LARGE = {
   },
   context_window: 262144,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.9,
-        cached: 0,
-      },
-      output: {
-        normal: 1.9,
-      },
-    },
-    image: 0,
-  },
 } as const
 const NEX_AGI_NEX_N2_5_MINI = {
   id: 'nex-agi/nex-n2.5-mini',
@@ -7278,18 +4710,6 @@ const NEX_AGI_NEX_N2_5_MINI = {
   },
   context_window: 262144,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.025,
-        cached: 0.0025,
-      },
-      output: {
-        normal: 0.1,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_MEDIUM_HIGH,
 } as const
 const NEX_AGI_NEX_N2_5_PRO = {
@@ -7310,18 +4730,6 @@ const NEX_AGI_NEX_N2_5_PRO = {
   },
   context_window: 262144,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.075,
-        cached: 0.015,
-      },
-      output: {
-        normal: 0.25,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_MEDIUM_HIGH,
 } as const
 const NOUSRESEARCH_HERMES_3_LLAMA_3_1_405B = {
@@ -7344,18 +4752,6 @@ const NOUSRESEARCH_HERMES_3_LLAMA_3_1_405B = {
   },
   context_window: 131072,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 1,
-        cached: 0,
-      },
-      output: {
-        normal: 1,
-      },
-    },
-    image: 0,
-  },
 } as const
 const NOUSRESEARCH_HERMES_3_LLAMA_3_1_70B = {
   id: 'nousresearch/hermes-3-llama-3.1-70b',
@@ -7376,18 +4772,6 @@ const NOUSRESEARCH_HERMES_3_LLAMA_3_1_70B = {
   },
   context_window: 131072,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.7,
-        cached: 0,
-      },
-      output: {
-        normal: 0.7,
-      },
-    },
-    image: 0,
-  },
 } as const
 const NOUSRESEARCH_HERMES_4_405B = {
   id: 'nousresearch/hermes-4-405b',
@@ -7409,18 +4793,6 @@ const NOUSRESEARCH_HERMES_4_405B = {
   },
   context_window: 131072,
   max_output_tokens: 117964,
-  pricing: {
-    text: {
-      input: {
-        normal: 1,
-        cached: 0,
-      },
-      output: {
-        normal: 3,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const NVIDIA_NEMOTRON_3_NANO_30B_A3B = {
@@ -7447,18 +4819,6 @@ const NVIDIA_NEMOTRON_3_NANO_30B_A3B = {
   },
   context_window: 262144,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.06,
-        cached: 0,
-      },
-      output: {
-        normal: 0.24,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const NVIDIA_NEMOTRON_3_NANO_OMNI_30B_A3B_REASONING_FREE = {
@@ -7478,18 +4838,6 @@ const NVIDIA_NEMOTRON_3_NANO_OMNI_30B_A3B_REASONING_FREE = {
   },
   context_window: 256000,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
   reasoning: BUDGET_OFF_HIGH,
 } as const
 const NVIDIA_NEMOTRON_3_SUPER_120B_A12B = {
@@ -7516,18 +4864,6 @@ const NVIDIA_NEMOTRON_3_SUPER_120B_A12B = {
   },
   context_window: 262144,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.3,
-        cached: 0.15,
-      },
-      output: {
-        normal: 2.4,
-      },
-    },
-    image: 0,
-  },
   reasoning: BUDGET_NONE_LOW_MEDIUM,
 } as const
 const NVIDIA_NEMOTRON_3_SUPER_120B_A12B_FREE = {
@@ -7548,18 +4884,6 @@ const NVIDIA_NEMOTRON_3_SUPER_120B_A12B_FREE = {
   },
   context_window: 262144,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
   reasoning: BUDGET_NONE_LOW_MEDIUM,
 } as const
 const NVIDIA_NEMOTRON_3_ULTRA_550B_A55B = {
@@ -7584,18 +4908,6 @@ const NVIDIA_NEMOTRON_3_ULTRA_550B_A55B = {
   },
   context_window: 262144,
   max_output_tokens: 182520,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.6,
-        cached: 0.12,
-      },
-      output: {
-        normal: 2.4,
-      },
-    },
-    image: 0,
-  },
   reasoning: BUDGET_NONE_MEDIUM_HIGH,
 } as const
 const NVIDIA_NEMOTRON_3_ULTRA_550B_A55B_FREE = {
@@ -7615,18 +4927,6 @@ const NVIDIA_NEMOTRON_3_ULTRA_550B_A55B_FREE = {
   },
   context_window: 1000000,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
   reasoning: BUDGET_NONE_MEDIUM_HIGH,
 } as const
 const NVIDIA_NEMOTRON_3_5_CONTENT_SAFETY = {
@@ -7649,18 +4949,6 @@ const NVIDIA_NEMOTRON_3_5_CONTENT_SAFETY = {
   },
   context_window: 131072,
   max_output_tokens: 117964,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.2,
-        cached: 0,
-      },
-      output: {
-        normal: 0.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const NVIDIA_NEMOTRON_3_5_CONTENT_SAFETY_FREE = {
@@ -7679,18 +4967,6 @@ const NVIDIA_NEMOTRON_3_5_CONTENT_SAFETY_FREE = {
   },
   context_window: 128000,
   max_output_tokens: 8192,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const NVIDIA_NEMOTRON_3_5_LIGHTNING = {
@@ -7717,18 +4993,6 @@ const NVIDIA_NEMOTRON_3_5_LIGHTNING = {
   },
   context_window: 262144,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.07,
-        cached: 0.04,
-      },
-      output: {
-        normal: 0.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const NVIDIA_NEMOTRON_3_5_LIGHTNING_FREE = {
@@ -7748,18 +5012,6 @@ const NVIDIA_NEMOTRON_3_5_LIGHTNING_FREE = {
   },
   context_window: 1000000,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const NVIDIA_NEMOTRON_3_5_SUPER_VL = {
@@ -7786,18 +5038,6 @@ const NVIDIA_NEMOTRON_3_5_SUPER_VL = {
   },
   context_window: 1048576,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.15,
-        cached: 0.02,
-      },
-      output: {
-        normal: 0.5,
-      },
-    },
-    image: 0,
-  },
 } as const
 const NVIDIA_NEMOTRON_3_5_SUPER_VL_FREE = {
   id: 'nvidia/nemotron-3.5-super-vl:free',
@@ -7817,18 +5057,6 @@ const NVIDIA_NEMOTRON_3_5_SUPER_VL_FREE = {
   },
   context_window: 1000000,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_3_5_TURBO = {
   id: 'openai/gpt-3.5-turbo',
@@ -7853,18 +5081,6 @@ const OPENAI_GPT_3_5_TURBO = {
   },
   context_window: 16385,
   max_output_tokens: 4096,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.5,
-        cached: 0,
-      },
-      output: {
-        normal: 1.5,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_3_5_TURBO_0613 = {
   id: 'openai/gpt-3.5-turbo-0613',
@@ -7889,18 +5105,6 @@ const OPENAI_GPT_3_5_TURBO_0613 = {
   },
   context_window: 4095,
   max_output_tokens: 3685,
-  pricing: {
-    text: {
-      input: {
-        normal: 1,
-        cached: 0,
-      },
-      output: {
-        normal: 2,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_3_5_TURBO_16K = {
   id: 'openai/gpt-3.5-turbo-16k',
@@ -7926,18 +5130,6 @@ const OPENAI_GPT_3_5_TURBO_16K = {
   },
   context_window: 16385,
   max_output_tokens: 4096,
-  pricing: {
-    text: {
-      input: {
-        normal: 3,
-        cached: 0,
-      },
-      output: {
-        normal: 4,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_3_5_TURBO_INSTRUCT = {
   id: 'openai/gpt-3.5-turbo-instruct',
@@ -7961,18 +5153,6 @@ const OPENAI_GPT_3_5_TURBO_INSTRUCT = {
   },
   context_window: 4095,
   max_output_tokens: 3685,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.5,
-        cached: 0,
-      },
-      output: {
-        normal: 2,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_3_5_TURBO_BATCH = {
   id: 'openai/gpt-3.5-turbo:batch',
@@ -7997,18 +5177,6 @@ const OPENAI_GPT_3_5_TURBO_BATCH = {
   },
   context_window: 16385,
   max_output_tokens: 4096,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.25,
-        cached: 0,
-      },
-      output: {
-        normal: 0.75,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_4 = {
   id: 'openai/gpt-4',
@@ -8034,18 +5202,6 @@ const OPENAI_GPT_4 = {
   },
   context_window: 8191,
   max_output_tokens: 4096,
-  pricing: {
-    text: {
-      input: {
-        normal: 30,
-        cached: 0,
-      },
-      output: {
-        normal: 60,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_4_TURBO = {
   id: 'openai/gpt-4-turbo',
@@ -8070,18 +5226,6 @@ const OPENAI_GPT_4_TURBO = {
   },
   context_window: 128000,
   max_output_tokens: 4096,
-  pricing: {
-    text: {
-      input: {
-        normal: 10,
-        cached: 0,
-      },
-      output: {
-        normal: 30,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_4_TURBO_BATCH = {
   id: 'openai/gpt-4-turbo:batch',
@@ -8106,18 +5250,6 @@ const OPENAI_GPT_4_TURBO_BATCH = {
   },
   context_window: 128000,
   max_output_tokens: 4096,
-  pricing: {
-    text: {
-      input: {
-        normal: 5,
-        cached: 0,
-      },
-      output: {
-        normal: 15,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_4_1 = {
   id: 'openai/gpt-4.1',
@@ -8137,18 +5269,6 @@ const OPENAI_GPT_4_1 = {
   },
   context_window: 1047576,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 0.5,
-      },
-      output: {
-        normal: 8,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_4_1_MINI = {
   id: 'openai/gpt-4.1-mini',
@@ -8168,18 +5288,6 @@ const OPENAI_GPT_4_1_MINI = {
   },
   context_window: 1047576,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.4,
-        cached: 0.1,
-      },
-      output: {
-        normal: 1.6,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_4_1_MINI_BATCH = {
   id: 'openai/gpt-4.1-mini:batch',
@@ -8198,18 +5306,6 @@ const OPENAI_GPT_4_1_MINI_BATCH = {
   },
   context_window: 1047576,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.2,
-        cached: 0.05,
-      },
-      output: {
-        normal: 0.8,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_4_1_NANO = {
   id: 'openai/gpt-4.1-nano',
@@ -8229,18 +5325,6 @@ const OPENAI_GPT_4_1_NANO = {
   },
   context_window: 1047576,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0.025,
-      },
-      output: {
-        normal: 0.4,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_4_1_NANO_BATCH = {
   id: 'openai/gpt-4.1-nano:batch',
@@ -8259,18 +5343,6 @@ const OPENAI_GPT_4_1_NANO_BATCH = {
   },
   context_window: 1047576,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.05,
-        cached: 0.0125,
-      },
-      output: {
-        normal: 0.2,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_4_1_BATCH = {
   id: 'openai/gpt-4.1:batch',
@@ -8289,18 +5361,6 @@ const OPENAI_GPT_4_1_BATCH = {
   },
   context_window: 1047576,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 1,
-        cached: 0.25,
-      },
-      output: {
-        normal: 4,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_4O = {
   id: 'openai/gpt-4o',
@@ -8326,18 +5386,6 @@ const OPENAI_GPT_4O = {
   },
   context_window: 128000,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 2.5,
-        cached: 1.25,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_4O_2024_05_13 = {
   id: 'openai/gpt-4o-2024-05-13',
@@ -8363,18 +5411,6 @@ const OPENAI_GPT_4O_2024_05_13 = {
   },
   context_window: 128000,
   max_output_tokens: 4096,
-  pricing: {
-    text: {
-      input: {
-        normal: 5,
-        cached: 0,
-      },
-      output: {
-        normal: 15,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_4O_2024_08_06 = {
   id: 'openai/gpt-4o-2024-08-06',
@@ -8400,18 +5436,6 @@ const OPENAI_GPT_4O_2024_08_06 = {
   },
   context_window: 128000,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 2.5,
-        cached: 1.25,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_4O_2024_11_20 = {
   id: 'openai/gpt-4o-2024-11-20',
@@ -8436,18 +5460,6 @@ const OPENAI_GPT_4O_2024_11_20 = {
   },
   context_window: 128000,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 2.5,
-        cached: 1.25,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_4O_MINI = {
   id: 'openai/gpt-4o-mini',
@@ -8473,18 +5485,6 @@ const OPENAI_GPT_4O_MINI = {
   },
   context_window: 128000,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.15,
-        cached: 0.075,
-      },
-      output: {
-        normal: 0.6,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_4O_MINI_2024_07_18 = {
   id: 'openai/gpt-4o-mini-2024-07-18',
@@ -8509,18 +5509,6 @@ const OPENAI_GPT_4O_MINI_2024_07_18 = {
   },
   context_window: 128000,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.15,
-        cached: 0.075,
-      },
-      output: {
-        normal: 0.6,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_4O_MINI_BATCH = {
   id: 'openai/gpt-4o-mini:batch',
@@ -8545,18 +5533,6 @@ const OPENAI_GPT_4O_MINI_BATCH = {
   },
   context_window: 128000,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.075,
-        cached: 0.0375,
-      },
-      output: {
-        normal: 0.3,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_4O_BATCH = {
   id: 'openai/gpt-4o:batch',
@@ -8581,18 +5557,6 @@ const OPENAI_GPT_4O_BATCH = {
   },
   context_window: 128000,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.25,
-        cached: 0.625,
-      },
-      output: {
-        normal: 5,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_5 = {
   id: 'openai/gpt-5',
@@ -8611,18 +5575,6 @@ const OPENAI_GPT_5 = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.25,
-        cached: 0.125,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const OPENAI_GPT_5_IMAGE = {
@@ -8644,18 +5596,6 @@ const OPENAI_GPT_5_IMAGE = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 10,
-        cached: 1.25,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const OPENAI_GPT_5_IMAGE_MINI = {
@@ -8677,18 +5617,6 @@ const OPENAI_GPT_5_IMAGE_MINI = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2.5,
-        cached: 0.25,
-      },
-      output: {
-        normal: 2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const OPENAI_GPT_5_MINI = {
@@ -8708,18 +5636,6 @@ const OPENAI_GPT_5_MINI = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.25,
-        cached: 0.025,
-      },
-      output: {
-        normal: 2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const OPENAI_GPT_5_MINI_BATCH = {
@@ -8738,18 +5654,6 @@ const OPENAI_GPT_5_MINI_BATCH = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.125,
-        cached: 0.0125,
-      },
-      output: {
-        normal: 1,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const OPENAI_GPT_5_NANO = {
@@ -8769,18 +5673,6 @@ const OPENAI_GPT_5_NANO = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.05,
-        cached: 0.005,
-      },
-      output: {
-        normal: 0.4,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const OPENAI_GPT_5_NANO_BATCH = {
@@ -8799,18 +5691,6 @@ const OPENAI_GPT_5_NANO_BATCH = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.025,
-        cached: 0.0025,
-      },
-      output: {
-        normal: 0.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const OPENAI_GPT_5_PRO = {
@@ -8829,18 +5709,6 @@ const OPENAI_GPT_5_PRO = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 15,
-        cached: 0,
-      },
-      output: {
-        normal: 120,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_HIGH,
 } as const
 const OPENAI_GPT_5_PRO_BATCH = {
@@ -8859,18 +5727,6 @@ const OPENAI_GPT_5_PRO_BATCH = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 7.5,
-        cached: 0,
-      },
-      output: {
-        normal: 60,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_HIGH,
 } as const
 const OPENAI_GPT_5_BATCH = {
@@ -8889,18 +5745,6 @@ const OPENAI_GPT_5_BATCH = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.625,
-        cached: 0.0625,
-      },
-      output: {
-        normal: 5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const OPENAI_GPT_5_1 = {
@@ -8920,18 +5764,6 @@ const OPENAI_GPT_5_1 = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.25,
-        cached: 0.125,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_HIGH,
 } as const
 const OPENAI_GPT_5_1_CODEX = {
@@ -8950,18 +5782,6 @@ const OPENAI_GPT_5_1_CODEX = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.25,
-        cached: 0.13,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const OPENAI_GPT_5_1_CODEX_MAX = {
@@ -8980,18 +5800,6 @@ const OPENAI_GPT_5_1_CODEX_MAX = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.25,
-        cached: 0.125,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_1_CODEX_MINI = {
@@ -9010,18 +5818,6 @@ const OPENAI_GPT_5_1_CODEX_MINI = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.25,
-        cached: 0.03,
-      },
-      output: {
-        normal: 2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_HIGH,
 } as const
 const OPENAI_GPT_5_1_BATCH = {
@@ -9040,18 +5836,6 @@ const OPENAI_GPT_5_1_BATCH = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.625,
-        cached: 0.0625,
-      },
-      output: {
-        normal: 5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_HIGH,
 } as const
 const OPENAI_GPT_5_2 = {
@@ -9071,18 +5855,6 @@ const OPENAI_GPT_5_2 = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.75,
-        cached: 0.175,
-      },
-      output: {
-        normal: 14,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_2_CHAT = {
@@ -9095,18 +5867,6 @@ const OPENAI_GPT_5_2_CHAT = {
   },
   context_window: 128000,
   max_output_tokens: 32000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.75,
-        cached: 0.175,
-      },
-      output: {
-        normal: 14,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_5_2_CODEX = {
   id: 'openai/gpt-5.2-codex',
@@ -9124,18 +5884,6 @@ const OPENAI_GPT_5_2_CODEX = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.75,
-        cached: 0.175,
-      },
-      output: {
-        normal: 14,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_2_PRO = {
@@ -9154,18 +5902,6 @@ const OPENAI_GPT_5_2_PRO = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 21,
-        cached: 0,
-      },
-      output: {
-        normal: 168,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MEDIUM_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_2_PRO_BATCH = {
@@ -9184,18 +5920,6 @@ const OPENAI_GPT_5_2_PRO_BATCH = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 10.5,
-        cached: 0,
-      },
-      output: {
-        normal: 84,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MEDIUM_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_2_BATCH = {
@@ -9214,18 +5938,6 @@ const OPENAI_GPT_5_2_BATCH = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.875,
-        cached: 0.0875,
-      },
-      output: {
-        normal: 7,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_3_CODEX = {
@@ -9245,18 +5957,6 @@ const OPENAI_GPT_5_3_CODEX = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.75,
-        cached: 0.175,
-      },
-      output: {
-        normal: 14,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_4 = {
@@ -9276,18 +5976,6 @@ const OPENAI_GPT_5_4 = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2.5,
-        cached: 0.25,
-      },
-      output: {
-        normal: 15,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_4_IMAGE_2 = {
@@ -9307,18 +5995,6 @@ const OPENAI_GPT_5_4_IMAGE_2 = {
   },
   context_window: 272000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 8,
-        cached: 2,
-      },
-      output: {
-        normal: 15,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_4_MINI = {
@@ -9338,18 +6014,6 @@ const OPENAI_GPT_5_4_MINI = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.75,
-        cached: 0.075,
-      },
-      output: {
-        normal: 4.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_4_MINI_BATCH = {
@@ -9368,18 +6032,6 @@ const OPENAI_GPT_5_4_MINI_BATCH = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.375,
-        cached: 0.0375,
-      },
-      output: {
-        normal: 2.25,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_4_NANO = {
@@ -9399,18 +6051,6 @@ const OPENAI_GPT_5_4_NANO = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.2,
-        cached: 0.02,
-      },
-      output: {
-        normal: 1.25,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_4_NANO_BATCH = {
@@ -9429,18 +6069,6 @@ const OPENAI_GPT_5_4_NANO_BATCH = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0.01,
-      },
-      output: {
-        normal: 0.625,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_4_PRO = {
@@ -9460,18 +6088,6 @@ const OPENAI_GPT_5_4_PRO = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 30,
-        cached: 0,
-      },
-      output: {
-        normal: 180,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MEDIUM_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_4_PRO_BATCH = {
@@ -9490,18 +6106,6 @@ const OPENAI_GPT_5_4_PRO_BATCH = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 15,
-        cached: 0,
-      },
-      output: {
-        normal: 90,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MEDIUM_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_4_BATCH = {
@@ -9520,18 +6124,6 @@ const OPENAI_GPT_5_4_BATCH = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.25,
-        cached: 0.125,
-      },
-      output: {
-        normal: 7.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_5 = {
@@ -9551,18 +6143,6 @@ const OPENAI_GPT_5_5 = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 5,
-        cached: 0.5,
-      },
-      output: {
-        normal: 30,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_5_PRO = {
@@ -9581,18 +6161,6 @@ const OPENAI_GPT_5_5_PRO = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 30,
-        cached: 0,
-      },
-      output: {
-        normal: 180,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MEDIUM_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_5_PRO_BATCH = {
@@ -9611,18 +6179,6 @@ const OPENAI_GPT_5_5_PRO_BATCH = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 15,
-        cached: 0,
-      },
-      output: {
-        normal: 90,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MEDIUM_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_5_BATCH = {
@@ -9641,18 +6197,6 @@ const OPENAI_GPT_5_5_BATCH = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2.5,
-        cached: 0.25,
-      },
-      output: {
-        normal: 15,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_6_LUNA = {
@@ -9672,18 +6216,6 @@ const OPENAI_GPT_5_6_LUNA = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.2,
-        cached: 0.27,
-      },
-      output: {
-        normal: 1.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_5_6_LUNA_PRO = {
@@ -9703,18 +6235,6 @@ const OPENAI_GPT_5_6_LUNA_PRO = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.2,
-        cached: 0.27,
-      },
-      output: {
-        normal: 1.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_5_6_LUNA_PRO_BATCH = {
@@ -9733,18 +6253,6 @@ const OPENAI_GPT_5_6_LUNA_PRO_BATCH = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0.01,
-      },
-      output: {
-        normal: 0.6,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_5_6_LUNA_BATCH = {
@@ -9763,18 +6271,6 @@ const OPENAI_GPT_5_6_LUNA_BATCH = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0.01,
-      },
-      output: {
-        normal: 0.6,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_5_6_SOL = {
@@ -9794,18 +6290,6 @@ const OPENAI_GPT_5_6_SOL = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 4,
-        cached: 5.4,
-      },
-      output: {
-        normal: 20,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_5_6_SOL_PRO = {
@@ -9825,18 +6309,6 @@ const OPENAI_GPT_5_6_SOL_PRO = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 4,
-        cached: 5.4,
-      },
-      output: {
-        normal: 20,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_5_6_SOL_PRO_BATCH = {
@@ -9855,18 +6327,6 @@ const OPENAI_GPT_5_6_SOL_PRO_BATCH = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 2.7,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_5_6_SOL_BATCH = {
@@ -9885,18 +6345,6 @@ const OPENAI_GPT_5_6_SOL_BATCH = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 2.7,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_5_6_TERRA = {
@@ -9916,18 +6364,6 @@ const OPENAI_GPT_5_6_TERRA = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 2.7,
-      },
-      output: {
-        normal: 12,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_5_6_TERRA_PRO = {
@@ -9947,18 +6383,6 @@ const OPENAI_GPT_5_6_TERRA_PRO = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 2.7,
-      },
-      output: {
-        normal: 12,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_5_6_TERRA_PRO_BATCH = {
@@ -9977,18 +6401,6 @@ const OPENAI_GPT_5_6_TERRA_PRO_BATCH = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1,
-        cached: 0.1,
-      },
-      output: {
-        normal: 6,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_5_6_TERRA_BATCH = {
@@ -10007,18 +6419,6 @@ const OPENAI_GPT_5_6_TERRA_BATCH = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1,
-        cached: 0.1,
-      },
-      output: {
-        normal: 6,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_ASTRA = {
@@ -10038,18 +6438,6 @@ const OPENAI_GPT_6_ASTRA = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 10,
-        cached: 13.5,
-      },
-      output: {
-        normal: 50,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_ASTRA_PRO = {
@@ -10069,18 +6457,6 @@ const OPENAI_GPT_6_ASTRA_PRO = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 10,
-        cached: 13.5,
-      },
-      output: {
-        normal: 50,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_ASTRA_PRO_BATCH = {
@@ -10099,18 +6475,6 @@ const OPENAI_GPT_6_ASTRA_PRO_BATCH = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 5,
-        cached: 6.75,
-      },
-      output: {
-        normal: 25,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_ASTRA_BATCH = {
@@ -10129,18 +6493,6 @@ const OPENAI_GPT_6_ASTRA_BATCH = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 5,
-        cached: 6.75,
-      },
-      output: {
-        normal: 25,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_LUNA = {
@@ -10160,18 +6512,6 @@ const OPENAI_GPT_6_LUNA = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0.135,
-      },
-      output: {
-        normal: 0.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_LUNA_PRO = {
@@ -10191,18 +6531,6 @@ const OPENAI_GPT_6_LUNA_PRO = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0.135,
-      },
-      output: {
-        normal: 0.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_LUNA_PRO_BATCH = {
@@ -10221,18 +6549,6 @@ const OPENAI_GPT_6_LUNA_PRO_BATCH = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.05,
-        cached: 0.0675,
-      },
-      output: {
-        normal: 0.25,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_LUNA_BATCH = {
@@ -10251,18 +6567,6 @@ const OPENAI_GPT_6_LUNA_BATCH = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.05,
-        cached: 0.0675,
-      },
-      output: {
-        normal: 0.25,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_SOL = {
@@ -10282,18 +6586,6 @@ const OPENAI_GPT_6_SOL = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 2.7,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_SOL_PRO = {
@@ -10313,18 +6605,6 @@ const OPENAI_GPT_6_SOL_PRO = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 2.7,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_SOL_PRO_BATCH = {
@@ -10343,18 +6623,6 @@ const OPENAI_GPT_6_SOL_PRO_BATCH = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1,
-        cached: 1.35,
-      },
-      output: {
-        normal: 5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_SOL_BATCH = {
@@ -10373,18 +6641,6 @@ const OPENAI_GPT_6_SOL_BATCH = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1,
-        cached: 1.35,
-      },
-      output: {
-        normal: 5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_1_SOL = {
@@ -10404,18 +6660,6 @@ const OPENAI_GPT_6_1_SOL = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 2.6,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_1_SOL_PRO = {
@@ -10435,18 +6679,6 @@ const OPENAI_GPT_6_1_SOL_PRO = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 2.6,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_1_SOL_PRO_BATCH = {
@@ -10465,18 +6697,6 @@ const OPENAI_GPT_6_1_SOL_PRO_BATCH = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1,
-        cached: 1.3,
-      },
-      output: {
-        normal: 5,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_6_1_SOL_BATCH = {
   id: 'openai/gpt-6.1-sol:batch',
@@ -10494,18 +6714,6 @@ const OPENAI_GPT_6_1_SOL_BATCH = {
   },
   context_window: 1050000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1,
-        cached: 1.3,
-      },
-      output: {
-        normal: 5,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_AUDIO = {
   id: 'openai/gpt-audio',
@@ -10530,18 +6738,6 @@ const OPENAI_GPT_AUDIO = {
   },
   context_window: 128000,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 2.5,
-        cached: 0,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_AUDIO_MINI = {
   id: 'openai/gpt-audio-mini',
@@ -10566,18 +6762,6 @@ const OPENAI_GPT_AUDIO_MINI = {
   },
   context_window: 128000,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.6,
-        cached: 0,
-      },
-      output: {
-        normal: 2.4,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_CHAT_LATEST = {
   id: 'openai/gpt-chat-latest',
@@ -10589,18 +6773,6 @@ const OPENAI_GPT_CHAT_LATEST = {
   },
   context_window: 400000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 5,
-        cached: 0.5,
-      },
-      output: {
-        normal: 30,
-      },
-    },
-    image: 0,
-  },
 } as const
 const OPENAI_GPT_OSS_120B = {
   id: 'openai/gpt-oss-120b',
@@ -10626,18 +6798,6 @@ const OPENAI_GPT_OSS_120B = {
   },
   context_window: 131072,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.15,
-        cached: 0.075,
-      },
-      output: {
-        normal: 0.6,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const OPENAI_GPT_OSS_120B_BATCH = {
@@ -10662,18 +6822,6 @@ const OPENAI_GPT_OSS_120B_BATCH = {
   },
   context_window: 131072,
   max_output_tokens: 117964,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.0296,
-        cached: 0,
-      },
-      output: {
-        normal: 0.136,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const OPENAI_GPT_OSS_20B = {
@@ -10700,18 +6848,6 @@ const OPENAI_GPT_OSS_20B = {
   },
   context_window: 131072,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.018,
-        cached: 0.009,
-      },
-      output: {
-        normal: 0.09,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const OPENAI_GPT_OSS_20B_BATCH = {
@@ -10736,18 +6872,6 @@ const OPENAI_GPT_OSS_20B_BATCH = {
   },
   context_window: 131072,
   max_output_tokens: 117964,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.024,
-        cached: 0,
-      },
-      output: {
-        normal: 0.112,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const OPENAI_GPT_OSS_SAFEGUARD_20B = {
@@ -10769,18 +6893,6 @@ const OPENAI_GPT_OSS_SAFEGUARD_20B = {
   },
   context_window: 131072,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.075,
-        cached: 0.0375,
-      },
-      output: {
-        normal: 0.3,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const OPENAI_O1 = {
@@ -10799,18 +6911,6 @@ const OPENAI_O1 = {
   },
   context_window: 200000,
   max_output_tokens: 100000,
-  pricing: {
-    text: {
-      input: {
-        normal: 15,
-        cached: 7.5,
-      },
-      output: {
-        normal: 60,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const OPENAI_O1_PRO = {
@@ -10823,18 +6923,6 @@ const OPENAI_O1_PRO = {
   },
   context_window: 200000,
   max_output_tokens: 100000,
-  pricing: {
-    text: {
-      input: {
-        normal: 150,
-        cached: 0,
-      },
-      output: {
-        normal: 600,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const OPENAI_O3 = {
@@ -10853,18 +6941,6 @@ const OPENAI_O3 = {
   },
   context_window: 200000,
   max_output_tokens: 100000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 0.5,
-      },
-      output: {
-        normal: 8,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const OPENAI_O3_MINI = {
@@ -10883,18 +6959,6 @@ const OPENAI_O3_MINI = {
   },
   context_window: 200000,
   max_output_tokens: 100000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.1,
-        cached: 0.55,
-      },
-      output: {
-        normal: 4.4,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const OPENAI_O3_MINI_HIGH = {
@@ -10913,18 +6977,6 @@ const OPENAI_O3_MINI_HIGH = {
   },
   context_window: 200000,
   max_output_tokens: 100000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.1,
-        cached: 0.55,
-      },
-      output: {
-        normal: 4.4,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_HIGH,
 } as const
 const OPENAI_O3_MINI_BATCH = {
@@ -10943,18 +6995,6 @@ const OPENAI_O3_MINI_BATCH = {
   },
   context_window: 200000,
   max_output_tokens: 100000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.55,
-        cached: 0.275,
-      },
-      output: {
-        normal: 2.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const OPENAI_O3_PRO = {
@@ -10973,18 +7013,6 @@ const OPENAI_O3_PRO = {
   },
   context_window: 200000,
   max_output_tokens: 100000,
-  pricing: {
-    text: {
-      input: {
-        normal: 20,
-        cached: 0,
-      },
-      output: {
-        normal: 80,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const OPENAI_O3_BATCH = {
@@ -11003,18 +7031,6 @@ const OPENAI_O3_BATCH = {
   },
   context_window: 200000,
   max_output_tokens: 100000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1,
-        cached: 0.25,
-      },
-      output: {
-        normal: 4,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const OPENAI_O4_MINI = {
@@ -11033,18 +7049,6 @@ const OPENAI_O4_MINI = {
   },
   context_window: 200000,
   max_output_tokens: 100000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.1,
-        cached: 0.275,
-      },
-      output: {
-        normal: 4.4,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const OPENAI_O4_MINI_HIGH = {
@@ -11063,18 +7067,6 @@ const OPENAI_O4_MINI_HIGH = {
   },
   context_window: 200000,
   max_output_tokens: 100000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.1,
-        cached: 0.275,
-      },
-      output: {
-        normal: 4.4,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_HIGH,
 } as const
 const OPENAI_O4_MINI_BATCH = {
@@ -11093,18 +7085,6 @@ const OPENAI_O4_MINI_BATCH = {
   },
   context_window: 200000,
   max_output_tokens: 100000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.55,
-        cached: 0.1375,
-      },
-      output: {
-        normal: 2.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const PERCEPTRON_PERCEPTRON_MK1 = {
@@ -11124,18 +7104,6 @@ const PERCEPTRON_PERCEPTRON_MK1 = {
   },
   context_window: 32768,
   max_output_tokens: 8192,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.15,
-        cached: 0,
-      },
-      output: {
-        normal: 1.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const PERCEPTRON_PERCEPTRON_MK1_5 = {
@@ -11156,18 +7124,6 @@ const PERCEPTRON_PERCEPTRON_MK1_5 = {
   },
   context_window: 36864,
   max_output_tokens: 8192,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.15,
-        cached: 0,
-      },
-      output: {
-        normal: 1.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_MINIMAL_TO_HIGH,
 } as const
 const PERPLEXITY_SONAR = {
@@ -11186,18 +7142,6 @@ const PERPLEXITY_SONAR = {
   },
   context_window: 127072,
   max_output_tokens: 114364,
-  pricing: {
-    text: {
-      input: {
-        normal: 1,
-        cached: 0,
-      },
-      output: {
-        normal: 1,
-      },
-    },
-    image: 0,
-  },
 } as const
 const PERPLEXITY_SONAR_DEEP_RESEARCH = {
   id: 'perplexity/sonar-deep-research',
@@ -11216,18 +7160,6 @@ const PERPLEXITY_SONAR_DEEP_RESEARCH = {
   },
   context_window: 128000,
   max_output_tokens: 115200,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 0,
-      },
-      output: {
-        normal: 8,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const PERPLEXITY_SONAR_PRO = {
@@ -11246,18 +7178,6 @@ const PERPLEXITY_SONAR_PRO = {
   },
   context_window: 200000,
   max_output_tokens: 8000,
-  pricing: {
-    text: {
-      input: {
-        normal: 3,
-        cached: 0,
-      },
-      output: {
-        normal: 15,
-      },
-    },
-    image: 0,
-  },
 } as const
 const PERPLEXITY_SONAR_PRO_SEARCH = {
   id: 'perplexity/sonar-pro-search',
@@ -11276,18 +7196,6 @@ const PERPLEXITY_SONAR_PRO_SEARCH = {
   },
   context_window: 200000,
   max_output_tokens: 8000,
-  pricing: {
-    text: {
-      input: {
-        normal: 3,
-        cached: 0,
-      },
-      output: {
-        normal: 15,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const PERPLEXITY_SONAR_REASONING_PRO = {
@@ -11307,18 +7215,6 @@ const PERPLEXITY_SONAR_REASONING_PRO = {
   },
   context_window: 128000,
   max_output_tokens: 115200,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 0,
-      },
-      output: {
-        normal: 8,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const POOLSIDE_LAGUNA_S_2_1 = {
@@ -11331,18 +7227,6 @@ const POOLSIDE_LAGUNA_S_2_1 = {
   },
   context_window: 1048576,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.09,
-        cached: 0.009,
-      },
-      output: {
-        normal: 0.18,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const POOLSIDE_LAGUNA_S_2_1_FREE = {
@@ -11355,18 +7239,6 @@ const POOLSIDE_LAGUNA_S_2_1_FREE = {
   },
   context_window: 262144,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const POOLSIDE_LAGUNA_XS_2_1 = {
@@ -11379,18 +7251,6 @@ const POOLSIDE_LAGUNA_XS_2_1 = {
   },
   context_window: 262144,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.06,
-        cached: 0.03,
-      },
-      output: {
-        normal: 0.12,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const POOLSIDE_LAGUNA_XS_2_1_FREE = {
@@ -11403,18 +7263,6 @@ const POOLSIDE_LAGUNA_XS_2_1_FREE = {
   },
   context_window: 262144,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const PRISM_ML_TERNARY_BONSAI_2_27B = {
@@ -11440,18 +7288,6 @@ const PRISM_ML_TERNARY_BONSAI_2_27B = {
   },
   context_window: 262144,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.075,
-        cached: 0.0375,
-      },
-      output: {
-        normal: 0.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_MEDIUM_XHIGH,
 } as const
 const QWEN_QWEN_2_5_72B_INSTRUCT = {
@@ -11475,18 +7311,6 @@ const QWEN_QWEN_2_5_72B_INSTRUCT = {
   },
   context_window: 32768,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.36,
-        cached: 0,
-      },
-      output: {
-        normal: 0.4,
-      },
-    },
-    image: 0,
-  },
 } as const
 const QWEN_QWEN_2_5_7B_INSTRUCT = {
   id: 'qwen/qwen-2.5-7b-instruct',
@@ -11508,18 +7332,6 @@ const QWEN_QWEN_2_5_7B_INSTRUCT = {
   },
   context_window: 32768,
   max_output_tokens: 29491,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0,
-      },
-      output: {
-        normal: 0.2,
-      },
-    },
-    image: 0,
-  },
 } as const
 const QWEN_QWEN_2_5_CODER_32B_INSTRUCT = {
   id: 'qwen/qwen-2.5-coder-32b-instruct',
@@ -11541,18 +7353,6 @@ const QWEN_QWEN_2_5_CODER_32B_INSTRUCT = {
   },
   context_window: 32768,
   max_output_tokens: 29491,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.66,
-        cached: 0,
-      },
-      output: {
-        normal: 1,
-      },
-    },
-    image: 0,
-  },
 } as const
 const QWEN_QWEN_PLUS = {
   id: 'qwen/qwen-plus',
@@ -11576,18 +7376,6 @@ const QWEN_QWEN_PLUS = {
   },
   context_window: 1000000,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.26,
-        cached: 0.377,
-      },
-      output: {
-        normal: 0.78,
-      },
-    },
-    image: 0,
-  },
 } as const
 const QWEN_QWEN2_5_VL_72B_INSTRUCT = {
   id: 'qwen/qwen2.5-vl-72b-instruct',
@@ -11611,18 +7399,6 @@ const QWEN_QWEN2_5_VL_72B_INSTRUCT = {
   },
   context_window: 128000,
   max_output_tokens: 115200,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.8,
-        cached: 0.4,
-      },
-      output: {
-        normal: 1,
-      },
-    },
-    image: 0,
-  },
 } as const
 const QWEN_QWEN3_14B = {
   id: 'qwen/qwen3-14b',
@@ -11648,18 +7424,6 @@ const QWEN_QWEN3_14B = {
   },
   context_window: 40960,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.12,
-        cached: 0,
-      },
-      output: {
-        normal: 0.24,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_235B_A22B_2507 = {
@@ -11685,18 +7449,6 @@ const QWEN_QWEN3_235B_A22B_2507 = {
   },
   context_window: 262144,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.09,
-        cached: 0,
-      },
-      output: {
-        normal: 0.55,
-      },
-    },
-    image: 0,
-  },
 } as const
 const QWEN_QWEN3_235B_A22B_THINKING_2507 = {
   id: 'qwen/qwen3-235b-a22b-thinking-2507',
@@ -11717,18 +7469,6 @@ const QWEN_QWEN3_235B_A22B_THINKING_2507 = {
   },
   context_window: 128000,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.45,
-        cached: 0,
-      },
-      output: {
-        normal: 3.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const QWEN_QWEN3_30B_A3B = {
@@ -11753,18 +7493,6 @@ const QWEN_QWEN3_30B_A3B = {
   },
   context_window: 40960,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.12,
-        cached: 0,
-      },
-      output: {
-        normal: 0.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_30B_A3B_INSTRUCT_2507 = {
@@ -11790,18 +7518,6 @@ const QWEN_QWEN3_30B_A3B_INSTRUCT_2507 = {
   },
   context_window: 262144,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.09,
-        cached: 0,
-      },
-      output: {
-        normal: 0.3,
-      },
-    },
-    image: 0,
-  },
 } as const
 const QWEN_QWEN3_32B = {
   id: 'qwen/qwen3-32b',
@@ -11827,18 +7543,6 @@ const QWEN_QWEN3_32B = {
   },
   context_window: 131072,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.08,
-        cached: 0,
-      },
-      output: {
-        normal: 0.28,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_CODER = {
@@ -11864,18 +7568,6 @@ const QWEN_QWEN3_CODER = {
   },
   context_window: 262144,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.3,
-        cached: 0.1,
-      },
-      output: {
-        normal: 1,
-      },
-    },
-    image: 0,
-  },
 } as const
 const QWEN_QWEN3_CODER_30B_A3B_INSTRUCT = {
   id: 'qwen/qwen3-coder-30b-a3b-instruct',
@@ -11895,18 +7587,6 @@ const QWEN_QWEN3_CODER_30B_A3B_INSTRUCT = {
   },
   context_window: 262144,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.07,
-        cached: 0,
-      },
-      output: {
-        normal: 0.28,
-      },
-    },
-    image: 0,
-  },
 } as const
 const QWEN_QWEN3_CODER_FLASH = {
   id: 'qwen/qwen3-coder-flash',
@@ -11930,18 +7610,6 @@ const QWEN_QWEN3_CODER_FLASH = {
   },
   context_window: 1000000,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.195,
-        cached: 0.28275,
-      },
-      output: {
-        normal: 0.975,
-      },
-    },
-    image: 0,
-  },
 } as const
 const QWEN_QWEN3_CODER_NEXT = {
   id: 'qwen/qwen3-coder-next',
@@ -11966,18 +7634,6 @@ const QWEN_QWEN3_CODER_NEXT = {
   },
   context_window: 262144,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.12,
-        cached: 0.07,
-      },
-      output: {
-        normal: 0.8,
-      },
-    },
-    image: 0,
-  },
 } as const
 const QWEN_QWEN3_NEXT_80B_A3B_INSTRUCT = {
   id: 'qwen/qwen3-next-80b-a3b-instruct',
@@ -12002,18 +7658,6 @@ const QWEN_QWEN3_NEXT_80B_A3B_INSTRUCT = {
   },
   context_window: 262144,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.09,
-        cached: 0,
-      },
-      output: {
-        normal: 1.1,
-      },
-    },
-    image: 0,
-  },
 } as const
 const QWEN_QWEN3_NEXT_80B_A3B_THINKING = {
   id: 'qwen/qwen3-next-80b-a3b-thinking',
@@ -12038,18 +7682,6 @@ const QWEN_QWEN3_NEXT_80B_A3B_THINKING = {
   },
   context_window: 262144,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.15,
-        cached: 0,
-      },
-      output: {
-        normal: 1.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const QWEN_QWEN3_VL_235B_A22B_INSTRUCT = {
@@ -12075,18 +7707,6 @@ const QWEN_QWEN3_VL_235B_A22B_INSTRUCT = {
   },
   context_window: 262144,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.21,
-        cached: 0.1,
-      },
-      output: {
-        normal: 1.9,
-      },
-    },
-    image: 0,
-  },
 } as const
 const QWEN_QWEN3_VL_30B_A3B_INSTRUCT = {
   id: 'qwen/qwen3-vl-30b-a3b-instruct',
@@ -12111,18 +7731,6 @@ const QWEN_QWEN3_VL_30B_A3B_INSTRUCT = {
   },
   context_window: 262144,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.15,
-        cached: 0,
-      },
-      output: {
-        normal: 0.6,
-      },
-    },
-    image: 0,
-  },
 } as const
 const QWEN_QWEN3_VL_30B_A3B_THINKING = {
   id: 'qwen/qwen3-vl-30b-a3b-thinking',
@@ -12142,18 +7750,6 @@ const QWEN_QWEN3_VL_30B_A3B_THINKING = {
   },
   context_window: 262144,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.29,
-        cached: 0,
-      },
-      output: {
-        normal: 1,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const QWEN_QWEN3_VL_8B_INSTRUCT = {
@@ -12179,18 +7775,6 @@ const QWEN_QWEN3_VL_8B_INSTRUCT = {
   },
   context_window: 262144,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.25,
-        cached: 0.12,
-      },
-      output: {
-        normal: 0.75,
-      },
-    },
-    image: 0,
-  },
 } as const
 const QWEN_QWEN3_5_122B_A10B = {
   id: 'qwen/qwen3.5-122b-a10b',
@@ -12216,18 +7800,6 @@ const QWEN_QWEN3_5_122B_A10B = {
   },
   context_window: 262144,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.4,
-        cached: 0,
-      },
-      output: {
-        normal: 3.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_5_27B = {
@@ -12254,18 +7826,6 @@ const QWEN_QWEN3_5_27B = {
   },
   context_window: 262144,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.27,
-        cached: 0.27,
-      },
-      output: {
-        normal: 2.16,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_5_35B_A3B = {
@@ -12292,18 +7852,6 @@ const QWEN_QWEN3_5_35B_A3B = {
   },
   context_window: 262144,
   max_output_tokens: 81920,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.14,
-        cached: 0.05,
-      },
-      output: {
-        normal: 1,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_5_397B_A17B = {
@@ -12330,18 +7878,6 @@ const QWEN_QWEN3_5_397B_A17B = {
   },
   context_window: 262144,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.5,
-        cached: 0.3,
-      },
-      output: {
-        normal: 3.6,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_5_9B = {
@@ -12368,18 +7904,6 @@ const QWEN_QWEN3_5_9B = {
   },
   context_window: 262144,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.08,
-        cached: 0.04,
-      },
-      output: {
-        normal: 0.13,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_5_FLASH_02_23 = {
@@ -12403,18 +7927,6 @@ const QWEN_QWEN3_5_FLASH_02_23 = {
   },
   context_window: 1000000,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.065,
-        cached: 0,
-      },
-      output: {
-        normal: 0.26,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_5_PLUS_02_15 = {
@@ -12440,18 +7952,6 @@ const QWEN_QWEN3_5_PLUS_02_15 = {
   },
   context_window: 1000000,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.26,
-        cached: 0,
-      },
-      output: {
-        normal: 1.56,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_5_PLUS_20260420 = {
@@ -12477,18 +7977,6 @@ const QWEN_QWEN3_5_PLUS_20260420 = {
   },
   context_window: 1000000,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.3,
-        cached: 0.375,
-      },
-      output: {
-        normal: 1.8,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_6_27B = {
@@ -12515,18 +8003,6 @@ const QWEN_QWEN3_6_27B = {
   },
   context_window: 262144,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.25,
-        cached: 0.025,
-      },
-      output: {
-        normal: 2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_6_35B_A3B = {
@@ -12553,18 +8029,6 @@ const QWEN_QWEN3_6_35B_A3B = {
   },
   context_window: 262144,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0.05,
-      },
-      output: {
-        normal: 0.95,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_6_FLASH = {
@@ -12590,18 +8054,6 @@ const QWEN_QWEN3_6_FLASH = {
   },
   context_window: 1000000,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1875,
-        cached: 0.234375,
-      },
-      output: {
-        normal: 1.125,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_6_PLUS = {
@@ -12627,18 +8079,6 @@ const QWEN_QWEN3_6_PLUS = {
   },
   context_window: 1000000,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.325,
-        cached: 0.40625,
-      },
-      output: {
-        normal: 1.95,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_7_FLASH = {
@@ -12662,18 +8102,6 @@ const QWEN_QWEN3_7_FLASH = {
   },
   context_window: 1000000,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.03,
-        cached: 0.044,
-      },
-      output: {
-        normal: 0.13,
-      },
-    },
-    image: 0,
-  },
   reasoning: BUDGET_OFF_HIGH,
 } as const
 const QWEN_QWEN3_7_MAX = {
@@ -12699,18 +8127,6 @@ const QWEN_QWEN3_7_MAX = {
   },
   context_window: 1000000,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.475,
-        cached: 2.13875,
-      },
-      output: {
-        normal: 4.425,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_7_PLUS = {
@@ -12736,18 +8152,6 @@ const QWEN_QWEN3_7_PLUS = {
   },
   context_window: 1000000,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.32,
-        cached: 0.464,
-      },
-      output: {
-        normal: 1.28,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_7_PLUS_BATCH = {
@@ -12773,18 +8177,6 @@ const QWEN_QWEN3_7_PLUS_BATCH = {
   },
   context_window: 262144,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.23,
-        cached: 0,
-      },
-      output: {
-        normal: 0.92,
-      },
-    },
-    image: 0,
-  },
 } as const
 const QWEN_QWEN3_8_2_4T_A95B = {
   id: 'qwen/qwen3.8-2.4t-a95b',
@@ -12810,18 +8202,6 @@ const QWEN_QWEN3_8_2_4T_A95B = {
   },
   context_window: 1048576,
   max_output_tokens: 909000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 0.25,
-      },
-      output: {
-        normal: 6,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_MEDIUM_XHIGH,
 } as const
 const QWEN_QWEN3_8_27B = {
@@ -12848,18 +8228,6 @@ const QWEN_QWEN3_8_27B = {
   },
   context_window: 1000000,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.04,
-        cached: 0.018,
-      },
-      output: {
-        normal: 1.35,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_MEDIUM_XHIGH,
 } as const
 const QWEN_QWEN3_8_FLASH = {
@@ -12885,18 +8253,6 @@ const QWEN_QWEN3_8_FLASH = {
   },
   context_window: 1000000,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.15,
-        cached: 0.016,
-      },
-      output: {
-        normal: 0.47,
-      },
-    },
-    image: 0,
-  },
   reasoning: BUDGET_OFF_HIGH,
 } as const
 const QWEN_QWEN3_8_MAX_0902 = {
@@ -12922,18 +8278,6 @@ const QWEN_QWEN3_8_MAX_0902 = {
   },
   context_window: 1000000,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 0.25,
-      },
-      output: {
-        normal: 6,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_XHIGH,
 } as const
 const QWEN_QWEN3_8_MAX_PRIME = {
@@ -12959,18 +8303,6 @@ const QWEN_QWEN3_8_MAX_PRIME = {
   },
   context_window: 1000000,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 4,
-        cached: 0.5,
-      },
-      output: {
-        normal: 12,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_XHIGH,
 } as const
 const QWEN_QWEN3_8_OMNI_FLASH = {
@@ -12996,18 +8328,6 @@ const QWEN_QWEN3_8_OMNI_FLASH = {
   },
   context_window: 1000000,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.15,
-        cached: 0.016,
-      },
-      output: {
-        normal: 0.47,
-      },
-    },
-    image: 0,
-  },
   reasoning: BUDGET_OFF_HIGH,
 } as const
 const RECURSIVE_FLINT_V1_0_FREE = {
@@ -13030,18 +8350,6 @@ const RECURSIVE_FLINT_V1_0_FREE = {
   },
   context_window: 262144,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
 } as const
 const REFLECTION_BEAM_1_0_501B_A23B = {
   id: 'reflection/beam-1.0-501b-a23b',
@@ -13067,18 +8375,6 @@ const REFLECTION_BEAM_1_0_501B_A23B = {
   },
   context_window: 1048576,
   max_output_tokens: 943718,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.3,
-        cached: 0.04,
-      },
-      output: {
-        normal: 1,
-      },
-    },
-    image: 0,
-  },
 } as const
 const REKAAI_REKA_EDGE = {
   id: 'rekaai/reka-edge',
@@ -13101,18 +8397,6 @@ const REKAAI_REKA_EDGE = {
   },
   context_window: 16384,
   max_output_tokens: 14745,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0,
-      },
-      output: {
-        normal: 0.1,
-      },
-    },
-    image: 0,
-  },
 } as const
 const REKAAI_REKA_FLASH_3 = {
   id: 'rekaai/reka-flash-3',
@@ -13135,18 +8419,6 @@ const REKAAI_REKA_FLASH_3 = {
   },
   context_window: 65536,
   max_output_tokens: 58982,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0,
-      },
-      output: {
-        normal: 0.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const RELACE_RELACE_APPLY_3 = {
@@ -13159,18 +8431,6 @@ const RELACE_RELACE_APPLY_3 = {
   },
   context_window: 256000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.85,
-        cached: 0,
-      },
-      output: {
-        normal: 1.25,
-      },
-    },
-    image: 0,
-  },
 } as const
 const RELACE_RELACE_SEARCH = {
   id: 'relace/relace-search',
@@ -13190,18 +8450,6 @@ const RELACE_RELACE_SEARCH = {
   },
   context_window: 256000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1,
-        cached: 0,
-      },
-      output: {
-        normal: 3,
-      },
-    },
-    image: 0,
-  },
 } as const
 const SAKANA_FUGU_MAX = {
   id: 'sakana/fugu-max',
@@ -13213,18 +8461,6 @@ const SAKANA_FUGU_MAX = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 0.25,
-      },
-      output: {
-        normal: 6,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_HIGH_TO_MAX,
 } as const
 const SAKANA_FUGU_ULTRA = {
@@ -13237,18 +8473,6 @@ const SAKANA_FUGU_ULTRA = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 5,
-        cached: 0.5,
-      },
-      output: {
-        normal: 30,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_HIGH_TO_MAX,
 } as const
 const SAKANA_FUGU_ULTRA_V2 = {
@@ -13261,18 +8485,6 @@ const SAKANA_FUGU_ULTRA_V2 = {
   },
   context_window: 1000000,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 5,
-        cached: 0.5,
-      },
-      output: {
-        normal: 30,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_HIGH_TO_MAX,
 } as const
 const SAKANA_SAKANA_NAMAZU = {
@@ -13285,18 +8497,6 @@ const SAKANA_SAKANA_NAMAZU = {
   },
   context_window: 262144,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.95,
-        cached: 0.15,
-      },
-      output: {
-        normal: 4,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_HIGH,
 } as const
 const SAO10K_L3_LUNARIS_8B = {
@@ -13321,18 +8521,6 @@ const SAO10K_L3_LUNARIS_8B = {
   },
   context_window: 8192,
   max_output_tokens: 7372,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.04,
-        cached: 0,
-      },
-      output: {
-        normal: 0.05,
-      },
-    },
-    image: 0,
-  },
 } as const
 const SAO10K_L3_1_EURYALE_70B = {
   id: 'sao10k/l3.1-euryale-70b',
@@ -13353,18 +8541,6 @@ const SAO10K_L3_1_EURYALE_70B = {
   },
   context_window: 131072,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.85,
-        cached: 0,
-      },
-      output: {
-        normal: 0.85,
-      },
-    },
-    image: 0,
-  },
 } as const
 const SCALEDOWN_EXTRACT = {
   id: 'scaledown/extract',
@@ -13376,18 +8552,6 @@ const SCALEDOWN_EXTRACT = {
   },
   context_window: 1000000,
   max_output_tokens: 900000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.04,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
 } as const
 const SCALEDOWN_SUMMARIZE = {
   id: 'scaledown/summarize',
@@ -13399,18 +8563,6 @@ const SCALEDOWN_SUMMARIZE = {
   },
   context_window: 1000000,
   max_output_tokens: 4000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.04,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
 } as const
 const STEPFUN_STEP_3_5_FLASH = {
   id: 'stepfun/step-3.5-flash',
@@ -13429,18 +8581,6 @@ const STEPFUN_STEP_3_5_FLASH = {
   },
   context_window: 262144,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.1,
-        cached: 0,
-      },
-      output: {
-        normal: 0.3,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const STEPFUN_STEP_3_7_FLASH = {
@@ -13466,18 +8606,6 @@ const STEPFUN_STEP_3_7_FLASH = {
   },
   context_window: 262144,
   max_output_tokens: 230400,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.2,
-        cached: 0.04,
-      },
-      output: {
-        normal: 1.15,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const STEPFUN_STEP_5_PREVIEW = {
@@ -13504,18 +8632,6 @@ const STEPFUN_STEP_5_PREVIEW = {
   },
   context_window: 1048576,
   max_output_tokens: 64000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1,
-        cached: 0.1,
-      },
-      output: {
-        normal: 2.7,
-      },
-    },
-    image: 0,
-  },
 } as const
 const TENCENT_HUNYUAN_A13B_INSTRUCT = {
   id: 'tencent/hunyuan-a13b-instruct',
@@ -13534,18 +8650,6 @@ const TENCENT_HUNYUAN_A13B_INSTRUCT = {
   },
   context_window: 131072,
   max_output_tokens: 117964,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.14,
-        cached: 0,
-      },
-      output: {
-        normal: 0.57,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const TENCENT_HY_MT2_1_8B = {
@@ -13563,18 +8667,6 @@ const TENCENT_HY_MT2_1_8B = {
   },
   context_window: 8192,
   max_output_tokens: 4096,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.044,
-        cached: 0,
-      },
-      output: {
-        normal: 0.177,
-      },
-    },
-    image: 0,
-  },
 } as const
 const TENCENT_HY_MT2_30B_A3B = {
   id: 'tencent/hy-mt2-30b-a3b',
@@ -13592,18 +8684,6 @@ const TENCENT_HY_MT2_30B_A3B = {
   },
   context_window: 8192,
   max_output_tokens: 4096,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.074,
-        cached: 0,
-      },
-      output: {
-        normal: 0.295,
-      },
-    },
-    image: 0,
-  },
 } as const
 const TENCENT_HY_MT2_7B = {
   id: 'tencent/hy-mt2-7b',
@@ -13621,18 +8701,6 @@ const TENCENT_HY_MT2_7B = {
   },
   context_window: 8192,
   max_output_tokens: 4096,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.074,
-        cached: 0,
-      },
-      output: {
-        normal: 0.295,
-      },
-    },
-    image: 0,
-  },
 } as const
 const TENCENT_HY3 = {
   id: 'tencent/hy3',
@@ -13657,18 +8725,6 @@ const TENCENT_HY3 = {
   },
   context_window: 262144,
   max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.132,
-        cached: 0.033,
-      },
-      output: {
-        normal: 0.528,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_HIGH,
 } as const
 const TENCENT_HY3_PREVIEW = {
@@ -13688,18 +8744,6 @@ const TENCENT_HY3_PREVIEW = {
   },
   context_window: 262144,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.18,
-        cached: 0.06,
-      },
-      output: {
-        normal: 0.6,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_HIGH,
 } as const
 const TENCENT_HY4_PREVIEW = {
@@ -13725,18 +8769,6 @@ const TENCENT_HY4_PREVIEW = {
   },
   context_window: 1048576,
   max_output_tokens: 64000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.834,
-        cached: 0.042,
-      },
-      output: {
-        normal: 2.501,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_HIGH,
 } as const
 const THEDRUMMER_CYDONIA_24B_V4_1 = {
@@ -13761,18 +8793,6 @@ const THEDRUMMER_CYDONIA_24B_V4_1 = {
   },
   context_window: 131072,
   max_output_tokens: 117964,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.3,
-        cached: 0.15,
-      },
-      output: {
-        normal: 0.5,
-      },
-    },
-    image: 0,
-  },
 } as const
 const THEDRUMMER_SKYFALL_36B_V2 = {
   id: 'thedrummer/skyfall-36b-v2',
@@ -13796,18 +8816,6 @@ const THEDRUMMER_SKYFALL_36B_V2 = {
   },
   context_window: 32768,
   max_output_tokens: 29491,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.55,
-        cached: 0.25,
-      },
-      output: {
-        normal: 0.8,
-      },
-    },
-    image: 0,
-  },
 } as const
 const THEDRUMMER_UNSLOPNEMO_12B = {
   id: 'thedrummer/unslopnemo-12b',
@@ -13830,18 +8838,6 @@ const THEDRUMMER_UNSLOPNEMO_12B = {
   },
   context_window: 1024000,
   max_output_tokens: 819200,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.4,
-        cached: 0,
-      },
-      output: {
-        normal: 0.4,
-      },
-    },
-    image: 0,
-  },
 } as const
 const THINKINGMACHINES_INKLING = {
   id: 'thinkingmachines/inkling',
@@ -13864,18 +8860,6 @@ const THINKINGMACHINES_INKLING = {
   },
   context_window: 524288,
   max_output_tokens: 471859,
-  pricing: {
-    text: {
-      input: {
-        normal: 1,
-        cached: 0.17,
-      },
-      output: {
-        normal: 4.05,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_MINIMAL_TO_HIGH_MAX,
 } as const
 const THINKINGMACHINES_INKLING_SMALL = {
@@ -13899,18 +8883,6 @@ const THINKINGMACHINES_INKLING_SMALL = {
   },
   context_window: 524288,
   max_output_tokens: 262144,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.45,
-        cached: 0.1,
-      },
-      output: {
-        normal: 1.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_MINIMAL_TO_HIGH_MAX,
 } as const
 const THINKINGMACHINES_INKLING_SMALL_FREE = {
@@ -13932,18 +8904,6 @@ const THINKINGMACHINES_INKLING_SMALL_FREE = {
   },
   context_window: 1048576,
   max_output_tokens: 262144,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_MINIMAL_TO_HIGH_MAX,
 } as const
 const THINKINGMACHINES_INKLING_FREE = {
@@ -13965,18 +8925,6 @@ const THINKINGMACHINES_INKLING_FREE = {
   },
   context_window: 1048576,
   max_output_tokens: 262144,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_MINIMAL_TO_HIGH_MAX,
 } as const
 const UNBIASED_PARETO_26_10 = {
@@ -13989,18 +8937,6 @@ const UNBIASED_PARETO_26_10 = {
   },
   context_window: 1048576,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.8,
-        cached: 0.03,
-      },
-      output: {
-        normal: 3.2,
-      },
-    },
-    image: 0,
-  },
 } as const
 const UNBIASED_PARETO_26_9 = {
   id: 'unbiased/pareto-26.9',
@@ -14018,18 +8954,6 @@ const UNBIASED_PARETO_26_9 = {
   },
   context_window: 262144,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 2.5,
-        cached: 0.25,
-      },
-      output: {
-        normal: 7.5,
-      },
-    },
-    image: 0,
-  },
 } as const
 const UNDI95_REMM_SLERP_L2_13B = {
   id: 'undi95/remm-slerp-l2-13b',
@@ -14053,18 +8977,6 @@ const UNDI95_REMM_SLERP_L2_13B = {
   },
   context_window: 6144,
   max_output_tokens: 5529,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.35,
-        cached: 0,
-      },
-      output: {
-        normal: 0.65,
-      },
-    },
-    image: 0,
-  },
 } as const
 const UPSTAGE_SOLAR_MINI4 = {
   id: 'upstage/solar-mini4',
@@ -14086,18 +8998,6 @@ const UPSTAGE_SOLAR_MINI4 = {
   },
   context_window: 524288,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.05,
-        cached: 0.005,
-      },
-      output: {
-        normal: 0.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_MINIMAL_TO_MAX,
 } as const
 const UPSTAGE_SOLAR_PRO_3 = {
@@ -14120,18 +9020,6 @@ const UPSTAGE_SOLAR_PRO_3 = {
   },
   context_window: 131072,
   max_output_tokens: 117964,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.15,
-        cached: 0.015,
-      },
-      output: {
-        normal: 0.6,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_MINIMAL_TO_HIGH,
 } as const
 const UPSTAGE_SOLAR_PRO4 = {
@@ -14154,18 +9042,6 @@ const UPSTAGE_SOLAR_PRO4 = {
   },
   context_window: 524288,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.15,
-        cached: 0.03,
-      },
-      output: {
-        normal: 0.6,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_MINIMAL_TO_MAX,
 } as const
 const WRITER_PALMYRA_X5 = {
@@ -14178,18 +9054,6 @@ const WRITER_PALMYRA_X5 = {
   },
   context_window: 1040000,
   max_output_tokens: 8192,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.6,
-        cached: 0,
-      },
-      output: {
-        normal: 6,
-      },
-    },
-    image: 0,
-  },
 } as const
 const X_AI_GROK_4_20 = {
   id: 'x-ai/grok-4.20',
@@ -14211,18 +9075,6 @@ const X_AI_GROK_4_20 = {
   },
   context_window: 2000000,
   max_output_tokens: 1800000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.25,
-        cached: 0.2,
-      },
-      output: {
-        normal: 2.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const X_AI_GROK_4_20_MULTI_AGENT = {
@@ -14244,18 +9096,6 @@ const X_AI_GROK_4_20_MULTI_AGENT = {
   },
   context_window: 2000000,
   max_output_tokens: 1800000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.25,
-        cached: 0.2,
-      },
-      output: {
-        normal: 2.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_XHIGH,
 } as const
 const X_AI_GROK_4_3 = {
@@ -14278,18 +9118,6 @@ const X_AI_GROK_4_3 = {
   },
   context_window: 1000000,
   max_output_tokens: 900000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.25,
-        cached: 0.2,
-      },
-      output: {
-        normal: 2.5,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_HIGH,
 } as const
 const X_AI_GROK_4_3_BATCH = {
@@ -14312,18 +9140,6 @@ const X_AI_GROK_4_3_BATCH = {
   },
   context_window: 1000000,
   max_output_tokens: 900000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1,
-        cached: 0.16,
-      },
-      output: {
-        normal: 2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_LOW_TO_HIGH,
 } as const
 const X_AI_GROK_4_5 = {
@@ -14346,18 +9162,6 @@ const X_AI_GROK_4_5 = {
   },
   context_window: 500000,
   max_output_tokens: 450000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 0.3,
-      },
-      output: {
-        normal: 6,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const X_AI_GROK_4_6 = {
@@ -14381,18 +9185,6 @@ const X_AI_GROK_4_6 = {
   },
   context_window: 500000,
   max_output_tokens: 450000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 0.5,
-      },
-      output: {
-        normal: 6,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_XHIGH,
 } as const
 const X_AI_GROK_4_7 = {
@@ -14415,18 +9207,6 @@ const X_AI_GROK_4_7 = {
   },
   context_window: 500000,
   max_output_tokens: 450000,
-  pricing: {
-    text: {
-      input: {
-        normal: 2,
-        cached: 0.5,
-      },
-      output: {
-        normal: 6,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_TO_XHIGH,
 } as const
 const X_AI_GROK_BUILD_0_1 = {
@@ -14449,18 +9229,6 @@ const X_AI_GROK_BUILD_0_1 = {
   },
   context_window: 256000,
   max_output_tokens: 230400,
-  pricing: {
-    text: {
-      input: {
-        normal: 1,
-        cached: 0.2,
-      },
-      output: {
-        normal: 2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const XIAOMI_MIMO_V2_5 = {
@@ -14484,18 +9252,6 @@ const XIAOMI_MIMO_V2_5 = {
   },
   context_window: 1050000,
   max_output_tokens: 945000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.119,
-        cached: 0.00255,
-      },
-      output: {
-        normal: 0.238,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const XIAOMI_MIMO_V2_5_PRO = {
@@ -14521,18 +9277,6 @@ const XIAOMI_MIMO_V2_5_PRO = {
   },
   context_window: 1050000,
   max_output_tokens: 945000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.3045,
-        cached: 0.0028,
-      },
-      output: {
-        normal: 0.609,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const XIAOMI_MIMO_V2_6_FLASH = {
@@ -14559,18 +9303,6 @@ const XIAOMI_MIMO_V2_6_FLASH = {
   },
   context_window: 1050000,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.14,
-        cached: 0.0028,
-      },
-      output: {
-        normal: 0.28,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const XIAOMI_MIMO_V2_6_PRO = {
@@ -14595,18 +9327,6 @@ const XIAOMI_MIMO_V2_6_PRO = {
   },
   context_window: 1050000,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.435,
-        cached: 0.0036,
-      },
-      output: {
-        normal: 0.87,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const XIAOMI_MIMO_V2_6_PRO_ULTRASPEED = {
@@ -14629,18 +9349,6 @@ const XIAOMI_MIMO_V2_6_PRO_ULTRASPEED = {
   },
   context_window: 1048576,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 4.35,
-        cached: 0.036,
-      },
-      output: {
-        normal: 8.7,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const XINGCHEN_AGI_XING4_0_29B_A4B_FREE = {
@@ -14664,18 +9372,6 @@ const XINGCHEN_AGI_XING4_0_29B_A4B_FREE = {
   },
   context_window: 262144,
   max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
 } as const
 const Z_AI_GLM_4_5 = {
   id: 'z-ai/glm-4.5',
@@ -14694,18 +9390,6 @@ const Z_AI_GLM_4_5 = {
   },
   context_window: 131072,
   max_output_tokens: 98304,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.6,
-        cached: 0.11,
-      },
-      output: {
-        normal: 2.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const Z_AI_GLM_4_5_AIR = {
@@ -14728,18 +9412,6 @@ const Z_AI_GLM_4_5_AIR = {
   },
   context_window: 131072,
   max_output_tokens: 98304,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.13,
-        cached: 0.025,
-      },
-      output: {
-        normal: 0.85,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const Z_AI_GLM_4_5V = {
@@ -14763,18 +9435,6 @@ const Z_AI_GLM_4_5V = {
   },
   context_window: 65536,
   max_output_tokens: 16384,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.6,
-        cached: 0.11,
-      },
-      output: {
-        normal: 1.8,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const Z_AI_GLM_4_6 = {
@@ -14799,18 +9459,6 @@ const Z_AI_GLM_4_6 = {
   },
   context_window: 204800,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.55,
-        cached: 0.11,
-      },
-      output: {
-        normal: 2.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const Z_AI_GLM_4_6V = {
@@ -14834,18 +9482,6 @@ const Z_AI_GLM_4_6V = {
   },
   context_window: 131072,
   max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.3,
-        cached: 0.055,
-      },
-      output: {
-        normal: 0.9,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const Z_AI_GLM_4_7 = {
@@ -14870,18 +9506,6 @@ const Z_AI_GLM_4_7 = {
   },
   context_window: 204800,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.54,
-        cached: 0.099,
-      },
-      output: {
-        normal: 1.98,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const Z_AI_GLM_4_7_FLASH = {
@@ -14908,18 +9532,6 @@ const Z_AI_GLM_4_7_FLASH = {
   },
   context_window: 200000,
   max_output_tokens: 117964,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.0605,
-        cached: 0,
-      },
-      output: {
-        normal: 0.4,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const Z_AI_GLM_5 = {
@@ -14945,18 +9557,6 @@ const Z_AI_GLM_5 = {
   },
   context_window: 204800,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 1,
-        cached: 0.2,
-      },
-      output: {
-        normal: 3.2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const Z_AI_GLM_5_TURBO = {
@@ -14976,18 +9576,6 @@ const Z_AI_GLM_5_TURBO = {
   },
   context_window: 202752,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.2,
-        cached: 0.24,
-      },
-      output: {
-        normal: 4,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const Z_AI_GLM_5_1 = {
@@ -15014,18 +9602,6 @@ const Z_AI_GLM_5_1 = {
   },
   context_window: 204800,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.4,
-        cached: 0.26,
-      },
-      output: {
-        normal: 4.4,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 const Z_AI_GLM_5_2 = {
@@ -15053,18 +9629,6 @@ const Z_AI_GLM_5_2 = {
   },
   context_window: 1048576,
   max_output_tokens: 943718,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.0341,
-        cached: 0.033,
-      },
-      output: {
-        normal: 7,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_NONE_HIGH_XHIGH,
 } as const
 const Z_AI_GLM_5_3 = {
@@ -15092,18 +9656,6 @@ const Z_AI_GLM_5_3 = {
   },
   context_window: 1048576,
   max_output_tokens: 943718,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.079,
-        cached: 0.078,
-      },
-      output: {
-        normal: 1.4,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const Z_AI_GLM_5_3_FLASH = {
@@ -15131,18 +9683,6 @@ const Z_AI_GLM_5_3_FLASH = {
   },
   context_window: 1048576,
   max_output_tokens: 943718,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.0052,
-        cached: 0.0052,
-      },
-      output: {
-        normal: 0.1985,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const Z_AI_GLM_5_3_FLASH_BATCH = {
@@ -15169,18 +9709,6 @@ const Z_AI_GLM_5_3_FLASH_BATCH = {
   },
   context_window: 1048576,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.05,
-        cached: 0.01,
-      },
-      output: {
-        normal: 0.18,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const Z_AI_GLM_5_3_FLASHX = {
@@ -15200,18 +9728,6 @@ const Z_AI_GLM_5_3_FLASHX = {
   },
   context_window: 1048576,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.37,
-        cached: 0.09,
-      },
-      output: {
-        normal: 1.25,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const Z_AI_GLM_5_3_PRIME = {
@@ -15237,18 +9753,6 @@ const Z_AI_GLM_5_3_PRIME = {
   },
   context_window: 1000000,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 2.8,
-        cached: 0.56,
-      },
-      output: {
-        normal: 8.8,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const Z_AI_GLM_5_3_BATCH = {
@@ -15273,18 +9777,6 @@ const Z_AI_GLM_5_3_BATCH = {
   },
   context_window: 1048576,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.45,
-        cached: 0.1,
-      },
-      output: {
-        normal: 2,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const Z_AI_GLM_5V_TURBO = {
@@ -15304,18 +9796,6 @@ const Z_AI_GLM_5V_TURBO = {
   },
   context_window: 202752,
   max_output_tokens: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.2,
-        cached: 0.24,
-      },
-      output: {
-        normal: 4,
-      },
-    },
-    image: 0,
-  },
   reasoning: EFFORT_OFF_HIGH,
 } as const
 
