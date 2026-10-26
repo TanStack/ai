@@ -227,7 +227,7 @@ console.log(result.summary);
 
 ## Video
 
-`openaiVideo` makes Sora videos with `sora-2` and `sora-2-pro`. Video generation is experimental. See [Video Generation](../media/video-generation).
+`openaiVideo` makes Sora videos with `sora-2` and `sora-2-pro`. See [Video Generation](../media/video-generation).
 
 ## Realtime voice
 

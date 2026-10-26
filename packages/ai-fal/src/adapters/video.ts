@@ -127,8 +127,6 @@ function mapFalStatusToVideoStatus(
  *
  * Uses fal.ai's comprehensive type system to provide autocomplete
  * and type safety for all supported video models.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
   TModel,
@@ -276,8 +274,6 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
 
 /**
  * Create a fal.ai video adapter with an explicit API key.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export function createFalVideo<TModel extends FalModel>(
   model: TModel,
@@ -288,8 +284,6 @@ export function createFalVideo<TModel extends FalModel>(
 
 /**
  * Create a fal.ai video adapter using config.apiKey or the FAL_KEY environment variable.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export function falVideo<TModel extends FalModel>(
   model: TModel,

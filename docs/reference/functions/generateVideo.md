@@ -7,9 +7,7 @@ title: generateVideo
 function generateVideo<TAdapter, TStream>(options): TStream extends true ? AsyncIterable<AGUIEvent, any, any> : Promise<VideoJobResult>;
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/index.ts:426
-
-**`Experimental`**
+Defined in: packages/ai/src/activities/generateVideo/index.ts:413
 
 Generate video - creates a video generation job from a text prompt.
 
@@ -18,8 +16,6 @@ Unlike image generation, video generation is asynchronous and requires polling f
 
 When `stream: true` is passed, handles the full job lifecycle automatically:
 create job → poll for status → stream updates → yield final result.
-
- Video generation is an experimental feature and may change.
 
 ## Type Parameters
 

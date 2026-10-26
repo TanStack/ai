@@ -49,9 +49,6 @@ export {
 } from './adapters/image'
 export type { LovableImageProviderOptions } from './image/image-provider-options'
 
-/**
- * @experimental Video generation is an experimental feature and may change.
- */
 export {
   LovableVideoAdapter,
   createLovableVideo,

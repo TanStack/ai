@@ -244,6 +244,7 @@ Official adapters include:
 | [`@tanstack/ai-reactor`](https://tanstack.com/ai/latest/docs/adapters/reactor)       | Reactor live world and video generation (Orbis, Happy Oyster, LingBot, Helios, FastH3) |
 | [`@tanstack/ai-worldlabs`](https://tanstack.com/ai/latest/docs/adapters/worldlabs)   | World Labs Marble persistent 3D world generation                                       |
 | [`@tanstack/ai-cloudflare`](https://tanstack.com/ai/latest/docs/adapters/cloudflare) | Cloudflare Workers AI chat, embeddings, image, speech, transcription, and AI Gateway   |
+| [`@tanstack/ai-neon`](https://tanstack.com/ai/latest/docs/adapters/neon)             | Neon AI Gateway chat and embeddings for Claude, GPT, Gemini, and open models           |
 
 The adapter system is tree-shakeable by activity. Import `openaiText` for chat,
 `openaiImage` for images, `falVideo` for video, `geminiSpeech` for TTS, and so

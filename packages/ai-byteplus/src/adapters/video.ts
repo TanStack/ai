@@ -55,8 +55,6 @@ import type { BytePlusArkConfig } from '../utils/client'
 
 /**
  * Configuration for the BytePlus Seedance video adapter.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export interface BytePlusVideoConfig extends BytePlusArkConfig {}
 
@@ -174,7 +172,6 @@ function describeTaskFailure(task: BytePlusVideoTask): string {
  * Frame roles and reference roles cannot be combined in one request, so the
  * adapter rejects a mix up front rather than surfacing a raw 400.
  *
- * @experimental Video generation is an experimental feature and may change.
  *
  * @example
  * ```typescript
@@ -649,7 +646,6 @@ export class BytePlusVideoAdapter<
  * Creates a BytePlus Seedance video adapter with an explicit API key.
  * Type resolution happens here at the call site.
  *
- * @experimental Video generation is an experimental feature and may change.
  *
  * @param model - The model name (e.g., 'seedance-1-0-pro-fast-251015')
  * @param apiKey - Your BytePlus Ark API key
@@ -683,7 +679,6 @@ export function createBytePlusVideo<TModel extends BytePlusVideoModelOrString>(
  * Note that Ark keys are region-isolated and Seedance is only served from the
  * Asia-Pacific endpoint — an EU key will not work here.
  *
- * @experimental Video generation is an experimental feature and may change.
  *
  * @param model - The model name (e.g., 'dreamina-seedance-2-0-260128')
  * @param config - Optional configuration (excluding apiKey, auto-detected)

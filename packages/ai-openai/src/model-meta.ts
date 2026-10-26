@@ -551,7 +551,6 @@ const GPT5_CODEX = {
 
 /**
  * Sora-2 video generation model.
- * @experimental Video generation is an experimental feature and may change.
  */
 const SORA2 = {
   name: 'sora-2',
@@ -576,7 +575,6 @@ const SORA2 = {
 
 /**
  * Sora-2-Pro video generation model (higher quality).
- * @experimental Video generation is an experimental feature and may change.
  */
 const SORA2_PRO = {
   name: 'sora-2-pro',
@@ -2764,7 +2762,6 @@ export type OpenAIImageModel = (typeof OPENAI_IMAGE_MODELS)[number]
 
 /**
  * Video generation models (based on endpoints: "video")
- * @experimental Video generation is an experimental feature and may change.
  */
 export const OPENAI_VIDEO_MODELS = [SORA2.name, SORA2_PRO.name] as const
 

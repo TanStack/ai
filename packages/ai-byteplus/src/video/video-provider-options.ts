@@ -28,8 +28,6 @@
  * (role vocabulary, frame-vs-reference exclusivity, frame cardinality,
  * audio-only reference) and the resolution tier, both of which are derived
  * from a caller's `prompt` / `size` rather than passed through verbatim.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 
 import { isKnownBytePlusVideoModel } from '../model-meta'
@@ -52,8 +50,6 @@ import type {
  * Only the Seedance 1.x models accept this field. Seedance 2.5 and the 2.0
  * family reject it ("service_tier is not supported … must be empty" / "not
  * currently supported").
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type BytePlusVideoServiceTier = 'default' | 'flex'
 
@@ -62,8 +58,6 @@ export type BytePlusVideoServiceTier = 'default' | 'flex'
  *
  * Seedance 2.5 documents `mp4` (default) and `mov`. Other models historically
  * return `mp4` only; scalar applicability is left to Ark (see file header).
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type BytePlusVideoOutputFormat = 'mp4' | 'mov'
 
@@ -75,8 +69,6 @@ export type BytePlusVideoOutputFormat = 'mp4' | 'mov'
  * Fields are model-dependent; each one documents where it applies. Passing a
  * field to a model that does not accept it is a 400 from Ark, not a silent
  * ignore.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export interface BytePlusVideoProviderOptions {
   /**
@@ -201,8 +193,6 @@ export interface BytePlusVideoProviderOptions {
  * Type-only map from video model name to its provider options. Seedance takes
  * the same option surface across models; applicability is per-field and
  * documented on {@link BytePlusVideoProviderOptions}.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type BytePlusVideoModelProviderOptionsByName = {
   [K in BytePlusVideoModel]: BytePlusVideoProviderOptions
@@ -288,8 +278,6 @@ const BYTEPLUS_VIDEO_AUDIO_ONLY_REFERENCE_MODELS: ReadonlySet<string> = new Set(
  * images, video and audio). An id this package has no metadata for answers
  * `false`; callers must decide whether that means "no" or "unknown" — the
  * adapter treats it as unknown and lets Ark rule.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export function supportsReferenceMedia(model: string): boolean {
   return BYTEPLUS_VIDEO_REFERENCE_MEDIA_MODELS.has(model)
@@ -298,8 +286,6 @@ export function supportsReferenceMedia(model: string): boolean {
 /**
  * True when the model is *known* to support pinning the video's closing
  * frame. Same unknown-id caveat as {@link supportsReferenceMedia}.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export function supportsLastFrame(model: string): boolean {
   return BYTEPLUS_VIDEO_LAST_FRAME_MODELS.has(model)
@@ -308,8 +294,6 @@ export function supportsLastFrame(model: string): boolean {
 /**
  * True when the model is *known* to accept a reference-audio input without a
  * visual reference. Same unknown-id caveat as {@link supportsReferenceMedia}.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export function supportsAudioOnlyReference(model: string): boolean {
   return BYTEPLUS_VIDEO_AUDIO_ONLY_REFERENCE_MODELS.has(model)
@@ -325,8 +309,6 @@ export function supportsAudioOnlyReference(model: string): boolean {
  * The resolution half comes back lowercased. Ark itself matches the field
  * case-insensitively, but this package standardizes on lowercase so callers
  * can compare the result against {@link BytePlusVideoResolution} directly.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export function parseBytePlusVideoSize(
   size: string,
@@ -349,8 +331,6 @@ export function parseBytePlusVideoSize(
  * {@link BytePlusVideoModelOrString}.
  *
  * @throws Error when a known model does not offer the tier.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export function resolveBytePlusVideoResolution(
   model: BytePlusVideoModelOrString,
@@ -379,8 +359,6 @@ export function resolveBytePlusVideoResolution(
  *
  * @throws Error when the template is malformed, or (known models only) the
  * ratio is unknown or the resolution is not offered by this model.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export function resolveBytePlusVideoSize(
   model: BytePlusVideoModelOrString,
