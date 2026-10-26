@@ -32,16 +32,4 @@ jobs:
       - name: Run Coverage
         # Keep the args after `--` identical to both runs in pr.yml. Nx puts
         # forwarded args in the task hash, so any difference is a cache miss.
-        # VITEST_MAX_WORKERS is not an Nx input. One worker per package matches
-        # the PR Coverage job so this warmer does not time out on 4 cores.
-        env:
-          VITEST_MAX_WORKERS: "1"
-        run: |
-          set +e
-          pnpm exec nx run-many --targets=test:coverage --exclude='examples/**,testing/**' -- --coverage.reporter=json-summary --coverage.include='src/**'
-          status=$?
-          set -e
-          if [ "$status" -ne 0 ]; then
-            node --disable-warning=ExperimentalWarning scripts/print-failed-nx-logs.mjs --cache .nx/cache --data .nx/workspace-data || echo "Could not print failed task logs"
-            exit "$status"
-          fi
+        run: pnpm exec nx run-many --targets=test:coverage --exclude='examples/**,testing/**' -- --coverage.reporter=json-summary --coverage.include='src/**'
