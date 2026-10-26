@@ -2,6 +2,8 @@
 
 Measured 2026-10-26. Each row is one `exports` entry, minified and gzipped. Dependencies are external. `.svelte` files are counted as their published source. Shared modules are counted again in each entry that pulls them in, so do not add the rows up into a package total.
 
+For dependency composition, open `scripts/bundle-size.html` (`node scripts/check-bundle-size.mjs --html`).
+
 187 entries measured. 0 failed.
 
 ## Largest 15
