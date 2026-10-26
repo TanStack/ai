@@ -166,6 +166,11 @@
           "to": "comparison/vercel-ai-sdk",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "TanStack AI vs pi",
+          "to": "comparison/pi",
+          "addedAt": "2026-10-26"
         }
       ],
       "tab": "get-started"
