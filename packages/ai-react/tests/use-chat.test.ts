@@ -6,6 +6,7 @@ import {
   StrictMode,
   Suspense,
   createElement,
+  useEffect,
   useLayoutEffect,
   useState,
 } from 'react'
@@ -3324,6 +3325,43 @@ describe('useChat', () => {
       )
       expect(server.joinRun).toHaveBeenCalledWith('r1', expect.anything())
       expect(result.current.status).toBe('ready')
+    })
+
+    it('shows again with the new client, never the disposed one', async () => {
+      const server = createRunServer()
+      // What the view's own effects read, as they run on each commit.
+      const loadingInEffects: Array<boolean> = []
+      let mode: 'visible' | 'hidden' = 'visible'
+      const { result, rerender } = renderHook(
+        () => {
+          const chat = useChat({
+            connection: server.connection,
+            threadId: 't1',
+            persistence: true,
+          })
+          useEffect(() => {
+            loadingInEffects.push(chat.isHydrating)
+          })
+          return chat
+        },
+        {
+          wrapper: ({ children }) =>
+            createElement(Activity, { mode, children }),
+        },
+      )
+      await waitFor(() => expect(result.current.isHydrating).toBe(false))
+
+      mode = 'hidden'
+      rerender()
+      await outlastDisposal()
+      const shownAt = loadingInEffects.length
+      mode = 'visible'
+      rerender()
+
+      // The effects that run as the view shows read a client that loads the
+      // thread, not the idle snapshot of the client the teardown disposed.
+      expect(loadingInEffects[shownAt]).toBe(true)
+      await waitFor(() => expect(result.current.isHydrating).toBe(false))
     })
 
     it('keeps the transcript on screen after an idle hide', async () => {
