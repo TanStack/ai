@@ -3216,7 +3216,7 @@ describe('useChat', () => {
           })
         }
       }
-      const hydrate = vi.fn(async () => ({
+      const hydrate = vi.fn(async (_threadId: string) => ({
         messages: [],
         activeRun: chunks.length > 0 && !done ? { runId: 'r1' } : null,
         interrupts: null,
@@ -3386,6 +3386,25 @@ describe('useChat', () => {
         expect(result.current.isHydrating).toBe(false)
       })
       expect(assistantText(result.current.messages)).toBe('Hello')
+    })
+
+    it('keeps the client of a new thread, and disposes only the old one', async () => {
+      const server = createRunServer()
+      const { result, show } = renderInActivity(server.connection)
+      await waitFor(() => expect(result.current.isHydrating).toBe(false))
+
+      act(() => show(true, 't2'))
+      await waitFor(() => expect(result.current.isHydrating).toBe(false))
+      await outlastDisposal()
+      await outlastDisposal()
+
+      // The old thread's teardown disposes its own client, not the new one:
+      // the new thread loads once and stays loaded.
+      const loadsOfT2 = server.hydrate.mock.calls.filter(
+        ([threadId]) => threadId === 't2',
+      )
+      expect(loadsOfT2).toHaveLength(1)
+      expect(result.current.isHydrating).toBe(false)
     })
 
     it('starts another thread empty when it shows on a new threadId', async () => {
