@@ -30,7 +30,7 @@ This package is a stop gap while you port an app from the AI SDK one side at a t
 ## Installation
 
 ```bash
-pnpm add @tanstack/ai-ui-message-stream @tanstack/ai ai
+pnpm add @tanstack/ai-ui-message-stream @tanstack/ai @tanstack/ai-client ai
 ```
 
 ## AI SDK client, TanStack AI server
@@ -81,15 +81,16 @@ export function Chat() {
 | Export                                                                       | Direction                                                                  |
 | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | `chatParamsFromAISDKRequest(request)`                                        | AI SDK `useChat` request to `chat()` params, approval answers included     |
+| `chatParamsFromAISDKRequestBody(body)`                                       | The same, from a body you already read                                     |
 | `toUIMessageStream(stream)`                                                  | `chat()` events to an AI SDK UI message stream                             |
 | `toResumableUIMessageStreamResponse(stream, durability)`                     | A `chat()` run that AI SDK `useChat({ resume: true })` can rejoin          |
 | `resumeUIMessageStreamResponse(durability)`                                  | The AI SDK resume `GET`                                                    |
 | `fromChatTransport(transport, { threadId, tools, outputSchema, reconnect })` | AI SDK `ChatTransport` to a TanStack `useChat` connection                  |
 | `clientToolsFromAISDKBody(body, serverTools)`                                | On an AI SDK route: the client tools of the request, plus the server tools |
 | `fromAISDKMessages` / `toAISDKMessages`                                      | Message history in each direction                                          |
-| `fromUIMessageStream(stream, ids)`                                           | AI SDK UI message stream to TanStack events                                |
+| `fromUIMessageStream(stream, { threadId, runId, tools, outputSchema })`      | AI SDK UI message stream to TanStack events                                |
 
-Text, reasoning, tools, tool approvals, activity, subagents and stream resume cross in both directions where the other side has them. Shared state goes from a TanStack server to an AI SDK client only, because the AI SDK client does not send state.
+Text, reasoning, tools, tool approvals, activity and stream resume cross in both directions where the other side has them. Subagents and shared state go from a TanStack server to an AI SDK client only, because the AI SDK has neither.
 
 ## Docs
 

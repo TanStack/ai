@@ -382,8 +382,10 @@ function toAISDKParts(message: UIMessage): Array<AISDKPart> {
 /**
  * Convert TanStack chat messages into AI SDK `UIMessage`s, the history an AI
  * SDK route reads with `convertToModelMessages`. Tool calls become
- * `dynamic-tool` parts, and a `step-start` part follows each tool result.
- * System messages are left out: `streamText` rejects them in `messages`. The
+ * `dynamic-tool` parts. After a tool result, a `step-start` part goes before
+ * the next part, except after the result of a provider-executed call.
+ * System and activity messages are left out: `streamText` rejects system
+ * messages in `messages`, and activity is UI only. The
  * AI SDK message metadata that `fromUIMessageStream` kept goes back as the
  * message `metadata`.
  */

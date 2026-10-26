@@ -51,8 +51,8 @@ place to stay: finish the port of the other side, then remove it.
   they need no copy there.
   https://tanstack.com/ai/latest/docs/migration/tanstack-client-ai-sdk-server
 
-Tool approvals, client tools, activity, subagents and stream resume cross the
-bridge. Shared state goes from a TanStack server to an AI SDK client only.
+Tool approvals, client tools, activity and stream resume cross the bridge.
+Subagents and shared state go from a TanStack server to an AI SDK client only.
 
 ## Upgrading TanStack AI itself
 

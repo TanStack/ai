@@ -21,7 +21,8 @@ Use this page to move the client first. To move the server first, see [AI SDK us
 
 Against your AI SDK route, TanStack `useChat` gives you:
 
-- Client persistence and resume after a reload, with no server code.
+- Client persistence, with no server code.
+- Resume after a reload, when the route has the AI SDK resume `GET`.
 - A [message queue](../chat/queueing) while a reply streams.
 - Client tools that the route reads from the request, with no copy on the route.
 - Typed structured output, with partial objects while it streams.
@@ -34,14 +35,14 @@ Against your AI SDK route, TanStack `useChat` gives you:
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
-react: @tanstack/ai-react @tanstack/ai-ui-message-stream ai
-vue: @tanstack/ai-vue @tanstack/ai-ui-message-stream ai
-solid: @tanstack/ai-solid @tanstack/ai-ui-message-stream ai
-svelte: @tanstack/ai-svelte @tanstack/ai-ui-message-stream ai
-preact: @tanstack/ai-preact @tanstack/ai-ui-message-stream ai
-angular: @tanstack/ai-angular @tanstack/ai-ui-message-stream ai
-octane: @tanstack/ai-octane @tanstack/ai-ui-message-stream ai octane
-vanilla: @tanstack/ai-client @tanstack/ai-ui-message-stream ai
+react: @tanstack/ai @tanstack/ai-client @tanstack/ai-react @tanstack/ai-ui-message-stream ai
+vue: @tanstack/ai @tanstack/ai-client @tanstack/ai-vue @tanstack/ai-ui-message-stream ai
+solid: @tanstack/ai @tanstack/ai-client @tanstack/ai-solid @tanstack/ai-ui-message-stream ai
+svelte: @tanstack/ai @tanstack/ai-client @tanstack/ai-svelte @tanstack/ai-ui-message-stream ai
+preact: @tanstack/ai @tanstack/ai-client @tanstack/ai-preact @tanstack/ai-ui-message-stream ai
+angular: @tanstack/ai @tanstack/ai-client @tanstack/ai-angular @tanstack/ai-ui-message-stream ai
+octane: @tanstack/ai @tanstack/ai-client @tanstack/ai-octane @tanstack/ai-ui-message-stream ai octane
+vanilla: @tanstack/ai @tanstack/ai-client @tanstack/ai-ui-message-stream ai
 
 <!-- ::end:tabs -->
 
@@ -118,13 +119,21 @@ const getWeather = tool({
   execute: async ({ city }) => ({ city, temperature: 72 }),
 })
 
+// The route asks for the approval and runs the tool after it.
+const bookFlight = tool({
+  description: 'Book a flight',
+  inputSchema: z.object({ to: z.string() }),
+  needsApproval: true,
+  execute: async ({ to }) => ({ booked: to }),
+})
+
 export async function POST(request: Request) {
   const body = await request.json()
 
   const result = streamText({
     model: openai('gpt-6.1-sol'),
     messages: await convertToModelMessages(body.messages),
-    tools: clientToolsFromAISDKBody(body, { getWeather }),
+    tools: clientToolsFromAISDKBody(body, { getWeather, bookFlight }),
   })
 
   return result.toUIMessageStreamResponse()
@@ -138,7 +147,7 @@ export async function POST(request: Request) {
 Pass the tools to `useChat`, and to `fromChatTransport` for approvals:
 
 - **Client tool:** give it a `.client()` implementation. When the route stops at the call, the client runs the tool and sends the output back.
-- **Tool approval:** a tool that needs approval on the route shows up in `interrupts`. Resolve it with `interrupt.resolveInterrupt(true)` or `false`. The answer goes back to the route, and `streamText` runs or skips the tool.
+- **Tool approval:** declare the tool on the route with `needsApproval: true` and an `execute`, as `bookFlight` above. On the client, give it `needsApproval: true` and no implementation. The call shows up in `interrupts`. Resolve it with `interrupt.resolveInterrupt(true)` or `false`. The answer goes back to the route, and `streamText` runs or skips the tool.
 
 ```tsx
 import { toolDefinition } from '@tanstack/ai'
@@ -240,7 +249,7 @@ const connection = fromChatTransport(
   new DefaultChatTransport({ api: '/api/chat' }),
 )
 
-export function SavedChat({ saved }: { saved: Array<UIMessage> }) {
+export function useSavedChat(saved: Array<UIMessage>) {
   return useChat({
     connection,
     threadId: 'support-chat',
@@ -251,11 +260,13 @@ export function SavedChat({ saved }: { saved: Array<UIMessage> }) {
 
 ## 7. Show data parts as activity
 
-A data part with an `id` (`writer.write({ type: 'data-weather', id, data })` on the route) arrives as an activity message of type `weather`. A new value for the same id replaces it. A transient data part, or one with no `id`, arrives as a custom event named `data-<name>`.
+A data part with an `id` (`writer.write({ type: 'data-weather', id, data })` on the route) arrives as an activity message of type `weather`. A new value for the same type and id replaces it. A transient data part, or one with no `id`, arrives as a custom event named `data-<name>`.
 
 ## 8. Resume a stream
 
 A dropped connection needs nothing. The connection calls `reconnectToStream` on the transport, and the reply continues. It waits longer between tries that get no new data, as the TanStack HTTP connections do. To change the waits and the limit, pass `reconnect` to `fromChatTransport`, for example `{ maxAttempts: 10 }`.
+
+A reply that ends before its `finish` chunk, for example at a proxy timeout, also reconnects. When the route has no resume `GET`, a dropped reply fails with its own error, and a reply that ended early stays as it is.
 
 To continue a reply after a page reload, add client persistence, and pass the `threadId` to `fromChatTransport`. The route must support the AI SDK resume `GET` (`/api/chat/<id>/stream`):
 

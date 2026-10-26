@@ -26,14 +26,14 @@ Use this page to move the server first. To move the client first, see [TanStack 
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
-react: @tanstack/ai @tanstack/ai-ui-message-stream @tanstack/ai-openai
-vue: @tanstack/ai @tanstack/ai-ui-message-stream @tanstack/ai-openai
-solid: @tanstack/ai @tanstack/ai-ui-message-stream @tanstack/ai-openai
-svelte: @tanstack/ai @tanstack/ai-ui-message-stream @tanstack/ai-openai
-preact: @tanstack/ai @tanstack/ai-ui-message-stream @tanstack/ai-openai
-angular: @tanstack/ai @tanstack/ai-ui-message-stream @tanstack/ai-openai
-octane: @tanstack/ai @tanstack/ai-ui-message-stream @tanstack/ai-openai
-vanilla: @tanstack/ai @tanstack/ai-ui-message-stream @tanstack/ai-openai
+react: @tanstack/ai @tanstack/ai-client @tanstack/ai-ui-message-stream @tanstack/ai-openai
+vue: @tanstack/ai @tanstack/ai-client @tanstack/ai-ui-message-stream @tanstack/ai-openai
+solid: @tanstack/ai @tanstack/ai-client @tanstack/ai-ui-message-stream @tanstack/ai-openai
+svelte: @tanstack/ai @tanstack/ai-client @tanstack/ai-ui-message-stream @tanstack/ai-openai
+preact: @tanstack/ai @tanstack/ai-client @tanstack/ai-ui-message-stream @tanstack/ai-openai
+angular: @tanstack/ai @tanstack/ai-client @tanstack/ai-ui-message-stream @tanstack/ai-openai
+octane: @tanstack/ai @tanstack/ai-client @tanstack/ai-ui-message-stream @tanstack/ai-openai
+vanilla: @tanstack/ai @tanstack/ai-client @tanstack/ai-ui-message-stream @tanstack/ai-openai
 
 <!-- ::end:tabs -->
 
@@ -64,8 +64,8 @@ export async function POST(request: Request) {
 
 What each call does:
 
-- `chatParamsFromAISDKRequest` reads the body that `useChat` sends. It returns the `threadId` (the chat id), the `messages`, and the answers to tool approvals. If the body is not valid, it throws a `Response` with status 400.
-- `toUIMessageStream` converts the events of `chat()` into the AI SDK UI message stream.
+- `chatParamsFromAISDKRequest` reads the body that `useChat` sends. It returns the `threadId` (the chat id), the `messages`, and the answers to tool approvals. If the body is not valid, it throws a `Response` with status 400. An approval answer must come with the paused run id that `toUIMessageStream` put in the message metadata.
+- `toUIMessageStream` converts the events of `chat()` into the AI SDK UI message stream. A `chat()` error reaches `useChat` as its `error`. When the client goes away, the run stops.
 
 ## 3. Keep the client
 
@@ -253,7 +253,7 @@ export async function GET(request: Request) {
 
 - A change to shared state on the client. The AI SDK client does not send state.
 - The `reason` text of an approval answer.
-- A `stop()` on the client stops the reading, not the run. To stop the run, pass an `abortController` to `chat()`.
+- A `stop()` on the client, with `toResumableUIMessageStreamResponse`. It stops the reading, not the run. To stop the run, pass an `abortController` to `chat()`.
 
 For every event and message part, see [AI SDK bridge compatibility](./ai-sdk-compatibility).
 
