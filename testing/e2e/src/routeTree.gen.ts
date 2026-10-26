@@ -198,6 +198,7 @@ import { Route as ApiVideoRouteImport } from './routes/api.video'
 import { Route as ApiVideoLiveRouteImport } from './routes/api.video-live'
 import { Route as ApiVoiceRouteImport } from './routes/api.voice'
 import { Route as ApiWebMcpPageToolsRouteImport } from './routes/api.web-mcp-page-tools'
+import { Route as ApiWorkflowOrchestrationRouteImport } from './routes/api.workflow-orchestration'
 import { Route as ApiWorldRouteImport } from './routes/api.world'
 import { Route as ApiWrapFetchWireRouteImport } from './routes/api.wrap-fetch-wire'
 import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
@@ -1204,6 +1205,12 @@ const ApiWebMcpPageToolsRoute = ApiWebMcpPageToolsRouteImport.update({
   path: '/api/web-mcp-page-tools',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWorkflowOrchestrationRoute =
+  ApiWorkflowOrchestrationRouteImport.update({
+    id: '/api/workflow-orchestration',
+    path: '/api/workflow-orchestration',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiWorldRoute = ApiWorldRouteImport.update({
   id: '/api/world',
   path: '/api/world',
@@ -1456,6 +1463,7 @@ export interface FileRoutesByFullPath {
   '/api/video-live': typeof ApiVideoLiveRoute
   '/api/voice': typeof ApiVoiceRoute
   '/api/web-mcp-page-tools': typeof ApiWebMcpPageToolsRoute
+  '/api/workflow-orchestration': typeof ApiWorkflowOrchestrationRoute
   '/api/world': typeof ApiWorldRoute
   '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider/': typeof ProviderIndexRoute
@@ -1659,6 +1667,7 @@ export interface FileRoutesByTo {
   '/api/video-live': typeof ApiVideoLiveRoute
   '/api/voice': typeof ApiVoiceRoute
   '/api/web-mcp-page-tools': typeof ApiWebMcpPageToolsRoute
+  '/api/workflow-orchestration': typeof ApiWorkflowOrchestrationRoute
   '/api/world': typeof ApiWorldRoute
   '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider': typeof ProviderIndexRoute
@@ -1863,6 +1872,7 @@ export interface FileRoutesById {
   '/api/video-live': typeof ApiVideoLiveRoute
   '/api/voice': typeof ApiVoiceRoute
   '/api/web-mcp-page-tools': typeof ApiWebMcpPageToolsRoute
+  '/api/workflow-orchestration': typeof ApiWorkflowOrchestrationRoute
   '/api/world': typeof ApiWorldRoute
   '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider/': typeof ProviderIndexRoute
@@ -2068,6 +2078,7 @@ export interface FileRouteTypes {
     | '/api/video-live'
     | '/api/voice'
     | '/api/web-mcp-page-tools'
+    | '/api/workflow-orchestration'
     | '/api/world'
     | '/api/wrap-fetch-wire'
     | '/$provider/'
@@ -2271,6 +2282,7 @@ export interface FileRouteTypes {
     | '/api/video-live'
     | '/api/voice'
     | '/api/web-mcp-page-tools'
+    | '/api/workflow-orchestration'
     | '/api/world'
     | '/api/wrap-fetch-wire'
     | '/$provider'
@@ -2474,6 +2486,7 @@ export interface FileRouteTypes {
     | '/api/video-live'
     | '/api/voice'
     | '/api/web-mcp-page-tools'
+    | '/api/workflow-orchestration'
     | '/api/world'
     | '/api/wrap-fetch-wire'
     | '/$provider/'
@@ -2678,6 +2691,7 @@ export interface RootRouteChildren {
   ApiVideoLiveRoute: typeof ApiVideoLiveRoute
   ApiVoiceRoute: typeof ApiVoiceRoute
   ApiWebMcpPageToolsRoute: typeof ApiWebMcpPageToolsRoute
+  ApiWorkflowOrchestrationRoute: typeof ApiWorkflowOrchestrationRoute
   ApiWorldRoute: typeof ApiWorldRoute
   ApiWrapFetchWireRoute: typeof ApiWrapFetchWireRoute
   ProviderIndexRoute: typeof ProviderIndexRoute
@@ -4013,6 +4027,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWebMcpPageToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/workflow-orchestration': {
+      id: '/api/workflow-orchestration'
+      path: '/api/workflow-orchestration'
+      fullPath: '/api/workflow-orchestration'
+      preLoaderRoute: typeof ApiWorkflowOrchestrationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/world': {
       id: '/api/world'
       path: '/api/world'
@@ -4353,6 +4374,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiVideoLiveRoute: ApiVideoLiveRoute,
   ApiVoiceRoute: ApiVoiceRoute,
   ApiWebMcpPageToolsRoute: ApiWebMcpPageToolsRoute,
+  ApiWorkflowOrchestrationRoute: ApiWorkflowOrchestrationRoute,
   ApiWorldRoute: ApiWorldRoute,
   ApiWrapFetchWireRoute: ApiWrapFetchWireRoute,
   ProviderIndexRoute: ProviderIndexRoute,
