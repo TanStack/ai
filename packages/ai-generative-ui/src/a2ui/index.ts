@@ -8,4 +8,5 @@
 
 export * from './a2ui'
 export * from './catalog-map'
+export * from './intents'
 export * from './translator'
