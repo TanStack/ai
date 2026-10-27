@@ -207,6 +207,71 @@ export const BASIC_CATALOG_PROFILE: Record<string, MappingFn> = {
     )
     return node(ctx, 'Section', {}, { children: ctx.children })
   },
+
+  // ---- Custom-catalog components seen in CopilotKit BYOC examples --------
+  // A host registers its own A2UI catalog components through the same
+  // override hook (`TranslatorOptions.mappings`); these are included to
+  // demonstrate the extension point and to cover the common data widgets.
+  // Prop names target the host renderer: Chart reads flat `data`, Metric
+  // reads `delta`/`tone`, Table reads `columns`/`rows`.
+
+  DataTable: (ctx) =>
+    node(ctx, 'Table', {
+      columns: Array.isArray(ctx.props.columns) ? ctx.props.columns : [],
+      rows: Array.isArray(ctx.props.rows) ? ctx.props.rows : [],
+    }),
+
+  Metric: (ctx) => {
+    const props: Record<string, unknown> = {
+      label: str(ctx.props.label),
+      value: ctx.props.value ?? '',
+    }
+    // A2UI's `trend` maps to the host's signed `delta`.
+    const delta = ctx.props.delta ?? ctx.props.trend
+    if (delta != null) props.delta = delta
+    if (typeof ctx.props.unit === 'string') props.unit = ctx.props.unit
+    if (
+      ctx.props.tone === 'positive' ||
+      ctx.props.tone === 'negative' ||
+      ctx.props.tone === 'neutral'
+    ) {
+      props.tone = ctx.props.tone
+    }
+    return node(ctx, 'Metric', props)
+  },
+
+  PieChart: (ctx) => chart(ctx, 'pie'),
+  BarChart: (ctx) => chart(ctx, 'bar'),
+
+  StatusBadge: (ctx) =>
+    node(ctx, 'Text', {
+      content: str(ctx.props.text ?? ctx.props.label),
+      variant: 'caption',
+    }),
+
+  InfoRow: (ctx) =>
+    node(ctx, 'Text', {
+      content: `${str(ctx.props.label)}: ${str(ctx.props.value)}`,
+      variant: 'body',
+    }),
+}
+
+/**
+ * A2UI chart data is `[{ label, value }]`, which is exactly the host Chart's
+ * flat `data` shape — no series transform needed.
+ */
+function chart(ctx: MappingContext, kind: 'pie' | 'bar'): UINode {
+  const raw = Array.isArray(ctx.props.data)
+    ? (ctx.props.data as Array<{ label?: unknown; value?: unknown }>)
+    : []
+  return node(ctx, 'Chart', {
+    kind,
+    title: str(ctx.props.title),
+    data: raw.map((d) => ({
+      label: str(d.label),
+      value: Number(d.value) || 0,
+    })),
+  })
 }
 
 /** A2UI Button variants -> host Button tone enum. */
