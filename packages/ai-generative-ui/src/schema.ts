@@ -26,10 +26,14 @@ export const GRAPH_DOCUMENT_SCHEMA = {
       type: 'object',
       required: ['driver'],
       properties: {
-        driver: { type: 'string', enum: ['fixture', 'programmatic', 'live'] },
+        driver: {
+          type: 'string',
+          enum: ['fixture', 'programmatic', 'live', 'a2ui'],
+        },
         agentId: { type: 'string' },
         runId: { type: 'string' },
         sourceId: { type: 'string' },
+        context: { type: 'object' },
       },
     },
     root: { $ref: '#/definitions/UINode' },

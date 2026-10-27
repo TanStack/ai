@@ -24,10 +24,16 @@ export type SemanticTone =
   | 'accent'
 
 export interface GraphProvenance {
-  driver: 'fixture' | 'programmatic' | 'live'
+  driver: 'fixture' | 'programmatic' | 'live' | 'a2ui'
   agentId?: string
   runId?: string
   sourceId?: string
+  /**
+   * Extra provenance context. Carries the originating A2UI `catalogId` for
+   * graphs translated from A2UI surfaces (driver `'a2ui'`), so a translated
+   * graph can always be told apart from a native one in audit.
+   */
+  context?: Record<string, unknown>
 }
 
 export interface GraphDocument {

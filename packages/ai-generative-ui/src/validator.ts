@@ -111,7 +111,7 @@ export function validateGraph(
     }
   } else {
     const driver = rawProvenance.driver as string
-    if (!['fixture', 'programmatic', 'live'].includes(driver)) {
+    if (!['fixture', 'programmatic', 'live', 'a2ui'].includes(driver)) {
       if (repair) {
         provenance = { driver: 'live' }
         repairs.push('Repaired invalid provenance.driver to "live"')
@@ -121,7 +121,7 @@ export function validateGraph(
       }
     } else {
       provenance = {
-        driver: driver as 'fixture' | 'programmatic' | 'live',
+        driver: driver as 'fixture' | 'programmatic' | 'live' | 'a2ui',
         agentId:
           typeof rawProvenance.agentId === 'string'
             ? rawProvenance.agentId
@@ -133,6 +133,12 @@ export function validateGraph(
         sourceId:
           typeof rawProvenance.sourceId === 'string'
             ? rawProvenance.sourceId
+            : undefined,
+        context:
+          rawProvenance.context &&
+          typeof rawProvenance.context === 'object' &&
+          !Array.isArray(rawProvenance.context)
+            ? (rawProvenance.context as Record<string, unknown>)
             : undefined,
       }
     }
