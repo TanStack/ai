@@ -13,6 +13,13 @@ through the app's existing `drizzle-kit` setup.
 Do not create a package, a second `db` instance, a migration runner, or a
 `drizzle.config.ts`. The app has those.
 
+**Always write all four tables and all four stores: threads, runs, interrupts,
+metadata.** This is true on every dialect. The docs call `interrupts` and
+`metadata` optional for a hand-rolled adapter; this recipe is not that case.
+`withPersistence` needs all four to type-check as `ChatPersistence`, and
+the conformance suite in step 5 fails without them. Do not stop at
+`chat_threads` + `chat_runs`.
+
 Read the **Store Reference**
 (`docs/persistence/store-reference.md`) for the store contracts and
 invariants, and **ai-persistence/stores** for the shape rules. Every
@@ -131,17 +138,87 @@ groups by. `error` and `errorCode` always move together in `update`, so a
 later code-less failure can never leave a stale `code` from an earlier one
 behind.
 
-**Postgres** (`drizzle-orm/pg-core`): `jsonb()` for the JSON payloads,
-`bigint({ mode: 'number' })` for epoch-ms timestamps (including
-`detachedSince`), `integer()` for `driverEpoch`, `boolean()` for
-`cancelRequested`, `text()` elsewhere, composite `primaryKey` on
-`(namespace, key)` unchanged. **MySQL**
-(`drizzle-orm/mysql-core`): `json()`, `bigint({ mode: 'number' })`,
-`boolean()` for `cancelRequested`, and `varchar(..., { length: 255 })` for the
-primary-key columns. The store bodies below are identical across all three,
-only `onConflictDoUpdate` becomes `onDuplicateKeyUpdate` on MySQL, and the
-`(status, detachedSince)`, `(threadId, startedAt)`, and
-`(parentRunId, startedAt)` indexes carry over as is.
+**Postgres** (`drizzle-orm/pg-core`). Same four tables. `jsonb()` for
+the JSON payloads, `bigint({ mode: 'number' })` for epoch-ms timestamps,
+`boolean()` for `cancelRequested`, `integer()` for `driverEpoch`. Copy
+this block; do not translate the SQLite one by hand.
+
+```ts ignore
+import {
+  bigint,
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+} from 'drizzle-orm/pg-core'
+import type { ModelMessage, TokenUsage } from '@tanstack/ai'
+import type { InterruptRecord, RunStatus } from '@tanstack/ai-persistence'
+
+export const chatThreads = pgTable('chat_threads', {
+  threadId: text('thread_id').primaryKey(),
+  messagesJson: jsonb('messages_json').$type<Array<ModelMessage>>().notNull(),
+  updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
+})
+
+export const chatRuns = pgTable(
+  'chat_runs',
+  {
+    runId: text('run_id').primaryKey(),
+    threadId: text('thread_id').notNull(),
+    status: text('status').$type<RunStatus>().notNull(),
+    startedAt: bigint('started_at', { mode: 'number' }).notNull(),
+    finishedAt: bigint('finished_at', { mode: 'number' }),
+    error: text('error'),
+    errorCode: text('error_code'),
+    usageJson: jsonb('usage_json').$type<TokenUsage>(),
+    sandboxKey: text('sandbox_key'),
+    detachedSince: bigint('detached_since', { mode: 'number' }),
+    cancelRequested: boolean('cancel_requested'),
+    driverEpoch: integer('driver_epoch'),
+    parentRunId: text('parent_run_id'),
+    subagentRunId: text('subagent_run_id'),
+    name: text('name'),
+  },
+  (table) => [
+    index('chat_runs_status_detached').on(table.status, table.detachedSince),
+    index('chat_runs_thread_started').on(table.threadId, table.startedAt),
+    index('chat_runs_parent_started').on(table.parentRunId, table.startedAt),
+  ],
+)
+
+export const chatInterrupts = pgTable('chat_interrupts', {
+  interruptId: text('interrupt_id').primaryKey(),
+  runId: text('run_id').notNull(),
+  threadId: text('thread_id').notNull(),
+  status: text('status').$type<InterruptRecord['status']>().notNull(),
+  requestedAt: bigint('requested_at', { mode: 'number' }).notNull(),
+  resolvedAt: bigint('resolved_at', { mode: 'number' }),
+  payloadJson: jsonb('payload_json').$type<Record<string, unknown>>().notNull(),
+  responseJson: jsonb('response_json').$type<unknown>(),
+})
+
+export const chatMetadata = pgTable(
+  'chat_metadata',
+  {
+    namespace: text('namespace').notNull(),
+    key: text('key').notNull(),
+    valueJson: jsonb('value_json').$type<unknown>().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.namespace, table.key] })],
+)
+```
+
+**MySQL** (`drizzle-orm/mysql-core`): take the Postgres block and swap
+`pgTable` for `mysqlTable`, `jsonb()` for `json()`, and `text()` for
+`varchar(..., { length: 255 })` on the primary-key columns. `bigint({ mode:
+'number' })`, `boolean()`, `integer()`, the indexes, and the composite
+primary key stay as they are.
+
+The store bodies in step 3 are identical across all three dialects. Only
+`onConflictDoUpdate` becomes `onDuplicateKeyUpdate` on MySQL.
 
 ## 3. Write `src/lib/chat-persistence.ts`
 
@@ -581,6 +658,14 @@ declare it with `skipMethods`, for example
 fails the suite instead of silently passing. Subagent support is optional: when
 `listByParentRun` is absent, the subagent checks skip on their own and need no
 entry.
+
+## Before you say it is done
+
+- The schema file has all four tables: threads, runs, interrupts, metadata.
+- `chat-persistence.ts` has all four store factories and passes all four to
+  `defineAIPersistence`.
+- The export is annotated `ChatPersistence`.
+- The conformance suite in step 5 runs green on the app's dialect.
 
 ## Only if you are publishing this as a package
 
