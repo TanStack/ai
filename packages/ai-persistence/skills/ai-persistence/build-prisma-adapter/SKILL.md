@@ -510,15 +510,15 @@ import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
 import { chatPersistence } from '../src/lib/chat-persistence'
 
 runPersistenceConformance('app-prisma', () => chatPersistence, {
-  skip: ['generationRuns', 'artifacts', 'blobs'],
+  skip: ['activities', 'generationRuns', 'artifacts', 'blobs'],
 })
 ```
 
 Point the client at a throwaway database with the migration applied (a scratch
 SQLite file is enough) and reset it between runs. All four state stores are
-provided; the suite also covers the three generation stores, so declare those as
-skipped until you add them. `skip` never accepts `'locks'`, which is not a
-store.
+provided; the suite also covers the optional `activities` store and the three
+generation stores, so declare those as skipped until you add them. `skip`
+never accepts `'locks'`, which is not a store.
 
 If your recipe leaves `listByThread` or `listReclaimable` unimplemented,
 declare it with `skipMethods`, for example

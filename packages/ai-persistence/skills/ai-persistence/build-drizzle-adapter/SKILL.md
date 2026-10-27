@@ -642,14 +642,15 @@ import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
 import { chatPersistence } from '../src/lib/chat-persistence'
 
 runPersistenceConformance('app-drizzle', () => chatPersistence, {
-  skip: ['generationRuns', 'artifacts', 'blobs'],
+  skip: ['activities', 'generationRuns', 'artifacts', 'blobs'],
 })
 ```
 
 Point it at a throwaway database (`:memory:` SQLite, a scratch schema, PGlite)
-that has the migration applied, and reset between runs. The suite covers all
-seven stores, so a chat adapter declares the generation half it omits; drop the
-`skip` once you add those tables. `skip` never accepts `'locks'`, which is not a
+that has the migration applied, and reset between runs. The suite covers
+every store, so a chat adapter declares what it omits: the optional
+`activities` store and the generation half. Drop an entry from `skip` once
+you add that table. `skip` never accepts `'locks'`, which is not a
 store.
 
 If your recipe leaves `listByThread` or `listReclaimable` unimplemented,
