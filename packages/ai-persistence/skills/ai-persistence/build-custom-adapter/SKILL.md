@@ -246,7 +246,9 @@ function mapRun(row: RunRow): RunRecord {
     threadId: row.thread_id,
     status: toRunStatus(row.status),
     startedAt: epochMs(row.started_at),
-    ...(row.finished_at != null ? { finishedAt: epochMs(row.finished_at) } : {}),
+    ...(row.finished_at != null
+      ? { finishedAt: epochMs(row.finished_at) }
+      : {}),
     ...(row.error != null
       ? {
           error: {
@@ -280,8 +282,12 @@ function mapInterrupt(row: InterruptRow): InterruptRecord {
     status: toInterruptStatus(row.status),
     requestedAt: epochMs(row.requested_at),
     payload: readJson(row.payload_json),
-    ...(row.resolved_at != null ? { resolvedAt: epochMs(row.resolved_at) } : {}),
-    ...(row.response_json != null ? { response: readJson(row.response_json) } : {}),
+    ...(row.resolved_at != null
+      ? { resolvedAt: epochMs(row.resolved_at) }
+      : {}),
+    ...(row.response_json != null
+      ? { response: readJson(row.response_json) }
+      : {}),
   }
 }
 
@@ -478,7 +484,9 @@ function createInterruptStore(db: Pool): InterruptStore {
           record.threadId,
           record.requestedAt,
           JSON.stringify(record.payload),
-          record.response === undefined ? null : JSON.stringify(record.response),
+          record.response === undefined
+            ? null
+            : JSON.stringify(record.response),
         ],
       )
     },
