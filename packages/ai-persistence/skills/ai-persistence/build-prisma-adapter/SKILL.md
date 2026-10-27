@@ -132,7 +132,9 @@ if the app targets SQLite or if it is multi-provider.
 Two conversions the SQL backends do not need: `BigInt` timestamps in and out,
 and JSON as strings. Everything else is the shared invariant set.
 
-```ts ignore
+<!-- fence: prisma-chat-persistence -->
+
+```ts
 import { defineAIPersistence } from '@tanstack/ai-persistence'
 import type {
   ChatInterrupt,

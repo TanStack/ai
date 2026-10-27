@@ -62,8 +62,12 @@
     }
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.11",
     "@tanstack/ai": "workspace:*",
+    "@types/pg": "^8.23.1",
     "@vitest/coverage-v8": "4.1.10",
+    "drizzle-orm": "^0.45.4",
+    "pg": "^8.23.1",
     "vitest": "^4.1.10"
   }
 }
