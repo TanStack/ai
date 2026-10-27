@@ -2,7 +2,7 @@
 title: AI SDK useChat with a TanStack AI server
 id: ai-sdk-client-tanstack-server
 order: 3
-description: "Serve the Vercel AI SDK useChat hook from TanStack AI chat(). Read the request with chatParamsFromAISDKRequest and convert the reply with toUIMessageStream. Your AI SDK UI does not change."
+description: "Serve the Vercel AI SDK useChat hook from TanStack AI chat(). Read the request with chatParamsFromAISDKRequest and convert the reply with toUIMessageStream, or keep a plain TanStack route and convert in the browser with toChatTransport. Your AI SDK UI does not change."
 keywords:
   - tanstack ai
   - vercel ai sdk
@@ -10,6 +10,7 @@ keywords:
   - ai elements
   - ui message stream
   - toUIMessageStream
+  - toChatTransport
   - tool approval
   - resumable streams
   - migration
@@ -17,7 +18,7 @@ keywords:
 
 Serve the AI SDK `useChat` hook from TanStack AI `chat()`. Read the request with `chatParamsFromAISDKRequest`, and convert the reply with `toUIMessageStream`. Your AI SDK client code, AI Elements included, does not change.
 
-Use this page to move the server first. To move the client first, see [TanStack useChat with an AI SDK server](./tanstack-client-ai-sdk-server).
+Use this page to move the server first. To keep a plain TanStack route and convert in the browser, see [Bridge in the browser](#bridge-in-the-browser). To move the client first, see [TanStack useChat with an AI SDK server](./tanstack-client-ai-sdk-server).
 
 > [!WARNING]
 > This bridge is a stop gap while you port. Some features change shape or are dropped on the way (see [AI SDK bridge compatibility](./ai-sdk-compatibility)). When the server works, port the client to TanStack `useChat` with the [migration guide](./migration-from-vercel-ai), then remove the bridge.
@@ -248,6 +249,58 @@ export async function GET(request: Request) {
 - `toResumableUIMessageStreamResponse` writes the run to the log. The run continues when the client goes away.
 - `resumeUIMessageStreamResponse` replays the run from its start. With no active run, it returns 204, and the client does nothing.
 - `memoryStream` keeps the log in the memory of one process. For more than one server, use [`@tanstack/ai-durable-stream`](../resumable-streams/overview).
+
+## Bridge in the browser
+
+Pass `toChatTransport(fetchServerSentEvents('/api/chat'))` as the `transport` of AI SDK `useChat`. The route is a plain TanStack route, with no AI SDK code. The conversion runs in the browser.
+
+1. Serve `chat()` as for TanStack `useChat`:
+
+   ```typescript
+   import {
+     chat,
+     chatParamsFromRequest,
+     toServerSentEventsResponse,
+   } from '@tanstack/ai'
+   import { openaiText } from '@tanstack/ai-openai'
+
+   export async function POST(request: Request) {
+     const params = await chatParamsFromRequest(request)
+
+     return toServerSentEventsResponse(
+       chat({ ...params, adapter: openaiText('gpt-6.1-sol') }),
+     )
+   }
+   ```
+
+2. Give `useChat` the transport:
+
+   ```tsx
+   import { useChat } from '@ai-sdk/react'
+   import { fetchServerSentEvents } from '@tanstack/ai-client'
+   import { toChatTransport } from '@tanstack/ai-ui-message-stream'
+
+   const transport = toChatTransport(fetchServerSentEvents('/api/chat'))
+
+   export function Chat() {
+     const { messages, sendMessage } = useChat({ transport })
+
+     return (
+       <div>
+         {messages.map((m) => (
+           <div key={m.id}>
+             {m.parts.map((p, i) =>
+               p.type === 'text' ? <span key={i}>{p.text}</span> : null,
+             )}
+           </div>
+         ))}
+         <button onClick={() => sendMessage({ text: 'Hello' })}>Send</button>
+       </div>
+     )
+   }
+   ```
+
+Tools, approvals and client tools work as in [Add tools](#4-add-tools). An approval answer resumes the paused run. If the answer has no paused run id in the message metadata, `sendMessages` throws. `resumeStream()` rejoins the last run of the chat in the same page, when the connection has `joinRun` and the route keeps a durability log.
 
 ## What does not go through
 

@@ -44,6 +44,10 @@ place to stay: finish the port of the other side, then remove it.
   `chat({ adapter, ...(await chatParamsFromAISDKRequest(request)) })` and
   `toUIMessageStream`.
   https://tanstack.com/ai/latest/docs/migration/ai-sdk-client-tanstack-server
+- Server first, with no AI SDK code on the route: serve `chat()` with
+  `toServerSentEventsResponse` and pass
+  `toChatTransport(fetchServerSentEvents('/api/chat'))` as the AI SDK
+  `useChat` transport. The conversion runs in the browser.
 - Client first: keep the `streamText` route and pass
   `fromChatTransport(new DefaultChatTransport({ api }), { threadId, tools })`
   as the `connection` of TanStack `useChat`. On the route,

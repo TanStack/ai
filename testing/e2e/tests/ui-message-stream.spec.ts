@@ -293,3 +293,58 @@ test.describe('AI SDK UI message stream: TanStack client, AI SDK server', () => 
     await expect(page.getByTestId('error')).not.toContainText(/limit/i)
   })
 })
+
+test.describe('AI SDK UI message stream: AI SDK client bridges in the browser', () => {
+  const PAGE = '/ai-sdk-client-bridge'
+
+  test('reads a plain chat() route through toChatTransport', async ({
+    page,
+  }) => {
+    await page.goto(PAGE)
+
+    await expect(page.getByTestId('tool-states')).toHaveText(
+      'getWeather:output-available',
+    )
+    await expect(page.getByTestId('assistant-text')).toHaveText(
+      'Tool said: sunny in Oslo',
+    )
+  })
+
+  test('approves a server tool', async ({ page }) => {
+    await open(page, PAGE, 'Delete a.txt')
+
+    await page.getByTestId('approve-button').click()
+
+    await expect(page.getByTestId('assistant-text')).toHaveText(
+      'Tool said: deleted a.txt',
+    )
+  })
+
+  test('denies a server tool', async ({ page }) => {
+    await open(page, PAGE, 'Delete a.txt')
+
+    await page.getByTestId('deny-button').click()
+
+    await expect(page.getByTestId('tool-states')).toHaveText(
+      'deleteFile:output-denied',
+    )
+  })
+
+  test('continues one assistant message after a client tool', async ({
+    page,
+  }) => {
+    await open(page, PAGE, '[client-tool] where am I?')
+
+    await expect(page.getByTestId('assistant-text')).toHaveText(
+      'Tool said: Berlin',
+    )
+    await expect(page.getByTestId('assistant-count')).toHaveText('1')
+  })
+
+  test('shows a chat() RUN_ERROR as an error', async ({ page }) => {
+    await open(page, PAGE, '[error] hi')
+
+    await expect(page.getByTestId('error')).toHaveText('The model is down')
+    await expect(page.getByTestId('status')).toHaveText('error')
+  })
+})

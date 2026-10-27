@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActivityTestRouteImport } from './routes/activity-test'
 import { Route as AiSdkClientRouteImport } from './routes/ai-sdk-client'
+import { Route as AiSdkClientBridgeRouteImport } from './routes/ai-sdk-client-bridge'
 import { Route as AiSdkResumeRouteImport } from './routes/ai-sdk-resume'
 import { Route as AiSdkServerRouteImport } from './routes/ai-sdk-server'
 import { Route as ByokRouteImport } from './routes/byok'
@@ -56,6 +57,7 @@ import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature
 import { Route as ApiActivityTestRouteImport } from './routes/api.activity-test'
 import { Route as ApiAdapterInputModalitiesRouteImport } from './routes/api.adapter-input-modalities'
 import { Route as ApiAiSdkClientRouteImport } from './routes/api.ai-sdk-client'
+import { Route as ApiAiSdkClientBridgeRouteImport } from './routes/api.ai-sdk-client-bridge'
 import { Route as ApiAiSdkServerRouteImport } from './routes/api.ai-sdk-server'
 import { Route as ApiAnthropicAuthWireRouteImport } from './routes/api.anthropic-auth-wire'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
@@ -230,6 +232,11 @@ const ActivityTestRoute = ActivityTestRouteImport.update({
 const AiSdkClientRoute = AiSdkClientRouteImport.update({
   id: '/ai-sdk-client',
   path: '/ai-sdk-client',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AiSdkClientBridgeRoute = AiSdkClientBridgeRouteImport.update({
+  id: '/ai-sdk-client-bridge',
+  path: '/ai-sdk-client-bridge',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AiSdkResumeRoute = AiSdkResumeRouteImport.update({
@@ -454,6 +461,11 @@ const ApiAdapterInputModalitiesRoute =
 const ApiAiSdkClientRoute = ApiAiSdkClientRouteImport.update({
   id: '/api/ai-sdk-client',
   path: '/api/ai-sdk-client',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAiSdkClientBridgeRoute = ApiAiSdkClientBridgeRouteImport.update({
+  id: '/api/ai-sdk-client-bridge',
+  path: '/api/ai-sdk-client-bridge',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAiSdkServerRoute = ApiAiSdkServerRouteImport.update({
@@ -1307,6 +1319,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
   '/ai-sdk-client': typeof AiSdkClientRoute
+  '/ai-sdk-client-bridge': typeof AiSdkClientBridgeRoute
   '/ai-sdk-resume': typeof AiSdkResumeRoute
   '/ai-sdk-server': typeof AiSdkServerRoute
   '/byok': typeof ByokRoute
@@ -1350,6 +1363,7 @@ export interface FileRoutesByFullPath {
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
   '/api/ai-sdk-client': typeof ApiAiSdkClientRoute
+  '/api/ai-sdk-client-bridge': typeof ApiAiSdkClientBridgeRoute
   '/api/ai-sdk-server': typeof ApiAiSdkServerRoute
   '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
@@ -1516,6 +1530,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
   '/ai-sdk-client': typeof AiSdkClientRoute
+  '/ai-sdk-client-bridge': typeof AiSdkClientBridgeRoute
   '/ai-sdk-resume': typeof AiSdkResumeRoute
   '/ai-sdk-server': typeof AiSdkServerRoute
   '/byok': typeof ByokRoute
@@ -1559,6 +1574,7 @@ export interface FileRoutesByTo {
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
   '/api/ai-sdk-client': typeof ApiAiSdkClientRoute
+  '/api/ai-sdk-client-bridge': typeof ApiAiSdkClientBridgeRoute
   '/api/ai-sdk-server': typeof ApiAiSdkServerRoute
   '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
@@ -1726,6 +1742,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
   '/ai-sdk-client': typeof AiSdkClientRoute
+  '/ai-sdk-client-bridge': typeof AiSdkClientBridgeRoute
   '/ai-sdk-resume': typeof AiSdkResumeRoute
   '/ai-sdk-server': typeof AiSdkServerRoute
   '/byok': typeof ByokRoute
@@ -1769,6 +1786,7 @@ export interface FileRoutesById {
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
   '/api/ai-sdk-client': typeof ApiAiSdkClientRoute
+  '/api/ai-sdk-client-bridge': typeof ApiAiSdkClientBridgeRoute
   '/api/ai-sdk-server': typeof ApiAiSdkServerRoute
   '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
@@ -1937,6 +1955,7 @@ export interface FileRouteTypes {
     | '/'
     | '/activity-test'
     | '/ai-sdk-client'
+    | '/ai-sdk-client-bridge'
     | '/ai-sdk-resume'
     | '/ai-sdk-server'
     | '/byok'
@@ -1980,6 +1999,7 @@ export interface FileRouteTypes {
     | '/api/activity-test'
     | '/api/adapter-input-modalities'
     | '/api/ai-sdk-client'
+    | '/api/ai-sdk-client-bridge'
     | '/api/ai-sdk-server'
     | '/api/anthropic-auth-wire'
     | '/api/anthropic-bug-test'
@@ -2146,6 +2166,7 @@ export interface FileRouteTypes {
     | '/'
     | '/activity-test'
     | '/ai-sdk-client'
+    | '/ai-sdk-client-bridge'
     | '/ai-sdk-resume'
     | '/ai-sdk-server'
     | '/byok'
@@ -2189,6 +2210,7 @@ export interface FileRouteTypes {
     | '/api/activity-test'
     | '/api/adapter-input-modalities'
     | '/api/ai-sdk-client'
+    | '/api/ai-sdk-client-bridge'
     | '/api/ai-sdk-server'
     | '/api/anthropic-auth-wire'
     | '/api/anthropic-bug-test'
@@ -2355,6 +2377,7 @@ export interface FileRouteTypes {
     | '/'
     | '/activity-test'
     | '/ai-sdk-client'
+    | '/ai-sdk-client-bridge'
     | '/ai-sdk-resume'
     | '/ai-sdk-server'
     | '/byok'
@@ -2398,6 +2421,7 @@ export interface FileRouteTypes {
     | '/api/activity-test'
     | '/api/adapter-input-modalities'
     | '/api/ai-sdk-client'
+    | '/api/ai-sdk-client-bridge'
     | '/api/ai-sdk-server'
     | '/api/anthropic-auth-wire'
     | '/api/anthropic-bug-test'
@@ -2565,6 +2589,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActivityTestRoute: typeof ActivityTestRoute
   AiSdkClientRoute: typeof AiSdkClientRoute
+  AiSdkClientBridgeRoute: typeof AiSdkClientBridgeRoute
   AiSdkResumeRoute: typeof AiSdkResumeRoute
   AiSdkServerRoute: typeof AiSdkServerRoute
   ByokRoute: typeof ByokRoute
@@ -2608,6 +2633,7 @@ export interface RootRouteChildren {
   ApiActivityTestRoute: typeof ApiActivityTestRoute
   ApiAdapterInputModalitiesRoute: typeof ApiAdapterInputModalitiesRoute
   ApiAiSdkClientRoute: typeof ApiAiSdkClientRoute
+  ApiAiSdkClientBridgeRoute: typeof ApiAiSdkClientBridgeRoute
   ApiAiSdkServerRoute: typeof ApiAiSdkServerRoute
   ApiAnthropicAuthWireRoute: typeof ApiAnthropicAuthWireRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
@@ -2787,6 +2813,13 @@ declare module '@tanstack/react-router' {
       path: '/ai-sdk-client'
       fullPath: '/ai-sdk-client'
       preLoaderRoute: typeof AiSdkClientRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ai-sdk-client-bridge': {
+      id: '/ai-sdk-client-bridge'
+      path: '/ai-sdk-client-bridge'
+      fullPath: '/ai-sdk-client-bridge'
+      preLoaderRoute: typeof AiSdkClientBridgeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ai-sdk-resume': {
@@ -3095,6 +3128,13 @@ declare module '@tanstack/react-router' {
       path: '/api/ai-sdk-client'
       fullPath: '/api/ai-sdk-client'
       preLoaderRoute: typeof ApiAiSdkClientRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ai-sdk-client-bridge': {
+      id: '/api/ai-sdk-client-bridge'
+      path: '/api/ai-sdk-client-bridge'
+      fullPath: '/api/ai-sdk-client-bridge'
+      preLoaderRoute: typeof ApiAiSdkClientBridgeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/ai-sdk-server': {
@@ -4282,6 +4322,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActivityTestRoute: ActivityTestRoute,
   AiSdkClientRoute: AiSdkClientRoute,
+  AiSdkClientBridgeRoute: AiSdkClientBridgeRoute,
   AiSdkResumeRoute: AiSdkResumeRoute,
   AiSdkServerRoute: AiSdkServerRoute,
   ByokRoute: ByokRoute,
@@ -4325,6 +4366,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiActivityTestRoute: ApiActivityTestRoute,
   ApiAdapterInputModalitiesRoute: ApiAdapterInputModalitiesRoute,
   ApiAiSdkClientRoute: ApiAiSdkClientRoute,
+  ApiAiSdkClientBridgeRoute: ApiAiSdkClientBridgeRoute,
   ApiAiSdkServerRoute: ApiAiSdkServerRoute,
   ApiAnthropicAuthWireRoute: ApiAnthropicAuthWireRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,

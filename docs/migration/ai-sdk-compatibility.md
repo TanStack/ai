@@ -12,7 +12,7 @@ keywords:
   - migration
 ---
 
-Use these tables to see what `@tanstack/ai-ui-message-stream` does with each feature, event and message part. The guides are [AI SDK useChat with a TanStack AI server](./ai-sdk-client-tanstack-server) and [TanStack useChat with an AI SDK server](./tanstack-client-ai-sdk-server).
+Use these tables to see what `@tanstack/ai-ui-message-stream` does with each feature, event and message part. The guides are [AI SDK useChat with a TanStack AI server](./ai-sdk-client-tanstack-server) and [TanStack useChat with an AI SDK server](./tanstack-client-ai-sdk-server). The column for an AI SDK client also covers `toChatTransport`, which runs the same conversion in the browser.
 
 > [!WARNING]
 > The bridge is a stop gap while you port one side of an app. The rows marked ❌ **Dropped** and ➡️ **One way** are why. Finish the port with the [migration guide](./migration-from-vercel-ai), then remove the bridge.

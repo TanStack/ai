@@ -29,6 +29,7 @@ export {
 } from './request'
 export type { AISDKChatParams } from './request'
 export { clientToolsFromAISDKBody } from './client-tools'
+export { toChatTransport } from './transport'
 export type { SubagentData } from './data-parts'
 
 function asUIMessages(

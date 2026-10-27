@@ -42,7 +42,19 @@ export async function chatParamsFromAISDKRequestBody(
   const messages = await validateUIMessages<AISDKUIMessage>({
     messages: body.messages,
   })
+  return chatParamsFromAISDKMessages(body.id, messages)
+}
 
+/**
+ * The `chat()` parameters for an AI SDK chat id and its history. An approval
+ * answer becomes a resume item for the paused run.
+ *
+ * @throws An error when an approval answer has no paused run id.
+ */
+export function chatParamsFromAISDKMessages(
+  threadId: string,
+  messages: Array<AISDKUIMessage>,
+): AISDKChatParams {
   const resume = messages.flatMap((message) =>
     message.parts.flatMap(
       (part): Array<RunAgentResumeItem> =>
@@ -58,7 +70,7 @@ export async function chatParamsFromAISDKRequestBody(
     ),
   )
 
-  const params = { threadId: body.id, messages: fromAISDKMessages(messages) }
+  const params = { threadId, messages: fromAISDKMessages(messages) }
   if (resume.length === 0) return params
   // `toUIMessageStream` puts the run id in the message metadata.
   const runId = tanstackField(
