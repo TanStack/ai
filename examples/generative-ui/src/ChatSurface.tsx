@@ -6,8 +6,10 @@ import {
 } from '@tanstack/ai-react'
 import { MCPAppResource } from '@tanstack/ai-react/mcp-apps'
 import {
+  A2uiSurfaceStore,
   GenerativeUIRenderer,
   FrameArtifactRenderer,
+  parseA2uiOperations,
   validateGraph,
   LiveDriver,
   type ArtifactPin,
@@ -106,6 +108,36 @@ function parseGraph(argsJson: string): GraphDocument | null {
   return validation.valid && validation.graph
     ? validation.graph
     : LiveDriver.processModelOutput(raw)
+}
+
+/**
+ * A2UI detection trigger (Open Generative UI addendum §A1/§A4, landing-plan
+ * commit 5) — the second ingress, beside render_ui. Flag-gated by
+ * `VITE_A2UI_BINDING` (default off): when a tool call carries A2UI v0.9
+ * operations (an `a2ui_operations` container or bare ops), translate them
+ * through `A2uiSurfaceStore` into a graph the SAME renderer consumes. The
+ * demo emits no such tool, so this path is inert — the render path is
+ * byte-identical with the flag off.
+ */
+const A2UI_BINDING = import.meta.env.VITE_A2UI_BINDING === 'true'
+
+function parseA2uiGraph(argsJson: string): GraphDocument | null {
+  if (!A2UI_BINDING || !argsJson) return null
+  let raw: unknown
+  try {
+    raw = JSON.parse(argsJson)
+  } catch {
+    return null // still streaming / incomplete
+  }
+  if (parseA2uiOperations(raw).operations.length === 0) return null
+  const store = new A2uiSurfaceStore()
+  store.applyContainer(raw)
+  const surfaces = store.listSurfaces()
+  const last = surfaces[surfaces.length - 1]
+  if (!last) return null
+  const graph = store.getGraph(last)
+  if (!graph) return null
+  return validateGraph(graph, { repair: true }).graph ?? graph
 }
 
 const sandboxUrl = (pin: ArtifactPin, instanceId: string) =>
@@ -523,6 +555,38 @@ function MessageRow({
                 </div>
               </div>
             )
+          }
+          // ---- A2UI v0.9 surface (flag-gated), beside render_ui ----
+          // The second detection trigger: a tool call whose payload is A2UI
+          // operations, translated into a graph and rendered by the same
+          // GenerativeUIRenderer. Inert unless VITE_A2UI_BINDING is on.
+          if (
+            A2UI_BINDING &&
+            part.name !== 'create_artifact' &&
+            part.name !== 'revise_artifact'
+          ) {
+            const a2uiGraph = parseA2uiGraph(part.arguments)
+            if (a2uiGraph) {
+              return (
+                <div
+                  className="chat-graph-frame animate-surface-rise"
+                  key={part.id}
+                >
+                  <div className="chat-graph-meta">
+                    <span className="chat-graph-dot" />
+                    <span className="font-mono">{a2uiGraph.graphId}</span>
+                    <span className="text-slate-600">·</span>
+                    <span>A2UI → graph</span>
+                  </div>
+                  <div className="chat-graph-scroll">
+                    <GenerativeUIRenderer
+                      graph={a2uiGraph}
+                      onIntent={onIntent}
+                    />
+                  </div>
+                </div>
+              )
+            }
           }
           // ---- Tier F: create/revise_artifact -> sandboxed frame ----
           // react-tsx keeps our FrameArtifactRenderer (needs a serving origin for
