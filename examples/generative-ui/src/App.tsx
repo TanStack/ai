@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { ChatSurface } from './ChatSurface'
 import { Playground } from './Playground'
 import { FrameSurface } from './FrameSurface'
+import { A2uiSurface } from './A2uiSurface'
 
-type Surface = 'chat' | 'playground' | 'frame'
+type Surface = 'chat' | 'playground' | 'frame' | 'a2ui'
 
 /**
  * Two surfaces, one deliberate default. The conversation (ChatSurface) is the
@@ -69,6 +70,20 @@ export function App() {
               tier F
             </span>
           </button>
+          <button
+            type="button"
+            onClick={() => setSurface('a2ui')}
+            className={`px-3 py-1 rounded-md transition-colors font-medium ${
+              surface === 'a2ui'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            A2UI
+            <span className="ml-1.5 text-[9px] text-slate-500 uppercase tracking-wide hidden sm:inline">
+              inbound
+            </span>
+          </button>
         </div>
       </div>
 
@@ -77,8 +92,10 @@ export function App() {
           <ChatSurface />
         ) : surface === 'playground' ? (
           <Playground />
-        ) : (
+        ) : surface === 'frame' ? (
           <FrameSurface />
+        ) : (
+          <A2uiSurface />
         )}
       </div>
     </div>
