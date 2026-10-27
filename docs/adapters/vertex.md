@@ -144,7 +144,7 @@ vertexAudio("lyria-3-pro-preview", auth);
 vertexVideo("veo-3.1-generate-preview", auth);
 ```
 
-- `vertexSpeech`, `vertexAudio`, and `vertexVideo` are experimental.
+- `vertexSpeech` and `vertexAudio` are experimental.
 - `vertexText` ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the `@google/genai` SDK does not take a custom fetch.
 
 ## Models and options
@@ -242,6 +242,6 @@ Use [`mistralVertexText`](./mistral#mistral-on-vertex) from `@tanstack/ai-mistra
 | `vertexEmbedding(model, config?)` | Gemini embedding adapter on Vertex |
 | `vertexSpeech(model, config?)` | Gemini text-to-speech adapter on Vertex. Experimental |
 | `vertexAudio(model, config?)` | Gemini Lyria audio adapter on Vertex. Experimental |
-| `vertexVideo(model, config?)` | Gemini video adapter on Vertex. Experimental. `config.allowUrlFetch` is the same opt-in as on the Gemini video adapter |
+| `vertexVideo(model, config?)` | Gemini video adapter on Vertex. `config.allowUrlFetch` is the same opt-in as on the Gemini video adapter |
 
 `config` accepts `project`, `location`, `apiKey`, `googleAuthOptions`, `httpOptions`, and the other `@google/genai` client fields. The factory always sets `vertexai: true`.

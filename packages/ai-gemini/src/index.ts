@@ -103,10 +103,7 @@ export {
   type GeminiAudioProviderOptions,
 } from './adapters/audio'
 
-// Video generation adapter — Veo + Gemini Omni Flash (experimental)
-/**
- * @experimental Video generation is an experimental feature and may change.
- */
+// Video generation adapter — Veo + Gemini Omni Flash
 export {
   GeminiVideoAdapter,
   createGeminiVideo,

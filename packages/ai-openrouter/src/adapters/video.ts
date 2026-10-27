@@ -44,8 +44,6 @@ import type { OpenRouterClientConfig } from '../utils/client'
 
 /**
  * Configuration for the OpenRouter video adapter.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export interface OpenRouterVideoConfig extends OpenRouterClientConfig {}
 
@@ -210,8 +208,6 @@ function buildVideoUsage(
  * through one gateway. Uses a jobs/polling architecture: submit a job, poll
  * `GET /api/v1/videos/{jobId}` until completed, then download from the
  * job's unsigned URLs.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export class OpenRouterVideoAdapter<
   TModel extends OpenRouterVideoModel,
@@ -368,7 +364,6 @@ export class OpenRouterVideoAdapter<
 /**
  * Creates an OpenRouter video adapter with an explicit API key.
  *
- * @experimental Video generation is an experimental feature and may change.
  *
  * @example
  * ```typescript
@@ -392,7 +387,6 @@ export function createOpenRouterVideo<TModel extends OpenRouterVideoModel>(
  * Creates an OpenRouter video adapter using the `OPENROUTER_API_KEY`
  * environment variable.
  *
- * @experimental Video generation is an experimental feature and may change.
  *
  * @example
  * ```typescript

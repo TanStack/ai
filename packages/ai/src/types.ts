@@ -2586,8 +2586,6 @@ export interface AudioGenerationResult {
 /**
  * Options for video generation.
  * These are the common options supported across providers.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoGenerationOptions<
   TProviderOptions extends object = object,
@@ -2631,8 +2629,6 @@ export interface VideoGenerationOptions<
 
 /**
  * Result of creating a video generation job.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoJobResult {
   /** Unique job identifier for polling status */
@@ -2649,8 +2645,6 @@ export interface VideoJobResult {
 
 /**
  * Status of a video generation job.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoStatusResult {
   /** Job identifier */
@@ -2665,8 +2659,6 @@ export interface VideoStatusResult {
 
 /**
  * Result containing the URL to a generated video.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoUrlResult {
   /** Job identifier */
@@ -2690,8 +2682,6 @@ export interface VideoUrlResult {
  * Video bytes from a provider that has no public URL for the finished video.
  * Core passes `body` to generation middleware, which streams it into storage
  * and sets `url`. Use `withGenerationPersistence` with `artifactUrl`.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoStreamResult {
   /** Job identifier */

@@ -5,8 +5,6 @@
  * architecture: create a job, poll for status, then fetch a download URL.
  * For a live, prompt-steerable stream, use generateLiveVideo().
  * This is a self-contained module with implementation, types, and JSDoc.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 
 import { aiEventClient } from '@tanstack/ai-event-client'
@@ -181,8 +179,6 @@ interface VideoActivityBaseOptions<
  *
  * @template TAdapter - The video adapter type
  * @template TStream - Whether to stream the output
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type VideoCreateOptions<
   TAdapter extends VideoAdapter<string, any, any, any, any, any>,
@@ -304,8 +300,6 @@ export type VideoCreateOptions<
 
 /**
  * Options for polling the status of a video generation job.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoStatusOptions<
   TAdapter extends VideoAdapter<string, any, any, any, any, any>,
@@ -318,8 +312,6 @@ export interface VideoStatusOptions<
 
 /**
  * Options for getting the URL of a completed video.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoUrlOptions<
   TAdapter extends VideoAdapter<string, any, any, any, any, any>,
@@ -333,8 +325,6 @@ export interface VideoUrlOptions<
 /**
  * Union type for all video activity options.
  * Discriminated by the `request` field.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type VideoActivityOptions<
   TAdapter extends VideoAdapter<string, any, any, any, any, any>,
@@ -354,8 +344,6 @@ export type VideoActivityOptions<
  * Result type for the video activity, based on request type and streaming.
  * - If stream is true (create request): AsyncIterable<StreamChunk>
  * - Otherwise: Promise<VideoJobResult | VideoStatusResult | VideoUrlResult>
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type VideoActivityResult<
   TRequest extends 'create' | 'status' | 'url' = 'create',
@@ -381,7 +369,6 @@ export type VideoActivityResult<
  * When `stream: true` is passed, handles the full job lifecycle automatically:
  * create job → poll for status → stream updates → yield final result.
  *
- * @experimental Video generation is an experimental feature and may change.
  *
  * @example Create a video generation job
  * ```ts
@@ -827,8 +814,6 @@ async function* runStreamingVideoGeneration<
  * same pair the submitting `generateVideo()` call derived it from — so there is
  * no run id to thread through. With middleware, pass the submission's
  * `threadId` and the same `middleware`.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoJobStatusOptions<
   TAdapter extends VideoAdapter<string, any, any, any, any, any>,
@@ -857,8 +842,6 @@ export interface VideoJobStatusOptions<
 
 /**
  * The status of a video job, plus the video itself once the job completed.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoJobStatusResult {
   /** Job identifier */
@@ -886,7 +869,6 @@ export interface VideoJobStatusResult {
  * is identified by `adapter` + `jobId`, exactly what the submission derived it
  * from, so there is nothing else to carry between the two calls.
  *
- * @experimental Video generation is an experimental feature and may change.
  *
  * @example Check job status
  * ```ts

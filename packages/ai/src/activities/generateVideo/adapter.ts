@@ -15,8 +15,6 @@ import type {
  * Tagged union so the same shape can express discrete enums (OpenAI Sora,
  * Veo), continuous ranges, mixed shapes, and models with no duration field.
  * Consumed by `VideoAdapter.availableDurations()`.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type DurationOptions<T extends string | number | undefined> =
   | { kind: 'discrete'; values: ReadonlyArray<NonNullable<T>> }
@@ -36,8 +34,6 @@ export type VideoDurationSpell<N extends number> = N | `${N}` | `${N}s`
 
 /**
  * Configuration for video adapter instances
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoAdapterConfig {
   apiKey?: string
@@ -53,7 +49,6 @@ export interface VideoAdapterConfig {
  * An adapter is created by a provider function: `provider('model')` → `adapter`
  * All type resolution happens at the provider call site, not in this interface.
  *
- * @experimental Video generation is an experimental feature and may change.
  *
  * Generic parameters:
  * - TModel: The specific model name (e.g., 'sora-2')
@@ -187,7 +182,6 @@ export type AnyVideoAdapter = VideoAdapter<any, any, any, any, any, any>
  * Abstract base class for video generation adapters.
  * Extend this class to implement a video adapter for a specific provider.
  *
- * @experimental Video generation is an experimental feature and may change.
  *
  * Generic parameters match VideoAdapter - all pre-resolved by the provider function.
  */

@@ -134,9 +134,6 @@ To edit an image, pass image parts. OpenAI image models also take a mask part (`
 
 ## Video
 
-> [!NOTE]
-> Video generation is an [experimental feature](../media/video-generation).
-
 Video runs as a job. `generateVideo()` starts the job and returns a `jobId`. Poll the job until it has an MP4 URL:
 
 ```typescript

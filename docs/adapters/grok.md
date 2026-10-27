@@ -133,7 +133,7 @@ const result = await generateImage({
 
 ## Video
 
-Grok Imagine makes short clips (1 to 15 seconds, with audio). Video generation is experimental. You start a job, then poll it:
+Grok Imagine makes short clips (1 to 15 seconds, with audio). You start a job, then poll it:
 
 ```typescript
 import { generateVideo, getVideoJobStatus } from "@tanstack/ai";
@@ -538,7 +538,7 @@ Each factory pair has the same shape. The short factory reads `XAI_API_KEY` from
 | `grokText(model, config?)` / `createGrokText(model, apiKey, config?)` | Text adapter |
 | `grokSummarize(model, config?)` / `createGrokSummarize(model, apiKey, config?)` | Summarization adapter |
 | `grokImage(model, config?)` / `createGrokImage(model, apiKey, config?)` | Image adapter |
-| `grokVideo(model, config?)` / `createGrokVideo(model, apiKey, config?)` | Video adapter for the Grok Imagine video models. Experimental |
+| `grokVideo(model, config?)` / `createGrokVideo(model, apiKey, config?)` | Video adapter for the Grok Imagine video models |
 | `grokSpeech(model, config?)` / `createGrokSpeech(model, apiKey, config?)` | Text-to-speech adapter |
 | `grokTranscription(model, config?)` / `createGrokTranscription(model, apiKey, config?)` | Speech-to-text adapter |
 | `grokFiles` / `createGrokFiles` | Files API adapter. See [Files API](../advanced/files-api) |
