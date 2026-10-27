@@ -11,6 +11,7 @@ import {
 } from '@tanstack/ai-generative-ui'
 import { frameApiPlugin } from './server/frame-plugin'
 import { handleChat } from './server/chat-route'
+import { handleA2uiChat } from './server/a2ui-chat-route'
 import { handleLive } from './server/live-route'
 
 // Load .env.local if present
@@ -326,6 +327,23 @@ function generativeUiApiPlugin(): Plugin {
         if (req.method === 'POST' && req.url === '/api/chat') {
           try {
             await handleChat(req, res)
+          } catch (err: any) {
+            if (!res.headersSent) {
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ error: err.message }))
+            } else {
+              res.end()
+            }
+          }
+          return
+        }
+
+        // A2UI conversational surface — the model emits A2UI operations via the
+        // a2ui_ops tool; the client replays them into a persistent surface store.
+        if (req.method === 'POST' && req.url === '/api/a2ui-chat') {
+          try {
+            await handleA2uiChat(req, res)
           } catch (err: any) {
             if (!res.headersSent) {
               res.statusCode = 500

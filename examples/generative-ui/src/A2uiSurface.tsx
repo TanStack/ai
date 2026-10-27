@@ -5,6 +5,7 @@ import {
   type Diagnostic,
   type IntentPayload,
 } from '@tanstack/ai-generative-ui'
+import { A2uiChatSurface } from './A2uiChatSurface'
 
 /**
  * A2UI as a parallel ingress (addendum). This surface makes the claim visible:
@@ -270,6 +271,7 @@ const SCENARIOS: Array<Scenario> = [
 ]
 
 export function A2uiSurface() {
+  const [mode, setMode] = useState<'scenarios' | 'chat'>('scenarios')
   const [scenarioId, setScenarioId] = useState(SCENARIOS[0]!.id)
   const [streamed, setStreamed] = useState(0)
   const [intents, setIntents] = useState<Array<string>>([])
@@ -313,18 +315,63 @@ export function A2uiSurface() {
 
   const remaining = (scenario.stream?.length ?? 0) - streamed
 
+  const modeToggle = (
+    <div className="inline-flex shrink-0 rounded-lg border border-white/10 bg-white/5 p-0.5 text-xs">
+      {(['scenarios', 'chat'] as const).map((m) => (
+        <button
+          key={m}
+          type="button"
+          onClick={() => setMode(m)}
+          className={`px-3 py-1 rounded-md font-medium ${
+            mode === m
+              ? 'bg-indigo-600 text-white'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          {m === 'chat' ? 'Chat' : 'Scenarios'}
+        </button>
+      ))}
+    </div>
+  )
+
+  if (mode === 'chat') {
+    return (
+      <div className="h-full flex flex-col bg-[#070b14] text-slate-200">
+        <div className="shrink-0 flex items-start justify-between gap-4 px-4 sm:px-6 pt-5 pb-3">
+          <div>
+            <h2 className="text-lg font-semibold text-white">
+              A2UI → graph → renderer
+            </h2>
+            <p className="mt-1 text-xs text-slate-400 max-w-2xl">
+              The agent emits A2UI operations through a tool; they stream into a
+              persistent surface store and render live on the right. Ask it to
+              build something, then ask it to change it.
+            </p>
+          </div>
+          {modeToggle}
+        </div>
+        <div className="flex-1 min-h-0">
+          <A2uiChatSurface />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="h-full overflow-y-auto bg-[#070b14] text-slate-200">
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 py-6">
-        <div className="mb-5">
-          <h2 className="text-lg font-semibold text-white">
-            A2UI → graph → renderer
-          </h2>
-          <p className="mt-1 text-sm text-slate-400 max-w-3xl">
-            A2UI v0.9 operations, translated into the node graph and rendered by
-            the same host renderer the Chat surface uses. No second renderer, no
-            live model — the parallel mechanism, made visible.
-          </p>
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-white">
+              A2UI → graph → renderer
+            </h2>
+            <p className="mt-1 text-sm text-slate-400 max-w-3xl">
+              A2UI v0.9 operations, translated into the node graph and rendered
+              by the same host renderer the Chat surface uses. No second
+              renderer, no live model — the parallel mechanism, made visible.
+            </p>
+          </div>
+          {modeToggle}
         </div>
 
         <div className="flex flex-wrap items-center gap-2 mb-4">
